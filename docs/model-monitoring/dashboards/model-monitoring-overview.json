@@ -3,10 +3,7 @@
     "list": [
       {
         "builtIn": 1,
-        "datasource": {
-          "type": "datasource",
-          "uid": "grafana"
-        },
+        "datasource": "-- Grafana --",
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
@@ -21,10 +18,11 @@
       }
     ]
   },
+  "description": "This dashboard provides an overview of the existing model endpoints. Please note that the summary table reflects the current system status and is not influenced by the selected time range",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 31,
+  "id": 30,
   "links": [
     {
       "icon": "external link",
@@ -59,7 +57,8 @@
   "liveNow": false,
   "panels": [
     {
-      "datasource": "iguazio",
+      "datasource": "model-monitoring",
+      "description": "Number of active model endpoints in the system. Note that this KPI reflects the current system status and is not influenced by the selected time range.",
       "fieldConfig": {
         "defaults": {
           "mappings": [],
@@ -100,13 +99,13 @@
         },
         "textMode": "value"
       },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "9.2.20",
       "targets": [
         {
-          "datasource": "iguazio",
+          "datasource": "model-monitoring",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=uid;",
+          "target": "target_endpoint=list_endpoints;project=$PROJECT",
           "type": "table"
         }
       ],
@@ -119,6 +118,10 @@
               "count"
             ]
           }
+        },
+        {
+          "id": "merge",
+          "options": {}
         }
       ],
       "transparent": true,
@@ -126,6 +129,7 @@
     },
     {
       "datasource": "iguazio",
+      "description": "Average number of predictions per 5-minute interval for each model endpoint. Important Notes:\n- This KPI is based on the sampled invocations. If the sampling percentage is less than 100, the actual value may be higher.\n- This value excludes `router` model endpoints and reflects the invocation count for non-router models only.",
       "fieldConfig": {
         "defaults": {
           "mappings": [],
@@ -135,10 +139,6 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
               }
             ]
           }
@@ -166,14 +166,14 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "9.2.20",
       "targets": [
         {
           "datasource": "iguazio",
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=metrics;filter=endpoint_type!='2';",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields= predictions_count_5m;filter=endpoint_type!='2';",
           "type": "table"
         }
       ],
@@ -182,35 +182,6 @@
         {
           "id": "merge",
           "options": {}
-        },
-        {
-          "id": "extractFields",
-          "options": {
-            "source": "metrics"
-          }
-        },
-        {
-          "id": "extractFields",
-          "options": {
-            "source": "generic"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "generic": true,
-              "latency_avg_1h": true,
-              "latency_avg_5m": true,
-              "metrics": true,
-              "predictions_count_1h": true,
-              "predictions_count_5m": true
-            },
-            "indexByName": {},
-            "renameByName": {
-              "predictions_per_second": "Predictions/s (5 Minute Average)"
-            }
-          }
         }
       ],
       "transparent": true,
@@ -218,6 +189,7 @@
     },
     {
       "datasource": "iguazio",
+      "description": "Average latency per 1-hour interval for each model endpoint. Important Notes:\n- This KPI is based on the sampled invocations. If the sampling percentage is less than 100, the actual value may be different.\n- This value excludes `router` model endpoints and reflects the average latency for non-router models only.",
       "fieldConfig": {
         "defaults": {
           "mappings": [],
@@ -255,14 +227,14 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "9.2.20",
       "targets": [
         {
           "datasource": "iguazio",
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=metrics;filter=endpoint_type!='2';",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields= latency_avg_1h;filter=endpoint_type!='2';",
           "type": "table"
         }
       ],
@@ -271,18 +243,6 @@
         {
           "id": "merge",
           "options": {}
-        },
-        {
-          "id": "extractFields",
-          "options": {
-            "source": "metrics"
-          }
-        },
-        {
-          "id": "extractFields",
-          "options": {
-            "source": "generic"
-          }
         },
         {
           "id": "organize",
@@ -309,6 +269,7 @@
     },
     {
       "datasource": "iguazio",
+      "description": "Total number of errors within the selected time range.",
       "fieldConfig": {
         "defaults": {
           "mappings": [],
@@ -350,18 +311,27 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "9.2.20",
       "targets": [
         {
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=error_count;",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/errors;\nfields=error_count;",
           "type": "table"
         }
       ],
       "title": "Errors",
       "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "labelsToFields": false,
+            "reducers": [
+              "sum"
+            ]
+          }
+        },
         {
           "id": "merge",
           "options": {}
@@ -371,8 +341,8 @@
       "type": "stat"
     },
     {
-      "datasource": "iguazio",
-      "description": "",
+      "datasource": "model-monitoring",
+      "description": "A summary table of the current model endpoints, with the following fields:\n\n- **Name**: The model endpoint name.\n- **Endpoint ID**: The unique identifier for the model endpoint. Clicking this value will redirect you to the relevant `Details` dashboard.\n- **Function**: The name of the function.\n- **Model Class**: The model object class (e.g., `SKLearnModelServer`).\n- **Error Count**: The total number of errors.\n- **Sampling Percentage**: The sampling rate percentage. By default (100), all events are sampled.\n- **Drift Status**: The drift status indicator, currently based on the `general_drift` result from the histogram default application.\n\nNote that this table reflects the current system status and is not influenced by the selected time range.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -512,7 +482,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Drift Status"
+              "options": "Drift Status (Last 24H)"
             },
             "properties": [
               {
@@ -528,24 +498,24 @@
                 "value": [
                   {
                     "options": {
-                      "DRIFT_DETECTED": {
-                        "color": "red",
-                        "index": 3,
-                        "text": "2"
-                      },
-                      "NO_DRIFT": {
+                      "0": {
                         "color": "green",
                         "index": 2,
-                        "text": "0"
+                        "text": "Stable"
                       },
-                      "N\\A": {
-                        "index": 1,
-                        "text": "-1"
-                      },
-                      "POSSIBLE_DRIFT": {
-                        "color": "yellow",
+                      "1": {
+                        "color": "orange",
                         "index": 0,
-                        "text": "1"
+                        "text": "Potential Drift"
+                      },
+                      "2": {
+                        "color": "red",
+                        "index": 3,
+                        "text": "Detected"
+                      },
+                      "-1": {
+                        "index": 1,
+                        "text": "N\\A"
                       }
                     },
                     "type": "value"
@@ -555,30 +525,6 @@
               {
                 "id": "custom.displayMode",
                 "value": "color-background"
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "rgba(255, 255, 255, 0)",
-                      "value": null
-                    },
-                    {
-                      "color": "green",
-                      "value": 0
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 1
-                    },
-                    {
-                      "color": "red",
-                      "value": 2
-                    }
-                  ]
-                }
               }
             ]
           },
@@ -625,14 +571,14 @@
           }
         ]
       },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "9.2.20",
       "targets": [
         {
-          "datasource": "iguazio",
+          "datasource": "model-monitoring",
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=uid,model,function_uri,model_class,first_request,last_request,error_count,drift_status;",
+          "target": "target_endpoint=list_endpoints;project=$PROJECT",
           "type": "table"
         }
       ],
@@ -646,25 +592,29 @@
           "id": "organize",
           "options": {
             "excludeByName": {
+              "endpoint_id": false,
+              "endpoint_model": true,
+              "error_count": false,
               "model_hash": false
             },
             "indexByName": {
               "drift_status": 7,
-              "error_count": 6,
-              "first_request": 4,
-              "function_uri": 1,
-              "last_request": 5,
-              "model": 2,
-              "model_class": 3,
-              "uid": 0
+              "endpoint_function": 2,
+              "endpoint_id": 1,
+              "endpoint_model": 3,
+              "endpoint_model_class": 4,
+              "endpoint_name": 0,
+              "error_count": 5,
+              "sampling_percentage": 6
             },
             "renameByName": {
               "accuracy": "Accuracy",
-              "drift_status": "Drift Status",
+              "drift_status": "Drift Status (Last 24H)",
               "endpoint_function": "Function",
               "endpoint_id": "Endpoint ID",
               "endpoint_model": "Model",
               "endpoint_model_class": "Model Class",
+              "endpoint_name": "Name",
               "endpoint_tag": "Tag",
               "error_count": "Error Count",
               "first_request": "First Request",
@@ -675,6 +625,7 @@
               "model": "Model",
               "model_class": "Class",
               "predictions_per_second_count_1s": "Predictions/1s",
+              "sampling_percentage": "Sampling Percentage",
               "tag": "Tag",
               "uid": "Endpoint ID"
             }
@@ -694,6 +645,7 @@
       },
       "dataFormat": "timeseries",
       "datasource": "iguazio",
+      "description": "Heatmap displaying the average number of predictions per 5-minute interval. This value excludes `router` model endpoints and reflects the invocation count for non-router models only",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -759,7 +711,7 @@
           "unit": "short"
         }
       },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "9.2.20",
       "reverseYBuckets": false,
       "targets": [
         {
@@ -798,6 +750,7 @@
       },
       "dataFormat": "timeseries",
       "datasource": "iguazio",
+      "description": "Heatmap displaying average latency per 1-hour interval. Important Notes:\n- This KPI is based on the sampled invocations. If the sampling percentage is less than 100, the actual value may be different.\n- This value excludes `router` model endpoints and reflects the average latency for non-router models only.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -863,14 +816,14 @@
           "unit": "short"
         }
       },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "9.2.20",
       "reverseYBuckets": false,
       "targets": [
         {
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=latency_avg_1h;filter=endpoint_type!='2';",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields= latency_avg_1h;filter=endpoint_type!='2';",
           "type": "timeserie"
         }
       ],
@@ -892,83 +845,98 @@
       "yBucketBound": "auto"
     },
     {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
       "datasource": "iguazio",
-      "fill": 1,
-      "fillGradient": 0,
+      "description": "Errors by time for each model endpoint.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisGridShow": true,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMax": 1,
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 6,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
       "gridPos": {
         "h": 6,
         "w": 8,
         "x": 16,
         "y": 16
       },
-      "hiddenSeries": false,
       "id": 20,
-      "legend": {
-        "avg": false,
-        "current": false,
-        "max": false,
-        "min": false,
-        "show": true,
-        "total": false,
-        "values": false
-      },
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null",
       "options": {
-        "alertThreshold": true
+        "legend": {
+          "calcs": [
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
       },
-      "percentage": false,
-      "pluginVersion": "9.2.2",
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
+      "pluginVersion": "9.2.20",
       "targets": [
         {
           "datasource": "iguazio",
+          "rawQuery": true,
           "refId": "A",
-          "target": "select metric",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/errors;\nfields=error_count;",
           "type": "timeserie"
         }
       ],
-      "thresholds": [],
-      "timeRegions": [],
       "title": "Errors",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
+      "transformations": [],
       "transparent": true,
-      "type": "graph",
-      "xaxis": {
-        "mode": "time",
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "format": "short",
-          "logBase": 1,
-          "show": true
-        },
-        {
-          "format": "short",
-          "logBase": 1,
-          "show": true
-        }
-      ],
-      "yaxis": {
-        "align": false
-      }
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
@@ -981,6 +949,7 @@
         "current": {},
         "datasource": "model-monitoring",
         "definition": "target_endpoint=list_projects",
+        "description": "Project Name",
         "hide": 0,
         "includeAll": false,
         "label": "Project",
@@ -1000,13 +969,13 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-3h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Model Monitoring - Overview",
   "uid": "g0M4uh0Mz",
-  "version": 2,
+  "version": 9,
   "weekStart": ""
 }

@@ -1366,35 +1366,6 @@ class Config:
             ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
         )
 
-    def get_s3_storage_options(self) -> dict[str, typing.Any]:
-        """
-        Generate storage options dictionary as required for handling S3 path in fsspec. The model monitoring stream
-        graph uses this method for generating the storage options for S3 parquet target path.
-        :return: A storage options dictionary in which each key-value pair  represents a particular configuration,
-        such as endpoint_url or aws access key.
-        """
-        key = mlrun.get_secret_or_env("AWS_ACCESS_KEY_ID")
-        secret = mlrun.get_secret_or_env("AWS_SECRET_ACCESS_KEY")
-
-        force_non_anonymous = mlrun.get_secret_or_env("S3_NON_ANONYMOUS")
-        profile = mlrun.get_secret_or_env("AWS_PROFILE")
-
-        storage_options = dict(
-            anon=not (force_non_anonymous or (key and secret)),
-            key=key,
-            secret=secret,
-        )
-
-        endpoint_url = mlrun.get_secret_or_env("S3_ENDPOINT_URL")
-        if endpoint_url:
-            client_kwargs = {"endpoint_url": endpoint_url}
-            storage_options["client_kwargs"] = client_kwargs
-
-        if profile:
-            storage_options["profile"] = profile
-
-        return storage_options
-
     def is_explicit_ack_enabled(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
             not self.nuclio_version

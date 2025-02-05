@@ -3671,7 +3671,6 @@ class MlrunProject(ModelObj):
 
     def set_model_monitoring_credentials(
         self,
-        access_key: Optional[str] = None,
         stream_path: Optional[str] = None,  # Deprecated
         tsdb_connection: Optional[str] = None,  # Deprecated
         replace_creds: bool = False,
@@ -3684,11 +3683,6 @@ class MlrunProject(ModelObj):
         infrastructure functions. Important to note that you have to set the credentials before deploying any
         model monitoring or serving function.
 
-        :param access_key:                Model monitoring access key for managing user permissions.
-
-                                          * None - will be set from the system configuration.
-                                          * v3io - for v3io endpoint store, pass `v3io` and the system will generate the
-                                            exact path.
         :param stream_path:               (Deprecated) This argument is deprecated. Use ``stream_profile_name`` instead.
                                           Path to the model monitoring stream. By default, None. Options:
 
@@ -3791,7 +3785,7 @@ class MlrunProject(ModelObj):
         db.set_model_monitoring_credentials(
             project=self.name,
             credentials={
-                "access_key": access_key,
+                "access_key": None,
                 "tsdb_profile_name": tsdb_profile_name,
                 "stream_profile_name": stream_profile_name,
             },

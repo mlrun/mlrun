@@ -65,14 +65,11 @@ class EventStreamProcessor:
             parquet_batching_max_events=self.parquet_batching_max_events,
         )
 
-        self.storage_options = None
         self.tsdb_configurations = {}
         if not mlrun.mlconf.is_ce_mode():
             self._initialize_v3io_configurations(
                 model_monitoring_access_key=model_monitoring_access_key
             )
-        elif self.parquet_path.startswith("s3://"):
-            self.storage_options = mlrun.mlconf.get_s3_storage_options()
 
     def _initialize_v3io_configurations(
         self,
@@ -94,9 +91,6 @@ class EventStreamProcessor:
             model_monitoring_access_key
             or os.environ.get(ProjectSecretKeys.ACCESS_KEY)
             or self.v3io_access_key
-        )
-        self.storage_options = dict(
-            v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
         )
 
         # TSDB path and configurations
@@ -248,12 +242,12 @@ class EventStreamProcessor:
         # Write the Parquet target file, partitioned by key (endpoint_id) and time.
         def apply_parquet_target():
             graph.add_step(
-                "storey.ParquetTarget",
+                "mlrun.datastore.storeytargets.ParquetStoreyTarget",
+                alternative_v3io_access_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                 name="ParquetTarget",
                 after="ProcessBeforeParquet",
                 graph_shape="cylinder",
                 path=self.parquet_path,
-                storage_options=self.storage_options,
                 max_events=self.parquet_batching_max_events,
                 flush_after_seconds=self.parquet_batching_timeout_secs,
                 attributes={"infer_columns_from_data": True},

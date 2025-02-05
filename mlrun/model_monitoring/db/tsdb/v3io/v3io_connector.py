@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import math
 from datetime import datetime, timedelta, timezone
 from io import StringIO
 from typing import Literal, Optional, Union
@@ -1027,7 +1027,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 for index, endpoint_id in enumerate(endpoint_ids):
                     mep = model_endpoint_objects_by_uid.get(endpoint_id)
                     value = metric_data[index]
-                    if mep and value:
+                    if mep and value is not None and not math.isnan(value):
                         setattr(mep.status, metric, value)
 
         add_metrics(

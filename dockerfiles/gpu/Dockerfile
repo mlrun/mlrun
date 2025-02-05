@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+dockerfiles/gpu/Dockerfile# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,6 +27,9 @@ RUN apt-get update && \
 # Update existing requirements to remedy basic security vulnerabilities
 # e.g.: wheel, requests, etc.
 RUN conda update --all --use-local --yes && conda clean --all --quiet --yes
+
+ARG MLRUN_PIP_VERSION=25.0
+RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /mlrun
 

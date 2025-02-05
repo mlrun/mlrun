@@ -46,6 +46,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 
+ARG MLRUN_PIP_VERSION=25.0
+RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
+
 WORKDIR /mlrun
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \

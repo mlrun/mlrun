@@ -474,12 +474,17 @@ class CustomNotificationPusher(_NotificationPusherBase):
             for notification_type, notification in notifications.items()
             if notification.is_async
         }
+        self._server_notifications = []
 
     @property
     def notifications(self):
         notifications = self._sync_notifications.copy()
         notifications.update(self._async_notifications)
         return notifications
+
+    @property
+    def server_notifications(self):
+        return self._server_notifications
 
     def push(
         self,
@@ -511,6 +516,14 @@ class CustomNotificationPusher(_NotificationPusherBase):
         self,
         notification_type: str,
         params: typing.Optional[dict[str, str]] = None,
+        name: typing.Optional[str] = None,
+        message: typing.Optional[str] = None,
+        severity: mlrun.common.schemas.notification.NotificationSeverity = (
+            mlrun.common.schemas.notification.NotificationSeverity.INFO
+        ),
+        when: typing.Optional[list[str]] = None,
+        condition: typing.Optional[str] = None,
+        secret_params: typing.Optional[dict[str, str]] = None,
     ):
         if notification_type not in [
             notification_module.NotificationTypes.console,
@@ -518,6 +531,17 @@ class CustomNotificationPusher(_NotificationPusherBase):
         ]:
             # We want that only the console and ipython notifications will be notified by the client.
             # The rest of the notifications will be notified by the BE.
+            self._server_notifications.append(
+                mlrun.model.Notification(
+                    kind=notification_type,
+                    name=name,
+                    message=message,
+                    severity=severity,
+                    when=when or runtimes_constants.RunStates.notification_states(),
+                    params=params,
+                    secret_params=secret_params,
+                )
+            )
             return
 
         if notification_type in self._async_notifications:

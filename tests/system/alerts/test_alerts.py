@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import os
 import time
 import typing
 
@@ -35,6 +34,7 @@ from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.datastore_profile import DatastoreProfileV3io
 from mlrun.model_monitoring.helpers import get_stream_path
 from tests.system.base import TestMLRunSystem
+from tests.system.model_monitoring import TestMLRunSystemModelMonitoring
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -159,13 +159,23 @@ class TestAlerts(TestMLRunSystem):
         validate that an alert is sent with different result kind and different detection result
         """
         # enable model monitoring - deploy writer function
-        self.project.set_model_monitoring_credentials(
-            stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=os.getenv(
-                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
-            ),
+        tsdb_profile = TestMLRunSystemModelMonitoring.get_tsdb_profile(
+            self.mm_tsdb_profile_data
         )
+        self.project.register_datastore_profile(tsdb_profile)
+
+        stream_profile = TestMLRunSystemModelMonitoring.get_stream_profile(
+            self.mm_stream_profile_data
+        )
+        self.project.register_datastore_profile(stream_profile)
+
+        self.project.set_model_monitoring_credentials(
+            tsdb_profile_name=tsdb_profile.name,
+            stream_profile_name=stream_profile.name,
+        )
+
         self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
+
         # deploy nuclio func for storing notifications, to validate an alert notifications were sent on drift detection
         nuclio_function_url = notification_helpers.deploy_notification_nuclio(
             self.project, self.image

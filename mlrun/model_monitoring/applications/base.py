@@ -94,7 +94,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         context: "mlrun.MLClientCtx",
         sample_data: Optional[pd.DataFrame] = None,
         reference_data: Optional[pd.DataFrame] = None,
-        endpoints: Optional[list[tuple[str, str]]] = None,
+        endpoints: Optional[Union[list[tuple[str, str]], list[str], str]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         base_period: Optional[int] = None,
@@ -124,10 +124,14 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             return self.do_tracking(monitoring_context)
 
         if endpoints is not None:
-            if isinstance(endpoints, str) or (isinstance(endpoints, list) and isinstance(endpoints[0], str)):
+            if isinstance(endpoints, str) or (
+                isinstance(endpoints, list) and isinstance(endpoints[0], str)
+            ):
                 endpoints_list = (
                     mlrun.get_run_db()
-                    .list_model_endpoints(context.project, names=endpoints, latest_only=True)
+                    .list_model_endpoints(
+                        context.project, names=endpoints, latest_only=True
+                    )
                     .endpoints
                 )
                 if endpoints_list:
@@ -135,7 +139,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         (endpoint.metadata.name, endpoint.metadata.uid)
                         for endpoint in endpoints_list
                     ]
-                    context.logger.info("endpoints", endpoints=endpoints, list_endpoints=endpoints_list)
+                    context.logger.info(
+                        "endpoints", endpoints=endpoints, list_endpoints=endpoints_list
+                    )
                 else:
                     raise mlrun.errors.MLRunNotFoundError(
                         f"Did not find any model endpoint named ' {endpoints}'"
@@ -360,7 +366,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         class_handler: Optional[str] = None,
         requirements: Optional[Union[str, list[str]]] = None,
         requirements_file: str = "",
-        endpoints: Optional[list[tuple[str, str]]] = None,
+        endpoints: Optional[Union[list[tuple[str, str]], list[str], str]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         base_period: Optional[int] = None,
@@ -387,7 +393,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param class_handler:     The relative path to the class, useful when using Git sources or code from images.
         :param requirements:      List of Python requirements to be installed in the image.
         :param requirements_file: Path to a Python requirements file to be installed in the image.
-        :param endpoints:         A list of tuples of the model endpoint (name, uid) to get the data from.
+        :param endpoints:         A list of tuples of the model endpoint (name, uid), or a list of
+                                  model_endpoint names or a str for a single model_endpoint name
+                                  to get the data from (Note: using names will cause retrieving the model tag:latest)
                                   If provided, you have to provide also the start and end times of the data to analyze.
         :param start:             The start time of the sample data.
         :param end:               The end time of the sample data.

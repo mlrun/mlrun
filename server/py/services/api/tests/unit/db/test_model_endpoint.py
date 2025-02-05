@@ -304,6 +304,21 @@ class TestModelEndpoint(TestDatabaseBase):
         list_mep = self._db.list_model_endpoints(
             self._db_session,
             project=model_endpoint.metadata.project,
+            latest_only=True,
+            names=["model-endpoint-1"],
+        ).endpoints
+        assert len(list_mep) == 1
+
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            project=model_endpoint.metadata.project,
+            names=["model-endpoint-1"],
+        ).endpoints
+        assert len(list_mep) == 2
+
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            project=model_endpoint.metadata.project,
             function_name="function-1",
         ).endpoints
         assert len(list_mep) == 2

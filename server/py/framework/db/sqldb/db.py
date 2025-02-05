@@ -5263,7 +5263,7 @@ class SQLDB(DBInterface):
                 cls=model_endpoints_table,
                 key_filter=ModelEndpointSchema.NAME,
                 filtered_values=names,
-                combined=False
+                combined=False,
             )
         if function_name:
             query = self._filter_values(

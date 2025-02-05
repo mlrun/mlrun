@@ -516,13 +516,13 @@ class CustomNotificationPusher(_NotificationPusherBase):
         self,
         notification_type: str,
         params: typing.Optional[dict[str, str]] = None,
-        name: str = None,
-        message: str = None,
+        name: typing.Optional[str] = None,
+        message: typing.Optional[str] = None,
         severity: mlrun.common.schemas.notification.NotificationSeverity = (
             mlrun.common.schemas.notification.NotificationSeverity.INFO
         ),
         when: typing.Optional[list[str]] = None,
-        condition: str = None,
+        condition: typing.Optional[str] = None,
         secret_params: typing.Optional[dict[str, str]] = None,
     ):
         if notification_type not in [

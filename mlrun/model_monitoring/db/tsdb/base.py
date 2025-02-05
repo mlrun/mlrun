@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 from abc import ABC, abstractmethod
 from datetime import datetime
+from typing import ClassVar, Literal, Optional, Union
 
 import pandas as pd
 import pydantic.v1
+import v3io_frames.client
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.helpers
@@ -26,7 +27,7 @@ from mlrun.utils import logger
 
 
 class TSDBConnector(ABC):
-    type: typing.ClassVar[str]
+    type: ClassVar[str]
 
     def __init__(self, project: str) -> None:
         """
@@ -130,17 +131,17 @@ class TSDBConnector(ABC):
         start: datetime,
         end: datetime,
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
-        type: typing.Literal["metrics", "results"],
+        type: Literal["metrics", "results"],
         with_result_extra_data: bool,
-    ) -> typing.Union[
+    ) -> Union[
         list[
-            typing.Union[
+            Union[
                 mm_schemas.ModelEndpointMonitoringResultValues,
                 mm_schemas.ModelEndpointMonitoringMetricNoData,
             ],
         ],
         list[
-            typing.Union[
+            Union[
                 mm_schemas.ModelEndpointMonitoringMetricValues,
                 mm_schemas.ModelEndpointMonitoringMetricNoData,
             ],
@@ -166,10 +167,10 @@ class TSDBConnector(ABC):
         endpoint_id: str,
         start: datetime,
         end: datetime,
-        aggregation_window: typing.Optional[str] = None,
-        agg_funcs: typing.Optional[list[str]] = None,
-        limit: typing.Optional[int] = None,
-    ) -> typing.Union[
+        aggregation_window: Optional[str] = None,
+        agg_funcs: Optional[list[str]] = None,
+        limit: Optional[int] = None,
+    ) -> Union[
         mm_schemas.ModelEndpointMonitoringMetricValues,
         mm_schemas.ModelEndpointMonitoringMetricNoData,
     ]:
@@ -195,11 +196,11 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_last_request(
         self,
-        endpoint_ids: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_ids: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
         get_raw: bool = False,
-    ) -> pd.DataFrame:
+    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         """
         Fetches data from the predictions TSDB table and returns the most recent request
         timestamp for each specified endpoint.
@@ -215,11 +216,11 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_drift_status(
         self,
-        endpoint_ids: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_ids: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
         get_raw: bool = False,
-    ) -> pd.DataFrame:
+    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         """
         Fetches data from the app-results TSDB table and returns the highest status among all
         the result in the provided time range, which by default is the last 24 hours, for each specified endpoint.
@@ -236,9 +237,9 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_metrics_metadata(
         self,
-        endpoint_id: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_id: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches distinct metrics metadata from the metrics TSDB table for a specified model endpoints.
@@ -254,9 +255,9 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_results_metadata(
         self,
-        endpoint_id: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_id: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches distinct results metadata from the app-results TSDB table for a specified model endpoints.
@@ -272,11 +273,11 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_error_count(
         self,
-        endpoint_ids: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_ids: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
         get_raw: bool = False,
-    ) -> pd.DataFrame:
+    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         """
         Fetches data from the error TSDB table and returns the error count for each specified endpoint.
 
@@ -291,11 +292,11 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_avg_latency(
         self,
-        endpoint_ids: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_ids: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
         get_raw: bool = False,
-    ) -> pd.DataFrame:
+    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         """
         Fetches data from the predictions TSDB table and returns the average latency for each specified endpoint
         in the provided time range, which by default is the last 24 hours.
@@ -322,7 +323,7 @@ class TSDBConnector(ABC):
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         project: str,
     ) -> list[
-        typing.Union[
+        Union[
             mm_schemas.ModelEndpointMonitoringMetricValues,
             mm_schemas.ModelEndpointMonitoringMetricNoData,
         ]
@@ -335,7 +336,7 @@ class TSDBConnector(ABC):
         metrics_without_data = {metric.full_name: metric for metric in metrics}
 
         metrics_values: list[
-            typing.Union[
+            Union[
                 mm_schemas.ModelEndpointMonitoringMetricValues,
                 mm_schemas.ModelEndpointMonitoringMetricNoData,
             ]
@@ -388,7 +389,7 @@ class TSDBConnector(ABC):
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         project: str,
     ) -> list[
-        typing.Union[
+        Union[
             mm_schemas.ModelEndpointMonitoringResultValues,
             mm_schemas.ModelEndpointMonitoringMetricNoData,
         ]
@@ -401,7 +402,7 @@ class TSDBConnector(ABC):
         metrics_without_data = {metric.full_name: metric for metric in metrics}
 
         metrics_values: list[
-            typing.Union[
+            Union[
                 mm_schemas.ModelEndpointMonitoringResultValues,
                 mm_schemas.ModelEndpointMonitoringMetricNoData,
             ]
@@ -547,7 +548,7 @@ class TSDBConnector(ABC):
         *,
         df: pd.DataFrame,
         project: str,
-        type: typing.Union[str, mm_schemas.ModelEndpointMonitoringMetricType],
+        type: Union[str, mm_schemas.ModelEndpointMonitoringMetricType],
     ) -> dict[str, list[mm_schemas.ModelEndpointMonitoringMetric]]:
         """
         Parse a DataFrame of metrics from the TSDB into a dict of intersection metrics/results by name and application
@@ -602,8 +603,8 @@ class TSDBConnector(ABC):
 
     @staticmethod
     def _get_start_end(
-        start: typing.Union[datetime, None],
-        end: typing.Union[datetime, None],
+        start: Union[datetime, None],
+        end: Union[datetime, None],
     ) -> tuple[datetime, datetime]:
         """
         static utils function for tsdb start end format

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 from datetime import datetime, timedelta, timezone
 from io import StringIO
 from typing import Literal, Optional, Union
@@ -494,7 +493,7 @@ class V3IOTSDBConnector(TSDBConnector):
         sliding_window_step: Optional[str] = None,
         get_raw: bool = False,
         **kwargs,
-    ) -> pd.DataFrame:
+    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         """
          Getting records from V3IO TSDB data collection.
         :param table:                 Path to the collection to query.
@@ -784,7 +783,7 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         get_raw: bool = False,
-    ) -> pd.DataFrame:
+    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start, end = self._get_start_end(start, end)
         res = self._get_records(
@@ -824,7 +823,7 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         get_raw: bool = False,
-    ) -> pd.DataFrame:
+    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         start, end = self._get_start_end(start, end)
@@ -903,7 +902,7 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         get_raw: bool = False,
-    ) -> pd.DataFrame:
+    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         if filter_query:
             filter_query += f"AND {mm_schemas.EventFieldType.ERROR_TYPE} == '{mm_schemas.EventFieldType.INFER_ERROR}'"
@@ -940,7 +939,7 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         get_raw: bool = False,
-    ) -> pd.DataFrame:
+    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         start, end = self._get_start_end(start, end)
@@ -983,23 +982,6 @@ class V3IOTSDBConnector(TSDBConnector):
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
 
-        def add_metrics(
-            mep_by_uid: dict[str, mlrun.common.schemas.ModelEndpoint],
-            metric: str,
-            column_name: str,
-            frames: list,
-        ):
-            for frame in frames:
-                endpoint_ids = frame.column_data("endpoint_id")
-                metric_data = frame.column_data(column_name)
-                for index, endpoint_id in enumerate(endpoint_ids):
-                    mep = mep_by_uid.get(endpoint_id)
-                    value = metric_data[index]
-                    if mep and value:
-                        setattr(mep.status, metric, value)
-
-            return list(mep_by_uid.values())
-
         uids = []
         model_endpoint_objects_by_uid = {}
         for model_endpoint_object in model_endpoint_objects:
@@ -1030,26 +1012,36 @@ class V3IOTSDBConnector(TSDBConnector):
                 model_endpoint_object
             )
 
+        def add_metrics(
+            metric: str,
+            column_name: str,
+            frames: list,
+        ):
+            for frame in frames:
+                endpoint_ids = frame.column_data("endpoint_id")
+                metric_data = frame.column_data(column_name)
+                for index, endpoint_id in enumerate(endpoint_ids):
+                    mep = model_endpoint_objects_by_uid.get(endpoint_id)
+                    value = metric_data[index]
+                    if mep and value:
+                        setattr(mep.status, metric, value)
+
         add_metrics(
-            model_endpoint_objects_by_uid,
             "error_count",
             "count(error_count)",
             error_count_res,
         )
         add_metrics(
-            model_endpoint_objects_by_uid,
             "last_request",
             "last(last_request_timestamp)",
             last_request_res,
         )
         add_metrics(
-            model_endpoint_objects_by_uid,
             "avg_latency",
             "max(result_status)",
             drift_status_res,
         )
         add_metrics(
-            model_endpoint_objects_by_uid,
             "result_status",
             "avg(latency)",
             avg_latency_res,

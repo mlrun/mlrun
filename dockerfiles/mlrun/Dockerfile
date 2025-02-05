@@ -59,7 +59,7 @@ ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 # Install Python:
-ARG MLRUN_PIP_VERSION=24.2
+ARG MLRUN_PIP_VERSION=25.0
 RUN conda config --add channels conda-forge && \
     conda install -y python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
     conda clean -aqy

@@ -181,6 +181,7 @@ class MonitoringDeployment:
                     db_session=self.db_session, project=self.project
                 )
             )
+
             fn = self._initial_model_monitoring_stream_processing_function(
                 stream_image=stream_image, parquet_target=parquet_target
             )

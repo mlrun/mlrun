@@ -2037,7 +2037,7 @@ class Workflow:
                         pod_phase
                     )
                 function["status"] = {"state": state}
-                if isinstance(function["metadata"].get("updated"), datetime.datetime):
+                if isinstance(function["metadata"].get("updated"), datetime):
                     function["metadata"]["updated"] = function["metadata"][
                         "updated"
                     ].isoformat()

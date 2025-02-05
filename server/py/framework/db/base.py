@@ -145,7 +145,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def del_runs(self, session, name="", project="", labels=None, state="", days_ago=0):
+    def del_runs(
+        self, session, name="", project="", labels=None, state="", days_ago=0, uids=None
+    ):
         pass
 
     def overwrite_artifacts_with_tag(

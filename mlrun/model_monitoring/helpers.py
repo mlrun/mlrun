@@ -246,21 +246,6 @@ def get_monitoring_drift_measures_data(project: str, endpoint_id: str) -> "DataI
     )
 
 
-def get_tsdb_connection_string(
-    secret_provider: Optional[Callable[[str], str]] = None,
-) -> str:
-    """Get TSDB connection string from the project secret. If wasn't set, take it from the system
-    configurations.
-    :param secret_provider: An optional secret provider to get the connection string secret.
-    :return:                Valid TSDB connection string.
-    """
-
-    return mlrun.get_secret_or_env(
-        key=mm_constants.ProjectSecretKeys.TSDB_CONNECTION,
-        secret_provider=secret_provider,
-    )
-
-
 def _get_profile(
     project: str,
     secret_provider: Optional[Callable[[str], str]],

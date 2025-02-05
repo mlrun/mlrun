@@ -537,13 +537,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
                     name=name,
                     message=message,
                     severity=severity,
-                    when=when
-                    or [
-                        runtimes_constants.RunStates.running,
-                        runtimes_constants.RunStates.completed,
-                        runtimes_constants.RunStates.error,
-                        runtimes_constants.RunStates.aborted,
-                    ],
+                    when=when or runtimes_constants.RunStates.notification_states(),
                     params=params,
                     secret_params=secret_params,
                 )

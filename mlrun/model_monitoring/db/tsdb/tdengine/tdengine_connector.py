@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import asyncio
 from datetime import datetime, timedelta
 from typing import Callable, Literal, Optional, Union
 
@@ -759,21 +758,20 @@ class TDEngineConnector(TSDBConnector):
         """
 
         uids = [mep.metadata.uid for mep in model_endpoint_objects]
-        coroutines = [
-            run_in_threadpool(self.get_error_count, endpoint_ids=uids),
-            run_in_threadpool(self.get_last_request, endpoint_ids=uids),
-            run_in_threadpool(self.get_avg_latency, endpoint_ids=uids),
-            run_in_threadpool(self.get_drift_status, endpoint_ids=uids),
-        ]
+        error_count_df = await run_in_threadpool(
+            self.get_error_count, endpoint_ids=uids
+        )
+        last_request_df = await run_in_threadpool(
+            self.get_last_request, endpoint_ids=uids
+        )
+        avg_latency_df = await run_in_threadpool(
+            self.get_avg_latency, endpoint_ids=uids
+        )
+        drift_status_df = await run_in_threadpool(
+            self.get_drift_status, endpoint_ids=uids
+        )
 
-        (
-            error_count_df,
-            last_request_df,
-            avg_latency_df,
-            drift_status_df,
-        ) = await asyncio.gather(*coroutines)
-
-        def _add_metric(
+        def add_metrics(
             mep: mlrun.common.schemas.ModelEndpoint,
             df_dictionary: dict[str, pd.DataFrame],
         ):
@@ -791,7 +789,7 @@ class TDEngineConnector(TSDBConnector):
 
         return list(
             map(
-                lambda mep: _add_metric(
+                lambda mep: add_metrics(
                     mep=mep,
                     df_dictionary={
                         "error_count": error_count_df,

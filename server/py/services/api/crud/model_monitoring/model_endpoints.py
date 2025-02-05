@@ -1307,8 +1307,8 @@ class ModelEndpoints:
             )
             return model_endpoint_objects
 
-        return await run_in_threadpool(
-            tsdb_connector.add_basic_metrics, model_endpoint_objects, project
+        return await tsdb_connector.add_basic_metrics(
+            model_endpoint_objects, project, run_in_threadpool
         )
 
     @classmethod

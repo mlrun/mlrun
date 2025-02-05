@@ -2735,7 +2735,11 @@ class MlrunProject(ModelObj):
             current_run_state
         )
         db = mlrun.get_run_db()
-        notifications = notifications or self.spec.notifications
+        notifications = (
+            notifications
+            or self.spec.notifications
+            or self.notifiers.server_notifications
+        )
         notifications_to_send = []
         for notification in notifications:
             if current_run_state in notification.when:

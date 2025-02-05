@@ -147,7 +147,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             return call_do_tracking()
 
     @staticmethod
-    def _handle_endpoints_type(project: str, endpoints):
+    def _handle_endpoints_type(project: str, endpoints) -> list[tuple[str, str]]:
         if endpoints:
             if isinstance(endpoints, str) or (
                 isinstance(endpoints, list) and isinstance(endpoints[0], str)

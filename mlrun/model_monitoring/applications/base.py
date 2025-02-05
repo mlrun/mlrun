@@ -96,8 +96,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         reference_data: Optional[pd.DataFrame] = None,
         endpoints: Optional[Union[list[tuple[str, str]], list[str], str]] = None,
         start: Optional[str] = None,
-        end: Optional[str] = None,
-        base_period: Optional[int] = None,
+            end: Optional[str] = None,
+            base_period: Optional[int] = None,
     ):
         """
         A custom handler that wraps the application's logic implemented in
@@ -139,9 +139,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         (endpoint.metadata.name, endpoint.metadata.uid)
                         for endpoint in endpoints_list
                     ]
-                    context.logger.info(
-                        "endpoints", endpoints=endpoints, list_endpoints=endpoints_list
-                    )
                 else:
                     raise mlrun.errors.MLRunNotFoundError(
                         f"Did not find any model endpoint named ' {endpoints}'"

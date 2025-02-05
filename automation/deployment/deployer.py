@@ -133,7 +133,7 @@ class CommunityEditionDeployer:
     def connect_to_remote(self):
         self._log("info", "Connecting to remote machine", remote=self._remote)
         self._ssh_client = paramiko.SSHClient()
-        self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
+        self._ssh_client.set_missing_host_key_policy(paramiko.RejectPolicy)
         self._ssh_client.connect(
             self._remote,
             username=self._remote_ssh_username,

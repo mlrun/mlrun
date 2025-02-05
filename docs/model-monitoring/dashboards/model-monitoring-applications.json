@@ -3,10 +3,7 @@
     "list": [
       {
         "builtIn": 1,
-        "datasource": {
-          "type": "datasource",
-          "uid": "grafana"
-        },
+        "datasource": "-- Grafana --",
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
@@ -21,10 +18,11 @@
       }
     ]
   },
+  "description": "This dashboard provides a time-based analysis of metrics for a specific model endpoint. Note that some metrics are simple numerical values, while others, known as 'application results,'  provide more detailed information including status and type.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 14,
+  "id": 28,
   "links": [
     {
       "asDropdown": true,
@@ -59,307 +57,8 @@
   "liveNow": false,
   "panels": [
     {
-      "datasource": {
-        "type": "iguazio"
-      },
-      "description": "Pie chart that represents each type of drift result in the selected application.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            }
-          },
-          "mappings": [],
-          "unit": "none"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Detected"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "red",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Stable"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "green",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Irrelevant"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Potential Detection"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "orange",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 7,
-        "x": 0,
-        "y": 0
-      },
-      "id": 15,
-      "options": {
-        "displayLabels": [
-          "percent",
-          "name"
-        ],
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": false,
-          "values": [
-            "value",
-            "percent"
-          ]
-        },
-        "pieType": "donut",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "9.2.15",
-      "targets": [
-        {
-          "datasource": "iguazio",
-          "rawQuery": true,
-          "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;filter= endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
-          "type": "table"
-        }
-      ],
-      "title": "# Drift Status by Category",
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "application_name": true,
-              "endpoint_id": true,
-              "result_kind": true,
-              "result_name": true,
-              "result_status": false,
-              "result_value": true,
-              "time": true
-            },
-            "indexByName": {
-              "application_name": 0,
-              "endpoint_id": 1,
-              "result_kind": 2,
-              "result_name": 3,
-              "result_status": 5,
-              "result_value": 4,
-              "time": 6
-            },
-            "renameByName": {
-              "result_kind": "",
-              "result_name": "",
-              "result_status": "Latest Status",
-              "result_value": "",
-              "time": ""
-            }
-          }
-        },
-        {
-          "id": "histogram",
-          "options": {
-            "combine": false,
-            "fields": {}
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "BucketMax": true,
-              "BucketMin": false
-            },
-            "indexByName": {},
-            "renameByName": {
-              "BucketMax": "",
-              "BucketMin": "Status",
-              "Latest Status": "Count"
-            }
-          }
-        },
-        {
-          "id": "convertFieldType",
-          "options": {
-            "conversions": [
-              {
-                "destinationType": "string",
-                "targetField": "Status"
-              }
-            ],
-            "fields": {}
-          }
-        },
-        {
-          "id": "rowsToFields",
-          "options": {
-            "mappings": []
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {},
-            "indexByName": {},
-            "renameByName": {
-              "0": "Stable",
-              "1": "Potential Detection",
-              "2": "Detected",
-              "-1": "Irrelevant"
-            }
-          }
-        }
-      ],
-      "type": "piechart"
-    },
-    {
-      "datasource": {
-        "type": "iguazio"
-      },
-      "description": "Average drift result value of the provided application in the selected time range.",
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "percentage",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 70
-              },
-              {
-                "color": "red",
-                "value": 85
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 8,
-        "x": 7,
-        "y": 0
-      },
-      "id": 11,
-      "options": {
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "mean"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
-      "pluginVersion": "9.2.15",
-      "targets": [
-        {
-          "datasource": "iguazio",
-          "rawQuery": true,
-          "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;filter= endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
-          "type": "table"
-        }
-      ],
-      "title": "Average Drift Value Result",
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "application_name": true,
-              "endpoint_id": true,
-              "result_kind": true,
-              "result_name": true,
-              "result_status": true,
-              "result_value": false,
-              "time": true
-            },
-            "indexByName": {},
-            "renameByName": {
-              "result_name": "",
-              "result_status": "",
-              "result_value": "Drift Value",
-              "time": ""
-            }
-          }
-        }
-      ],
-      "type": "gauge"
-    },
-    {
-      "datasource": {
-        "type": "iguazio"
-      },
-      "description": "Latest calculated results according to the selected time range. ",
+      "datasource": "iguazio",
+      "description": "A counter for the estimated number of predictions pushed to the selected model endpoint.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -374,34 +73,249 @@
                 "value": null
               }
             ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 2,
+        "x": 0,
+        "y": 0
+      },
+      "id": 15,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "/^estimated_prediction_count$/",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.2.20",
+      "targets": [
+        {
+          "datasource": "iguazio",
+          "rawQuery": true,
+          "refId": "A",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/predictions/;\nfilter=endpoint_id=='$MODELENDPOINT'",
+          "type": "table"
+        }
+      ],
+      "title": "# Predictions",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": "iguazio",
+      "description": "A counter for the number of times the selected metric was calculated for the selected model endpoint.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 2,
+        "x": 2,
+        "y": 0
+      },
+      "id": 21,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "count"
+          ],
+          "fields": "/^endpoint_id$/",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.2.20",
+      "targets": [
+        {
+          "datasource": "iguazio",
+          "rawQuery": true,
+          "refId": "A",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/monitoring-apps/metrics/;\nfilter=endpoint_id=='$MODELENDPOINT' AND metric_name=='$METRIC';",
+          "type": "table"
+        },
+        {
+          "datasource": "iguazio",
+          "hide": false,
+          "refId": "B",
+          "target": "backend=tsdb; container=users; table=pipelines/$PROJECT/monitoring-apps/app-results/; filter=endpoint_id=='$MODELENDPOINT' AND result_name=='$METRIC';",
+          "type": "table"
+        }
+      ],
+      "title": "# Metrics",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": "iguazio",
+      "description": "Average value of the selected metric for the selected model endpoint.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 2,
+        "x": 4,
+        "y": 0
+      },
+      "id": 22,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "mean"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.2.20",
+      "targets": [
+        {
+          "datasource": "iguazio",
+          "rawQuery": true,
+          "refId": "A",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/monitoring-apps/metrics/;\nfilter=endpoint_id=='$MODELENDPOINT' AND metric_name=='$METRIC';",
+          "type": "table"
+        },
+        {
+          "datasource": "iguazio",
+          "hide": false,
+          "refId": "B",
+          "target": "backend=tsdb; container=users; table=pipelines/$PROJECT/monitoring-apps/app-results/; filter=endpoint_id=='$MODELENDPOINT' AND result_name=='$METRIC';",
+          "type": "table"
+        }
+      ],
+      "title": "Average Value",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "application_name": true,
+              "endpoint_id": true,
+              "endpoint_name": true,
+              "metric_name": true,
+              "result_extra_data": true,
+              "result_kind": true,
+              "result_name": true,
+              "result_status": true,
+              "start_infer_time": true,
+              "time": true
+            },
+            "indexByName": {},
+            "renameByName": {}
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": "iguazio",
+      "description": "Most recent metric calculation within the selected time range. Note that if the selected metric is an application result, the chart will also display its status and type.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
           }
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "Value"
+              "options": "Start Infer time"
             },
             "properties": [
               {
-                "id": "color",
-                "value": {
-                  "mode": "fixed"
-                }
+                "id": "unit",
+                "value": "dateTimeAsIso"
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Name"
+              "options": "End Infer Time"
             },
             "properties": [
               {
-                "id": "color",
-                "value": {
-                  "mode": "fixed"
-                }
+                "id": "unit",
+                "value": "dateTimeAsIso"
               }
             ]
           },
@@ -412,31 +326,29 @@
             },
             "properties": [
               {
-                "id": "color",
-                "value": {
-                  "mode": "fixed"
-                }
-              },
-              {
                 "id": "mappings",
                 "value": [
                   {
                     "options": {
-                      "ResultKindApp.concept_drift": {
-                        "index": 1,
-                        "text": "Concept Drift"
-                      },
-                      "ResultKindApp.data_drift": {
+                      "0": {
                         "index": 0,
                         "text": "Data Drift"
                       },
-                      "ResultKindApp.model_performance": {
+                      "1": {
+                        "index": 1,
+                        "text": "Concept Drift"
+                      },
+                      "2": {
                         "index": 2,
                         "text": "Model Performance"
                       },
-                      "ResultKindApp.system_performance": {
+                      "3": {
                         "index": 3,
                         "text": "System Performance"
+                      },
+                      "4": {
+                        "index": 4,
+                        "text": "Anomaly"
                       }
                     },
                     "type": "value"
@@ -452,9 +364,6 @@
             },
             "properties": [
               {
-                "id": "color"
-              },
-              {
                 "id": "mappings",
                 "value": [
                   {
@@ -462,22 +371,21 @@
                       "0": {
                         "color": "green",
                         "index": 1,
-                        "text": "Stable"
+                        "text": "No Detection"
                       },
                       "1": {
-                        "color": "orange",
+                        "color": "yellow",
                         "index": 2,
                         "text": "Potential Detection"
                       },
                       "2": {
                         "color": "red",
                         "index": 3,
-                        "text": "Detected"
+                        "text": "Drift Detected"
                       },
                       "-1": {
-                        "color": "text",
                         "index": 0,
-                        "text": "Irrelevant"
+                        "text": "irrelevant"
                       }
                     },
                     "type": "value"
@@ -485,27 +393,13 @@
                 ]
               }
             ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "time"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed"
-                }
-              }
-            ]
           }
         ]
       },
       "gridPos": {
-        "h": 9,
-        "w": 9,
-        "x": 15,
+        "h": 8,
+        "w": 7,
+        "x": 6,
         "y": 0
       },
       "id": 20,
@@ -524,13 +418,20 @@
         "text": {},
         "textMode": "value_and_name"
       },
-      "pluginVersion": "9.2.15",
+      "pluginVersion": "9.2.20",
       "targets": [
         {
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;filter= endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/monitoring-apps/metrics/;\nfilter=endpoint_id=='$MODELENDPOINT' AND metric_name=='$METRIC';",
+          "type": "table"
+        },
+        {
+          "datasource": "iguazio",
+          "hide": false,
+          "refId": "B",
+          "target": "backend=tsdb; container=users; table=pipelines/$PROJECT/monitoring-apps/app-results/; filter=endpoint_id=='$MODELENDPOINT' AND result_name=='$METRIC';",
           "type": "table"
         }
       ],
@@ -542,28 +443,36 @@
             "excludeByName": {
               "application_name": true,
               "current_stats": true,
-              "end_infer_time": true,
               "endpoint_id": true,
+              "endpoint_name": false,
+              "result_extra_data": true,
               "result_kind": false,
-              "result_name": false,
+              "result_name": true,
               "result_value": false,
-              "start_infer_time": true,
+              "start_infer_time": false,
               "time": false
             },
             "indexByName": {
-              "application_name": 0,
-              "endpoint_id": 1,
-              "result_kind": 2,
-              "result_name": 3,
-              "result_status": 5,
-              "result_value": 4,
-              "time": 6
+              "application_name": 3,
+              "endpoint_id": 4,
+              "endpoint_name": 2,
+              "result_extra_data": 8,
+              "result_kind": 5,
+              "result_name": 6,
+              "result_status": 9,
+              "result_value": 7,
+              "start_infer_time": 0,
+              "time": 1
             },
             "renameByName": {
+              "endpoint_name": "Model Endpoint Name",
+              "metric_name": "Metric",
+              "metric_value": "Value",
               "result_kind": "Kind",
               "result_name": "Name",
               "result_status": "Status",
               "result_value": "Value",
+              "start_infer_time": "Start Infer time",
               "time": "End Infer Time"
             }
           }
@@ -573,7 +482,7 @@
     },
     {
       "datasource": "iguazio",
-      "description": "Table summary of the application results including the schedule time, the metric name,  metric kind, result status, and result numerical value. ",
+      "description": "Table summary of the metric results including the schedule time,  the application name, and the numerical value.  Note that if the selected metric is an application result, the chart will also display its status, type, and extra data.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -608,21 +517,25 @@
                 "value": [
                   {
                     "options": {
-                      "ResultKindApp.concept_drift": {
-                        "index": 1,
-                        "text": "Concept Drift"
-                      },
-                      "ResultKindApp.data_drift": {
+                      "0": {
                         "index": 0,
                         "text": "Data Drift"
                       },
-                      "ResultKindApp.model_performance": {
+                      "1": {
+                        "index": 1,
+                        "text": "Concept Drift"
+                      },
+                      "2": {
                         "index": 2,
                         "text": "Model Performance"
                       },
-                      "ResultKindApp.system_performance": {
+                      "3": {
                         "index": 3,
                         "text": "System Performance"
+                      },
+                      "4": {
+                        "index": 4,
+                        "text": "Anomaly"
                       }
                     },
                     "type": "value"
@@ -672,14 +585,26 @@
                 "value": "color-text"
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Start Infer Time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              }
+            ]
           }
         ]
       },
       "gridPos": {
-        "h": 10,
+        "h": 17,
         "w": 11,
-        "x": 0,
-        "y": 9
+        "x": 13,
+        "y": 0
       },
       "id": 14,
       "options": {
@@ -691,20 +616,26 @@
           ],
           "show": false
         },
-        "frameIndex": 0,
         "showHeader": true
       },
-      "pluginVersion": "9.2.15",
+      "pluginVersion": "9.2.20",
       "targets": [
         {
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter= endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/monitoring-apps/metrics/;\nfilter=endpoint_id=='$MODELENDPOINT' AND metric_name=='$METRIC';",
+          "type": "table"
+        },
+        {
+          "datasource": "iguazio",
+          "hide": false,
+          "refId": "B",
+          "target": "backend=tsdb; container=users; table=pipelines/$PROJECT/monitoring-apps/app-results/; filter=endpoint_id=='$MODELENDPOINT' AND result_name=='$METRIC';",
           "type": "table"
         }
       ],
-      "title": "Application Summary",
+      "title": "Metric Summary",
       "transformations": [
         {
           "id": "organize",
@@ -712,29 +643,37 @@
             "excludeByName": {
               "application_name": true,
               "current_stats": true,
-              "end_infer_time": true,
               "endpoint_id": true,
-              "result_extra_data": true,
-              "schedule_time": false,
-              "start_infer_time": true
+              "endpoint_name": true,
+              "metric_name": true,
+              "result_extra_data": false,
+              "result_name": true,
+              "schedule_time": false
             },
             "indexByName": {
-              "application_name": 5,
-              "endpoint_id": 6,
-              "result_kind": 2,
-              "result_name": 1,
-              "result_status": 3,
+              "application_name": 6,
+              "endpoint_id": 7,
+              "endpoint_name": 8,
+              "result_extra_data": 9,
+              "result_kind": 3,
+              "result_name": 2,
+              "result_status": 5,
               "result_value": 4,
-              "time": 0
+              "start_infer_time": 0,
+              "time": 1
             },
             "renameByName": {
+              "application_name": "Application",
               "endpoint_id": "",
+              "endpoint_name": "",
+              "metric_value": "Value",
               "result_kind": "Kind",
               "result_name": "Name",
               "result_status": "Status",
               "result_value": "Value",
               "schedule_time": "Time",
-              "time": "Time"
+              "start_infer_time": "Start Infer Time",
+              "time": "End Infer Time"
             }
           }
         }
@@ -743,7 +682,7 @@
     },
     {
       "datasource": "iguazio",
-      "description": "Metric result value by time.",
+      "description": "Metric value by time. The time value is based \non the end of the infer time window.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -796,10 +735,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
+        "h": 9,
         "w": 13,
-        "x": 11,
-        "y": 9
+        "x": 0,
+        "y": 8
       },
       "id": 19,
       "options": {
@@ -823,11 +762,18 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter=  endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/monitoring-apps/metrics/;\nfilter=endpoint_id=='$MODELENDPOINT' AND metric_name=='$METRIC';",
+          "type": "table"
+        },
+        {
+          "datasource": "iguazio",
+          "hide": false,
+          "refId": "B",
+          "target": "backend=tsdb; container=users; table=pipelines/$PROJECT/monitoring-apps/app-results/; filter=endpoint_id=='$MODELENDPOINT' AND result_name=='$METRIC';",
           "type": "table"
         }
       ],
-      "title": "Result Value by Time",
+      "title": "Metric Value by Time",
       "transformations": [
         {
           "id": "organize",
@@ -835,194 +781,24 @@
             "excludeByName": {
               "application_name": true,
               "endpoint_id": true,
+              "endpoint_name": true,
+              "metric_name": true,
+              "result_extra_data": true,
               "result_kind": true,
               "result_name": true,
               "result_status": true,
               "result_value": false,
+              "start_infer_time": true,
               "time": false
             },
             "indexByName": {},
             "renameByName": {
+              "metric_value": "Value",
               "result_name": "",
               "result_status": "",
-              "result_value": "Result Value",
+              "result_value": "Value",
               "time": "Time"
             }
-          }
-        }
-      ],
-      "type": "timeseries"
-    },
-    {
-      "datasource": "iguazio",
-      "description": "Drift status by time. Using this chart you can detect different types of drifts by time such as gradual drift or incremental drift. To learn more about different types of drifts, check out Iguazio tutorials:\nhttps://www.iguazio.com/glossary/model-monitoring/\n \nNote that when the result doesn't represent drift (\"irrelevant\"), the value is filtered from this chart. ",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "axisSoftMin": 0,
-            "barAlignment": 0,
-            "drawStyle": "points",
-            "fillOpacity": 20,
-            "gradientMode": "scheme",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "smooth",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 3,
-            "pointSize": 12,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "always",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "area"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "orange",
-                "value": 0.8
-              },
-              {
-                "color": "red",
-                "value": 1.8
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Drift Status"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "options": {
-                      "0": {
-                        "color": "green",
-                        "index": 0,
-                        "text": "Stable"
-                      },
-                      "1": {
-                        "color": "orange",
-                        "index": 1,
-                        "text": "Potential Detection"
-                      },
-                      "2": {
-                        "color": "red",
-                        "index": 2,
-                        "text": "Detected"
-                      }
-                    },
-                    "type": "value"
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 19
-      },
-      "id": 17,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "9.2.15",
-      "targets": [
-        {
-          "datasource": "iguazio",
-          "rawQuery": true,
-          "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter=  endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
-          "type": "table"
-        }
-      ],
-      "title": "Drift Detection History",
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "application_name": true,
-              "endpoint_id": true,
-              "result_kind": true,
-              "result_name": true,
-              "result_value": true,
-              "time": false
-            },
-            "indexByName": {},
-            "renameByName": {
-              "result_name": "",
-              "result_status": "Drift Status",
-              "result_value": "Drift Value",
-              "time": "Time"
-            }
-          }
-        },
-        {
-          "id": "filterByValue",
-          "options": {
-            "filters": [
-              {
-                "config": {
-                  "id": "greater",
-                  "options": {
-                    "value": -1
-                  }
-                },
-                "fieldName": "Drift Status"
-              }
-            ],
-            "match": "any",
-            "type": "include"
           }
         }
       ],
@@ -1057,15 +833,15 @@
       },
       {
         "current": {},
-        "datasource": "iguazio",
-        "definition": "backend=kv;container=users;table=pipelines/$PROJECT/model-endpoints/endpoints;fields=uid;",
+        "datasource": "model-monitoring",
+        "definition": "target_endpoint=list_endpoints;project=$PROJECT",
         "hide": 0,
         "includeAll": false,
         "label": "Model Endpoint",
         "multi": false,
         "name": "MODELENDPOINT",
         "options": [],
-        "query": "backend=kv;container=users;table=pipelines/$PROJECT/model-endpoints/endpoints;fields=uid;",
+        "query": "target_endpoint=list_endpoints;project=$PROJECT",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -1077,15 +853,15 @@
       },
       {
         "current": {},
-        "datasource": "iguazio",
-        "definition": "backend=kv;container=users;table=pipelines/$PROJECT/monitoring-apps/$MODELENDPOINT;fields=__name;",
+        "datasource": "model-monitoring",
+        "definition": "target_endpoint=list_metrics;project=$PROJECT;endpoint_id=$MODELENDPOINT",
         "hide": 0,
         "includeAll": false,
-        "label": "Application Name",
+        "label": "Metric",
         "multi": false,
-        "name": "APPLICATION",
+        "name": "METRIC",
         "options": [],
-        "query": "backend=kv;container=users;table=pipelines/$PROJECT/monitoring-apps/$MODELENDPOINT;fields=__name;",
+        "query": "target_endpoint=list_metrics;project=$PROJECT;endpoint_id=$MODELENDPOINT",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -1098,13 +874,13 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-3h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Model Monitoring - Applications",
   "uid": "gVrVlU7Iz",
-  "version": 7,
+  "version": 19,
   "weekStart": ""
 }

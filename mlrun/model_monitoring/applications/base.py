@@ -95,8 +95,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         sample_data: Optional[pd.DataFrame] = None,
         reference_data: Optional[pd.DataFrame] = None,
         endpoints: Optional[list[tuple[str, str]]] = None,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
         base_period: Optional[int] = None,
     ):
         """
@@ -124,7 +124,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             return self.do_tracking(monitoring_context)
 
         if endpoints is not None:
-            start, end = self._validate_times(start, end, base_period)
             for window_start, window_end in self._window_generator(
                 start, end, base_period
             ):
@@ -137,43 +136,40 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                             mm_constants.ApplicationEvent.END_INFER_TIME: window_end,
                         }
                     )
-                    context.log_result(
-                        f"{endpoint_name}_{window_start.isoformat()}_{window_end.isoformat()}",
-                        result,
+                    result_key = (
+                        f"{endpoint_name}_{window_start.isoformat()}_{window_end.isoformat()}"
+                        if window_start and window_end
+                        else endpoint_name
                     )
+                    context.log_result(result_key, result)
         else:
             return call_do_tracking()
 
     @staticmethod
-    def _validate_times(
-        start: Optional[datetime],
-        end: Optional[datetime],
-        base_period: Optional[int],
-    ) -> tuple[datetime, datetime]:
-        if (start is None) or (end is None):
-            raise mlrun.errors.MLRunValueError(
-                "When `endpoint_names` is provided, you must also pass the start and end times"
-            )
-        if (base_period is not None) and not (
-            isinstance(base_period, int) and base_period > 0
-        ):
+    def _window_generator(
+        start: Optional[str], end: Optional[str], base_period: Optional[int]
+    ) -> Iterator[tuple[Optional[datetime], Optional[datetime]]]:
+        if start is None or end is None:
+            # A single window based on the `sample_data` input - see `_handler`.
+            yield None, None
+            return
+
+        start_dt = datetime.fromisoformat(start)
+        end_dt = datetime.fromisoformat(end)
+
+        if base_period is None:
+            yield start_dt, end_dt
+            return
+
+        if not isinstance(base_period, int) or base_period <= 0:
             raise mlrun.errors.MLRunValueError(
                 "`base_period` must be a nonnegative integer - the number of minutes in a monitoring window"
             )
-        return start, end
-
-    @staticmethod
-    def _window_generator(
-        start: datetime, end: datetime, base_period: Optional[int]
-    ) -> Iterator[tuple[datetime, datetime]]:
-        if base_period is None:
-            yield start, end
-            return
 
         window_length = timedelta(minutes=base_period)
-        current_start_time = start
-        while current_start_time < end:
-            current_end_time = min(current_start_time + window_length, end)
+        current_start_time = start_dt
+        while current_start_time < end_dt:
+            current_end_time = min(current_start_time + window_length, end_dt)
             yield current_start_time, current_end_time
             current_start_time = current_end_time
 
@@ -395,16 +391,23 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             project=project,
         )
 
-        params: dict[str, Union[list[tuple[str, str]], datetime, int, None]] = {}
+        params: dict[str, Union[list[tuple[str, str]], str, int, None]] = {}
         if endpoints:
-            start, end = cls._validate_times(start, end, base_period)
             params["endpoints"] = endpoints
-            params["start"] = start
-            params["end"] = end
-            params["base_period"] = base_period
+            if sample_data is None:
+                if start is None or end is None:
+                    raise mlrun.errors.MLRunValueError(
+                        "`start` and `end` times must be provided when `endpoints` "
+                        "is provided without `sample_data`"
+                    )
+                params["start"] = (
+                    start.isoformat() if isinstance(start, datetime) else start
+                )
+                params["end"] = end.isoformat() if isinstance(end, datetime) else end
+                params["base_period"] = base_period
         elif start or end or base_period:
             raise mlrun.errors.MLRunValueError(
-                "Custom start and end times or base_period are supported only with endpoints data"
+                "Custom `start` and `end` times or base_period are supported only with endpoints data"
             )
 
         inputs: dict[str, str] = {}

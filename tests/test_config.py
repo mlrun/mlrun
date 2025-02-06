@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
 import os
 import pathlib
 import subprocess
@@ -588,15 +587,12 @@ def test_set_environment_cred():
 def test_env_from_file():
     env_path = str(assets_path / "envfile")
     env_dict = mlrun.set_env_from_file(env_path, return_dict=True)
-
-    assert env_dict == collections.OrderedDict(
-        {
-            "MLRUN_HTTPDB__HTTP__VERIFY": "false",
-            "MLRUN_KFP_TTL": "12345",
-            "ENV_ARG1": "123",
-            "ENV_ARG2": "abc",
-        }
-    )
+    assert env_dict == {
+        "ENV_ARG1": "123",
+        "ENV_ARG2": "abc",
+        "MLRUN_HTTPDB__HTTP__VERIFY": "false",
+        "MLRUN_KFP_TTL": "12345",
+    }
     assert mlrun.mlconf.kfp_ttl == 12345
     for key, value in env_dict.items():
         assert os.environ[key] == value
@@ -663,6 +659,24 @@ def test_deduct_v3io_paths():
     conf = mlrun.config.read_env({"MLRUN_DBPATH": "https://mlrun-api" + cluster})
     assert conf["v3io_api"] == "https://webapi" + cluster
     assert conf["v3io_framesd"] == "https://framesd" + cluster
+
+
+def test_read_env_httpdb_priority():
+    """
+    Test that `read_env` correctly prioritizes the 'MLRUN_HTTPDB__HTTP__VERIFY' env variable by ensuring that
+    'httpdb' appears first in the configuration dictionary.
+    """
+    env = {
+        "MLRUN_DBPATH": "https://mlrun-api",
+        "MLRUN_KFP_TTL": "12345",
+        "MLRUN_HTTPDB__HTTP__VERIFY": "false",
+    }
+    conf = mlrun.config.read_env(env=env)
+
+    # Ensure that httpdb is returned first in the config
+    first_key = next(iter(conf))
+    assert first_key == "httpdb", "httpdb was not prioritized first"
+    assert conf["httpdb"]["http"]["verify"] is False
 
 
 def test_set_config():

@@ -124,7 +124,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             return self.do_tracking(monitoring_context)
 
         if endpoints is not None:
-            endpoints = self._handle_endpoints_type(context.project, endpoints)
+            endpoints = self._handle_endpoints_type(context, endpoints)
             for window_start, window_end in self._window_generator(
                 start, end, base_period
             ):
@@ -147,21 +147,39 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             return call_do_tracking()
 
     @staticmethod
-    def _handle_endpoints_type(project: str, endpoints) -> list[tuple[str, str]]:
+    def _handle_endpoints_type(
+        context: "mlrun.MLClientCtx",
+        endpoints: Union[list[tuple[str, str]], list[str], str, None],
+    ) -> list[tuple[str, str]]:
         if endpoints:
             if isinstance(endpoints, str) or (
                 isinstance(endpoints, list) and isinstance(endpoints[0], str)
             ):
                 endpoints_list = (
                     mlrun.get_run_db()
-                    .list_model_endpoints(project, names=endpoints, latest_only=True)
+                    .list_model_endpoints(
+                        context.project, names=endpoints, latest_only=True
+                    )
                     .endpoints
                 )
                 if endpoints_list:
-                    endpoints = [
+                    temp_endpoints = [
                         (endpoint.metadata.name, endpoint.metadata.uid)
                         for endpoint in endpoints_list
                     ]
+                    names = list(map(lambda x: x[0], temp_endpoints))
+                    if isinstance(endpoints, list):
+                        for endpoint in endpoints:
+                            if endpoint not in names:
+                                context.logger.warning(
+                                    f"Could not list endpoint named {endpoint} retrieve {temp_endpoints} as endpoints"
+                                )
+                    elif isinstance(endpoints, str):
+                        if endpoints not in names:
+                            context.logger.warning(
+                                f"Could not list endpoint named {endpoints} retrieve {temp_endpoints} as endpoints"
+                            )
+                    endpoints = temp_endpoints
                 else:
                     raise mlrun.errors.MLRunNotFoundError(
                         f"Did not find any model endpoint named ' {endpoints}'"
@@ -171,7 +189,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
             if not (isinstance(endpoints, list) and isinstance(endpoints[0], tuple)):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Could not resolve endpoints as list[tuple] of [(name, uid)]"
+                    f"Could not resolve endpoints as list[tuple] of [(name, uid)] {type(endpoints)} {type(endpoints[0])}"
                 )
         return endpoints
 

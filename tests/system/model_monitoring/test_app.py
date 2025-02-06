@@ -1635,11 +1635,13 @@ class TestAppJobModelEndpointData(TestMLRunSystem):
             assert set(outputs.values()) == {
                 (
                     "ModelMonitoringApplicationResult(name='count', value=14.0, "
-                    "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, extra_data={})"
+                    "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, "
+                    "extra_data={})"
                 ),
                 (
                     "ModelMonitoringApplicationResult(name='count', value=4.0, "
-                    "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, extra_data={})"
+                    "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, "
+                    "extra_data={})"
                 ),
             }, "The outputs are different than expected"
 

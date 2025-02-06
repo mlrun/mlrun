@@ -1373,13 +1373,6 @@ class Config:
             >= semver.VersionInfo.parse("1.12.10")
         )
 
-    @staticmethod
-    def get_ordered_keys():
-        # Define the keys to process first
-        return [
-            "MLRUN_HTTPDB__HTTP__VERIFY"  # Ensure this key is processed first for proper connection setup
-        ]
-
 
 # Global configuration
 config = Config.from_dict(default_config)
@@ -1597,6 +1590,15 @@ def read_env(env=None, prefix=env_prefix):
     # The default function pod resource values are of type str; however, when reading from environment variable numbers,
     # it converts them to type int if contains only number, so we want to convert them to str.
     _convert_resources_to_str(config)
+
+    # If the environment variable MLRUN_HTTPDB__HTTP__VERIFY is set, we ensure SSL verification settings take precedence
+    # by moving the 'httpdb' configuration to the beginning of the config dictionary.
+    # This ensures that SSL verification is applied before other settings.
+    if "MLRUN_HTTPDB__HTTP__VERIFY" in env:
+        httpdb = config.pop("httpdb", None)
+        if httpdb:
+            config = {"httpdb": httpdb, **config}
+
     return config
 
 

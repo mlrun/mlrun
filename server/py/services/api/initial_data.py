@@ -1062,7 +1062,7 @@ def _ensure_latest_tag_for_artifacts(
                 obj_id=artifact_id,
                 obj_name=key,
             )
-            for artifact_id, project, key in artifacts_to_tag
+            for artifact_id, key, project in artifacts_to_tag
         ]
 
         logger.info(

@@ -530,6 +530,17 @@ def test_ensure_latest_tag_for_artifacts():
         len(artifacts) == 3
     ), f"Expected 3 artifacts with latest tag, found {len(artifacts)}"
 
+    # Ensure the tag was created correctly for the second artifact
+    artifacts = db.list_artifacts(
+        db_session, project=project1, name=key1, iter=1, as_records=True
+    )
+    assert len(artifacts) == 1
+    assert len(artifacts[0].tags) == 1
+    assert artifacts[0].tags[0].name == "latest"
+    assert artifacts[0].tags[0].project == project1
+    assert artifacts[0].tags[0].obj_name == key1
+    assert artifacts[0].tags[0].obj_id == artifact_2_id
+
 
 def _initialize_db_without_migrations() -> (
     tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]

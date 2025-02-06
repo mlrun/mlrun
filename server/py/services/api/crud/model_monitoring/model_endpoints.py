@@ -18,10 +18,8 @@ import uuid
 from datetime import datetime
 from typing import Callable, Optional
 
-import pandas as pd
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy.util import asyncio
 
 import mlrun.artifacts
 import mlrun.common.helpers
@@ -1294,22 +1292,6 @@ class ModelEndpoints:
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
 
-        def _add_metric(
-            mep: mlrun.common.schemas.ModelEndpoint,
-            df_dictionary: dict[str, pd.DataFrame],
-        ):
-            for metric in df_dictionary.keys():
-                df = df_dictionary.get(metric, pd.DataFrame())
-                if not df.empty:
-                    line = df[df["endpoint_id"] == mep.metadata.uid]
-                    if not line.empty and metric in line:
-                        value = line[metric].item()
-                        if isinstance(value, pd.Timestamp):
-                            value = value.to_pydatetime()
-                        setattr(mep.status, metric, value)
-
-            return mep
-
         try:
             tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
                 project=project,
@@ -1325,32 +1307,8 @@ class ModelEndpoints:
             )
             return model_endpoint_objects
 
-        uids = [mep.metadata.uid for mep in model_endpoint_objects]
-        tasks = [
-            run_in_threadpool(tsdb_connector.get_error_count, endpoint_ids=uids),
-            run_in_threadpool(tsdb_connector.get_last_request, endpoint_ids=uids),
-            run_in_threadpool(tsdb_connector.get_avg_latency, endpoint_ids=uids),
-            run_in_threadpool(tsdb_connector.get_drift_status, endpoint_ids=uids),
-        ]
-        (
-            error_count_df,
-            last_request_df,
-            avg_latency_df,
-            drift_status_df,
-        ) = await asyncio.gather(*tasks)
-        return list(
-            map(
-                lambda mep: _add_metric(
-                    mep=mep,
-                    df_dictionary={
-                        "error_count": error_count_df,
-                        "last_request": last_request_df,
-                        "avg_latency": avg_latency_df,
-                        "result_status": drift_status_df,
-                    },
-                ),
-                model_endpoint_objects,
-            )
+        return await tsdb_connector.add_basic_metrics(
+            model_endpoint_objects, project, run_in_threadpool
         )
 
     @classmethod

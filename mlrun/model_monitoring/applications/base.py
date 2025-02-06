@@ -169,13 +169,17 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         (endpoint.metadata.name, endpoint.metadata.uid)
                         for endpoint in endpoints_list
                     ]
-                    retrieve_ep_names = list(map(lambda endpoint: endpoint[0], list_endpoints_result))
-                    missing = set([endpoints] if isinstance(endpoints, str) else endpoints) - set(retrieve_ep_names)
+                    retrieve_ep_names = list(
+                        map(lambda endpoint: endpoint[0], list_endpoints_result)
+                    )
+                    missing = set(
+                        [endpoints] if isinstance(endpoints, str) else endpoints
+                    ) - set(retrieve_ep_names)
                     if missing:
-                            logger.warning(
-                                f"Could not list endpoint named: {list(missing)} retrieve: {list_endpoints_result} as "
-                                f"endpoints"
-                            )
+                        logger.warning(
+                            f"Could not list endpoint named: {list(missing)} retrieve: {list_endpoints_result} as "
+                            f"endpoints"
+                        )
                     endpoints = list_endpoints_result
                 else:
                     raise mlrun.errors.MLRunNotFoundError(

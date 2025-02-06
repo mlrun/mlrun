@@ -158,7 +158,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             ):
                 if func_name is None:
                     raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                        "'endpoints' can be provided as names only if func_name is provided"
+                        "endpoints can be provided as names only if func_name is provided"
                     )
                 endpoints_list = (
                     mlrun.get_run_db()
@@ -469,13 +469,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 )
                 params["end"] = end.isoformat() if isinstance(end, datetime) else end
                 params["base_period"] = base_period
-            if (
-                isinstance(endpoints, str)
-                or (isinstance(endpoints, list) and isinstance(endpoints[0], str))
-            ) and func_name is None:
-                raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                    "'endpoints' can be provided as list of endpoints names or endpoint name only if 'func_name' is provided"
-                )
 
         elif start or end or base_period:
             raise mlrun.errors.MLRunValueError(

@@ -138,9 +138,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         }
                     )
                     result_key = (
-                        f"{endpoint_name}_{window_start.isoformat()}_{window_end.isoformat()}"
+                        f"{endpoint_name}-{endpoint_id}_{window_start.isoformat()}_{window_end.isoformat()}"
                         if window_start and window_end
-                        else endpoint_name
+                        else f"{endpoint_name}-{endpoint_id}"
                     )
                     context.log_result(result_key, result)
         else:
@@ -150,21 +150,15 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     def _handle_endpoints_type_evaluate(
         project: str,
         endpoints: Union[list[tuple[str, str]], list[str], str, None],
-        function_name: Union[str, None],
     ) -> list[tuple[str, str]]:
         if endpoints:
             if isinstance(endpoints, str) or (
                 isinstance(endpoints, list) and isinstance(endpoints[0], str)
             ):
-                if function_name is None:
-                    raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                        "'endpoints' can be provided as names only if 'model_endpoint_function_name' is provided"
-                    )
                 endpoints_list = (
                     mlrun.get_run_db()
                     .list_model_endpoints(
                         project,
-                        function_name=function_name,
                         names=endpoints,
                         latest_only=True,
                     )
@@ -399,7 +393,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         base_period: Optional[int] = None,
-        model_endpoint_function_name: Optional[str] = None,
     ) -> "mlrun.RunObject":
         """
         Call this function to run the application's
@@ -424,19 +417,15 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param requirements:      List of Python requirements to be installed in the image.
         :param requirements_file: Path to a Python requirements file to be installed in the image.
         :param endpoints:         A list of tuples of the model endpoint (name, uid) to get the data from,
-                                  allow providing a list of model_endpoint names or name for a single model_endpoint if
-                                  model_endpoint_function_name is provided
-                                  Note: provide names retrieves the model tag:latest
-                                  If provided, you have to provide also the start and end times of the data to analyze.
+                                  allow providing a list of model_endpoint names or name for a single model_endpoint.
+                                  Note: provide names retrieves the model all the active model endpoints using those
+                                  names (cross function model endpoints)
         :param start:             The start time of the sample data.
         :param end:               The end time of the sample data.
         :param base_period:       The window length in minutes. If ``None``, the whole window from ``start`` to ``end``
                                   is taken. If an integer is specified, the application is run from ``start`` to ``end``
                                   in ``base_period`` length windows, except for the last window that ends at ``end`` and
                                   therefore may be shorter.
-
-        :param model_endpoint_function_name:
-                                  The function name to get the model endpoint must be provided if uid was not provided.
 
         :returns: The output of the
                   :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
@@ -460,7 +449,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         if endpoints:
             endpoints = cls._handle_endpoints_type_evaluate(
                 project=project.name,
-                function_name=model_endpoint_function_name,
                 endpoints=endpoints,
             )
             params["endpoints"] = endpoints

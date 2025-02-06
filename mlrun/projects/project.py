@@ -3755,11 +3755,11 @@ class MlrunProject(ModelObj):
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource`
 
                                           You need to register one of them, and pass the profile's name.
-        :param replace_creds:             If True, will override the existing credentials.
-                                          Please keep in mind that if you already enabled model monitoring on
-                                          your project this action can cause data loose and will require redeploying
-                                          all model monitoring functions & model monitoring infra
-                                          & tracked model server.
+        :param replace_creds:             If ``True`` - override the existing credentials.
+                                          Please keep in mind that if you have already enabled model monitoring
+                                          on your project, replacing the credentials can cause data loss, and will
+                                          require redeploying all the model monitoring functions, model monitoring
+                                          infrastructure, and tracked model servers.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
 

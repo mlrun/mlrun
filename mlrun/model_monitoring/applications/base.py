@@ -28,6 +28,7 @@ import mlrun.model_monitoring.api as mm_api
 import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.results as mm_results
 from mlrun.serving.utils import MonitoringApplicationToDict
+from mlrun.utils import logger
 
 
 class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
@@ -124,7 +125,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             return self.do_tracking(monitoring_context)
 
         if endpoints is not None:
-            endpoints = self._handle_endpoints_type(context, endpoints)
             for window_start, window_end in self._window_generator(
                 start, end, base_period
             ):
@@ -147,18 +147,27 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             return call_do_tracking()
 
     @staticmethod
-    def _handle_endpoints_type(
-        context: "mlrun.MLClientCtx",
+    def _handle_endpoints_type_evaluate(
+        project: str,
         endpoints: Union[list[tuple[str, str]], list[str], str, None],
+        func_name: Union[str, None],
     ) -> list[tuple[str, str]]:
         if endpoints:
             if isinstance(endpoints, str) or (
                 isinstance(endpoints, list) and isinstance(endpoints[0], str)
             ):
+                if func_name is None:
+                    raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                        "'endpoints' can be provided as list of endpoints names or endpoint name only if 'func_name' "
+                        "is provided"
+                    )
                 endpoints_list = (
                     mlrun.get_run_db()
                     .list_model_endpoints(
-                        context.project, names=endpoints, latest_only=True
+                        project,
+                        function_name=func_name,
+                        names=endpoints,
+                        latest_only=True,
                     )
                     .endpoints
                 )
@@ -171,12 +180,12 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                     if isinstance(endpoints, list):
                         for endpoint in endpoints:
                             if endpoint not in names:
-                                context.logger.warning(
+                                logger.warning(
                                     f"Could not list endpoint named {endpoint} retrieve {temp_endpoints} as endpoints"
                                 )
                     elif isinstance(endpoints, str):
                         if endpoints not in names:
-                            context.logger.warning(
+                            logger.warning(
                                 f"Could not list endpoint named {endpoints} retrieve {temp_endpoints} as endpoints"
                             )
                     endpoints = temp_endpoints
@@ -187,7 +196,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             elif isinstance(endpoints, tuple) and len(endpoints) == 2:
                 endpoints = [endpoints]
 
-            if not (isinstance(endpoints, list) and isinstance(endpoints[0], tuple)):
+            if not (
+                isinstance(endpoints, list) and isinstance(endpoints[0], (list, tuple))
+            ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Could not resolve endpoints as list[tuple] of [(name, uid)] {type(endpoints)} {type(endpoints[0])}"
                 )
@@ -412,9 +423,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param class_handler:     The relative path to the class, useful when using Git sources or code from images.
         :param requirements:      List of Python requirements to be installed in the image.
         :param requirements_file: Path to a Python requirements file to be installed in the image.
-        :param endpoints:         A list of tuples of the model endpoint (name, uid), or a list of
-                                  model_endpoint names or a str for a single model_endpoint name
-                                  to get the data from (Note: using names will cause retrieving the model tag:latest)
+        :param endpoints:         A list of tuples of the model endpoint (name, uid) to get the data from,
+                                  allow providing a list of model_endpoint names or name for a single model_endpoint if
+                                  func name is provided
+                                  Note: provide names retrieves the model tag:latest
                                   If provided, you have to provide also the start and end times of the data to analyze.
         :param start:             The start time of the sample data.
         :param end:               The end time of the sample data.
@@ -443,6 +455,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
         params: dict[str, Union[list[tuple[str, str]], str, int, None]] = {}
         if endpoints:
+            endpoints = cls._handle_endpoints_type_evaluate(
+                project=project.name, func_name=func_name, endpoints=endpoints
+            )
             params["endpoints"] = endpoints
             if sample_data is None:
                 if start is None or end is None:
@@ -455,6 +470,14 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 )
                 params["end"] = end.isoformat() if isinstance(end, datetime) else end
                 params["base_period"] = base_period
+            if (
+                isinstance(endpoints, str)
+                or (isinstance(endpoints, list) and isinstance(endpoints[0], str))
+            ) and func_name is None:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    "'endpoints' can be provided as list of endpoints names or endpoint name only if 'func_name' is provided"
+                )
+
         elif start or end or base_period:
             raise mlrun.errors.MLRunValueError(
                 "Custom `start` and `end` times or base_period are supported only with endpoints data"

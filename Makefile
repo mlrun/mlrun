@@ -436,7 +436,6 @@ api: compile-schemas update-version-file ## Build mlrun-api docker image
 	docker build \
 		--file dockerfiles/mlrun-api/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \

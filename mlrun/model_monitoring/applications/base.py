@@ -158,8 +158,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             ):
                 if func_name is None:
                     raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                        "'endpoints' can be provided as list of endpoints names or endpoint name only if 'func_name' "
-                        "is provided"
+                        "'endpoints' can be provided as names only if func_name is provided"
                     )
                 endpoints_list = (
                     mlrun.get_run_db()
@@ -200,7 +199,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 isinstance(endpoints, list) and isinstance(endpoints[0], (list, tuple))
             ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Could not resolve endpoints as list[tuple] of [(name, uid)] {type(endpoints)} {type(endpoints[0])}"
+                    "Could not resolve endpoints as list of [(name, uid)]"
                 )
         return endpoints
 

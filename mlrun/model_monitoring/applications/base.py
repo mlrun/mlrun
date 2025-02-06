@@ -177,16 +177,14 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                     ) - set(retrieve_ep_names)
                     if missing:
                         logger.warning(
-                            f"Could not list endpoint named: {list(missing)} retrieve: {list_endpoints_result} as "
-                            f"endpoints"
+                            "Could not list all the required endpoints.",
+                            missing_endpoint=missing,
+                            endpoints=list_endpoints_result,
                         )
-                    endpoints = list_endpoints_result
                 else:
                     raise mlrun.errors.MLRunNotFoundError(
-                        f"Did not find any model endpoint named ' {endpoints}'"
+                        f"Did not find any model_endpoint named ' {endpoints}'"
                     )
-            elif isinstance(endpoints, tuple) and len(endpoints) == 2:
-                endpoints = [endpoints]
 
             if not (
                 isinstance(endpoints, list) and isinstance(endpoints[0], (list, tuple))

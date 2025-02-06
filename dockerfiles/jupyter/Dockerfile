@@ -46,7 +46,7 @@ RUN mamba install --channel conda-forge --yes jupyterlab~=4.3
 
 ARG MLRUN_PIP_VERSION=24.2
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION} && \
-    conda update --all
+    conda update --all --yes
 
 WORKDIR $HOME
 

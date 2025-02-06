@@ -150,21 +150,21 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     def _handle_endpoints_type_evaluate(
         project: str,
         endpoints: Union[list[tuple[str, str]], list[str], str, None],
-        func_name: Union[str, None],
+        function_name: Union[str, None],
     ) -> list[tuple[str, str]]:
         if endpoints:
             if isinstance(endpoints, str) or (
                 isinstance(endpoints, list) and isinstance(endpoints[0], str)
             ):
-                if func_name is None:
+                if function_name is None:
                     raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                        "endpoints can be provided as names only if func_name is provided"
+                        "'endpoints' can be provided as names only if 'model_endpoint_function_name' is provided"
                     )
                 endpoints_list = (
                     mlrun.get_run_db()
                     .list_model_endpoints(
                         project,
-                        function_name=func_name,
+                        function_name=function_name,
                         names=endpoints,
                         latest_only=True,
                     )
@@ -399,6 +399,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         base_period: Optional[int] = None,
+        model_endpoint_function_name: Optional[str] = None,
     ) -> "mlrun.RunObject":
         """
         Call this function to run the application's
@@ -424,7 +425,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param requirements_file: Path to a Python requirements file to be installed in the image.
         :param endpoints:         A list of tuples of the model endpoint (name, uid) to get the data from,
                                   allow providing a list of model_endpoint names or name for a single model_endpoint if
-                                  func name is provided
+                                  model_endpoint_function_name is provided
                                   Note: provide names retrieves the model tag:latest
                                   If provided, you have to provide also the start and end times of the data to analyze.
         :param start:             The start time of the sample data.
@@ -433,6 +434,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   is taken. If an integer is specified, the application is run from ``start`` to ``end``
                                   in ``base_period`` length windows, except for the last window that ends at ``end`` and
                                   therefore may be shorter.
+
+        :param model_endpoint_function_name:
+                                  The function name to get the model endpoint must be provided if uid was not provided.
 
         :returns: The output of the
                   :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
@@ -455,7 +459,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         params: dict[str, Union[list[tuple[str, str]], str, int, None]] = {}
         if endpoints:
             endpoints = cls._handle_endpoints_type_evaluate(
-                project=project.name, func_name=func_name, endpoints=endpoints
+                project=project.name,
+                function_name=model_endpoint_function_name,
+                endpoints=endpoints,
             )
             params["endpoints"] = endpoints
             if sample_data is None:

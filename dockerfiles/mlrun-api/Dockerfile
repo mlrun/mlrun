@@ -46,9 +46,6 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 
-ARG MLRUN_PIP_VERSION=25.0
-RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
-
 WORKDIR /mlrun
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
@@ -64,11 +61,13 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 
 COPY . .
 
-RUN rm -rf ./server/go
-
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[complete-api,kfp18]
+
+# go code is irrelevant for the api server
+# pip is not needed anymore
+RUN rm -rf ./server/go && python -m pip uninstall pip -y
 
 VOLUME /mlrun/db
 ENV PYTHONPATH=/mlrun/server/py

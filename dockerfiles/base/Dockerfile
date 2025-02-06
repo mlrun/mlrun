@@ -63,7 +63,7 @@ ARG MLRUN_PYTHON_VERSION=3.9
 ARG MLRUN_PIP_VERSION=25.0
 
 # use /usr/local/bin/python to ensure system pip is also upgraded
-RUN /usr/local/bin/python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION} && \
+RUN /usr/local/bin/python -m pip install --upgrade setuptools pip~=${MLRUN_PIP_VERSION} && \
     conda config --add channels conda-forge && \
     conda install -y python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
     conda clean -aqy

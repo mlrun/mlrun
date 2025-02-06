@@ -1026,12 +1026,6 @@ class V3IOTSDBConnector(TSDBConnector):
             drift_status_res,
         ) = await asyncio.gather(*coroutines)
 
-        model_endpoint_objects_by_uid = {}
-        for model_endpoint_object in model_endpoint_objects:
-            model_endpoint_objects_by_uid[model_endpoint_object.metadata.uid] = (
-                model_endpoint_object
-            )
-
         def add_metric(
             metric: str,
             column_name: str,

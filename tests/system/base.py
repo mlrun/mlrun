@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import base64
 import os
 import pathlib
@@ -53,9 +53,9 @@ class TestMLRunSystem:
         "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE",
     ]
 
-    model_monitoring_mandatory_env_vars = [
-        "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION",
-        "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION",
+    model_monitoring_mandatory_keys = [
+        "mlrun_model_monitoring_tsdb_profile",
+        "mlrun_model_monitoring_stream_profile",
     ]
 
     enterprise_configured = os.getenv("V3IO_API")
@@ -74,6 +74,10 @@ class TestMLRunSystem:
         cls.custom_setup_class()
         cls._logger = logger.get_child(cls.__name__.lower())
         cls.project: typing.Optional[mlrun.projects.MlrunProject] = None
+
+        cls.mm_tsdb_profile_data = env.get("mlrun_model_monitoring_tsdb_profile")
+        cls.mm_stream_profile_data = env.get("mlrun_model_monitoring_stream_profile")
+
         cls.uploaded_code = False
 
         if "MLRUN_IGUAZIO_API_URL" in env:
@@ -172,7 +176,7 @@ class TestMLRunSystem:
             else cls.mandatory_env_vars
         )
         if cls._has_marker(test, cls.model_monitoring_marker_name):
-            mandatory_env_vars += cls.model_monitoring_mandatory_env_vars
+            mandatory_env_vars += cls.model_monitoring_mandatory_keys
 
         missing_env_vars = []
         try:
@@ -226,6 +230,9 @@ class TestMLRunSystem:
 
         # Process keys
         for key, value in env.items():
+            if key in cls.model_monitoring_mandatory_keys:
+                # model monitoring profiles data is saved separately
+                continue
             cls._process_env_var(key, value)
 
         # Reload the config so changes to the env vars will take effect

@@ -120,34 +120,41 @@ class ModelEndpoints:
                 logger.info("The model endpoint is created on a non-existing function")
         model_obj = None
         if model_path and mlrun.datastore.is_store_uri(model_path):
-            try:
-                logger.info("Getting model object from db")
-                _, model_uri = mlrun.datastore.parse_store_uri(model_path)
-                project, key, iteration, tag, tree, uid = parse_artifact_uri(
-                    model_uri, model_endpoint.metadata.project
-                )
-                model_obj = mlrun.artifacts.dict_to_artifact(
-                    services.api.crud.Artifacts().get_artifact(
-                        db_session,
-                        key=key,
-                        tag=tag,
-                        iter=iteration,
-                        project=project,
-                        producer_id=tree,
-                        object_uid=uid,
-                    )
-                )
-
-                model_endpoint.spec.model_name = model_obj.metadata.key
-                model_endpoint.spec.model_db_key = model_obj.spec.db_key
-                model_endpoint.spec.model_uid = model_obj.metadata.uid
-                model_endpoint.spec.model_tag = model_obj.tag
-                model_endpoint.metadata.labels.update(
-                    model_obj.labels
-                )  # todo : check if we still need this
-            except mlrun.errors.MLRunNotFoundError:
-                logger.info("The model endpoint is created on a non-existing model")
+            _, model_uri = mlrun.datastore.parse_store_uri(model_path)
+            project, key, iteration, tag, tree, uid = parse_artifact_uri(
+                model_uri, model_endpoint.metadata.project
+            )
         else:
+            project, key, iteration, tag, tree, uid = (
+                model_endpoint.metadata.project,
+                model_endpoint.spec.model_db_key,
+                None,
+                model_endpoint.spec.model_tag,
+                None,
+                model_endpoint.spec.model_uid,
+            )
+        try:
+            logger.info("Getting model object from db")
+            model_obj = mlrun.artifacts.dict_to_artifact(
+                services.api.crud.Artifacts().get_artifact(
+                    db_session,
+                    key=key,
+                    tag=tag,
+                    iter=iteration,
+                    project=project,
+                    producer_id=tree,
+                    object_uid=uid,
+                )
+            )
+
+            model_endpoint.spec.model_name = model_obj.metadata.key
+            model_endpoint.spec.model_db_key = model_obj.spec.db_key
+            model_endpoint.spec.model_uid = model_obj.metadata.uid
+            model_endpoint.spec.model_tag = model_obj.tag
+            model_endpoint.metadata.labels.update(
+                model_obj.labels
+            )  # todo : check if we still need this
+        except mlrun.errors.MLRunNotFoundError:
             logger.info("The model endpoint is created on a non-existing model")
 
         if (
@@ -511,7 +518,9 @@ class ModelEndpoints:
                     project=model_endpoint.metadata.project,
                 )
                 model_endpoint.spec.feature_names = [
-                    feature.name for feature in features
+                    feature.name
+                    for feature in features
+                    if feature.name not in model_endpoint.spec.label_names
                 ]
 
         return model_endpoint, features
@@ -1050,7 +1059,6 @@ class ModelEndpoints:
         cls._delete_model_monitoring_stream_resources(
             project_name=project_name,
             model_monitoring_applications=model_monitoring_applications,
-            model_monitoring_access_key=model_monitoring_access_key,
             stream_profile=stream_profile,
         )
         # Delete model monitoring stats folder.
@@ -1126,7 +1134,6 @@ class ModelEndpoints:
         project_name: str,
         model_monitoring_applications: typing.Optional[list[str]],
         stream_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
-        model_monitoring_access_key: typing.Optional[str] = None,
     ) -> None:
         """
         Delete model monitoring stream resources.
@@ -1135,8 +1142,6 @@ class ModelEndpoints:
         :param model_monitoring_applications: A list of model monitoring applications that their resources should
                                               be deleted.
         :param stream_profile:                The datastore profile for the stream.
-        :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
-                                              V3IO resources.
         """
         logger.debug(
             "Deleting model monitoring stream resources",
@@ -1155,7 +1160,6 @@ class ModelEndpoints:
                 project=project_name
             )._delete_model_monitoring_stream_resources(
                 function_names=model_monitoring_applications,
-                access_key=model_monitoring_access_key,
                 stream_profile=stream_profile,
             )
             logger.debug(

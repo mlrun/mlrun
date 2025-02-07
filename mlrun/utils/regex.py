@@ -110,3 +110,4 @@ artifact_producer_uri_pattern = (
 )
 
 mail_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+alert_name_regex = r"^[a-zA-Z0-9-_]+$"

@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import typing
+import asyncio
 from datetime import datetime, timedelta
+from typing import Callable, Literal, Optional, Union
 
 import pandas as pd
 import taosws
@@ -42,7 +42,7 @@ class TDEngineConnector(TSDBConnector):
         self,
         project: str,
         profile: DatastoreProfile,
-        database: typing.Optional[str] = None,
+        database: Optional[str] = None,
         **kwargs,
     ):
         super().__init__(project=project)
@@ -166,11 +166,11 @@ class TDEngineConnector(TSDBConnector):
         )
 
     @staticmethod
-    def _convert_to_datetime(val: typing.Union[str, datetime]) -> datetime:
+    def _convert_to_datetime(val: Union[str, datetime]) -> datetime:
         return datetime.fromisoformat(val) if isinstance(val, str) else val
 
     @staticmethod
-    def _get_endpoint_filter(endpoint_id: typing.Union[str, list[str]]) -> str:
+    def _get_endpoint_filter(endpoint_id: Union[str, list[str]]) -> str:
         if isinstance(endpoint_id, str):
             return f"endpoint_id='{endpoint_id}'"
         elif isinstance(endpoint_id, list):
@@ -305,17 +305,17 @@ class TDEngineConnector(TSDBConnector):
         table: str,
         start: datetime,
         end: datetime,
-        columns: typing.Optional[list[str]] = None,
-        filter_query: typing.Optional[str] = None,
-        interval: typing.Optional[str] = None,
-        agg_funcs: typing.Optional[list] = None,
-        limit: typing.Optional[int] = None,
-        sliding_window_step: typing.Optional[str] = None,
+        columns: Optional[list[str]] = None,
+        filter_query: Optional[str] = None,
+        interval: Optional[str] = None,
+        agg_funcs: Optional[list] = None,
+        limit: Optional[int] = None,
+        sliding_window_step: Optional[str] = None,
         timestamp_column: str = mm_schemas.EventFieldType.TIME,
-        group_by: typing.Optional[typing.Union[list[str], str]] = None,
-        preform_agg_columns: typing.Optional[list] = None,
-        order_by: typing.Optional[str] = None,
-        desc: typing.Optional[bool] = None,
+        group_by: Optional[Union[list[str], str]] = None,
+        preform_agg_columns: Optional[list] = None,
+        order_by: Optional[str] = None,
+        desc: Optional[bool] = None,
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
@@ -385,17 +385,17 @@ class TDEngineConnector(TSDBConnector):
         start: datetime,
         end: datetime,
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
-        type: typing.Literal["metrics", "results"],
+        type: Literal["metrics", "results"],
         with_result_extra_data: bool = False,
-    ) -> typing.Union[
+    ) -> Union[
         list[
-            typing.Union[
+            Union[
                 mm_schemas.ModelEndpointMonitoringResultValues,
                 mm_schemas.ModelEndpointMonitoringMetricNoData,
             ],
         ],
         list[
-            typing.Union[
+            Union[
                 mm_schemas.ModelEndpointMonitoringMetricValues,
                 mm_schemas.ModelEndpointMonitoringMetricNoData,
             ],
@@ -473,10 +473,10 @@ class TDEngineConnector(TSDBConnector):
         endpoint_id: str,
         start: datetime,
         end: datetime,
-        aggregation_window: typing.Optional[str] = None,
-        agg_funcs: typing.Optional[list] = None,
-        limit: typing.Optional[int] = None,
-    ) -> typing.Union[
+        aggregation_window: Optional[str] = None,
+        agg_funcs: Optional[list] = None,
+        limit: Optional[int] = None,
+    ) -> Union[
         mm_schemas.ModelEndpointMonitoringMetricValues,
         mm_schemas.ModelEndpointMonitoringMetricNoData,
     ]:
@@ -528,9 +528,10 @@ class TDEngineConnector(TSDBConnector):
 
     def get_last_request(
         self,
-        endpoint_ids: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_ids: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start, end = self._get_start_end(start, end)
@@ -568,9 +569,10 @@ class TDEngineConnector(TSDBConnector):
 
     def get_drift_status(
         self,
-        endpoint_ids: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_ids: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
@@ -601,9 +603,9 @@ class TDEngineConnector(TSDBConnector):
 
     def get_metrics_metadata(
         self,
-        endpoint_id: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_id: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -638,9 +640,9 @@ class TDEngineConnector(TSDBConnector):
 
     def get_results_metadata(
         self,
-        endpoint_id: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_id: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -677,9 +679,10 @@ class TDEngineConnector(TSDBConnector):
 
     def get_error_count(
         self,
-        endpoint_ids: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_ids: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         filter_query += f"AND {mm_schemas.EventFieldType.ERROR_TYPE} = '{mm_schemas.EventFieldType.INFER_ERROR}'"
@@ -707,9 +710,10 @@ class TDEngineConnector(TSDBConnector):
 
     def get_avg_latency(
         self,
-        endpoint_ids: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_ids: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
@@ -737,11 +741,74 @@ class TDEngineConnector(TSDBConnector):
             df.dropna(inplace=True)
         return df
 
+    async def add_basic_metrics(
+        self,
+        model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
+        project: str,
+        run_in_threadpool: Callable,
+    ) -> list[mlrun.common.schemas.ModelEndpoint]:
+        """
+        Add basic metrics to the model endpoint object.
+
+        :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
+                                        be filled with the relevant basic metrics.
+        :param project:                The name of the project.
+        :param run_in_threadpool:      A function that runs another function in a thread pool.
+
+        :return: A list of `ModelEndpointMonitoringMetric` objects.
+        """
+
+        uids = [mep.metadata.uid for mep in model_endpoint_objects]
+        coroutines = [
+            run_in_threadpool(self.get_error_count, endpoint_ids=uids),
+            run_in_threadpool(self.get_last_request, endpoint_ids=uids),
+            run_in_threadpool(self.get_avg_latency, endpoint_ids=uids),
+            run_in_threadpool(self.get_drift_status, endpoint_ids=uids),
+        ]
+
+        (
+            error_count_df,
+            last_request_df,
+            avg_latency_df,
+            drift_status_df,
+        ) = await asyncio.gather(*coroutines)
+
+        def add_metrics(
+            mep: mlrun.common.schemas.ModelEndpoint,
+            df_dictionary: dict[str, pd.DataFrame],
+        ):
+            for metric in df_dictionary.keys():
+                df = df_dictionary.get(metric, pd.DataFrame())
+                if not df.empty:
+                    line = df[df["endpoint_id"] == mep.metadata.uid]
+                    if not line.empty and metric in line:
+                        value = line[metric].item()
+                        if isinstance(value, pd.Timestamp):
+                            value = value.to_pydatetime()
+                        setattr(mep.status, metric, value)
+
+            return mep
+
+        return list(
+            map(
+                lambda mep: add_metrics(
+                    mep=mep,
+                    df_dictionary={
+                        "error_count": error_count_df,
+                        "last_request": last_request_df,
+                        "avg_latency": avg_latency_df,
+                        "result_status": drift_status_df,
+                    },
+                ),
+                model_endpoint_objects,
+            )
+        )
+
     # Note: this function serves as a reference for checking the TSDB for the existence of a metric.
     #
     # def read_prediction_metric_for_endpoint_if_exists(
     #     self, endpoint_id: str
-    # ) -> typing.Optional[mm_schemas.ModelEndpointMonitoringMetric]:
+    # ) -> Optional[mm_schemas.ModelEndpointMonitoringMetric]:
     #     """
     #     Read the "invocations" metric for the provided model endpoint, and return the metric object
     #     if it exists.

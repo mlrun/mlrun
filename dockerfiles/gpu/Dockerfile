@@ -28,6 +28,9 @@ RUN apt-get update && \
 # e.g.: wheel, requests, etc.
 RUN conda update --all --use-local --yes && conda clean --all --quiet --yes
 
+ARG MLRUN_PIP_VERSION=25.0
+RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
+
 WORKDIR /mlrun
 
 # non-recursive chmod for the run to be able to create the handler file with any security context

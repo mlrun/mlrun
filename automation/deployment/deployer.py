@@ -754,6 +754,8 @@ def run_command(
     live: bool = True,
     log_file_handler: typing.Optional[typing.IO[str]] = None,
 ) -> (str, str, int):
+    # ensure the command is only a single word
+    command = command.split()[0]
     if args:
         command = [command] + args
     else:

@@ -29,6 +29,9 @@ RUN apt-get update && \
     && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade \
     && rm -rf /var/lib/apt/lists/*
 
+ARG MLRUN_PIP_VERSION=25.0
+RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
+
 WORKDIR /mlrun
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy

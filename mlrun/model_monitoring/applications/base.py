@@ -365,13 +365,25 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param requirements:      List of Python requirements to be installed in the image.
         :param requirements_file: Path to a Python requirements file to be installed in the image.
         :param endpoints:         A list of tuples of the model endpoint (name, uid) to get the data from.
-                                  If provided, you have to provide also the start and end times of the data to analyze.
-        :param start:             The start time of the sample data.
-        :param end:               The end time of the sample data.
+                                  If provided, and ``sample_data`` is not, you have to provide also the ``start`` and
+                                  ``end`` times of the data to analyze from the model endpoints.
+        :param start:             The start time of the endpoint's data, not included.
+                                  If you want the model endpoint's data at ``start`` included, you need to subtract a
+                                  small ``datetime.timedelta`` from it.
+        :param end:               The end time of the endpoint's data, included.
+                                  Please note: when ``start`` and ``end`` are set, they create a left-open time interval
+                                  ("window") :math:`(\\text{start}, \\text{end}]` that excludes the endpoint's data at
+                                  ``start`` and includes the data at ``end``:
+                                  :math:`\\text{start} < t \\leq \\text{end}`, :math:`t` is the time taken in the
+                                  window's data.
         :param base_period:       The window length in minutes. If ``None``, the whole window from ``start`` to ``end``
                                   is taken. If an integer is specified, the application is run from ``start`` to ``end``
                                   in ``base_period`` length windows, except for the last window that ends at ``end`` and
-                                  therefore may be shorter.
+                                  therefore may be shorter:
+                                  :math:`(\\text{start}, \\text{start} + \\text{base_period}],
+                                  (\\text{start} + \\text{base_period}, \\text{start} + 2\\cdot\\text{base_period}],
+                                  ..., (\\text{start} + m\\cdot\\text{base_period}, \\text{end}]`,
+                                  where :math:`m` is some positive integer.
 
         :returns: The output of the
                   :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`

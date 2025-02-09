@@ -358,20 +358,11 @@ async def delete_model_monitoring_function(
     return tasks
 
 
-# TODO: remove /projects/{project}/model-monitoring/set-model-monitoring-credentials in 1.8.0
-@router.post(
-    "/set-model-monitoring-credentials",
-    deprecated=True,
-    description="/projects/{project}/model-monitoring/set-model-monitoring-credentials "
-    "will be removed in 1.8.0, "
-    "use PUT /projects/{project}/model-monitoring/credentials instead",
-)
 @router.put("/credentials")
 def set_model_monitoring_credentials(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
-    access_key: Optional[str] = None,
-    tsdb_profile_name: Optional[str] = None,
-    stream_profile_name: Optional[str] = None,
+    tsdb_profile_name: str,
+    stream_profile_name: str,
     replace_creds: bool = False,
 ) -> None:
     """
@@ -379,7 +370,6 @@ def set_model_monitoring_credentials(
     infrastructure functions. Important to note that you have to set the credentials before deploying any
     model monitoring or serving function.
     :param commons:                   The common parameters of the request.
-    :param access_key:                Model Monitoring access key for managing user permissions.
     :param tsdb_profile_name:         TSDB datastore profile name.
     :param stream_profile_name:       Stream datastore profile name.
                                       The profile can be V3IO or KafkaSource.
@@ -391,7 +381,6 @@ def set_model_monitoring_credentials(
         db_session=commons.db_session,
         model_monitoring_access_key=commons.model_monitoring_access_key,
     ).set_credentials(
-        access_key=access_key,
         tsdb_profile_name=tsdb_profile_name,
         stream_profile_name=stream_profile_name,
         replace_creds=replace_creds,

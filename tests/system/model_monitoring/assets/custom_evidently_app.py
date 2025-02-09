@@ -23,10 +23,10 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
 )
-from mlrun.model_monitoring.applications import (
+from mlrun.model_monitoring.applications import ModelMonitoringApplicationResult
+from mlrun.model_monitoring.applications.evidently import (
     _HAS_EVIDENTLY,
     EvidentlyModelMonitoringApplicationBase,
-    ModelMonitoringApplicationResult,
 )
 
 if _HAS_EVIDENTLY:

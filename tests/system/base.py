@@ -370,19 +370,20 @@ class TestMLRunSystem:
         loss: typing.Optional[int] = None,
         best_iteration: typing.Optional[int] = None,
         iteration_results: bool = False,
+        fragment: str = "",
     ):
         self._logger.debug("Verifying run outputs", spec=run_outputs)
         assert run_outputs["plotly"].startswith(str(output_path))
         assert (
-            f"store://datasets/{project}/{name}_mydf#1:latest@{uid}"
+            f"store://datasets/{project}/{name}_mydf{fragment}:latest@{uid}"
             in run_outputs["mydf"]
         )
         assert (
-            f"store://artifacts/{project}/{name}_model#1:latest@{uid}"
+            f"store://artifacts/{project}/{name}_model{fragment}:latest@{uid}"
             in run_outputs["model"]
         )
         assert (
-            f"store://artifacts/{project}/{name}_html_result#1:latest@{uid}"
+            f"store://artifacts/{project}/{name}_html_result{fragment}:latest@{uid}"
             in run_outputs["html_result"]
         )
         if accuracy:

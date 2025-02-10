@@ -1250,15 +1250,9 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             for endpoint in endpoints:
                 future = executor.submit(
                     self._test_endpoint,
-                    model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[
-                        0
-                    ],
-                    feature_set_uri=endpoint[
-                        mm_constants.EventFieldType.FEATURE_SET_URI
-                    ],
-                    model_dict=self.router_models[
-                        endpoint[mm_constants.EventFieldType.MODEL].split(":")[0]
-                    ],
+                    model_name=endpoint.spec.model_name,
+                    feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
+                    model_dict=self.router_models[endpoint.spec.model_name],
                 )
                 futures.append(future)
 

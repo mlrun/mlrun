@@ -24,8 +24,8 @@ from mlrun.utils import logger
 
 
 def resolve_client_default_kfp_image(
-    project: typing.Optional[ProjectOut] = None,
-    workflow_spec: typing.Optional[WorkflowSpec] = None,
+    project: ProjectOut,
+    workflow_spec: WorkflowSpec,
     client_version: typing.Optional[str] = None,
 ) -> str:
     if workflow_spec and workflow_spec.image:
@@ -36,9 +36,10 @@ def resolve_client_default_kfp_image(
         must_use_mlrun_image = False
         if client_version and "unstable" not in client_version:
             try:
-                client_version = semver.Version.parse(client_version)
-                # client is olden than (<) 1.8, must use mlrun image for kfp
-                if client_version < semver.Version.parse("1.7.9999"):
+                # client is older than (<) 1.8, must use mlrun image for kfp
+                if semver.Version.parse(client_version) < semver.Version.parse(
+                    "1.8.0-rc0"
+                ):
                     must_use_mlrun_image = True
             except ValueError:
                 # client version is not semver, pass
@@ -46,15 +47,28 @@ def resolve_client_default_kfp_image(
 
         if must_use_mlrun_image:
             image = mlrun.mlconf.default_base_image
+            if ":" not in image:
+                # enrich the image with the client version to ensure that
+                # client < 1.8 will use the correct mlrun image and version.
+                # https://iguazio.atlassian.net/browse/ML-9292
+                enriched_image = mlrun.utils.enrich_image_url(
+                    image, client_version=client_version
+                )
+                logger.debug(
+                    "Ensuring KFP image has fixed client version",
+                    enriched_image=enriched_image,
+                    image=image,
+                )
+                image = enriched_image
         else:
             image = mlrun.mlconf.kfp_image
 
-        logger.debug(
-            "Resolved KFP image for workflow",
-            project=project,
-            client_version=client_version,
-            workflow_spec_image=workflow_spec.image,
-            project_spec_default_image=project.spec.default_image,
-            resolved_image=image,
-        )
+    logger.debug(
+        "Resolved KFP image for workflow",
+        project_name=project.metadata.name,
+        client_version=client_version,
+        workflow_spec_image=workflow_spec.image,
+        project_spec_default_image=project.spec.default_image,
+        resolved_image=image,
+    )
     return image

@@ -340,6 +340,8 @@ def _load_requirements(path):
     """
     Load dependencies from requirements file, exactly like `setup.py`
     """
+    base_dir = path.parent
+
     with open(path) as fp:
         deps = []
         for line in fp:
@@ -357,10 +359,10 @@ def _load_requirements(path):
                 continue
 
             if line.startswith("-r"):
-                path = line.split("-r", 1)[-1].strip()
-                other_deps = _load_requirements(
-                    pathlib.Path(__file__).resolve().parent / path
-                )
+                included_path = line.split("-r", 1)[-1].strip()
+                included_path = (base_dir / included_path).resolve()
+                other_deps = _load_requirements(included_path)
+
                 deps.extend(other_deps)
                 continue
 

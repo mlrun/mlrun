@@ -231,7 +231,7 @@ class TestModelEndpoint(TestDatabaseBase):
         uids = []
         model_uids = []
         # store artifact
-        for i in range(2):
+        for i in range(3):
             model_uids.append(self._store_artifact(f"model-{i}"))
         # store function
         _ = self._store_function()
@@ -241,6 +241,16 @@ class TestModelEndpoint(TestDatabaseBase):
                 "function_name": "function-1",
                 "function_uid": f"{unversioned_tagged_object_uid_prefix}latest",
                 "model_uid": model_uids[1],
+                "model_name": "model-1",
+            },
+            status={"monitoring_mode": "enabled"},
+        )
+        different_name_model_endpoint = mlrun.common.schemas.ModelEndpoint(
+            metadata={"name": "model-endpoint-2", "project": "project-1"},
+            spec={
+                "function_name": "function-1",
+                "function_uid": f"{unversioned_tagged_object_uid_prefix}latest",
+                "model_uid": model_uids[2],
                 "model_name": "model-1",
             },
             status={"monitoring_mode": "enabled"},
@@ -300,6 +310,21 @@ class TestModelEndpoint(TestDatabaseBase):
             self._db_session, project=model_endpoint.metadata.project, uids=["uids"]
         ).endpoints
         assert len(list_mep) == 0
+
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            project=model_endpoint.metadata.project,
+            latest_only=True,
+            names=["model-endpoint-1"],
+        ).endpoints
+        assert len(list_mep) == 1
+
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            project=model_endpoint.metadata.project,
+            names=["model-endpoint-1"],
+        ).endpoints
+        assert len(list_mep) == 2
 
         list_mep = self._db.list_model_endpoints(
             self._db_session,
@@ -381,6 +406,26 @@ class TestModelEndpoint(TestDatabaseBase):
             self._db_session,
             project=model_endpoint.metadata.project,
             function_name="function-1",
+        ).endpoints
+        assert len(list_mep) == 1
+
+        self._db.store_model_endpoint(
+            self._db_session,
+            different_name_model_endpoint,
+        )
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            project=model_endpoint.metadata.project,
+            latest_only=True,
+            names=["model-endpoint-1", "model-endpoint-2"],
+        ).endpoints
+        assert len(list_mep) == 2
+
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            latest_only=True,
+            project=model_endpoint.metadata.project,
+            names=["model-endpoint-1"],
         ).endpoints
         assert len(list_mep) == 1
 

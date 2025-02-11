@@ -23,6 +23,7 @@ import mlrun.common.schemas
 import mlrun.utils.singleton
 from mlrun.config import config as mlconfig
 from mlrun.utils import logger
+from mlrun.utils.regex import alert_name_regex
 
 import framework.utils.helpers
 import framework.utils.lru_cache
@@ -437,9 +438,10 @@ class Alerts(
 
     @staticmethod
     def validate_alert_name(name: str) -> None:
-        if not re.fullmatch(r"^[a-zA-Z0-9-]+$", name):
+        if not re.fullmatch(alert_name_regex, name):
             raise mlrun.errors.MLRunBadRequestError(
-                f"Invalid alert name '{name}'. Alert names can only contain alphanumeric characters and hyphens."
+                f"Invalid alert name '{name}'. Alert names can only contain alphanumeric characters, hyphens"
+                f" and underscores."
             )
 
     @staticmethod

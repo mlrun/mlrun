@@ -1298,10 +1298,10 @@ class KubeResource(BaseRuntime):
         if conflict_messages:
             warning_componentes = "; \n".join(conflict_messages)
             warnings.warn(
-                f"Warning: Warning: based on the preemptible node settings configured in your MLRun configuration,\n"
-                f"{warning_componentes}"
+                f"Warning: based on the preemptible node settings configured in your MLRun configuration,\n"
+                f"{warning_componentes}\n"
                 f" may be removed or adjusted at runtime.\n"
-                "This adjustment depends on the function's preemption mode. "
+                "This adjustment depends on the function's preemption mode. \n"
                 "The list of potential adjusted preemptible selectors can be viewed here: "
                 "mlrun.mlconf.get_preemptible_node_selector() and mlrun.mlconf.get_preemptible_tolerations()."
             )

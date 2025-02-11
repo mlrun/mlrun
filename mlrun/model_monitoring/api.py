@@ -213,7 +213,7 @@ def record_results(
         monitoring_mode=monitoring_mode,
         db_session=db,
     )
-    logger.debug("Model endpoint", endpoint=model_endpoint)
+    logger.info("Model endpoint", endpoint=model_endpoint)
 
     timestamp = datetime_now()
     if infer_results_df is not None:

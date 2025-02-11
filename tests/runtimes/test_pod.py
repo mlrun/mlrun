@@ -572,9 +572,7 @@ def test_enrich_function_preemption_spec(
             {"app.iguazio.com/lifecycle": "preemptible", "other": "value"},
             None,
             None,
-            [
-                "Node selector 'app.iguazio.com/lifecycle: preemptible' may be removed at runtime"
-            ],
+            ["Node selectors: 'app.iguazio.com/lifecycle': 'preemptible'"],
         ),
         # Only tolerations match the preemptible configuration.
         (
@@ -585,14 +583,14 @@ def test_enrich_function_preemption_spec(
                 )
             ],
             None,
-            ["Toleration 'cloud.google.com/gke-spot: true'"],
+            ["Tolerations: 'cloud.google.com/gke-spot'='true' (effect: 'NoSchedule')"],
         ),
         # Only affinity matches the preemptible configuration.
         (
             None,
             None,
             create_node_affinity_with_terms(preemptible_affinity_iguazio),
-            ["The selected node affinity constraints may be adjusted at runtime"],
+            ["Affinity: 'app.iguazio.com/lifecycle  In  ['preemptible']'"],
         ),
         # All three match.
         (
@@ -605,9 +603,9 @@ def test_enrich_function_preemption_spec(
             ],
             create_node_affinity_with_terms(preemptible_affinity_iguazio),
             [
-                "Node selector 'app.iguazio.com/lifecycle: preemptible'",
-                "Toleration 'cloud.google.com/gke-spot: true'",
-                "The selected node affinity constraints may be adjusted at runtime",
+                "Node selectors: 'app.iguazio.com/lifecycle': 'preemptible'",
+                "Tolerations: 'cloud.google.com/gke-spot'='true' (effect: 'NoSchedule')",
+                "Affinity: 'app.iguazio.com/lifecycle  In  ['preemptible']'",
             ],
         ),
         # No matching values.

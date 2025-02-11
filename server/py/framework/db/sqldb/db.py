@@ -568,6 +568,12 @@ class SQLDB(DBInterface):
         run_data.setdefault("status", {})["start_time"] = start_time.isoformat()
         run.start_time = start_time
         self._update_run_updated_time(run, run_data, now=now)
+        if (
+            run.state in mlrun.common.runtimes.constants.RunStates.terminal_states()
+            and not run.end_time
+        ):
+            end_time = run_end_time(run_data)
+            self._update_run_end_time(run, run_data, now=end_time)
         run.struct = run_data
 
     def _add_run_name_query(self, query, name):
@@ -594,6 +600,15 @@ class SQLDB(DBInterface):
             now = datetime.now(timezone.utc)
         run_record.updated = now
         run_dict.setdefault("status", {})["last_update"] = now.isoformat()
+
+    @staticmethod
+    def _update_run_end_time(
+        run_record: Run, run_dict: dict, now: typing.Optional[datetime] = None
+    ):
+        if now is None:
+            now = datetime.now(timezone.utc)
+        run_record.end_time = now
+        run_dict.setdefault("status", {})["end_time"] = now.isoformat()
 
     @staticmethod
     def _update_run_state(run_record: Run, run_dict: dict):

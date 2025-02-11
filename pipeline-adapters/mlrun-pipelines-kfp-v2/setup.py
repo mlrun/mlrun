@@ -38,7 +38,7 @@ setup(
         "mlrun",
         "kfp",
     ],
-    python_requires=">=3.9, <3.12",
+    python_requires=">=3.9",
     install_requires=[
         "kfp_server_api>=2.3.0",
     ],

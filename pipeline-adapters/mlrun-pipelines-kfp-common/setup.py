@@ -49,7 +49,7 @@ setup(
             "ipython>=8.10",
         ]
     },
-    python_requires=">=3.9, <3.12",
+    python_requires=">=3.9",
     long_description="MLRun Pipelines package for providing KFP common functionality",
     long_description_content_type="text/markdown",
 )

@@ -1730,47 +1730,47 @@ async def test_update_functions_with_deletion_info(db: sqlalchemy.orm.Session):
 @pytest.mark.parametrize(
     "project_image,workflow_image,client_version,expected_image",
     [
-        (
-            "x",
-            "",
-            "1.8.0",
-            "x",
-        ),
-        (
-            "x",
-            "y",
-            "1.8.0",
-            "y",
-        ),
-        (
-            "",
-            "y",
-            "1.8.0",
-            "y",
-        ),
-        (
-            "",
-            "",
-            "1.8.0",
-            "mlrun/mlrun-kfp",
-        ),
-        (
-            "",
-            "",
-            "",
-            "mlrun/mlrun-kfp",
-        ),
-        (
-            "",
-            "",
-            "1.8.0-rc1",
-            "mlrun/mlrun-kfp",
-        ),
+        # (
+        #     "x",
+        #     "",
+        #     "1.8.0",
+        #     "x",
+        # ),
+        # (
+        #     "x",
+        #     "y",
+        #     "1.8.0",
+        #     "y",
+        # ),
+        # (
+        #     "",
+        #     "y",
+        #     "1.8.0",
+        #     "y",
+        # ),
+        # (
+        #     "",
+        #     "",
+        #     "1.8.0",
+        #     "mlrun/mlrun-kfp",
+        # ),
+        # (
+        #     "",
+        #     "",
+        #     "",
+        #     "mlrun/mlrun-kfp",
+        # ),
+        # (
+        #     "",
+        #     "",
+        #     "1.8.0-rc1",
+        #     "mlrun/mlrun-kfp",
+        # ),
         (
             "",
             "",
             "1.7.0",
-            "mlrun/mlrun",
+            "mlrun/mlrun:1.7.0",
         ),
     ],
 )

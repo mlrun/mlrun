@@ -36,9 +36,9 @@ def resolve_client_default_kfp_image(
         must_use_mlrun_image = False
         if client_version and "unstable" not in client_version:
             try:
-                # client is olden than (<) 1.8, must use mlrun image for kfp
+                # client is older than (<) 1.8, must use mlrun image for kfp
                 if semver.Version.parse(client_version) < semver.Version.parse(
-                    "1.7.9999"
+                    "1.8.0-rc0"
                 ):
                     must_use_mlrun_image = True
             except ValueError:
@@ -55,7 +55,7 @@ def resolve_client_default_kfp_image(
                     image, client_version=client_version
                 )
                 logger.debug(
-                    "Ensure KFP image has fixed client version",
+                    "Ensuring KFP image has fixed client version",
                     enriched_image=enriched_image,
                     image=image,
                 )

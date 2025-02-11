@@ -115,6 +115,7 @@ class V2ModelServer(StepToDict):
         self.shard_by_endpoint = shard_by_endpoint
         self._model_logger = None
         self.initialized = False
+        self.output_schema = []
 
     def _load_and_update_state(self):
         try:
@@ -175,17 +176,15 @@ class V2ModelServer(StepToDict):
                     "Model endpoint creation task name not provided",
                 )
             try:
-                self.model_endpoint_uid = (
-                    mlrun.get_run_db()
-                    .get_model_endpoint(
-                        project=server.project,
-                        name=self.name,
-                        function_name=server.function_name,
-                        function_tag=server.function_tag or "latest",
-                        tsdb_metrics=False,
-                    )
-                    .metadata.uid
+                model_endpoint = mlrun.get_run_db().get_model_endpoint(
+                    project=server.project,
+                    name=self.name,
+                    function_name=server.function_name,
+                    function_tag=server.function_tag or "latest",
+                    tsdb_metrics=False,
                 )
+                self.model_endpoint_uid = model_endpoint.metadata.uid
+                self.output_schema = model_endpoint.spec.label_names
             except mlrun.errors.MLRunNotFoundError:
                 logger.info(
                     "Model endpoint not found for this step; monitoring for this model will not be performed",
@@ -566,6 +565,17 @@ class _ModelLogPusher:
                     resp["outputs"] = [
                         resp["outputs"][i] for i in sampled_requests_indices
                     ]
+                if self.model.output_schema and len(self.model.output_schema) != len(
+                    resp["outputs"][0]
+                ):
+                    logger.info(
+                        "The number of outputs returned by the model does not match the number of outputs "
+                        "specified in the model endpoint.",
+                        model_endpoint=self.model.name,
+                        model_endpoint_id=self.model.model_endpoint_uid,
+                        output_len=len(resp["outputs"][0]),
+                        schema_len=len(self.model.output_schema),
+                    )
 
             data = self.base_data()
             data["request"] = request

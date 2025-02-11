@@ -539,6 +539,22 @@ def get_result_instance_fqn(
     return f"{model_endpoint_id}.{app_name}.result.{result_name}"
 
 
+def get_alert_name_from_result_fqn(result_fqn: str):
+    """
+    :param   result_fqn: current get_result_instance_fqn format: `{model_endpoint_id}.{app_name}.result.{result_name}`
+
+    :return: shorter fqn without forbidden alert characters.
+    """
+    if result_fqn.count(".") != 3 or result_fqn.split(".")[2] != "result":
+        raise mlrun.errors.MLRunValueError(
+            f"result_fqn: {result_fqn} is not in the correct format: {{model_endpoint_id}}.{{app_name}}."
+            f"result.{{result_name}}"
+        )
+    # Name format cannot contain "."
+    # The third component is always `result`, so it is not necessary for checking uniqueness.
+    return "_".join(result_fqn.split(".")[i] for i in [0, 1, 3])
+
+
 def get_default_result_instance_fqn(model_endpoint_id: str) -> str:
     return get_result_instance_fqn(
         model_endpoint_id,

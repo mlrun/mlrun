@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   curl \
  && rm -rf /var/lib/apt/lists/*
 
-ARG MLRUN_PIP_VERSION=24.2
+ARG MLRUN_PIP_VERSION=25.0
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 # install kubectl
@@ -47,6 +47,8 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     uv pip sync --require-hashes locked-requirements.txt
 
 COPY . .
+
+RUN rm -rf ./server/go
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \

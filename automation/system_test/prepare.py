@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 
 import datetime
 import json
@@ -24,6 +24,7 @@ import sys
 import time
 import typing
 import urllib.parse
+from typing import Union
 
 import click
 import paramiko
@@ -110,7 +111,7 @@ class SystemTestPreparer:
         self._ssh_client: typing.Optional[paramiko.SSHClient] = None
         self._mlrun_dbpath = mlrun_dbpath
 
-        self._env_config = {
+        self._env_config: dict[str, Union[str, None, dict]] = {
             "MLRUN_DBPATH": mlrun_dbpath,
             "V3IO_USERNAME": username,
             "V3IO_ACCESS_KEY": access_key,
@@ -397,8 +398,17 @@ class SystemTestPreparer:
         )
         self._env_config["V3IO_API"] = f"https://{v3io_api_host}"
         self._env_config["MLRUN_DBPATH"] = f"https://{mlrun_api_url}"
-        self._env_config["MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"] = "v3io"
-        self._env_config["MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"] = "v3io"
+
+        self._env_config["mlrun_model_monitoring_tsdb_profile"] = {
+            "type": "v3io",
+            "name": "mm-tsdb-profile",
+            "v3io_access_key": None,
+        }
+        self._env_config["mlrun_model_monitoring_stream_profile"] = {
+            "type": "v3io",
+            "name": "mm-stream-profile",
+            "v3io_access_key": self._env_config["V3IO_ACCESS_KEY"],
+        }
 
     def _install_dev_utilities(self):
         list_uninstall = [

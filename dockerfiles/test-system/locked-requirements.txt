@@ -7,11 +7,14 @@ absl-py==1.4.0 ; python_full_version < '3.11' \
 adlfs==2023.9.0 \
     --hash=sha256:1ce70ffa39f7cffc3efbbd9f79b444958eb5d9de9981442b06e47472d2089d4b \
     --hash=sha256:e2cff62b8128578c6d1b9da1660ad4c8a5a8cb0d491bba416b529563c65dc5d2
-    # via -r extras-requirements.txt
+    # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
+    #   -r extras-requirements.txt
 aiobotocore==2.15.2 \
     --hash=sha256:9ac1cfcaccccc80602968174aa032bf978abe36bd4e55e6781d6500909af1375 \
     --hash=sha256:d4d3128b4b558e2b4c369bfa963b022d7e87303adb82eec623cec8aa77ae578a
     # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   s3fs
 aiohappyeyeballs==2.4.6 \
@@ -226,11 +229,13 @@ avro==1.12.0 \
     --hash=sha256:cad9c53b23ceed699c7af6bddced42e2c572fd6b408c257a7d4fc4e8cf2e2d6b
     # via
     #   -r dev-requirements.txt
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
 azure-core==1.32.0 \
     --hash=sha256:22b3c35d6b2dae14990f6c1be2912bf23ffe50b220e708a28ab1bb92b1c730e5 \
     --hash=sha256:eac191a0efb23bfa83fddf321b27b122b4ec847befa3091fa736a5c32c50d7b4
     # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   adlfs
     #   azure-identity
@@ -244,12 +249,15 @@ azure-identity==1.19.0 \
     --hash=sha256:500144dc18197d7019b81501165d4fa92225f03778f17d7ca8a2a180129a9c83 \
     --hash=sha256:e3f6558c181692d7509f09de10cca527c7dce426776454fb97df512a46527e81
     # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   adlfs
 azure-keyvault-secrets==4.9.0 \
     --hash=sha256:2a03bb2ffd9a0d6c8ad1c330d9d0310113985a9de06607ece378fd72a5889fe1 \
     --hash=sha256:33c7e2aca2cc2092cebc8c6e96eca36a5cc30c767e16ea429c5fa21270e9fba6
-    # via -r extras-requirements.txt
+    # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
+    #   -r extras-requirements.txt
 azure-storage-blob==12.24.1 \
     --hash=sha256:052b2a1ea41725ba12e2f4f17be85a54df1129e13ea0321f5a2fcc851cbf47d4 \
     --hash=sha256:77fb823fdbac7f3c11f7d86a5892e2f85e161e8440a7489babe2195bf248f09e
@@ -304,6 +312,7 @@ boto3==1.35.36 \
     --hash=sha256:33735b9449cd2ef176531ba2cb2265c904a91244440b0e161a17da9d24a1e6d1 \
     --hash=sha256:586524b623e4fbbebe28b604c6205eb12f263cc4746bccb011562d07e217a4cb
     # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   nuclio-jupyter
 botocore==1.35.36 \
@@ -718,6 +727,7 @@ dask==2023.12.1 ; python_full_version < '3.11' \
     --hash=sha256:0ac3acd5bdbfacb5ad6401ac7663a1135955b3fa051a118e1b8a88e87b6b44a2 \
     --hash=sha256:55f316f32da9e68fe995e2c0dc460cb8888cd4a1af32096753788e8af45a8d10
     # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   dask-kubernetes
     #   distributed
@@ -725,6 +735,7 @@ dask==2024.12.1 ; python_full_version >= '3.11' \
     --hash=sha256:1f32acddf1a6994e3af6734756f0a92467c47050bc29f3555bb9b140420e8e19 \
     --hash=sha256:bac809af21c2dd7eb06827bccbfc612504f3ee6435580e548af912828f823195
     # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   dask-kubernetes
     #   distributed
@@ -736,6 +747,7 @@ databricks-sdk==0.20.0 \
     --hash=sha256:0988c20e4f666c19fa703424a21b61f774443702291b89b0e50b28ab86ab8863 \
     --hash=sha256:55a129598a3274bbda38e46174a272874338c0ac5c16adf7f54c27c0c9c4b29c
     # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   mlflow-skinny
 db-dtypes==1.4.1 \
@@ -881,12 +893,14 @@ distributed==2023.12.1 ; python_full_version < '3.11' \
     --hash=sha256:56e69d90c6099e066751907956144cf94d0bc7050bd69ef2ec8003e890c2540c \
     --hash=sha256:f0c5e50c26b6cf5106b2d4116bf168dfccebe42e9670ddf58cfe3618b8b94ed8
     # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   dask-kubernetes
 distributed==2024.12.1 ; python_full_version >= '3.11' \
     --hash=sha256:438aa3ae48bfac9c2bb2ad03f9d47899286f9cb3db8a627b3b8c0de9e26f53dd \
     --hash=sha256:87e31abaa0ee3dc517b44fec4993d4b5d92257f926a8d2a12d52c005227154e7
     # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   dask-kubernetes
 docker==7.1.0 \
@@ -1109,7 +1123,9 @@ future==1.0.0 \
 gcsfs==2024.6.1 \
     --hash=sha256:13fd18095425e54e248870594fd155812723966b1bda3b102b3a5c44ec436a03 \
     --hash=sha256:e8858c7a893b2265e9bfce2fe270a024a2e348c74c23528801db388fc0224ed7
-    # via -r extras-requirements.txt
+    # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
+    #   -r extras-requirements.txt
 gitdb==4.0.12 \
     --hash=sha256:5ef71f855d191a3326fcfbc0d5da835f26b13fbcba60c32c21091c349ffdb571 \
     --hash=sha256:67073e15955400952c6565cc3e707c554a4eea2e428946f7a4c162fab9bd9bcf
@@ -1160,15 +1176,20 @@ google-auth-oauthlib==1.2.1 \
 google-cloud==0.34.0 \
     --hash=sha256:01430187cf56df10a9ba775dd547393185d4b40741db0ea5889301f8e7a9d5d3 \
     --hash=sha256:fb1ab7b0548fe44b3d538041f0a374505b7f990d448a935ea36649c5ccab5acf
-    # via -r extras-requirements.txt
+    # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
+    #   -r extras-requirements.txt
 google-cloud-bigquery==3.14.1 \
     --hash=sha256:a8ded18455da71508db222b7c06197bc12b6dbc6ed5b0b64e7007b76d7016957 \
     --hash=sha256:aa15bd86f79ea76824c7d710f5ae532323c4b3ba01ef4abff42d4ee7a2e9b142
-    # via -r extras-requirements.txt
+    # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
+    #   -r extras-requirements.txt
 google-cloud-bigquery-storage==2.28.0 \
     --hash=sha256:310c2dcc7d0a03b8e3b30ee90f34daf0bdefdb198c51a7f38db45904704f131c \
     --hash=sha256:7f4a42e614b6173f6d7da75eda3913aa03f74854d3e5e9b1ab462c8468d4deed
     # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   google-cloud-bigquery
 google-cloud-core==2.4.1 \
@@ -1181,6 +1202,7 @@ google-cloud-storage==2.14.0 \
     --hash=sha256:2d23fcf59b55e7b45336729c148bb1c464468c69d5efbaee30f7201dd90eb97e \
     --hash=sha256:8641243bbf2a2042c16a6399551fbb13f062cbc9a2de38d6c0bb5426962e9dbd
     # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   gcsfs
     #   kfp
@@ -1247,6 +1269,7 @@ graphviz==0.20.3 \
     --hash=sha256:81f848f2904515d8cd359cc611faba817598d2feaac4027b266aa3eda7b3dde5
     # via
     #   -r dev-requirements.txt
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
 greenlet==3.1.1 ; platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64' \
     --hash=sha256:0153404a4bb921f0ff1abeb5ce8a5131da56b953eda6e14b88dc6bbc04d2049e \
@@ -1800,7 +1823,9 @@ jupyterlab-pygments==0.3.0 \
 kafka-python==2.0.2 \
     --hash=sha256:04dfe7fea2b63726cd6f3e79a2d86e709d608d74406638c5da33a01d45a9d7e3 \
     --hash=sha256:2d92418c7cb1c298fa6c7f0fb3519b520d0d7526ac6cb7ae2a4fc65a51a94b6e
-    # via -r extras-requirements.txt
+    # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
+    #   -r extras-requirements.txt
 keyring==25.6.0 \
     --hash=sha256:0b39998aa941431eb3d9b0d4b2460bc773b9df6fed7621c2dfb291a7e0187a66 \
     --hash=sha256:552a3f7af126ece7ed5c89753650eec89c7eaae8617d0aa4d9ad2b75111266bd
@@ -2284,18 +2309,20 @@ mistune==3.1.1 \
 mlflow==2.20.1 \
     --hash=sha256:354ebedc5785ae7296ac146667ffe541612a9a004cb4fc545ddda35c589c68fe \
     --hash=sha256:ee8781d8c3bda2265f433cf385b09b1af1ad4cb1186ffc755fe5af2e0feda7ce
-    # via -r extras-requirements.txt
+    # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
+    #   -r extras-requirements.txt
 mlflow-skinny==2.20.1 \
     --hash=sha256:98c3c73aea528a03a25ba422506a9d37dff4061707569e6e6cb8ea6e7382385e \
     --hash=sha256:de094d6495e2e6a842bd47a68641aa400528b6ea48be258f269cc4e2a43b3288
     # via mlflow
-mlrun-pipelines-kfp-common==0.3.9 \
-    --hash=sha256:7a39476cc921e73c8da86b3d5f2b14c45fe72f9fb3feba749b16a96895929c27 \
-    --hash=sha256:a45f606cd4f7476f333738b5391df4d1b213011d578963222f679cd51dd867e2
+mlrun-pipelines-kfp-common==0.3.10 \
+    --hash=sha256:1769d491191db787f4faf7626623aeb3fd8fb641a98b2ab33031deb79f93f35c \
+    --hash=sha256:583b17ad3ee90fea5a1f99f5bb67ace19d7efcb13b2c075b85693948810b6580
     # via -r requirements.txt
-mlrun-pipelines-kfp-v1-8==0.3.6 ; python_full_version < '3.11' \
-    --hash=sha256:7912aa00b9acc4de5fef6273d2be5b5bf5b2589bbc01c04b5397ebafef29021c \
-    --hash=sha256:b5bd94d27be5a0f15ee55040b6e917bdecf028bfd2d6cdcbc309e74f2a1de9b7
+mlrun-pipelines-kfp-v1-8==0.3.7 ; python_full_version < '3.11' \
+    --hash=sha256:87c02c7822b97097fdde6a97328c611c86c3d197ee8662a598eb3a1545881812 \
+    --hash=sha256:ed00d039b8b1a8fab97966019ec0fcd41aaea589286525b81f7b384838937d9f
     # via
     #   -r dockerfiles/mlrun-api/requirements.txt
     #   -r dockerfiles/mlrun-kfp/requirements.txt
@@ -2386,7 +2413,9 @@ msgpack==1.1.0 \
 msrest==0.6.21 \
     --hash=sha256:72661bc7bedc2dc2040e8f170b6e9ef226ee6d3892e01affd4d26b06474d68d8 \
     --hash=sha256:c840511c845330e96886011a236440fafc2c9aff7b2df9c0a92041ee2dee3782
-    # via -r extras-requirements.txt
+    # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
+    #   -r extras-requirements.txt
 multidict==6.1.0 \
     --hash=sha256:052e10d2d37810b99cc170b785945421141bf7bb7d2f8799d431e7db229c385f \
     --hash=sha256:06809f4f0f7ab7ea2cabf9caca7d79c22c0758b58a71f9d32943ae13c7ace056 \
@@ -2712,13 +2741,16 @@ orjson==3.10.15 \
 oss2==2.18.1 \
     --hash=sha256:5a901f6c0f3ac42f792e16a1e1c04e60f34e6cc9eb2bc4c0c3ce6e7bda2da4cc
     # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   aiooss2
     #   ossfs
 ossfs==2023.12.0 \
     --hash=sha256:d1c5bbd24e7c0b3badd47d9c659bfdfac96d148b7e5d1f88ccdaf26403e893ab \
     --hash=sha256:f99eb2d74717d22551b1f32ec9434587962627a816a64536dc47d68470536110
-    # via -r extras-requirements.txt
+    # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
+    #   -r extras-requirements.txt
 overrides==7.7.0 \
     --hash=sha256:55158fa3d93b98cc75299b1e67078ad9003ca27945c76162c1c0766d6f91820a \
     --hash=sha256:c7ed9d062f78b8e4c1a7b70bd8796b35ead4d9f510227ef9c5dc7626c60d7e49
@@ -2886,7 +2918,9 @@ platformdirs==4.3.6 \
 plotly==5.24.1 \
     --hash=sha256:dbc8ac8339d248a4bcc36e08a5659bacfe1b079390b8953533f4eb22169b4bae \
     --hash=sha256:f67073a1e637eb0dc3e46324d9d51e2fe76e9727c892dde64ddf1e1b51f29089
-    # via -r extras-requirements.txt
+    # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
+    #   -r extras-requirements.txt
 pluggy==1.5.0 \
     --hash=sha256:2cffa88e94fdc978c4c574f15f9e59b7f4201d439195c3715ca9e2486f1d0cf1 \
     --hash=sha256:44e1ad92c8ca002de6377e165f3e0f1be63266ab4d554740532335b9d75ea669
@@ -3255,6 +3289,7 @@ pyopenssl==24.3.0 \
     --hash=sha256:49f7a019577d834746bc55c5fce6ecbcec0f2b4ec5ce1cf43a9a173b8138bb36 \
     --hash=sha256:e474f5a473cd7f92221cc04976e48f4d11502804657a08a989fb3be5514c904a
     # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   snowflake-connector-python
 pyparsing==3.2.1 \
@@ -3557,7 +3592,9 @@ readme-renderer==44.0 \
 redis==4.6.0 \
     --hash=sha256:585dc516b9eb042a619ef0a39c3d7d55fe81bdb4df09a52c9cdde0d07bf1aa7d \
     --hash=sha256:e2b03db868160ee4591de3cb90d40ebb50a90dd302138775937f6a42b7ed183c
-    # via -r extras-requirements.txt
+    # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
+    #   -r extras-requirements.txt
 referencing==0.36.2 \
     --hash=sha256:df2e89862cd09deabbdba16944cc3f10feb6b3e6f18e902f7cc25609a34775aa \
     --hash=sha256:e8699adbbf8b5c7de96d8ffa0eb5c158b3beafce084968e2ea8bb08c6794dcd0
@@ -3770,7 +3807,9 @@ ruff==0.8.0 \
 s3fs==2024.6.1 \
     --hash=sha256:6c2106d6c34fbfbb88e3d20c6f3572896d5ee3d3512896696301c21a3c541bea \
     --hash=sha256:ecd20863437409eec1cbfff0b7df5e9772cf7c1926008efab2e17e46f6d52c63
-    # via -r extras-requirements.txt
+    # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
+    #   -r extras-requirements.txt
 s3transfer==0.10.4 \
     --hash=sha256:244a76a24355363a68164241438de1b72f8781664920260c48465896b712a41e \
     --hash=sha256:29edc09801743c21eb5ecbc617a152df41d3c287f67b615f73e5f750583666a7
@@ -3956,7 +3995,9 @@ snowflake-connector-python==3.13.2 \
     --hash=sha256:f4503e841c9bb22fe7af168a6a4e3a76394d8e0d8731a29ad797273d5e9a62b3 \
     --hash=sha256:fd693b1db31c70a9669b5818980f718149d6f7b4624628bed087801dcd617051 \
     --hash=sha256:fd95811b8378d8a268038b59ea8dba8d30dd0b96a1c323191805ae152224ff70
-    # via -r extras-requirements.txt
+    # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
+    #   -r extras-requirements.txt
 sortedcontainers==2.4.0 \
     --hash=sha256:25caa5a06cc30b6b83d11423433f65d1f9d76c4c6a0c90e3379eaa43b9bfdb88 \
     --hash=sha256:a163dcaede0f1c021485e957a39245190e74249897e2ae4b2aa38595db237ee0
@@ -4015,6 +4056,7 @@ sqlalchemy==1.4.54 \
     --hash=sha256:fc9ffd9a38e21fad3e8c5a88926d57f94a32546e937e0be46142b2702003eba7
     # via
     #   -r dockerfiles/mlrun-api/requirements.txt
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   alembic
     #   mlflow
@@ -4056,11 +4098,14 @@ taos-ws-py==0.3.2 \
     --hash=sha256:ea3a7fff25fc828e050459024e59558a925788c4fb8623af83bbcbca0f47c535 \
     --hash=sha256:f165176a20e99e44205e9693e032540a6be8125841e43d809a21b4888ac9be44
     # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   taoswswrap
 taoswswrap==0.3.1 \
     --hash=sha256:a976a33f03a31c2f3cc44da08706cbd1d5cedf53fdf9e78b34f3b443cadbc299
-    # via -r extras-requirements.txt
+    # via
+    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
+    #   -r extras-requirements.txt
 tblib==3.0.0 \
     --hash=sha256:80a6c77e59b55e83911e1e607c649836a69c103963c5f28a46cbeef44acf8129 \
     --hash=sha256:93622790a0a29e04f0346458face1e144dc4d32f493714c6c3dff82a4adb77e6

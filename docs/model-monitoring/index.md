@@ -90,7 +90,7 @@ You can create your own model monitoring applications for LLMs, gen AI, deep-lea
 See {ref}`mm-applications`.</br>
 You can also integrate [Evidently](https://github.com/evidentlyai/evidently)
 as an MLRun function and create MLRun artifacts, using the built-in
-{py:class}`~mlrun.model_monitoring.applications.EvidentlyModelMonitoringApplicationBase` class.
+{py:class}`~mlrun.model_monitoring.applications.evidently.EvidentlyModelMonitoringApplicationBase` class.
 See an example in {ref}`realtime-monitor-drift-tutor`.
 
 Projects are used to group functions that use the same model monitoring application. You first need to create a project for a specific application.

@@ -28,6 +28,7 @@ import mlrun.model_monitoring.api as mm_api
 import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.results as mm_results
 from mlrun.serving.utils import MonitoringApplicationToDict
+from mlrun.utils import logger
 
 
 class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
@@ -94,7 +95,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         context: "mlrun.MLClientCtx",
         sample_data: Optional[pd.DataFrame] = None,
         reference_data: Optional[pd.DataFrame] = None,
-        endpoints: Optional[list[tuple[str, str]]] = None,
+        endpoints: Optional[Union[list[tuple[str, str]], list[str], str]] = None,
         start: Optional[str] = None,
         end: Optional[str] = None,
         base_period: Optional[int] = None,
@@ -137,13 +138,61 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         }
                     )
                     result_key = (
-                        f"{endpoint_name}_{window_start.isoformat()}_{window_end.isoformat()}"
+                        f"{endpoint_name}-{endpoint_id}_{window_start.isoformat()}_{window_end.isoformat()}"
                         if window_start and window_end
-                        else endpoint_name
+                        else f"{endpoint_name}-{endpoint_id}"
                     )
                     context.log_result(result_key, result)
         else:
             return call_do_tracking()
+
+    @staticmethod
+    def _handle_endpoints_type_evaluate(
+        project: str,
+        endpoints: Union[list[tuple[str, str]], list[str], str, None],
+    ) -> list[tuple[str, str]]:
+        if endpoints:
+            if isinstance(endpoints, str) or (
+                isinstance(endpoints, list) and isinstance(endpoints[0], str)
+            ):
+                endpoints_list = (
+                    mlrun.get_run_db()
+                    .list_model_endpoints(
+                        project,
+                        names=endpoints,
+                        latest_only=True,
+                    )
+                    .endpoints
+                )
+                if endpoints_list:
+                    list_endpoints_result = [
+                        (endpoint.metadata.name, endpoint.metadata.uid)
+                        for endpoint in endpoints_list
+                    ]
+                    retrieve_ep_names = list(
+                        map(lambda endpoint: endpoint[0], list_endpoints_result)
+                    )
+                    missing = set(
+                        [endpoints] if isinstance(endpoints, str) else endpoints
+                    ) - set(retrieve_ep_names)
+                    if missing:
+                        logger.warning(
+                            "Could not list all the required endpoints.",
+                            missing_endpoint=missing,
+                            endpoints=list_endpoints_result,
+                        )
+                else:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        f"Did not find any model_endpoint named ' {endpoints}'"
+                    )
+
+            if not (
+                isinstance(endpoints, list) and isinstance(endpoints[0], (list, tuple))
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Could not resolve endpoints as list of [(name, uid)]"
+                )
+        return endpoints
 
     @staticmethod
     def _window_generator(
@@ -337,7 +386,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         class_handler: Optional[str] = None,
         requirements: Optional[Union[str, list[str]]] = None,
         requirements_file: str = "",
-        endpoints: Optional[list[tuple[str, str]]] = None,
+        endpoints: Optional[Union[list[tuple[str, str]], list[str], str]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         base_period: Optional[int] = None,
@@ -365,6 +414,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param requirements:      List of Python requirements to be installed in the image.
         :param requirements_file: Path to a Python requirements file to be installed in the image.
         :param endpoints:         A list of tuples of the model endpoint (name, uid) to get the data from.
+                                  allow providing a list of model_endpoint names or name for a single model_endpoint.
+                                  Note: provide names retrieves the model all the active model endpoints using those
+                                  names (cross function model endpoints)
                                   If provided, and ``sample_data`` is not, you have to provide also the ``start`` and
                                   ``end`` times of the data to analyze from the model endpoints.
         :param start:             The start time of the endpoint's data, not included.
@@ -405,6 +457,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
         params: dict[str, Union[list[tuple[str, str]], str, int, None]] = {}
         if endpoints:
+            endpoints = cls._handle_endpoints_type_evaluate(
+                project=project.name,
+                endpoints=endpoints,
+            )
             params["endpoints"] = endpoints
             if sample_data is None:
                 if start is None or end is None:

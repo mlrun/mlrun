@@ -3765,7 +3765,7 @@ class HTTPRunDB(RunDBInterface):
     def list_model_endpoints(
         self,
         project: str,
-        name: Optional[str] = None,
+        names: Optional[Union[str, list[str]]] = None,
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         model_name: Optional[str] = None,
@@ -3782,7 +3782,7 @@ class HTTPRunDB(RunDBInterface):
         List model endpoints with optional filtering by name, function name, model name, labels, and time range.
 
         :param project:         The name of the project
-        :param name:            The name of the model endpoint
+        :param names:            The name of the model endpoint, or list of names of the model endpoints
         :param function_name:   The name of the function
         :param function_tag:    The tag of the function
         :param model_name:      The name of the model
@@ -3798,12 +3798,13 @@ class HTTPRunDB(RunDBInterface):
         """
         path = f"projects/{project}/model-endpoints"
         labels = self._parse_labels(labels)
-
+        if names and isinstance(names, str):
+            names = [names]
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.GET,
             path=path,
             params={
-                "name": name,
+                "name": names,
                 "model_name": model_name,
                 "model_tag": model_tag,
                 "function_name": function_name,

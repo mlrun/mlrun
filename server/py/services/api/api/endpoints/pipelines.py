@@ -351,7 +351,7 @@ def _try_resolve_project_from_body(
             content_type=content_type,
         )
         return None
-    workflow_manifest = yaml.load(data, Loader=yaml.FullLoader)
+    workflow_manifest = yaml.safe_load(data)
     return services.api.crud.Pipelines().resolve_project_from_workflow_manifest(
         mlrun_pipelines.models.PipelineManifest(workflow_manifest)
     )

@@ -532,7 +532,10 @@ class TestRuns(TestDatabaseBase):
         # update the run's end_time
         end_time = datetime.now(timezone.utc)
         end_time_iso = end_time.isoformat()
-        updates = {"status.end_time": end_time_iso}
+        updates = {
+            "status.state": "completed",
+            "status.end_time": end_time_iso,
+        }
         self._db.update_run(self._db_session, updates, run_uid, project)
 
         # fetch the run and verify the end_time

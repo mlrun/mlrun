@@ -2155,7 +2155,7 @@ class MlrunProject(ModelObj):
 
                                        For example:
                                        [`app1.result-*`, `*.result1`]
-                                       will match "mep1.app1.result.result-1" and "mep1.app2.result.result1".
+                                       will match "mep_uid1.app1.result.result-1" and "mep_uid1.app2.result.result1".
                                        A specific result_name (not a wildcard) will always create a new alert
                                        config, regardless of whether the result name exists.
         :param severity:               Severity of the alert.
@@ -3786,7 +3786,7 @@ class MlrunProject(ModelObj):
 
     def list_model_endpoints(
         self,
-        name: Optional[str] = None,
+        names: Optional[Union[str, list[str]]] = None,
         model_name: Optional[str] = None,
         model_tag: Optional[str] = None,
         function_name: Optional[str] = None,
@@ -3816,7 +3816,7 @@ class MlrunProject(ModelObj):
         In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based
         and depends on the 'start' and 'end' parameters.
 
-        :param name: The name of the model to filter by
+        :param names: The name of the model to filter by
         :param model_name: The name of the model to filter by
         :param function_name: The name of the function to filter by
         :param function_tag: The tag of the function to filter by
@@ -3837,7 +3837,7 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_model_endpoints(
             project=self.name,
-            name=name,
+            names=names,
             model_name=model_name,
             model_tag=model_tag,
             function_name=function_name,

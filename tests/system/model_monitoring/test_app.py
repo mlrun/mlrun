@@ -1534,42 +1534,53 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
         # Adjust the end time - ML-9067
         end = model_endpoint.status.last_request + timedelta(milliseconds=3)
 
-        run_result = CountApp.evaluate(
-            func_path=str(Path(__file__).parent / "assets/application.py"),
-            endpoints=[(model_endpoint.metadata.name, model_endpoint.metadata.uid)],
-            start=start,
-            end=end,
-            run_local=run_local,
-            image=self.image,
-            base_period=1,
-        )
+        endpoints_params = [
+            [(model_endpoint.metadata.name, model_endpoint.metadata.uid)],
+            model_endpoint.metadata.name,
+            [
+                model_endpoint.metadata.name,
+            ],
+        ]
+        for i, endpoints in enumerate(endpoints_params):
+            run_result = CountApp.evaluate(
+                func_path=str(Path(__file__).parent / "assets/application.py"),
+                func_name=f"function-{i}",
+                endpoints=endpoints,
+                start=start,
+                end=end,
+                run_local=run_local,
+                image=self.image,
+                base_period=1,
+            )
 
-        # Test the state
-        assert (
-            run_result.state() == "completed"
-        ), "The job did not complete successfully"
+            # Test the state
+            assert (
+                run_result.state() == "completed"
+            ), "The job did not complete successfully"
 
-        # Test the passed base period
-        assert (
-            run_result.spec.parameters["base_period"] == 1
-        ), "The base period is different than the passed one"
+            # Test the passed base period
+            assert (
+                run_result.spec.parameters["base_period"] == 1
+            ), "The base period is different than the passed one"
 
-        # Test the results
-        outputs = run_result.outputs
-        assert outputs, "No returned results"
-        assert (
-            len(outputs) == 2
-        ), "The number of outputs is different than the number of windows"
-        assert set(outputs.values()) == {
-            (
-                "ModelMonitoringApplicationResult(name='count', value=14.0, "
-                "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, extra_data={})"
-            ),
-            (
-                "ModelMonitoringApplicationResult(name='count', value=4.0, "
-                "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, extra_data={})"
-            ),
-        }, "The outputs are different than expected"
+            # Test the results
+            outputs = run_result.outputs
+            assert outputs, "No returned results"
+            assert (
+                len(outputs) == 2
+            ), "The number of outputs is different than the number of windows"
+            assert set(outputs.values()) == {
+                (
+                    "ModelMonitoringApplicationResult(name='count', value=14.0, "
+                    "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, "
+                    "extra_data={})"
+                ),
+                (
+                    "ModelMonitoringApplicationResult(name='count', value=4.0, "
+                    "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, "
+                    "extra_data={})"
+                ),
+            }, "The outputs are different than expected"
 
 
 class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):

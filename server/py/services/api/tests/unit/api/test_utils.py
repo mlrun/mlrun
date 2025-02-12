@@ -1770,7 +1770,7 @@ async def test_update_functions_with_deletion_info(db: sqlalchemy.orm.Session):
             "",
             "",
             "1.7.0",
-            "mlrun/mlrun",
+            "mlrun/mlrun:1.7.0",
         ),
     ],
 )

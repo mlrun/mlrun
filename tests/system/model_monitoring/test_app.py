@@ -50,10 +50,8 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileV3io,
 )
 from mlrun.datastore.targets import ParquetTarget
-from mlrun.model_monitoring.applications import (
-    SUPPORTED_EVIDENTLY_VERSION,
-    ModelMonitoringApplicationBase,
-)
+from mlrun.model_monitoring.applications import ModelMonitoringApplicationBase
+from mlrun.model_monitoring.applications.evidently import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
 )

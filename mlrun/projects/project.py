@@ -2155,7 +2155,7 @@ class MlrunProject(ModelObj):
 
                                        For example:
                                        [`app1.result-*`, `*.result1`]
-                                       will match "mep1.app1.result.result-1" and "mep1.app2.result.result1".
+                                       will match "mep_uid1.app1.result.result-1" and "mep_uid1.app2.result.result1".
                                        A specific result_name (not a wildcard) will always create a new alert
                                        config, regardless of whether the result name exists.
         :param severity:               Severity of the alert.

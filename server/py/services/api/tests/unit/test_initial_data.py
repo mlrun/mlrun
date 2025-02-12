@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import string
 import typing
 import unittest.mock
 
@@ -405,8 +406,10 @@ def test_init_system_id(
     assert system_id is not None
 
     if system_id_source == "random":
-        # ensure that the generated id has the correct length (6 characters, as it is base64 encoded without padding)
+        # ensure the generated id has the correct length
         assert len(system_id) == 6
+        # ensure the generated id contains only alphanumeric characters
+        assert all(char in string.ascii_lowercase + string.digits for char in system_id)
     else:
         assert system_id == expected_system_id
 

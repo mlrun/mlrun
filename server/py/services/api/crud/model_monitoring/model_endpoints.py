@@ -382,7 +382,7 @@ class ModelEndpoints:
                 await run_in_threadpool(
                     framework.utils.singletons.db.get_db().list_model_endpoints,
                     project=model_endpoint.metadata.project,
-                    name=model_endpoint.metadata.name,
+                    names=[model_endpoint.metadata.name],
                     function_name=model_endpoint.spec.function_name,
                     function_tag=model_endpoint.spec.function_tag,
                     latest_only=True,
@@ -427,7 +427,7 @@ class ModelEndpoints:
                     await run_in_threadpool(
                         framework.utils.singletons.db.get_db().list_model_endpoints,
                         project=model_endpoint.metadata.project,
-                        name=model_endpoint.metadata.name,
+                        names=[model_endpoint.metadata.name],
                         function_name=model_endpoint.spec.function_name,
                         function_tag=model_endpoint.spec.function_tag,
                         latest_only=False,
@@ -753,7 +753,7 @@ class ModelEndpoints:
             model_endpoint_list = await run_in_threadpool(
                 framework.utils.singletons.db.get_db().list_model_endpoints,
                 project=project,
-                name=name,
+                names=[name],
                 function_name=function_name,
                 function_tag=function_tag,
                 latest_only=False,
@@ -898,7 +898,7 @@ class ModelEndpoints:
         self,
         project: str,
         db_session: sqlalchemy.orm.Session,
-        name: typing.Optional[str] = None,
+        names: typing.Optional[list[str]] = None,
         model_name: typing.Optional[str] = None,
         model_tag: typing.Optional[str] = None,
         function_name: typing.Optional[str] = None,
@@ -915,7 +915,7 @@ class ModelEndpoints:
         List model endpoints based on the provided filters.
         :param project:             The name of the project.
         :param db_session:          A session that manages the current dialog with the database.
-        :param name:                The name of the model endpoint.
+        :param names:               A list of the names of the model endpoints.
         :param model_name:          The name of the model.
         :param function_name:       The name of the function.
         :param function_tag:        The tag of the function.
@@ -935,7 +935,7 @@ class ModelEndpoints:
 
         logger.info(
             "Listing endpoints",
-            name=name,
+            names=names,
             project=project,
             model_name=model_name,
             model_tag=model_tag,
@@ -955,7 +955,7 @@ class ModelEndpoints:
             framework.utils.singletons.db.get_db().list_model_endpoints,
             session=db_session,
             project=project,
-            name=name,
+            names=names,
             model_name=model_name,
             model_tag=model_tag,
             function_name=function_name,

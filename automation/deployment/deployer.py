@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import io
 import logging
 import os.path
 import platform
 import subprocess
 import sys
 import typing
+from typing import Optional
 
 import paramiko
 import requests
@@ -44,7 +46,7 @@ class Constants:
     log_format = "> %(asctime)s [%(levelname)s] %(message)s"
 
 
-class ExcecutionParams:
+class ExecutionParams:
     def __init__(
         self,
         registry_url: str,
@@ -104,7 +106,7 @@ class CommunityEditionDeployer:
         chart_name: typing.Optional[str] = None,
     ) -> None:
         self._debug = log_level == "debug"
-        self._log_file_handler = None
+        self._log_file_handler: Optional[typing.IO] = None
         logging.basicConfig(format="> %(asctime)s [%(levelname)s] %(message)s")
         self._logger = logging.getLogger("automation")
         self._logger.setLevel(log_level.upper())
@@ -199,7 +201,7 @@ class CommunityEditionDeployer:
             minikube,
         )
 
-        ep = ExcecutionParams(
+        ep = ExecutionParams(
             registry_url,
             registry_secret_name,
             chart_name,
@@ -395,7 +397,7 @@ class CommunityEditionDeployer:
 
     def _generate_helm_install_arguments(
         self,
-        ep: ExcecutionParams,
+        ep: ExecutionParams,
     ) -> list[str]:
         """
         Generate the helm install arguments.
@@ -457,7 +459,7 @@ class CommunityEditionDeployer:
 
     def _generate_helm_values(
         self,
-        ep: ExcecutionParams,
+        ep: ExecutionParams,
     ) -> dict[str, str]:
         """
         Generate the helm values.
@@ -752,28 +754,31 @@ def run_command(
     live: bool = True,
     log_file_handler: typing.Optional[typing.IO[str]] = None,
 ) -> (str, str, int):
-    if workdir:
-        command = f"cd {workdir}; " + command
+    # ensure the command is only a single word
+    command = command.split()[0]
     if args:
-        command += " " + " ".join(args)
+        command = [command] + args
+    else:
+        command = command
 
-    process = subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        stdin=subprocess.PIPE,
-        shell=True,
-    )
+    try:
+        process = subprocess.run(
+            command,
+            capture_output=True,
+            cwd=workdir,
+            input=stdin,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        return exc.stdout, exc.stderr, exc.returncode
 
-    if stdin:
-        process.stdin.write(bytes(stdin, "ascii"))
-        process.stdin.close()
+    stdout_buffer = io.BytesIO()
+    stdout_buffer.write(process.stdout)
+    stdout_buffer.seek(0)
 
-    stdout = _handle_command_stdout(process.stdout, log_file_handler, live)
-    stderr = process.stderr.read()
-    exit_status = process.wait()
+    stdout = _handle_command_stdout(stdout_buffer, log_file_handler, live)
 
-    return stdout, stderr, exit_status
+    return stdout, process.stderr, process.returncode
 
 
 def run_command_remotely(

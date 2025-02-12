@@ -358,7 +358,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         assert len(filter_functions.endpoints) == 1
 
         filter_functions_latest = self.project.list_model_endpoints(
-            name="test-filter", latest_only=True
+            names="test-filter", latest_only=True
         )
         assert len(filter_functions_latest.endpoints) == 2
 

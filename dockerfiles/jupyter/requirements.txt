@@ -10,8 +10,6 @@ graphviz~=0.20.0
 # below: MLRun integration
 python-dotenv~=1.0
 # below: vulnerabilities remediation
-wheel~=0.44
 setuptools>=75.2
 requests~=2.32
-cryptography~=43.0
 certifi~=2024.0

@@ -69,6 +69,7 @@ _HISTOGRAM_DATA_DRIFT_APP_PATH = str(
     Path(mlrun.model_monitoring.applications.__file__).parent
     / "histogram_data_drift.py"
 )
+BASE_PERIOD_LOOKUP_TABLE = {20: 2, 60: 5, 120: 10, float("inf"): 20}
 
 
 class MonitoringDeployment:
@@ -240,7 +241,9 @@ class MonitoringDeployment:
 
             fn.add_trigger(
                 "cron_interval",
-                spec=nuclio.CronTrigger(interval=f"{base_period}m"),
+                spec=nuclio.CronTrigger(
+                    interval=f"{self._get_trigger_frequency(base_period)}m"
+                ),
             )
             fn, ready = services.api.utils.functions.build_function(
                 db_session=self.db_session, auth_info=self.auth_info, function=fn
@@ -1632,6 +1635,20 @@ class MonitoringDeployment:
             function_name,
             project_name,
         )
+
+    @staticmethod
+    def _get_trigger_frequency(base_period: int) -> int:
+        """
+        Determines the trigger frequency based on the base period using a lookup dictionary.
+
+        :param base_period: The base period in minutes.
+        :return: The trigger frequency in minutes.
+        """
+        for threshold, frequency in BASE_PERIOD_LOOKUP_TABLE.items():
+            if base_period <= threshold:
+                return frequency
+
+        return BASE_PERIOD_LOOKUP_TABLE[float("inf")]
 
 
 def get_endpoint_features(

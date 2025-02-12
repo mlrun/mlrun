@@ -47,7 +47,6 @@ class TDEngineConnector(TSDBConnector):
         self,
         project: str,
         profile: DatastoreProfile,
-        database: Optional[str] = None,
         **kwargs,
     ):
         super().__init__(project=project)

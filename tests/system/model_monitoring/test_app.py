@@ -1147,8 +1147,9 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         )
         serving_fn.set_topology("router")
         for endpoint_name, model_dict in self.model_by_endpoint_name.items():
+            model_name = model_dict["model_name"]
             self._log_model(
-                model_name=model_dict["model_name"],
+                model_name=model_name,
                 training_set=model_dict.get("training_set"),
                 label_column=model_dict.get("label_column"),
             )

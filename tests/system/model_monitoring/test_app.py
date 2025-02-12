@@ -1061,7 +1061,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             .reshape(-1, 3)
             .tolist()
         )
-        cls.router_models = {
+        cls.model_by_endpoint_name = {
             "int_one_to_one": {
                 "model_name": "int_one_to_one",
                 "class_name": "OneToOne",
@@ -1148,14 +1148,14 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             kind="serving",
         )
         serving_fn.set_topology("router")
-        for model_name, model_dict in self.router_models.items():
+        for endpoint_name, model_dict in self.model_by_endpoint_name.items():
             self._log_model(
-                model_name=model_name,
+                model_name=model_dict["model_name"],
                 training_set=model_dict.get("training_set"),
                 label_column=model_dict.get("label_column"),
             )
             serving_fn.add_model(
-                model_name,
+                endpoint_name,
                 model_path=f"store://models/{self.project_name}/{model_name}:latest",
                 class_name=model_dict.get("class_name"),
             )
@@ -1252,7 +1252,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
                     self._test_endpoint,
                     model_name=endpoint.spec.model_name,
                     feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
-                    model_dict=self.router_models[endpoint.spec.model_name],
+                    model_dict=self.model_by_endpoint_name[endpoint.metadata.name],
                 )
                 futures.append(future)
 

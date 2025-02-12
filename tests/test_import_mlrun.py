@@ -21,8 +21,8 @@ acceptable_stderr_errors = [
 
 def test_import_mlrun():
     out = subprocess.run(["python", "-c", "import mlrun"], capture_output=True)
-    stdout_lines = out.stdout.decode("utf-8").strip().split("\n")
-    stderr_lines = out.stderr.decode("utf-8").strip().split("\n")
+    stdout_lines = out.stdout.decode().strip().split("\n")
+    stderr_lines = out.stderr.decode().strip().split("\n")
     unexpected_stdout_errors = [line for line in stdout_lines if "[error]" in line]
     unexpected_stderr_errors = [
         line for line in stderr_lines if line and line not in acceptable_stderr_errors

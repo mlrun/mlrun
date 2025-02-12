@@ -299,9 +299,12 @@ class SQLDB(DBInterface):
         if start_time:
             run.start_time = start_time
 
-        end_time = run_end_time(struct)
-        if end_time:
-            run.end_time = end_time
+        if (
+            run.state in mlrun.common.runtimes.constants.RunStates.terminal_states()
+            and not run.end_time
+        ):
+            end_time = run_end_time(struct)
+            self._update_run_end_time(run, struct, now=end_time)
 
         # Update the labels only if the run updates contains labels
         if run_labels(updates):

@@ -1307,7 +1307,7 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-        name: typing.Optional[str] = None,
+        names: typing.Optional[list[str]] = None,
         function_name: typing.Optional[str] = None,
         function_tag: typing.Optional[str] = None,
         model_name: typing.Optional[str] = None,
@@ -1327,7 +1327,7 @@ class DBInterface(ABC):
 
         :param session:         The database session.
         :param project:         The project name.
-        :param name:            The model endpoint name.
+        :param names:           The model endpoint list of names.
         :param function_name:   The function name.
         :param function_tag:    The function tag.
         :param model_name:      The model name.

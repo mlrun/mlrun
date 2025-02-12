@@ -340,7 +340,7 @@ class TestRuns(TestDatabaseBase):
         self._ensure_run_after_align_runs_migration(run)
 
     def test_store_run_success(self):
-        project, name, uid, iteration, run = self._create_new_run()
+        project, name, uid, iteration, run_dict = self._create_new_run()
 
         # use to internal function to get the record itself to be able to assert columns
         runs = self._db._find_runs(
@@ -362,6 +362,24 @@ class TestRuns(TestDatabaseBase):
         assert (
             self._db._add_utc_timezone(run.updated).isoformat()
             == run.struct["status"]["last_update"]
+        )
+
+        end_time = datetime.now(timezone.utc)
+        run_dict["status"]["state"] = (
+            mlrun.common.runtimes.constants.RunStates.completed
+        )
+        run_dict["status"]["end_time"] = end_time.isoformat()
+        self._db.store_run(self._db_session, run_dict, uid, project, iter=iteration)
+
+        runs = self._db._find_runs(
+            self._db_session, uid=None, project=project, labels=None
+        ).all()
+        assert len(runs) == 1
+        run = runs[0]
+        assert (
+            self._db._add_utc_timezone(run.end_time).isoformat()
+            == run.struct["status"]["end_time"]
+            == end_time.isoformat()
         )
 
     def test_update_runs_requested_logs(self):

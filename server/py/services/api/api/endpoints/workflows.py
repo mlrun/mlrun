@@ -162,6 +162,12 @@ async def submit_workflow(
     updated_request = workflow_request.copy()
     updated_request.spec = workflow_spec
 
+    client_image = services.api.utils.helpers.resolve_client_default_kfp_image(
+        project,
+        workflow_spec,
+        client_version=client_version,
+    )
+
     # This function is for loading the project and running workflow remotely.
     # In this way we can schedule workflows (by scheduling a job that runs the workflow)
     workflow_runner: mlrun.run.KubejobRuntime = await run_in_threadpool(
@@ -173,11 +179,7 @@ async def submit_workflow(
         project=project.metadata.name,
         db_session=db_session,
         auth_info=auth_info,
-        image=services.api.utils.helpers.resolve_client_default_kfp_image(
-            client_version=client_version,
-            project=project,
-            workflow_spec=workflow_spec,
-        ),
+        image=client_image,
     )
 
     logger.debug(

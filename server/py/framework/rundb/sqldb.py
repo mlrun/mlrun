@@ -1053,7 +1053,7 @@ class SQLRunDB(RunDBInterface):
     def list_model_endpoints(
         self,
         project: str,
-        name: Optional[str] = None,
+        names: Optional[str] = None,
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         model_name: Optional[str] = None,
@@ -1070,7 +1070,7 @@ class SQLRunDB(RunDBInterface):
 
     def get_model_endpoint(
         self,
-        name: str,
+        name: Optional[Union[str, list[str]]],
         project: str,
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,

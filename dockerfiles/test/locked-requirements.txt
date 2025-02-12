@@ -245,9 +245,9 @@ azure-datalake-store==0.0.53 \
     --hash=sha256:05b6de62ee3f2a0a6e6941e6933b792b800c3e7f6ffce2fc324bc19875757393 \
     --hash=sha256:a30c902a6e360aa47d7f69f086b426729784e71c536f330b691647a51dc42b2b
     # via adlfs
-azure-identity==1.19.0 \
-    --hash=sha256:500144dc18197d7019b81501165d4fa92225f03778f17d7ca8a2a180129a9c83 \
-    --hash=sha256:e3f6558c181692d7509f09de10cca527c7dce426776454fb97df512a46527e81
+azure-identity==1.20.0 \
+    --hash=sha256:40597210d56c83e15031b0fe2ea3b26420189e1e7f3e20bdbb292315da1ba014 \
+    --hash=sha256:5f23fc4889a66330e840bd78830287e14f3761820fe3c5f77ac875edcb9ec998
     # via
     #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
@@ -4112,8 +4112,8 @@ taos-ws-py==0.3.2 \
     #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   taoswswrap
-taoswswrap==0.3.1 \
-    --hash=sha256:a976a33f03a31c2f3cc44da08706cbd1d5cedf53fdf9e78b34f3b443cadbc299
+taoswswrap==0.3.2 \
+    --hash=sha256:a636c1e7c0f7fcd0fbd7ffdab184ea1f1b5a4a4099239ad806188056462f8dda
     # via
     #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt

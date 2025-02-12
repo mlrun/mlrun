@@ -112,6 +112,7 @@ class TestBasics(TestMLRunSystem):
             loss=15,
             best_iteration=1,
             iteration_results=True,
+            iteration=1,
         )
 
     def test_inline_code(self):

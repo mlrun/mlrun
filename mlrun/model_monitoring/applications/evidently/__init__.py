@@ -1,4 +1,4 @@
-# Copyright 2024 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-from .base import ModelMonitoringApplicationBase
-from .context import MonitoringApplicationContext
-from .results import ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult
+from .base import (
+    _HAS_EVIDENTLY,
+    SUPPORTED_EVIDENTLY_VERSION,
+    EvidentlyModelMonitoringApplicationBase,
+)

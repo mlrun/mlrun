@@ -407,7 +407,11 @@ class TestRuns(TestDatabaseBase):
         ) as update_labels_mock:
             self._db.update_run(
                 self._db_session,
-                {"metadata.some-new-field": "value", "spec.another-new-field": "value"},
+                {
+                    "metadata.some-new-field": "value",
+                    "spec.another-new-field": "value",
+                    "status.state": "completed",
+                },
                 uid,
                 project,
                 iteration,
@@ -417,6 +421,8 @@ class TestRuns(TestDatabaseBase):
             assert run["metadata"]["name"] == name
             assert run["metadata"]["some-new-field"] == "value"
             assert run["spec"]["another-new-field"] == "value"
+            assert run["status"]["state"] == "completed"
+            assert run["status"]["end_time"] is not None
             assert update_labels_mock.call_count == 0
 
     def test_run_iter(self):
@@ -526,7 +532,10 @@ class TestRuns(TestDatabaseBase):
         # update the run's end_time
         end_time = datetime.now(timezone.utc)
         end_time_iso = end_time.isoformat()
-        updates = {"status.end_time": end_time_iso}
+        updates = {
+            "status.state": "completed",
+            "status.end_time": end_time_iso,
+        }
         self._db.update_run(self._db_session, updates, run_uid, project)
 
         # fetch the run and verify the end_time

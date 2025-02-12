@@ -370,9 +370,9 @@ class TestMLRunSystem:
         loss: typing.Optional[int] = None,
         best_iteration: typing.Optional[int] = None,
         iteration_results: bool = False,
-        fragment: typing.Optional[str] = None,
+        iteration: typing.Optional[int] = None,
     ):
-        fragment = "" if fragment is None else f"#{fragment}"
+        fragment = "" if iteration is None else f"#{iteration}"
 
         self._logger.debug("Verifying run outputs", spec=run_outputs)
         assert run_outputs["plotly"].startswith(str(output_path))

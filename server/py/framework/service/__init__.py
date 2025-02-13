@@ -19,6 +19,8 @@ import traceback
 import typing
 from abc import ABC, abstractmethod
 
+import anyio
+import anyio.lowlevel
 import fastapi
 import fastapi.concurrency
 import fastapi.exception_handlers
@@ -166,11 +168,8 @@ class Service(ABC):
                 version=mlrun.utils.version.Version().get(),
                 service_name=self.service_name,
             )
-            loop = asyncio.get_running_loop()
-            loop.set_default_executor(
-                concurrent.futures.ThreadPoolExecutor(
-                    max_workers=int(mlconf.httpdb.max_workers)
-                )
+            anyio.lowlevel.RunVar("_default_thread_limiter").set(
+                anyio.CapacityLimiter(int(mlconf.httpdb.max_workers))
             )
 
             initialize_db()

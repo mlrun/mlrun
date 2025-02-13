@@ -21,6 +21,7 @@ from abc import ABC, abstractmethod
 
 import anyio
 import anyio.lowlevel
+import anyio.to_thread
 import fastapi
 import fastapi.concurrency
 import fastapi.exception_handlers
@@ -168,8 +169,15 @@ class Service(ABC):
                 version=mlrun.utils.version.Version().get(),
                 service_name=self.service_name,
             )
+
+            # Set the default thread limiter to the max workers config according to:
+            # https://github.com/fastapi/fastapi/issues/4221
             anyio.lowlevel.RunVar("_default_thread_limiter").set(
                 anyio.CapacityLimiter(int(mlconf.httpdb.max_workers))
+            )
+            self._logger.info(
+                "Service default thread limiter set",
+                max_workers=anyio.to_thread.current_default_thread_limiter().total_tokens,
             )
 
             initialize_db()

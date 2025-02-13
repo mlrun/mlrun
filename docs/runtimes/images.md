@@ -28,7 +28,7 @@ The images are:
 - `mlrun/mlrun-gpu`: The same as `mlrun/mlrun` but for GPUs, including Open MPI. 
 - `mlrun/ml-base`: Image for file acquisition, compression, Dask jobs, simple training jobs and other utilities.
 - `mlrun/jupyter`: An image with Jupyter giving a playground to use MLRun in the open source. Built on top of jupyter/scipy-notebook, with the addition of MLRun and several demos and examples. 
-- `mlrun/mlrun-api`: The server's image.
+- `mlrun/mlrun-api`: The server's backend image.
 - `mlrun/log-collector`: A service that collects the logs for all runs and stores them in a persistent storage
 
 ```{admonition} Notes

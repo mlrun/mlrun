@@ -17,6 +17,7 @@ import os
 import re
 import time
 import typing
+import warnings
 from collections.abc import Iterable
 from enum import Enum
 
@@ -703,29 +704,7 @@ class KubeResourceSpec(FunctionSpec):
                 ),
                 affinity_field_name=affinity_field_name,
             )
-        # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
         elif self_preemption_mode == PreemptionModes.allow.value:
-            # remove preemptible anti-affinity
-            self._prune_affinity_node_selector_requirement(
-                generate_preemptible_node_selector_requirements(
-                    NodeSelectorOperator.node_selector_op_not_in.value
-                ),
-                affinity_field_name=affinity_field_name,
-            )
-            # remove preemptible affinity
-            self._prune_affinity_node_selector_requirement(
-                generate_preemptible_node_selector_requirements(
-                    NodeSelectorOperator.node_selector_op_in.value
-                ),
-                affinity_field_name=affinity_field_name,
-            )
-
-            # remove preemptible nodes constrain
-            self._prune_node_selector(
-                mlconf.get_preemptible_node_selector(),
-                node_selector_field_name=node_selector_field_name,
-            )
-
             # enrich with tolerations
             self._merge_tolerations(
                 generate_preemptible_tolerations(),
@@ -1201,6 +1180,132 @@ class KubeResource(BaseRuntime):
         """
         self.spec.with_requests(mem, cpu, patch=patch)
 
+    def detect_preemptible_node_selector(
+        self, node_selector: dict[str, str]
+    ) -> list[str]:
+        """
+        Checks if any provided node selector matches the preemptible node selectors.
+        Issues a warning if a selector may be pruned at runtime depending on preemption mode.
+
+        :param node_selector: The user-provided node selector dictionary.
+        """
+        preemptible_node_selector = mlconf.get_preemptible_node_selector()
+
+        return [
+            f"'{key}': '{val}'"
+            for key, val in node_selector.items()
+            if preemptible_node_selector.get(key) == val
+        ]
+
+    def detect_preemptible_tolerations(
+        self, tolerations: list[k8s_client.V1Toleration]
+    ) -> list[str]:
+        """
+        Checks if any provided toleration matches preemptible tolerations.
+        Issues a warning if a toleration may be pruned at runtime depending on preemption mode.
+
+        :param tolerations: The user-provided list of tolerations.
+        """
+        preemptible_tolerations = [
+            k8s_client.V1Toleration(
+                key=toleration.get("key"),
+                value=toleration.get("value"),
+                effect=toleration.get("effect"),
+            )
+            for toleration in mlconf.get_preemptible_tolerations()
+        ]
+
+        def _format_toleration(toleration):
+            return f"'{toleration.key}'='{toleration.value}' (effect: '{toleration.effect}')"
+
+        return [
+            _format_toleration(toleration)
+            for toleration in tolerations
+            if toleration in preemptible_tolerations
+        ]
+
+    def detect_preemptible_affinity(self, affinity: k8s_client.V1Affinity) -> list[str]:
+        """
+        Checks if any provided affinity rules match preemptible affinity configurations.
+        Issues a warning if an affinity rule may be pruned at runtime depending on preemption mode.
+
+        :param affinity: The user-provided affinity object.
+        """
+
+        preemptible_affinity_terms = generate_preemptible_nodes_affinity_terms()
+        conflicting_affinities = []
+
+        if (
+            affinity
+            and affinity.node_affinity
+            and affinity.node_affinity.required_during_scheduling_ignored_during_execution
+        ):
+            user_terms = affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms
+            for user_term in user_terms:
+                user_expressions = {
+                    (expr.key, expr.operator, tuple(expr.values or []))
+                    for expr in user_term.match_expressions or []
+                }
+
+                for preemptible_term in preemptible_affinity_terms:
+                    preemptible_expressions = {
+                        (expr.key, expr.operator, tuple(expr.values or []))
+                        for expr in preemptible_term.match_expressions or []
+                    }
+
+                    # Ensure operators match and preemptible expressions are present
+                    common_exprs = user_expressions & preemptible_expressions
+                    if common_exprs:
+                        formatted = ", ".join(
+                            f"'{key}  {operator}  {list(values)}'"
+                            for key, operator, values in common_exprs
+                        )
+                        conflicting_affinities.append(formatted)
+        return conflicting_affinities
+
+    def raise_preemptible_warning(
+        self,
+        node_selector: typing.Optional[dict[str, str]],
+        tolerations: typing.Optional[list[k8s_client.V1Toleration]],
+        affinity: typing.Optional[k8s_client.V1Affinity],
+    ) -> None:
+        """
+        Detects conflicts and issues a single warning if necessary.
+
+        :param node_selector: The user-provided node selector dictionary.
+        :param tolerations: The user-provided list of tolerations.
+        :param affinity: The user-provided affinity object.
+        """
+        conflict_messages = []
+
+        if node_selector:
+            ns_conflicts = ", ".join(
+                self.detect_preemptible_node_selector(node_selector)
+            )
+            if ns_conflicts:
+                conflict_messages.append(f"Node selectors: {ns_conflicts}")
+
+        if tolerations:
+            tol_conflicts = ", ".join(self.detect_preemptible_tolerations(tolerations))
+            if tol_conflicts:
+                conflict_messages.append(f"Tolerations: {tol_conflicts}")
+
+        if affinity:
+            affinity_conflicts = ", ".join(self.detect_preemptible_affinity(affinity))
+            if affinity_conflicts:
+                conflict_messages.append(f"Affinity: {affinity_conflicts}")
+
+        if conflict_messages:
+            warning_componentes = "; \n".join(conflict_messages)
+            warnings.warn(
+                f"Warning: based on the preemptible node settings configured in your MLRun configuration,\n"
+                f"{warning_componentes}\n"
+                f" may be removed or adjusted at runtime.\n"
+                "This adjustment depends on the function's preemption mode. \n"
+                "The list of potential adjusted preemptible selectors can be viewed here: "
+                "mlrun.mlconf.get_preemptible_node_selector() and mlrun.mlconf.get_preemptible_tolerations()."
+            )
+
     def with_node_selection(
         self,
         node_name: typing.Optional[str] = None,
@@ -1209,19 +1314,14 @@ class KubeResource(BaseRuntime):
         tolerations: typing.Optional[list[k8s_client.V1Toleration]] = None,
     ):
         """
-        Enables to control on which k8s node the job will run
+        Enables control over which Kubernetes node the job will run on.
 
-        :param node_name:       The name of the k8s node
-        :param node_selector:   Label selector, only nodes with matching labels will be eligible to be picked
-        :param affinity:        Expands the types of constraints you can express - see
-                                https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
-                                for details
-        :param tolerations:     Tolerations are applied to pods, and allow (but do not require) the pods to schedule
-                                onto nodes with matching taints - see
-                                https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration
-                                for details
-
+        :param node_name:       The name of the Kubernetes node.
+        :param node_selector:   Label selector, only nodes with matching labels will be eligible.
+        :param affinity:        Defines scheduling constraints.
+        :param tolerations:     Allows scheduling onto nodes with matching taints.
         """
+        # Apply values as before
         if node_name:
             self.spec.node_name = node_name
         if node_selector is not None:
@@ -1231,6 +1331,12 @@ class KubeResource(BaseRuntime):
             self.spec.affinity = affinity
         if tolerations is not None:
             self.spec.tolerations = tolerations
+
+        self.raise_preemptible_warning(
+            node_selector=self.spec.node_selector,
+            tolerations=self.spec.tolerations,
+            affinity=self.spec.affinity,
+        )
 
     def with_priority_class(self, name: typing.Optional[str] = None):
         """

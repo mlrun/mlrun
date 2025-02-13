@@ -30,6 +30,7 @@ The images are:
 - `mlrun/jupyter`: An image with Jupyter giving a playground to use MLRun in the open source. Built on top of jupyter/scipy-notebook, with the addition of MLRun and several demos and examples. 
 - `mlrun/mlrun-api`: The server's backend image.
 - `mlrun/log-collector`: A service that collects the logs for all runs and stores them in a persistent storage
+- `mlrun/mlrun-ui`: The server's frontend image
 
 ```{admonition} Notes
 When using the `mlrun` or `mlrun-gpu` image, use PyTorch versions up to and including than 2.0.1, but not higher. 

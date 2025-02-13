@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import typing
-import urllib.parse
 
 from mlrun_pipelines.common.helpers import FlexibleMapper
 from mlrun_pipelines.imports import PipelineTask
@@ -60,11 +59,12 @@ class PipelineManifest(FlexibleMapper):
             return self._external_data["apiVersion"]
 
     def is_argo_compatible(self) -> bool:
-        schema_version = self.get_schema_version()
-        parsed_schema_version = urllib.parse.urlparse(schema_version)
-        if parsed_schema_version.hostname == "argoproj.io":
-            return True
-        return False
+        # TODO: make sure this is compatible with KFP 2. The schema version in kfp 2 is a semver string,
+        #       but since this code supports kfp 1.8 as well, where it considers the api version as the schema version
+        #       we need to check if the schema version starts with "argoproj.io". Either way, for now this check is
+        #       good enough and won't break whether the schema version is a semver string or not.
+        schema_version_split = self.get_schema_version().split("/")[0]
+        return schema_version_split == "argoproj.io"
 
     def get_executors(self):
         if self.is_argo_compatible():

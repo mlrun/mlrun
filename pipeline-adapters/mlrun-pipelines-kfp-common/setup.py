@@ -21,7 +21,7 @@ logger = logging.getLogger("mlrun-kfp-setup")
 
 setup(
     name="mlrun-pipelines-kfp-common",
-    version="0.3.10",
+    version="0.3.11",
     description="MLRun Pipelines package for providing KFP common functionality",
     author="Yaron Haviv",
     author_email="yaronh@iguazio.com",

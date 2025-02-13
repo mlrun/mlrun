@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import base64
 import datetime
 import json
 import os
 import pathlib
 import random
+import string
 import typing
 
 import dateutil.parser
@@ -1136,23 +1136,11 @@ def _get_configured_system_id() -> typing.Optional[str]:
 
 
 def _generate_system_id() -> str:
-    # Generate a random 32-bit unsigned integer and encode as a URL-safe Base64 string without padding
-    while True:
-        random_number = random.getrandbits(32)
-        random_bytes = random_number.to_bytes(4, "big")
-        base64_str = base64.urlsafe_b64encode(random_bytes).decode("utf-8").rstrip("=")
+    # Generate a 6-character alphanumeric ID using lowercase letters and digits only
+    valid_chars = string.ascii_lowercase + string.digits
+    system_id_len = 6
 
-        # convert to lowercase and remove underscores for compatibility with Kubernetes names
-        sanitized_str = base64_str.lower().replace("_", "-")
-
-        # validate the result against the qualified_name regex
-        try:
-            mlrun.utils.helpers.verify_field_regex(
-                "system_id", sanitized_str, mlrun.utils.regex.qualified_name
-            )
-            return sanitized_str
-        except mlrun.errors.MLRunInvalidArgumentError:
-            continue
+    return "".join(random.choices(valid_chars, k=system_id_len))
 
 
 def main() -> None:

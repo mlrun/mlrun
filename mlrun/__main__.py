@@ -19,7 +19,7 @@ import socket
 import traceback
 import warnings
 from ast import literal_eval
-from base64 import b64decode, b64encode
+from base64 import b64decode
 from os import environ, path, remove
 from pprint import pprint
 
@@ -298,7 +298,7 @@ def run(
             if url_file and path.isfile(url_file):
                 with open(url_file) as fp:
                     body = fp.read()
-                based = b64encode(body.encode("utf-8")).decode("utf-8")
+                based = mlrun.utils.helpers.encode_user_code(body)
                 logger.info(f"packing code at {url_file}")
                 update_in(runtime, "spec.build.functionSourceCode", based)
                 url = f"main{pathlib.Path(url_file).suffix} {url_args}"
@@ -557,7 +557,7 @@ def build(
             exit(1)
         with open(source) as fp:
             body = fp.read()
-        based = b64encode(body.encode("utf-8")).decode("utf-8")
+        based = mlrun.utils.helpers.encode_user_code(body)
         logger.info(f"Packing code at {source}")
         b.functionSourceCode = based
         func.spec.command = ""

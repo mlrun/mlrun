@@ -22,7 +22,6 @@ import io
 import json
 import multiprocessing
 import os
-import urllib.parse
 import warnings
 import zipfile
 from ast import literal_eval
@@ -823,8 +822,7 @@ def _enrich_kfp_workflow_yaml_credentials(
         workflow_dict.get("api_version") or workflow_dict.get("apiVersion", "").lower()
     )
 
-    parsed_api_version = urllib.parse.urlparse(api_version)
-    if parsed_api_version.hostname == "argoproj.io":  # KFP Argo Workflow
+    if api_version.startswith("argoproj.io"):  # KFP Argo Workflow
         spec = workflow_dict.get("spec")
         if not spec:
             logger.warning("Missing spec, not modifying workflow")

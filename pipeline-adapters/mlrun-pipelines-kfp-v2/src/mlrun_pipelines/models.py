@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import typing
-import urllib.parse
 
 from mlrun_pipelines.common.helpers import FlexibleMapper
 from mlrun_pipelines.imports import PipelineTask
@@ -60,9 +59,7 @@ class PipelineManifest(FlexibleMapper):
             return self._external_data["apiVersion"]
 
     def is_argo_compatible(self) -> bool:
-        schema_version = self.get_schema_version()
-        parsed_schema_version = urllib.parse.urlparse(schema_version)
-        if parsed_schema_version.hostname == "argoproj.io":
+        if self.get_schema_version().startswith("argoproj.io"):
             return True
         return False
 

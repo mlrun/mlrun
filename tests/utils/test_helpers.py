@@ -1379,3 +1379,25 @@ def test_validate_single_def_handler_valid_handler(code):
 )
 def test_join_urls(base_url, path, expected_result):
     assert mlrun.utils.helpers.join_urls(base_url, path) == expected_result
+
+
+@pytest.mark.parametrize(
+    "input_time, expected_output",
+    [
+        (None, None),
+        # no timezone
+        (datetime(2025, 1, 15, 11, 0, 0), "2025-01-15T11:00:00"),
+        # timezone-aware datetime (UTC+2), should convert to UTC
+        (
+            datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone(Timedelta(hours=2))),
+            "2025-01-15T09:00:00+00:00",
+        ),
+        # Case 4: Already UTC datetime
+        (
+            datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc),
+            "2025-01-15T11:00:00+00:00",
+        ),
+    ],
+)
+def test_datetime_to_iso(input_time, expected_output):
+    assert mlrun.utils.helpers.datetime_to_iso(input_time) == expected_output

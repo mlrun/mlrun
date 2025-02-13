@@ -1335,6 +1335,10 @@ def datetime_from_iso(time_str: str) -> Optional[datetime]:
 def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
     if not time_obj:
         return
+
+    # if the datetime object has a timezone, convert it to UTC before formatting.
+    if time_obj.tzinfo:
+        time_obj = time_obj.astimezone(timezone.utc)
     return time_obj.isoformat()
 
 

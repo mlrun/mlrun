@@ -79,7 +79,9 @@ context.log_artifact(
 To create an Evidently based model monitoring application, import the following class:
 
 ```py
-from mlrun.model_monitoring.applications import EvidentlyModelMonitoringApplicationBase
+from mlrun.model_monitoring.applications.evidently import (
+    EvidentlyModelMonitoringApplicationBase,
+)
 ```
 
 Inherit from it, implement the `do_tracking` method, and pass the `evidently_workspace_path` and
@@ -106,7 +108,7 @@ project.set_model_monitoring_function(
 ```{note}
 It is recommended to specify the exact version of the `evidently` package for reproducibility with
 `"evidently==<x.y.z>"`. Get the supported version through
-`mlrun.model_monitoring.evidently_application.SUPPORTED_EVIDENTLY_VERSION`.
+`from mlrun.model_monitoring.applications.evidently import SUPPORTED_EVIDENTLY_VERSION`.
 ```
 
 See a full example in [Realtime monitoring and drift detection](../tutorials/05-model-monitoring.ipynb#evidently-app).

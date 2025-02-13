@@ -214,7 +214,7 @@ async def delete_model_endpoint(
 )
 async def list_model_endpoints(
     project: ProjectAnnotation,
-    name: Optional[str] = None,
+    names: Optional[list[str]] = Query(None, alias="name"),
     model_name: Optional[str] = None,
     model_tag: Optional[str] = None,
     function_name: Optional[str] = None,
@@ -233,7 +233,7 @@ async def list_model_endpoints(
     List model endpoints.
 
     :param project:         The name of the project.
-    :param name:            The model endpoint name.
+    :param names:            The model endpoints names.
     :param model_name:      The model name.
     :param function_name:   The function name.
     :param function_tag:    The function tag.
@@ -256,7 +256,7 @@ async def list_model_endpoints(
 
     endpoints = await services.api.crud.ModelEndpoints().list_model_endpoints(
         project=project,
-        name=name,
+        names=names,
         model_name=model_name,
         model_tag=model_tag,
         function_name=function_name,

@@ -16,6 +16,7 @@ import asyncio
 import collections
 import functools
 import hashlib
+import inspect
 import pathlib
 import re
 import typing
@@ -42,7 +43,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.inspection import inspect
+from sqlalchemy.inspection import inspect as sqlalchemy_inspect
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -298,9 +299,12 @@ class SQLDB(DBInterface):
         if start_time:
             run.start_time = start_time
 
-        end_time = run_end_time(struct)
-        if end_time:
-            run.end_time = end_time
+        if (
+            run.state in mlrun.common.runtimes.constants.RunStates.terminal_states()
+            and not run.end_time
+        ):
+            end_time = run_end_time(struct)
+            self._update_run_end_time(run, struct, now=end_time)
 
         # Update the labels only if the run updates contains labels
         if run_labels(updates):
@@ -507,7 +511,14 @@ class SQLDB(DBInterface):
         self._delete(session, Run, uid=uid, project=project)
 
     def del_runs(
-        self, session, name=None, project=None, labels=None, state=None, days_ago=0
+        self,
+        session,
+        name=None,
+        project=None,
+        labels=None,
+        state=None,
+        days_ago=0,
+        uids=None,
     ):
         project = project or config.default_project
         query = self._find_runs(session, None, project, labels)
@@ -518,6 +529,8 @@ class SQLDB(DBInterface):
             query = self._add_run_name_query(query, name)
         if state:
             query = query.filter(Run.state == state)
+        if uids:
+            query = query.filter(Run.uid.in_(uids))
         for run in query:  # Can not use query.delete with join
             session.delete(run)
         session.commit()
@@ -558,6 +571,12 @@ class SQLDB(DBInterface):
         run_data.setdefault("status", {})["start_time"] = start_time.isoformat()
         run.start_time = start_time
         self._update_run_updated_time(run, run_data, now=now)
+        if (
+            run.state in mlrun.common.runtimes.constants.RunStates.terminal_states()
+            and not run.end_time
+        ):
+            end_time = run_end_time(run_data)
+            self._update_run_end_time(run, run_data, now=end_time)
         run.struct = run_data
 
     def _add_run_name_query(self, query, name):
@@ -584,6 +603,15 @@ class SQLDB(DBInterface):
             now = datetime.now(timezone.utc)
         run_record.updated = now
         run_dict.setdefault("status", {})["last_update"] = now.isoformat()
+
+    @staticmethod
+    def _update_run_end_time(
+        run_record: Run, run_dict: dict, now: typing.Optional[datetime] = None
+    ):
+        if now is None:
+            now = datetime.now(timezone.utc)
+        run_record.end_time = now
+        run_dict.setdefault("status", {})["end_time"] = now.isoformat()
 
     @staticmethod
     def _update_run_state(run_record: Run, run_dict: dict):
@@ -1517,6 +1545,35 @@ class SQLDB(DBInterface):
             ArtifactV2.Tag.name,
         )
 
+        # If the query matches the default UI list artifacts request, we bypass the DB optimizer and use the index
+        # `idx_project_bi_updated` because we know it provides optimal results for this specific query.
+        if self._is_default_list_artifacts_query(
+            project,
+            ids,
+            tag,
+            labels,
+            since,
+            until,
+            name,
+            kind,
+            category,
+            iter,
+            uid,
+            producer_id,
+            producer_uri,
+            best_iteration,
+            most_recent,
+            attach_tags,
+            offset,
+            limit,
+            with_entities,
+            partition_by,
+            rows_per_partition,
+            partition_sort_by,
+            partition_order,
+        ):
+            query = query.with_hint(ArtifactV2, "USE INDEX idx_project_bi_updated")
+
         if project:
             query = query.filter(ArtifactV2.project == project)
         if ids and ids != "*":
@@ -1614,6 +1671,81 @@ class SQLDB(DBInterface):
             return list(artifacts)
 
         return results
+
+    def _is_default_list_artifacts_query(
+        self,
+        project: str,
+        ids: typing.Optional[typing.Union[list[str], str]] = None,
+        tag: typing.Optional[str] = None,
+        labels: typing.Optional[typing.Union[list[str], str]] = None,
+        since: typing.Optional[datetime] = None,
+        until: typing.Optional[datetime] = None,
+        name: typing.Optional[str] = None,
+        kind: mlrun.common.schemas.ArtifactCategories = None,
+        category: mlrun.common.schemas.ArtifactCategories = None,
+        iter: typing.Optional[int] = None,
+        uid: typing.Optional[str] = None,
+        producer_id: typing.Optional[str] = None,
+        producer_uri: typing.Optional[str] = None,
+        best_iteration: bool = False,
+        most_recent: bool = False,
+        attach_tags: bool = False,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
+        with_entities: typing.Optional[list[Any]] = None,
+        partition_by: typing.Optional[
+            mlrun.common.schemas.ArtifactPartitionByField
+        ] = None,
+        rows_per_partition: typing.Optional[int] = 1,
+        partition_sort_by: typing.Optional[
+            mlrun.common.schemas.SortField
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: typing.Optional[
+            mlrun.common.schemas.OrderType
+        ] = mlrun.common.schemas.OrderType.desc,
+    ) -> bool:
+        parameters = inspect.signature(self._find_artifacts).parameters
+        default_list_params = {
+            name: parameter.default for name, parameter in parameters.items()
+        }
+        default_list_params.update(
+            {
+                "limit": 1001,
+                "best_iteration": True,
+                "tag": "latest",
+            }
+        )
+
+        # The project and category parameters are ignored since they are variable in the default query.
+        # The offset parameter varies with pagination, whereas the limit remains constant, so we only validate
+        # the limit and the offset is also ignored here.
+        current_params = {
+            "ids": ids,
+            "tag": tag,
+            "labels": labels,
+            "since": since,
+            "until": until,
+            "name": name,
+            "kind": kind,
+            "iter": iter,
+            "uid": uid,
+            "producer_id": producer_id,
+            "producer_uri": producer_uri,
+            "best_iteration": best_iteration,
+            "most_recent": most_recent,
+            "attach_tags": attach_tags,
+            "limit": limit,
+            "with_entities": with_entities,
+            "partition_by": partition_by,
+            "rows_per_partition": rows_per_partition,
+            "partition_sort_by": partition_sort_by,
+            "partition_order": partition_order,
+        }
+
+        # Check if all current parameters match their default values
+        return all(
+            default_list_params[key] == value for key, value in current_params.items()
+        )
 
     def _find_artifacts_for_producer_id(
         self,
@@ -4961,7 +5093,9 @@ class SQLDB(DBInterface):
         return session.query(cls).filter_by(**kw)
 
     def _get_count(self, session, cls):
-        return session.query(func.count(inspect(cls).primary_key[0])).scalar()
+        return session.query(
+            func.count(sqlalchemy_inspect(cls).primary_key[0])
+        ).scalar()
 
     def _get_class_instance_by_uid(self, session, cls, name, project, uid):
         query = (
@@ -5219,7 +5353,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         project: str,
-        name: Optional[str] = None,
+        names: Optional[list[str]] = None,
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         model_name: Optional[str] = None,
@@ -5239,7 +5373,7 @@ class SQLDB(DBInterface):
 
         :param session: The DB session.
         :param project: The project of the model endpoint to query.
-        :param name: The name of the model endpoint to query.
+        :param names: The name of the model endpoint to query.
         :param function_name: The function name of the model endpoint to query.
         :param model_name: The model name of the model endpoint to query.
         :param labels: The labels of the model endpoint to query.
@@ -5257,12 +5391,13 @@ class SQLDB(DBInterface):
             ModelEndpoint.__table__  # pyright: ignore[reportAttributeAccessIssue]
         )
         # Apply filters
-        if name:
+        if names:
             query = self._filter_values(
                 query=query,
                 cls=model_endpoints_table,
                 key_filter=ModelEndpointSchema.NAME,
-                filtered_values=[name],
+                filtered_values=names,
+                combined=False,
             )
         if function_name:
             query = self._filter_values(
@@ -7330,7 +7465,7 @@ class SQLDB(DBInterface):
         self,
         session,
         project: str,
-        name: typing.Optional[str] = None,
+        names: typing.Optional[list[str]] = None,
         function_name: typing.Optional[str] = None,
         function_tag: typing.Optional[str] = None,
         model_name: typing.Optional[str] = None,
@@ -7348,7 +7483,7 @@ class SQLDB(DBInterface):
         model_endpoints: list[mlrun.common.schemas.ModelEndpoint] = []
         for mep_record in self._find_model_endpoints(
             session=session,
-            name=name,
+            names=names,
             project=project,
             labels=labels,
             function_name=function_name,

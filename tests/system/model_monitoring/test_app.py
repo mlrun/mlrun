@@ -14,7 +14,6 @@
 
 import concurrent.futures
 import json
-import os
 import pickle
 import time
 import typing
@@ -23,15 +22,19 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import kafka
 import numpy as np
 import pandas as pd
 import pytest
+import v3io.dataplane
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
+from v3io.dataplane.response import HttpResponseError
 
 import mlrun
 import mlrun.alerts.alert
+import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_objects
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.types
@@ -41,19 +44,22 @@ import mlrun.feature_store as fstore
 import mlrun.model_monitoring
 import mlrun.model_monitoring.api
 import mlrun.model_monitoring.applications.histogram_data_drift
-from mlrun.datastore.datastore_profile import DatastoreProfileV3io
-from mlrun.datastore.targets import ParquetTarget
-from mlrun.model_monitoring.applications import (
-    SUPPORTED_EVIDENTLY_VERSION,
-    ModelMonitoringApplicationBase,
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfile,
+    DatastoreProfileKafkaSource,
+    DatastoreProfileV3io,
 )
+from mlrun.datastore.targets import ParquetTarget
+from mlrun.model_monitoring.applications import ModelMonitoringApplicationBase
+from mlrun.model_monitoring.applications.evidently import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
 )
 from mlrun.utils.logger import Logger
+from mlrun.utils.v3io_clients import get_v3io_client
 from tests.system.base import TestMLRunSystem
 
-from . import get_tsdb_datastore_profile_from_env
+from . import TestMLRunSystemModelMonitoring
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     CountApp,
@@ -61,9 +67,7 @@ from .assets.application import (
     ErrApp,
     NoCheckDemoMonitoringApp,
 )
-from .assets.custom_evidently_app import (
-    CustomEvidentlyMonitoringApp,
-)
+from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
 
 
 @dataclass
@@ -101,26 +105,12 @@ class _V3IORecordsChecker:
     _logger: Logger
     apps_data: list[_AppData]
     app_interval: int
+    mm_tsdb_profile: DatastoreProfile
 
     @classmethod
     def custom_setup(cls, project_name: str) -> None:
-        # By default, the TSDB connection is based on V3IO TSDB
-        # To use TDEngine, set the `MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION`
-        # environment variable to the TDEngine connection string,
-        # e.g. "taosws://user:password@host:port"
-
-        project = mlrun.get_or_create_project(
-            project_name, "./", allow_cross_project=True
-        )
-        project.set_model_monitoring_credentials(
-            stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=os.getenv(
-                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
-            ),
-        )
-
         cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
-            project=project_name, profile=get_tsdb_datastore_profile_from_env()
+            project=project_name, profile=cls.mm_tsdb_profile
         )
         cls._v3io_container = f"users/pipelines/{project_name}/monitoring-apps/"
 
@@ -324,10 +314,9 @@ class _V3IORecordsChecker:
         )
 
 
-@TestMLRunSystem.skip_test_if_env_not_configured
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-@pytest.mark.model_monitoring
-class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
+class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
     project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
@@ -383,24 +372,18 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls.run_db = mlrun.get_run_db()
 
     def custom_setup(self) -> None:
-        # skips TestMLRunSystem, calls custom_setup() of _V3IORecordsChecker
+        self.set_mm_credentials()
         super(TestMLRunSystem, self).custom_setup(project_name=self.project_name)
 
     def custom_teardown(self) -> None:
         # validate that stream resources were deleted as expected
-        stream_path = self._test_env[
-            "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"
-        ]
+        stream_profile = self.mm_stream_profile
 
         func_to_validate = [mm_constants.MonitoringFunctionNames.WRITER] + [
             app_data.class_.NAME for app_data in self.apps_data
         ]
 
-        if stream_path.startswith("v3io:///"):
-            from v3io.dataplane.response import HttpResponseError
-
-            from mlrun.utils.v3io_clients import get_v3io_client
-
+        if isinstance(stream_profile, DatastoreProfileV3io):
             client = get_v3io_client(endpoint=mlrun.mlconf.v3io_api)
 
             for func in func_to_validate:
@@ -424,13 +407,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                     path=f"pipelines/{self.project_name}/model-endpoints/{mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER}/serving-state.json",
                 )
 
-        elif stream_path.startswith("kafka://"):
-            import kafka
-
-            _, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
-            consumer = kafka.KafkaConsumer(
-                bootstrap_servers=brokers,
-            )
+        elif isinstance(stream_profile, DatastoreProfileKafkaSource):
+            consumer = kafka.KafkaConsumer(bootstrap_servers=stream_profile.brokers)
             topics = consumer.topics()
 
             project_topics_list = [
@@ -731,10 +709,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         self._test_error_alert()
 
 
-@TestMLRunSystem.skip_test_if_env_not_configured
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-@pytest.mark.model_monitoring
-class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
+class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
     project_name = "test-mm-record-results"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
@@ -770,7 +747,10 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         cls.app_interval: int = 1  # every 1 minute
         cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
         cls.apps_data = [_DefaultDataDriftAppData, cls.app_data]
-        _V3IORecordsChecker.custom_setup(project_name=cls.project_name)
+
+    def custom_setup(self) -> None:
+        self.set_mm_credentials()
+        super(TestMLRunSystem, self).custom_setup(project_name=self.project_name)
 
     @classmethod
     def _generate_data(cls) -> list[typing.Union[pd.DataFrame, pd.Series]]:
@@ -852,10 +832,9 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         self._test_predictions_table(mep.metadata.uid, should_be_empty=True)
 
 
-@TestMLRunSystem.skip_test_if_env_not_configured
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-@pytest.mark.model_monitoring
-class TestModelMonitoringInitialize(TestMLRunSystem):
+class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
     """Test model monitoring infrastructure initialization and cleanup, including the usage of
     disable the model monitoring and delete a specific model monitoring application."""
 
@@ -879,12 +858,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             self.project.update_model_monitoring_controller(
                 image=self.image or "mlrun/mlrun"
             )
-        self.project.set_model_monitoring_credentials(
-            stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=os.getenv(
-                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
-            ),
-        )
+        self.set_mm_credentials()
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
             wait_for_deployment=True,
@@ -929,12 +903,8 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
 
         self.project.disable_model_monitoring(delete_histogram_data_drift_app=False)
 
-        stream_path = self._test_env[
-            "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"
-        ]
-        if stream_path.startswith("v3io:///"):
-            import v3io.dataplane
-
+        stream_profile = self.mm_stream_profile
+        if isinstance(stream_profile, DatastoreProfileV3io):
             v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
 
             # controller and writer(with has stream) should be deleted
@@ -942,7 +912,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
                 stream_path = mlrun.model_monitoring.helpers.get_stream_path(
                     project=self.project.name,
                     function_name=name,
-                    profile=DatastoreProfileV3io(name="tmp"),
+                    profile=stream_profile,
                 )
                 _, container, stream_path = (
                     mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
@@ -970,7 +940,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             stream_path = mlrun.model_monitoring.helpers.get_stream_path(
                 project=self.project.name,
                 function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
-                profile=DatastoreProfileV3io(name="tmp"),
+                profile=stream_profile,
             )
             _, container, stream_path = (
                 mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
@@ -986,7 +956,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
                 stream_path = mlrun.model_monitoring.helpers.get_stream_path(
                     project=self.project.name,
                     function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
-                    profile=DatastoreProfileV3io(name="tmp"),
+                    profile=stream_profile,
                 )
                 _, container, stream_path = (
                     mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
@@ -995,13 +965,8 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
                 )
                 v3io_client.stream.describe(container, stream_path)
 
-        elif stream_path.startswith("kafka://"):
-            import kafka
-
-            _, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
-            consumer = kafka.KafkaConsumer(
-                bootstrap_servers=brokers,
-            )
+        elif isinstance(stream_profile, DatastoreProfileKafkaSource):
+            consumer = kafka.KafkaConsumer(bootstrap_servers=stream_profile.brokers)
             topics = consumer.topics()
 
             # Verify that controller resources were deleted
@@ -1040,9 +1005,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             self._disable_stream_function()
 
             # check that the topic of the stream resource is not deleted
-            consumer = kafka.KafkaConsumer(
-                bootstrap_servers=brokers,
-            )
+            consumer = kafka.KafkaConsumer(bootstrap_servers=stream_profile.brokers)
             topics = consumer.topics()
             assert (
                 f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_v1"
@@ -1052,9 +1015,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             self._delete_histogram_app()
 
             # check that the topic of the histogram data drift app is deleted
-            consumer = kafka.KafkaConsumer(
-                bootstrap_servers=brokers,
-            )
+            consumer = kafka.KafkaConsumer(bootstrap_servers=stream_profile.brokers)
             topics = consumer.topics()
             assert (
                 f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_{mm_constants.HistogramDataDriftApplicationConstants.NAME}_v1"
@@ -1084,10 +1045,9 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             )
 
 
-@TestMLRunSystem.skip_test_if_env_not_configured
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-@pytest.mark.model_monitoring
-class TestMonitoredServings(TestMLRunSystem):
+class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     project_name = "test-mm-serving"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
@@ -1099,7 +1059,7 @@ class TestMonitoredServings(TestMLRunSystem):
             .reshape(-1, 3)
             .tolist()
         )
-        cls.router_models = {
+        cls.model_by_endpoint_name = {
             "int_one_to_one": {
                 "model_name": "int_one_to_one",
                 "class_name": "OneToOne",
@@ -1157,6 +1117,9 @@ class TestMonitoredServings(TestMLRunSystem):
             },
         }
 
+    def custom_setup(self) -> None:
+        self.set_mm_credentials()
+
     def _log_model(
         self,
         model_name: str,
@@ -1183,14 +1146,15 @@ class TestMonitoredServings(TestMLRunSystem):
             kind="serving",
         )
         serving_fn.set_topology("router")
-        for model_name, model_dict in self.router_models.items():
+        for endpoint_name, model_dict in self.model_by_endpoint_name.items():
+            model_name = model_dict["model_name"]
             self._log_model(
                 model_name=model_name,
                 training_set=model_dict.get("training_set"),
                 label_column=model_dict.get("label_column"),
             )
             serving_fn.add_model(
-                model_name,
+                endpoint_name,
                 model_path=f"store://models/{self.project_name}/{model_name}:latest",
                 class_name=model_dict.get("class_name"),
             )
@@ -1227,22 +1191,22 @@ class TestMonitoredServings(TestMLRunSystem):
         return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
 
     def _test_endpoint(
-        self, model_name, feature_set_uri, model_dict
+        self, endpoint_name, feature_set_uri, model_dict
     ) -> dict[str, typing.Any]:
         serving_fn = self.project.get_function(self.function_name)
         data_point = model_dict.get("data_point")
-        if model_name == "img_one_to_one":
+        if endpoint_name == "img_one_to_one":
             data_point = [data_point]
         serving_fn.invoke(
-            f"v2/models/{model_name}/infer",
+            f"v2/models/{endpoint_name}/infer",
             json.dumps(
                 {"inputs": data_point},
             ),
         )
-        if model_name == "img_one_to_one":
+        if endpoint_name == "img_one_to_one":
             data_point = data_point[0]
         serving_fn.invoke(
-            f"v2/models/{model_name}/infer",
+            f"v2/models/{endpoint_name}/infer",
             json.dumps({"inputs": [data_point, data_point]}),
         )
         time.sleep(
@@ -1260,7 +1224,7 @@ class TestMonitoredServings(TestMLRunSystem):
         has_all_the_events = offline_response_df.shape[0] == 3
 
         return {
-            "model_name": model_name,
+            "model_name": endpoint_name,
             "is_schema_saved": is_schema_saved,
             "has_all_the_events": has_all_the_events,
             "df": offline_response_df,
@@ -1268,12 +1232,6 @@ class TestMonitoredServings(TestMLRunSystem):
 
     def test_different_kind_of_serving(self) -> None:
         self.function_name = "serving-router"
-        self.project.set_model_monitoring_credentials(
-            stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=os.getenv(
-                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
-            ),
-        )
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
             base_period=1,
@@ -1291,15 +1249,9 @@ class TestMonitoredServings(TestMLRunSystem):
             for endpoint in endpoints:
                 future = executor.submit(
                     self._test_endpoint,
-                    model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[
-                        0
-                    ],
-                    feature_set_uri=endpoint[
-                        mm_constants.EventFieldType.FEATURE_SET_URI
-                    ],
-                    model_dict=self.router_models[
-                        endpoint[mm_constants.EventFieldType.MODEL].split(":")[0]
-                    ],
+                    endpoint_name=endpoint.metadata.name,
+                    feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
+                    model_dict=self.model_by_endpoint_name[endpoint.metadata.name],
                 )
                 futures.append(future)
 
@@ -1315,12 +1267,6 @@ class TestMonitoredServings(TestMLRunSystem):
 
     def test_tracking(self) -> None:
         self.function_name = "serving-1"
-        self.project.set_model_monitoring_credentials(
-            stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=os.getenv(
-                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
-            ),
-        )
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
             base_period=1,
@@ -1361,7 +1307,7 @@ class TestMonitoredServings(TestMLRunSystem):
         )
 
         res_dict = self._test_endpoint(
-            model_name=endpoint.metadata.name,
+            endpoint_name=endpoint.metadata.name,
             feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
             model_dict=self.test_models_tracking[endpoint.metadata.name],
         )
@@ -1388,7 +1334,7 @@ class TestMonitoredServings(TestMLRunSystem):
         )
 
         res_dict = self._test_endpoint(
-            model_name=endpoint.metadata.name,
+            endpoint_name=endpoint.metadata.name,
             feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
             model_dict=self.test_models_tracking[endpoint.metadata.name],
         )
@@ -1399,12 +1345,6 @@ class TestMonitoredServings(TestMLRunSystem):
 
     def test_enable_model_monitoring_after_failure(self) -> None:
         self.function_name = "test-function"
-        self.project.set_model_monitoring_credentials(
-            stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=os.getenv(
-                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
-            ),
-        )
 
         with pytest.raises(
             mlrun.runtimes.utils.RunError,
@@ -1434,7 +1374,6 @@ class TestMonitoredServings(TestMLRunSystem):
             assert func.status.state == "ready"
 
 
-@pytest.mark.model_monitoring
 class TestAppJob(TestMLRunSystem):
     """
     Test the histogram data drift application as a job.
@@ -1495,8 +1434,7 @@ class TestAppJob(TestMLRunSystem):
             artifact.to_dataitem().get()
 
 
-@pytest.mark.model_monitoring
-class TestAppJobModelEndpointData(TestMLRunSystem):
+class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
     """
     Test getting the model endpoint data in a simple count application.
     This is performed via the ``evaluate`` method of the application, with ``base_period``.
@@ -1506,14 +1444,6 @@ class TestAppJobModelEndpointData(TestMLRunSystem):
     image: typing.Optional[str] = None
     _serving_function_name = "model-server"
     _model_name = "classifier-0"
-
-    def _set_credentials(self) -> None:
-        self.project.set_model_monitoring_credentials(
-            stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=os.getenv(
-                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
-            ),
-        )
 
     def _set_infra(self) -> None:
         self.project.enable_model_monitoring(
@@ -1546,12 +1476,13 @@ class TestAppJobModelEndpointData(TestMLRunSystem):
         return serving_fn
 
     def _setup_resources(self) -> None:
-        self._set_credentials()
+        self.set_mm_credentials()
         with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.submit(self._deploy_model_serving)
             executor.submit(self._set_infra)
 
-    def test_count_app(self) -> None:
+    @pytest.mark.parametrize("run_local", [False, True])
+    def test_count_app(self, run_local: bool) -> None:
         # Set up the serving function with a model endpoint, and the necessary infrastructure
         self._setup_resources()
 
@@ -1596,46 +1527,56 @@ class TestAppJobModelEndpointData(TestMLRunSystem):
         # Adjust the end time - ML-9067
         end = model_endpoint.status.last_request + timedelta(milliseconds=3)
 
-        run_result = CountApp.evaluate(
-            func_path=str(Path(__file__).parent / "assets/application.py"),
-            endpoints=[(model_endpoint.metadata.name, model_endpoint.metadata.uid)],
-            start=start,
-            end=end,
-            run_local=True,  # `False` does not work, see ML-8817
-            image=self.image,
-            base_period=1,
-        )
+        endpoints_params = [
+            [(model_endpoint.metadata.name, model_endpoint.metadata.uid)],
+            model_endpoint.metadata.name,
+            [
+                model_endpoint.metadata.name,
+            ],
+        ]
+        for i, endpoints in enumerate(endpoints_params):
+            run_result = CountApp.evaluate(
+                func_path=str(Path(__file__).parent / "assets/application.py"),
+                func_name=f"function-{i}",
+                endpoints=endpoints,
+                start=start,
+                end=end,
+                run_local=run_local,
+                image=self.image,
+                base_period=1,
+            )
 
-        # Test the state
-        assert (
-            run_result.state() == "completed"
-        ), "The job did not complete successfully"
+            # Test the state
+            assert (
+                run_result.state() == "completed"
+            ), "The job did not complete successfully"
 
-        # Test the passed base period
-        assert (
-            run_result.spec.parameters["base_period"] == 1
-        ), "The base period is different than the passed one"
+            # Test the passed base period
+            assert (
+                run_result.spec.parameters["base_period"] == 1
+            ), "The base period is different than the passed one"
 
-        # Test the results
-        outputs = run_result.outputs
-        assert outputs, "No returned results"
-        assert (
-            len(outputs) == 2
-        ), "The number of outputs is different than the number of windows"
-        assert set(outputs.values()) == {
-            (
-                "ModelMonitoringApplicationResult(name='count', value=14.0, "
-                "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, extra_data={})"
-            ),
-            (
-                "ModelMonitoringApplicationResult(name='count', value=4.0, "
-                "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, extra_data={})"
-            ),
-        }, "The outputs are different than expected"
+            # Test the results
+            outputs = run_result.outputs
+            assert outputs, "No returned results"
+            assert (
+                len(outputs) == 2
+            ), "The number of outputs is different than the number of windows"
+            assert set(outputs.values()) == {
+                (
+                    "ModelMonitoringApplicationResult(name='count', value=14.0, "
+                    "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, "
+                    "extra_data={})"
+                ),
+                (
+                    "ModelMonitoringApplicationResult(name='count', value=4.0, "
+                    "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, "
+                    "extra_data={})"
+                ),
+            }, "The outputs are different than expected"
 
 
-@pytest.mark.model_monitoring
-class TestBatchServingWithSampling(TestMLRunSystem):
+class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
     """
     Test that the model monitoring infrastructure can handle batch serving with sampling percentage.
     In this test, two serving functions are deployed, one with a pre-defined sampling percentage and one without.
@@ -1648,14 +1589,6 @@ class TestBatchServingWithSampling(TestMLRunSystem):
     _serving_function_name_with_sample = "model-server-v1"
     _serving_function_name_without_sample = "model-server-v2"
     _model_name = "classifier-0"
-
-    def _set_credentials(self) -> None:
-        self.project.set_model_monitoring_credentials(
-            stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=os.getenv(
-                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
-            ),
-        )
 
     def _set_infra(self) -> None:
         self.project.enable_model_monitoring(
@@ -1695,7 +1628,7 @@ class TestBatchServingWithSampling(TestMLRunSystem):
         return serving_fn
 
     def _setup_resources(self) -> None:
-        self._set_credentials()
+        self.set_mm_credentials()
         model_uri = self._log_model()
         with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.submit(
@@ -1704,7 +1637,7 @@ class TestBatchServingWithSampling(TestMLRunSystem):
             executor.submit(self._deploy_model_serving, model_uri)  # without sampling
             executor.submit(self._set_infra)
         self._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project_name, profile=get_tsdb_datastore_profile_from_env()
+            project=self.project_name, profile=self.mm_tsdb_profile
         )
 
     def test_serving(self) -> None:

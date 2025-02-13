@@ -29,7 +29,6 @@ import zipfile
 from copy import deepcopy
 from os import environ, makedirs, path
 from typing import Callable, Optional, Union, cast
-from urllib.parse import urlparse
 
 import deprecated
 import dotenv
@@ -71,6 +70,7 @@ from mlrun.datastore.datastore_profile import (
 from mlrun.datastore.vectorstore import VectorStoreCollection
 from mlrun.model_monitoring.helpers import (
     filter_results_by_regex,
+    get_alert_name_from_result_fqn,
     get_result_instance_fqn,
 )
 from mlrun.runtimes.nuclio.function import RemoteRuntime
@@ -2142,7 +2142,8 @@ class MlrunProject(ModelObj):
         reset_policy: mlrun.common.schemas.alert.ResetPolicy = mlrun.common.schemas.alert.ResetPolicy.AUTO,
     ) -> list[mlrun.alerts.alert.AlertConfig]:
         """
-        :param name:                   AlertConfig name.
+        :param name:                   The name of the AlertConfig template. It will be combined with mep_id, app-name
+                                       and result name to generate a unique name.
         :param summary:                Summary of the alert, will be sent in the generated notifications
         :param endpoints:              The endpoints from which metrics will be retrieved to configure the alerts.
                                        This `ModelEndpointList` object obtained via the `list_model_endpoints`
@@ -2154,7 +2155,7 @@ class MlrunProject(ModelObj):
 
                                        For example:
                                        [`app1.result-*`, `*.result1`]
-                                       will match "mep1.app1.result.result-1" and "mep1.app2.result.result1".
+                                       will match "mep_uid1.app1.result.result-1" and "mep_uid1.app2.result.result1".
                                        A specific result_name (not a wildcard) will always create a new alert
                                        config, regardless of whether the result name exists.
         :param severity:               Severity of the alert.
@@ -2203,10 +2204,11 @@ class MlrunProject(ModelObj):
                 )
         alert_result_names = list(set(specific_result_names + matching_results))
         for result_fqn in alert_result_names:
+            result_fqn_name = get_alert_name_from_result_fqn(result_fqn)
             alerts.append(
                 mlrun.alerts.alert.AlertConfig(
                     project=self.name,
-                    name=name,
+                    name=f"{name}--{result_fqn_name}",
                     summary=summary,
                     severity=severity,
                     entities=alert_constants.EventEntities(
@@ -3671,50 +3673,77 @@ class MlrunProject(ModelObj):
 
     def set_model_monitoring_credentials(
         self,
-        access_key: Optional[str] = None,
-        stream_path: Optional[str] = None,  # Deprecated
-        tsdb_connection: Optional[str] = None,  # Deprecated
-        replace_creds: bool = False,
         *,
-        stream_profile_name: Optional[str] = None,
-        tsdb_profile_name: Optional[str] = None,
-    ):
+        tsdb_profile_name: str,
+        stream_profile_name: str,
+        replace_creds: bool = False,
+    ) -> None:
         """
-        Set the credentials that will be used by the project's model monitoring
-        infrastructure functions. Important to note that you have to set the credentials before deploying any
-        model monitoring or serving function.
+        Set the credentials that will be used by the project's model monitoring infrastructure functions.
+        Please note that you have to set the credentials before deploying any model monitoring application
+        or a tracked serving function.
 
-        :param access_key:                Model monitoring access key for managing user permissions.
+        For example, the full flow for enabling model monitoring infrastructure with **TDEngine** and **Kafka**, is:
 
-                                          * None - will be set from the system configuration.
-                                          * v3io - for v3io endpoint store, pass `v3io` and the system will generate the
-                                            exact path.
-        :param stream_path:               (Deprecated) This argument is deprecated. Use ``stream_profile_name`` instead.
-                                          Path to the model monitoring stream. By default, None. Options:
+        .. code-block:: python
 
-                                          * ``"v3io"`` - for v3io stream, pass ``"v3io"`` and the system will generate
-                                            the exact path.
-                                          * Kafka - for Kafka stream, provide the full connection string without acustom
-                                            topic, for example ``"kafka://<some_kafka_broker>:<port>"``.
-        :param tsdb_connection:           (Deprecated) Connection string to the time series database. By default, None.
-                                          Options:
+            import mlrun
+            from mlrun.datastore.datastore_profile import (
+                DatastoreProfileKafkaSource,
+                TDEngineDatastoreProfile,
+            )
 
-                                          * v3io - for v3io stream, pass ``"v3io"`` and the system will generate the
-                                            exact path.
-                                          * TDEngine - for TDEngine tsdb, provide the full websocket connection URL,
-                                            for example ``"taosws://<username>:<password>@<host>:<port>"``.
-        :param replace_creds:             If True, will override the existing credentials.
-                                          Please keep in mind that if you already enabled model monitoring on
-                                          your project this action can cause data loose and will require redeploying
-                                          all model monitoring functions & model monitoring infra
-                                          & tracked model server.
-        :param stream_profile_name:       The datastore profile name of the stream to be used in model monitoring.
-                                          The supported profiles are:
+            project = mlrun.get_or_create_project("mm-infra-setup")
 
-                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileV3io`
-                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource`
+            # Create and register TSDB profile
+            tsdb_profile = TDEngineDatastoreProfile(
+                name="my-tdengine",
+                host="<tdengine-server-ip-address>",
+                port=6041,
+                user="username",
+                password="<tdengine-password>",
+            )
+            project.register_datastore_profile(tsdb_profile)
 
-                                          You need to register one of them, and pass the profile's name.
+            # Create and register stream profile
+            stream_profile = DatastoreProfileKafkaSource(
+                name="my-kafka",
+                brokers=["<kafka-broker-ip-address>:9094"],
+                topics=[],  # Keep the topics list empty
+                ## SASL is supported
+                # sasl_user="user1",
+                # sasl_pass="<kafka-sasl-password>",
+            )
+            project.register_datastore_profile(stream_profile)
+
+            # Set model monitoring credentials and enable the infrastructure
+            project.set_model_monitoring_credentials(
+                tsdb_profile_name=tsdb_profile.name,
+                stream_profile_name=stream_profile.name,
+            )
+            project.enable_model_monitoring()
+
+        Note that you will need to change the profiles if you want to use **V3IO** TSDB and stream:
+
+        .. code-block:: python
+
+            from mlrun.datastore.datastore_profile import DatastoreProfileV3io
+
+            # Create and register TSDB profile
+            tsdb_profile = DatastoreProfileV3io(
+                name="my-v3io-tsdb",
+            )
+            project.register_datastore_profile(tsdb_profile)
+
+            # Create and register stream profile
+            stream_profile = DatastoreProfileV3io(
+                name="my-v3io-stream",
+                v3io_access_key=mlrun.mlconf.get_v3io_access_key(),
+            )
+            project.register_datastore_profile(stream_profile)
+
+        In the V3IO datastore, you must provide an explicit access key to the stream, but not to the TSDB.
+
         :param tsdb_profile_name:         The datastore profile name of the time-series database to be used in model
                                           monitoring. The supported profiles are:
 
@@ -3722,76 +3751,24 @@ class MlrunProject(ModelObj):
                                           * :py:class:`~mlrun.datastore.datastore_profile.TDEngineDatastoreProfile`
 
                                           You need to register one of them, and pass the profile's name.
+        :param stream_profile_name:       The datastore profile name of the stream to be used in model monitoring.
+                                          The supported profiles are:
+
+                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileV3io`
+                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource`
+
+                                          You need to register one of them, and pass the profile's name.
+        :param replace_creds:             If ``True`` - override the existing credentials.
+                                          Please keep in mind that if you have already enabled model monitoring
+                                          on your project, replacing the credentials can cause data loss, and will
+                                          require redeploying all the model monitoring functions, model monitoring
+                                          infrastructure, and tracked model servers.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-
-        if tsdb_connection:
-            warnings.warn(
-                "The `tsdb_connection` argument is deprecated and will be removed in MLRun version 1.8.0. "
-                "Use `tsdb_profile_name` instead.",
-                FutureWarning,
-            )
-            if tsdb_profile_name:
-                raise mlrun.errors.MLRunValueError(
-                    "If you set `tsdb_profile_name`, you must not pass `tsdb_connection`."
-                )
-            if tsdb_connection == "v3io":
-                tsdb_profile = mlrun.datastore.datastore_profile.DatastoreProfileV3io(
-                    name=mm_constants.DefaultProfileName.TSDB
-                )
-            else:
-                parsed_url = urlparse(tsdb_connection)
-                if parsed_url.scheme != "taosws":
-                    raise mlrun.errors.MLRunValueError(
-                        f"Unsupported `tsdb_connection`: '{tsdb_connection}'."
-                    )
-                tsdb_profile = (
-                    mlrun.datastore.datastore_profile.TDEngineDatastoreProfile(
-                        name=mm_constants.DefaultProfileName.TSDB,
-                        user=parsed_url.username,
-                        password=parsed_url.password,
-                        host=parsed_url.hostname,
-                        port=parsed_url.port,
-                    )
-                )
-
-            self.register_datastore_profile(tsdb_profile)
-            tsdb_profile_name = tsdb_profile.name
-
-        if stream_path:
-            warnings.warn(
-                "The `stream_path` argument is deprecated and will be removed in MLRun version 1.8.0. "
-                "Use `stream_profile_name` instead.",
-                FutureWarning,
-            )
-            if stream_profile_name:
-                raise mlrun.errors.MLRunValueError(
-                    "If you set `stream_profile_name`, you must not pass `stream_path`."
-                )
-            if stream_path == "v3io":
-                stream_profile = mlrun.datastore.datastore_profile.DatastoreProfileV3io(
-                    name=mm_constants.DefaultProfileName.STREAM
-                )
-            else:
-                parsed_stream = urlparse(stream_path)
-                if parsed_stream.scheme != "kafka":
-                    raise mlrun.errors.MLRunValueError(
-                        f"Unsupported `stream_path`: '{stream_path}'."
-                    )
-                stream_profile = (
-                    mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource(
-                        name=mm_constants.DefaultProfileName.STREAM,
-                        brokers=[parsed_stream.netloc],
-                        topics=[],
-                    )
-                )
-            self.register_datastore_profile(stream_profile)
-            stream_profile_name = stream_profile.name
 
         db.set_model_monitoring_credentials(
             project=self.name,
             credentials={
-                "access_key": access_key,
                 "tsdb_profile_name": tsdb_profile_name,
                 "stream_profile_name": stream_profile_name,
             },
@@ -3809,7 +3786,7 @@ class MlrunProject(ModelObj):
 
     def list_model_endpoints(
         self,
-        name: Optional[str] = None,
+        names: Optional[Union[str, list[str]]] = None,
         model_name: Optional[str] = None,
         model_tag: Optional[str] = None,
         function_name: Optional[str] = None,
@@ -3839,7 +3816,7 @@ class MlrunProject(ModelObj):
         In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based
         and depends on the 'start' and 'end' parameters.
 
-        :param name: The name of the model to filter by
+        :param names: The name of the model to filter by
         :param model_name: The name of the model to filter by
         :param function_name: The name of the function to filter by
         :param function_tag: The tag of the function to filter by
@@ -3860,7 +3837,7 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_model_endpoints(
             project=self.name,
-            name=name,
+            names=names,
             model_name=model_name,
             model_tag=model_tag,
             function_name=function_name,

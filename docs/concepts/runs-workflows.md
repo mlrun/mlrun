@@ -30,5 +30,4 @@ workflow-overview
 /runtimes/conditional-workflow
 /runtimes/configuring-job-resources
 scheduled-jobs
-notifications
 ```

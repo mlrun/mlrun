@@ -212,50 +212,6 @@ jobs:
               sha: context.sha
             })
 
-  update-release-notes:
-    name: Update release notes
-    runs-on: ubuntu-latest
-    if: github.event.inputs.skip_create_tag_release != 'true'
-    needs: [ prepare-inputs, create-releases ]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: 3.9
-          cache: pip
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r automation/requirements.txt
-      - name: Generate release notes
-        id: release-notes
-        run: |
-          make release-notes
-        env:
-          MLRUN_SKIP_CLONE: true
-          MLRUN_RELEASE_BRANCH: ${{ github.ref_name }}
-          MLRUN_RELEASE_NOTES_OUTPUT_FILE: release_notes.md
-          MLRUN_RAISE_ON_ERROR: false
-          MLRUN_OLD_VERSION: "v${{ needs.prepare-inputs.outputs.previous_version }}"
-          MLRUN_VERSION: "v${{ needs.prepare-inputs.outputs.version }}"
-
-      - name: resolve release notes
-        id: resolve-release-notes
-        run: |
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          cat release_notes.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - uses: ncipollo/release-action@v1
-        with:
-          tag: v${{ needs.prepare-inputs.outputs.version }}
-          body: ${{ steps.resolve-release-notes.outputs.body }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: true
-          prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
-
   update-tutorials:
     name: Bundle tutorials
     needs: [ prepare-inputs, create-releases ]
@@ -301,4 +257,49 @@ jobs:
           tag: v${{ needs.prepare-inputs.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: mlrun-demos.tar
+          prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
+
+  update-release-notes:
+    name: Update release notes
+    runs-on: ubuntu-latest
+    if: github.event.inputs.skip_create_tag_release != 'true'
+    # runs lastly to avoid conflicts with other release-related jobs
+    needs: [ prepare-inputs, update-tutorials, update-demos ]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r automation/requirements.txt
+      - name: Generate release notes
+        id: release-notes
+        run: |
+          make release-notes
+        env:
+          MLRUN_SKIP_CLONE: true
+          MLRUN_RELEASE_BRANCH: ${{ github.ref_name }}
+          MLRUN_RELEASE_NOTES_OUTPUT_FILE: release_notes.md
+          MLRUN_RAISE_ON_ERROR: false
+          MLRUN_OLD_VERSION: "v${{ needs.prepare-inputs.outputs.previous_version }}"
+          MLRUN_VERSION: "v${{ needs.prepare-inputs.outputs.version }}"
+
+      - name: resolve release notes
+        id: resolve-release-notes
+        run: |
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          cat release_notes.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ needs.prepare-inputs.outputs.version }}
+          body: ${{ steps.resolve-release-notes.outputs.body }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
           prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}

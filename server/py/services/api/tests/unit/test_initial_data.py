@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import string
 import typing
 import unittest.mock
 
@@ -405,8 +406,10 @@ def test_init_system_id(
     assert system_id is not None
 
     if system_id_source == "random":
-        # ensure that the generated id has the correct length (6 characters, as it is base64 encoded without padding)
+        # ensure the generated id has the correct length
         assert len(system_id) == 6
+        # ensure the generated id contains only alphanumeric characters
+        assert all(char in string.ascii_lowercase + string.digits for char in system_id)
     else:
         assert system_id == expected_system_id
 
@@ -529,6 +532,17 @@ def test_ensure_latest_tag_for_artifacts():
     assert (
         len(artifacts) == 3
     ), f"Expected 3 artifacts with latest tag, found {len(artifacts)}"
+
+    # Ensure the tag was created correctly for the second artifact
+    artifacts = db.list_artifacts(
+        db_session, project=project1, name=key1, iter=1, as_records=True
+    )
+    assert len(artifacts) == 1
+    assert len(artifacts[0].tags) == 1
+    assert artifacts[0].tags[0].name == "latest"
+    assert artifacts[0].tags[0].project == project1
+    assert artifacts[0].tags[0].obj_name == key1
+    assert artifacts[0].tags[0].obj_id == artifact_2_id
 
 
 def _initialize_db_without_migrations() -> (

@@ -122,11 +122,11 @@ class TDEngineSchema:
             )
         return f"DELETE FROM {self.database}.{subtable} WHERE {values};"
 
-    def _drop_subtable_query(
+    def drop_subtable_query(
         self,
         subtable: str,
     ) -> str:
-        return f"DROP TABLE if EXISTS {self.database}.{subtable};"
+        return f"DROP TABLE if EXISTS {self.database}.`{subtable}`;"
 
     def drop_supertable_query(self) -> str:
         return f"DROP STABLE if EXISTS {self.database}.{self.super_table};"

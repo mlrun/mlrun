@@ -7553,6 +7553,23 @@ class SQLDB(DBInterface):
             main_table_identifier_values=uids,
         )
 
+    def delete_feature_sets(
+        self,
+        session: Session,
+        project: str,
+        uids: typing.Optional[list[str]] = None,
+    ) -> None:
+        logger.debug("Removing feature sets from db", project=project)
+
+        self._delete_multi_objects(
+            session=session,
+            main_table=FeatureSet,
+            related_tables=[FeatureSet.Tag, FeatureSet.Label],
+            project=project,
+            main_table_identifier=FeatureSet.uid if uids else None,
+            main_table_identifier_values=uids,
+        )
+
     def get_system_id(self, session: Session) -> typing.Optional[str]:
         system_id_record = (
             self._query(session, SystemMetadata)

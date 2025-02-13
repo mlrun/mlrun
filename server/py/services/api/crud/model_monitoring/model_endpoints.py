@@ -270,17 +270,26 @@ class ModelEndpoints:
             )
 
         if model_endpoints_dict.get("delete"):
+            uids = model_endpoints_dict.get("delete")
             # delete old versions
             await run_in_threadpool(
                 framework.utils.singletons.db.get_db().delete_model_endpoints,
                 session=db_session,
                 project=project,
-                uids=model_endpoints_dict.get("delete"),
+                uids=uids,
             )
             await run_in_threadpool(
                 self._delete_model_endpoint_monitoring_infra,
-                uids=model_endpoints_dict.get("delete"),
+                uids=uids,
                 project=project,
+            )
+            # delete old feature sets
+            feature_set_uids = ["unversioned-" + uid + "_" for uid in uids]
+            await run_in_threadpool(
+                framework.utils.singletons.db.get_db().delete_feature_sets,
+                session=db_session,
+                project=project,
+                uids=feature_set_uids,
             )
 
     async def _inplace_model_endpoint(
@@ -407,6 +416,13 @@ class ModelEndpoints:
                 uids=old_uids,
                 project=model_endpoint.metadata.project,
             )
+            feature_set_uids = ["unversioned-" + uid + "_" for uid in old_uids]
+            await run_in_threadpool(
+                framework.utils.singletons.db.get_db().delete_feature_sets,
+                session=db_session,
+                project=model_endpoint.metadata.project,
+                uids=feature_set_uids,
+            )
             return model_endpoint, "", [], {}
         else:
             return model_endpoint, method, old_uids, {}
@@ -470,6 +486,13 @@ class ModelEndpoints:
                     self._delete_model_endpoint_monitoring_infra,
                     uids=uid_to_delete,
                     project=model_endpoint.metadata.project,
+                )
+                feature_set_uids = ["unversioned-" + uid + "_" for uid in uid_to_delete]
+                await run_in_threadpool(
+                    framework.utils.singletons.db.get_db().delete_feature_sets,
+                    session=db_session,
+                    project=model_endpoint.metadata.project,
+                    uids=feature_set_uids,
                 )
             await self._create_new_model_endpoint(
                 db_session=db_session, model_endpoint=model_endpoint
@@ -778,6 +801,12 @@ class ModelEndpoints:
         await run_in_threadpool(
             self._delete_model_endpoint_monitoring_infra, uids=uids, project=project
         )
+        await run_in_threadpool(
+            framework.utils.singletons.db.get_db().delete_feature_sets,
+            session=db_session,
+            project=project,
+            uids=[endpoint_id],
+        )
         logger.info(
             "Model endpoint were delete",
             project=project,
@@ -791,7 +820,7 @@ class ModelEndpoints:
         """
         Delete the monitoring infrastructure of a given model endpoint based on endpoint id.
 
-        :param uids:          The unique id of the model endpoint.
+        :param uids:          List of the model endpoints uids.
         :param project:       The name of the project.
         """
 
@@ -801,16 +830,18 @@ class ModelEndpoints:
             ModelMonitoringDriftMeasuresFile(project=project, endpoint_id=uid).delete()
             ModelMonitoringSchedulesFile(project=project, endpoint_id=uid).delete()
 
-        # delete tsdb records - NOT IMPLEMENTED
+        # delete tsdb records
         try:
-            # todo : delete tsdb records/tables for the model endpoint
-            # tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            #     project=project,
-            #     secret_provider=services.api.crud.secrets.get_project_secret_provider(
-            #         project=project
-            #     ),
-            # )
-            logger.info("TSDB resources were not deleted")
+            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                project=project,
+                secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                    project=project
+                ),
+            )
+            for uid in uids:
+                # todo: optimize to delete all in one call
+                tsdb_connector.delete_tsdb_records(endpoint_id=uid)
+            logger.info("TSDB resources were deleted")
         except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
             logger.info(
                 "Failed to delete TSDB resources, you may need to delete them manually",

@@ -81,11 +81,11 @@ def test_write_application_event(
     }
     connector.create_tables()
     connector.write_application_event(data)
-    read_back_results = connector.read_metrics_data(
-        endpoint_id=endpoint_id,
-        start=datetime(2023, 1, 1, 1, 0, 0),
-        end=datetime(2025, 1, 1, 1, 0, 0),
-        metrics=[
+    read_data_kwargs = {
+        "endpoint_id": endpoint_id,
+        "start": datetime(2023, 1, 1, 1, 0, 0),
+        "end": datetime(2025, 1, 1, 1, 0, 0),
+        "metrics": [
             ModelEndpointMonitoringMetric(
                 project=project,
                 app=app_name,
@@ -93,9 +93,10 @@ def test_write_application_event(
                 type=ModelEndpointMonitoringMetricType.RESULT,
             ),
         ],
-        type="results",
-        with_result_extra_data=with_result_extra_data,
-    )
+        "type": "results",
+        "with_result_extra_data": with_result_extra_data,
+    }
+    read_back_results = connector.read_metrics_data(**read_data_kwargs)
     assert len(read_back_results) == 1
     read_back_result = read_back_results[0]
     assert read_back_result.full_name == f"{project}.{app_name}.result.{result_name}"
@@ -110,5 +111,10 @@ def test_write_application_event(
     if with_result_extra_data:
         assert read_back_values.extra_data == data["result_extra_data"]
 
-    # ML-8062
+    connector.delete_tsdb_records(endpoint_id=endpoint_id)
+    read_back_results = connector.read_metrics_data(**read_data_kwargs)
+    read_back_result = read_back_results[0]
+    assert not read_back_result.data
+
+    # Delete database
     connector.delete_tsdb_resources()

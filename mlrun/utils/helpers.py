@@ -2129,3 +2129,16 @@ def as_dict(data: typing.Union[dict, str]) -> dict:
     if isinstance(data, str):
         return json.loads(data)
     return data
+
+
+def encode_user_code(
+    user_code: str, max_len_warning: typing.Optional[int] = None
+) -> str:
+    max_len_warning = max_len_warning or config.function.spec.source_code_max_bytes
+    encoded = base64.b64encode(user_code.encode("utf-8")).decode("utf-8")
+    if len(encoded) > max_len_warning:
+        logger.warning(
+            f"User code exceeds the maximum allowed size of {max_len_warning} bytes for non remote source. "
+            "Consider using `with_source_archive` to add user code as a remote source to the function."
+        )
+    return encoded

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import base64
+import json
 import os
 import pathlib
 import sys
@@ -75,8 +76,12 @@ class TestMLRunSystem:
         cls._logger = logger.get_child(cls.__name__.lower())
         cls.project: typing.Optional[mlrun.projects.MlrunProject] = None
 
-        cls.mm_tsdb_profile_data = env.get("mlrun_model_monitoring_tsdb_profile")
-        cls.mm_stream_profile_data = env.get("mlrun_model_monitoring_stream_profile")
+        cls.mm_tsdb_profile_data = cls._get_mm_data(
+            env, "mlrun_model_monitoring_tsdb_profile"
+        )
+        cls.mm_stream_profile_data = cls._get_mm_data(
+            env, "mlrun_model_monitoring_stream_profile"
+        )
 
         cls.uploaded_code = False
 
@@ -90,6 +95,15 @@ class TestMLRunSystem:
         # so even though we set the env var, we still need to directly configure
         # it in mlconf.
         mlconf.dbpath = cls._test_env["MLRUN_DBPATH"]
+
+    @staticmethod
+    def _get_mm_data(
+        env: dict[str, typing.Any], key: str
+    ) -> typing.Optional[dict[str, typing.Any]]:
+        data = env.get(key)
+        if isinstance(data, str):
+            data = json.loads(data)
+        return data
 
     @classmethod
     def custom_setup_class(cls):

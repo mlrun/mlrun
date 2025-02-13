@@ -1059,7 +1059,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             .reshape(-1, 3)
             .tolist()
         )
-        cls.router_models = {
+        cls.model_by_endpoint_name = {
             "int_one_to_one": {
                 "model_name": "int_one_to_one",
                 "class_name": "OneToOne",
@@ -1146,14 +1146,15 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             kind="serving",
         )
         serving_fn.set_topology("router")
-        for model_name, model_dict in self.router_models.items():
+        for endpoint_name, model_dict in self.model_by_endpoint_name.items():
+            model_name = model_dict["model_name"]
             self._log_model(
                 model_name=model_name,
                 training_set=model_dict.get("training_set"),
                 label_column=model_dict.get("label_column"),
             )
             serving_fn.add_model(
-                model_name,
+                endpoint_name,
                 model_path=f"store://models/{self.project_name}/{model_name}:latest",
                 class_name=model_dict.get("class_name"),
             )
@@ -1190,22 +1191,22 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
 
     def _test_endpoint(
-        self, model_name, feature_set_uri, model_dict
+        self, endpoint_name, feature_set_uri, model_dict
     ) -> dict[str, typing.Any]:
         serving_fn = self.project.get_function(self.function_name)
         data_point = model_dict.get("data_point")
-        if model_name == "img_one_to_one":
+        if endpoint_name == "img_one_to_one":
             data_point = [data_point]
         serving_fn.invoke(
-            f"v2/models/{model_name}/infer",
+            f"v2/models/{endpoint_name}/infer",
             json.dumps(
                 {"inputs": data_point},
             ),
         )
-        if model_name == "img_one_to_one":
+        if endpoint_name == "img_one_to_one":
             data_point = data_point[0]
         serving_fn.invoke(
-            f"v2/models/{model_name}/infer",
+            f"v2/models/{endpoint_name}/infer",
             json.dumps({"inputs": [data_point, data_point]}),
         )
         time.sleep(
@@ -1223,7 +1224,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         has_all_the_events = offline_response_df.shape[0] == 3
 
         return {
-            "model_name": model_name,
+            "model_name": endpoint_name,
             "is_schema_saved": is_schema_saved,
             "has_all_the_events": has_all_the_events,
             "df": offline_response_df,
@@ -1248,15 +1249,9 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             for endpoint in endpoints:
                 future = executor.submit(
                     self._test_endpoint,
-                    model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[
-                        0
-                    ],
-                    feature_set_uri=endpoint[
-                        mm_constants.EventFieldType.FEATURE_SET_URI
-                    ],
-                    model_dict=self.router_models[
-                        endpoint[mm_constants.EventFieldType.MODEL].split(":")[0]
-                    ],
+                    endpoint_name=endpoint.metadata.name,
+                    feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
+                    model_dict=self.model_by_endpoint_name[endpoint.metadata.name],
                 )
                 futures.append(future)
 
@@ -1312,7 +1307,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         )
 
         res_dict = self._test_endpoint(
-            model_name=endpoint.metadata.name,
+            endpoint_name=endpoint.metadata.name,
             feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
             model_dict=self.test_models_tracking[endpoint.metadata.name],
         )
@@ -1339,7 +1334,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         )
 
         res_dict = self._test_endpoint(
-            model_name=endpoint.metadata.name,
+            endpoint_name=endpoint.metadata.name,
             feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
             model_dict=self.test_models_tracking[endpoint.metadata.name],
         )

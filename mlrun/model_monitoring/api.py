@@ -89,18 +89,23 @@ def get_or_create_model_endpoint(
         db_session = mlrun.get_run_db()
     model_endpoint = None
     try:
-        if endpoint_id:
-            model_endpoint = db_session.get_model_endpoint(
-                project=project,
-                name=model_endpoint_name,
-                endpoint_id=endpoint_id,
-            )
-            # If other fields provided, validate that they are correspond to the existing model endpoint data
-            _model_endpoint_validations(
-                model_endpoint=model_endpoint,
-                model_path=model_path,
-                sample_set_statistics=sample_set_statistics,
-            )
+        if not function_name and context:
+            function_name = FunctionURI.from_string(
+                context.to_dict()["spec"]["function"]
+            ).function
+        model_endpoint = db_session.get_model_endpoint(
+            project=project,
+            name=model_endpoint_name,
+            endpoint_id=endpoint_id,
+            function_name=function_name,
+            function_tag=function_tag or "latest",
+        )
+        # If other fields provided, validate that they are correspond to the existing model endpoint data
+        _model_endpoint_validations(
+            model_endpoint=model_endpoint,
+            model_path=model_path,
+            sample_set_statistics=sample_set_statistics,
+        )
 
     except mlrun.errors.MLRunNotFoundError:
         # Create a new model endpoint with the provided details
@@ -213,7 +218,7 @@ def record_results(
         monitoring_mode=monitoring_mode,
         db_session=db,
     )
-    logger.info("Model endpoint", endpoint=model_endpoint)
+    logger.debug("Model endpoint", endpoint=model_endpoint)
 
     timestamp = datetime_now()
     if infer_results_df is not None:

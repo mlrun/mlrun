@@ -31,7 +31,12 @@
 |-------|----------------------------------------------------------------------------|
 |ML-7870|Alerts are now enabled by default.|
 |ML-8472|You can now list the alert activations and filter the list by various parameters using the SDK. See {ref}`alert_activations`.|
-||The |
+||The 
+
+### Breaking changes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-8951|Evidently-related code is now in a dedicated module. Code that imported `mlrun.model_monitoring.applications.EvidentlyModelMonitoringApplicationBase` needs to import `mlrun.model_monitoring.applications.evidently.EvidentlyModelMonitoringApplicationBase` instead.|
 
 ### Infrastructure
 | ID    |Description                                                                 |

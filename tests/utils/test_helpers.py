@@ -1392,7 +1392,7 @@ def test_join_urls(base_url, path, expected_result):
             datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone(Timedelta(hours=2))),
             "2025-01-15T09:00:00+00:00",
         ),
-        # Case 4: Already UTC datetime
+        # already in UTC
         (
             datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc),
             "2025-01-15T11:00:00+00:00",

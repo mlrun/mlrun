@@ -356,10 +356,12 @@ class ModelEndpoints:
                 model_endpoint.spec.label_names
             )
         elif (
-                model_endpoint.status.monitoring_mode
-                == exist_model_endpoint.status.monitoring_mode
-            ):
-            model_endpoint.spec.monitoring_feature_set_uri = exist_model_endpoint.spec.monitoring_feature_set_uri
+            model_endpoint.status.monitoring_mode
+            == exist_model_endpoint.status.monitoring_mode
+        ):
+            model_endpoint.spec.monitoring_feature_set_uri = (
+                exist_model_endpoint.spec.monitoring_feature_set_uri
+            )
             model_endpoint.spec.feature_names = exist_model_endpoint.spec.feature_names
             model_endpoint.spec.label_names = exist_model_endpoint.spec.label_names
         if upsert:

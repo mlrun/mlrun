@@ -1140,17 +1140,7 @@ def _generate_system_id() -> str:
     valid_chars = string.ascii_lowercase + string.digits
     system_id_len = 6
 
-    while True:
-        system_id = "".join(random.choices(valid_chars, k=system_id_len))
-
-        # validate the result against the qualified_name regex
-        try:
-            mlrun.utils.helpers.verify_field_regex(
-                "system_id", system_id, mlrun.utils.regex.qualified_name
-            )
-            return system_id
-        except mlrun.errors.MLRunInvalidArgumentError:
-            continue
+    return "".join(random.choices(valid_chars, k=system_id_len))
 
 
 def main() -> None:

@@ -88,11 +88,11 @@ def get_or_create_model_endpoint(
         # Generate a runtime database
         db_session = mlrun.get_run_db()
     model_endpoint = None
+    if not function_name and context:
+        function_name = FunctionURI.from_string(
+            context.to_dict()["spec"]["function"]
+        ).function
     try:
-        if not function_name and context:
-            function_name = FunctionURI.from_string(
-                context.to_dict()["spec"]["function"]
-            ).function
         model_endpoint = db_session.get_model_endpoint(
             project=project,
             name=model_endpoint_name,
@@ -366,10 +366,6 @@ def _generate_model_endpoint(
 
     :return `mlrun.common.schemas.ModelEndpoint` object.
     """
-    if not function_name and context:
-        function_name = FunctionURI.from_string(
-            context.to_dict()["spec"]["function"]
-        ).function
     model_obj = None
     if model_path:
         model_obj: mlrun.artifacts.ModelArtifact = (

@@ -34,7 +34,10 @@ __all__ = [
     "VectorStoreCollection",
 ]
 
+from urllib.parse import urlparse
+
 import fsspec
+from mergedeep import merge
 
 import mlrun.datastore.wasbfs
 from mlrun.platforms.iguazio import (
@@ -95,6 +98,38 @@ def get_in_memory_items():
     return in_memory_store._items
 
 
+def debug_info(params, logger=None, msg="KUKAREKU=="):
+    import json
+    import traceback
+
+    """
+    Print debug information including message, parameters and stack trace to logger
+
+    Args:
+        msg: Debug message to log
+        params: Dictionary of parameters to log (can be nested)
+        logger: Logger instance to use for output
+
+        dd = {
+            "bootstrap_servers":self._brokers,
+            "options":self._producer_options
+        }
+        debug_info(dd)
+
+    """
+    # Get the current stack trace
+    stack = traceback.format_stack()[:-1]  # Exclude the current frame
+
+    # Create debug info dictionary
+    debug_data = {"message": msg, "parameters": params, "stack_trace": stack}
+    # Log as formatted JSON
+    res = json.dumps(debug_data, indent=2)
+    if logger:
+        logger.error(res)
+    else:
+        print(res)
+
+
 def get_stream_pusher(stream_path: str, **kwargs):
     """get a stream pusher object from URL.
 
@@ -106,23 +141,64 @@ def get_stream_pusher(stream_path: str, **kwargs):
 
     :param stream_path:        path/url of stream
     """
+    if stream_path.startswith("ds://"):
+        from mlrun.datastore.datastore_profile import (
+            DatastoreProfileKafkaSource,
+            DatastoreProfileKafkaTarget,
+            DatastoreProfileV3io,
+        )
 
-    kafka_brokers = get_kafka_brokers_from_dict(kwargs)
-    if stream_path.startswith("kafka://") or kafka_brokers:
-        topic, brokers = parse_kafka_url(stream_path, kafka_brokers)
-        return KafkaOutputStream(topic, brokers, kwargs.get("kafka_producer_options"))
-    elif stream_path.startswith("http://") or stream_path.startswith("https://"):
-        return HTTPOutputStream(stream_path=stream_path)
-    elif "://" not in stream_path:
-        return OutputStream(stream_path, **kwargs)
-    elif stream_path.startswith("v3io"):
-        endpoint, stream_path = parse_path(stream_path)
-        endpoint = kwargs.pop("endpoint", None) or endpoint
-        return OutputStream(stream_path, endpoint=endpoint, **kwargs)
-    elif stream_path.startswith("dummy://"):
-        return _DummyStream(**kwargs)
+        datastore_profile = mlrun.datastore.datastore_profile.datastore_profile_read(
+            stream_path
+        )
+        if isinstance(
+            datastore_profile,
+            (DatastoreProfileKafkaSource, DatastoreProfileKafkaTarget),
+        ):
+            attributes = datastore_profile.attributes()
+            brokers = attributes.pop("brokers", None)
+            # Override the topic with the one in the url (if any)
+            parsed_url = urlparse(stream_path)
+            topic = (
+                parsed_url.path.strip("/")
+                if parsed_url.path
+                else datastore_profile.topic()
+            )
+            dd = {
+                "attributes": attributes,
+                "brokers": brokers,
+                "profile_topics": datastore_profile.topic(),
+                "topic": topic,
+            }
+            debug_info(dd)
+            return KafkaOutputStream(topic, brokers, producer_options=attributes)
+
+        elif isinstance(datastore_profile, DatastoreProfileV3io):
+            parsed_url = urlparse(stream_path)
+            stream_path = datastore_profile.url(parsed_url.path)
+            endpoint, stream_path = parse_path(stream_path)
+            return OutputStream(stream_path, endpoint=endpoint, **kwargs)
+        else:
+            raise ValueError(f"unsupported stream path {type(datastore_profile)}")
     else:
-        raise ValueError(f"unsupported stream path {stream_path}")
+        kafka_brokers = get_kafka_brokers_from_dict(kwargs)
+        if stream_path.startswith("kafka://") or kafka_brokers:
+            topic, brokers = parse_kafka_url(stream_path, kafka_brokers)
+            return KafkaOutputStream(
+                topic, brokers, kwargs.get("kafka_producer_options")
+            )
+        elif stream_path.startswith("http://") or stream_path.startswith("https://"):
+            return HTTPOutputStream(stream_path=stream_path)
+        elif "://" not in stream_path:
+            return OutputStream(stream_path, **kwargs)
+        elif stream_path.startswith("v3io"):
+            endpoint, stream_path = parse_path(stream_path)
+            endpoint = kwargs.pop("endpoint", None) or endpoint
+            return OutputStream(stream_path, endpoint=endpoint, **kwargs)
+        elif stream_path.startswith("dummy://"):
+            return _DummyStream(**kwargs)
+        else:
+            raise ValueError(f"unsupported stream path {stream_path}")
 
 
 class _DummyStream:

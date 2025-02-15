@@ -82,7 +82,7 @@ def test_get_v3io_stream_path() -> None:
     stream_path = mlrun.model_monitoring.get_stream_path(
         project=TEST_PROJECT, profile=DatastoreProfileV3io(name="tmp")
     )
-    assert stream_path == f"v3io:///projects/{TEST_PROJECT}/model-endpoints/stream-v1"
+    assert stream_path == f"ds://tmp/projects/{TEST_PROJECT}/model-endpoints/stream-v1"
 
 
 @pytest.fixture
@@ -101,7 +101,4 @@ def test_get_kafka_profile_stream_path(kafka_profile_name: str) -> None:
     stream_path = mlrun.model_monitoring.get_stream_path(
         project=TEST_PROJECT, secret_provider=lambda _: kafka_profile_name
     )
-    assert (
-        stream_path
-        == f"kafka://some_kafka_broker:8080?topic=monitoring_stream_{mlrun.mlconf.system_id}_{TEST_PROJECT}_v1"
-    )
+    assert stream_path == f"ds://{kafka_profile_name}"

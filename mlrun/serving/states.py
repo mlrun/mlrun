@@ -31,6 +31,13 @@ import storey.utils
 
 import mlrun
 import mlrun.common.schemas as schemas
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileKafkaSource,
+    DatastoreProfileKafkaTarget,
+    DatastoreProfileV3io,
+    datastore_profile_read,
+)
+from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import logger
 
 from ..config import config
@@ -1856,6 +1863,35 @@ def params_to_step(
     return name, step
 
 
+def debug_info(params, logger=None, msg="KUKAREKU=="):
+    import json
+    import traceback
+    """
+    Print debug information including message, parameters and stack trace to logger
+    Args:
+        msg: Debug message to log
+        params: Dictionary of parameters to log (can be nested)
+        logger: Logger instance to use for output
+
+        dd = {
+            "bootstrap_servers":self._brokers,
+            "options":self._producer_options
+        }
+        debug_info(dd)
+    """
+    # Get the current stack trace
+    stack = traceback.format_stack()[:-1]  # Exclude the current frame
+
+    # Create debug info dictionary
+    debug_data = {"message": msg, "parameters": params, "stack_trace": stack}
+    # Log as formatted JSON
+    res = json.dumps(debug_data, indent=2)
+    if logger:
+        logger.error(res)
+    else:
+        print(res)
+
+
 def _init_async_objects(context, steps):
     try:
         import storey
@@ -1885,6 +1921,33 @@ def _init_async_objects(context, steps):
 
                     kafka_brokers = get_kafka_brokers_from_dict(options, pop=True)
 
+                    if stream_path and stream_path.startswith("ds://"):
+                        datastore_profile = datastore_profile_read(stream_path)
+                        if isinstance(
+                            datastore_profile,
+                            (DatastoreProfileKafkaTarget, DatastoreProfileKafkaSource),
+                        ):
+                            dd = {
+                                "topic": datastore_profile.topic(),
+                                "stream_path": stream_path,
+                            }
+                            debug_info(dd)
+                            step._async_object = KafkaStoreyTarget(
+                                path=stream_path,
+                                context=context,
+                                **options,
+                            )
+                        elif isinstance(datastore_profile, DatastoreProfileV3io):
+                            step._async_object = StreamStoreyTarget(
+                                stream_path=stream_path,
+                                context=context,
+                                **options,
+                            )
+                        else:
+                            raise mlrun.errors.MLRunValueError(
+                                f"Received an unexpected stream profile type: {type(datastore_profile)}\n"
+                                "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+                            )
                     if stream_path.startswith("kafka://") or kafka_brokers:
                         topic, brokers = parse_kafka_url(stream_path, kafka_brokers)
 

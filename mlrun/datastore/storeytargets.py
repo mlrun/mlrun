@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from urllib.parse import urlparse
+
 import storey
 from mergedeep import merge
 from storey import V3ioDriver
@@ -123,19 +125,58 @@ class StreamStoreyTarget(storey.StreamTarget):
         super().__init__(*args, **kwargs)
 
 
+def debug_info(params, logger=None, msg="KUKAREKU=="):
+    import json
+    import traceback
+
+    """
+    Print debug information including message, parameters and stack trace to logger
+
+    Args:
+        msg: Debug message to log
+        params: Dictionary of parameters to log (can be nested)
+        logger: Logger instance to use for output
+
+        dd = {
+            "bootstrap_servers":self._brokers,
+            "options":self._producer_options
+        }
+        debug_info(dd)
+
+    """
+    # Get the current stack trace
+    stack = traceback.format_stack()[:-1]  # Exclude the current frame
+
+    # Create debug info dictionary
+    debug_data = {"message": msg, "parameters": params, "stack_trace": stack}
+    # Log as formatted JSON
+    res = json.dumps(debug_data, indent=2)
+    if logger:
+        logger.error(res)
+    else:
+        print(res)
+
+
 class KafkaStoreyTarget(storey.KafkaTarget):
     def __init__(self, *args, **kwargs):
         path = kwargs.pop("path")
-        attributes = kwargs.pop("attributes", None)
+        attributes = kwargs.pop("attributes", {})
         if path and path.startswith("ds://"):
             datastore_profile = (
                 mlrun.datastore.datastore_profile.datastore_profile_read(path)
             )
             attributes = merge(attributes, datastore_profile.attributes())
-            brokers = attributes.pop(
-                "brokers", attributes.pop("bootstrap_servers", None)
-            )
-            topic = datastore_profile.topic
+            brokers = attributes.pop("brokers", None)
+            # Override the topic with the one in the url (if any)
+            parsed = urlparse(path)
+            topic = parsed.path.strip("/") if parsed.path else datastore_profile.topic()
+            dd = {
+                "path": path,
+                "attributes": attributes,
+                "brokers": brokers,
+                "topic": topic,
+            }
+            debug_info(dd)
         else:
             brokers = attributes.pop(
                 "brokers", attributes.pop("bootstrap_servers", None)

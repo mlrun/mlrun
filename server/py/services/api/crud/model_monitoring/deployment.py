@@ -72,6 +72,35 @@ _HISTOGRAM_DATA_DRIFT_APP_PATH = str(
 BASE_PERIOD_LOOKUP_TABLE = {1: 1, 20: 2, 60: 5, 120: 10, float("inf"): 20}
 
 
+def debug_info(params, logger=None, msg="KUKAREKU=="):
+    """
+    Print debug information including message, parameters and stack trace to logger
+
+    Args:
+        msg: Debug message to log
+        params: Dictionary of parameters to log (can be nested)
+        logger: Logger instance to use for output
+
+        dd = {
+            "bootstrap_servers":self._brokers,
+            "options":self._producer_options
+        }
+        debug_info(dd)
+
+    """
+    # Get the current stack trace
+    stack = traceback.format_stack()[:-1]  # Exclude the current frame
+
+    # Create debug info dictionary
+    debug_data = {"message": msg, "parameters": params, "stack_trace": stack}
+    # Log as formatted JSON
+    res = json.dumps(debug_data, indent=2)
+    if logger:
+        logger.error(res)
+    else:
+        print(res)
+
+
 class MonitoringDeployment:
     def __init__(
         self,
@@ -321,6 +350,11 @@ class MonitoringDeployment:
         if isinstance(
             profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
         ):
+            dd = {
+                "function_name": function_name,
+                "stream_args": stream_args,
+            }
+            debug_info(dd)
             self._apply_and_create_kafka_source(
                 kafka_profile=profile,
                 function=function,
@@ -367,6 +401,14 @@ class MonitoringDeployment:
         topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
             project=self.project, function_name=function_name
         )
+
+        dd = {
+            "kafka_profile": kafka_profile.name,
+            "options": kafka_profile.attributes(),
+            "topic": topic,
+        }
+        debug_info(dd, logger)
+
         stream_source = mlrun.datastore.sources.KafkaSource(
             brokers=kafka_profile.brokers,
             topics=[topic],
@@ -1063,6 +1105,14 @@ class MonitoringDeployment:
             client_id = f"{mlrun.mlconf.system_id}_{self.project}_kafka-python_{kafka.__version__}"
 
             try:
+                dd = {
+                    "bootstrap_servers": profile.brokers,
+                    "client_id": client_id,
+                    "kafka_admin_client_kwargs": kafka_admin_client_kwargs,
+                    "topics": topics,
+                }
+                debug_info(dd, logger)
+
                 kafka_client = kafka.KafkaAdminClient(
                     bootstrap_servers=profile.brokers,
                     client_id=client_id,
@@ -1189,6 +1239,10 @@ class MonitoringDeployment:
 
         kafka_brokers = kafka_profile.brokers
         try:
+            dd = {
+                "kafka_brokers": kafka_brokers,
+            }
+            debug_info(dd, logger)
             # The following constructor attempts to establish a connection
             consumer = kafka.KafkaConsumer(bootstrap_servers=kafka_brokers)
         except kafka.errors.NoBrokersAvailable as err:

@@ -137,29 +137,32 @@ def get_stream_path(
     )
 
     if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
-        stream_uri = "v3io"
-    elif isinstance(
-        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
-    ):
-        attributes = profile.attributes()
-        stream_uri = f"kafka://{attributes['brokers'][0]}"
-    else:
-        raise mlrun.errors.MLRunValueError(
-            f"Received an unexpected stream profile type: {type(profile)}\n"
-            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
-        )
-
-    if not stream_uri or stream_uri == "v3io":
         stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project,
             kind=mm_constants.FileTargetKind.STREAM,
             target="online",
             function_name=function_name,
         )
+        return stream_uri.replace("v3io://", f"ds://{profile.name}")
 
-    return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-        stream_uri=stream_uri, project=project, function_name=function_name
-    )
+    elif isinstance(
+        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+    ):
+        topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
+            project=project, function_name=function_name
+        )
+        dd = {
+            "topic": topic,
+            "name": f"ds://{profile.name}/{topic}",
+        }
+        debug_info(dd)
+
+        return f"ds://{profile.name}/{topic}"
+    else:
+        raise mlrun.errors.MLRunValueError(
+            f"Received an unexpected stream profile type: {type(profile)}\n"
+            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+        )
 
 
 def get_monitoring_parquet_path(
@@ -304,6 +307,38 @@ def _get_v3io_output_stream(
     )
 
 
+def debug_info(params, logger=None, msg="KUKAREKU=="):
+    import json
+    import traceback
+
+    """
+    Print debug information including message, parameters and stack trace to logger
+
+    Args:
+        msg: Debug message to log
+        params: Dictionary of parameters to log (can be nested)
+        logger: Logger instance to use for output
+
+        dd = {
+            "bootstrap_servers":self._brokers,
+            "options":self._producer_options
+        }
+        debug_info(dd)
+
+    """
+    # Get the current stack trace
+    stack = traceback.format_stack()[:-1]  # Exclude the current frame
+
+    # Create debug info dictionary
+    debug_data = {"message": msg, "parameters": params, "stack_trace": stack}
+    # Log as formatted JSON
+    res = json.dumps(debug_data, indent=2)
+    if logger:
+        logger.error(res)
+    else:
+        print(res)
+
+
 def _get_kafka_output_stream(
     *,
     kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
@@ -326,6 +361,13 @@ def _get_kafka_output_stream(
                 "sasl_plain_password": sasl["password"],
             },
         )
+    dd = {
+        "brokers": kafka_profile.brokers,
+        "topic": topic,
+        "producer_options": producer_options,
+    }
+    debug_info(dd)
+
     return mlrun.platforms.iguazio.KafkaOutputStream(
         brokers=kafka_profile.brokers,
         topic=topic,

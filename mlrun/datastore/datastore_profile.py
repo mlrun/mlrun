@@ -171,6 +171,9 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
                 FutureWarning,
             )
 
+    def topic(self):
+        return self.topic
+
     def attributes(self):
         attributes = {"brokers": self.brokers or self.bootstrap_servers}
         if self.kwargs_public:
@@ -192,6 +195,10 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
     sasl_pass: typing.Optional[str]
     kwargs_public: typing.Optional[dict]
     kwargs_private: typing.Optional[dict]
+
+    def topic(self):
+        topics = [self.topics] if isinstance(self.topics, str) else self.topics
+        return topics[0] if topics else None
 
     def attributes(self) -> dict[str, typing.Any]:
         attributes = {}

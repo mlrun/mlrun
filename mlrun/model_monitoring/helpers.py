@@ -137,29 +137,23 @@ def get_stream_path(
     )
 
     if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
-        stream_uri = "v3io"
-    elif isinstance(
-        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
-    ):
-        attributes = profile.attributes()
-        stream_uri = f"kafka://{attributes['brokers'][0]}"
-    else:
-        raise mlrun.errors.MLRunValueError(
-            f"Received an unexpected stream profile type: {type(profile)}\n"
-            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
-        )
-
-    if not stream_uri or stream_uri == "v3io":
         stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project,
             kind=mm_constants.FileTargetKind.STREAM,
             target="online",
             function_name=function_name,
         )
+        return stream_uri.replace("v3io://", f"ds://{profile.name}")
 
-    return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-        stream_uri=stream_uri, project=project, function_name=function_name
-    )
+    elif isinstance(
+        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+    ):
+        return f"ds://{profile.name}"
+    else:
+        raise mlrun.errors.MLRunValueError(
+            f"Received an unexpected stream profile type: {type(profile)}\n"
+            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+        )
 
 
 def get_monitoring_parquet_path(

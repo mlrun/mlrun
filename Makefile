@@ -129,17 +129,17 @@ install-conda-requirements: ## Install all requirements needed for development w
 .PHONY: install-complete-requirements
 install-complete-requirements: ## Install all requirements needed for development and testing
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete]
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete] --ignore-requires-python
 
 .PHONY: install-complete-kfp-requirements
 install-complete-kfp-requirements: ## Install all requirements needed for development and testing + KFP 1.8
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,kfp18]
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,kfp18] --ignore-requires-python
 
 .PHONY: install-all-requirements
 install-all-requirements: ## Install all requirements needed for development and testing
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[all]
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[all] --ignore-requires-python
 
 .PHONY: create-migration-mysql
 create-migration-mysql: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
@@ -528,7 +528,7 @@ test: clean ## Run mlrun tests
 		--ignore=tests/rundb/test_httpdb.py \
 		--ignore=server/py/services/api/migrations \
 	");\
-	PER_PYTHON_VERSION_IGNORE_TEST_FLAGS=$(if $(filter $(MLRUN_PYTHON_VERSION),3.11),$$(echo "\
+	PER_PYTHON_VERSION_IGNORE_TEST_FLAGS=$(if $(filter $(MLRUN_PYTHON_VERSION),3.12),$$(echo "\
 		--ignore=server/py/services/api/tests/unit/api/test_pipelines.py \
 		--ignore=tests/projects/test_kfp.py \
 		--ignore=server/py/services/api/tests/unit/crud/test_pipelines.py \

@@ -1386,18 +1386,18 @@ def test_join_urls(base_url, path, expected_result):
     [
         (None, None),
         # no timezone
-        (datetime(2025, 1, 15, 11, 0, 0), "2025-01-15T11:00:00"),
+        ("2025-01-15T11:00:00", datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc)),
         # timezone-aware datetime (UTC+2), should convert to UTC
         (
-            datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone(Timedelta(hours=2))),
-            "2025-01-15T09:00:00+00:00",
+            "2025-01-15T11:00:00+02:00",
+            datetime(2025, 1, 15, 9, 0, 0, tzinfo=timezone.utc),
         ),
         # already in UTC
         (
-            datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc),
             "2025-01-15T11:00:00+00:00",
+            datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc),
         ),
     ],
 )
-def test_datetime_to_iso(input_time, expected_output):
-    assert mlrun.utils.helpers.datetime_to_iso(input_time) == expected_output
+def test_datetime_from_iso(input_time, expected_output):
+    assert mlrun.utils.helpers.datetime_from_iso(input_time) == expected_output

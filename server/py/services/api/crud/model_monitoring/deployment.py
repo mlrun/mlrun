@@ -1503,7 +1503,7 @@ class MonitoringDeployment:
                             track_models=track_models,
                             sampling_percentage=sampling_percentage,
                             uid=uid,
-                            label_names=route.class_args.get("outputs")
+                            label_names=route.class_args.get("outputs"),
                         ),
                         route.model_endpoint_creation_strategy,
                         route.class_args.get("model_path", ""),

@@ -551,7 +551,8 @@ def test_ensure_latest_tag_for_artifacts():
     artifact_3_id = artifact3.id
     artifact_4_id = artifact4.id
 
-    # Step 3: Delete the "latest" tags manually from the second artifact and the forth artifact (artifact_2_id, artifact_4_id)
+    # Step 3: Delete the "latest" tags manually from the second artifact and the forth artifact
+    # (artifact_2_id, artifact_4_id)
     db._delete(
         db_session,
         framework.db.sqldb.db.ArtifactV2.Tag,

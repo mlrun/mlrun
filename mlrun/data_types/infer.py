@@ -20,8 +20,8 @@ import pandas as pd
 import pyarrow
 from pandas.io.json._table_schema import convert_pandas_type_to_json_field
 
-from mlrun.utils import logger
 from mlrun.model import ObjectList
+from mlrun.utils import logger
 
 from .data_types import InferOptions, pa_type_to_value_type, pd_schema_to_value_type
 

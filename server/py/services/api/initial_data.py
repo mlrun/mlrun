@@ -994,6 +994,7 @@ def _ensure_latest_tag_for_artifacts(
         framework.db.sqldb.models.ArtifactV2.id,
         framework.db.sqldb.models.ArtifactV2.key,
         framework.db.sqldb.models.ArtifactV2.project,
+        framework.db.sqldb.models.ArtifactV2.iteration,
         sqlalchemy.func.row_number()
         .over(
             partition_by=[
@@ -1012,6 +1013,7 @@ def _ensure_latest_tag_for_artifacts(
             subquery.c.id,
             subquery.c.key,
             subquery.c.project,
+            subquery.c.iteration,
         )
         .filter(subquery.c.row_number == 1)  # Get only the latest for each combination
         .subquery()
@@ -1022,15 +1024,47 @@ def _ensure_latest_tag_for_artifacts(
         subquery_filtered.c.id,
         subquery_filtered.c.key,
         subquery_filtered.c.project,
+        subquery_filtered.c.iteration,
     ).outerjoin(
         framework.db.sqldb.models.ArtifactV2.Tag,
         framework.db.sqldb.models.ArtifactV2.Tag.obj_id == subquery_filtered.c.id,
     )
 
+    # Step 4: Collect project+key pairs for iteration 0 and >0
+    latest_with_iter_0 = query.filter(
+        framework.db.sqldb.models.ArtifactV2.Tag.name == "latest",
+        subquery_filtered.c.iteration == 0,
+    )
+    latest_with_iter_gt_0 = query.filter(
+        framework.db.sqldb.models.ArtifactV2.Tag.name == "latest",
+        subquery_filtered.c.iteration > 0,
+    )
+
+    # Collecting the two sets of (project, key) tuples
+    project_key_iter_0 = (
+        latest_with_iter_0.with_entities(
+            subquery_filtered.c.project, subquery_filtered.c.key
+        )
+        .distinct()
+        .all()
+    )
+
+    project_key_iter_gt_0 = (
+        latest_with_iter_gt_0.with_entities(
+            subquery_filtered.c.project, subquery_filtered.c.key
+        )
+        .distinct()
+        .all()
+    )
+
+    # Sets for checking intersection
+    set_iter_0 = set(project_key_iter_0)
+    set_iter_gt_0 = set(project_key_iter_gt_0)
+
     # Create an alias for the Tag table for the NOT EXISTS condition
     tag_alias = sqlalchemy.orm.aliased(framework.db.sqldb.models.ArtifactV2.Tag)
 
-    # Step 4: Filter out artifacts that already have the "latest" tag
+    # Step 5: Collect all artifacts that need to be tagged, filter out artifacts that already have the "latest" tag
     query = query.filter(
         ~sqlalchemy.exists().where(
             sqlalchemy.and_(
@@ -1054,26 +1088,58 @@ def _ensure_latest_tag_for_artifacts(
         count=len(artifacts_to_tag),
     )
 
+    processed_artifacts = set()
+
     while artifacts_to_tag:
-        new_tags = [
-            framework.db.sqldb.models.ArtifactV2.Tag(
-                project=project,
-                name="latest",
-                obj_id=artifact_id,
-                obj_name=key,
+        new_tags = []
+        for artifact_id, key, project, iteration in artifacts_to_tag:
+            # in the scenario where the same project+key were created from both a hyper-param run and single run,
+            # and the user removed the latest tag from everything. In that case we'll assign latest to either the
+            # hyper-param items or the single run item, depending on which item we run into first when iterating
+            # over the results, and it may not necessarily be really the latest. Still, it will handle the
+            # more common case.
+
+
+            # If iteration is 0, ensure it does not exist in set_iter_gt_0
+            if iteration == 0:
+                if (project, key) not in set_iter_gt_0:
+                    new_tags.append(
+                        framework.db.sqldb.models.ArtifactV2.Tag(
+                            project=project,
+                            name="latest",
+                            obj_id=artifact_id,
+                            obj_name=key,
+                        )
+                    )
+                    set_iter_0.add((project, key))  # Add to iter=0 set
+            else:  # If iteration > 0, ensure it does not exist in set_iter_0
+                if (project, key) not in set_iter_0:
+                    new_tags.append(
+                        framework.db.sqldb.models.ArtifactV2.Tag(
+                            project=project,
+                            name="latest",
+                            obj_id=artifact_id,
+                            obj_name=key,
+                        )
+                    )
+                    set_iter_gt_0.add((project, key))  # Add to iter>0 set
+
+            processed_artifacts.add(artifact_id)
+
+        if new_tags:
+            logger.info(
+                "Committing migrated records",
+                model=framework.db.sqldb.models.ArtifactV2.Tag,
+                count=len(new_tags),
             )
-            for artifact_id, key, project in artifacts_to_tag
-        ]
+            db_session.add_all(new_tags)
+            db_session.commit()
 
-        logger.info(
-            "Committing migrated records",
-            model=framework.db.sqldb.models.ArtifactV2.Tag,
-            count=len(new_tags),
+        artifacts_to_tag = (
+            query.filter(~subquery_filtered.c.id.in_(processed_artifacts))
+            .limit(chunk_size)
+            .all()
         )
-        db_session.add_all(new_tags)
-        db_session.commit()
-
-        artifacts_to_tag = query.limit(chunk_size).all()
 
     logger.info(
         "No more artifacts to migrate",

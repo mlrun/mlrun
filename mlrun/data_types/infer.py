@@ -76,7 +76,7 @@ def infer_schema_from_df(
                 features[column].value_type = value_type
             else:
                 features[column] = {"name": column, "value_type": value_type}
-                if isinstance(ObjectList, features):
+                if isinstance(features, ObjectList):
                     features.move_to_end(column, last=False)
         if value_type == "datetime" and not is_entity:
             timestamp_fields.append(column)

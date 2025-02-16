@@ -1503,6 +1503,7 @@ class MonitoringDeployment:
                             track_models=track_models,
                             sampling_percentage=sampling_percentage,
                             uid=uid,
+                            label_names=route.class_args.get("outputs")
                         ),
                         route.model_endpoint_creation_strategy,
                         route.class_args.get("model_path", ""),
@@ -1593,6 +1594,7 @@ class MonitoringDeployment:
         children_names: typing.Optional[list[str]] = None,
         children_uids: typing.Optional[list[str]] = None,
         sampling_percentage: typing.Optional[float] = None,
+        label_names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         function_tag = function_tag or "latest"
         return mlrun.common.schemas.ModelEndpoint(
@@ -1603,6 +1605,7 @@ class MonitoringDeployment:
                 function_name=function_name,
                 function_tag=function_tag,
                 function_uid=f"{unversioned_tagged_object_uid_prefix}{function_tag}",  # TODO: remove after ML-8596
+                label_names=label_names or [],
                 model_class=model_class,
                 children=children_names,
                 children_uids=children_uids,

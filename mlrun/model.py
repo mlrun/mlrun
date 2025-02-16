@@ -430,6 +430,9 @@ class ObjectList:
         self._children[child_obj.name] = child_obj
         return child_obj
 
+    def move_to_end(self, child, last=True):
+        self._children.move_to_end(child, last)
+
 
 class Credentials(ModelObj):
     generate_access_key = "$generate"

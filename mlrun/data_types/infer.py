@@ -21,6 +21,7 @@ import pyarrow
 from pandas.io.json._table_schema import convert_pandas_type_to_json_field
 
 from mlrun.utils import logger
+from mlrun.model import ObjectList
 
 from .data_types import InferOptions, pa_type_to_value_type, pd_schema_to_value_type
 
@@ -75,6 +76,8 @@ def infer_schema_from_df(
                 features[column].value_type = value_type
             else:
                 features[column] = {"name": column, "value_type": value_type}
+                if isinstance(ObjectList, features):
+                    features.move_to_end(column, last=False)
         if value_type == "datetime" and not is_entity:
             timestamp_fields.append(column)
 

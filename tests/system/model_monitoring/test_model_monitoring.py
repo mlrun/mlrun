@@ -409,15 +409,17 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
                 function_name="function-1",
                 function_tag="v1",
             )
-
+            assert created_model_endpoint.spec.feature_names is not None
             assert (
-                db_model_endpoint.spec.function_name
-                == created_model_endpoint.spec.function_name
+                db_model_endpoint.spec.feature_names
+                == created_model_endpoint.spec.feature_names
             )
+            assert created_model_endpoint.spec.monitoring_feature_set_uri is not None
             assert (
                 db_model_endpoint.spec.monitoring_feature_set_uri
                 == created_model_endpoint.spec.monitoring_feature_set_uri
             )
+            assert created_model_endpoint.spec.label_names is not None
             assert (
                 db_model_endpoint.spec.label_names
                 == created_model_endpoint.spec.label_names

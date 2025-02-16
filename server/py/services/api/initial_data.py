@@ -989,6 +989,9 @@ def _ensure_latest_tag_for_artifacts(
 ):
     chunk_size = chunk_size or config.artifacts.artifact_migration_v9_batch_size
 
+    # Note: when logging the same artifact and spawning tags in version < 1.8  and then migrating to 1.8,
+    # two artifacts should remain at the end
+
     # Step 1: Get the latest artifact row for each combination of project, key, and iteration
     subquery = db_session.query(
         framework.db.sqldb.models.ArtifactV2.id,
@@ -1125,10 +1128,9 @@ def _tag_artifact(
 ):
     """Tags an artifact as 'latest' depending on its iteration and project+key set."""
 
-    # In cases where the same project and key were created from both a hyper-params run and a single run, and the
+    # Note: In cases where the same project and key were created from both a hyper-params run and a single run, and the
     # user removed the 'latest' tag from all items, we will assign the 'latest' tag to either the hyper-params items
     # or the single run items. This will depend on which item we encounter first when iterating over the results.
-    # Although it may not necessarily reflect the true latest item, it will handle the more common scenario
 
     new_tag = None
 

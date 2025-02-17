@@ -30,7 +30,6 @@ import typing
 import warnings
 from collections.abc import Mapping
 from datetime import timedelta
-from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
 
@@ -1471,17 +1470,6 @@ def _convert_resources_to_str(config: typing.Optional[dict] = None):
             if value is None:
                 continue
             resource_requirement[resource_type] = str(value)
-
-
-def _convert_str(value, typ):
-    if typ in (str, _none_type):
-        return value
-
-    if typ is bool:
-        return strtobool(value)
-
-    # e.g. int('8080') → 8080
-    return typ(value)
 
 
 def _configure_ssl_verification(verify_ssl: bool) -> None:

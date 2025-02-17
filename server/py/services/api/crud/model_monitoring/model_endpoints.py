@@ -45,6 +45,7 @@ from mlrun.model_monitoring.db._stats import (
 from mlrun.utils import logger, parse_artifact_uri
 
 import framework.api.utils
+import framework.db.sqldb.db
 import framework.utils.singletons.db
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.model_monitoring.helpers
@@ -270,21 +271,24 @@ class ModelEndpoints:
             )
 
         if model_endpoints_dict.get("delete"):
-            uids = model_endpoints_dict.get("delete")
+            old_uids = model_endpoints_dict.get("delete")
             # delete old versions
             await run_in_threadpool(
                 framework.utils.singletons.db.get_db().delete_model_endpoints,
                 session=db_session,
                 project=project,
-                uids=uids,
+                uids=old_uids,
             )
             await run_in_threadpool(
                 self._delete_model_endpoint_monitoring_infra,
-                uids=uids,
+                uids=old_uids,
                 project=project,
             )
             # delete old feature sets
-            feature_set_uids = ["unversioned-" + uid + "_" for uid in uids]
+            feature_set_uids = [
+                f"{framework.db.sqldb.db.unversioned_tagged_object_uid_prefix}{uid}_"
+                for uid in old_uids
+            ]
             await run_in_threadpool(
                 framework.utils.singletons.db.get_db().delete_feature_sets,
                 session=db_session,
@@ -425,7 +429,10 @@ class ModelEndpoints:
                 uids=old_uids,
                 project=model_endpoint.metadata.project,
             )
-            feature_set_uids = ["unversioned-" + uid + "_" for uid in old_uids]
+            feature_set_uids = [
+                f"{framework.db.sqldb.db.unversioned_tagged_object_uid_prefix}{uid}_"
+                for uid in old_uids
+            ]
             await run_in_threadpool(
                 framework.utils.singletons.db.get_db().delete_feature_sets,
                 session=db_session,
@@ -496,7 +503,10 @@ class ModelEndpoints:
                     uids=uid_to_delete,
                     project=model_endpoint.metadata.project,
                 )
-                feature_set_uids = ["unversioned-" + uid + "_" for uid in uid_to_delete]
+                feature_set_uids = [
+                    f"{framework.db.sqldb.db.unversioned_tagged_object_uid_prefix}{uid}_"
+                    for uid in old_uids
+                ]
                 await run_in_threadpool(
                     framework.utils.singletons.db.get_db().delete_feature_sets,
                     session=db_session,

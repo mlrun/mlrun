@@ -1391,5 +1391,6 @@ class DBInterface(ABC):
         Delete multiple feature sets.
         :param session: The database session.
         :param project: The project name.
+        :param uids:    The feature set uids to delete.
         """
         pass

@@ -282,8 +282,8 @@ class ModelArtifact(Artifact):
                 df[label_columns],
                 self.spec.outputs,
                 {},
-                label_columns=label_columns,
                 options=InferOptions.Features,
+                push_at_start=True,
             )
         if with_stats:
             self.spec.feature_stats = inferer.get_stats(

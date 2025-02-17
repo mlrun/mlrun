@@ -433,6 +433,19 @@ class ObjectList:
     def move_to_end(self, child, last=True):
         self._children.move_to_end(child, last)
 
+    def update_list(self, object_list, push_at_start: bool = False):
+        if isinstance(object_list, self.__class__):
+            if push_at_start:
+                self._children = OrderedDict(
+                    list(object_list._children.items()) + list(self._children.items())
+                )
+            else:
+                self._children = OrderedDict(
+                    list(self._children.items()) + list(object_list._children.items())
+                )
+        else:
+            raise ValueError(f"illegal object list {object_list}")
+
 
 class Credentials(ModelObj):
     generate_access_key = "$generate"

@@ -20,6 +20,7 @@ import pandas as pd
 import pyarrow
 from pandas.io.json._table_schema import convert_pandas_type_to_json_field
 
+import mlrun.features
 from mlrun.model import ObjectList
 from mlrun.utils import logger
 
@@ -34,15 +35,15 @@ def infer_schema_from_df(
     entities,
     timestamp_key: Optional[str] = None,
     entity_columns=None,
-    label_columns: Optional[list[str]] = None,
     options: InferOptions = InferOptions.Null,
+    push_at_start: Optional[bool] = False,
 ):
     """infer feature set schema from dataframe"""
     timestamp_fields = []
     current_entities = list(entities.keys())
     entity_columns = entity_columns or []
-    label_columns = label_columns or []
     index_columns = dict()
+    temp_features = ObjectList(mlrun.features.Feature) if push_at_start else None
 
     def upsert_entity(name, value_type):
         if name in current_entities:
@@ -77,11 +78,18 @@ def infer_schema_from_df(
             if column in features.keys():
                 features[column].value_type = value_type
             else:
-                features[column] = {"name": column, "value_type": value_type}
-                if isinstance(features, ObjectList) and column in label_columns:
-                    features.move_to_end(column, last=False)
+                if isinstance(features, ObjectList) and push_at_start:
+                    temp_features[column] = {"name": column, "value_type": value_type}
+                else:
+                    features[column] = {"name": column, "value_type": value_type}
+
         if value_type == "datetime" and not is_entity:
             timestamp_fields.append(column)
+
+    if push_at_start and temp_features and isinstance(features, ObjectList):
+        features.update_list(
+            object_list=temp_features, push_at_start=True
+        )  # Push to start of the Object list
 
     index_type = None
     if InferOptions.get_common_options(options, InferOptions.Index):

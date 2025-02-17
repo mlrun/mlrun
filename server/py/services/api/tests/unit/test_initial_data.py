@@ -424,12 +424,17 @@ def test_init_system_id(
 def test_ensure_latest_tag_for_artifacts():
     # This test verifies that the migration to ensure the "latest" tag is assigned correctly to artifacts works as
     # expected. The test creates a set of artifacts with different iteration numbers and tags:
-    # - project1 + key1 + iteration 0 -> 3 tags (v1, v2, latest)
-    # - project1 + key1 + iteration 1 -> 1 tag (latest)
-    # - project1 + key1 + iteration 2 -> 2 tags (v1, latest)
-    # - project2 + key1 + iteration 0 -> 1 tag (latest)
-    # - project2 + key2 + iteration 0 -> 1 tag (latest)
-    # The test then deletes the "latest" tags from the first two artifacts and verifies that only one artifact has the
+
+    # 1. project1 + key1 + iteration 0 (run1) -> 2 tags (v1, v2)
+
+    # 2. project1 + key1 + iteration 1 (run2) -> 1 tag (latest)
+    # 3. project1 + key1 + iteration 2 (run2) -> 2 tags (v1, latest)
+    # 4. project1 + key1 + iteration 3 (run2) -> 2 tags (v1, latest)
+
+    # 5. project2 + key1 + iteration 0 -> 1 tag (latest)
+    # 6. project2 + key2 + iteration 0 -> 1 tag (latest)
+
+    # The test then deletes the "latest" tags from the second artifact and verifies that only 2 artifacts have the
     # "latest" tag left. After performing the migration, the test verifies that the correct artifacts are tagged as
     # "latest".
 
@@ -438,46 +443,95 @@ def test_ensure_latest_tag_for_artifacts():
     project1 = "project1"
     key2 = "key2"
     project2 = "project2"
+    tree1 = "tree1"
+    tree2 = "tree2"
 
-    artifact = {
-        "kind": "artifact",
-    }
+    def generate_artifact(key, tree=None):
+        artifact = {
+            "metadata": {"key": key},
+            "kind": "artifact",
+        }
+        if tree:
+            artifact["metadata"]["tree"] = tree
+        return artifact
 
     # Step 1: Create artifacts with different iteration numbers and tags
-    # project1 + key1 + iteration 0 -> 3 tags (v1, v2, latest)
+
+    # Create artifact for project1 + key1 + iteration 0 (run1) -> 3 tags (v1, v2, latest)
     artifact_1_uid = db.store_artifact(
-        db_session, key=key1, project=project1, iter=0, artifact=artifact, tag="v1"
+        db_session,
+        key=key1,
+        project=project1,
+        iter=0,
+        artifact=generate_artifact(key1, tree1),
+        tag="v1",
     )
     db.store_artifact(
-        db_session, key=key1, project=project1, iter=0, artifact=artifact, tag="v2"
+        db_session,
+        key=key1,
+        project=project1,
+        iter=0,
+        artifact=generate_artifact(key1, tree1),
+        tag="v2",
     )
 
-    # project1 + key1 + iteration 1 -> 1 tag (latest)
+    # Create 2 artifacts with hyperparameters, each will receive the 'latest' tag
+    # and the 'latest' tag is removed from the artifact from the previous run (run1)
+
+    # project1 + key1 + iteration 1 (run2) -> 1 tag (latest)
     artifact_2_uid = db.store_artifact(
-        db_session, key=key1, project=project1, iter=1, artifact=artifact
+        db_session,
+        key=key1,
+        project=project1,
+        iter=1,
+        artifact=generate_artifact(key1, tree2),
     )
 
-    # project1 + key1 + iteration 2 -> 2 tags (v1, latest)
+    # project1 + key1 + iteration 2 (run2) -> 2 tags (v1, latest)
     artifact_3_uid = db.store_artifact(
-        db_session, key=key1, project=project1, iter=2, artifact=artifact, tag="v1"
+        db_session,
+        key=key1,
+        project=project1,
+        iter=2,
+        artifact=generate_artifact(key1, tree2),
+        tag="v1",
+    )
+
+    # project1 + key1 + iteration 3 (run2) -> 2 tags (v1, latest)
+    artifact_4_uid = db.store_artifact(
+        db_session,
+        key=key1,
+        project=project1,
+        iter=3,
+        artifact=generate_artifact(key1, tree2),
+        tag="v1",
     )
 
     # project2 + key1 + iteration 0 -> 1 tag (latest)
-    db.store_artifact(
+    artifact_5_uid = db.store_artifact(
         db_session,
         key=key1,
         project=project2,
         iter=0,
-        artifact=artifact,
+        artifact=generate_artifact(key1),
     )
 
     # project2 + key2 + iteration 0 -> 1 tag (latest)
-    db.store_artifact(
+    artifact_6_uid = db.store_artifact(
         db_session,
         key=key2,
         project=project2,
         iter=0,
-        artifact=artifact,
+        artifact=generate_artifact(key2),
+    )
+
+    assert (
+        artifact_1_uid
+        != artifact_2_uid
+        != artifact_3_uid
+        != artifact_4_uid
+        != artifact_5_uid
+        != artifact_6_uid
     )
 
     # Step 2: List the artifacts for project1, key1, and the "latest" tag
@@ -487,30 +541,31 @@ def test_ensure_latest_tag_for_artifacts():
     assert len(artifacts) == 3
 
     # Read the artifacts that were stored to get their IDs
-    artifact1 = db.read_artifact(
-        db_session, key=key1, project=project1, uid=artifact_1_uid, as_record=True
-    )
     artifact2 = db.read_artifact(
-        db_session, key=key1, project=project1, uid=artifact_2_uid, as_record=True
+        db_session, project=project1, key=key1, uid=artifact_2_uid, as_record=True
     )
     artifact3 = db.read_artifact(
-        db_session, key=key1, project=project1, uid=artifact_3_uid, as_record=True
+        db_session, project=project1, key=key1, uid=artifact_3_uid, as_record=True
     )
-    artifact_1_id = artifact1.id
+    artifact4 = db.read_artifact(
+        db_session, project=project1, key=key1, uid=artifact_4_uid, as_record=True
+    )
     artifact_2_id = artifact2.id
     artifact_3_id = artifact3.id
+    artifact_4_id = artifact4.id
 
-    # Step 3: Delete the "latest" tags manually from the first two artifacts (artifact_1_id, artifact_2_id)
+    # Step 3: Delete the "latest" tags manually from the second artifact and the forth artifact
+    # (artifact_2_id, artifact_4_id)
     db._delete(
         db_session,
         framework.db.sqldb.db.ArtifactV2.Tag,
-        obj_id=artifact_1_id,
+        obj_id=artifact_2_id,
         name="latest",
     )
     db._delete(
         db_session,
         framework.db.sqldb.db.ArtifactV2.Tag,
-        obj_id=artifact_2_id,
+        obj_id=artifact_4_id,
         name="latest",
     )
     db_session.flush()
@@ -533,16 +588,19 @@ def test_ensure_latest_tag_for_artifacts():
         len(artifacts) == 3
     ), f"Expected 3 artifacts with latest tag, found {len(artifacts)}"
 
+    # Verify that artifact from the previous run (run1) wasn't tagged as latest
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.read_artifact(db_session, project=project1, key=key1, tag="latest", iter=0)
+
     # Ensure the tag was created correctly for the second artifact
-    artifacts = db.list_artifacts(
-        db_session, project=project1, name=key1, iter=1, as_records=True
+    artifact = db.read_artifact(
+        db_session, project=project1, key=key1, tag="latest", iter=1, as_record=True
     )
-    assert len(artifacts) == 1
-    assert len(artifacts[0].tags) == 1
-    assert artifacts[0].tags[0].name == "latest"
-    assert artifacts[0].tags[0].project == project1
-    assert artifacts[0].tags[0].obj_name == key1
-    assert artifacts[0].tags[0].obj_id == artifact_2_id
+    assert len(artifact.tags) == 1
+    assert artifact.tags[0].name == "latest"
+    assert artifact.tags[0].project == project1
+    assert artifact.tags[0].obj_name == key1
+    assert artifact.tags[0].obj_id == artifact_2_id
 
 
 def _initialize_db_without_migrations() -> (

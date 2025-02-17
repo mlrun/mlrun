@@ -34,12 +34,14 @@ def infer_schema_from_df(
     entities,
     timestamp_key: Optional[str] = None,
     entity_columns=None,
+    label_columns: Optional[list[str]] = None,
     options: InferOptions = InferOptions.Null,
 ):
     """infer feature set schema from dataframe"""
     timestamp_fields = []
     current_entities = list(entities.keys())
     entity_columns = entity_columns or []
+    label_columns = label_columns or []
     index_columns = dict()
 
     def upsert_entity(name, value_type):
@@ -76,7 +78,7 @@ def infer_schema_from_df(
                 features[column].value_type = value_type
             else:
                 features[column] = {"name": column, "value_type": value_type}
-                if isinstance(features, ObjectList):
+                if isinstance(features, ObjectList) and column in label_columns:
                     features.move_to_end(column, last=False)
         if value_type == "datetime" and not is_entity:
             timestamp_fields.append(column)

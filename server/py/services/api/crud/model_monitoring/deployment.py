@@ -419,9 +419,15 @@ class MonitoringDeployment:
             != mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
             else mlrun.mlconf.get_v3io_access_key()
         )
+        explicit_ack_mode = (
+            "explicitOnly"
+            if function_name
+            != mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+            else "disable"
+        )
         kwargs = {"access_key": access_key}
         if mlrun.mlconf.is_explicit_ack_enabled():
-            kwargs["explicit_ack_mode"] = "explicitOnly"
+            kwargs["explicit_ack_mode"] = explicit_ack_mode
         kwargs["worker_allocation_mode"] = "static"
         kwargs["max_workers"] = stream_args.v3io.num_workers
         services.api.api.endpoints.nuclio.create_model_monitoring_stream(

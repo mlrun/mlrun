@@ -225,7 +225,7 @@ def test_merge_node_selectors_from_function_and_project_on_kfp_pod(
     }
 
 
-def test_gpu_resources_as_zero_on_kfp_pod_when_gpu_requsted(
+def test_kfp_pod_sets_gpu_resources_to_zero_when_gpu_requested(
     ensure_default_project,
 ):
     function = new_function(

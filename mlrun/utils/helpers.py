@@ -1425,6 +1425,10 @@ def to_non_empty_values_dict(input_dict: dict) -> dict:
     return {key: value for key, value in input_dict.items() if value}
 
 
+def get_enriched_gpu_limits(function_limits):
+    return {resource: 0 for resource in function_limits if "gpu" in resource.lower()}
+
+
 def str_to_timestamp(time_str: str, now_time: Timestamp = None):
     """convert fixed/relative time string to Pandas Timestamp
 

@@ -105,10 +105,7 @@ def add_default_function_resources(
         if resource_value:
             __set_task_limits[resource_name](resource_value)
 
-    function_gpu_limits = mlrun_pipelines.common.ops._enrich_gpu_limits(function)
-    if function_gpu_limits:
-        for resource_name, resource_value in function_gpu_limits.items():
-            task.container.add_resource_limit(resource_name, resource_value)
+    mlrun_pipelines.common.ops._enrich_gpu_limits(function=function, task=task)
     return task
 
 

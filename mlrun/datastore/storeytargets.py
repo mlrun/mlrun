@@ -125,38 +125,6 @@ class StreamStoreyTarget(storey.StreamTarget):
         super().__init__(*args, **kwargs)
 
 
-def debug_info(params, logger=None, msg="KUKAREKU=="):
-    import json
-    import traceback
-
-    """
-    Print debug information including message, parameters and stack trace to logger
-
-    Args:
-        msg: Debug message to log
-        params: Dictionary of parameters to log (can be nested)
-        logger: Logger instance to use for output
-
-        dd = {
-            "bootstrap_servers":self._brokers,
-            "options":self._producer_options
-        }
-        debug_info(dd)
-
-    """
-    # Get the current stack trace
-    stack = traceback.format_stack()[:-1]  # Exclude the current frame
-
-    # Create debug info dictionary
-    debug_data = {"message": msg, "parameters": params, "stack_trace": stack}
-    # Log as formatted JSON
-    res = json.dumps(debug_data, indent=2)
-    if logger:
-        logger.error(res)
-    else:
-        print(res)
-
-
 class KafkaStoreyTarget(storey.KafkaTarget):
     def __init__(self, *args, **kwargs):
         path = kwargs.pop("path")
@@ -170,13 +138,6 @@ class KafkaStoreyTarget(storey.KafkaTarget):
             # Override the topic with the one in the url (if any)
             parsed = urlparse(path)
             topic = parsed.path.strip("/") if parsed.path else datastore_profile.topic()
-            dd = {
-                "path": path,
-                "attributes": attributes,
-                "brokers": brokers,
-                "topic": topic,
-            }
-            debug_info(dd)
         else:
             brokers = attributes.pop(
                 "brokers", attributes.pop("bootstrap_servers", None)

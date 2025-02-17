@@ -98,38 +98,6 @@ def get_in_memory_items():
     return in_memory_store._items
 
 
-def debug_info(params, logger=None, msg="KUKAREKU=="):
-    import json
-    import traceback
-
-    """
-    Print debug information including message, parameters and stack trace to logger
-
-    Args:
-        msg: Debug message to log
-        params: Dictionary of parameters to log (can be nested)
-        logger: Logger instance to use for output
-
-        dd = {
-            "bootstrap_servers":self._brokers,
-            "options":self._producer_options
-        }
-        debug_info(dd)
-
-    """
-    # Get the current stack trace
-    stack = traceback.format_stack()[:-1]  # Exclude the current frame
-
-    # Create debug info dictionary
-    debug_data = {"message": msg, "parameters": params, "stack_trace": stack}
-    # Log as formatted JSON
-    res = json.dumps(debug_data, indent=2)
-    if logger:
-        logger.error(res)
-    else:
-        print(res)
-
-
 def get_stream_pusher(stream_path: str, **kwargs):
     """get a stream pusher object from URL.
 
@@ -164,13 +132,6 @@ def get_stream_pusher(stream_path: str, **kwargs):
                 if parsed_url.path
                 else datastore_profile.topic()
             )
-            dd = {
-                "attributes": attributes,
-                "brokers": brokers,
-                "profile_topics": datastore_profile.topic(),
-                "topic": topic,
-            }
-            debug_info(dd)
             return KafkaOutputStream(topic, brokers, producer_options=attributes)
 
         elif isinstance(datastore_profile, DatastoreProfileV3io):

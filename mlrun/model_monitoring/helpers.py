@@ -151,12 +151,6 @@ def get_stream_path(
         topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
             project=project, function_name=function_name
         )
-        dd = {
-            "topic": topic,
-            "name": f"ds://{profile.name}/{topic}",
-        }
-        debug_info(dd)
-
         return f"ds://{profile.name}/{topic}"
     else:
         raise mlrun.errors.MLRunValueError(
@@ -307,38 +301,6 @@ def _get_v3io_output_stream(
     )
 
 
-def debug_info(params, logger=None, msg="KUKAREKU=="):
-    import json
-    import traceback
-
-    """
-    Print debug information including message, parameters and stack trace to logger
-
-    Args:
-        msg: Debug message to log
-        params: Dictionary of parameters to log (can be nested)
-        logger: Logger instance to use for output
-
-        dd = {
-            "bootstrap_servers":self._brokers,
-            "options":self._producer_options
-        }
-        debug_info(dd)
-
-    """
-    # Get the current stack trace
-    stack = traceback.format_stack()[:-1]  # Exclude the current frame
-
-    # Create debug info dictionary
-    debug_data = {"message": msg, "parameters": params, "stack_trace": stack}
-    # Log as formatted JSON
-    res = json.dumps(debug_data, indent=2)
-    if logger:
-        logger.error(res)
-    else:
-        print(res)
-
-
 def _get_kafka_output_stream(
     *,
     kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
@@ -361,12 +323,6 @@ def _get_kafka_output_stream(
                 "sasl_plain_password": sasl["password"],
             },
         )
-    dd = {
-        "brokers": kafka_profile.brokers,
-        "topic": topic,
-        "producer_options": producer_options,
-    }
-    debug_info(dd)
 
     return mlrun.platforms.iguazio.KafkaOutputStream(
         brokers=kafka_profile.brokers,

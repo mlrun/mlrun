@@ -13,6 +13,7 @@
 # limitations under the License.
 import asyncio
 from datetime import datetime, timedelta
+from threading import Lock
 from typing import Callable, Literal, Optional, Union
 
 import pandas as pd
@@ -30,6 +31,9 @@ from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
 
+_connection = None
+_connection_lock = Lock()
+
 
 class TDEngineConnector(TSDBConnector):
     """
@@ -37,23 +41,18 @@ class TDEngineConnector(TSDBConnector):
     """
 
     type: str = mm_schemas.TSDBTarget.TDEngine
+    database = f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
 
     def __init__(
         self,
         project: str,
         profile: DatastoreProfile,
-        database: Optional[str] = None,
         **kwargs,
     ):
         super().__init__(project=project)
 
         self._tdengine_connection_profile = profile
-        self.database = (
-            database
-            or f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
-        )
 
-        self._connection = None
         self._init_super_tables()
 
         self._timeout = mlrun.mlconf.model_endpoint_monitoring.tdengine.timeout
@@ -61,9 +60,16 @@ class TDEngineConnector(TSDBConnector):
 
     @property
     def connection(self) -> TDEngineConnection:
-        if not self._connection:
-            self._connection = self._create_connection()
-        return self._connection
+        global _connection
+
+        if _connection:
+            return _connection
+
+        with _connection_lock:
+            if not _connection:
+                _connection = self._create_connection()
+
+        return _connection
 
     def _create_connection(self) -> TDEngineConnection:
         """Establish a connection to the TSDB server."""
@@ -99,7 +105,8 @@ class TDEngineConnector(TSDBConnector):
         """Create TDEngine supertables."""
         for table in self.tables:
             create_table_query = self.tables[table]._create_super_table_query()
-            self.connection.run(
+            conn = self.connection
+            conn.run(
                 statements=create_table_query,
                 timeout=self._timeout,
                 retries=self._retries,

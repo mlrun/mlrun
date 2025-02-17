@@ -399,6 +399,32 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         assert len(endpoints_out) == 1
         assert endpoints_out[0].spec.model_name == "model-2"
 
+        if creation_strategy == mm_constants.ModelEndpointCreationStrategy.INPLACE:
+            created_model_endpoint = db.create_model_endpoint(
+                model_endpoint, creation_strategy
+            )
+            db_model_endpoint = db.get_model_endpoint(
+                project=self.project_name,
+                name=model_endpoint.metadata.name,
+                function_name="function-1",
+                function_tag="v1",
+            )
+            assert created_model_endpoint.spec.feature_names is not None
+            assert (
+                db_model_endpoint.spec.feature_names
+                == created_model_endpoint.spec.feature_names
+            )
+            assert created_model_endpoint.spec.monitoring_feature_set_uri is not None
+            assert (
+                db_model_endpoint.spec.monitoring_feature_set_uri
+                == created_model_endpoint.spec.monitoring_feature_set_uri
+            )
+            assert created_model_endpoint.spec.label_names is not None
+            assert (
+                db_model_endpoint.spec.label_names
+                == created_model_endpoint.spec.label_names
+            )
+
         mep = mlrun.get_run_db().get_model_endpoint(
             project=endpoints_out[0].metadata.project,
             name=endpoints_out[0].metadata.name,

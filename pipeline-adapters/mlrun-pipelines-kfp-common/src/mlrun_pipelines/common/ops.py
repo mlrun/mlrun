@@ -22,7 +22,6 @@ import io
 import json
 import multiprocessing
 import os
-import urllib.parse
 import warnings
 import zipfile
 from ast import literal_eval
@@ -829,9 +828,9 @@ def _enrich_kfp_workflow_yaml_credentials(
     api_version = (
         workflow_dict.get("api_version") or workflow_dict.get("apiVersion", "").lower()
     )
+    api_version_project = api_version.split("/")[0]
 
-    parsed_api_version = urllib.parse.urlparse(api_version)
-    if parsed_api_version.hostname == "argoproj.io":  # KFP Argo Workflow
+    if api_version_project == "argoproj.io":  # KFP Argo Workflow
         spec = workflow_dict.get("spec")
         if not spec:
             logger.warning("Missing spec, not modifying workflow")
@@ -848,7 +847,7 @@ def _enrich_kfp_workflow_yaml_credentials(
 
         return yaml.safe_dump(workflow_dict).encode()
 
-    elif api_version.startswith("tekton.dev"):  # KFP Tekton Pipeline
+    elif api_version_project == "tekton.dev":  # KFP Tekton Pipeline
         for task in workflow_dict["spec"].get("tasks", []):
             if "name" in task:
                 _replace_secret_envs_in_tekton_template(

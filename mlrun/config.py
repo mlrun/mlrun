@@ -30,7 +30,6 @@ import typing
 import warnings
 from collections.abc import Mapping
 from datetime import timedelta
-from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
 
@@ -105,7 +104,7 @@ default_config = {
     # custom logger format, workes only with log_formatter: custom
     # Note that your custom format must include those 4 fields - timestamp, level, message and more
     "log_format_override": None,
-    "submit_timeout": "180",  # timeout when submitting a new k8s resource
+    "submit_timeout": "280",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
     "monitoring": {
@@ -267,6 +266,7 @@ default_config = {
             # When the module is reloaded, the maximum depth recursion configuration for the recursive reload
             # function is used to prevent infinite loop
             "reload_max_recursion_depth": 100,
+            "source_code_max_bytes": 10000,
         },
         "databricks": {
             "artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"
@@ -1470,17 +1470,6 @@ def _convert_resources_to_str(config: typing.Optional[dict] = None):
             if value is None:
                 continue
             resource_requirement[resource_type] = str(value)
-
-
-def _convert_str(value, typ):
-    if typ in (str, _none_type):
-        return value
-
-    if typ is bool:
-        return strtobool(value)
-
-    # e.g. int('8080') → 8080
-    return typ(value)
 
 
 def _configure_ssl_verification(verify_ssl: bool) -> None:

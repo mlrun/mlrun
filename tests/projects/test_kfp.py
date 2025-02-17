@@ -223,3 +223,17 @@ def test_merge_node_selectors_from_function_and_project_on_kfp_pod(
         project_node_selector: project_val,
         config_node_selector: config_val,
     }
+
+
+def test_gpu_resources_as_zero_on_kfp_pod_when_gpu_requsted(
+    ensure_default_project,
+):
+    function = new_function(
+        kfp=True, kind="job", project=ensure_default_project.metadata.name
+    )
+    gpu_type = "nvidia.com/gpu"
+    function.with_limits(gpus=1, gpu_type=gpu_type)
+
+    cop = function.as_step()
+    assert gpu_type in cop.container.resources.limits
+    assert cop.container.resources.limits[gpu_type] == 0

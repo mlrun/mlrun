@@ -720,6 +720,13 @@ def _enrich_node_selector(function):
     return mlrun.utils.helpers.to_non_empty_values_dict(function_node_selector)
 
 
+def _enrich_gpu_limits(function):
+    function_limits = function.spec.resources.get("limits", {})
+    for resource in function_limits:
+        if "gpu" in resource.lower():
+            return {resource: 0}
+
+
 def replace_kfp_plaintext_secret_env_vars_with_secret_refs(
     byte_buffer: bytes,
     content_type: str,

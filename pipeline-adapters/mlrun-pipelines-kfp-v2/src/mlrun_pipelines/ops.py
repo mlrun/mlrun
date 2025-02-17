@@ -84,7 +84,8 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
 
 
 def add_default_function_resources(
-    task: dsl.PipelineTask,
+    task,
+    function: dsl.PipelineTask,
 ) -> dsl.PipelineTask:
     __set_task_requests = {
         "cpu": task.set_cpu_request,
@@ -104,6 +105,10 @@ def add_default_function_resources(
         if resource_value:
             __set_task_limits[resource_name](resource_value)
 
+    function_gpu_limits = mlrun_pipelines.common.ops._enrich_gpu_limits(function)
+    if function_gpu_limits:
+        for resource_name, resource_value in function_gpu_limits.items():
+            task.container.add_resource_limit(resource_name, resource_value)
     return task
 
 
@@ -305,7 +310,7 @@ def generate_pipeline_node(
     task = container_component()
     task.set_display_name(name)
 
-    add_default_function_resources(task)
+    add_default_function_resources(task, function)
     add_function_node_selection_attributes(function, task)
     add_annotations(task, PipelineRunType.run, function, func_url, project_name)
     add_labels(task, function, scrape_metrics)

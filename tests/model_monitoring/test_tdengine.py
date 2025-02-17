@@ -125,8 +125,8 @@ class TestTDEngineSchema:
 
     def test_drop_subtable(self, super_table: TDEngineSchema):
         assert (
-            super_table._drop_subtable_query(subtable="subtable_1")
-            == f"DROP TABLE if EXISTS {_MODEL_MONITORING_DATABASE}.subtable_1;"
+            super_table.drop_subtable_query(subtable="subtable_1")
+            == f"DROP TABLE if EXISTS {_MODEL_MONITORING_DATABASE}.`subtable_1`;"
         )
 
     def test_drop_supertable(self, super_table: TDEngineSchema):

@@ -91,7 +91,7 @@ MLRUN_PYTHON_PACKAGE_INSTALLER ?= pip
 ifeq ($(MLRUN_PYTHON_PACKAGE_INSTALLER),pip)
 	MLRUN_PYTHON_VENV_PIP_INSTALL ?= python -m pip install
 else ifeq ($(MLRUN_PYTHON_PACKAGE_INSTALLER),uv)
-	MLRUN_PYTHON_VENV_PIP_INSTALL ?= uv pip install
+	MLRUN_PYTHON_VENV_PIP_INSTALL ?= uv pip install --python-version $(MLRUN_PYTHON_VERSION)
 else
 	$(error MLRUN_PYTHON_PACKAGE_INSTALLER must be either "pip" or "uv")
 endif
@@ -129,17 +129,20 @@ install-conda-requirements: ## Install all requirements needed for development w
 .PHONY: install-complete-requirements
 install-complete-requirements: ## Install all requirements needed for development and testing
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete] --ignore-requires-python
+	$(eval MLRUN_PIP_INSTALL_FLAG := $(if $(and $(MLRUN_PYTHON_PACKAGE_INSTALLER),$(filter -m pip,$(MLRUN_PYTHON_PACKAGE_INSTALLER))),--ignore-requires-python,))
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete] $(MLRUN_PIP_INSTALL_FLAG)
 
 .PHONY: install-complete-kfp-requirements
 install-complete-kfp-requirements: ## Install all requirements needed for development and testing + KFP 1.8
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,kfp18] --ignore-requires-python
+	$(eval MLRUN_PIP_INSTALL_FLAG := $(if $(and $(MLRUN_PYTHON_PACKAGE_INSTALLER),$(filter -m pip,$(MLRUN_PYTHON_PACKAGE_INSTALLER))),--ignore-requires-python,))
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,kfp18] $(MLRUN_PIP_INSTALL_FLAG)
 
 .PHONY: install-all-requirements
 install-all-requirements: ## Install all requirements needed for development and testing
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[all] --ignore-requires-python
+	$(eval MLRUN_PIP_INSTALL_FLAG := $(if $(and $(MLRUN_PYTHON_PACKAGE_INSTALLER),$(filter -m pip,$(MLRUN_PYTHON_PACKAGE_INSTALLER))),--ignore-requires-python,))
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[all] $(MLRUN_PIP_INSTALL_FLAG)
 
 .PHONY: create-migration-mysql
 create-migration-mysql: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)

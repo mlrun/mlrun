@@ -1329,7 +1329,11 @@ def get_handler_extended(
 def datetime_from_iso(time_str: str) -> Optional[datetime]:
     if not time_str:
         return
-    return parser.isoparse(time_str)
+    dt = parser.isoparse(time_str)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    # ensure the datetime is in UTC, converting if necessary
+    return dt.astimezone(timezone.utc)
 
 
 def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:

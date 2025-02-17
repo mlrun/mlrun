@@ -332,7 +332,7 @@ class Alerts(
         if not cls._alert_cache:
             cls._alert_cache = framework.utils.lru_cache.LRUCache(
                 framework.utils.singletons.db.get_db().get_alert_by_id,
-                maxsize=mlconfig.alerts.max_allowed,
+                maxsize=mlconfig.alerts.max_allowed_cache_size,
                 ignore_args_for_hash=[0],
             )
 
@@ -343,7 +343,7 @@ class Alerts(
         if not cls._alert_state_cache:
             cls._alert_state_cache = framework.utils.lru_cache.LRUCache(
                 framework.utils.singletons.db.get_db().get_alert_state_dict,
-                maxsize=mlconfig.alerts.max_allowed,
+                maxsize=mlconfig.alerts.max_allowed_cache_size,
                 ignore_args_for_hash=[0],
             )
         return cls._alert_state_cache

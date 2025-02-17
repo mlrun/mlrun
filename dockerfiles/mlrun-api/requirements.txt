@@ -17,5 +17,5 @@ aiosmtplib~=3.0
 # until https://github.com/fastapi/fastapi/issues/10360 is solved
 pydantic>=1,<2
 # ensure kfp is installed
-mlrun-pipelines-kfp-v1-8[kfp]~=0.3.5; python_version < "3.11"
+mlrun-pipelines-kfp-v1-8[kfp]~=0.3.7; python_version < "3.11"
 grpcio~=1.70.0

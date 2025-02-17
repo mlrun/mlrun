@@ -141,7 +141,8 @@ def get_stream_path(
     elif isinstance(
         profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
     ):
-        stream_uri = f"kafka://{profile.brokers[0]}"
+        attributes = profile.attributes()
+        stream_uri = f"kafka://{attributes['brokers'][0]}"
     else:
         raise mlrun.errors.MLRunValueError(
             f"Received an unexpected stream profile type: {type(profile)}\n"

@@ -441,6 +441,7 @@ class V3IOTSDBConnector(TSDBConnector):
                     backend=_TSDB_BE,
                     table=self.tables[table],
                     filter=f"endpoint_id=='{endpoint_id}'",
+                    start="0",
                 )
             except Exception as e:
                 logger.warning(

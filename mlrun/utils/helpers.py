@@ -1463,6 +1463,16 @@ def str_to_timestamp(time_str: str, now_time: Timestamp = None):
     return Timestamp(time_str)
 
 
+def str_to_bool(value: str) -> bool:
+    """Convert a string to a boolean value."""
+    value = value.lower()
+    if value in ("true", "1", "t", "y", "yes", "on"):
+        return True
+    if value in ("false", "0", "f", "n", "no", "off"):
+        return False
+    raise ValueError(f"invalid boolean value: {value}")
+
+
 def is_link_artifact(artifact):
     if isinstance(artifact, dict):
         return (

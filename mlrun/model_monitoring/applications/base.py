@@ -417,24 +417,26 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   allow providing a list of model_endpoint names or name for a single model_endpoint.
                                   Note: provide names retrieves the model all the active model endpoints using those
                                   names (cross function model endpoints)
-                                  If provided, and ``sample_data`` is not, you have to provide also the ``start`` and
-                                  ``end`` times of the data to analyze from the model endpoints.
+                                  If provided, and ``sample_data`` is not ``None``, you have to provide also the
+                                  ``start`` and ``end`` times of the data to analyze from the model endpoints.
         :param start:             The start time of the endpoint's data, not included.
                                   If you want the model endpoint's data at ``start`` included, you need to subtract a
                                   small ``datetime.timedelta`` from it.
         :param end:               The end time of the endpoint's data, included.
                                   Please note: when ``start`` and ``end`` are set, they create a left-open time interval
-                                  ("window") :math:`(\\text{start}, \\text{end}]` that excludes the endpoint's data at
-                                  ``start`` and includes the data at ``end``:
-                                  :math:`\\text{start} < t \\leq \\text{end}`, :math:`t` is the time taken in the
-                                  window's data.
+                                  ("window") :math:`(\\operatorname{start}, \\operatorname{end}]` that excludes the
+                                  endpoint's data at ``start`` and includes the data at ``end``:
+                                  :math:`\\operatorname{start} < t \\leq \\operatorname{end}`, :math:`t` is the time
+                                  taken in the window's data.
         :param base_period:       The window length in minutes. If ``None``, the whole window from ``start`` to ``end``
                                   is taken. If an integer is specified, the application is run from ``start`` to ``end``
                                   in ``base_period`` length windows, except for the last window that ends at ``end`` and
                                   therefore may be shorter:
-                                  :math:`(\\text{start}, \\text{start} + \\text{base_period}],
-                                  (\\text{start} + \\text{base_period}, \\text{start} + 2\\cdot\\text{base_period}],
-                                  ..., (\\text{start} + m\\cdot\\text{base_period}, \\text{end}]`,
+                                  :math:`(\\operatorname{start}, \\operatorname{start} + \\operatorname{base\\_period}],
+                                  (\\operatorname{start} + \\operatorname{base\\_period},
+                                  \\operatorname{start} + 2\\cdot\\operatorname{base\\_period}],
+                                  ..., (\\operatorname{start} +
+                                  m\\cdot\\operatorname{base\\_period}, \\operatorname{end}]`,
                                   where :math:`m` is some positive integer.
 
         :returns: The output of the

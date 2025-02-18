@@ -188,10 +188,8 @@ class Alerts(
         project = project or mlrun.mlconf.default_project
         services.alerts.crud.Events().delete_project_alert_events(project)
 
-        alert_ids = (
-            framework.utils.singletons.db.get_db().list_and_delete_project_alerts(
-                session, project
-            )
+        alert_ids = framework.utils.singletons.db.get_db().delete_project_alerts(
+            session, project
         )
         if not alert_ids:
             return

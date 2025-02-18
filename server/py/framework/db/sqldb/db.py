@@ -5994,7 +5994,7 @@ class SQLDB(DBInterface):
             alerts.append(alert)
         return alerts
 
-    def list_and_delete_project_alerts(
+    def delete_project_alerts(
         self, session, project: str, chunk_size: int = 100
     ) -> list[str]:
         """
@@ -6036,10 +6036,12 @@ class SQLDB(DBInterface):
             for alert_id, alert_name in alerts:
                 self._delete_alert_notifications(
                     session=session,
-                    name=alert_name,  # Index on name improves deletion efficiency
+                    # Index on name improves deletion efficiency
+                    name=alert_name,
                     alert_id=alert_id,
                     project=project,
-                    commit=False,  # Defer commit for batch efficiency
+                    # Defer commit for batch efficiency
+                    commit=False,
                 )
 
             # Step 3: Extract alert IDs for deletion and delete alerts in this chunk
@@ -6047,14 +6049,9 @@ class SQLDB(DBInterface):
             alert_ids.extend(alert_ids_chunk)  # Collect all alert IDs to be deleted
 
             # Step 4: Perform ORM-based deletion for alerts in the current chunk
-            alerts_to_delete = (
-                session.query(AlertConfig)
-                .filter(AlertConfig.id.in_(alert_ids_chunk))
-                .all()
-            )
-            for alert in alerts_to_delete:
-                # Deleting via ORM ensures cascading works
-                session.delete(alert)
+            session.query(AlertConfig).filter(
+                AlertConfig.id.in_(alert_ids_chunk)
+            ).delete()
 
             # Step 5: Commit all changes in one transaction for the current chunk
             session.commit()

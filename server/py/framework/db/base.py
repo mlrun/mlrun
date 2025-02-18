@@ -904,7 +904,7 @@ class DBInterface(ABC):
     ) -> list[mlrun.common.schemas.AlertConfig]:
         pass
 
-    def list_and_delete_project_alerts(
+    def delete_project_alerts(
         self,
         session,
         project: str,

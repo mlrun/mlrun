@@ -43,6 +43,7 @@ def infer_schema_from_df(
     current_entities = list(entities.keys())
     entity_columns = entity_columns or []
     index_columns = dict()
+    push_at_start = push_at_start and isinstance(features, ObjectList)
     temp_features = ObjectList(mlrun.features.Feature) if push_at_start else None
 
     def upsert_entity(name, value_type):
@@ -78,15 +79,14 @@ def infer_schema_from_df(
             if column in features.keys():
                 features[column].value_type = value_type
             else:
-                if isinstance(features, ObjectList) and push_at_start:
-                    temp_features[column] = {"name": column, "value_type": value_type}
-                else:
+                if not push_at_start:
                     features[column] = {"name": column, "value_type": value_type}
-
+                else:
+                    temp_features[column] = {"name": column, "value_type": value_type}
         if value_type == "datetime" and not is_entity:
             timestamp_fields.append(column)
 
-    if push_at_start and temp_features and isinstance(features, ObjectList):
+    if push_at_start:
         features.update_list(
             object_list=temp_features, push_at_start=True
         )  # Push to start of the Object list

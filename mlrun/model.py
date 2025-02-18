@@ -444,7 +444,7 @@ class ObjectList:
                     list(self._children.items()) + list(object_list._children.items())
                 )
         else:
-            raise ValueError(f"illegal object list {object_list}")
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Illegal type expected type ObjectList got {type(object_list)}")
 
 
 class Credentials(ModelObj):

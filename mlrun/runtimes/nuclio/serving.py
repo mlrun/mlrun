@@ -409,8 +409,9 @@ class ServingRuntime(RemoteRuntime):
             * **archive**:
             1. If model endpoints with the same name exist, preserve them.
             2. Create a new model endpoint with the same name and set it to `latest`.
-        :param outputs: list of labels for the model, Note: please provide the label column, if provided will override
-                        outputs provided in log_model
+        :param outputs: list of the model outputs (e.g. labels) ,if provided will override the outputs that been
+                        configured in the model artifact, please note that those outputs need to be equal to the
+                        model serving function outputs (length, and order)
         :param class_args:  extra kwargs to pass to the model serving class __init__
                             (can be read in the model using .get_param(key) method)
         """

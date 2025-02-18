@@ -4396,6 +4396,8 @@ class MlrunProject(ModelObj):
 
         :param page: The page number to retrieve. If not provided, the next page will be retrieved.
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+            The default value is specified in `mlrun.mlconf.httpdb.pagination.default_page_size`. If not provided,
+            the default page size will be used.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
             for the first request.
 
@@ -4515,6 +4517,8 @@ class MlrunProject(ModelObj):
 
         :param page: The page number to retrieve. If not provided, the next page will be retrieved.
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+            The default value is specified in `mlrun.mlconf.httpdb.pagination.default_page_size`. If not provided,
+            the default page size will be used.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
             for the first request.
 
@@ -4615,6 +4619,8 @@ class MlrunProject(ModelObj):
 
         :param page: The page number to retrieve. If not provided, the next page will be retrieved.
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+            The default value is specified in `mlrun.mlconf.httpdb.pagination.default_page_size`. If not provided,
+            the default page size will be used.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
             for the first request.
 
@@ -4806,6 +4812,8 @@ class MlrunProject(ModelObj):
 
         :param page: The page number to retrieve. If not provided, the next page will be retrieved.
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+            The default value is specified in `mlrun.mlconf.httpdb.pagination.default_page_size`. If not provided,
+            the default page size will be used.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
             for the first request.
 
@@ -5187,6 +5195,8 @@ class MlrunProject(ModelObj):
 
         :param page: The page number to retrieve. If not provided, the next page will be retrieved.
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+            The default value is specified in `mlrun.mlconf.httpdb.pagination.default_page_size`. If not provided,
+            the default page size will be used.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
             for the first request.
 

@@ -137,9 +137,6 @@ def test_requirement_specifiers_convention():
         "jinja2": {"~=3.1, >=3.1.3"},
         "pyopenssl": {">=23"},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
-        # due to a bug in 3.11
-        "aiohttp": {"~=3.10.0"},
-        "aiohttp-retry": {"~=2.8.0"},
         # due to a bug in apscheduler with python 3.9 https://github.com/agronholm/apscheduler/issues/770
         "apscheduler": {"~=3.6, !=3.10.2"},
         # used in tests
@@ -343,6 +340,8 @@ def _load_requirements(path):
     """
     Load dependencies from requirements file, exactly like `setup.py`
     """
+    base_dir = path.parent
+
     with open(path) as fp:
         deps = []
         for line in fp:
@@ -360,10 +359,10 @@ def _load_requirements(path):
                 continue
 
             if line.startswith("-r"):
-                path = line.split("-r", 1)[-1].strip()
-                other_deps = _load_requirements(
-                    pathlib.Path(__file__).resolve().parent / path
-                )
+                included_path = line.split("-r", 1)[-1].strip()
+                included_path = (base_dir / included_path).resolve()
+                other_deps = _load_requirements(included_path)
+
                 deps.extend(other_deps)
                 continue
 

@@ -219,10 +219,10 @@ def test_create_model_monitoring_function(function: dict[str, Any]) -> None:
 
     steps = app.spec.graph.steps
 
-    assert "PrepareMonitoringEvent" in app.spec.graph.steps
-    assert "DemoMonitoringApp" in app.spec.graph.steps
-    assert "PushToMonitoringWriter" in app.spec.graph.steps
-    assert "ApplicationErrorHandler" in app.spec.graph.steps
+    assert "PrepareMonitoringEvent" in steps
+    assert "DemoMonitoringApp" in steps
+    assert "PushToMonitoringWriter" in steps
+    assert "ApplicationErrorHandler" in steps
 
     app_step = steps["DemoMonitoringApp"]
     assert app_step.class_args == {"param_1": 1, "param_2": 2}

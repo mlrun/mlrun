@@ -88,19 +88,24 @@ def get_or_create_model_endpoint(
         # Generate a runtime database
         db_session = mlrun.get_run_db()
     model_endpoint = None
+    if not function_name and context:
+        function_name = FunctionURI.from_string(
+            context.to_dict()["spec"]["function"]
+        ).function
     try:
-        if endpoint_id:
-            model_endpoint = db_session.get_model_endpoint(
-                project=project,
-                name=model_endpoint_name,
-                endpoint_id=endpoint_id,
-            )
-            # If other fields provided, validate that they are correspond to the existing model endpoint data
-            _model_endpoint_validations(
-                model_endpoint=model_endpoint,
-                model_path=model_path,
-                sample_set_statistics=sample_set_statistics,
-            )
+        model_endpoint = db_session.get_model_endpoint(
+            project=project,
+            name=model_endpoint_name,
+            endpoint_id=endpoint_id,
+            function_name=function_name,
+            function_tag=function_tag or "latest",
+        )
+        # If other fields provided, validate that they are correspond to the existing model endpoint data
+        _model_endpoint_validations(
+            model_endpoint=model_endpoint,
+            model_path=model_path,
+            sample_set_statistics=sample_set_statistics,
+        )
 
     except mlrun.errors.MLRunNotFoundError:
         # Create a new model endpoint with the provided details
@@ -361,10 +366,6 @@ def _generate_model_endpoint(
 
     :return `mlrun.common.schemas.ModelEndpoint` object.
     """
-    if not function_name and context:
-        function_name = FunctionURI.from_string(
-            context.to_dict()["spec"]["function"]
-        ).function
     model_obj = None
     if model_path:
         model_obj: mlrun.artifacts.ModelArtifact = (
@@ -619,8 +620,8 @@ def _create_model_monitoring_function_base(
     app_step.__class__ = mlrun.serving.MonitoringApplicationStep
 
     app_step.error_handler(
-        name="ApplicationErrorHandler",
         class_name="mlrun.model_monitoring.applications._application_steps._ApplicationErrorHandler",
+        name="ApplicationErrorHandler",
         full_event=True,
         project=project,
     )
@@ -629,7 +630,6 @@ def _create_model_monitoring_function_base(
         class_name="mlrun.model_monitoring.applications._application_steps._PushToMonitoringWriter",
         name="PushToMonitoringWriter",
         project=project,
-        writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
     )
 
     def block_to_mock_server(*args, **kwargs) -> typing.NoReturn:

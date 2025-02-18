@@ -342,7 +342,7 @@ async def delete_runs(
         projects = set(run.project or mlrun.mlconf.default_project for run in runs)
         for run_project in projects:
             # currently we fail if the user doesn't has permissions to delete runs to one of the projects in the system
-            # TODO Delete only runs from projects that user has permissions to
+            # TODO: Delete only runs from projects that user has permissions to
             await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
                 mlrun.common.schemas.AuthorizationResourceTypes.run,
                 run_project,

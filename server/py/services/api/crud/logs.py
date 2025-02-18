@@ -73,6 +73,10 @@ class Logs(
         logger.debug("Deleting logs for run", project=project, run_uid=run_uid)
         await self._delete_logs(project, [run_uid])
 
+    async def delete_runs_logs(self, project: str, run_uids: list[str]):
+        logger.debug("Deleting logs for runs", project=project, run_uids=run_uids)
+        await self._delete_logs(project, run_uids)
+
     @staticmethod
     def delete_project_logs_legacy(
         project: str,
@@ -326,6 +330,10 @@ class Logs(
 
     @staticmethod
     def _get_log_size_legacy(project: str, uid: str) -> int:
+        # sanitize inputs to prevent path traversal or unsafe file access
+        project = os.path.basename(project)
+        uid = os.path.basename(uid)
+
         log_file = framework.api.utils.log_path(project, uid)
         if not log_file.exists():
             raise mlrun.errors.MLRunNotFoundError(

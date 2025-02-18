@@ -287,23 +287,6 @@ For example:
 mlrun run -f myfunc.yaml -w -p p1=3
 ```
 
-You can also try the following function-configuration example, which is based on the MLRun CI demo:
-```yaml
-kind: job
-metadata:
-  name: remote-git-test
-  project: default
-  tag: latest
-spec:
-  command: 'myfunc.py'
-  args: []
-  image_pull_policy: Always
-  build:
-    commands: []
-    base_image: mlrun/mlrun:1.7.0
-    source: git://github.com/mlrun/ci-demo.git
-```
-
 ## Using a sources archive
 
 The `-a|--archive` option of the CLI [`build`](#build) command enables you to define a remote object path for storing TAR archive files with all the required code dependencies.

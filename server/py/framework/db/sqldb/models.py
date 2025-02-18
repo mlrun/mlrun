@@ -230,19 +230,27 @@ with warnings.catch_warnings():
         __tablename__ = "artifacts_v2"
         __table_args__ = (
             UniqueConstraint("uid", "project", "key", name="_artifacts_v2_uc"),
+            # Used when enriching workflow status with run artifacts. See https://iguazio.atlassian.net/browse/ML-6770
             Index(
                 "idx_artifacts_producer_id_best_iteration_and_project",
                 "project",
                 "producer_id",
                 "best_iteration",
             ),
+            # Used to speed up querying artifact tags which is frequently done by UI with project and category.
+            # See https://iguazio.atlassian.net/browse/ML-7266
             Index(
                 "idx_project_kind",
                 "project",
                 "kind",
             ),
             Index("idx_artifacts_name_uid_project", "key", "uid", "project"),
+            # Used for calculating the project counters more efficiently.
+            # See https://iguazio.atlassian.net/browse/ML-8556
             Index("idx_project_kind_key", "project", "kind", "key"),
+            # Used explicitly in list_artifacts, as most of the queries request best_iteration, and all always sort by
+            # updated. See https://iguazio.atlassian.net/browse/ML-9189
+            Index("idx_project_bi_updated", "project", "best_iteration", "updated"),
         )
 
         Label = make_label(__tablename__)
@@ -259,11 +267,11 @@ with warnings.catch_warnings():
         uid = Column(String(255, collation=SQLTypesUtil.collation()))
         created = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         _full_object = Column("object", SQLTypesUtil.blob())
 
@@ -387,11 +395,11 @@ with warnings.catch_warnings():
         )
         created = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         state = Column(String(255, collation=SQLTypesUtil.collation()))
         error = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -566,11 +574,11 @@ with warnings.catch_warnings():
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         created = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         state = Column(String(255, collation=SQLTypesUtil.collation()))
         uid = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -630,11 +638,11 @@ with warnings.catch_warnings():
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         created = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         state = Column(String(255, collation=SQLTypesUtil.collation()))
         uid = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -679,11 +687,11 @@ with warnings.catch_warnings():
         index = Column(Integer)
         created = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
 
         _full_object = Column("object", JSON)
@@ -709,7 +717,7 @@ with warnings.catch_warnings():
         version = Column(String(255, collation=SQLTypesUtil.collation()))
         created = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
 
         def get_identifier_string(self) -> str:
@@ -750,7 +758,7 @@ with warnings.catch_warnings():
         kwargs = Column(JSON)
         last_accessed = Column(
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
 
         def get_identifier_string(self) -> str:
@@ -764,7 +772,7 @@ with warnings.catch_warnings():
         count = Column(Integer)
         created = Column(
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
-            default=datetime.utcnow,
+            default=lambda: datetime.now(timezone.utc),
         )
         last_updated = Column(
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
@@ -896,7 +904,9 @@ with warnings.catch_warnings():
 
         key = Column(String(255, collation=SQLTypesUtil.collation()), primary_key=True)
         timestamp = Column(
-            SQLTypesUtil.datetime(), nullable=False, default=datetime.now(timezone.utc)
+            SQLTypesUtil.datetime(),
+            nullable=False,
+            default=lambda: datetime.now(timezone.utc),
         )
         max_window_size_seconds = Column(Integer)
 
@@ -931,11 +941,11 @@ with warnings.catch_warnings():
 
         created = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         name = Column(String(255, collation=SQLTypesUtil.collation()))
         function = relationship(

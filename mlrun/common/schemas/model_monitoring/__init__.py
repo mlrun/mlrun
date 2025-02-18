@@ -51,11 +51,9 @@ from .constants import (
 from .grafana import (
     GrafanaColumn,
     GrafanaColumnType,
-    GrafanaDataPoint,
     GrafanaNumberColumn,
     GrafanaStringColumn,
     GrafanaTable,
-    GrafanaTimeSeriesTarget,
 )
 from .model_endpoints import (
     Features,

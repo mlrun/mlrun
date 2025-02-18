@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import os
-from base64 import b64encode
 
 from nuclio.build import mlrun_footer
 
 import mlrun
+import mlrun.utils.helpers
 
 from ..model import ModelObj
 from ..utils import generate_object_uri
@@ -116,7 +116,7 @@ class FunctionReference(ModelObj):
             func = mlrun.new_function(
                 self.name, kind=kind, image=self.image or default_image
             )
-            data = b64encode(code.encode("utf-8")).decode("utf-8")
+            data = mlrun.utils.helpers.encode_user_code(code)
             func.spec.build.functionSourceCode = data
             if kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
                 func.spec.default_handler = "handler"

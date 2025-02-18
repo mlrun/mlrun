@@ -78,14 +78,35 @@ SNOWFLAKE_SCHEMA:
 SNOWFLAKE_TABLE_NAME:
 SNOWFLAKE_WAREHOUSE:
 
-# model monitoring cred
-MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION:
-MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION:
+# model monitoring datastore profiles credentials
+mlrun_model_monitoring_tsdb_profile:
+  # name:  # choose, e.g.: my-mm-tsdb
+  # # now, choose either:
+  # type: v3io
+  # v3io_access_key: # can leave empty
+  # # or:
+  # type: taosws
+  # host:
+  # port: 6041
+  # user:
+  # password:
+
+mlrun_model_monitoring_stream_profile:
+  # name: # choose, e.g.: my-mm-stream
+  # # now, choose either:
+  # type: v3io
+  # v3io_access_key: # can leave empty
+  # # or:
+  # type: kafka_source
+  # brokers: # <host>:<port>
+  # topics: []
+  # sasl_user:
+  # sasl_pass:
 
 # Controls whether the client verifies the server's TLS certificate.
 # Set to `True` to enable TLS verification.
 # set to `False` when running in a lab environment where TLS verification may be disabled.
 MLRUN_HTTPDB__HTTP__VERIFY:
 
-MILVUS_HOST: 
-MILVUS_PORT: 
+MILVUS_HOST:
+MILVUS_PORT:

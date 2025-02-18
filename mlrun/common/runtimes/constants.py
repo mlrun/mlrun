@@ -195,6 +195,10 @@ class RunStates:
         ]
 
     @staticmethod
+    def notification_states():
+        return RunStates.terminal_states() + [RunStates.running]
+
+    @staticmethod
     def run_state_to_pipeline_run_status(run_state: str):
         if not run_state:
             return mlrun_pipelines.common.models.RunStatuses.runtime_state_unspecified
@@ -229,6 +233,7 @@ class RunStates:
             mlrun_pipelines.common.models.RunStatuses.runtime_state_unspecified: RunStates.unknown,
             mlrun_pipelines.common.models.RunStatuses.error: RunStates.error,
             mlrun_pipelines.common.models.RunStatuses.paused: RunStates.unknown,
+            mlrun_pipelines.common.models.RunStatuses.unknown: RunStates.unknown,
         }[pipeline_run_status]
 
 

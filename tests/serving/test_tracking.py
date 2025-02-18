@@ -11,16 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
-from pprint import pprint
+from collections.abc import Iterator
+from typing import cast
 from unittest.mock import patch
 
 import numpy as np
 import pytest
 
 import mlrun
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from mlrun.common.schemas import ModelEndpointCreationStrategy
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileKafkaSource,
+    register_temporary_client_datastore_profile,
+    remove_temporary_client_datastore_profile,
+)
+from mlrun.platforms.iguazio import KafkaOutputStream
+from mlrun.runtimes import ServingRuntime
 from tests.serving.test_serving import _log_model
 
 testdata = '{"inputs": [[5, 6]]}'
@@ -88,7 +97,6 @@ def test_ensemble_tracking(rundb_mock):
     for rec in fake_stream:
         model, cls, inputs, outputs = rec_to_data(rec)
         results[model] = [cls, inputs, outputs]
-    pprint(results)
 
     assert results == {
         "1": ["ModelTestingClass", [[5, 6]], [10]],
@@ -115,7 +123,7 @@ def test_tracked_function(rundb_mock, enable_tracking):
         server.test("/v2/models/m1/infer", testdata)
         dummy_stream = server.context.stream.output_stream
         if enable_tracking:
-            rundb_mock.get_model_endpoint.assert_called_once()
+            rundb_mock.assert_called_get_model_endpoint_once()
             assert (
                 len(dummy_stream.event_list) == 1
             ), "expected stream to get one message"
@@ -128,3 +136,54 @@ def rec_to_data(rec):
     inputs = data["request"]["inputs"]
     outputs = data["resp"]["outputs"]
     return data["model"], data["class"], inputs, outputs
+
+
+@pytest.fixture
+def project() -> mlrun.MlrunProject:
+    return mlrun.get_or_create_project("test-tracking")
+
+
+@pytest.fixture
+def _register_stream_profile(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    stream_profile_name = "special-stream"
+    monkeypatch.setenv(
+        mm_constants.ProjectSecretKeys.STREAM_PROFILE_NAME, stream_profile_name
+    )
+    profile = DatastoreProfileKafkaSource(
+        name=stream_profile_name,
+        brokers=["localhost"],
+        topics=[],
+        kwargs_public={"producer_options": {"api_version": (3, 9)}},
+    )
+    register_temporary_client_datastore_profile(profile)
+    yield
+    remove_temporary_client_datastore_profile(stream_profile_name)
+
+
+@pytest.mark.usefixtures("rundb_mock", "_register_stream_profile")
+def test_tracking_datastore_profile(project: mlrun.MlrunProject) -> None:
+    fn = cast(
+        ServingRuntime,
+        project.set_function(
+            name="test-tracking-from-profile", kind=ServingRuntime.kind
+        ),
+    )
+    fn.add_model("model1", ".", class_name=ModelTestingClass(multiplier=7))
+    fn.set_tracking(stream_args={"mock": True})
+
+    server = fn.to_mock_server()
+    server.test("/v2/models/model1/predict", body=json.dumps({"inputs": [[-5.2, 0.6]]}))
+    server.test(
+        "/v2/models/model1/predict", body=json.dumps({"inputs": [[0, -0.1], [0.4, 0]]})
+    )
+
+    output_stream = cast(KafkaOutputStream, server.context.stream.output_stream)
+    mocked_stream = output_stream._mock_queue
+    assert len(mocked_stream) == 2
+
+    event = mocked_stream[1]
+    assert event["class"] == "ModelTestingClass"
+    assert event["model"] == "model1"
+    assert event["effective_sample_count"] == 2
+    assert np.array_equal(event["request"]["inputs"], np.array([[0, -0.1], [0.4, 0]]))
+    assert np.array_equal(event["resp"]["outputs"], np.array([0.0, 0.4 * 7]))

@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import io
 import logging
 import os.path
 import platform
 import subprocess
 import sys
 import typing
+from typing import Optional
 
 import paramiko
 import requests
@@ -25,7 +27,7 @@ import requests
 class Constants:
     helm_repo_name = "mlrun-ce"
     helm_release_name = "mlrun-ce"
-    helm_chart_name = f"{helm_repo_name}/{helm_release_name}"
+    default_helm_chart_name = f"{helm_repo_name}/{helm_release_name}"
     helm_repo_url = "https://mlrun.github.io/ce"
     default_registry_secret_name = "registry-credentials"
     mlrun_image_values = [
@@ -44,11 +46,12 @@ class Constants:
     log_format = "> %(asctime)s [%(levelname)s] %(message)s"
 
 
-class ExcecutionParams:
+class ExecutionParams:
     def __init__(
         self,
         registry_url: str,
         registry_secret_name: typing.Optional[str] = None,
+        chart_name: typing.Optional[str] = None,
         chart_version: typing.Optional[str] = None,
         mlrun_version: typing.Optional[str] = None,
         override_mlrun_api_image: typing.Optional[str] = None,
@@ -68,6 +71,7 @@ class ExcecutionParams:
     ):
         self.registry_url = registry_url
         self.registry_secret_name = registry_secret_name
+        self.chart_name = chart_name
         self.chart_version = chart_version
         self.mlrun_version = mlrun_version
         self.override_mlrun_api_image = override_mlrun_api_image
@@ -99,9 +103,10 @@ class CommunityEditionDeployer:
         remote: typing.Optional[str] = None,
         remote_ssh_username: typing.Optional[str] = None,
         remote_ssh_password: typing.Optional[str] = None,
+        chart_name: typing.Optional[str] = None,
     ) -> None:
         self._debug = log_level == "debug"
-        self._log_file_handler = None
+        self._log_file_handler: Optional[typing.IO] = None
         logging.basicConfig(format="> %(asctime)s [%(levelname)s] %(message)s")
         self._logger = logging.getLogger("automation")
         self._logger.setLevel(log_level.upper())
@@ -115,6 +120,7 @@ class CommunityEditionDeployer:
             self._logger.addHandler(handler)
 
         self._namespace = namespace
+        self._chart_name = chart_name or Constants.default_helm_chart_name
         self._remote = remote
         self._remote_ssh_username = remote_ssh_username or os.environ.get(
             "MLRUN_REMOTE_SSH_USERNAME"
@@ -129,7 +135,7 @@ class CommunityEditionDeployer:
     def connect_to_remote(self):
         self._log("info", "Connecting to remote machine", remote=self._remote)
         self._ssh_client = paramiko.SSHClient()
-        self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
+        self._ssh_client.set_missing_host_key_policy(paramiko.RejectPolicy)
         self._ssh_client.connect(
             self._remote,
             username=self._remote_ssh_username,
@@ -142,6 +148,7 @@ class CommunityEditionDeployer:
         registry_username: typing.Optional[str] = None,
         registry_password: typing.Optional[str] = None,
         registry_secret_name: typing.Optional[str] = None,
+        chart_name: typing.Optional[str] = None,
         chart_version: typing.Optional[str] = None,
         mlrun_version: typing.Optional[str] = None,
         override_mlrun_api_image: typing.Optional[str] = None,
@@ -166,6 +173,7 @@ class CommunityEditionDeployer:
         :param registry_username:   Username for the container registry (required unless providing registry_secret_name)
         :param registry_password:   Password for the container registry (required unless providing registry_secret_name)
         :param registry_secret_name:    Name of the secret containing the credentials for the container registry
+        :param chart_name:          Name or local path of the helm chart to deploy (defaults to mlrun-ce/mlrun-ce)
         :param chart_version:       Version of the helm chart to deploy (defaults to the latest stable version)
         :param mlrun_version:       Version of MLRun to deploy (defaults to the latest stable version)
         :param override_mlrun_api_image:            Override the default MLRun API image
@@ -193,9 +201,10 @@ class CommunityEditionDeployer:
             minikube,
         )
 
-        ep = ExcecutionParams(
+        ep = ExecutionParams(
             registry_url,
             registry_secret_name,
+            chart_name,
             chart_version,
             mlrun_version,
             override_mlrun_api_image,
@@ -388,7 +397,7 @@ class CommunityEditionDeployer:
 
     def _generate_helm_install_arguments(
         self,
-        ep: ExcecutionParams,
+        ep: ExecutionParams,
     ) -> list[str]:
         """
         Generate the helm install arguments.
@@ -400,7 +409,7 @@ class CommunityEditionDeployer:
             self._namespace,
             "upgrade",
             Constants.helm_release_name,
-            Constants.helm_chart_name,
+            self._chart_name,
             "--install",
             "--wait",
             "--timeout",
@@ -450,7 +459,7 @@ class CommunityEditionDeployer:
 
     def _generate_helm_values(
         self,
-        ep: ExcecutionParams,
+        ep: ExecutionParams,
     ) -> dict[str, str]:
         """
         Generate the helm values.
@@ -745,28 +754,31 @@ def run_command(
     live: bool = True,
     log_file_handler: typing.Optional[typing.IO[str]] = None,
 ) -> (str, str, int):
-    if workdir:
-        command = f"cd {workdir}; " + command
+    # ensure the command is only a single word
+    command = command.split()[0]
     if args:
-        command += " " + " ".join(args)
+        command = [command] + args
+    else:
+        command = command
 
-    process = subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        stdin=subprocess.PIPE,
-        shell=True,
-    )
+    try:
+        process = subprocess.run(
+            command,
+            capture_output=True,
+            cwd=workdir,
+            input=stdin,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        return exc.stdout, exc.stderr, exc.returncode
 
-    if stdin:
-        process.stdin.write(bytes(stdin, "ascii"))
-        process.stdin.close()
+    stdout_buffer = io.BytesIO()
+    stdout_buffer.write(process.stdout)
+    stdout_buffer.seek(0)
 
-    stdout = _handle_command_stdout(process.stdout, log_file_handler, live)
-    stderr = process.stderr.read()
-    exit_status = process.wait()
+    stdout = _handle_command_stdout(stdout_buffer, log_file_handler, live)
 
-    return stdout, stderr, exit_status
+    return stdout, process.stderr, process.returncode
 
 
 def run_command_remotely(

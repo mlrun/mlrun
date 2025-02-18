@@ -163,7 +163,6 @@ class ApplicationEvent:
     END_INFER_TIME = "end_infer_time"
     ENDPOINT_ID = "endpoint_id"
     ENDPOINT_NAME = "endpoint_name"
-    OUTPUT_STREAM_URI = "output_stream_uri"
 
 
 class WriterEvent(MonitoringStrEnum):
@@ -249,11 +248,6 @@ class ModelEndpointTarget(MonitoringStrEnum):
 class TSDBTarget(MonitoringStrEnum):
     V3IO_TSDB = "v3io-tsdb"
     TDEngine = "tdengine"
-
-
-class DefaultProfileName(StrEnum):
-    STREAM = "mm-infra-stream"
-    TSDB = "mm-infra-tsdb"
 
 
 class ProjectSecretKeys:
@@ -474,10 +468,13 @@ FQN_REGEX = re.compile(FQN_PATTERN)
 
 # refer to `mlrun.utils.regex.project_name`
 PROJECT_PATTERN = r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
-
 MODEL_ENDPOINT_ID_PATTERN = r"^[a-zA-Z0-9_-]+$"
+RESULT_NAME_PATTERN = r"[a-zA-Z_][a-zA-Z0-9_]*"
 
 INTERSECT_DICT_KEYS = {
     ModelEndpointMonitoringMetricType.METRIC: "intersect_metrics",
     ModelEndpointMonitoringMetricType.RESULT: "intersect_results",
 }
+
+CRON_TRIGGER_KINDS = ("http", "cron")
+STREAM_TRIGGER_KINDS = ("v3io-stream", "kafka-cluster")

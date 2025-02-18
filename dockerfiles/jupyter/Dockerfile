@@ -30,6 +30,7 @@ RUN apt-get update  \
       graphviz \
       curl \
       apt-transport-https \
+      unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Download and install kubectl
@@ -43,8 +44,9 @@ USER $NB_UID
 ## on the current image distribution.
 RUN mamba install --channel conda-forge --yes jupyterlab~=4.3
 
-ARG MLRUN_PIP_VERSION=24.2
-RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
+ARG MLRUN_PIP_VERSION=25.0
+RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION} && \
+    conda update --all --yes
 
 WORKDIR $HOME
 
@@ -64,14 +66,19 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=bind,source=dockerfiles/jupyter/locked-requirements.txt,target=locked-requirements.txt \
     uv pip install --no-deps --require-hashes -r locked-requirements.txt
 
-COPY --chown=$NB_UID:$NB_GID . $HOME/mlrun
+# ensure we have the latest source code to be installed
+COPY --chown=$NB_UID:$NB_GID . /tmp/mlrun
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    cd $HOME/mlrun && uv pip install .[complete-api]
+    cd /tmp/mlrun && uv pip install '.[complete]'
+
+# cleanup, source code is not needed anymore
+RUN rm -rf /tmp/mlrun
 
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial
+
 # Use 1.7.x version from mlrun/demos to update the demos(do not update version).
 RUN git clone --branch 1.7.x https://github.com/mlrun/demos.git $HOME/demos && \
     ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup && \
@@ -85,18 +92,10 @@ ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__PORT=8080
 
 # backup home since it will be deleted when using pvc
-RUN mkdir data && \
-    tar -cvf /tmp/basehome.tar $HOME
+RUN mkdir data && tar -cvf /tmp/basehome.tar $HOME
 
 # use tini as entrypoint to allow signal handling
 # and avoid zombie processes
 ENTRYPOINT ["tini", "--"]
 
-# run the mlrun api and the notebook in parallel
-CMD echo "1" > "${HOME}/.intdata" && \
-    cd $HOME/mlrun && \
-    MLRUN_LOG_LEVEL=DEBUG \
-    PYTHONPATH=$HOME/mlrun/server/py \
-    MLRUN_ARTIFACT_PATH=$HOME/data \
-    python server/py/services/api/main.py & \
-    MLRUN_DBPATH=http://localhost:8080 /usr/local/bin/mlce-start.sh
+CMD echo "1" > "${HOME}/.intdata" && /usr/local/bin/mlce-start.sh

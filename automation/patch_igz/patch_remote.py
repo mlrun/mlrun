@@ -13,13 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
 import io
 import json
 import logging
 import os
 import shlex
 import subprocess
+import time
 import typing
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import click
 import coloredlogs
@@ -60,6 +63,8 @@ class MLRunPatcher:
         patch_mlrun_image: bool,
         skip_patch_api: bool,
         patch_alerts: bool,
+        no_build: bool,
+        no_push: bool,
     ):
         self._config = yaml.safe_load(conf_file)
         patch_yaml_data = yaml.safe_load(patch_file)
@@ -71,6 +76,8 @@ class MLRunPatcher:
         self._patch_mlrun_image = patch_mlrun_image
         self._skip_patch_api = skip_patch_api
         self._patch_alerts = patch_alerts
+        self._no_build = no_build
+        self._no_push = no_push
 
         if self._skip_patch_api and self._patch_alerts:
             raise ValueError("Cannot skip api and patch alerts at the same time")
@@ -103,11 +110,12 @@ class MLRunPatcher:
             targets=targets,
             image_tag=image_tag,
         )
-        # Build and push Docker images
-        built_images = self._tag_images_for_multi_node_registries(
-            target_to_built_images.values()
-        )
-        self._push_docker_images(built_images)
+
+        if not self._no_push:
+            built_images = self._tag_images_for_multi_node_registries(
+                target_to_built_images.values()
+            )
+            self._push_docker_images(built_images)
 
         # Connect to the first node and start deployment patching process
         node = self._cluster_data_nodes[0]
@@ -209,13 +217,14 @@ class MLRunPatcher:
                 f"{mlrun_docker_registry}/{mlrun_docker_repo.rstrip('/')}"
             )
 
-        env = {
-            "MLRUN_VERSION": image_tag,
-            "MLRUN_DOCKER_REPO": mlrun_docker_registry,
-        }
-        cmd = ["make"]
-        cmd.extend(targets)
-        self._exec_local(cmd, live=True, env=env)
+        if not self._no_build:
+            env = {
+                "MLRUN_VERSION": image_tag,
+                "MLRUN_DOCKER_REPO": mlrun_docker_registry,
+            }
+            cmd = ["make"]
+            cmd.extend(targets)
+            self._exec_local(cmd, live=True, env=env)
 
         return {
             target: f"{mlrun_docker_registry}/{Constants.targets_to_image_name[target]}:{image_tag}"
@@ -271,15 +280,19 @@ class MLRunPatcher:
 
     def _push_docker_images(self, built_images):
         logger.info(f"Pushing mlrun docker images: {built_images}")
-        for image in built_images:
-            self._exec_local(
-                cmd=[
-                    "docker",
-                    "push",
-                    image,
-                ],
-                live=True,
-            )
+        with ThreadPoolExecutor(max_workers=len(built_images)) as executor:
+            futures = {
+                executor.submit(
+                    self._exec_local, cmd=["docker", "push", image], live=True
+                ): image
+                for image in built_images
+            }
+            for future in as_completed(futures):
+                image = futures[future]
+                try:
+                    future.result()
+                except Exception as exc:
+                    logger.error(f"Error pushing image {image}: {exc}")
 
     def _patch_deployment_from_file(self):
         for deployment in self._deployments:
@@ -355,22 +368,39 @@ class MLRunPatcher:
                 live=True,
             )
 
+        self._wait_for_pods_readiness()
+
+    def _wait_for_pods_readiness(self):
+        """
+        Waits for a pod to become ready.
+        Since some deployments' strategy is RollingUpdate, using 'kubectl wait --for condition=Ready' sometimes times
+        out because it waits for the terminating pod to be ready. To mitigate it, we use smaller timeouts and retries
+        """
+
         logger.info("Waiting for mlrun pods to become ready")
-        self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                "default-tenant",
-                "wait",
-                "pods",
-                "-l",
-                "app.kubernetes.io/name=mlrun",
-                "--for",
-                "condition=Ready",
-                "--timeout=300s",
-            ],
-            live=True,
-        )
+
+        timeout = datetime.datetime.now() + datetime.timedelta(seconds=300)
+        while datetime.datetime.now() < timeout:
+            try:
+                self._exec_remote(
+                    [
+                        "kubectl",
+                        "-n",
+                        "default-tenant",
+                        "wait",
+                        "pods",
+                        "-l",
+                        "app.kubernetes.io/name=mlrun",
+                        "--for",
+                        "condition=Ready",
+                        "--timeout=20s",
+                    ],
+                    live=True,
+                )
+                break
+            except RuntimeError:
+                # Retry until timeout is reached
+                time.sleep(5)
 
     def _reset_mlrun_db(self):
         mlrun_api_services_deployment_selector = (
@@ -586,6 +616,18 @@ class MLRunPatcher:
     is_flag=True,
     help="Deploy the the alerts service",
 )
+@click.option(
+    "-nb",
+    "--no-build",
+    is_flag=True,
+    help="Skip building the image",
+)
+@click.option(
+    "-np",
+    "--no-push",
+    is_flag=True,
+    help="Skip pushing the image",
+)
 def main(
     verbose: bool,
     config: str,
@@ -596,6 +638,8 @@ def main(
     mlrun: bool,
     skip_api: bool,
     alerts: bool,
+    no_build: bool,
+    no_push: bool,
 ):
     if verbose:
         coloredlogs.set_level(logging.DEBUG)
@@ -609,6 +653,8 @@ def main(
         patch_mlrun_image=mlrun,
         skip_patch_api=skip_api,
         patch_alerts=alerts,
+        no_build=no_build,
+        no_push=no_push,
     ).patch()
 
 

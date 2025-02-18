@@ -1088,8 +1088,7 @@ class TestArtifacts(TestDatabaseBase):
         # 2. Log an artifact hyperparameters - iteration 2, best_iteration=False
         # 3. Log an artifact without hyperparameters - iteration 0, best_iteration=True
         # 4. Delete the artifact with the "latest" tag - the last artifact that was logged (iteration 0)
-        # 5. The "latest" tag should move to the most recent artifact with the best_iteration flag
-        # (the first artifact that was logged)
+        # 5. The "latest" tag should move to both iteration artifacts of the hyperparameter run
 
         project = "artifact_project"
         artifact_key = "artifact-key"
@@ -1152,15 +1151,16 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, artifact_key, project=project, tag="latest"
         )
 
-        # The "latest" tag should move to the most recent artifact with the best_iteration flag
-        # This should be the artifact with uid1 (iteration 1, best_iteration=True)
-        # even though it is not the latest artifact in the iteration
+        # The "latest" tag should move to the most recent artifacts
+        # This should be both iterations of the hyperparameter run (uid1 and uid2)
         artifacts = self._db.list_artifacts(
             self._db_session, name=artifact_key, project=project, tag="latest"
         )
-        assert len(artifacts) == 1
-        assert artifacts[0]["metadata"]["uid"] == uid1
-        assert artifacts[0]["metadata"]["tag"] == "latest"
+        assert len(artifacts) == 2
+        assert sorted(
+            [artifact["metadata"]["uid"] for artifact in artifacts]
+        ) == sorted([uid1, uid2])
+        assert all(artifact["metadata"]["tag"] == "latest" for artifact in artifacts)
 
     def test_delete_artifact_with_latest_tag_and_iteration_not_0(self):
         # This test is based on the following scenario:
@@ -1168,13 +1168,13 @@ class TestArtifacts(TestDatabaseBase):
         # 2. Log 2 artifacts with hyperparameters (same artifacts, but fewer iterations) - iteration 1 and iteration 2.
         # 3. Delete an artifact from the second run (iteration 2).
         # 4. The "latest" tag should not move because there is still an artifact with the latest tag in other
-        # iterations with the same producer id.
+        #    iterations with the same producer id.
         # 5. Delete an artifact from the first run (iteration 3).
-        # 6. The "latest" tag should not move, because artifact is not holding the latest tag (artifact is untaged).
-        # 7. Delete the last artifact from the first run (iteration 1).
+        # 6. The "latest" tag should not move, because artifact is not holding the latest tag (artifact is untagged).
+        # 7. Delete the last artifact from the second run (iteration 1).
         # 8. The "latest" tag should move because there is no other latest tag in the same producer id
-        # for other iterations
-        # move the latest tag to the best-iteration of the previous latest run.
+        #    for other iterations.
+        #    move the latest tag to all remaining iterations of the previous latest run.
 
         project = "artifact_project"
         artifact_key = "artifact-key"
@@ -1273,12 +1273,14 @@ class TestArtifacts(TestDatabaseBase):
         self._db.del_artifact(self._db_session, artifact_key, project=project, uid=uid4)
 
         # The "latest" tag should be moved because there is no other "latest" tag for the same producer ID in
-        # other iterations. Moved to the best iteration of the previous latest run.
+        # other iterations. Moved to all remaining iterations of the previous latest run.
         artifacts = self._db.list_artifacts(
             self._db_session, name=artifact_key, project=project, tag="latest"
         )
-        assert len(artifacts) == 1
-        assert artifacts[0]["metadata"]["uid"] == uid1
+        assert len(artifacts) == 2
+        assert sorted(
+            [artifact["metadata"]["uid"] for artifact in artifacts]
+        ) == sorted([uid1, uid2])
 
     def test_list_artifacts_exact_name_match(self):
         artifact_1_key = "pre_artifact_key_suffix"
@@ -2462,6 +2464,65 @@ class TestArtifacts(TestDatabaseBase):
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["uid"] == artifact_2["metadata"]["uid"]
         assert artifacts[0]["metadata"]["tag"] == "latest"
+
+    @pytest.mark.parametrize(
+        "kwargs, expected",
+        [
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": True,
+                    "tag": "latest",
+                },
+                True,
+                id="default_query",
+            ),
+            pytest.param(
+                {
+                    "best_iteration": True,
+                    "tag": "latest",
+                },
+                False,
+                id="no_pagination",
+            ),
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": False,
+                    "tag": "latest",
+                },
+                False,
+                id="best_iteration_false",
+            ),
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": True,
+                    "tag": "any_tag",
+                },
+                False,
+                id="tag_not_latest",
+            ),
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": True,
+                    "tag": "latest",
+                    "name": "any_name",
+                },
+                False,
+                id="additional_params",
+            ),
+        ],
+    )
+    def test_is_default_list_artifacts_query(self, kwargs: dict, expected: bool):
+        ignored_params = {
+            "project": "any_project",
+            "category": "any_category",
+            "offset": 5,  # any offset
+        }
+        kwargs.update(ignored_params)
+        assert self._db._is_default_list_artifacts_query(**kwargs) == expected
 
     def _generate_artifact_with_iterations(
         self, key, tree, num_iters, best_iter, kind, project=""

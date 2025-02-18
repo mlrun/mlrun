@@ -1734,36 +1734,10 @@ class HTTPRunDB(RunDBInterface):
     def create_schedule(
         self, project: str, schedule: mlrun.common.schemas.ScheduleInput
     ):
-        """Create a new schedule on the given project. The details on the actual object to schedule as well as the
-        schedule itself are within the schedule object provided.
-        The :py:class:`~ScheduleCronTrigger` follows the guidelines in
-        https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html.
-        It also supports a :py:func:`~ScheduleCronTrigger.from_crontab` function that accepts a
-        crontab-formatted string (see https://en.wikipedia.org/wiki/Cron for more information on the format and
-        note that the 0 weekday is always monday).
-
-
-        Example::
-
-            from mlrun.common import schemas
-
-            # Execute the get_data_func function every Tuesday at 15:30
-            schedule = schemas.ScheduleInput(
-                name="run_func_on_tuesdays",
-                kind="job",
-                scheduled_object=get_data_func,
-                cron_trigger=schemas.ScheduleCronTrigger(
-                    day_of_week="tue", hour=15, minute=30
-                ),
-            )
-            db.create_schedule(project_name, schedule)
-        """
-
-        project = project or config.default_project
-        path = f"projects/{project}/schedules"
-
-        error_message = f"Failed creating schedule {project}/{schedule.name}"
-        self.api_call("POST", path, error_message, body=dict_to_json(schedule.dict()))
+        """The create_schedule functionality has been deprecated."""
+        raise mlrun.errors.MLRunBadRequestError(
+            "The create_schedule functionality has been deprecated."
+        )
 
     def update_schedule(
         self, project: str, name: str, schedule: mlrun.common.schemas.ScheduleUpdate
@@ -3791,7 +3765,7 @@ class HTTPRunDB(RunDBInterface):
     def list_model_endpoints(
         self,
         project: str,
-        name: Optional[str] = None,
+        names: Optional[Union[str, list[str]]] = None,
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         model_name: Optional[str] = None,
@@ -3808,7 +3782,7 @@ class HTTPRunDB(RunDBInterface):
         List model endpoints with optional filtering by name, function name, model name, labels, and time range.
 
         :param project:         The name of the project
-        :param name:            The name of the model endpoint
+        :param names:            The name of the model endpoint, or list of names of the model endpoints
         :param function_name:   The name of the function
         :param function_tag:    The tag of the function
         :param model_name:      The name of the model
@@ -3824,12 +3798,13 @@ class HTTPRunDB(RunDBInterface):
         """
         path = f"projects/{project}/model-endpoints"
         labels = self._parse_labels(labels)
-
+        if names and isinstance(names, str):
+            names = [names]
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.GET,
             path=path,
             params={
-                "name": name,
+                "name": names,
                 "model_name": model_name,
                 "model_tag": model_tag,
                 "function_name": function_name,

@@ -661,6 +661,24 @@ def test_deduct_v3io_paths():
     assert conf["v3io_framesd"] == "https://framesd" + cluster
 
 
+def test_read_env_httpdb_priority():
+    """
+    Test that `read_env` correctly prioritizes the 'MLRUN_HTTPDB__HTTP__VERIFY' env variable by ensuring that
+    'httpdb' appears first in the configuration dictionary.
+    """
+    env = {
+        "MLRUN_DBPATH": "https://mlrun-api",
+        "MLRUN_KFP_TTL": "12345",
+        "MLRUN_HTTPDB__HTTP__VERIFY": "false",
+    }
+    conf = mlrun.config.read_env(env=env)
+
+    # Ensure that httpdb is returned first in the config
+    first_key = next(iter(conf))
+    assert first_key == "httpdb", "httpdb was not prioritized first"
+    assert conf["httpdb"]["http"]["verify"] is False
+
+
 def test_set_config():
     env_path = f"{out_path}/env/myenv.env"
     api = "http://localhost:8080"

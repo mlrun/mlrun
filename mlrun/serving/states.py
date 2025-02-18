@@ -652,6 +652,14 @@ class TaskStep(BaseStep):
             if isinstance(self.endpoint_type, schemas.EndpointType)
             else self.endpoint_type
         )
+        self.model_endpoint_creation_strategy = (
+            self.model_endpoint_creation_strategy.value
+            if isinstance(
+                self.model_endpoint_creation_strategy,
+                schemas.ModelEndpointCreationStrategy,
+            )
+            else self.model_endpoint_creation_strategy
+        )
         return super().to_dict(fields, exclude, strip)
 
 
@@ -755,9 +763,11 @@ class RouterStep(TaskStep):
         self._routes: ObjectDict = None
         self.routes = routes
         self.endpoint_type = schemas.EndpointType.ROUTER
+        if isinstance(class_name, type):
+            class_name = class_name.__name__
         self.model_endpoint_creation_strategy = (
             schemas.ModelEndpointCreationStrategy.INPLACE
-            if class_name and "serving.VotingEnsemble" in class_name
+            if class_name and "VotingEnsemble" in class_name
             else schemas.ModelEndpointCreationStrategy.SKIP
         )
 
@@ -802,8 +812,8 @@ class RouterStep(TaskStep):
             * **archive**:
             1. If model endpoints with the same name exist, preserve them.
             2. Create a new model endpoint with the same name and set it to `latest`.
-
         """
+
         if len(self.routes.keys()) >= MAX_MODELS_PER_ROUTER and key not in self.routes:
             raise mlrun.errors.MLRunModelLimitExceededError(
                 f"Router cannot support more than {MAX_MODELS_PER_ROUTER} model endpoints. "

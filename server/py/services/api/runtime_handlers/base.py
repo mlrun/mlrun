@@ -228,7 +228,6 @@ class BaseRuntimeHandler(ABC):
                     exc=err_to_str(exc),
                     traceback=traceback.format_exc(),
                 )
-
         self._terminate_resourceless_runs(
             db, db_session, project_run_uid_map, run_runtime_resources_map
         )
@@ -610,14 +609,28 @@ class BaseRuntimeHandler(ABC):
                     )
                     return
 
+                # Determine resource type and set error message
+                crd_info = self._get_crd_info()
+                if any(crd_info):
+                    crd_group, crd_version, crd_plural = crd_info
+                    # Identify as a CRD if any part of the CRD info is non-empty
+                    resource_type = f"Kubernetes custom resource of type {crd_group}/{crd_version}/{crd_plural}"
+                    reason = f"{resource_type} related to this run cannot be found."
+                else:
+                    # Default to pod if CRD info is empty
+                    reason = (
+                        "A Kubernetes pod related to this run cannot be found, "
+                        "possibly it was preempted or evicted. "
+                        "Additional details may be available from Kubernetes events."
+                    )
                 logger.info(
                     "Updating run state", run_uid=run_uid, run_state=RunStates.error
                 )
                 run.setdefault("status", {})["state"] = RunStates.error
-                run.setdefault("status", {})["reason"] = (
-                    "A runtime resource related to this run could not be found"
-                )
+
+                run.setdefault("status", {})["reason"] = reason
                 run.setdefault("status", {})["last_update"] = now.isoformat()
+                run.setdefault("status", {})["end_time"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
 
     def _get_runtime_resources(self, label_selector: str, namespace: str):
@@ -1742,13 +1755,17 @@ class BaseRuntimeHandler(ABC):
                 reason, message = self._resolve_container_error_status(runtime_resource)
 
         logger.info("Updating run state", run_uid=uid, run_state=run_state)
+        last_update_time = now_date().isoformat()
         run_updates = {
             "status.state": run_state,
-            "status.last_update": now_date().isoformat(),
+            "status.last_update": last_update_time,
             "status.reason": reason or "",
             "status.status_text": message or "",
             "status.error": "",
         }
+        if run_state in RunStates.terminal_states():
+            run_updates["status.end_time"] = last_update_time
+
         run = db.update_run(db_session, run_updates, uid, project)
 
         return True, run_state, run

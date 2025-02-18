@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import base64
 import datetime
 import json
 import os
 import pathlib
 import random
+import string
 import typing
 
 import dateutil.parser
@@ -989,11 +989,15 @@ def _ensure_latest_tag_for_artifacts(
 ):
     chunk_size = chunk_size or config.artifacts.artifact_migration_v9_batch_size
 
+    # Note: when logging the same artifact and spawning tags in version < 1.8  and then migrating to 1.8,
+    # two artifacts should remain at the end
+
     # Step 1: Get the latest artifact row for each combination of project, key, and iteration
     subquery = db_session.query(
         framework.db.sqldb.models.ArtifactV2.id,
         framework.db.sqldb.models.ArtifactV2.key,
         framework.db.sqldb.models.ArtifactV2.project,
+        framework.db.sqldb.models.ArtifactV2.iteration,
         sqlalchemy.func.row_number()
         .over(
             partition_by=[
@@ -1012,6 +1016,7 @@ def _ensure_latest_tag_for_artifacts(
             subquery.c.id,
             subquery.c.key,
             subquery.c.project,
+            subquery.c.iteration,
         )
         .filter(subquery.c.row_number == 1)  # Get only the latest for each combination
         .subquery()
@@ -1022,15 +1027,43 @@ def _ensure_latest_tag_for_artifacts(
         subquery_filtered.c.id,
         subquery_filtered.c.key,
         subquery_filtered.c.project,
+        subquery_filtered.c.iteration,
     ).outerjoin(
         framework.db.sqldb.models.ArtifactV2.Tag,
         framework.db.sqldb.models.ArtifactV2.Tag.obj_id == subquery_filtered.c.id,
     )
 
+    # Step 4: Collect project+key pairs for iteration 0 and >0
+    latest_with_iter_0 = query.filter(
+        framework.db.sqldb.models.ArtifactV2.Tag.name == "latest",
+        subquery_filtered.c.iteration == 0,
+    )
+    latest_with_iter_gt_0 = query.filter(
+        framework.db.sqldb.models.ArtifactV2.Tag.name == "latest",
+        subquery_filtered.c.iteration > 0,
+    )
+
+    # Collecting the two sets of (project, key) tuples
+    project_key_iter_0 = set(
+        latest_with_iter_0.with_entities(
+            subquery_filtered.c.project, subquery_filtered.c.key
+        )
+        .distinct()
+        .all()
+    )
+
+    project_key_iter_gt_0 = set(
+        latest_with_iter_gt_0.with_entities(
+            subquery_filtered.c.project, subquery_filtered.c.key
+        )
+        .distinct()
+        .all()
+    )
+
     # Create an alias for the Tag table for the NOT EXISTS condition
     tag_alias = sqlalchemy.orm.aliased(framework.db.sqldb.models.ArtifactV2.Tag)
 
-    # Step 4: Filter out artifacts that already have the "latest" tag
+    # Step 5: Collect all artifacts that need to be tagged, filter out artifacts that already have the "latest" tag
     query = query.filter(
         ~sqlalchemy.exists().where(
             sqlalchemy.and_(
@@ -1039,45 +1072,86 @@ def _ensure_latest_tag_for_artifacts(
         )
     ).distinct()
 
-    artifacts_to_tag = query.limit(chunk_size).all()
+    processed_artifacts = set()
 
-    if not artifacts_to_tag:
-        logger.info(
-            "No artifacts without 'latest' were found",
-            model=framework.db.sqldb.models.ArtifactV2.Tag,
+    while True:
+        # Filter artifacts that have already been processed, as there are artifacts that were processed but not tagged.
+        artifacts_to_tag = (
+            query.filter(~subquery_filtered.c.id.in_(processed_artifacts))
+            .limit(chunk_size)
+            .all()
         )
-        return
 
-    logger.info(
-        "Starting artifacts without 'latest' tag migration",
-        model=framework.db.sqldb.models.ArtifactV2.Tag,
-        count=len(artifacts_to_tag),
-    )
-
-    while artifacts_to_tag:
-        new_tags = [
-            framework.db.sqldb.models.ArtifactV2.Tag(
-                project=project,
-                name="latest",
-                obj_id=artifact_id,
-                obj_name=key,
+        if not artifacts_to_tag:
+            logger.info(
+                "No artifacts without 'latest' were found",
+                model=framework.db.sqldb.models.ArtifactV2.Tag,
             )
-            for artifact_id, project, key in artifacts_to_tag
-        ]
+            break
 
         logger.info(
-            "Committing migrated records",
+            "Starting artifacts without 'latest' tag migration",
             model=framework.db.sqldb.models.ArtifactV2.Tag,
-            count=len(new_tags),
+            count=len(artifacts_to_tag),
         )
-        db_session.add_all(new_tags)
-        db_session.commit()
 
-        artifacts_to_tag = query.limit(chunk_size).all()
+        new_tags = []
+        for artifact_id, key, project, iteration in artifacts_to_tag:
+            new_tag = _tag_artifact(
+                artifact_id,
+                key,
+                project,
+                iteration,
+                project_key_iter_0,
+                project_key_iter_gt_0,
+            )
 
-    logger.info(
-        "No more artifacts to migrate",
-    )
+            if new_tag:
+                new_tags.append(new_tag)
+
+            processed_artifacts.add(artifact_id)
+
+        if new_tags:
+            logger.info(
+                "Committing migrated records",
+                model=framework.db.sqldb.models.ArtifactV2.Tag,
+                count=len(new_tags),
+            )
+            db_session.add_all(new_tags)
+            db_session.commit()
+
+    logger.info("No more artifacts to migrate.")
+
+
+def _tag_artifact(
+    artifact_id, key, project, iteration, project_key_iter_0, project_key_iter_gt_0
+):
+    """Tags an artifact as 'latest' depending on its iteration and project+key set."""
+
+    # Note: In cases where the same project and key were created from both a hyper-params run and a single run, and the
+    # user removed the 'latest' tag from all items, we will assign the 'latest' tag to either the hyper-params items
+    # or the single run items. This will depend on which item we encounter first when iterating over the results.
+
+    new_tag = None
+
+    if iteration == 0 and (project, key) not in project_key_iter_gt_0:
+        new_tag = framework.db.sqldb.models.ArtifactV2.Tag(
+            project=project,
+            name="latest",
+            obj_id=artifact_id,
+            obj_name=key,
+        )
+        project_key_iter_0.add((project, key))  # Add to iter=0 set
+    elif iteration > 0 and (project, key) not in project_key_iter_0:
+        new_tag = framework.db.sqldb.models.ArtifactV2.Tag(
+            project=project,
+            name="latest",
+            obj_id=artifact_id,
+            obj_name=key,
+        )
+        project_key_iter_gt_0.add((project, key))  # Add to iter>0 set
+
+    return new_tag
 
 
 def _create_project_summaries(db, db_session):
@@ -1136,23 +1210,11 @@ def _get_configured_system_id() -> typing.Optional[str]:
 
 
 def _generate_system_id() -> str:
-    # Generate a random 32-bit unsigned integer and encode as a URL-safe Base64 string without padding
-    while True:
-        random_number = random.getrandbits(32)
-        random_bytes = random_number.to_bytes(4, "big")
-        base64_str = base64.urlsafe_b64encode(random_bytes).decode("utf-8").rstrip("=")
+    # Generate a 6-character alphanumeric ID using lowercase letters and digits only
+    valid_chars = string.ascii_lowercase + string.digits
+    system_id_len = 6
 
-        # convert to lowercase and remove underscores for compatibility with Kubernetes names
-        sanitized_str = base64_str.lower().replace("_", "-")
-
-        # validate the result against the qualified_name regex
-        try:
-            mlrun.utils.helpers.verify_field_regex(
-                "system_id", sanitized_str, mlrun.utils.regex.qualified_name
-            )
-            return sanitized_str
-        except mlrun.errors.MLRunInvalidArgumentError:
-            continue
+    return "".join(random.choices(valid_chars, k=system_id_len))
 
 
 def main() -> None:

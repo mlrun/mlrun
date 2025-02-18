@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import asyncio
 import json
 import time
@@ -22,8 +23,12 @@ from http import HTTPStatus
 from pathlib import Path
 
 import fastapi
+import kafka
+import kafka.errors
 import nuclio
 import sqlalchemy.orm
+import v3io.dataplane
+import v3io.dataplane.response
 from fastapi import BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
 
@@ -64,6 +69,7 @@ _HISTOGRAM_DATA_DRIFT_APP_PATH = str(
     Path(mlrun.model_monitoring.applications.__file__).parent
     / "histogram_data_drift.py"
 )
+BASE_PERIOD_LOOKUP_TABLE = {20: 2, 60: 5, 120: 10, float("inf"): 20}
 
 
 class MonitoringDeployment:
@@ -101,6 +107,15 @@ class MonitoringDeployment:
         self._secret_provider = services.api.crud.secrets.get_project_secret_provider(
             project=project
         )
+        self.__stream_profile = None
+
+    @property
+    def _stream_profile(self) -> mlrun.datastore.datastore_profile.DatastoreProfile:
+        if not self.__stream_profile:
+            self.__stream_profile = mlrun.model_monitoring.helpers._get_stream_profile(
+                project=self.project, secret_provider=self._secret_provider
+            )
+        return self.__stream_profile
 
     def deploy_monitoring_functions(
         self,
@@ -167,6 +182,7 @@ class MonitoringDeployment:
                     db_session=self.db_session, project=self.project
                 )
             )
+
             fn = self._initial_model_monitoring_stream_processing_function(
                 stream_image=stream_image, parquet_target=parquet_target
             )
@@ -225,7 +241,9 @@ class MonitoringDeployment:
 
             fn.add_trigger(
                 "cron_interval",
-                spec=nuclio.CronTrigger(interval=f"{base_period}m"),
+                spec=nuclio.CronTrigger(
+                    interval=f"{self._get_trigger_frequency(base_period)}m"
+                ),
             )
             fn, ready = services.api.utils.functions.build_function(
                 db_session=self.db_session, auth_info=self.auth_info, function=fn
@@ -282,9 +300,9 @@ class MonitoringDeployment:
     ) -> mlrun.runtimes.ServingRuntime:
         """
         Add stream source for the nuclio serving function. The function's stream trigger can be
-        either Kafka or V3IO, depends on the stream path schema that is defined by:
+        either Kafka or V3IO, depends on the stream profile defined by::
 
-            project.set_model_monitoring_credentials(..., stream_path="...")
+            project.set_model_monitoring_credentials(stream_profile_name="...", ...)
 
         Note: this method also disables the default HTTP trigger of the function, so it remains
         only with stream trigger(s).
@@ -298,24 +316,23 @@ class MonitoringDeployment:
 
         :return: `ServingRuntime` object with stream trigger.
         """
-
-        # Get the stream path from the configuration
-        stream_path = mlrun.model_monitoring.get_stream_path(
-            project=self.project,
-            function_name=function_name,
-            secret_provider=self._secret_provider,
-        )
-        if stream_path.startswith("kafka://"):
+        profile = self._stream_profile
+        if isinstance(
+            profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+        ):
             self._apply_and_create_kafka_source(
-                stream_path=stream_path,
+                kafka_profile=profile,
                 function=function,
+                function_name=function_name,
                 stream_args=stream_args,
                 ignore_stream_already_exists_failure=ignore_stream_already_exists_failure,
             )
 
-        elif stream_path.startswith("v3io://"):
+        elif isinstance(
+            profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
             self._apply_and_create_v3io_source(
-                stream_path=stream_path,
+                v3io_profile=profile,
                 function=function,
                 function_name=function_name,
                 stream_args=stream_args,
@@ -323,7 +340,7 @@ class MonitoringDeployment:
         else:
             framework.api.utils.log_and_raise(
                 HTTPStatus.BAD_REQUEST.value,
-                reason="Unexpected stream path schema",
+                reason="Unexpected stream profile",
             )
 
         if not mlrun.mlconf.is_ce_mode():
@@ -338,19 +355,25 @@ class MonitoringDeployment:
 
     def _apply_and_create_kafka_source(
         self,
-        stream_path: str,
+        *,
+        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
         function: mlrun.runtimes.ServingRuntime,
+        function_name: str,
         stream_args: mlrun.config.Config,
         ignore_stream_already_exists_failure: bool,
-    ):
-        import kafka.errors
-
-        topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
+    ) -> None:
         # Generate Kafka stream source
+        topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
+            project=self.project, function_name=function_name
+        )
         stream_source = mlrun.datastore.sources.KafkaSource(
-            brokers=brokers,
+            brokers=kafka_profile.brokers,
             topics=[topic],
-            attributes={
+            group=kafka_profile.group,
+            initial_offset=kafka_profile.initial_offset,
+            partitions=kafka_profile.partitions,
+            attributes=kafka_profile.attributes()
+            | {
                 "max_workers": stream_args.kafka.num_workers,
                 "worker_allocation_mode": "static",
             },
@@ -364,9 +387,9 @@ class MonitoringDeployment:
             if ignore_stream_already_exists_failure:
                 logger.info(
                     "Kafka topic of model monitoring stream already exists. "
-                    "Skipping topic creation and using `earliest` offset.",
+                    "Skipping topic creation and using `earliest` offset",
                     project=self.project,
-                    stream_path=stream_path,
+                    error_message=mlrun.errors.err_to_str(exc),
                 )
             else:
                 raise exc
@@ -377,13 +400,21 @@ class MonitoringDeployment:
 
     def _apply_and_create_v3io_source(
         self,
-        stream_path: str,
+        *,
+        v3io_profile: mlrun.datastore.datastore_profile.DatastoreProfileV3io,
         function: mlrun.runtimes.ServingRuntime,
         function_name: str,
         stream_args: mlrun.config.Config,
-    ):
+    ) -> None:
+        stream_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=self.project,
+            kind=mm_constants.FileTargetKind.STREAM,
+            target="online",
+            function_name=function_name,
+        )
+
         access_key = (
-            self.model_monitoring_access_key
+            v3io_profile.v3io_access_key
             if function_name
             != mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
             else mlrun.mlconf.get_v3io_access_key()
@@ -777,7 +808,6 @@ class MonitoringDeployment:
                     auth_info=self.auth_info,
                     delete_app_stream_resources=function_name
                     != mm_constants.MonitoringFunctionNames.STREAM,
-                    access_key=self.model_monitoring_access_key,
                 )
                 tasks.append(task)
 
@@ -846,7 +876,6 @@ class MonitoringDeployment:
         function_name: str,
         auth_info: mlrun.common.schemas.AuthInfo,
         delete_app_stream_resources: bool,
-        access_key: str,
     ):
         background_task_name = str(uuid.uuid4())
 
@@ -864,7 +893,6 @@ class MonitoringDeployment:
             auth_info,
             background_task_name,
             delete_app_stream_resources,
-            access_key,
         )
 
     @staticmethod
@@ -875,7 +903,6 @@ class MonitoringDeployment:
         auth_info: mlrun.common.schemas.AuthInfo,
         background_task_name: str,
         delete_app_stream_resources: bool,
-        access_key: str,
     ) -> None:
         """
         Delete the model monitoring function and its resources.
@@ -900,8 +927,7 @@ class MonitoringDeployment:
                 MonitoringDeployment(
                     project=project
                 )._delete_model_monitoring_stream_resources(
-                    function_names=[function_name],
-                    access_key=access_key,
+                    function_names=[function_name]
                 )
             except mlrun.errors.MLRunStreamConnectionFailureError as e:
                 logger.warning(
@@ -917,17 +943,16 @@ class MonitoringDeployment:
         stream_profile: typing.Optional[
             mlrun.datastore.datastore_profile.DatastoreProfile
         ] = None,
-        access_key: typing.Optional[str] = None,
     ) -> None:
         """
         :param function_names: A list of functions that their resources should be deleted.
         :param stream_profile: An optional datastore profile for the stream.
-        :param access_key:     If the stream is V3IO, the access key is required.
         """
         logger.debug(
             "Deleting model monitoring stream resources deployment",
             project_name=self.project,
         )
+        profile = stream_profile or self._stream_profile
         stream_paths = []
         for function_name in function_names:
             qualified_function_name = f"{self.project}-{function_name}"
@@ -939,7 +964,7 @@ class MonitoringDeployment:
                 )
                 continue
             label_selector = f"{mlrun_constants.MLRunInternalLabels.nuclio_function_name}={qualified_function_name}"
-            for i in range(10):
+            for _ in range(10):
                 # waiting for the function pod to be deleted
                 # max 10 retries (5 sec sleep between each retry)
                 try:
@@ -976,11 +1001,10 @@ class MonitoringDeployment:
             # No stream paths to delete
             return
 
-        elif stream_paths[0].startswith("v3io"):
+        elif isinstance(
+            profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
             # Delete V3IO stream
-            import v3io.dataplane
-            import v3io.dataplane.response
-
             v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
 
             for stream_path in stream_paths:
@@ -989,20 +1013,19 @@ class MonitoringDeployment:
                         stream_path
                     )
                 )
-
+                logger.debug(
+                    "Deleting v3io stream",
+                    project=self.project,
+                    stream_path=stream_path,
+                )
                 try:
                     # if the stream path is in the users directory, we need to use pipelines access key to delete it
-                    logger.debug(
-                        "Deleting v3io stream",
-                        project=self.project,
-                        stream_path=stream_path,
-                    )
                     v3io_client.stream.delete(
                         container,
                         stream_path,
                         access_key=mlrun.mlconf.get_v3io_access_key()
                         if container.startswith("users")
-                        else access_key,
+                        else profile.v3io_access_key,
                     )
                     logger.debug(
                         "Deleted v3io stream",
@@ -1014,23 +1037,35 @@ class MonitoringDeployment:
                     raise mlrun.errors.MLRunStreamConnectionFailureError(
                         f"Failed to delete v3io stream {stream_path}"
                     ) from exc
-        elif stream_paths[0].startswith("kafka://"):
+        elif isinstance(
+            profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+        ):
             # Delete Kafka topics
-            import kafka
-            import kafka.errors
+            topics = [
+                mlrun.datastore.utils.parse_kafka_url(url=stream_path)[0]
+                for stream_path in stream_paths
+            ]
 
-            topics = []
+            kafka_profile_attributes = profile.attributes()
+            kafka_admin_client_kwargs = {}
+            if "sasl" in kafka_profile_attributes:
+                sasl = kafka_profile_attributes["sasl"]
+                kafka_admin_client_kwargs.update(
+                    {
+                        "security_protocol": "SASL_PLAINTEXT",
+                        "sasl_mechanism": sasl["mechanism"],
+                        "sasl_plain_username": sasl["user"],
+                        "sasl_plain_password": sasl["password"],
+                    }
+                )
 
-            topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_paths[0])
-            topics.append(topic)
-
-            for stream_path in stream_paths[1:]:
-                topic, _ = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
-                topics.append(topic)
+            client_id = f"{mlrun.mlconf.system_id}_{self.project}_kafka-python_{kafka.__version__}"
 
             try:
                 kafka_client = kafka.KafkaAdminClient(
-                    bootstrap_servers=brokers, client_id=self.project
+                    bootstrap_servers=profile.brokers,
+                    client_id=client_id,
+                    **kafka_admin_client_kwargs,
                 )
                 kafka_client.delete_topics(topics)
                 logger.debug("Deleted kafka topics", topics=topics)
@@ -1041,8 +1076,8 @@ class MonitoringDeployment:
                 ) from exc
         else:
             logger.warning(
-                "Stream path is not supported and therefore can't be deleted, expected v3io or kafka",
-                stream_path=stream_paths[0],
+                "Stream profile is not supported and therefore can't be deleted, expected v3io or kafka",
+                stream_profile_type=str(type(profile)),
             )
         logger.debug(
             "Successfully deleted model monitoring stream resources deployment",
@@ -1057,9 +1092,7 @@ class MonitoringDeployment:
 
         return credentials_dict
 
-    def check_if_credentials_are_set(
-        self,
-    ):
+    def check_if_credentials_are_set(self) -> None:
         """
         Check if the model monitoring credentials are set. If not, raise an error.
 
@@ -1067,7 +1100,7 @@ class MonitoringDeployment:
         """
 
         credentials_dict = self._get_monitoring_mandatory_project_secrets()
-        if all([val is not None for key, val in credentials_dict.items()]):
+        if all([val is not None for val in credentials_dict.values()]):
             return
 
         raise mlrun.errors.MLRunBadRequestError(
@@ -1180,13 +1213,21 @@ class MonitoringDeployment:
     def _verify_v3io_access(
         self, v3io_profile: mlrun.datastore.datastore_profile.DatastoreProfileV3io
     ) -> None:
+        stream_access_key = v3io_profile.v3io_access_key
+        if not stream_access_key:
+            raise mlrun.errors.MLRunInvalidMMStoreTypeError(
+                "The model monitoring stream profile must be set with an explicit `v3io_access_key`. "
+                f"The passed profile '{v3io_profile.name}' has an empty access key. "
+                "You may register it again and set `v3io_access_key=mlrun.mlconf.get_v3io_access_key()`"
+            )
+
         stream_path = mlrun.model_monitoring.get_stream_path(
             project=self.project, profile=v3io_profile
         )
         container, path = split_path(stream_path)
 
         v3io_client = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api, access_key=v3io_profile.v3io_access_key
+            endpoint=mlrun.mlconf.v3io_api, access_key=stream_access_key
         )
         # We don't expect the stream to exist. The purpose is to make sure we have access.
         v3io_client.stream.describe(
@@ -1195,7 +1236,7 @@ class MonitoringDeployment:
 
     def set_credentials(
         self,
-        access_key: typing.Optional[str] = None,
+        *,
         tsdb_profile_name: typing.Optional[str] = None,
         stream_profile_name: typing.Optional[str] = None,
         replace_creds: bool = False,
@@ -1203,7 +1244,6 @@ class MonitoringDeployment:
         """
         Set the model monitoring credentials for the project. The credentials are stored in the project secrets.
 
-        :param access_key:                Model Monitoring access key for managing user permissions.
         :param tsdb_profile_name:         The TSDB profile name to be used in the project's model monitoring framework.
                                           Either V3IO or TDEngine profile.
         :param stream_profile_name:       The stream profile name to be used in the project's model monitoring
@@ -1233,12 +1273,6 @@ class MonitoringDeployment:
 
         secrets_dict = {}
         old_secrets_dict = self._get_monitoring_mandatory_project_secrets()
-        if access_key:
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
-            ] = access_key or old_secrets_dict.get(
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
-            )
 
         stream_profile_name = stream_profile_name or old_secrets_dict.get(
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME
@@ -1601,6 +1635,20 @@ class MonitoringDeployment:
             function_name,
             project_name,
         )
+
+    @staticmethod
+    def _get_trigger_frequency(base_period: int) -> int:
+        """
+        Determines the trigger frequency based on the base period using a lookup dictionary.
+
+        :param base_period: The base period in minutes.
+        :return: The trigger frequency in minutes.
+        """
+        for threshold, frequency in BASE_PERIOD_LOOKUP_TABLE.items():
+            if base_period <= threshold:
+                return frequency
+
+        return BASE_PERIOD_LOOKUP_TABLE[float("inf")]
 
 
 def get_endpoint_features(

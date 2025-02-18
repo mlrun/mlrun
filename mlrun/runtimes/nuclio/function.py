@@ -1017,6 +1017,7 @@ class RemoteRuntime(KubeResource):
     ):
         """
         Add a sidecar container to the function pod
+
         :param name:    Sidecar container name.
         :param image:   Sidecar container image.
         :param ports:   Sidecar container ports to expose. Can be a single port or a list of ports.

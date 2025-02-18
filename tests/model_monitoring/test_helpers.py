@@ -14,7 +14,7 @@
 
 import datetime
 from collections.abc import Iterator
-from typing import NamedTuple
+from typing import NamedTuple, Optional, Union
 from unittest.mock import patch
 
 import nuclio
@@ -27,11 +27,19 @@ from mlrun.common.model_monitoring.helpers import (
     _MAX_FLOAT,
     FeatureStats,
     Histogram,
+    get_kafka_topic,
     pad_features_hist,
     pad_hist,
 )
 from mlrun.common.schemas import EndpointType, ModelEndpoint
 from mlrun.common.schemas.model_monitoring.constants import EventFieldType
+from mlrun.datastore import KafkaOutputStream, OutputStream
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfile,
+    DatastoreProfileKafkaSource,
+    DatastoreProfileKafkaTarget,
+    DatastoreProfileV3io,
+)
 from mlrun.db.nopdb import NopDB
 from mlrun.model_monitoring.controller import (
     _BatchWindow,
@@ -45,6 +53,7 @@ from mlrun.model_monitoring.helpers import (
     batch_dict2timedelta,
     filter_results_by_regex,
     get_invocations_fqn,
+    get_output_stream,
     update_model_endpoint_last_request,
 )
 from mlrun.utils import datetime_now
@@ -535,3 +544,88 @@ def test_filter_results_by_regex():
         result_name_filters=results_names_filters,
     )
     assert sorted(filtered_results) == sorted(expected_result_names)
+
+
+@pytest.mark.parametrize(
+    ("project", "function_name", "expected_topic"),
+    [
+        ("p1", None, "monitoring_stream__p1_v1"),
+        ("mm", "model-monitoring-stream", "monitoring_stream__mm_v1"),
+        (
+            "mm",
+            "model-monitoring-controller",
+            "monitoring_stream__mm_model-monitoring-controller_v1",
+        ),
+        ("mm", "model-monitoring-stream", "monitoring_stream__mm_v1"),
+        (
+            "special-mm-12",
+            "model-monitoring-writer",
+            "monitoring_stream__special-mm-12_model-monitoring-writer_v1",
+        ),
+    ],
+)
+def test_get_kafka_topic(
+    project: str,
+    function_name: Optional[str],
+    expected_topic: str,
+) -> None:
+    assert (
+        get_kafka_topic(project=project, function_name=function_name) == expected_topic
+    ), "The topic is different than expected"
+
+
+@pytest.mark.parametrize(
+    ("profile", "expected_output_stream_type"),
+    [
+        (
+            DatastoreProfileKafkaSource(
+                name="test-kafka-profile",
+                brokers=["localhost"],
+                topics=[],
+                sasl_user="user1",
+                sasl_pass="1234",
+                kwargs_public={"producer_options": {"api_version": (3, 9)}},
+            ),
+            KafkaOutputStream,
+        ),
+        (
+            DatastoreProfileV3io(
+                name="test-v3io-profile", v3io_access_key="valid-access-key"
+            ),
+            OutputStream,
+        ),
+    ],
+)
+def test_get_output_stream(
+    profile: DatastoreProfile,
+    expected_output_stream_type: Union[type[KafkaOutputStream], type[OutputStream]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if isinstance(profile, DatastoreProfileV3io):
+        monkeypatch.setenv("V3IO_API", mlrun.mlconf.v3io_api)
+
+    output_stream = get_output_stream(profile=profile, project="test-proj", mock=True)
+    assert isinstance(
+        output_stream, expected_output_stream_type
+    ), "The output stream is of an unexpected type"
+
+    output_stream.push(2 * [{"k1": 0, "jump": "high"}])
+    output_stream.push([{"k1": 1, "jump": "mid"}])
+
+
+def test_get_output_stream_unsupported() -> None:
+    with pytest.raises(
+        mlrun.errors.MLRunValueError,
+        match=(
+            r".*an unexpected stream profile type: "
+            r"<class 'mlrun\.datastore\.datastore_profile\.DatastoreProfileKafkaTarget'>"
+            r".*"
+        ),
+    ):
+        get_output_stream(
+            project="nmo",
+            function_name="model-monitoring-controller",
+            profile=DatastoreProfileKafkaTarget(
+                name="k-tgt", brokers="localhost", topic="t1"
+            ),
+        )

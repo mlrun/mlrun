@@ -95,9 +95,6 @@ class V2ModelServer(StepToDict):
         :param kwargs:     extra arguments (can be accessed using self.get_param(key))
         """
         self.name = name
-        self.version = ""
-        if name and ":" in name:
-            self.version = name.split(":", 1)[-1]
         self.context = context
         self.ready = False
         self.error = ""
@@ -118,6 +115,7 @@ class V2ModelServer(StepToDict):
         self.shard_by_endpoint = shard_by_endpoint
         self._model_logger = None
         self.initialized = False
+        self.output_schema = []
 
     def _load_and_update_state(self):
         try:
@@ -178,17 +176,15 @@ class V2ModelServer(StepToDict):
                     "Model endpoint creation task name not provided",
                 )
             try:
-                self.model_endpoint_uid = (
-                    mlrun.get_run_db()
-                    .get_model_endpoint(
-                        project=server.project,
-                        name=self.name,
-                        function_name=server.function_name,
-                        function_tag=server.function_tag or "latest",
-                        tsdb_metrics=False,
-                    )
-                    .metadata.uid
+                model_endpoint = mlrun.get_run_db().get_model_endpoint(
+                    project=server.project,
+                    name=self.name,
+                    function_name=server.function_name,
+                    function_tag=server.function_tag or "latest",
+                    tsdb_metrics=False,
                 )
+                self.model_endpoint_uid = model_endpoint.metadata.uid
+                self.output_schema = model_endpoint.spec.label_names
             except mlrun.errors.MLRunNotFoundError:
                 logger.info(
                     "Model endpoint not found for this step; monitoring for this model will not be performed",
@@ -325,8 +321,8 @@ class V2ModelServer(StepToDict):
                 "outputs": outputs,
                 "timestamp": start.isoformat(sep=" ", timespec="microseconds"),
             }
-            if self.version:
-                response["model_version"] = self.version
+            if self.model_endpoint_uid:
+                response["model_endpoint_uid"] = self.model_endpoint_uid
         elif op == "ready" and event.method == "GET":
             # get model health operation
             setattr(event, "terminated", True)
@@ -352,7 +348,7 @@ class V2ModelServer(StepToDict):
             setattr(event, "terminated", True)
             event_body = {
                 "name": self.name.split(":")[0],
-                "version": self.version or "",
+                "model_endpoint_uid": self.model_endpoint_uid or "",
                 "inputs": [],
                 "outputs": [],
             }
@@ -386,8 +382,8 @@ class V2ModelServer(StepToDict):
                 "model_name": self.name,
                 "outputs": outputs,
             }
-            if self.version:
-                response["model_version"] = self.version
+            if self.model_endpoint_uid:
+                response["model_endpoint_uid"] = self.model_endpoint_uid
 
         elif hasattr(self, "op_" + op):
             # custom operation (child methods starting with "op_")
@@ -510,7 +506,6 @@ class _ModelLogPusher:
         self.verbose = context.verbose
         self.hostname = context.stream.hostname
         self.function_uri = context.stream.function_uri
-        self.stream_path = context.stream.stream_uri
         self.sampling_percentage = float(context.get_param("sampling_percentage", 100))
         self.output_stream = output_stream or context.stream.output_stream
         self._worker = context.worker_id
@@ -520,7 +515,6 @@ class _ModelLogPusher:
             "class": self.model.__class__.__name__,
             "worker": self._worker,
             "model": self.model.name,
-            "version": self.model.version,
             "host": self.hostname,
             "function_uri": self.function_uri,
             "endpoint_id": self.model.model_endpoint_uid,
@@ -571,6 +565,17 @@ class _ModelLogPusher:
                     resp["outputs"] = [
                         resp["outputs"][i] for i in sampled_requests_indices
                     ]
+                if self.model.output_schema and len(self.model.output_schema) != len(
+                    resp["outputs"][0]
+                ):
+                    logger.info(
+                        "The number of outputs returned by the model does not match the number of outputs "
+                        "specified in the model endpoint.",
+                        model_endpoint=self.model.name,
+                        model_endpoint_id=self.model.model_endpoint_uid,
+                        output_len=len(resp["outputs"][0]),
+                        schema_len=len(self.model.output_schema),
+                    )
 
             data = self.base_data()
             data["request"] = request

@@ -171,7 +171,7 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
                 FutureWarning,
             )
 
-    def topic(self):
+    def get_topic(self):
         return self.topic
 
     def attributes(self):
@@ -196,7 +196,7 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
     kwargs_public: typing.Optional[dict]
     kwargs_private: typing.Optional[dict]
 
-    def topic(self):
+    def get_topic(self):
         topics = [self.topics] if isinstance(self.topics, str) else self.topics
         return topics[0] if topics else None
 

@@ -101,4 +101,7 @@ def test_get_kafka_profile_stream_path(kafka_profile_name: str) -> None:
     stream_path = mlrun.model_monitoring.get_stream_path(
         project=TEST_PROJECT, secret_provider=lambda _: kafka_profile_name
     )
-    assert stream_path == f"ds://{kafka_profile_name}"
+    assert (
+        stream_path
+        == f"ds://{kafka_profile_name}/monitoring_stream_{mlrun.mlconf.system_id}_{TEST_PROJECT}_v1"
+    )

@@ -130,7 +130,7 @@ def get_stream_pusher(stream_path: str, **kwargs):
             topic = (
                 parsed_url.path.strip("/")
                 if parsed_url.path
-                else datastore_profile.topic()
+                else datastore_profile.get_topic()
             )
             return KafkaOutputStream(topic, brokers, producer_options=attributes)
 

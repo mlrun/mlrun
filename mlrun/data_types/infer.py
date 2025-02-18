@@ -31,7 +31,7 @@ default_num_bins = 20
 
 def infer_schema_from_df(
     df: pd.DataFrame,
-    features,
+    features: ObjectList,
     entities,
     timestamp_key: Optional[str] = None,
     entity_columns=None,
@@ -43,8 +43,7 @@ def infer_schema_from_df(
     current_entities = list(entities.keys())
     entity_columns = entity_columns or []
     index_columns = dict()
-    push_at_start = push_at_start and isinstance(features, ObjectList)
-    temp_features = ObjectList(mlrun.features.Feature) if push_at_start else None
+    temp_features = ObjectList(mlrun.features.Feature)
 
     def upsert_entity(name, value_type):
         if name in current_entities:
@@ -79,17 +78,13 @@ def infer_schema_from_df(
             if column in features.keys():
                 features[column].value_type = value_type
             else:
-                if not push_at_start:
-                    features[column] = {"name": column, "value_type": value_type}
-                else:
-                    temp_features[column] = {"name": column, "value_type": value_type}
+                temp_features[column] = {"name": column, "value_type": value_type}
         if value_type == "datetime" and not is_entity:
             timestamp_fields.append(column)
 
-    if push_at_start:
-        features.update_list(
-            object_list=temp_features, push_at_start=True
-        )  # Push to start of the Object list
+    features.update_list(
+        object_list=temp_features, push_at_start=push_at_start
+    )  # Push to start of the Object list
 
     index_type = None
     if InferOptions.get_common_options(options, InferOptions.Index):

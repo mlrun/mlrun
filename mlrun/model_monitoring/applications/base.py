@@ -90,6 +90,25 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         results = results if isinstance(results, list) else [results]
         return results, monitoring_context
 
+    @staticmethod
+    def _flatten_data_result(
+        result: Union[
+            list[mm_results._ModelMonitoringApplicationDataRes],
+            mm_results._ModelMonitoringApplicationDataRes,
+        ],
+    ) -> Union[list[dict], dict]:
+        """Flatten result/metric objects to dictionaries"""
+        if isinstance(result, mm_results._ModelMonitoringApplicationDataRes):
+            return result.to_dict()
+        if isinstance(result, list):
+            return [
+                element.to_dict()
+                if isinstance(element, mm_results._ModelMonitoringApplicationDataRes)
+                else element
+                for element in result
+            ]
+        return result
+
     def _handler(
         self,
         context: "mlrun.MLClientCtx",
@@ -142,9 +161,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         if window_start and window_end
                         else f"{endpoint_name}-{endpoint_id}"
                     )
-                    context.log_result(result_key, result)
+
+                    context.log_result(result_key, self._flatten_data_result(result))
         else:
-            return call_do_tracking()
+            return self._flatten_data_result(call_do_tracking())
 
     @staticmethod
     def _handle_endpoints_type_evaluate(

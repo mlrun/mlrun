@@ -26,6 +26,7 @@ import mlrun
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,
+    ModelMonitoringApplicationMetric,
     ModelMonitoringApplicationResult,
     MonitoringApplicationContext,
 )
@@ -83,6 +84,15 @@ class TestEvaluate:
         assert run.state() == "created"  # Should be "error", see ML-8507
         run = InProgressApp1.evaluate(func_path=__file__, func_name=func_name)
         assert run.state() == "completed"
+        assert run.status.results == {
+            "return": {
+                "result_name": "res0",
+                "result_value": 0.0,
+                "result_kind": 4,
+                "result_status": -1,
+                "result_extra_data": "{}",
+            }
+        }, "The run results are different than expected"
 
 
 @pytest.mark.parametrize(
@@ -197,6 +207,50 @@ def test_job_handler() -> None:
         )
         == "package.subpackage.module.AppClass::_handler"
     )
+
+
+@pytest.mark.parametrize(
+    ("result", "expected_flattened_result"),
+    [
+        (
+            ModelMonitoringApplicationMetric(name="m1", value=98),
+            {"metric_name": "m1", "metric_value": 98},
+        ),
+        (
+            [
+                ModelMonitoringApplicationMetric(name="m0", value=-2),
+                ModelMonitoringApplicationResult(
+                    name="r0",
+                    value=0,
+                    status=ResultStatusApp.no_detection,
+                    kind=ResultKindApp.mm_app_anomaly,
+                ),
+            ],
+            [
+                {"metric_name": "m0", "metric_value": -2},
+                {
+                    "result_name": "r0",
+                    "result_value": 0,
+                    "result_status": 0,
+                    "result_kind": 4,
+                    "result_extra_data": "{}",
+                },
+            ],
+        ),
+    ],
+)
+def test_flatten_data_result(
+    result: Union[
+        ModelMonitoringApplicationMetric,
+        ModelMonitoringApplicationResult,
+        list[Union[ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult]],
+    ],
+    expected_flattened_result: Union[dict, list[dict]],
+) -> None:
+    assert (
+        ModelMonitoringApplicationBase._flatten_data_result(result)
+        == expected_flattened_result
+    ), "The flattened result is different than expected"
 
 
 class TestToJob:

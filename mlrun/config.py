@@ -816,6 +816,7 @@ default_config = {
         "max_criteria_count": 100,
         # interval for periodic events generation job
         "events_generation_interval": 30,  # seconds
+        "chunk_size_during_project_deletion": 100,  # number of alerts to delete in each chunk
     },
     "auth_with_client_id": {
         "enabled": False,

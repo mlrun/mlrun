@@ -908,7 +908,7 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-    ) -> list[str]:
+    ) -> list[int]:
         pass
 
     @abstractmethod

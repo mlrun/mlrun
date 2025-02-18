@@ -5924,7 +5924,12 @@ class SQLDB(DBInterface):
             return self.create_alert(session, alert)
         alert_record.full_object = alert.dict()
 
-        self._delete_alert_notifications(session, alert.name, alert.id, alert.project)
+        self._delete_alert_notifications(
+            session,
+            name=alert.name,
+            alert_id=alert.id,
+            project=alert.project,
+        )
         self._store_notifications(
             session,
             AlertConfig,
@@ -5995,8 +6000,11 @@ class SQLDB(DBInterface):
         return alerts
 
     def delete_project_alerts(
-        self, session, project: str, chunk_size: int = 100
-    ) -> list[str]:
+        self,
+        session,
+        project: str,
+        chunk_size: int = mlrun.mlconf.alerts.chunk_size_during_project_deletion,
+    ) -> list[int]:
         """
         List all alert IDs associated with the specified project and delete them,
         along with their related notifications, while ensuring foreign key constraints are respected.
@@ -6416,9 +6424,9 @@ class SQLDB(DBInterface):
     def _delete_alert_notifications(
         self,
         session,
-        name: typing.Optional[str],
         alert_id: int,
         project: str,
+        name: typing.Optional[str] = None,
         commit: bool = True,
     ):
         query = self._get_db_notifications(

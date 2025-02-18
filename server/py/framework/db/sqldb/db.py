@@ -5335,7 +5335,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         project: str,
-        name: Optional[str] = None,
+        names: Optional[list[str]] = None,
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         model_name: Optional[str] = None,
@@ -5355,7 +5355,7 @@ class SQLDB(DBInterface):
 
         :param session: The DB session.
         :param project: The project of the model endpoint to query.
-        :param name: The name of the model endpoint to query.
+        :param names: The name of the model endpoint to query.
         :param function_name: The function name of the model endpoint to query.
         :param model_name: The model name of the model endpoint to query.
         :param labels: The labels of the model endpoint to query.
@@ -5373,12 +5373,13 @@ class SQLDB(DBInterface):
             ModelEndpoint.__table__  # pyright: ignore[reportAttributeAccessIssue]
         )
         # Apply filters
-        if name:
+        if names:
             query = self._filter_values(
                 query=query,
                 cls=model_endpoints_table,
                 key_filter=ModelEndpointSchema.NAME,
-                filtered_values=[name],
+                filtered_values=names,
+                combined=False,
             )
         if function_name:
             query = self._filter_values(
@@ -7446,7 +7447,7 @@ class SQLDB(DBInterface):
         self,
         session,
         project: str,
-        name: typing.Optional[str] = None,
+        names: typing.Optional[list[str]] = None,
         function_name: typing.Optional[str] = None,
         function_tag: typing.Optional[str] = None,
         model_name: typing.Optional[str] = None,
@@ -7464,7 +7465,7 @@ class SQLDB(DBInterface):
         model_endpoints: list[mlrun.common.schemas.ModelEndpoint] = []
         for mep_record in self._find_model_endpoints(
             session=session,
-            name=name,
+            names=names,
             project=project,
             labels=labels,
             function_name=function_name,

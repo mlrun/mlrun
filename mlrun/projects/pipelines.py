@@ -629,7 +629,7 @@ class _KFPRunner(_PipelineRunner):
                     secret_params=notification.secret_params,
                 )
 
-            project.spec.notifications = project.notifiers.server_notifications
+        project.spec.notifications = project.notifiers.server_notifications
 
         run_id = _run_pipeline(
             workflow_handler,

@@ -51,7 +51,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         self,
         path: str,
         version: str = "v1",
-        headers: dict = None,
+        headers: typing.Optional[dict] = None,
         raise_on_failure: bool = True,
         **kwargs,
     ):

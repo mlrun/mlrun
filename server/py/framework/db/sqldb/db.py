@@ -6049,10 +6049,14 @@ class SQLDB(DBInterface):
             alert_ids.extend(alert_ids_chunk)  # Collect all alert IDs to be deleted
 
             # Step 4: Perform ORM-based deletion for alerts in the current chunk
-            session.query(AlertConfig).filter(
-                AlertConfig.id.in_(alert_ids_chunk)
-            ).delete()
-
+            alerts_to_delete = (
+                session.query(AlertConfig)
+                .filter(AlertConfig.id.in_(alert_ids_chunk))
+                .all()
+            )
+            for alert in alerts_to_delete:
+                # Deleting via ORM ensures cascading works
+                session.delete(alert)
             # Step 5: Commit all changes in one transaction for the current chunk
             session.commit()
 

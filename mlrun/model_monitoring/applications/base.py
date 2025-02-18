@@ -181,6 +181,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                             missing_endpoint=missing,
                             endpoints=list_endpoints_result,
                         )
+                    endpoints = list_endpoints_result
                 else:
                     raise mlrun.errors.MLRunNotFoundError(
                         f"Did not find any model_endpoint named ' {endpoints}'"

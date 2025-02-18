@@ -3575,7 +3575,6 @@ class SQLDB(DBInterface):
         self.delete_model_endpoints(session, project=name)
         self._delete_project_artifacts(session, project=name)
         self.delete_run_notifications(session, project=name)
-        self.delete_alert_notifications(session, project=name)
         self._delete_project_runs(session, project=name)
         self.delete_project_schedules(session, name)
         self._delete_project_functions(session, name)
@@ -5127,7 +5126,7 @@ class SQLDB(DBInterface):
         session,
         cls,
         name: typing.Optional[str] = None,
-        parent_id: typing.Optional[str] = None,
+        parent_id: typing.Optional[int] = None,
         project: typing.Optional[str] = None,
         limit: typing.Optional[int] = None,
     ):
@@ -5925,7 +5924,7 @@ class SQLDB(DBInterface):
             return self.create_alert(session, alert)
         alert_record.full_object = alert.dict()
 
-        self._delete_alert_notifications(session, alert.name, alert, alert.project)
+        self._delete_alert_notifications(session, alert.name, alert.id, alert.project)
         self._store_notifications(
             session,
             AlertConfig,
@@ -5994,6 +5993,39 @@ class SQLDB(DBInterface):
                 alert.updated = None
             alerts.append(alert)
         return alerts
+
+    def list_and_delete_project_alerts(
+        self,
+        session,
+        project: str,
+    ) -> list[str]:
+        # We need to list ids and names here
+        # ids to reuse later for cleaning up the cache
+        # names to make notification deletion more efficient as notification table has index on name and parent_id
+        alerts = (
+            session.query(AlertConfig.id, AlertConfig.name)
+            .filter(AlertConfig.project == project)
+            .all()
+        )
+
+        # If there are no alerts, return an empty list
+        if not alerts:
+            return []
+
+        # delete related notifications
+        for alert_id, alert_name in alerts:
+            self._delete_alert_notifications(
+                session=session,
+                name=alert_name,
+                alert_id=alert_id,
+                project=project,
+                commit=False,
+            )
+            # delete the alert config
+            self._delete(session, AlertConfig, id=alert_id)
+
+        # Return the list of alert IDs
+        return [alert_id for alert_id, _ in alerts]
 
     def get_alert(
         self,
@@ -6342,25 +6374,16 @@ class SQLDB(DBInterface):
         state = AlertState(count=0, parent_id=alert_id)
         self._upsert(session, [state])
 
-    def delete_alert_notifications(
+    def _delete_alert_notifications(
         self,
         session,
+        name: typing.Optional[str],
+        alert_id: int,
         project: str,
-    ):
-        if resp := self._query(session, AlertConfig, project=project).all():
-            for alert in resp:
-                self._delete_alert_notifications(
-                    session, alert.name, alert, project, commit=False
-                )
-                session.delete(alert)
-
-            session.commit()
-
-    def _delete_alert_notifications(
-        self, session, name: str, alert: AlertConfig, project: str, commit: bool = True
+        commit: bool = True,
     ):
         query = self._get_db_notifications(
-            session, AlertConfig, None, alert.id, project
+            session, AlertConfig, name, alert_id, project
         )
         for notification in query:
             session.delete(notification)

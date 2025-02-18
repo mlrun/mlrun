@@ -177,8 +177,28 @@ class Alerts(
             )
 
         framework.utils.singletons.db.get_db().delete_alert(session, project, name)
-        self._clear_alert_states(alert)
+        self._clear_alert_states(alert.id)
         self._clear_caches(alert.id)
+
+    def delete_alerts(
+        self,
+        session: sqlalchemy.orm.Session,
+        project: str,
+    ):
+        project = project or mlrun.mlconf.default_project
+        services.alerts.crud.Events().delete_project_alert_events(project)
+
+        alert_ids = (
+            framework.utils.singletons.db.get_db().list_and_delete_project_alerts(
+                session, project
+            )
+        )
+        if not alert_ids:
+            return
+
+        for alert_id in alert_ids:
+            self._clear_alert_states(alert_id)
+            self._clear_caches(alert_id)
 
     def process_event(
         self,
@@ -488,7 +508,7 @@ class Alerts(
             session, project, name, last_updated=None, alert_id=alert.id
         )
         self._get_alert_state_cached().cache_remove(session, alert.id)
-        self._clear_alert_states(alert)
+        self._clear_alert_states(alert.id)
 
     def _update_alert_activation_on_reset(
         self,
@@ -586,9 +606,9 @@ class Alerts(
             for cooldown, notification in zip(cooldowns, notifications)
         ]
 
-    def _clear_alert_states(self, alert):
-        if alert.id in self._states:
-            self._states.pop(alert.id)
+    def _clear_alert_states(self, alert_id):
+        if alert_id in self._states:
+            self._states.pop(alert_id)
 
     def _clear_caches(self, alert_id):
         self._alert_cache.cache_remove(None, alert_id)

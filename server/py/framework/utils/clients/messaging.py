@@ -22,6 +22,7 @@ import urllib.parse
 
 import aiohttp
 import fastapi
+import requests
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -40,8 +41,39 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         self._session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
         # Retry session is for internal messaging
         self._retry_session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
+        self._sync_retry_session: typing.Optional[mlrun.utils.HTTPSessionWithRetry] = (
+            None
+        )
         self._discovery = framework.utils.clients.discovery.Client()
 
+    ##### Sync HTTP requests #####
+    def delete(
+        self,
+        path: str,
+        version: str = "v1",
+        headers: dict = None,
+        raise_on_failure: bool = True,
+        **kwargs,
+    ):
+        method = "DELETE"
+        path = path.removeprefix("/")
+        service_instance = self._discovery.resolve_service_by_request(method, path)
+        if not service_instance:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Failed to send request, service for {path=} not found"
+            )
+
+        url = self._resolve_full_request_path(path, service_instance, version)
+        return self.send_sync_request(
+            service_name=service_instance.name,
+            method=method,
+            url=url,
+            headers=headers,
+            raise_on_failure=raise_on_failure,
+            **kwargs,
+        )
+
+    ##### Proxy fastapi requests #####
     async def proxy_request(self, request: fastapi.Request):
         method = request.method
         path = request.url.path
@@ -52,10 +84,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
                 f"Failed to proxy request, service for path {path} not found"
             )
 
-        # The service and version prefixes have been removed from the path earlier in the process.
-        # The service prefix will be replaced with the new service name, and the version will be re-added
-        # (or default to v1 if not present) during the final URL construction for the request.
-        url = f"{service_instance.url}/{service_instance.name}/{version}/{path}"
+        url = self._resolve_full_request_path(path, service_instance, version)
         return await self.proxy_request_to_service(
             service_instance.name, method, url, request
         )
@@ -135,6 +164,46 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             if response:
                 response.release()
 
+    def send_sync_request(
+        self,
+        service_name: str,
+        method: str,
+        url: str,
+        headers: dict,
+        raise_on_failure: bool = True,
+        **kwargs,
+    ) -> requests.Response:
+        self._prepare_request_kwargs(headers=headers, kwargs=kwargs)
+        self._ensure_sync_retry_session()
+        kwargs_to_log = self._resolve_kwargs_to_log(kwargs)
+        logger.debug(
+            "Sending request to service",
+            service_name=service_name,
+            method=method,
+            url=url,
+            **kwargs_to_log,
+        )
+        response = self._sync_retry_session.request(
+            method, url, verify=mlrun.mlconf.httpdb.http.verify, **kwargs
+        )
+        if not response.ok:
+            try:
+                response_body = response.json()
+            except Exception:
+                response_body = {}
+            self._on_request_failure_sync(
+                method, url, response, response_body, raise_on_failure, kwargs
+            )
+        else:
+            logger.debug(
+                "Request to service succeeded",
+                service_name=service_name,
+                method=method,
+                url=url,
+                **kwargs_to_log,
+            )
+        return response
+
     @staticmethod
     async def convert_requests_response_to_fastapi_response(
         service_response: aiohttp.ClientResponse,
@@ -179,9 +248,13 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             # by returning `True`, we tell the client the response is "legit" and so, it returns it to its callee.
             self._session.retry_options.evaluate_response_callback = lambda _: True
 
-    async def _ensure_retry_session(self):
+    def _ensure_retry_session(self):
         if not self._retry_session:
             self._retry_session = mlrun.utils.AsyncClientWithRetry()
+
+    def _ensure_sync_retry_session(self):
+        if not self._sync_retry_session:
+            self._sync_retry_session = mlrun.utils.HTTPSessionWithRetry()
 
     @staticmethod
     async def _on_request_failure(
@@ -213,6 +286,26 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
                 log_kwargs.update(
                     {"error": error, "error_stack_trace": error_stack_trace}
                 )
+        logger.warning("Request to service failed", **log_kwargs)
+        if raise_on_failure:
+            mlrun.errors.raise_for_status(response)
+
+    @staticmethod
+    def _on_request_failure_sync(
+        method: str,
+        url: str,
+        response: requests.Response,
+        response_body: dict,
+        raise_on_failure: bool,
+        kwargs,
+    ):
+        log_kwargs = copy.deepcopy(kwargs)
+
+        # this can be big and spammy
+        log_kwargs.pop("json", None)
+        log_kwargs.update(
+            {"method": method, "url": url, "response_body": response_body}
+        )
         logger.warning("Request to service failed", **log_kwargs)
         if raise_on_failure:
             mlrun.errors.raise_for_status(response)
@@ -297,6 +390,12 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         return request_kwargs
 
     @staticmethod
+    def _prepare_request_kwargs(headers: dict, *, kwargs: dict):
+        # TODO: Add params, request body, etc.
+        headers = headers or {}
+        kwargs.setdefault("headers", {}).update(headers)
+
+    @staticmethod
     def _get_prefix_and_version(path: str):
         match = PREFIX_GROUPING.match(path)
         if not match:
@@ -312,3 +411,10 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         path = path.removeprefix(f"{prefix}/").removeprefix(f"{version}/")
         service_instance = self._discovery.resolve_service_by_request(method, path)
         return path, version, service_instance
+
+    @staticmethod
+    def _resolve_full_request_path(path, service_instance, version):
+        # The service and version prefixes have been removed from the path earlier in the process.
+        # The service prefix will be replaced with the new service name, and the version will be re-added
+        # (or default to v1 if not present) during the final URL construction for the request.
+        return f"{service_instance.url}/{service_instance.name}/{version}/{path}"

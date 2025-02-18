@@ -18,7 +18,9 @@ import unittest.mock
 import aioresponses
 import fastapi
 import pytest
+import requests_mock as requests_mock_package
 
+import mlrun.errors
 from tests.common_fixtures import aioresponses_mock
 
 import framework.utils.clients.discovery
@@ -58,6 +60,48 @@ async def test_messaging_client_forward_request(
     )
     response = await messaging_client.proxy_request(fastapi_request)
     assert response.status_code == http.HTTPStatus.OK
+
+
+def test_sync_delete_request(
+    requests_mock: requests_mock_package.Mocker,
+):
+    base_url = "http://test"
+    messaging_client = framework.utils.clients.messaging.Client()
+    messaging_client._discovery.resolve_service_by_request = unittest.mock.Mock(
+        return_value=framework.utils.clients.discovery.ServiceInstance(
+            name="success-service", url=base_url
+        )
+    )
+
+    api_url = "http://test/success-service/v1"
+    requests_mock.delete(f"{api_url}/resource", status_code=http.HTTPStatus.NO_CONTENT)
+    response = messaging_client.delete(
+        path="/resource", headers={"authorization": "Bearer test"}
+    )
+    assert response.status_code == http.HTTPStatus.NO_CONTENT
+
+    response = messaging_client.delete(
+        path="resource", headers={"authorization": "Bearer test"}
+    )
+    assert response.status_code == http.HTTPStatus.NO_CONTENT
+
+    error_message = "Resource not found"
+    requests_mock.delete(
+        f"{api_url}/not-a-resource",
+        status_code=http.HTTPStatus.NOT_FOUND.value,
+        json={
+            "errors": [
+                {"status": http.HTTPStatus.NOT_FOUND.value, "detail": error_message}
+            ]
+        },
+    )
+
+    response = messaging_client.delete(path="not-a-resource", raise_on_failure=False)
+    assert response.status_code == http.HTTPStatus.NOT_FOUND
+    assert response.json()["errors"][0]["detail"] == error_message
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        messaging_client.delete(path="not-a-resource")
 
 
 async def test_messaging_client_forward_request_with_body(

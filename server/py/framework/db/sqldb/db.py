@@ -5995,37 +5995,75 @@ class SQLDB(DBInterface):
         return alerts
 
     def list_and_delete_project_alerts(
-        self,
-        session,
-        project: str,
+        self, session, project: str, chunk_size: int = 100
     ) -> list[str]:
-        # We need to list ids and names here
-        # ids to reuse later for cleaning up the cache
-        # names to make notification deletion more efficient as notification table has index on name and parent_id
-        alerts = (
-            session.query(AlertConfig.id, AlertConfig.name)
-            .filter(AlertConfig.project == project)
-            .all()
-        )
+        """
+        List all alert IDs associated with the specified project and delete them,
+        along with their related notifications, while ensuring foreign key constraints are respected.
 
-        # If there are no alerts, return an empty list
-        if not alerts:
-            return []
+        Steps:
+        1. Retrieve all alerts (IDs and names) for the given project.
+        2. Delete related notifications first (since they have foreign key constraints).
+        3. Delete the alerts from the database using ORM-based deletion to ensure cascading works.
+        4. Commit everything at once to improve performance and maintain transactional integrity.
 
-        # delete related notifications
-        for alert_id, alert_name in alerts:
-            self._delete_alert_notifications(
-                session=session,
-                name=alert_name,
-                alert_id=alert_id,
-                project=project,
-                commit=False,
+        :param session: SQLAlchemy session for database connection.
+        :param project: Project identifier for which alerts need to be listed and deleted.
+        :param chunk_size: Number of records to delete in each batch (default is 100).
+
+        :return: List of deleted alert IDs.
+        """
+
+        alert_ids = []
+        offset = 0
+
+        while True:
+            # Step 1: Retrieve alerts (IDs and names) for the given project in chunks
+            alerts = (
+                session.query(AlertConfig.id, AlertConfig.name)
+                .filter(AlertConfig.project == project)
+                .limit(chunk_size)
+                .offset(offset)
+                .all()
             )
-            # delete the alert config
-            self._delete(session, AlertConfig, id=alert_id)
 
-        # Return the list of alert IDs
-        return [alert_id for alert_id, _ in alerts]
+            if not alerts:
+                break  # Exit the loop if there are no more alerts to delete
+
+            # Step 2: Delete related notifications before deleting alerts
+            # Notifications reference alerts via foreign keys (parent_id and name).
+            # Deleting them first prevents integrity errors.
+            for alert_id, alert_name in alerts:
+                self._delete_alert_notifications(
+                    session=session,
+                    name=alert_name,  # Index on name improves deletion efficiency
+                    alert_id=alert_id,
+                    project=project,
+                    commit=False,  # Defer commit for batch efficiency
+                )
+
+            # Step 3: Extract alert IDs for deletion and delete alerts in this chunk
+            alert_ids_chunk = [alert_id for alert_id, _ in alerts]
+            alert_ids.extend(alert_ids_chunk)  # Collect all alert IDs to be deleted
+
+            # Step 4: Perform ORM-based deletion for alerts in the current chunk
+            alerts_to_delete = (
+                session.query(AlertConfig)
+                .filter(AlertConfig.id.in_(alert_ids_chunk))
+                .all()
+            )
+            for alert in alerts_to_delete:
+                # Deleting via ORM ensures cascading works
+                session.delete(alert)
+
+            # Step 5: Commit all changes in one transaction for the current chunk
+            session.commit()
+
+            # Increment the offset to process the next chunk
+            offset += chunk_size
+
+        # Return the list of deleted alert IDs
+        return alert_ids
 
     def get_alert(
         self,

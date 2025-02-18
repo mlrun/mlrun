@@ -811,11 +811,14 @@ default_config = {
         "mode": "enabled",
         # maximum number of alerts we allow to be configured.
         # user will get an error when exceeding this
-        "max_allowed": 10000,
+        "max_allowed": 20000,
         # maximum allowed value for count in criteria field inside AlertConfig
         "max_criteria_count": 100,
         # interval for periodic events generation job
         "events_generation_interval": 30,  # seconds
+        # maximum allowed alert config cache size in alert's CRUD
+        # for the best performance, it is recommended to set this value to the maximum number of alerts
+        "max_allowed_cache_size": 20000,
     },
     "auth_with_client_id": {
         "enabled": False,

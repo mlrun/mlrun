@@ -5656,7 +5656,9 @@ class SQLDB(DBInterface):
             model_endpoint_record.function_tag
         )
         model_endpoint_full_dict = self._fill_model_endpoint_with_function_data(
-            model_endpoint_record, model_endpoint_full_dict
+            model_endpoint_record,
+            model_endpoint_full_dict,
+            latest=bool(model_endpoint_record.tags),
         )
         model_endpoint_full_dict = self._fill_model_endpoint_with_model_data(
             model_endpoint_record, model_endpoint_full_dict
@@ -5675,9 +5677,11 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _fill_model_endpoint_with_function_data(
-        model_endpoint_record: ModelEndpoint, model_endpoint_full_dict: dict
+        model_endpoint_record: ModelEndpoint,
+        model_endpoint_full_dict: dict,
+        latest: bool,
     ) -> dict:
-        if model_endpoint_record.function:
+        if model_endpoint_record.function and latest:
             function_full_dict = model_endpoint_record.function.struct
             model_endpoint_full_dict[ModelEndpointSchema.STATE] = (
                 function_full_dict.get("status", {}).get(ModelEndpointSchema.STATE)
@@ -5686,9 +5690,12 @@ class SQLDB(DBInterface):
                 generate_object_uri(
                     project=model_endpoint_record.project,
                     name=model_endpoint_record.function_name,
-                    hash_key=function_full_dict.get("metadata", {}).get("hash"),
+                    hash_key=model_endpoint_record.function.uid,
                 )
             )
+        else:
+            model_endpoint_full_dict[ModelEndpointSchema.STATE] = "unknown"
+            model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG.FUNCTION_URI] = None
         return model_endpoint_full_dict
 
     @staticmethod

@@ -317,6 +317,7 @@ class MonitoringDeployment:
         :return: `ServingRuntime` object with stream trigger.
         """
         profile = self._stream_profile
+        # Note: explicit_ack_mode = "explicitOnly" while working with 'async' engine
         if isinstance(
             profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
         ):
@@ -419,15 +420,11 @@ class MonitoringDeployment:
             != mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
             else mlrun.mlconf.get_v3io_access_key()
         )
-        kwargs = {"access_key": access_key}
-        if (
-            mlrun.mlconf.is_explicit_ack_enabled()
-            and function_name
-            != mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
-        ):
-            kwargs["explicit_ack_mode"] = "explicitOnly"
-        kwargs["worker_allocation_mode"] = "static"
-        kwargs["max_workers"] = stream_args.v3io.num_workers
+        kwargs = {
+            "access_key": access_key,
+            "worker_allocation_mode": "static",
+            "max_workers": stream_args.v3io.num_workers,
+        }
         services.api.api.endpoints.nuclio.create_model_monitoring_stream(
             project=self.project,
             stream_path=stream_path,

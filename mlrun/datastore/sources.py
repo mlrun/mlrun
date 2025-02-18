@@ -1030,7 +1030,7 @@ class StreamSource(OnlineSource):
         res.raise_for_status([409, 204])
 
         kwargs = {}
-        engine = "async"
+        engine = "sync"
         if hasattr(function.spec, "graph") and function.spec.graph.engine:
             engine = function.spec.graph.engine
 
@@ -1119,12 +1119,14 @@ class KafkaSource(OnlineSource):
             extra_attributes = copy(self.attributes)
         partitions = extra_attributes.pop("partitions", None)
         explicit_ack_mode = None
-        engine = "async"
+        engine = "sync"
         if hasattr(function.spec, "graph") and function.spec.graph.engine:
             engine = function.spec.graph.engine
 
         if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
-            explicit_ack_mode = "explicitOnly"
+            explicit_ack_mode = extra_attributes.get(
+                "explicit_ack_mode", "explicitOnly"
+            )
             extra_attributes["workerAllocationMode"] = extra_attributes.get(
                 "worker_allocation_mode", "static"
             )

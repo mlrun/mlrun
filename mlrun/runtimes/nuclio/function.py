@@ -527,6 +527,12 @@ class RemoteRuntime(KubeResource):
         access_key = kwargs.pop("access_key", None)
         if not access_key:
             access_key = self._resolve_v3io_access_key()
+        engine = "sync"
+        explicit_ack_mode = kwargs.pop("explicit_ack_mode", None)
+        if hasattr(self.spec, "graph") and self.spec.graph.engine:
+            engine = self.spec.graph.engine
+        if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
+            explicit_ack_mode = explicit_ack_mode or "explicitOnly"
 
         self.add_trigger(
             name,
@@ -540,6 +546,7 @@ class RemoteRuntime(KubeResource):
                 extra_attributes=extra_attributes,
                 read_batch_size=256,
                 access_key=access_key,
+                explicit_ack_mode=explicit_ack_mode,
                 **kwargs,
             ),
         )

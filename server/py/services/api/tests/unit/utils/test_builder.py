@@ -268,11 +268,11 @@ def test_build_runtime_use_default_node_selector_and_sets_gpu_limits_to_zero(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
-    pod_spec_mock = _create_pod_mock_pod_spec()
-    assert pod_spec_mock.containers[0].resources["limits"][gpu_type] == 0
+    kfp_pod_spec_mock = _create_pod_mock_pod_spec()
+    assert kfp_pod_spec_mock.containers[0].resources["limits"][gpu_type] == 0
     assert (
         deepdiff.DeepDiff(
-            pod_spec_mock.node_selector,
+            kfp_pod_spec_mock.node_selector,
             {**node_selector, func_node_selector: func_val},
             ignore_order=True,
         )

@@ -14,13 +14,13 @@
 #
 import asyncio
 from http import HTTPStatus
-from typing import Union
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.common.schemas.model_monitoring.grafana
+import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.grafana as grafana_schemas
 
 import services.api.crud.model_monitoring.grafana
 import services.api.crud.model_monitoring.helpers
@@ -30,12 +30,11 @@ router = APIRouter(prefix="/grafana-proxy/model-endpoints")
 
 NAME_TO_SEARCH_FUNCTION_DICTIONARY = {
     "list_projects": services.api.crud.model_monitoring.grafana.grafana_list_projects,
+    "list_endpoints": services.api.crud.model_monitoring.grafana.grafana_list_endpoints_uids,
+    "list_metrics": services.api.crud.model_monitoring.grafana.grafana_list_metrics,
 }
 NAME_TO_QUERY_FUNCTION_DICTIONARY = {
     "list_endpoints": services.api.crud.model_monitoring.grafana.grafana_list_endpoints,
-    "individual_feature_analysis": services.api.crud.model_monitoring.grafana.grafana_individual_feature_analysis,
-    "overall_feature_analysis": services.api.crud.model_monitoring.grafana.grafana_overall_feature_analysis,
-    "incoming_features": services.api.crud.model_monitoring.grafana.grafana_incoming_features,
 }
 
 SUPPORTED_QUERY_FUNCTIONS = set(NAME_TO_QUERY_FUNCTION_DICTIONARY.keys())
@@ -74,9 +73,11 @@ async def grafana_proxy_model_endpoints_search(
 
     :return: List of results. e.g. list of available project names.
     """
+
     if not mlrun.mlconf.is_ce_mode():
         services.api.crud.model_monitoring.helpers.get_access_key(auth_info)
     body = await request.json()
+
     query_parameters = (
         services.api.crud.model_monitoring.grafana.parse_search_parameters(body)
     )
@@ -90,38 +91,31 @@ async def grafana_proxy_model_endpoints_search(
     function = NAME_TO_SEARCH_FUNCTION_DICTIONARY[target_endpoint]
 
     if asyncio.iscoroutinefunction(function):
-        result = await function(db_session, auth_info, query_parameters)
-    else:
-        result = await run_in_threadpool(
-            function, db_session, auth_info, query_parameters
-        )
-    return result
+        return await function(query_parameters, auth_info, db_session)
+    return await run_in_threadpool(function, query_parameters, auth_info, db_session)
 
 
 @router.post(
     "/query",
-    response_model=list[
-        Union[
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaTable,
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaTimeSeriesTarget,
-        ]
-    ],
+    response_model=list[grafana_schemas.GrafanaTable,],
 )
 async def grafana_proxy_model_endpoints_query(
     request: Request,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-) -> list[
-    Union[
-        mlrun.common.schemas.model_monitoring.grafana.GrafanaTable,
-        mlrun.common.schemas.model_monitoring.grafana.GrafanaTimeSeriesTarget,
-    ]
-]:
+    db_session: Session = Depends(deps.get_db_session),
+) -> list[grafana_schemas.GrafanaTable,]:
     """
     Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.
 
     This implementation requires passing target_endpoint query parameter in order to dispatch different
     model-endpoint monitoring functions.
+
+    :param request:    An api request with the required target and parameters.
+    :param auth_info:  The auth info of the request.
+    :param db_session: A session that manages the current dialog with the database.
+
+    :return: List of `GrafanaTable` objects.
     """
 
     body = await request.json()
@@ -141,7 +135,7 @@ async def grafana_proxy_model_endpoints_query(
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
     function = NAME_TO_QUERY_FUNCTION_DICTIONARY[target_endpoint]
+
     if asyncio.iscoroutinefunction(function):
-        return await function(body, query_parameters, auth_info)
-    result = await run_in_threadpool(function, body, query_parameters, auth_info)
-    return result
+        return await function(query_parameters, auth_info, db_session)
+    return await run_in_threadpool(function, query_parameters, auth_info, db_session)

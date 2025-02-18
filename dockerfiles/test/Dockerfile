@@ -47,7 +47,7 @@ RUN git config --global user.email "test@mlrun.org" \
      && git config --global user.name "MLRun Test" \
      && git config --global init.defaultBranch "main"
 
-ARG MLRUN_PIP_VERSION=24.2
+ARG MLRUN_PIP_VERSION=25.0
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /mlrun
@@ -63,6 +63,8 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     uv pip sync --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
 
 COPY . .
+
+RUN rm -rf ./server/go
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \

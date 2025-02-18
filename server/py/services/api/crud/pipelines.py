@@ -284,7 +284,7 @@ class Pipelines(
         # Check if the pipeline is in a completed state
         if (
             run.status
-            not in mlrun_pipelines.common.models.RunStatuses.stable_statuses()
+            not in mlrun_pipelines.common.models.RunStatuses.retryable_statuses()
         ):
             raise mlrun.errors.MLRunBadRequestError(
                 f"Pipeline run {run_id} is not in a completed state. Current status: {run.status}"

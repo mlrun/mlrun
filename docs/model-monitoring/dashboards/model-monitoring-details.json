@@ -3,10 +3,7 @@
     "list": [
       {
         "builtIn": 1,
-        "datasource": {
-          "type": "datasource",
-          "uid": "grafana"
-        },
+        "datasource": "-- Grafana --",
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
@@ -24,7 +21,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 13,
+  "id": 27,
   "links": [
     {
       "icon": "external link",
@@ -59,8 +56,8 @@
   "liveNow": false,
   "panels": [
     {
-      "datasource": "iguazio",
-      "description": "",
+      "datasource": "model-monitoring",
+      "description": "A summary table of the selected model endpoint, with the following fields:\n\n- **Name**: The model endpoint name.\n- **Endpoint ID**: The unique identifier for the model endpoint.\n- **Function**: The name of the function.\n- **Model Class**: The model object class (e.g., `SKLearnModelServer`).\n- **Error Count**: The total number of errors.\n- **Sampling Percentage**: The sampling rate percentage. By default (100), all events are sampled.\n- **Drift Status**: The drift status indicator, currently based on the `general_drift` result from the histogram default application.\n\nNote that this table reflects the current system status and is not influenced by the selected time range.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -76,10 +73,6 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
               }
             ]
           }
@@ -88,108 +81,53 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "First Request"
+              "options": "Drift Status (Last 24H)"
             },
             "properties": [
               {
-                "id": "unit",
-                "value": "dateTimeFromNow"
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "color": "green",
+                        "index": 0,
+                        "text": "Stable"
+                      },
+                      "1": {
+                        "color": "orange",
+                        "index": 2,
+                        "text": "Potential Drift"
+                      },
+                      "2": {
+                        "color": "red",
+                        "index": 3,
+                        "text": "Detected"
+                      },
+                      "-1": {
+                        "index": 1,
+                        "text": "N/A"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
               },
               {
-                "id": "custom.align",
-                "value": "center"
+                "id": "custom.displayMode",
+                "value": "color-background"
               }
             ]
           },
           {
             "matcher": {
-              "id": "byName",
-              "options": "Last Request"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "dateTimeFromNow"
-              },
-              {
-                "id": "custom.align",
-                "value": "center"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Endpoint ID"
+              "id": "byRegexp",
+              "options": "/./"
             },
             "properties": [
               {
                 "id": "custom.align",
                 "value": "center"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Model"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "center"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Function URI"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "center"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Model Class"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "center"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Predictions/s (5 minute avg)"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "center"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Average Latency (1 hour)"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "center"
-              },
-              {
-                "id": "unit",
-                "value": "µs"
               }
             ]
           }
@@ -218,57 +156,43 @@
           }
         ]
       },
-      "pluginVersion": "9.2.15",
+      "pluginVersion": "9.2.20",
       "targets": [
         {
-          "datasource": "iguazio",
+          "datasource": "model-monitoring",
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=uid==\"$MODELENDPOINT\";\nfields=uid,model,function_uri,model_class,first_request,metrics,last_request;",
+          "target": "target_endpoint=list_endpoints;project=$PROJECT;uids=$MODELENDPOINT",
           "type": "table"
         }
       ],
       "transformations": [
         {
-          "id": "extractFields",
-          "options": {
-            "source": "metrics"
-          }
-        },
-        {
-          "id": "extractFields",
-          "options": {
-            "source": "generic"
-          }
-        },
-        {
           "id": "organize",
           "options": {
             "excludeByName": {
-              "generic": true,
-              "latency_avg_5m": true,
-              "metrics": true,
-              "predictions_count_1h": true,
-              "predictions_count_5m": true
+              "endpoint_model": true
             },
-            "indexByName": {},
+            "indexByName": {
+              "drift_status": 7,
+              "endpoint_function": 2,
+              "endpoint_id": 1,
+              "endpoint_model": 3,
+              "endpoint_model_class": 4,
+              "endpoint_name": 0,
+              "error_count": 5,
+              "sampling_percentage": 6
+            },
             "renameByName": {
+              "drift_status": "Drift Status (Last 24H)",
+              "endpoint_function": "Function",
               "endpoint_id": "Endpoint ID",
-              "first_request": "First Request",
-              "function": "Function",
-              "function_uri": "Function URI",
-              "last_request": "Last Request",
-              "latency_avg_1h": "Average Latency (1 hour)",
-              "latency_avg_1s": "Average Latency",
-              "latency_avg_5m": "",
-              "metrics": "",
-              "model": "Model",
-              "model_class": "Model Class",
-              "predictions_per_second": "Predictions/s (5 minute avg)",
-              "predictions_per_second_count_1s": "Predictions/sec",
-              "tag": "Tag",
-              "uid": "Endpoint ID"
+              "endpoint_model": "Model",
+              "endpoint_model_class": "Model Class",
+              "endpoint_name": "Name",
+              "error_count": "Errors",
+              "sampling_percentage": "Sampling Percentage"
             }
           }
         }
@@ -278,16 +202,53 @@
     },
     {
       "datasource": "iguazio",
-      "description": "",
+      "description": "Drift value over time, based on the general_drift result from the histogram data drift application. The drift value is calculated as the average of Total Variance Distance and Hellinger Distance. The default thresholds are 0.5 for potential drift and 0.7 for detected drift.\nFor more information about the default drift analysis please visit:",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "seriesBy": "last"
+          },
           "custom": {
-            "align": "auto",
-            "displayMode": "auto",
-            "filterable": false,
-            "inspect": false
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "points",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "dash": [
+                0,
+                10
+              ],
+              "fill": "dot"
+            },
+            "lineWidth": 1,
+            "pointSize": 12,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "dashed+area"
+            }
           },
           "mappings": [],
+          "max": 1,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -296,189 +257,283 @@
                 "value": null
               },
               {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
                 "color": "red",
-                "value": 80
+                "value": 0.7
               }
             ]
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "tvd_sum"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "TVD (sum)"
-              },
-              {
-                "id": "custom.align",
-                "value": "center"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "tvd_mean"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "TVD (mean)"
-              },
-              {
-                "id": "custom.align",
-                "value": "center"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "hellinger_sum"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Hellinger (sum)"
-              },
-              {
-                "id": "custom.align",
-                "value": "center"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "hellinger_mean"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Hellinger (mean)"
-              },
-              {
-                "id": "custom.align",
-                "value": "center"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "kld_sum"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "KLD (sum)"
-              },
-              {
-                "id": "custom.align",
-                "value": "center"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "kld_mean"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "KLD (mean)"
-              },
-              {
-                "id": "custom.align",
-                "value": "center"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "drift_measures"
-            },
-            "properties": [
-              {
-                "id": "custom.hidden",
-                "value": false
-              },
-              {
-                "id": "mappings",
-                "value": []
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
-        "h": 3,
-        "w": 24,
+        "h": 11,
+        "w": 13,
         "x": 0,
         "y": 3
       },
-      "id": 25,
+      "id": 28,
+      "links": [
+        {
+          "targetBlank": true,
+          "title": "MLRun Docs - Model Monitoring",
+          "url": "https://docs.mlrun.org/en/stable/model-monitoring/index.html#:~:text=Total%20Variation%20Distance,reference%20probability%20distribution"
+        }
+      ],
       "options": {
-        "footer": {
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
         },
-        "showHeader": true,
-        "sortBy": [
-          {
-            "desc": false,
-            "displayName": "name"
-          }
-        ]
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
-      "pluginVersion": "9.2.15",
+      "pluginVersion": "9.2.20",
+      "targets": [
+        {
+          "datasource": "iguazio",
+          "rawQuery": true,
+          "refId": "A",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/monitoring-apps/app-results/;\nfilter=endpoint_id=='$MODELENDPOINT' AND application_name=='histogram-data-drift';",
+          "type": "timeserie"
+        }
+      ],
+      "title": "Drift Analysis",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "extractFields",
+          "options": {
+            "format": "kvp",
+            "replace": false,
+            "source": "Metric"
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "regex",
+                  "options": {
+                    "value": ".*result_value\\[(.*)\\]"
+                  }
+                },
+                "fieldName": "Metric"
+              }
+            ],
+            "match": "any",
+            "type": "include"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Metric": true,
+              "endpoint_id": true,
+              "endpoint_name[application_name": true,
+              "result_extra_data[application_name": true,
+              "result_kind[application_name": true,
+              "result_name": true,
+              "result_status[application_name": true,
+              "result_value[application_name": true,
+              "start_infer_time[application_name": true
+            },
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
+      "transparent": true,
+      "type": "timeseries"
+    },
+    {
+      "datasource": "iguazio",
+      "description": "This chart shows the metrics of the default histogram application over time. For more details on these metrics, please visit:",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#ccccdc",
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "points",
+            "fillOpacity": 20,
+            "gradientMode": "scheme",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 3,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 10,
+        "x": 13,
+        "y": 3
+      },
+      "id": 26,
+      "links": [
+        {
+          "targetBlank": true,
+          "title": "MLRun Docs - Model Monitoring",
+          "url": "https://docs.mlrun.org/en/stable/model-monitoring/index.html#:~:text=Total%20Variation%20Distance,reference%20probability%20distribution."
+        }
+      ],
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "9.2.20",
       "targets": [
         {
           "datasource": "iguazio",
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=uid==\"$MODELENDPOINT\";\nfields=drift_measures;",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/monitoring-apps/metrics/;\nfilter=endpoint_id=='$MODELENDPOINT' AND metric_name=='hellinger_mean';",
+          "type": "table"
+        },
+        {
+          "datasource": "iguazio",
+          "hide": false,
+          "refId": "B",
+          "target": "backend=tsdb; container=users; table=pipelines/$PROJECT/monitoring-apps/metrics/; filter=endpoint_id=='$MODELENDPOINT' AND metric_name=='tvd_mean';",
+          "type": "table"
+        },
+        {
+          "datasource": "iguazio",
+          "hide": false,
+          "refId": "C",
+          "target": "backend=tsdb; container=users; table=pipelines/$PROJECT/monitoring-apps/metrics/; filter=endpoint_id=='$MODELENDPOINT' AND metric_name=='kld_mean';",
           "type": "table"
         }
       ],
-      "title": "Overall Drift Analysis",
+      "title": "Overall Drift Analysis by Time",
       "transformations": [
         {
-          "id": "extractFields",
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
           "options": {
-            "format": "json",
-            "replace": false,
-            "source": "drift_measures"
+            "excludeByName": {
+              "application_name": true,
+              "endpoint_id": true,
+              "endpoint_name": true,
+              "metric_value": false,
+              "result_extra_data": true,
+              "result_kind": true,
+              "result_status": true,
+              "start_infer_time": true,
+              "time": false
+            },
+            "indexByName": {},
+            "renameByName": {
+              "endpoint_name": "",
+              "metric_name": "",
+              "metric_value": "",
+              "result_kind": "",
+              "result_name": "Metric",
+              "result_status": "",
+              "result_value": "Value",
+              "start_infer_time": ""
+            }
           }
         },
         {
-          "id": "filterFieldsByName",
+          "id": "groupingToMatrix",
           "options": {
-            "include": {
-              "names": [
-                "tvd_sum",
-                "tvd_mean",
-                "hellinger_sum",
-                "hellinger_mean",
-                "kld_sum",
-                "kld_mean"
-              ]
+            "columnField": "metric_name",
+            "rowField": "time",
+            "valueField": "metric_value"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "hellinger_mean": "Hellinger Mean",
+              "kld_mean": "KLD Mean",
+              "time\\metric_name": "Time",
+              "tvd_mean": "TVD Mean"
             }
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "time",
+                "targetField": "Time"
+              }
+            ],
+            "fields": {}
           }
         }
       ],
       "transparent": true,
-      "type": "table"
+      "type": "timeseries"
     },
     {
       "aliasColors": {},
@@ -486,13 +541,14 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "iguazio",
+      "description": "Data sampling of the model's input and output over time.",
       "fill": 1,
       "fillGradient": 1,
       "gridPos": {
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 13
+        "y": 14
       },
       "hiddenSeries": false,
       "id": 16,
@@ -515,7 +571,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "9.2.15",
+      "pluginVersion": "9.2.20",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -593,34 +649,31 @@
       },
       {
         "current": {},
-        "datasource": "iguazio",
-        "definition": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=uid;",
+        "datasource": "model-monitoring",
+        "definition": "target_endpoint=list_endpoints;project=$PROJECT",
         "hide": 0,
         "includeAll": false,
         "label": "Model Endpoint",
         "multi": false,
         "name": "MODELENDPOINT",
         "options": [],
-        "query": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=uid;",
+        "query": "target_endpoint=list_endpoints;project=$PROJECT",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
-        "tagValuesQuery": "",
-        "tagsQuery": "",
-        "type": "query",
-        "useTags": false
+        "type": "query"
       }
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-3h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Model Monitoring - Details",
   "uid": "AohIXhAMk",
-  "version": 9,
+  "version": 14,
   "weekStart": ""
 }

@@ -715,6 +715,40 @@ class RunDBMock:
     def assert_called_get_model_endpoint_once(self):
         assert self._get_model_endpoint_calls == 1
 
+    def list_model_endpoints(
+        self,
+        project: str = "default",
+        names: Optional[Union[str, list[str]]] = None,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        model_name: Optional[str] = None,
+        model_tag: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        tsdb_metrics: bool = True,
+        top_level: bool = False,
+        uids: Optional[list[str]] = None,
+        latest_only: bool = False,
+    ) -> mlrun.common.schemas.ModelEndpointList:
+        if isinstance(names, str):
+            names = [names]
+        endpoints = []
+        for name in names:
+            endpoints.append(
+                mlrun.common.schemas.model_monitoring.ModelEndpoint(
+                    metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                        name=name, project=project, uid=f"{name}-uid"
+                    ),
+                    spec=mlrun.common.schemas.ModelEndpointSpec(),
+                    status=mlrun.common.schemas.ModelEndpointStatus(),
+                )
+            )
+
+        return mlrun.common.schemas.model_monitoring.ModelEndpointList(
+            endpoints=endpoints
+        )
+
 
 @pytest.fixture()
 def rundb_mock() -> RunDBMock:

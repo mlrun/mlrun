@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import traceback
-from distutils.util import strtobool
 from http import HTTPStatus
 from typing import Optional
 
@@ -335,7 +334,7 @@ async def build_function(
     if isinstance(data.get("with_mlrun"), bool):
         with_mlrun = data.get("with_mlrun")
     else:
-        with_mlrun = strtobool(data.get("with_mlrun", "on"))
+        with_mlrun = mlrun.utils.str_to_bool(data.get("with_mlrun", "on"))
     skip_deployed = data.get("skip_deployed", False)
     force_build = data.get("force_build", False)
     mlrun_version_specifier = data.get("mlrun_version_specifier")

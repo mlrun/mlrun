@@ -250,11 +250,6 @@ class TSDBTarget(MonitoringStrEnum):
     TDEngine = "tdengine"
 
 
-class DefaultProfileName(StrEnum):
-    STREAM = "mm-infra-stream"
-    TSDB = "mm-infra-tsdb"
-
-
 class ProjectSecretKeys:
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
     TSDB_PROFILE_NAME = "TSDB_PROFILE_NAME"
@@ -473,8 +468,8 @@ FQN_REGEX = re.compile(FQN_PATTERN)
 
 # refer to `mlrun.utils.regex.project_name`
 PROJECT_PATTERN = r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
-
 MODEL_ENDPOINT_ID_PATTERN = r"^[a-zA-Z0-9_-]+$"
+RESULT_NAME_PATTERN = r"[a-zA-Z_][a-zA-Z0-9_]*"
 
 INTERSECT_DICT_KEYS = {
     ModelEndpointMonitoringMetricType.METRIC: "intersect_metrics",

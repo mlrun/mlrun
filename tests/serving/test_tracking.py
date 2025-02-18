@@ -28,6 +28,7 @@ from mlrun.datastore.datastore_profile import (
     register_temporary_client_datastore_profile,
     remove_temporary_client_datastore_profile,
 )
+from mlrun.model_monitoring.applications import ModelMonitoringApplicationBase
 from mlrun.platforms.iguazio import KafkaOutputStream
 from mlrun.runtimes import ServingRuntime
 from tests.serving.test_serving import _log_model
@@ -187,3 +188,20 @@ def test_tracking_datastore_profile(project: mlrun.MlrunProject) -> None:
     assert event["effective_sample_count"] == 2
     assert np.array_equal(event["request"]["inputs"], np.array([[0, -0.1], [0.4, 0]]))
     assert np.array_equal(event["resp"]["outputs"], np.array([0.0, 0.4 * 7]))
+
+
+def test_handle_endpoints_type_evaluate(rundb_mock):
+    project = "test-endpoints-handler"
+    _handle_endpoints_type_evaluate = (
+        ModelMonitoringApplicationBase._handle_endpoints_type_evaluate
+    )
+    parsed_endpoints = []
+    for endpoints in ["model-ep-1", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]:
+        parsed_endpoints.append(_handle_endpoints_type_evaluate(project, endpoints))
+
+    assert all(
+        list(
+            endpoint == [("model-ep-1", "model-ep-1-uid")]
+            for endpoint in parsed_endpoints
+        )
+    )

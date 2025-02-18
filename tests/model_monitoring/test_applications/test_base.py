@@ -17,7 +17,7 @@ from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 from unittest.mock import Mock, patch
 
 import pytest
@@ -230,3 +230,17 @@ class TestToJob:
         assert isinstance(job, mlrun.runtimes.KubejobRuntime)
         run = job.run(local=True)
         assert run.state() == "completed"
+
+
+@pytest.mark.parametrize(
+    "endpoints", ["model-ep-1", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]
+)
+def test_handle_endpoints_type_evaluate(
+    rundb_mock, endpoints: Union[str, list[str], list[tuple]]
+) -> None:
+    project = "test-endpoints-handler"
+    endpoints_output = ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
+        project, endpoints
+    )
+
+    assert endpoints_output == [("model-ep-1", "model-ep-1-uid")]

@@ -609,5 +609,8 @@ class Alerts(
             self._states.pop(alert_id)
 
     def _clear_caches(self, alert_id):
-        self._alert_cache.cache_remove(None, alert_id)
-        self._alert_state_cache.cache_remove(None, alert_id)
+        if self._alert_cache:
+            self._alert_cache.cache_remove(None, alert_id)
+
+        if self._alert_state_cache:
+            self._alert_state_cache.cache_remove(None, alert_id)

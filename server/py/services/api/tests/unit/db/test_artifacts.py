@@ -2465,6 +2465,65 @@ class TestArtifacts(TestDatabaseBase):
         assert artifacts[0]["metadata"]["uid"] == artifact_2["metadata"]["uid"]
         assert artifacts[0]["metadata"]["tag"] == "latest"
 
+    @pytest.mark.parametrize(
+        "kwargs, expected",
+        [
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": True,
+                    "tag": "latest",
+                },
+                True,
+                id="default_query",
+            ),
+            pytest.param(
+                {
+                    "best_iteration": True,
+                    "tag": "latest",
+                },
+                False,
+                id="no_pagination",
+            ),
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": False,
+                    "tag": "latest",
+                },
+                False,
+                id="best_iteration_false",
+            ),
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": True,
+                    "tag": "any_tag",
+                },
+                False,
+                id="tag_not_latest",
+            ),
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": True,
+                    "tag": "latest",
+                    "name": "any_name",
+                },
+                False,
+                id="additional_params",
+            ),
+        ],
+    )
+    def test_is_default_list_artifacts_query(self, kwargs: dict, expected: bool):
+        ignored_params = {
+            "project": "any_project",
+            "category": "any_category",
+            "offset": 5,  # any offset
+        }
+        kwargs.update(ignored_params)
+        assert self._db._is_default_list_artifacts_query(**kwargs) == expected
+
     def _generate_artifact_with_iterations(
         self, key, tree, num_iters, best_iter, kind, project=""
     ):

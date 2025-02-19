@@ -250,9 +250,10 @@ class MonitoringApplicationController:
 
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
         self.v3io_access_key = mlrun.mlconf.get_v3io_access_key()
-        self.storage_options = None
-        if mlrun.mlconf.artifact_path.startswith("s3://"):
-            self.storage_options = mlrun.mlconf.get_s3_storage_options()
+        store, _, _ = mlrun.store_manager.get_or_create_store(
+            mlrun.mlconf.artifact_path
+        )
+        self.storage_options = store.get_storage_options()
 
     @staticmethod
     def _get_model_monitoring_access_key() -> Optional[str]:

@@ -30,7 +30,6 @@ import typing
 import warnings
 from collections.abc import Mapping
 from datetime import timedelta
-from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
 
@@ -105,7 +104,7 @@ default_config = {
     # custom logger format, workes only with log_formatter: custom
     # Note that your custom format must include those 4 fields - timestamp, level, message and more
     "log_format_override": None,
-    "submit_timeout": "180",  # timeout when submitting a new k8s resource
+    "submit_timeout": "280",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
     "monitoring": {
@@ -267,6 +266,7 @@ default_config = {
             # When the module is reloaded, the maximum depth recursion configuration for the recursive reload
             # function is used to prevent infinite loop
             "reload_max_recursion_depth": 100,
+            "source_code_max_bytes": 10000,
         },
         "databricks": {
             "artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"
@@ -811,11 +811,14 @@ default_config = {
         "mode": "enabled",
         # maximum number of alerts we allow to be configured.
         # user will get an error when exceeding this
-        "max_allowed": 10000,
+        "max_allowed": 20000,
         # maximum allowed value for count in criteria field inside AlertConfig
         "max_criteria_count": 100,
         # interval for periodic events generation job
         "events_generation_interval": 30,  # seconds
+        # maximum allowed alert config cache size in alert's CRUD
+        # for the best performance, it is recommended to set this value to the maximum number of alerts
+        "max_allowed_cache_size": 20000,
     },
     "auth_with_client_id": {
         "enabled": False,
@@ -1366,48 +1369,12 @@ class Config:
             ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
         )
 
-    def get_s3_storage_options(self) -> dict[str, typing.Any]:
-        """
-        Generate storage options dictionary as required for handling S3 path in fsspec. The model monitoring stream
-        graph uses this method for generating the storage options for S3 parquet target path.
-        :return: A storage options dictionary in which each key-value pair  represents a particular configuration,
-        such as endpoint_url or aws access key.
-        """
-        key = mlrun.get_secret_or_env("AWS_ACCESS_KEY_ID")
-        secret = mlrun.get_secret_or_env("AWS_SECRET_ACCESS_KEY")
-
-        force_non_anonymous = mlrun.get_secret_or_env("S3_NON_ANONYMOUS")
-        profile = mlrun.get_secret_or_env("AWS_PROFILE")
-
-        storage_options = dict(
-            anon=not (force_non_anonymous or (key and secret)),
-            key=key,
-            secret=secret,
-        )
-
-        endpoint_url = mlrun.get_secret_or_env("S3_ENDPOINT_URL")
-        if endpoint_url:
-            client_kwargs = {"endpoint_url": endpoint_url}
-            storage_options["client_kwargs"] = client_kwargs
-
-        if profile:
-            storage_options["profile"] = profile
-
-        return storage_options
-
     def is_explicit_ack_enabled(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
             not self.nuclio_version
             or semver.VersionInfo.parse(self.nuclio_version)
             >= semver.VersionInfo.parse("1.12.10")
         )
-
-    @staticmethod
-    def get_ordered_keys():
-        # Define the keys to process first
-        return [
-            "MLRUN_HTTPDB__HTTP__VERIFY"  # Ensure this key is processed first for proper connection setup
-        ]
 
 
 # Global configuration
@@ -1506,17 +1473,6 @@ def _convert_resources_to_str(config: typing.Optional[dict] = None):
             if value is None:
                 continue
             resource_requirement[resource_type] = str(value)
-
-
-def _convert_str(value, typ):
-    if typ in (str, _none_type):
-        return value
-
-    if typ is bool:
-        return strtobool(value)
-
-    # e.g. int('8080') → 8080
-    return typ(value)
 
 
 def _configure_ssl_verification(verify_ssl: bool) -> None:
@@ -1626,6 +1582,15 @@ def read_env(env=None, prefix=env_prefix):
     # The default function pod resource values are of type str; however, when reading from environment variable numbers,
     # it converts them to type int if contains only number, so we want to convert them to str.
     _convert_resources_to_str(config)
+
+    # If the environment variable MLRUN_HTTPDB__HTTP__VERIFY is set, we ensure SSL verification settings take precedence
+    # by moving the 'httpdb' configuration to the beginning of the config dictionary.
+    # This ensures that SSL verification is applied before other settings.
+    if "MLRUN_HTTPDB__HTTP__VERIFY" in env:
+        httpdb = config.pop("httpdb", None)
+        if httpdb:
+            config = {"httpdb": httpdb, **config}
+
     return config
 
 

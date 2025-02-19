@@ -29,6 +29,9 @@ RUN apt-get update && \
     && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade \
     && rm -rf /var/lib/apt/lists/*
 
+ARG MLRUN_PIP_VERSION=25.0
+RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
+
 WORKDIR /mlrun
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
@@ -45,6 +48,8 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
 
 COPY . .
+
+RUN rm -rf ./server/go
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \

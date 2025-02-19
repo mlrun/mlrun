@@ -26,7 +26,6 @@ __all__ = [
     "VolumeMount",
 ]
 
-import collections
 from os import environ, path
 from typing import Optional
 
@@ -215,40 +214,8 @@ def set_env_from_file(env_file: str, return_dict: bool = False) -> Optional[dict
     if None in env_vars.values():
         raise MLRunInvalidArgumentError("env file lines must be in the form key=value")
 
-    ordered_env_vars = order_env_vars(env_vars)
-    for key, value in ordered_env_vars.items():
+    for key, value in env_vars.items():
         environ[key] = value
 
     mlconf.reload()  # reload mlrun configuration
-    return ordered_env_vars if return_dict else None
-
-
-def order_env_vars(env_vars: dict[str, str]) -> dict[str, str]:
-    """
-    Order and process environment variables by first handling specific ordered keys,
-    then processing the remaining keys in the given dictionary.
-
-    The function ensures that environment variables defined in the `ordered_keys` list
-    are added to the result dictionary first. Any other environment variables from
-    `env_vars` are then added in the order they appear in the input dictionary.
-
-    :param env_vars: A dictionary where each key is the name of an environment variable (str),
-                      and each value is the corresponding environment variable value (str).
-    :return: A dictionary with the processed environment variables, ordered with the specific
-             keys first, followed by the rest in their original order.
-    """
-    ordered_keys = mlconf.get_ordered_keys()
-
-    ordered_env_vars = collections.OrderedDict()
-
-    # First, add the ordered keys to the dictionary
-    for key in ordered_keys:
-        if key in env_vars:
-            ordered_env_vars[key] = env_vars[key]
-
-    # Then, add the remaining keys (those not in ordered_keys)
-    for key, value in env_vars.items():
-        if key not in ordered_keys:
-            ordered_env_vars[key] = value
-
-    return ordered_env_vars
+    return env_vars if return_dict else None

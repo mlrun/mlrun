@@ -69,6 +69,7 @@ _HISTOGRAM_DATA_DRIFT_APP_PATH = str(
     Path(mlrun.model_monitoring.applications.__file__).parent
     / "histogram_data_drift.py"
 )
+BASE_PERIOD_LOOKUP_TABLE = {1: 1, 20: 2, 60: 5, 120: 10, float("inf"): 20}
 
 
 class MonitoringDeployment:
@@ -181,6 +182,7 @@ class MonitoringDeployment:
                     db_session=self.db_session, project=self.project
                 )
             )
+
             fn = self._initial_model_monitoring_stream_processing_function(
                 stream_image=stream_image, parquet_target=parquet_target
             )
@@ -239,7 +241,9 @@ class MonitoringDeployment:
 
             fn.add_trigger(
                 "cron_interval",
-                spec=nuclio.CronTrigger(interval=f"{base_period}m"),
+                spec=nuclio.CronTrigger(
+                    interval=f"{self._get_trigger_frequency(base_period)}m"
+                ),
             )
             fn, ready = services.api.utils.functions.build_function(
                 db_session=self.db_session, auth_info=self.auth_info, function=fn
@@ -296,9 +300,9 @@ class MonitoringDeployment:
     ) -> mlrun.runtimes.ServingRuntime:
         """
         Add stream source for the nuclio serving function. The function's stream trigger can be
-        either Kafka or V3IO, depends on the stream path schema that is defined by:
+        either Kafka or V3IO, depends on the stream profile defined by::
 
-            project.set_model_monitoring_credentials(..., stream_path="...")
+            project.set_model_monitoring_credentials(stream_profile_name="...", ...)
 
         Note: this method also disables the default HTTP trigger of the function, so it remains
         only with stream trigger(s).
@@ -410,7 +414,7 @@ class MonitoringDeployment:
         )
 
         access_key = (
-            v3io_profile.v3io_access_key or self.model_monitoring_access_key
+            v3io_profile.v3io_access_key
             if function_name
             != mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
             else mlrun.mlconf.get_v3io_access_key()
@@ -804,7 +808,6 @@ class MonitoringDeployment:
                     auth_info=self.auth_info,
                     delete_app_stream_resources=function_name
                     != mm_constants.MonitoringFunctionNames.STREAM,
-                    access_key=self.model_monitoring_access_key,
                 )
                 tasks.append(task)
 
@@ -873,7 +876,6 @@ class MonitoringDeployment:
         function_name: str,
         auth_info: mlrun.common.schemas.AuthInfo,
         delete_app_stream_resources: bool,
-        access_key: str,
     ):
         background_task_name = str(uuid.uuid4())
 
@@ -891,7 +893,6 @@ class MonitoringDeployment:
             auth_info,
             background_task_name,
             delete_app_stream_resources,
-            access_key,
         )
 
     @staticmethod
@@ -902,7 +903,6 @@ class MonitoringDeployment:
         auth_info: mlrun.common.schemas.AuthInfo,
         background_task_name: str,
         delete_app_stream_resources: bool,
-        access_key: str,
     ) -> None:
         """
         Delete the model monitoring function and its resources.
@@ -927,8 +927,7 @@ class MonitoringDeployment:
                 MonitoringDeployment(
                     project=project
                 )._delete_model_monitoring_stream_resources(
-                    function_names=[function_name],
-                    access_key=access_key,
+                    function_names=[function_name]
                 )
             except mlrun.errors.MLRunStreamConnectionFailureError as e:
                 logger.warning(
@@ -944,12 +943,10 @@ class MonitoringDeployment:
         stream_profile: typing.Optional[
             mlrun.datastore.datastore_profile.DatastoreProfile
         ] = None,
-        access_key: typing.Optional[str] = None,
     ) -> None:
         """
         :param function_names: A list of functions that their resources should be deleted.
         :param stream_profile: An optional datastore profile for the stream.
-        :param access_key:     If the stream is V3IO, the access key is required.
         """
         logger.debug(
             "Deleting model monitoring stream resources deployment",
@@ -1028,7 +1025,7 @@ class MonitoringDeployment:
                         stream_path,
                         access_key=mlrun.mlconf.get_v3io_access_key()
                         if container.startswith("users")
-                        else profile.v3io_access_key or access_key,
+                        else profile.v3io_access_key,
                     )
                     logger.debug(
                         "Deleted v3io stream",
@@ -1095,9 +1092,7 @@ class MonitoringDeployment:
 
         return credentials_dict
 
-    def check_if_credentials_are_set(
-        self,
-    ):
+    def check_if_credentials_are_set(self) -> None:
         """
         Check if the model monitoring credentials are set. If not, raise an error.
 
@@ -1105,7 +1100,7 @@ class MonitoringDeployment:
         """
 
         credentials_dict = self._get_monitoring_mandatory_project_secrets()
-        if all([val is not None for key, val in credentials_dict.items()]):
+        if all([val is not None for val in credentials_dict.values()]):
             return
 
         raise mlrun.errors.MLRunBadRequestError(
@@ -1218,13 +1213,21 @@ class MonitoringDeployment:
     def _verify_v3io_access(
         self, v3io_profile: mlrun.datastore.datastore_profile.DatastoreProfileV3io
     ) -> None:
+        stream_access_key = v3io_profile.v3io_access_key
+        if not stream_access_key:
+            raise mlrun.errors.MLRunInvalidMMStoreTypeError(
+                "The model monitoring stream profile must be set with an explicit `v3io_access_key`. "
+                f"The passed profile '{v3io_profile.name}' has an empty access key. "
+                "You may register it again and set `v3io_access_key=mlrun.mlconf.get_v3io_access_key()`"
+            )
+
         stream_path = mlrun.model_monitoring.get_stream_path(
             project=self.project, profile=v3io_profile
         )
         container, path = split_path(stream_path)
 
         v3io_client = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api, access_key=v3io_profile.v3io_access_key
+            endpoint=mlrun.mlconf.v3io_api, access_key=stream_access_key
         )
         # We don't expect the stream to exist. The purpose is to make sure we have access.
         v3io_client.stream.describe(
@@ -1233,7 +1236,7 @@ class MonitoringDeployment:
 
     def set_credentials(
         self,
-        access_key: typing.Optional[str] = None,
+        *,
         tsdb_profile_name: typing.Optional[str] = None,
         stream_profile_name: typing.Optional[str] = None,
         replace_creds: bool = False,
@@ -1241,7 +1244,6 @@ class MonitoringDeployment:
         """
         Set the model monitoring credentials for the project. The credentials are stored in the project secrets.
 
-        :param access_key:                Model Monitoring access key for managing user permissions.
         :param tsdb_profile_name:         The TSDB profile name to be used in the project's model monitoring framework.
                                           Either V3IO or TDEngine profile.
         :param stream_profile_name:       The stream profile name to be used in the project's model monitoring
@@ -1271,12 +1273,6 @@ class MonitoringDeployment:
 
         secrets_dict = {}
         old_secrets_dict = self._get_monitoring_mandatory_project_secrets()
-        if access_key:
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
-            ] = access_key or old_secrets_dict.get(
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
-            )
 
         stream_profile_name = stream_profile_name or old_secrets_dict.get(
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME
@@ -1639,6 +1635,20 @@ class MonitoringDeployment:
             function_name,
             project_name,
         )
+
+    @staticmethod
+    def _get_trigger_frequency(base_period: int) -> int:
+        """
+        Determines the trigger frequency based on the base period using a lookup dictionary.
+
+        :param base_period: The base period in minutes.
+        :return: The trigger frequency in minutes.
+        """
+        for threshold, frequency in BASE_PERIOD_LOOKUP_TABLE.items():
+            if base_period <= threshold:
+                return frequency
+
+        return BASE_PERIOD_LOOKUP_TABLE[float("inf")]
 
 
 def get_endpoint_features(

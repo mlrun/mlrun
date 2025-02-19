@@ -1329,7 +1329,11 @@ def get_handler_extended(
 def datetime_from_iso(time_str: str) -> Optional[datetime]:
     if not time_str:
         return
-    return parser.isoparse(time_str)
+    dt = parser.isoparse(time_str)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    # ensure the datetime is in UTC, converting if necessary
+    return dt.astimezone(timezone.utc)
 
 
 def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
@@ -1457,6 +1461,16 @@ def str_to_timestamp(time_str: str, now_time: Timestamp = None):
         return timestamp
 
     return Timestamp(time_str)
+
+
+def str_to_bool(value: str) -> bool:
+    """Convert a string to a boolean value."""
+    value = value.lower()
+    if value in ("true", "1", "t", "y", "yes", "on"):
+        return True
+    if value in ("false", "0", "f", "n", "no", "off"):
+        return False
+    raise ValueError(f"invalid boolean value: {value}")
 
 
 def is_link_artifact(artifact):
@@ -2037,7 +2051,7 @@ class Workflow:
                         pod_phase
                     )
                 function["status"] = {"state": state}
-                if isinstance(function["metadata"].get("updated"), datetime.datetime):
+                if isinstance(function["metadata"].get("updated"), datetime):
                     function["metadata"]["updated"] = function["metadata"][
                         "updated"
                     ].isoformat()
@@ -2129,3 +2143,16 @@ def as_dict(data: typing.Union[dict, str]) -> dict:
     if isinstance(data, str):
         return json.loads(data)
     return data
+
+
+def encode_user_code(
+    user_code: str, max_len_warning: typing.Optional[int] = None
+) -> str:
+    max_len_warning = max_len_warning or config.function.spec.source_code_max_bytes
+    encoded = base64.b64encode(user_code.encode("utf-8")).decode("utf-8")
+    if len(encoded) > max_len_warning:
+        logger.warning(
+            f"User code exceeds the maximum allowed size of {max_len_warning} bytes for non remote source. "
+            "Consider using `with_source_archive` to add user code as a remote source to the function."
+        )
+    return encoded

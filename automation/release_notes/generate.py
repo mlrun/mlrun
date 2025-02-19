@@ -30,7 +30,7 @@ class ReleaseNotesGenerator:
         r"^"
         r"(?P<commitId>[a-zA-Z0-9]+)"
         r" {"
-        r"(?P<username>[a-zA-Z0-9-_\s]+)"
+        r"(?P<username>[a-zA-Z0-9-_\s\[\]]+)"
         r"} "
         r"(\[(?P<scope>[^\]]*)\])?"
         r"( )?"

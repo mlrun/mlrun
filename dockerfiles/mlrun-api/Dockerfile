@@ -65,6 +65,10 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[complete-api,kfp18]
 
+# go code is irrelevant for the api server
+# pip is not needed anymore
+RUN rm -rf ./server/go && python -m pip uninstall pip -y
+
 VOLUME /mlrun/db
 ENV PYTHONPATH=/mlrun/server/py
 ENV MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false'

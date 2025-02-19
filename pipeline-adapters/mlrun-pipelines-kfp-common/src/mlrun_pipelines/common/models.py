@@ -111,3 +111,10 @@ class RunStatuses(StrEnum):
             for status in RunStatuses.all()
             if status not in RunStatuses.stable_statuses()
         ]
+
+    @classmethod
+    def retryable_statuses(cls):
+        return cls.stable_statuses() + [
+            RunStatuses.unknown,
+            RunStatuses.runtime_state_unspecified,
+        ]

@@ -141,7 +141,8 @@ def get_stream_path(
     elif isinstance(
         profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
     ):
-        stream_uri = f"kafka://{profile.brokers[0]}"
+        attributes = profile.attributes()
+        stream_uri = f"kafka://{attributes['brokers'][0]}"
     else:
         raise mlrun.errors.MLRunValueError(
             f"Received an unexpected stream profile type: {type(profile)}\n"
@@ -243,21 +244,6 @@ def get_monitoring_drift_measures_data(project: str, endpoint_id: str) -> "DataI
         _get_monitoring_drift_measures_file_path(
             project=project, endpoint_id=endpoint_id
         )
-    )
-
-
-def get_tsdb_connection_string(
-    secret_provider: Optional[Callable[[str], str]] = None,
-) -> str:
-    """Get TSDB connection string from the project secret. If wasn't set, take it from the system
-    configurations.
-    :param secret_provider: An optional secret provider to get the connection string secret.
-    :return:                Valid TSDB connection string.
-    """
-
-    return mlrun.get_secret_or_env(
-        key=mm_constants.ProjectSecretKeys.TSDB_CONNECTION,
-        secret_provider=secret_provider,
     )
 
 
@@ -552,6 +538,22 @@ def get_result_instance_fqn(
     model_endpoint_id: str, app_name: str, result_name: str
 ) -> str:
     return f"{model_endpoint_id}.{app_name}.result.{result_name}"
+
+
+def get_alert_name_from_result_fqn(result_fqn: str):
+    """
+    :param   result_fqn: current get_result_instance_fqn format: `{model_endpoint_id}.{app_name}.result.{result_name}`
+
+    :return: shorter fqn without forbidden alert characters.
+    """
+    if result_fqn.count(".") != 3 or result_fqn.split(".")[2] != "result":
+        raise mlrun.errors.MLRunValueError(
+            f"result_fqn: {result_fqn} is not in the correct format: {{model_endpoint_id}}.{{app_name}}."
+            f"result.{{result_name}}"
+        )
+    # Name format cannot contain "."
+    # The third component is always `result`, so it is not necessary for checking uniqueness.
+    return "_".join(result_fqn.split(".")[i] for i in [0, 1, 3])
 
 
 def get_default_result_instance_fqn(model_endpoint_id: str) -> str:

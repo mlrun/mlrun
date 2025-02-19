@@ -124,12 +124,6 @@ class TestAppDeployment:
             )
 
             secrets = monitoring_deployment._get_monitoring_mandatory_project_secrets()
-            assert (
-                secrets[
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
-                ]
-                == "v3io"
-            )
 
             monitoring_deployment.set_credentials(
                 tsdb_connection="v3io",

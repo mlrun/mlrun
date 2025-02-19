@@ -51,5 +51,5 @@ distributed~=2023.12.1; python_version < "3.11"
 dask~=2024.12.1; python_version >= "3.11"
 distributed~=2024.12.1; python_version >= "3.11"
 taos-ws-py==0.3.2
-taoswswrap~=0.3.0
+taoswswrap~=0.3.2
 snowflake-connector-python~=3.7

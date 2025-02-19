@@ -40,6 +40,11 @@ import fsspec
 from mergedeep import merge
 
 import mlrun.datastore.wasbfs
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileKafkaSource,
+    DatastoreProfileKafkaTarget,
+    DatastoreProfileV3io,
+)
 from mlrun.platforms.iguazio import (
     HTTPOutputStream,
     KafkaOutputStream,
@@ -110,12 +115,6 @@ def get_stream_pusher(stream_path: str, **kwargs):
     :param stream_path:        path/url of stream
     """
     if stream_path.startswith("ds://"):
-        from mlrun.datastore.datastore_profile import (
-            DatastoreProfileKafkaSource,
-            DatastoreProfileKafkaTarget,
-            DatastoreProfileV3io,
-        )
-
         datastore_profile = mlrun.datastore.datastore_profile.datastore_profile_read(
             stream_path
         )

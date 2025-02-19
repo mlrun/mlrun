@@ -1049,19 +1049,21 @@ class MonitoringDeployment:
             ]
 
             kafka_profile_attributes = profile.attributes()
-            kafka_admin_client_kwargs = {}
-            if "sasl" in kafka_profile_attributes:
-                sasl = kafka_profile_attributes["sasl"]
-                kafka_admin_client_kwargs.update(
-                    {
-                        "security_protocol": "SASL_PLAINTEXT",
-                        "sasl_mechanism": sasl["mechanism"],
-                        "sasl_plain_username": sasl["user"],
-                        "sasl_plain_password": sasl["password"],
-                    }
-                )
 
+            kafka_admin_client_kwargs = mlrun.datastore.utils.KafkaParameters(
+                kafka_profile_attributes
+            ).admin()
             client_id = f"{mlrun.mlconf.system_id}_{self.project}_kafka-python_{kafka.__version__}"
+
+            from mlrun.utils.debug import debug_info
+
+            debug_info(
+                {
+                    "bootstrap_servers": profile.brokers,
+                    "client_id": client_id,
+                    "kafka_admin_client_kwargs": kafka_admin_client_kwargs,
+                }
+            )
 
             try:
                 kafka_client = kafka.KafkaAdminClient(
@@ -1191,7 +1193,22 @@ class MonitoringDeployment:
         kafka_brokers = kafka_profile.brokers
         try:
             # The following constructor attempts to establish a connection
-            consumer = kafka.KafkaConsumer(bootstrap_servers=kafka_brokers)
+            attributes = kafka_profile.attributes()
+            kafka_admin_client_kwargs = mlrun.datastore.utils.KafkaParameters(
+                attributes
+            ).consumer()
+
+            from mlrun.utils.debug import debug_info
+
+            debug_info(
+                {
+                    "kafka_brokers": kafka_brokers,
+                    "kafka_admin_client_kwargs": kafka_admin_client_kwargs,
+                }
+            )
+            consumer = kafka.KafkaConsumer(
+                bootstrap_servers=kafka_brokers, **kafka_admin_client_kwargs
+            )
         except kafka.errors.NoBrokersAvailable as err:
             logger.warn(
                 "No Kafka brokers available for the given kafka source profile in model monitoring",

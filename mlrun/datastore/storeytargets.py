@@ -150,7 +150,14 @@ class KafkaStoreyTarget(storey.KafkaTarget):
             raise mlrun.errors.MLRunInvalidArgumentError("KafkaTarget requires a topic")
         kwargs["brokers"] = brokers
         kwargs["topic"] = topic
-        super().__init__(*args, **kwargs, **attributes)
+
+        attributes = mlrun.datastore.utils.KafkaParameters(attributes).producer()
+
+        from mlrun.utils.debug import debug_info
+
+        debug_info({"producer_options": attributes, "kwargs": kwargs})
+
+        super().__init__(*args, **kwargs, producer_options=attributes)
 
 
 class NoSqlStoreyTarget(storey.NoSqlTarget):

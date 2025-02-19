@@ -311,18 +311,12 @@ def _get_kafka_output_stream(
     topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
         project=project, function_name=function_name
     )
-    profile_attributes = kafka_profile.attributes()
-    producer_options = profile_attributes.get("producer_options", {})
-    if "sasl" in profile_attributes:
-        sasl = profile_attributes["sasl"]
-        producer_options.update(
-            {
-                "security_protocol": "SASL_PLAINTEXT",
-                "sasl_mechanism": sasl["mechanism"],
-                "sasl_plain_username": sasl["user"],
-                "sasl_plain_password": sasl["password"],
-            },
-        )
+    attributes = kafka_profile.attributes()
+    producer_options = mlrun.datastore.utils.KafkaParameters(attributes).producer()
+
+    from mlrun.utils.debug import debug_info
+
+    debug_info({"producer_options": producer_options})
 
     return mlrun.platforms.iguazio.KafkaOutputStream(
         brokers=kafka_profile.brokers,

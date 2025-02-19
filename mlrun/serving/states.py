@@ -1914,7 +1914,7 @@ def _init_async_objects(context, steps):
                                 f"Received an unexpected stream profile type: {type(datastore_profile)}\n"
                                 "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
                             )
-                    if stream_path.startswith("kafka://") or kafka_brokers:
+                    elif stream_path.startswith("kafka://") or kafka_brokers:
                         topic, brokers = parse_kafka_url(stream_path, kafka_brokers)
 
                         kafka_producer_options = options.pop(

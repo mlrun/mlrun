@@ -19,6 +19,7 @@ import typing
 import warnings
 from urllib.parse import parse_qs, urlparse
 
+import kafka
 import pandas as pd
 import semver
 
@@ -222,3 +223,49 @@ def validate_additional_filters(additional_filters):
             for sub_value in value:
                 if isinstance(sub_value, float) and math.isnan(sub_value):
                     raise mlrun.errors.MLRunInvalidArgumentError(nan_error_message)
+
+
+class KafkaParameters:
+    def __init__(self, kwargs: dict):
+        self._kafka = kafka
+        self._kwargs = kwargs
+        self._client_configs = {
+            "consumer": self._kafka.KafkaConsumer.DEFAULT_CONFIG,
+            "producer": self._kafka.KafkaProducer.DEFAULT_CONFIG,
+            "admin": self._kafka.KafkaAdminClient.DEFAULT_CONFIG,
+        }
+
+    def _get_config(self, client_type: str) -> dict:
+        res = {
+            k: self._kwargs[k]
+            for k in self._kwargs.keys() & self._client_configs[client_type].keys()
+        }
+        if "sasl" in self._kwargs:
+            sasl = self._kwargs["sasl"]
+            res |= {
+                "security_protocol": "SASL_PLAINTEXT",
+                "sasl_mechanism": sasl["mechanism"],
+                "sasl_plain_username": sasl["user"],
+                "sasl_plain_password": sasl["password"],
+            }
+        return res
+
+    def consumer(self) -> dict:
+        return self._get_config("consumer")
+
+    def producer(self) -> dict:
+        return self._get_config("producer")
+
+    def admin(self) -> dict:
+        return self._get_config("admin")
+
+    def nuclio_sasl(self, usr=None, pwd=None) -> dict:
+        usr = usr or self._kwargs.get("sasl_plain_username", None)
+        pwd = pwd or self._kwargs.get("sasl_plain_password", None)
+        res = self._kwargs.get("sasl", {})
+        if usr and pwd:
+            res["enable"] = True
+            res["user"] = usr
+            res["password"] = pwd
+            res["mechanism"] = self._kwargs.get("sasl_mechanism", "PLAIN")
+        return res

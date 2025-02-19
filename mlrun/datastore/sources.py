@@ -1100,14 +1100,15 @@ class KafkaSource(OnlineSource):
         attributes["initial_offset"] = initial_offset
         if partitions is not None:
             attributes["partitions"] = partitions
-        sasl = attributes.pop("sasl", {})
-        if sasl_user and sasl_pass:
-            sasl["enable"] = True
-            sasl["user"] = sasl_user
-            sasl["password"] = sasl_pass
-            sasl["mechanism"] = "PLAIN"
+        sasl = mlrun.datastore.utils.KafkaParameters(attributes).nuclio_sasl(
+            sasl_user, sasl_pass
+        )
         if sasl:
             attributes["sasl"] = sasl
+        from mlrun.utils.debug import debug_info
+
+        debug_info({"attributes": attributes, "kwargs": kwargs})
+
         super().__init__(attributes=attributes, **kwargs)
 
     def to_dataframe(
@@ -1207,16 +1208,15 @@ class KafkaSource(OnlineSource):
         ]
 
         kafka_admin_kwargs = {}
-        if "sasl" in self.attributes:
-            sasl = self.attributes["sasl"]
-            kafka_admin_kwargs.update(
-                {
-                    "security_protocol": "SASL_PLAINTEXT",
-                    "sasl_mechanism": sasl["mechanism"],
-                    "sasl_plain_username": sasl["user"],
-                    "sasl_plain_password": sasl["password"],
-                }
-            )
+        kafka_admin_kwargs = mlrun.datastore.utils.KafkaParameters(
+            self.attributes
+        ).admin()
+
+        from mlrun.utils.debug import debug_info
+
+        debug_info(
+            {"bootstrap_servers": brokers, "kafka_admin_kwargs": kafka_admin_kwargs}
+        )
 
         kafka_admin = KafkaAdminClient(bootstrap_servers=brokers, **kafka_admin_kwargs)
         try:

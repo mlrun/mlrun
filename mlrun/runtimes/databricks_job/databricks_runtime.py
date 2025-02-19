@@ -139,15 +139,11 @@ class DatabricksRuntime(kubejob.KubejobRuntime):
             )
 
     def _get_modified_user_code(self, original_handler: str, log_artifacts_code: str):
-        encoded_code = (
+        encoded_code: str = (
             self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
         )
         if not encoded_code:
             raise ValueError("Databricks function must be provided with user code")
-
-        # to ensure it works for both str / bytes
-        if isinstance(encoded_code, str):
-            encoded_code = encoded_code.encode("utf-8")
 
         decoded_code = b64decode(encoded_code).decode("utf-8")
         decoded_code, is_replaced = replace_log_artifact_function(

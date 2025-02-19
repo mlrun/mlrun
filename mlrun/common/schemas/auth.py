@@ -114,7 +114,7 @@ class AuthorizationVerificationInput(pydantic.v1.BaseModel):
 
 
 class AuthInfo(pydantic.v1.BaseModel):
-    # Metadata
+    # Keep request headers for inter-service communication
     request_headers: typing.Optional[dict[str, str]] = None
     # Basic + Iguazio auth
     username: typing.Optional[str] = None

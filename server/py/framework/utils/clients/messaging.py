@@ -47,6 +47,60 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         self._discovery = framework.utils.clients.discovery.Client()
 
     ##### Sync HTTP requests #####
+    def get(
+        self,
+        path: str,
+        version: str = "v1",
+        headers: typing.Optional[dict] = None,
+        raise_on_failure: bool = True,
+        **kwargs,
+    ):
+        method = "GET"
+        return self.send_sync_request(
+            method=method,
+            path=path,
+            version=version,
+            headers=headers,
+            raise_on_failure=raise_on_failure,
+            **kwargs,
+        )
+
+    def post(
+        self,
+        path: str,
+        version: str = "v1",
+        headers: typing.Optional[dict] = None,
+        raise_on_failure: bool = True,
+        **kwargs,
+    ):
+        method = "POST"
+        return self.send_sync_request(
+            method=method,
+            path=path,
+            version=version,
+            headers=headers,
+            raise_on_failure=raise_on_failure,
+            **kwargs,
+        )
+
+    def put(
+        self,
+        path: str,
+        version: str = "v1",
+        headers: typing.Optional[dict] = None,
+        raise_on_failure: bool = True,
+        **kwargs,
+    ):
+        method = "PUT"
+        return self.send_sync_request(
+            method=method,
+            path=path,
+            version=version,
+            headers=headers,
+            raise_on_failure=raise_on_failure,
+            **kwargs,
+        )
+
     def delete(
         self,
         path: str,
@@ -56,6 +110,24 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         **kwargs,
     ):
         method = "DELETE"
+        return self.send_sync_request(
+            method=method,
+            path=path,
+            version=version,
+            headers=headers,
+            raise_on_failure=raise_on_failure,
+            **kwargs,
+        )
+
+    def send_sync_request(
+        self,
+        method: str,
+        path: str,
+        version: str = "v1",
+        headers: typing.Optional[dict] = None,
+        raise_on_failure: bool = True,
+        **kwargs,
+    ) -> requests.Response:
         path = path.removeprefix("/")
         service_instance = self._discovery.resolve_service_by_request(method, path)
         if not service_instance:
@@ -64,13 +136,8 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             )
 
         url = self._resolve_full_request_path(path, service_instance, version)
-        return self.send_sync_request(
-            service_name=service_instance.name,
-            method=method,
-            url=url,
-            headers=headers,
-            raise_on_failure=raise_on_failure,
-            **kwargs,
+        return self._send_sync_request(
+            service_instance.name, method, url, headers, raise_on_failure, **kwargs
         )
 
     ##### Proxy fastapi requests #####
@@ -164,7 +231,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             if response:
                 response.release()
 
-    def send_sync_request(
+    def _send_sync_request(
         self,
         service_name: str,
         method: str,

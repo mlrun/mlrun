@@ -114,6 +114,8 @@ class AuthorizationVerificationInput(pydantic.v1.BaseModel):
 
 
 class AuthInfo(pydantic.v1.BaseModel):
+    # Metadata
+    request_headers: typing.Optional[dict[str, str]] = None
     # Basic + Iguazio auth
     username: typing.Optional[str] = None
     # Basic auth

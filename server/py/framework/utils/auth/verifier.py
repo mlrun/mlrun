@@ -245,6 +245,20 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         # won't be overridden
         if not auth_info.data_session and "X-V3io-Access-Key" in request.headers:
             auth_info.data_session = request.headers["X-V3io-Access-Key"]
+
+        # Maintain authentication headers for inter-services communication
+        auth_info.request_headers = {}
+        for header in [
+            "authorization",
+            "cookie",
+            mlrun.common.schemas.HeaderNames.projects_role,
+            "x-data-session-override",
+            "x-remote-user",
+            "X-V3io-session-key",
+            "X-V3io-Access-Key",
+        ]:
+            if header_value := request.headers.get(header):
+                auth_info.request_headers[header] = header_value
         return auth_info
 
     def get_or_create_access_key(

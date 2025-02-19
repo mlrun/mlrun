@@ -111,7 +111,6 @@ class ExponentialRetryOverride(ExponentialRetry):
         # aiohttp exceptions that can be raised during connection establishment
         aiohttp.ClientConnectionError,
         aiohttp.ServerDisconnectedError,
-        asyncio.exceptions.TimeoutError,
     ]
 
     def __init__(

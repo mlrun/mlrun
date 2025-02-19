@@ -111,6 +111,7 @@ class ExponentialRetryOverride(ExponentialRetry):
         # aiohttp exceptions that can be raised during connection establishment
         aiohttp.ClientConnectionError,
         aiohttp.ServerDisconnectedError,
+        asyncio.exceptions.TimeoutError,
     ]
 
     def __init__(
@@ -303,7 +304,7 @@ class _CustomRequestContext(_RequestContext):
                 if isinstance(exc.os_error, exc_type):
                     return
         if exc.__cause__:
-            # If the cause exception is retriable, return, otherwise, raise the original exception
+            # If the cause exception is retryable, return, otherwise, raise the original exception
             try:
                 self.verify_exception_type(exc.__cause__)
             except Exception:

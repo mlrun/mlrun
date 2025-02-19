@@ -145,6 +145,10 @@ class DatabricksRuntime(kubejob.KubejobRuntime):
         if not encoded_code:
             raise ValueError("Databricks function must be provided with user code")
 
+        # to ensure it works for both str / bytes
+        if isinstance(encoded_code, str):
+            encoded_code = encoded_code.encode("utf-8")
+
         decoded_code = b64decode(encoded_code).decode("utf-8")
         decoded_code, is_replaced = replace_log_artifact_function(
             code=decoded_code, log_artifacts_code=log_artifacts_code

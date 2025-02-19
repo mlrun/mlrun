@@ -58,7 +58,6 @@ import framework.utils.singletons.k8s
 import services.api.api.endpoints.nuclio
 import services.api.crud.model_monitoring.helpers
 import services.api.utils.functions
-from framework.db.sqldb.db import unversioned_tagged_object_uid_prefix
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
 _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
@@ -1379,7 +1378,6 @@ class MonitoringDeployment:
             tuple[
                 mlrun.common.schemas.ModelEndpoint,
                 mm_constants.ModelEndpointCreationStrategy,
-                str,
             ]
         ] = MonitoringDeployment(
             project=project
@@ -1417,7 +1415,6 @@ class MonitoringDeployment:
             tuple[
                 mlrun.common.schemas.ModelEndpoint,
                 mm_constants.ModelEndpointCreationStrategy,
-                str,
             ]
         ],
         project: str,
@@ -1443,7 +1440,6 @@ class MonitoringDeployment:
         tuple[
             mlrun.common.schemas.ModelEndpoint,
             mm_constants.ModelEndpointCreationStrategy,
-            str,
         ]
     ]:
         model_endpoints_instructions = []
@@ -1480,7 +1476,6 @@ class MonitoringDeployment:
         tuple[
             mlrun.common.schemas.ModelEndpoint,
             mm_constants.ModelEndpointCreationStrategy,
-            str,
         ]
     ]:
         model_endpoints_instructions = []
@@ -1503,9 +1498,9 @@ class MonitoringDeployment:
                             track_models=track_models,
                             sampling_percentage=sampling_percentage,
                             uid=uid,
+                            model_path=route.class_args.get("model_path", ""),
                         ),
                         route.model_endpoint_creation_strategy,
-                        route.class_args.get("model_path", ""),
                     )
                 )
                 routes_names.append(route.name)
@@ -1528,7 +1523,6 @@ class MonitoringDeployment:
                         sampling_percentage=sampling_percentage,
                     ),
                     router_step.model_endpoint_creation_strategy,
-                    "",
                 )
             )
 
@@ -1545,7 +1539,6 @@ class MonitoringDeployment:
         tuple[
             mlrun.common.schemas.ModelEndpoint,
             mm_constants.ModelEndpointCreationStrategy,
-            str,
         ]
     ]:
         model_endpoints_instructions = []
@@ -1574,9 +1567,9 @@ class MonitoringDeployment:
                                 function_name=function_name,
                                 function_tag=function_tag,
                                 track_models=track_models,
+                                model_path=step.class_args.get("model_path", ""),
                             ),
                             step.model_endpoint_creation_strategy,
-                            step.class_args.get("model_path", ""),
                         )
                     )
         return model_endpoints_instructions
@@ -1593,6 +1586,7 @@ class MonitoringDeployment:
         children_names: typing.Optional[list[str]] = None,
         children_uids: typing.Optional[list[str]] = None,
         sampling_percentage: typing.Optional[float] = None,
+        model_path: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         function_tag = function_tag or "latest"
         return mlrun.common.schemas.ModelEndpoint(
@@ -1602,10 +1596,10 @@ class MonitoringDeployment:
             spec=mlrun.common.schemas.ModelEndpointSpec(
                 function_name=function_name,
                 function_tag=function_tag,
-                function_uid=f"{unversioned_tagged_object_uid_prefix}{function_tag}",  # TODO: remove after ML-8596
                 model_class=model_class,
                 children=children_names,
                 children_uids=children_uids,
+                model_path=model_path,
             ),
             status=mlrun.common.schemas.ModelEndpointStatus(
                 monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled

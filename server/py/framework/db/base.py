@@ -1225,6 +1225,8 @@ class DBInterface(ABC):
         self,
         session,
         model_endpoints: list[mlrun.common.schemas.ModelEndpoint],
+        function_name: str,
+        function_tag: str,
         project: str,
     ) -> None:
         """

@@ -62,7 +62,6 @@ class ModelEndpoints:
         db_session: sqlalchemy.orm.Session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
         creation_strategy: mlrun.common.schemas.ModelEndpointCreationStrategy,
-        model_path: Optional[str] = None,
         upsert: bool = True,
     ) -> typing.Union[tuple[mlrun.common.schemas.ModelEndpoint, str, list[str], dict],]:
         """
@@ -232,7 +231,6 @@ class ModelEndpoints:
         for (
             model_endpoint,
             creation_strategy,
-            model_path,
         ) in model_endpoints_instructions:
             (
                 model_endpoint,
@@ -243,7 +241,6 @@ class ModelEndpoints:
                 db_session=db_session,
                 model_endpoint=model_endpoint,
                 creation_strategy=creation_strategy,
-                model_path=model_path,
                 upsert=False,
             )
             if method == "create":

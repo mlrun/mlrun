@@ -6152,8 +6152,7 @@ class SQLDB(DBInterface):
         along with their related notifications, while ensuring foreign key constraints are respected.
 
         Steps:
-        1. Retrieve all alerts (IDs and names) for the given project.
-        2. Delete related notifications first (since they have foreign key constraints).
+        1. Retrieve all alert ids for the given project.
         3. Delete the alerts from the database using ORM-based deletion to ensure cascading works.
         4. Commit everything at once to improve performance and maintain transactional integrity.
 
@@ -6170,7 +6169,7 @@ class SQLDB(DBInterface):
         offset = 0
 
         while True:
-            # Step 1: Retrieve alerts (IDs and names) for the given project in chunks
+            # Step 1: Retrieve alerts ids for the given project in chunks
             alerts = (
                 session.query(AlertConfig.id)
                 .filter(AlertConfig.project == project)

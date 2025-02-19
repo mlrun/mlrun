@@ -69,7 +69,7 @@ _HISTOGRAM_DATA_DRIFT_APP_PATH = str(
     Path(mlrun.model_monitoring.applications.__file__).parent
     / "histogram_data_drift.py"
 )
-BASE_PERIOD_LOOKUP_TABLE = {20: 2, 60: 5, 120: 10, float("inf"): 20}
+BASE_PERIOD_LOOKUP_TABLE = {1: 1, 20: 2, 60: 5, 120: 10, float("inf"): 20}
 
 
 class MonitoringDeployment:

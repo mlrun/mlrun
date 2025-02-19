@@ -1411,18 +1411,21 @@ class TestAppJob(TestMLRunSystem):
         # Test the results
         returned_results = run_result.output("return")
         assert returned_results, "No returned results"
-        assert {
-            "ModelMonitoringApplicationMetric(name='hellinger_mean', value=1.0)",
+        assert [
+            {"metric_name": "hellinger_mean", "metric_value": 1.0},
             # Ignore KLD due to varying numerical accuracy on different systems
-            # "ModelMonitoringApplicationMetric(name='kld_mean', value=8.517193191416238)",
-            "ModelMonitoringApplicationMetric(name='tvd_mean', value=0.5)",
-            (
-                "ModelMonitoringApplicationResult(name='general_drift', value=0.75, "
-                "kind=<ResultKindApp.data_drift: 0>, status=<ResultStatusApp.detected: 2>, extra_data={})"
-            ),
-        } <= set(
-            returned_results
-        ), "The returned metrics do not include the expected ones"
+            # {"metric_name": "kld_mean", "metric_value": 8.517193191416238},
+            {"metric_name": "tvd_mean", "metric_value": 0.5},
+            {
+                "result_name": "general_drift",
+                "result_value": 0.75,
+                "result_kind": 0,
+                "result_status": 2,
+                "result_extra_data": "{}",
+            },
+        ] == [returned_results[0]] + returned_results[
+            2:4
+        ], "The returned metrics are different than the expected ones"
         # Test the artifacts
         for artifact_name in _DefaultDataDriftAppData.artifacts:
             assert run_result.output(
@@ -1562,18 +1565,22 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
             assert (
                 len(outputs) == 2
             ), "The number of outputs is different than the number of windows"
-            assert set(outputs.values()) == {
-                (
-                    "ModelMonitoringApplicationResult(name='count', value=14.0, "
-                    "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, "
-                    "extra_data={})"
-                ),
-                (
-                    "ModelMonitoringApplicationResult(name='count', value=4.0, "
-                    "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, "
-                    "extra_data={})"
-                ),
-            }, "The outputs are different than expected"
+            assert list(outputs.values()) == [
+                {
+                    "result_name": "count",
+                    "result_value": 14.0,
+                    "result_kind": 2,
+                    "result_status": 0,
+                    "result_extra_data": "{}",
+                },
+                {
+                    "result_name": "count",
+                    "result_value": 4.0,
+                    "result_kind": 2,
+                    "result_status": 0,
+                    "result_extra_data": "{}",
+                },
+            ], "The outputs are different than expected"
 
 
 class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):

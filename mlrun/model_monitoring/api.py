@@ -93,13 +93,14 @@ def get_or_create_model_endpoint(
             context.to_dict()["spec"]["function"]
         ).function
     try:
-        model_endpoint = db_session.get_model_endpoint(
-            project=project,
-            name=model_endpoint_name,
-            endpoint_id=endpoint_id,
-            function_name=function_name,
-            function_tag=function_tag or "latest",
-        )
+        if function_name:
+            model_endpoint = db_session.get_model_endpoint(
+                project=project,
+                name=model_endpoint_name,
+                endpoint_id=endpoint_id,
+                function_name=function_name,
+                function_tag=function_tag or "latest",
+            )
         # If other fields provided, validate that they are correspond to the existing model endpoint data
         _model_endpoint_validations(
             model_endpoint=model_endpoint,

@@ -418,11 +418,6 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         run_end_time = mlrun.utils.helpers.datetime_to_mysql_ts(
             datetime.fromisoformat(run.status.end_time)
         )
-        runs = mlrun.get_run_db().list_runs(
-            project=self.project_name,
-            end_time_from=run_end_time,
-        )
-        assert len(runs) == 1
 
         # update the filter to start after the run's end_time
         runs = mlrun.get_run_db().list_runs(

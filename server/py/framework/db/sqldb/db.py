@@ -6195,6 +6195,7 @@ class SQLDB(DBInterface):
             )
             for alert in alerts_to_delete:
                 # Deleting via ORM ensures cascading works
+                # TODO: fix the foreign key constraint by implementing db level cascade
                 session.delete(alert)
 
             # Step 3: Commit all changes in one transaction for the current chunk

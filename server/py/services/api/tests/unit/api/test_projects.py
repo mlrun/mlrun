@@ -330,12 +330,13 @@ def test_delete_project_with_resources(
         )
 
     # check that event cache is removed for project_to_remove, and it isn't for project_to_keep
-    found_project_to_keep = False
-    for key in services.alerts.crud.events.Events()._cache.keys():
+    project_to_keep_cached_events_count = 0
+    for key, alert_ids in services.alerts.crud.events.Events()._cache.items():
         assert key[0] != project_to_remove
-        found_project_to_keep |= key[0] == project_to_keep
+        if key[0] == project_to_keep:
+            project_to_keep_cached_events_count += len(alert_ids)
 
-    assert found_project_to_keep is True
+    assert project_to_keep_cached_events_count == len(alert_ids_to_keep)
 
     # deletion strategy - check - should succeed cause no project
     _send_delete_request_and_assert_response_code(

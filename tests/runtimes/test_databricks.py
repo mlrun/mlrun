@@ -61,7 +61,9 @@ def test_pre_run():
         databricks_runtime.spec.build.functionSourceCode != user_code
     ), "User code should be replaced with mlrun code"
 
-    assert runobj.spec.handler == "run_mlrun_databricks_job", "Handler should be set correctly"
+    assert (
+        runobj.spec.handler == "run_mlrun_databricks_job"
+    ), "Handler should be set correctly"
 
 
 @pytest.mark.parametrize("user_code", [USER_CODE, USER_CODE_WITH_DUMMY])

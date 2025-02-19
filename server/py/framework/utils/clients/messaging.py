@@ -198,7 +198,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
 
         kwargs_to_log = self._resolve_kwargs_to_log(kwargs)
         logger.debug(
-            "Sending request to service",
+            "Sending async request to service",
             service_name=service_name,
             method=method,
             url=url,
@@ -244,7 +244,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         self._ensure_sync_retry_session()
         kwargs_to_log = self._resolve_kwargs_to_log(kwargs)
         logger.debug(
-            "Sending request to service",
+            "Sending sync request to service",
             service_name=service_name,
             method=method,
             url=url,
@@ -258,8 +258,9 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
                 response_body = response.json()
             except Exception:
                 response_body = {}
+            error_details = response_body.get("detail", {})
             self._on_request_failure_sync(
-                method, url, response, response_body, raise_on_failure, kwargs
+                method, url, response, error_details, raise_on_failure, kwargs
             )
         else:
             logger.debug(
@@ -344,15 +345,12 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         )
         if response.content:
             try:
-                data = await response.json()
-                error = data.get("error")
-                error_stack_trace = data.get("errorStackTrace")
+                response_body = await response.json()
+                error_details = response_body.get("detail", {})
             except Exception:
                 pass
             else:
-                log_kwargs.update(
-                    {"error": error, "error_stack_trace": error_stack_trace}
-                )
+                log_kwargs["error_details"] = error_details
         logger.warning("Request to service failed", **log_kwargs)
         if raise_on_failure:
             mlrun.errors.raise_for_status(response)
@@ -362,7 +360,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         method: str,
         url: str,
         response: requests.Response,
-        response_body: dict,
+        error_details: dict,
         raise_on_failure: bool,
         kwargs,
     ):
@@ -371,7 +369,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         # this can be big and spammy
         log_kwargs.pop("json", None)
         log_kwargs.update(
-            {"method": method, "url": url, "response_body": response_body}
+            {"method": method, "url": url, "error_details": error_details}
         )
         logger.warning("Request to service failed", **log_kwargs)
         if raise_on_failure:

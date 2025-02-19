@@ -46,6 +46,16 @@ The application class may implement a custom `__init__` constructor with argumen
 
 To register and deploy the application see {ref}`register-model-monitoring-app`.
 
+## Testing your application 
+
+You can run and debug your application by running it as a job with data but without a model endpoint or datastore profiles. 
+You can check that the code runs with data, and you can debug it. This method is more efficient in terms of infrastructure. 
+You can use this flow for both local and remote.
+Use {py:method}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.evaluate` to test your code. 
+When you are satisfied with the application, just use {py:method}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.to_job` to run it as a job. 
+
+
+
 ## Using the application context
 
 The `context` argument is a `MonitoringApplicationContext` object.

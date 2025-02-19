@@ -6145,7 +6145,7 @@ class SQLDB(DBInterface):
         self,
         session,
         project: str,
-        chunk_size: int = mlrun.mlconf.alerts.chunk_size_during_project_deletion,
+        chunk_size: typing.Optional[int] = None,
     ) -> list[int]:
         """
         List all alert IDs associated with the specified project and delete them,
@@ -6163,42 +6163,32 @@ class SQLDB(DBInterface):
 
         :return: List of deleted alert IDs.
         """
-
+        chunk_size = (
+            chunk_size or mlrun.mlconf.alerts.chunk_size_during_project_deletion
+        )
         alert_ids = []
         offset = 0
 
         while True:
             # Step 1: Retrieve alerts (IDs and names) for the given project in chunks
             alerts = (
-                session.query(AlertConfig.id, AlertConfig.name)
+                session.query(AlertConfig.id)
                 .filter(AlertConfig.project == project)
                 .limit(chunk_size)
                 .offset(offset)
                 .all()
             )
-
             if not alerts:
-                break  # Exit the loop if there are no more alerts to delete
+                # Exit the loop if there are no more alerts to delete
+                break
 
-            # Step 2: Delete related notifications before deleting alerts
-            # Notifications reference alerts via foreign keys (parent_id and name).
-            # Deleting them first prevents integrity errors.
-            for alert_id, alert_name in alerts:
-                self._delete_alert_notifications(
-                    session=session,
-                    # Index on name improves deletion efficiency
-                    name=alert_name,
-                    alert_id=alert_id,
-                    project=project,
-                    # Defer commit for batch efficiency
-                    commit=False,
-                )
+            alert_ids_chunk = [alert[0] for alert in alerts]
+            del alerts
 
-            # Step 3: Extract alert IDs for deletion and delete alerts in this chunk
-            alert_ids_chunk = [alert_id for alert_id, _ in alerts]
-            alert_ids.extend(alert_ids_chunk)  # Collect all alert IDs to be deleted
+            # Collect all alert IDs to be deleted
+            alert_ids.extend(alert_ids_chunk)
 
-            # Step 4: Perform ORM-based deletion for alerts in the current chunk
+            # Step 2: Perform ORM-based deletion for alerts in the current chunk
             alerts_to_delete = (
                 session.query(AlertConfig)
                 .filter(AlertConfig.id.in_(alert_ids_chunk))
@@ -6207,7 +6197,8 @@ class SQLDB(DBInterface):
             for alert in alerts_to_delete:
                 # Deleting via ORM ensures cascading works
                 session.delete(alert)
-            # Step 5: Commit all changes in one transaction for the current chunk
+
+            # Step 3: Commit all changes in one transaction for the current chunk
             session.commit()
 
             # Increment the offset to process the next chunk

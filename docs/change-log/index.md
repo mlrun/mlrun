@@ -25,7 +25,7 @@
 |-------|----------------------------------------------------------------------------|
 |ML-7731|Model monitoring can now be run on a larger scale, using MLRun's additional replicas/workers. To benefit from the scale-out: After upgrading to v1.8.0, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
 |    |The model monitoring APIs changed. And new APIs
-
+|ML9305|Model monitoring is no longer in TechPreview status.|
 ### Alerts
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
@@ -42,10 +42,14 @@
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-8314|KFP is no longer part of the MLRun images, except for the new `mlrun/mlrun-kfp`. This gives you greater flexibility for installing packages whose dependencies conflict with KFP 1.8. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images).|
+|ML-2714|Now supports Confluent Kafka 7.8.|
+|NA     |Square brackets are now allowed in user names, for example: `{dependabot[bot]}`|
+
 
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
+|ML-8120|The main counters in the Projects page are now clickable, replacing the "See all" links.| 
 |ML-8276|You can now retry a workflow. The retry maintains the same experiment ID and just re-runs it, without changing anything in the workflow spec or code. The retry option is in enable in the 3-dots menu for the pipeline.|
 |ML-8346|The cross-project view now shows the number of alert activations within the project. From there you can drill down per endpoint, jobs, and application.<p align="center"><img src="../_static/images/alerts-dashboard.png" alt="alerts-summary" /></p><br>| 
 |ML-8352|Queries are now implemented with pagination, increasing responsiveness and reducing resource requirements.|
@@ -1158,6 +1162,12 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-8754|The default spot-labels node-selector are removed when configuring the `allow` preemption mode with one of the node selectors defined in `mlconf.get_preemptible_node_selector()`.|Use a non-default label.|v1.7.1|
 |ML-8796|The application runtime has two containers: the nuclio container uses the default resources and the sidecar container uses the function resources. | NA   |v1.7.1|
 |ML-8949|Error `MultipleResultsFound` when reading DataItem because of duplicate artifacts tagged as `latest`.s|NA| v1.7.0| 
+|ML-9336|Attempts to delete more than 200 artifacts fail, and you are prompted to use a more granular filter.|Configure the limit with `mlrun.mlconf.artifacts.limits.max_deletions`.|v1.8.0|
+|ML-9338|If the same project+key were created from both a hyper-param run and single run, and you removed the latest tag from everything, MLRun assigns latest to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results: it might not be the actual latest.|NA|v1.8.0|
+|
+
+
+
 ## Limitations
 
 | ID     |Description                                                                                                                                 |Workaround |Opened in|

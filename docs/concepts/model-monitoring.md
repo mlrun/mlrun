@@ -25,7 +25,7 @@ to your IT via email and Slack when operational performance metrics pass a thres
 call a CI/CD pipeline when data drift is detected and allow a data scientist to review the model with the revised data.
 
 ```{admonition} Note
-Model monitoring is currently in Tech Preview status. Migrating from 1.7.0 to later versions will not maintain backwards compatibility.
+Migrating from v1.7.0 to v1.8.0 and higher does not maintain backwards compatibility.
 ```
 
 **In this section**

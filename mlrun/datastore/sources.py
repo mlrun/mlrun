@@ -1031,7 +1031,11 @@ class StreamSource(OnlineSource):
 
         kwargs = {}
         engine = "sync"
-        if hasattr(function.spec, "graph") and function.spec.graph.engine:
+        if (
+            function.spec
+            and hasattr(function.spec, "graph")
+            and function.spec.graph.engine
+        ):
             engine = function.spec.graph.engine
 
         if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
@@ -1120,7 +1124,11 @@ class KafkaSource(OnlineSource):
         partitions = extra_attributes.pop("partitions", None)
         explicit_ack_mode = None
         engine = "sync"
-        if hasattr(function.spec, "graph") and function.spec.graph.engine:
+        if (
+            function.spec
+            and hasattr(function.spec, "graph")
+            and function.spec.graph.engine
+        ):
             engine = function.spec.graph.engine
 
         if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":

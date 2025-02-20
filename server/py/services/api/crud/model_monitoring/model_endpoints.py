@@ -632,7 +632,7 @@ class ModelEndpoints:
         """Get features to the feature set according to the model object"""
         labels_feature = [
             mlrun.feature_store.Feature(name=name) for name in model_endpoint_labels
-        ]
+        ] or model.spec.outputs
         features = []
         if model.spec.inputs:
             for feature in itertools.chain(model.spec.inputs, labels_feature):

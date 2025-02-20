@@ -1912,13 +1912,13 @@ mlflow-skinny==2.20.2 \
     --hash=sha256:b46400c84d97e2d33b9e5c4c9e12d30b30abc2ffd32a0b6a05d2ca9d0a8becde \
     --hash=sha256:f2335fb3f18298ff81507451883012735e4276a90bf11ba116734cfe7996955e
     # via mlflow
-mlrun-pipelines-kfp-common==0.3.11 \
-    --hash=sha256:60152c3c6a1d3c5839df101c23b39994570f0da47d708bab24dc34b0a9b9e608 \
-    --hash=sha256:768e93df50a92fa757b3779b65cfabd55cfa87625f3436a1e75d66457868d7e3
+mlrun-pipelines-kfp-common==0.3.12 \
+    --hash=sha256:52e0b8b1b7e5302493d8c7425a2c298f63393c5f728e73cf22adf4a13c5cb76c \
+    --hash=sha256:c958ae14c021293b42dcc9bb42c1da4b1574f2bf2edd0489dbde63aa23a5c61f
     # via -r requirements.txt
-mlrun-pipelines-kfp-v1-8==0.3.7 ; python_full_version < '3.11' \
-    --hash=sha256:87c02c7822b97097fdde6a97328c611c86c3d197ee8662a598eb3a1545881812 \
-    --hash=sha256:ed00d039b8b1a8fab97966019ec0fcd41aaea589286525b81f7b384838937d9f
+mlrun-pipelines-kfp-v1-8==0.3.8 ; python_full_version < '3.11' \
+    --hash=sha256:8d9d97640bd8021137c4a8f19349a72b94249d4462a136ee183d846cb59bd641 \
+    --hash=sha256:b5290a1829fb5f3a19991f63c9e548935011d95e172890403ec83a44717f4500
     # via -r requirements.txt
 msal==1.31.1 \
     --hash=sha256:11b5e6a3f802ffd3a72107203e20c4eac6ef53401961b880af2835b723d80578 \

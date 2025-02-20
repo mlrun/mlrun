@@ -2457,7 +2457,7 @@ class SQLDB(DBInterface):
         format_: str = mlrun.common.formatters.FunctionFormat.full,
     ):
         project = project or config.default_project
-        computed_tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        tag, computed_tag = self._compute_function_tag(tag, hash_key)
 
         obj, uid = self._get_function_db_object(session, name, project, tag, hash_key)
         tag_function_uid = None if not tag and hash_key else uid
@@ -2496,7 +2496,7 @@ class SQLDB(DBInterface):
     def _get_function_uid(
         self, session, name: str, tag: str, hash_key: str, project: str
     ):
-        computed_tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        tag, computed_tag = self._compute_function_tag(tag, hash_key)
         if not tag and hash_key:
             return hash_key
         else:
@@ -2508,7 +2508,16 @@ class SQLDB(DBInterface):
                 raise mlrun.errors.MLRunNotFoundError(
                     f"Function tag not found {function_uri}"
                 )
-            return tag_function_uid
+        return tag_function_uid
+
+    @staticmethod
+    def _compute_function_tag(tag: str, hash_key: str):
+        if unversioned_tagged_object_uid_prefix in hash_key:
+            computed_tag = tag or hash_key.split("-", maxsplit=1)[1]
+            tag = computed_tag
+        else:
+            computed_tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        return tag, computed_tag
 
     def _delete_project_functions(self, session: Session, project: str):
         logger.debug("Removing project functions from db", project=project)

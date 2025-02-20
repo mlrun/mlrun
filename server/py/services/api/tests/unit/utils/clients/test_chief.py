@@ -124,7 +124,7 @@ async def test_retry_on_exception(
     aioresponses_mock: aioresponses_mock,
 ):
     # ensure the session to make sure the retry options are set
-    await chief_client._messaging_client._ensure_session()
+    await chief_client._messaging_client._resolve_session()
     retry_attempts = (
         chief_client._messaging_client._local.session.retry_options.attempts
     )

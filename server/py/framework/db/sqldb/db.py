@@ -2512,7 +2512,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _compute_function_tag(tag: str, hash_key: str):
-        if unversioned_tagged_object_uid_prefix in hash_key:
+        if hash_key and unversioned_tagged_object_uid_prefix in hash_key:
             computed_tag = tag or hash_key.split("-", maxsplit=1)[1]
             tag = computed_tag
         else:

@@ -2508,7 +2508,7 @@ class SQLDB(DBInterface):
                 raise mlrun.errors.MLRunNotFoundError(
                     f"Function tag not found {function_uri}"
                 )
-        return tag_function_uid
+            return tag_function_uid
 
     @staticmethod
     def _compute_function_tag(tag: str, hash_key: str):

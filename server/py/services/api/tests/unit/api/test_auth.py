@@ -74,7 +74,8 @@ def test_authenticate_request_auth_info_basic(
     ):
         assert auth_info.username == "bugs"
         assert auth_info.password == "bunny"
-        assert auth_info.request_headers == request_headers
+        for key, value in request_headers.items():
+            assert auth_info.request_headers[key] == value
 
     framework.utils.auth.verifier.AuthVerifier().query_permissions = (
         _mock_successful_query_permissions
@@ -110,7 +111,8 @@ def test_authenticate_request_auth_info_bearer(
         raise_on_forbidden: bool = True,
     ):
         assert auth_info.token == "123"
-        assert auth_info.request_headers == request_headers
+        for key, value in request_headers.items():
+            assert auth_info.request_headers[key] == value
 
     framework.utils.auth.verifier.AuthVerifier().query_permissions = (
         _mock_successful_query_permissions
@@ -179,7 +181,8 @@ def test_authenticate_request_auth_info_iguazio(
         ].split(",")
         # we returned data in planes so a data session as well
         assert auth_info.data_session == mock_response_headers["X-V3io-Session-Key"]
-        assert auth_info.request_headers == dict(mock_request_headers)
+        for key, value in mock_request_headers.items():
+            assert auth_info.request_headers[key] == value
 
     framework.utils.auth.verifier.AuthVerifier().query_permissions = (
         _mock_successful_query_permissions

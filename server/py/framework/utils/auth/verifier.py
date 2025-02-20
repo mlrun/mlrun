@@ -247,18 +247,18 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             auth_info.data_session = request.headers["X-V3io-Access-Key"]
 
         # Maintain authentication headers for inter-services communication
-        auth_info.request_headers = {}
+        auth_info.request_headers = dict(request.headers)
         for header in [
-            "authorization",
-            "cookie",
-            mlrun.common.schemas.HeaderNames.projects_role,
-            "x-data-session-override",
-            "x-remote-user",
-            "X-V3io-session-key",
-            "X-V3io-Access-Key",
+            "content-length",
+            "content-type",
         ]:
-            if header_value := request.headers.get(header):
-                auth_info.request_headers[header] = header_value
+            auth_info.request_headers.pop(header, None)
+
+        # mask clients host with worker's host
+        origin_host = auth_info.request_headers.pop("host", None)
+        if origin_host:
+            # original host requested by client
+            auth_info.request_headers["x-forwarded-host"] = origin_host
         return auth_info
 
     def get_or_create_access_key(

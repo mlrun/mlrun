@@ -972,8 +972,9 @@ class OnlineSource(BaseSourceDriver):
         extra_arguments = extra_arguments or {}
         engine = "sync"
         if (
-            function.spec is not None
+            function.spec
             and hasattr(function.spec, "graph")
+            and function.spec.graph
             and function.spec.graph.engine
         ):
             engine = function.spec.graph.engine

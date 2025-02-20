@@ -530,8 +530,9 @@ class RemoteRuntime(KubeResource):
         engine = "sync"
         explicit_ack_mode = kwargs.pop("explicit_ack_mode", None)
         if (
-            self.spec is not None
+            self.spec
             and hasattr(self.spec, "graph")
+            and self.spec.graph
             and self.spec.graph.engine
         ):
             engine = self.spec.graph.engine

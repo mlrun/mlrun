@@ -298,14 +298,23 @@ class TDEngineConnector(TSDBConnector):
         )
 
         # Check if database is empty and if so, drop it
-
+        self._drop_database_if_empty()
 
     def _drop_database_if_empty(self):
-        query_tables = self.tables[0].show_tables_query()
+        query_random_table_name = self.tables[
+            mm_schemas.TDEngineSuperTables.PREDICTIONS
+        ].get_table_name_query()
+        drop_database = False
         try:
-            tables = self.connection.run(
-                query=query_tables, timeout=self._timeout, retries=self._retries
+            table_name = self.connection.run(
+                query=query_random_table_name,
+                timeout=self._timeout,
+                retries=self._retries,
             )
+            if len(table_name) == 0:
+                # no tables were found under the database
+                drop_database = True
+
         except Exception as e:
             logger.warning(
                 "Failed to query tables in the database. You may need to drop the database manually if it is empty.",
@@ -313,25 +322,32 @@ class TDEngineConnector(TSDBConnector):
                 error=mlrun.errors.err_to_str(e),
             )
 
-        if not tables:
-            drop_database_query = self.tables[0].drop_database_query()
+        if drop_database:
+            logger.debug(
+                "Going to drop the TDEngine database",
+                project=self.project,
+                database=self.database,
+            )
+            drop_database_query = self.tables[
+                mm_schemas.TDEngineSuperTables.PREDICTIONS
+            ].drop_database_query()
             try:
                 self.connection.run(
                     statements=drop_database_query,
                     timeout=self._timeout,
                     retries=self._retries,
                 )
-                logger.debug("The TDengine database has been successfully deleted",
-                             project=self.project,
-                             database=self.database)
+                logger.debug(
+                    "The TDEngine database has been successfully dropped",
+                    project=self.project,
+                    database=self.database,
+                )
             except Exception as e:
                 logger.warning(
                     "Failed to drop the database. You may need to drop it manually if it is empty.",
                     project=self.project,
                     error=mlrun.errors.err_to_str(e),
                 )
-
-
 
     def get_model_endpoint_real_time_metrics(
         self,

@@ -181,9 +181,9 @@ jobs:
       name: "Start a local k8s cluster"
       with:
         # - k3s versions at https://github.com/k3s-io/k3s/tags
-        k3s-version: v1.31.2+k3s1
+        k3s-version: v1.32.1+k3s1
         # - helm versions at https://github.com/helm/helm/tags
-        helm-version: v3.13.0
+        helm-version: v3.17.1
 
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3

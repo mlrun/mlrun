@@ -101,14 +101,14 @@ def get_or_create_model_endpoint(
                 function_name=function_name,
                 function_tag=function_tag or "latest",
             )
-        # If other fields provided, validate that they are correspond to the existing model endpoint data
-        _model_endpoint_validations(
-            model_endpoint=model_endpoint,
-            model_path=model_path,
-            sample_set_statistics=sample_set_statistics,
-        )
+            # If other fields provided, validate that they are correspond to the existing model endpoint data
+            _model_endpoint_validations(
+                model_endpoint=model_endpoint,
+                model_path=model_path,
+                sample_set_statistics=sample_set_statistics,
+            )
 
-    except mlrun.errors.MLRunNotFoundError:
+    except (mlrun.errors.MLRunNotFoundError, mlrun.errors.MLRunInvalidArgumentError):
         # Create a new model endpoint with the provided details
         pass
     if not model_endpoint:

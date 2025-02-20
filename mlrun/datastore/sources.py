@@ -1134,7 +1134,9 @@ class KafkaSource(OnlineSource):
 
         extra_attributes = self.set_explicit_ack_mode(function, **extra_attributes)
         explicit_ack_mode = extra_attributes.get("explicit_ack_mode")
-        extra_attributes["workerAllocationMode"] = extra_attributes.get("worker_allocation_mode", "pool")
+        extra_attributes["workerAllocationMode"] = extra_attributes.get(
+            "worker_allocation_mode", "pool"
+        )
 
         trigger_kwargs = {}
 

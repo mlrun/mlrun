@@ -6153,8 +6153,8 @@ class SQLDB(DBInterface):
 
         Steps:
         1. Retrieve all alert ids for the given project.
-        3. Delete the alerts from the database using ORM-based deletion to ensure cascading works.
-        4. Commit everything at once to improve performance and maintain transactional integrity.
+        2. Delete the alerts from the database using ORM-based deletion to ensure cascading works.
+        3. Commit everything at once to improve performance and maintain transactional integrity.
 
         :param session: SQLAlchemy session for database connection.
         :param project: Project identifier for which alerts need to be listed and deleted.
@@ -6166,7 +6166,8 @@ class SQLDB(DBInterface):
             chunk_size or mlrun.mlconf.alerts.chunk_size_during_project_deletion
         )
         alert_ids = []
-        offset = 0
+        last_id = None
+
         logger.debug(
             "Deleting project alerts from db in chunks",
             project=project,
@@ -6175,21 +6176,22 @@ class SQLDB(DBInterface):
 
         while True:
             # Step 1: Retrieve alerts ids for the given project in chunks
-            alerts = (
-                session.query(AlertConfig.id)
-                .filter(AlertConfig.project == project)
-                .limit(chunk_size)
-                .offset(offset)
-                .all()
-            )
+            query = session.query(AlertConfig.id).filter(AlertConfig.project == project)
+            if last_id is not None:
+                query = query.filter(AlertConfig.id > last_id)
+
+            alerts = query.order_by(AlertConfig.id).limit(chunk_size).all()
+
             if not alerts:
                 # Exit the loop if there are no more alerts to delete
                 break
 
             alert_ids_chunk = [alert[0] for alert in alerts]
-            del alerts
 
-            # Collect all alert IDs to be deleted
+            # Update last processed ID
+            last_id = alert_ids_chunk[-1]
+
+            # Collect all deleted alert IDs
             alert_ids.extend(alert_ids_chunk)
 
             # Step 2: Perform ORM-based deletion for alerts in the current chunk
@@ -6205,9 +6207,6 @@ class SQLDB(DBInterface):
 
             # Step 3: Commit all changes in one transaction for the current chunk
             session.commit()
-
-            # Increment the offset to process the next chunk
-            offset += chunk_size
 
         logger.debug(
             "Successfully deleted project alerts from db",

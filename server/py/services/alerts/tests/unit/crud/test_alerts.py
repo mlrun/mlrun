@@ -525,6 +525,8 @@ class TestAlerts(TestAlertsBase):
         )
         assert len(alerts) == 10
 
+        mlrun.mlconf.alerts.chunk_size_during_project_deletion = 2
+
         services.alerts.crud.Alerts().populate_caches(session=db)
         services.alerts.crud.Alerts().delete_alerts(db, project)
 

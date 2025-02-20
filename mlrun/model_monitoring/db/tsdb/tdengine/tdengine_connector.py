@@ -311,7 +311,7 @@ class TDEngineConnector(TSDBConnector):
                 timeout=self._timeout,
                 retries=self._retries,
             )
-            if len(table_name) == 0:
+            if len(table_name.data) == 0:
                 # no tables were found under the database
                 drop_database = True
 

@@ -335,7 +335,9 @@ async def test_get_or_create_access_key_success(
 
     # get or create access key
     monkeypatch.setattr(
-        igz_internal_client._client._session, "send", _get_or_create_access_key_mock
+        igz_internal_client._client._local.session,
+        "send",
+        _get_or_create_access_key_mock,
     )
     returned_access_key = await maybe_coroutine(
         iguazio_client.get_or_create_access_key(session, planes)

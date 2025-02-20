@@ -144,6 +144,12 @@ class TDEngineSchema:
             )
         return f"SELECT DISTINCT tbname FROM {self.database}.{self.super_table} WHERE {values};"
 
+    def show_tables_query(self) -> str:
+        return f"SHOW TABLES FROM {self.database};"
+
+    def drop_database_query(self) -> str:
+        return f"DROP DATABASE IF EXISTS {self.database};"
+
     @staticmethod
     def _get_records_query(
         table: str,

@@ -297,6 +297,42 @@ class TDEngineConnector(TSDBConnector):
             project=self.project,
         )
 
+        # Check if database is empty and if so, drop it
+
+
+    def _drop_database_if_empty(self):
+        query_tables = self.tables[0].show_tables_query()
+        try:
+            tables = self.connection.run(
+                query=query_tables, timeout=self._timeout, retries=self._retries
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to query tables in the database. You may need to drop the database manually if it is empty.",
+                project=self.project,
+                error=mlrun.errors.err_to_str(e),
+            )
+
+        if not tables:
+            drop_database_query = self.tables[0].drop_database_query()
+            try:
+                self.connection.run(
+                    statements=drop_database_query,
+                    timeout=self._timeout,
+                    retries=self._retries,
+                )
+                logger.debug("The TDengine database has been successfully deleted",
+                             project=self.project,
+                             database=self.database)
+            except Exception as e:
+                logger.warning(
+                    "Failed to drop the database. You may need to drop it manually if it is empty.",
+                    project=self.project,
+                    error=mlrun.errors.err_to_str(e),
+                )
+
+
+
     def get_model_endpoint_real_time_metrics(
         self,
         endpoint_id: str,

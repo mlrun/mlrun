@@ -907,6 +907,15 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def delete_project_alerts(
+        self,
+        session,
+        project: str,
+        chunk_size: typing.Optional[int] = None,
+    ) -> list[int]:
+        pass
+
+    @abstractmethod
     def get_alert(
         self,
         session,

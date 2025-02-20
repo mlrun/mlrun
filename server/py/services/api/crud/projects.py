@@ -211,6 +211,8 @@ class Projects(
         # actually forwarding the request and waiting for a response, since the project deletion flow is handled
         # by Chief only.
         services.alerts.crud.Events().delete_project_alert_events(name)
+        # TODO: this should run only for the case when alerts service is running together with api
+        services.alerts.crud.Alerts().delete_alerts(session=session, project=name)
 
         # Initialize the MM deleter with data from the DB, before the relevant DB data is deleted
         model_monitoring_deleter = (

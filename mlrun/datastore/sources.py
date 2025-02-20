@@ -18,7 +18,7 @@ import warnings
 from base64 import b64encode
 from copy import copy
 from datetime import datetime
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import pandas as pd
 import semver
@@ -968,7 +968,7 @@ class OnlineSource(BaseSourceDriver):
         )
 
     @staticmethod
-    def set_explicit_ack_mode(function: Function, **extra_arguments):
+    def set_explicit_ack_mode(function: Function, **extra_arguments) -> dict[str, Any]:
         extra_arguments = extra_arguments or {}
         engine = "sync"
         if (

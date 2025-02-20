@@ -263,7 +263,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
                 path=url,
                 response=response,
                 raise_on_failure=raise_on_failure,
-                **kwargs,
+                kwargs=kwargs,
             )
         else:
             logger.debug(
@@ -366,7 +366,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         path: str,
         response: requests.Response,
         raise_on_failure: bool,
-        kwargs,
+        kwargs: dict,
     ):
         log_kwargs = self._resolve_request_failure_kwargs_to_log(
             kwargs=kwargs,

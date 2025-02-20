@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import typing
 from ast import FunctionDef, parse, unparse
 from base64 import b64decode
 from typing import Callable, Optional, Union
@@ -139,7 +139,7 @@ class DatabricksRuntime(kubejob.KubejobRuntime):
             )
 
     def _get_modified_user_code(self, original_handler: str, log_artifacts_code: str):
-        encoded_code = (
+        encoded_code: typing.Optional[str] = (
             self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
         )
         if not encoded_code:

@@ -16,6 +16,7 @@ import copy
 import http
 import http.cookies
 import re
+import threading
 import typing
 import urllib
 import urllib.parse
@@ -36,8 +37,8 @@ PREFIX_GROUPING = re.compile(r"^([a-z/-]+)/((?:v\d+)?).*")
 class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
     def __init__(self) -> None:
         super().__init__()
-        # Session is used to forward request thus retry is disabled
-        self._session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
+        # Stores per-thread sessions in `session` attribute
+        self._local = threading.local()
         # Retry session is for internal messaging
         self._retry_session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
         self._discovery = framework.utils.clients.discovery.Client()
@@ -94,7 +95,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         raise_on_failure: bool = False,
         **kwargs,
     ) -> aiohttp.ClientResponse:
-        await self._ensure_session()
+        session = await self._resolve_session()
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = (
                 mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
@@ -110,9 +111,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         )
         response = None
         try:
-            response = await self._session.request(
-                method, url, verify_ssl=False, **kwargs
-            )
+            response = await session.request(method, url, verify_ssl=False, **kwargs)
             if not response.ok:
                 await self._on_request_failure(
                     service_name=service_name,
@@ -163,21 +162,27 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         path, version, service_instance = self._prepare_request_data(method, path)
         return service_instance is not None
 
-    async def _ensure_session(self):
-        if not self._session:
-            self._session = mlrun.utils.AsyncClientWithRetry(
-                # This client handles forwarding requests from api to other services.
-                # if we receive 5XX error, the code will be returned to the client.
-                #  if client is the SDK - it will handle and retry the request itself, upon its own retry policy
-                #  if the client is UI  - it will propagate the error to the user.
-                # Thus, do not retry.
-                # only exceptions (e.g.: connection initiating).
-                raise_for_status=False,
-            )
+    async def _resolve_session(self):
+        if not hasattr(self._local, "session"):
+            self._local.session = self._get_new_session()
+        return self._local.session
 
-            # if we go any HTTP response, return it, do not retry.
-            # by returning `True`, we tell the client the response is "legit" and so, it returns it to its callee.
-            self._session.retry_options.evaluate_response_callback = lambda _: True
+    @staticmethod
+    def _get_new_session():
+        session = mlrun.utils.AsyncClientWithRetry(
+            # This client handles forwarding requests from api to other services.
+            # if we receive 5XX error, the code will be returned to the client.
+            #  if client is the SDK - it will handle and retry the request itself, upon its own retry policy
+            #  if the client is UI  - it will propagate the error to the user.
+            # Thus, do not retry.
+            # only exceptions (e.g.: connection initiating).
+            raise_for_status=False,
+        )
+
+        # if we go any HTTP response, return it, do not retry.
+        # by returning `True`, we tell the client the response is "legit" and so, it returns it to its callee.
+        session.retry_options.evaluate_response_callback = lambda _: True
+        return session
 
     async def _ensure_retry_session(self):
         if not self._retry_session:

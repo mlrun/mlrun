@@ -13,6 +13,7 @@
 # limitations under the License.
 import asyncio
 import http
+import threading
 import unittest.mock
 
 import aioresponses
@@ -136,3 +137,34 @@ def test_messaging_client_should_not_forward_request(
         return_value=None
     )
     assert messaging_client.is_forwarded_request(fastapi_request) is False
+
+
+def test_sessions_are_different_per_thread():
+    num_threads = 3
+    sessions = [None] * num_threads
+    threads = []
+
+    def thread_worker(index):
+        async def get_session():
+            client = framework.utils.clients.messaging.Client()
+            session = await client._resolve_session()
+            sessions[index] = id(session) if session else None
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(get_session())
+        loop.close()
+
+    for i in range(num_threads):
+        t = threading.Thread(target=thread_worker, args=(i,))
+        threads.append(t)
+        t.start()
+
+    for t in threads:
+        t.join()
+
+    # Ensure all session IDs are unique per thread
+    assert None not in sessions, f"Some sessions were not initialized: {sessions}"
+    assert (
+        len(set(sessions)) == num_threads
+    ), f"Sessions should be unique per thread, got: {sessions}"

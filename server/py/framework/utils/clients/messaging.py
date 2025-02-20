@@ -40,6 +40,9 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         # Session is used to forward request thus retry is disabled
         self._session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
         # Retry session is for internal messaging
+        # _retry_session is unused at the moment but kept for future use, its implementation shall be similar to
+        # _sync_retry_session but with async client. It is expected to be needed as our microservices architecture
+        # evolves, and we need to make more internal requests between services.
         self._retry_session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
         self._sync_retry_session: typing.Optional[mlrun.utils.HTTPSessionWithRetry] = (
             None
@@ -254,13 +257,13 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             method, url, verify=mlrun.mlconf.httpdb.http.verify, **kwargs
         )
         if not response.ok:
-            try:
-                response_body = response.json()
-            except Exception:
-                response_body = {}
-            error_details = response_body.get("detail", {})
             self._on_request_failure_sync(
-                method, url, response, error_details, raise_on_failure, kwargs
+                service_name=service_name,
+                method=method,
+                path=url,
+                response=response,
+                raise_on_failure=raise_on_failure,
+                **kwargs,
             )
         else:
             logger.debug(
@@ -324,8 +327,8 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         if not self._sync_retry_session:
             self._sync_retry_session = mlrun.utils.HTTPSessionWithRetry()
 
-    @staticmethod
     async def _on_request_failure(
+        self,
         service_name: str,
         method: str,
         path: str,
@@ -333,44 +336,91 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         raise_on_failure: bool,
         **kwargs,
     ):
-        log_kwargs = Client._resolve_kwargs_to_log(kwargs)
-        log_kwargs.update({"method": method, "path": path})
-        log_kwargs.update(
-            {
-                "service_name": service_name,
-                "status_code": response.status,
-                "reason": response.reason,
-                "real_url": str(response.real_url),
-            }
+        log_kwargs = self._resolve_request_failure_kwargs_to_log(
+            kwargs=kwargs,
+            method=method,
+            path=path,
+            status_code=response.status,
+            reason=response.reason,
+            real_url=str(response.real_url),
+            service_name=service_name,
         )
+        error_details = {}
         if response.content:
             try:
                 response_body = await response.json()
                 error_details = response_body.get("detail", {})
             except Exception:
                 pass
-            else:
-                log_kwargs["error_details"] = error_details
-        logger.warning("Request to service failed", **log_kwargs)
-        if raise_on_failure:
-            mlrun.errors.raise_for_status(response)
+        self._log_and_raise(
+            log_kwargs=log_kwargs,
+            error_details=error_details,
+            raise_on_failure=raise_on_failure,
+            response=response,
+        )
 
-    @staticmethod
     def _on_request_failure_sync(
+        self,
+        service_name: str,
         method: str,
-        url: str,
+        path: str,
         response: requests.Response,
-        error_details: dict,
         raise_on_failure: bool,
         kwargs,
     ):
-        log_kwargs = copy.deepcopy(kwargs)
-
-        # this can be big and spammy
-        log_kwargs.pop("json", None)
-        log_kwargs.update(
-            {"method": method, "url": url, "error_details": error_details}
+        log_kwargs = self._resolve_request_failure_kwargs_to_log(
+            kwargs=kwargs,
+            method=method,
+            path=path,
+            status_code=response.status_code,
+            reason=response.reason,
+            real_url=str(response.url),
+            service_name=service_name,
         )
+        try:
+            response_body = response.json()
+            error_details = response_body.get("detail", {})
+        except Exception:
+            error_details = {}
+
+        self._log_and_raise(
+            log_kwargs=log_kwargs,
+            error_details=error_details,
+            raise_on_failure=raise_on_failure,
+            response=response,
+        )
+
+    @staticmethod
+    def _resolve_request_failure_kwargs_to_log(
+        kwargs: dict,
+        method: str,
+        path: str,
+        status_code: int,
+        reason: str,
+        real_url: str,
+        service_name: str,
+    ):
+        log_kwargs = Client._resolve_kwargs_to_log(kwargs)
+        log_kwargs.update(
+            {
+                "method": method,
+                "path": path,
+                "service_name": service_name,
+                "status_code": status_code,
+                "reason": reason,
+                "real_url": real_url,
+            }
+        )
+        return log_kwargs
+
+    @staticmethod
+    def _log_and_raise(
+        log_kwargs: dict,
+        error_details: dict,
+        raise_on_failure: bool,
+        response: typing.Union[aiohttp.ClientResponse, requests.Response],
+    ):
+        log_kwargs["error_details"] = error_details
         logger.warning("Request to service failed", **log_kwargs)
         if raise_on_failure:
             mlrun.errors.raise_for_status(response)
@@ -482,4 +532,4 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         # The service and version prefixes have been removed from the path earlier in the process.
         # The service prefix will be replaced with the new service name, and the version will be re-added
         # (or default to v1 if not present) during the final URL construction for the request.
-        return f"{service_instance.url}/{service_instance.name}/{version}/{path}"
+        return f"{service_instance.url.rstrip('/')}/{service_instance.name.rstrip('/')}/{version.rstrip('/')}/{path}"

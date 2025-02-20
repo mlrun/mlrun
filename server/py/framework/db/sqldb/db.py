@@ -6167,6 +6167,11 @@ class SQLDB(DBInterface):
         )
         alert_ids = []
         offset = 0
+        logger.debug(
+            "Deleting project alerts from db in chunks",
+            project=project,
+            chunk_size=chunk_size,
+        )
 
         while True:
             # Step 1: Retrieve alerts ids for the given project in chunks
@@ -6204,6 +6209,11 @@ class SQLDB(DBInterface):
             # Increment the offset to process the next chunk
             offset += chunk_size
 
+        logger.debug(
+            "Successfully deleted project alerts from db",
+            project=project,
+            number_of_deleted_alerts=len(alert_ids),
+        )
         # Return the list of deleted alert IDs
         return alert_ids
 

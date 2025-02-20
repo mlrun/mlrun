@@ -187,6 +187,7 @@ class Alerts(
         project: str,
     ):
         project = project or mlrun.mlconf.default_project
+        logger.debug("Deleting project alerts and cleaning up cache", project=project)
         services.alerts.crud.Events().delete_project_alert_events(project)
 
         alert_ids = framework.utils.singletons.db.get_db().delete_project_alerts(
@@ -198,6 +199,9 @@ class Alerts(
         for alert_id in alert_ids:
             self._clear_alert_states(alert_id)
             self._clear_caches(alert_id)
+        logger.debug(
+            "Successfully deleted project alerts and cleaned up cache", project=project
+        )
 
     def process_event(
         self,

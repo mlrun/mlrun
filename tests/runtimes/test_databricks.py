@@ -45,6 +45,27 @@ def test_prevent_run_locally():
         databricks_runtime.run(local=True)
 
 
+def test_pre_run():
+    databricks_runtime = DatabricksRuntime()
+    runobj = RunObject()
+    user_code = b64encode(b"print(1)").decode()
+
+    # simulates user code
+    databricks_runtime.spec.build.functionSourceCode = user_code
+
+    databricks_runtime._pre_run(runobj, None)
+
+    # sets mlrun code for databricks runtime
+    assert isinstance(databricks_runtime.spec.build.functionSourceCode, str)
+    assert (
+        databricks_runtime.spec.build.functionSourceCode != user_code
+    ), "User code should be replaced with mlrun code"
+
+    assert (
+        runobj.spec.handler == "run_mlrun_databricks_job"
+    ), "Handler should be set correctly"
+
+
 @pytest.mark.parametrize("user_code", [USER_CODE, USER_CODE_WITH_DUMMY])
 def test_get_internal_parameters(user_code):
     databricks_runtime = DatabricksRuntime()

@@ -1049,8 +1049,7 @@ class StreamSource(OnlineSource):
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
         )
         res.raise_for_status([409, 204])
-        kwargs = {}
-        kwargs = self.set_explicit_ack_mode(function, **kwargs)
+        kwargs = self.set_explicit_ack_mode(function=function)
 
         function.add_v3io_stream_trigger(
             url,
@@ -1135,8 +1134,7 @@ class KafkaSource(OnlineSource):
 
         extra_attributes = self.set_explicit_ack_mode(function, **extra_attributes)
         explicit_ack_mode = extra_attributes.get("explicit_ack_mode")
-        if extra_attributes.get("workerAllocationMode") is None:
-            extra_attributes["workerAllocationMode"] = "pool"
+        extra_attributes["workerAllocationMode"] = extra_attributes.get("worker_allocation_mode", "pool")
 
         trigger_kwargs = {}
 

@@ -206,8 +206,9 @@ class Projects(
 
         # TODO: This should be refactored once we have a proper hydra implementation
         # Delete alert's service resources
+        services.alerts.crud.Events().delete_project_alert_events(name)
         if mlrun.mlconf.services.hydra.services == "*":
-            services.alerts.crud.Events().delete_project_alert_events(name)
+            services.alerts.crud.Alerts().delete_alerts(session=session, project=name)
         else:
             messaging_client = framework.utils.clients.messaging.Client()
             messaging_client.delete(

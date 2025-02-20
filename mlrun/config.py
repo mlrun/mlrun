@@ -816,6 +816,8 @@ default_config = {
         "max_criteria_count": 100,
         # interval for periodic events generation job
         "events_generation_interval": 30,  # seconds
+        # number of alerts to delete in each chunk
+        "chunk_size_during_project_deletion": 100,
         # maximum allowed alert config cache size in alert's CRUD
         # for the best performance, it is recommended to set this value to the maximum number of alerts
         "max_allowed_cache_size": 20000,

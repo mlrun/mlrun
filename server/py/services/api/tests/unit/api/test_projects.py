@@ -48,6 +48,7 @@ import framework.utils.clients.log_collector
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s
 import framework.utils.singletons.project_member
+import services.alerts.crud
 import services.api.crud
 import services.api.tests.unit.conftest
 import services.api.tests.unit.utils.clients.test_log_collector
@@ -210,6 +211,25 @@ def test_delete_project_with_resources(
     _create_resources_of_all_kinds(db, k8s_secrets_mock, project_to_keep)
     _create_resources_of_all_kinds(db, k8s_secrets_mock, project_to_remove)
 
+    # populate alerts cache
+    services.alerts.crud.alerts.Alerts().populate_caches(session=db)
+    # list alerts and remember ids
+    alert_ids_to_remove = [
+        alert.id
+        for alert in services.alerts.crud.Alerts().list_alerts(
+            session=db,
+            project=project_to_remove,
+        )
+    ]
+
+    alert_ids_to_keep = [
+        alert.id
+        for alert in services.alerts.crud.Alerts().list_alerts(
+            session=db,
+            project=project_to_keep,
+        )
+    ]
+
     (
         project_to_keep_table_name_records_count_map_before_project_removal,
         project_to_keep_object_records_count_map_before_project_removal,
@@ -288,6 +308,35 @@ def test_delete_project_with_resources(
         )
         == {}
     )
+
+    # check that alerts cache is cleaned up
+    for alert_id in alert_ids_to_remove:
+        assert (
+            services.alerts.crud.Alerts()._get_alert_by_id_cached()(db, alert_id)
+            is None
+        )
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            assert services.alerts.crud.Alerts()._get_alert_state_cached()(db, alert_id)
+
+    # check that alerts cache is not cleaned up
+    for alert_id in alert_ids_to_keep:
+        assert (
+            services.alerts.crud.Alerts()._get_alert_by_id_cached()(db, alert_id)
+            is not None
+        )
+        assert (
+            services.alerts.crud.Alerts()._get_alert_state_cached()(db, alert_id)
+            is not None
+        )
+
+    # check that event cache is removed for project_to_remove, and it isn't for project_to_keep
+    project_to_keep_cached_events_count = 0
+    for key, alert_ids in services.alerts.crud.events.Events()._cache.items():
+        assert key[0] != project_to_remove
+        if key[0] == project_to_keep:
+            project_to_keep_cached_events_count += len(alert_ids)
+
+    assert project_to_keep_cached_events_count == len(alert_ids_to_keep)
 
     # deletion strategy - check - should succeed cause no project
     _send_delete_request_and_assert_response_code(

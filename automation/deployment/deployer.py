@@ -469,14 +469,19 @@ class CommunityEditionDeployer:
         if not ep.registry_url and ep.minikube:
             ep.registry_url = f"{host_ip}:{Constants.minikube_registry_port}"
 
+        registry_secret_name = (
+            ep.registry_secret_name
+            if ep.registry_secret_name is not None
+            else Constants.default_registry_secret_name
+        )
+
         helm_values = {
             "global.registry.url": ep.registry_url,
-            "global.registry.secretName": f'"{ep.registry_secret_name}"'  # adding quotes in case of empty string
-            if ep.registry_secret_name is not None
-            else Constants.default_registry_secret_name,
             "global.externalHostAddress": host_ip,
             "nuclio.dashboard.externalIPAddresses[0]": host_ip,
         }
+        if registry_secret_name:
+            helm_values["global.registry.secretName"] = registry_secret_name
 
         if ep.mlrun_version:
             self._set_mlrun_version_in_helm_values(helm_values, ep.mlrun_version)
@@ -491,7 +496,9 @@ class CommunityEditionDeployer:
             ],
         ):
             if overridden_image:
-                self._override_image_in_helm_values(helm_values, value, overridden_image)
+                self._override_image_in_helm_values(
+                    helm_values, value, overridden_image
+                )
 
         for component, disabled in zip(
             Constants.disableable_components,

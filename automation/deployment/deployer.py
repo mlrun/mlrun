@@ -481,7 +481,7 @@ class CommunityEditionDeployer:
         if ep.mlrun_version:
             self._set_mlrun_version_in_helm_values(helm_values, ep.mlrun_version)
 
-        for value, overriden_image in zip(
+        for value, overridden_image in zip(
             Constants.mlrun_image_values,
             [
                 ep.override_mlrun_api_image,
@@ -490,8 +490,8 @@ class CommunityEditionDeployer:
                 ep.override_mlrun_log_collector_image,
             ],
         ):
-            if overriden_image:
-                self._override_image_in_helm_values(helm_values, value, overriden_image)
+            if overridden_image:
+                self._override_image_in_helm_values(helm_values, value, overridden_image)
 
         for component, disabled in zip(
             Constants.disableable_components,
@@ -679,26 +679,26 @@ class CommunityEditionDeployer:
         self,
         helm_values: dict[str, str],
         image_helm_value: str,
-        overriden_image: str,
+        overridden_image: str,
     ) -> None:
         """
         Override an image in the helm values.
         :param helm_values: Helm values to update
         :param image_helm_value: Helm value of the image to override
-        :param overriden_image: Image with which to override
+        :param overridden_image: Image with which to override
         """
         (
-            overriden_image_repo,
-            overriden_image_tag,
-        ) = overriden_image.split(":")
+            overridden_image_repo,
+            overridden_image_tag,
+        ) = overridden_image.split(":")
         self._log(
             "warning",
             "Overriding image",
             image=image_helm_value,
-            overriden_image=overriden_image,
+            overriden_image=overridden_image,
         )
-        helm_values[f"{image_helm_value}.image.repository"] = overriden_image_repo
-        helm_values[f"{image_helm_value}.image.tag"] = overriden_image_tag
+        helm_values[f"{image_helm_value}.image.repository"] = overridden_image_repo
+        helm_values[f"{image_helm_value}.image.tag"] = overridden_image_tag
 
     def _toggle_component_in_helm_values(
         self, helm_values: dict[str, str], component: str, disable: bool

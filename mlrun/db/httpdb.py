@@ -5346,7 +5346,7 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
-    def _resolve_page_params(self, params) -> dict:
+    def _resolve_page_params(self, params: typing.Optional[dict]) -> dict:
         """
         Resolve the page parameters, setting defaults where necessary.
         """
@@ -5362,6 +5362,15 @@ class HTTPRunDB(RunDBInterface):
                 # limit and page/page size are conflicting
                 page_params.pop("limit")
             page_params["page-size"] = page_size
+
+        # this may happen only when page-size was explicitly set along with limit
+        # this is to ensure we will not get stopped by API on similar below validation
+        # but rather simply fallback to use page-size.
+        if "page-size" in page_params and "limit" in page_params:
+            logger.warning(
+                "Both 'limit' and 'page-size' are provided, using 'page-size'."
+            )
+            page_params.pop("limit")
         return page_params
 
 

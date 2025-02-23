@@ -496,7 +496,6 @@ class TestRuns(TestDatabaseBase):
             self._db.list_runs(
                 self._db_session,
                 sort=False,
-                last=1,
             )
 
     def test_list_runs_with_same_names(self):

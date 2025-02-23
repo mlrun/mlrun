@@ -422,7 +422,6 @@ class SQLDB(DBInterface):
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
-        last: int = 0,
         iter: bool = False,
         start_time_from: typing.Optional[datetime] = None,
         start_time_to: typing.Optional[datetime] = None,
@@ -461,12 +460,6 @@ class SQLDB(DBInterface):
             query = query.filter(Run.end_time <= end_time_to)
         if sort:
             query = query.order_by(Run.start_time.desc())
-        if last:
-            if not sort:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Limiting the number of returned records without sorting will provide non-deterministic results"
-                )
-            query = query.limit(last)
         if not iter:
             query = query.filter(Run.iteration == 0)
         if requested_logs is not None:

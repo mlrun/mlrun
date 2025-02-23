@@ -266,24 +266,23 @@ class TDEngineConnector(TSDBConnector):
             flush_after_seconds=tsdb_batching_timeout_secs,
         )
 
-    def delete_tsdb_records(self, endpoint_id: str):
+    def delete_tsdb_records(self, endpoint_ids: list[str]):
         """
-        To delete subtables within TDEngine, we first query the subtable names with the provided endpoint_id.
+        To delete subtables within TDEngine, we first query the subtables names with the provided endpoint_ids.
         Then, we drop each subtable.
         """
         logger.debug(
             "Deleting model endpoint resources using the TDEngine connector",
             project=self.project,
-            endpoint_id=endpoint_id,
+            number_of_endpoints_to_delete=len(endpoint_ids),
         )
 
-        delete_condition = {"endpoint_id": endpoint_id}
-        # Get all subtables with the provided endpoint_id
+        # Get all subtables with the provided endpoint_ids
         subtables = []
         try:
             for table in self.tables:
-                get_subtable_query = self.tables[table]._get_subtables_query(
-                    values=delete_condition
+                get_subtable_query = self.tables[table]._get_subtables_query_by_tag(
+                    filter_tag="endpoint_id", filter_values=endpoint_ids
                 )
                 subtables_result = self.connection.run(
                     query=get_subtable_query,
@@ -297,7 +296,6 @@ class TDEngineConnector(TSDBConnector):
                 "These can be found under the following supertables: app_results, "
                 "metrics, errors, and predictions.",
                 project=self.project,
-                endpoint_id=endpoint_id,
                 error=mlrun.errors.err_to_str(e),
             )
 
@@ -319,13 +317,12 @@ class TDEngineConnector(TSDBConnector):
                 "These can be found under the following supertables: app_results, "
                 "metrics, errors, and predictions.",
                 project=self.project,
-                endpoint_id=endpoint_id,
                 error=mlrun.errors.err_to_str(e),
             )
         logger.debug(
             "Deleted all model endpoint resources using the TDEngine connector",
             project=self.project,
-            endpoint_id=endpoint_id,
+            number_of_endpoints_to_delete=len(endpoint_ids),
         )
 
     def delete_tsdb_resources(self):

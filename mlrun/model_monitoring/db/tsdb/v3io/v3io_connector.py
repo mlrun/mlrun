@@ -428,31 +428,32 @@ class V3IOTSDBConnector(TSDBConnector):
         store, _, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
         store.rm(tsdb_path, recursive=True)
 
-    def delete_tsdb_records(self, endpoint_id: str):
+    def delete_tsdb_records(self, endpoint_ids: list[str]):
         logger.debug(
-            "Deleting model endpoint resources using the V3IO TSDB connector",
+            "Deleting model endpoints resources using the V3IO TSDB connector",
             project=self.project,
-            endpoint_id=endpoint_id,
+            number_of_endpoints_to_delete=len(endpoint_ids),
         )
         tables = mm_schemas.V3IOTSDBTables.list()
+        filter_query = f"endpoint_id IN({str(endpoint_ids)[1:-1]}) "
         for table in tables:
             try:
                 self.frames_client.delete(
                     backend=_TSDB_BE,
                     table=self.tables[table],
-                    filter=f"endpoint_id=='{endpoint_id}'",
+                    filter=filter_query,
                     start="0",
                 )
             except Exception as e:
                 logger.warning(
-                    f"Failed to delete TSDB records for endpoint '{endpoint_id}' from table '{table}'",
+                    f"Failed to delete TSDB records for the provided endpoints from table '{table}'",
                     error=mlrun.errors.err_to_str(e),
                     project=self.project,
                 )
         logger.debug(
             "Deleted all model endpoint resources using the V3IO connector",
             project=self.project,
-            endpoint_id=endpoint_id,
+            number_of_endpoints_to_delete=len(endpoint_ids),
         )
 
     def get_model_endpoint_real_time_metrics(

@@ -81,10 +81,10 @@ class TSDBConnector(ABC):
         """
 
     @abstractmethod
-    def delete_tsdb_records(self, endpoint_id: str):
+    def delete_tsdb_records(self, endpoint_ids: list[str]) -> None:
         """
         Delete model endpoint records from the TSDB connector.
-        :param endpoint_id: The model endpoint unique identifier.
+        :param endpoint_ids: List of model endpoint unique identifiers.
         """
         pass
 

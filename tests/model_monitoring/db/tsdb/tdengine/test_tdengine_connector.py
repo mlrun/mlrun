@@ -79,8 +79,17 @@ def test_write_application_event(
         "result_extra_data": """{"question": "Who wrote 'To Kill a Mockingbird'?"}""",
         "result_value": result_value,
     }
+
     connector.create_tables()
+
+    # Write an event
     connector.write_application_event(data)
+
+    # Write another event with different endpoint_id
+    data_v2 = data.copy()
+    data_v2["endpoint_id"] = "2"
+
+    connector.write_application_event(data_v2)
     read_data_kwargs = {
         "endpoint_id": endpoint_id,
         "start": datetime(2023, 1, 1, 1, 0, 0),
@@ -111,7 +120,7 @@ def test_write_application_event(
     if with_result_extra_data:
         assert read_back_values.extra_data == data["result_extra_data"]
 
-    connector.delete_tsdb_records(endpoint_id=endpoint_id)
+    connector.delete_tsdb_records(endpoint_ids=[endpoint_id, "123"])
     read_back_results = connector.read_metrics_data(**read_data_kwargs)
     read_back_result = read_back_results[0]
     assert not read_back_result.data

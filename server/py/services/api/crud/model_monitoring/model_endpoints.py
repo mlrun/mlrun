@@ -862,9 +862,7 @@ class ModelEndpoints:
                     project=project
                 ),
             )
-            for uid in uids:
-                # todo: optimize to delete all in one call
-                tsdb_connector.delete_tsdb_records(endpoint_id=uid)
+            tsdb_connector.delete_tsdb_records(endpoint_ids=uids)
             logger.info("TSDB resources were deleted")
         except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
             logger.info(

@@ -1109,7 +1109,8 @@ class TestNuclioRuntime(TestRuntimeBase):
             ("0.0.0-unstable", "3.9", "1.11.9", "python:3.9"),
         ],
     )
-    # TODO: Un-skip once upgrading to Python 3.12 and resolving the Python version according to client python version
+    # TODO: Un-skip and align test
+    #  once upgrading to Python 3.12 and resolving the Python version according to client python version
     @pytest.mark.skip(
         "Python version is not determined by the client version until python version is bumped to 3.12"
     )

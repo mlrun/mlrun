@@ -1289,7 +1289,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
                 training_set=model_dict.get("training_set"),
                 label_column=model_dict.get("label_column"),
             )
-            self._deploy_model_serving(**model_dict, enable_tracking=False, **kwargs)
+            self._deploy_model_serving(**model_dict, enable_tracking=False)
 
         endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
             project=self.project_name

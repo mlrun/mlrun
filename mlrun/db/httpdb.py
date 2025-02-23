@@ -350,17 +350,10 @@ class HTTPRunDB(RunDBInterface):
                 version=version,
             )
 
-        page_params = deepcopy(params) or {}
-
-        if page_params.get("page-token") is None and page_params.get("page") is None:
-            page_params["page"] = 1
-
-        if page_params.get("page-size") is None:
-            page_params["page-size"] = config.httpdb.pagination.default_page_size
-
+        page_params = self._resolve_page_params(params)
         response = _api_call(page_params)
 
-        # Yield only a single page of results
+        # yields a single page of results
         yield response
 
         if return_all:
@@ -1279,7 +1272,7 @@ class HTTPRunDB(RunDBInterface):
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
             to return per group. Default value is 1.
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
-            Currently the only allowed values are `created` and `updated`.
+            Currently, the only allowed values are `created` and `updated`.
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         """
 
@@ -1302,7 +1295,7 @@ class HTTPRunDB(RunDBInterface):
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
-            return_all=True,
+            return_all=not limit,
         )
         return artifacts
 
@@ -5352,6 +5345,33 @@ class HTTPRunDB(RunDBInterface):
                 background_task.metadata.name
             )
         return None
+
+    def _resolve_page_params(self, params: typing.Optional[dict]) -> dict:
+        """
+        Resolve the page parameters, setting defaults where necessary.
+        """
+        page_params = deepcopy(params) or {}
+        if page_params.get("page-token") is None and page_params.get("page") is None:
+            page_params["page"] = 1
+        if page_params.get("page-size") is None:
+            page_size = config.httpdb.pagination.default_page_size
+
+            if page_params.get("limit") is not None:
+                page_size = page_params["limit"]
+
+                # limit and page/page size are conflicting
+                page_params.pop("limit")
+            page_params["page-size"] = page_size
+
+        # this may happen only when page-size was explicitly set along with limit
+        # this is to ensure we will not get stopped by API on similar below validation
+        # but rather simply fallback to use page-size.
+        if page_params.get("page-size") and page_params.get("limit"):
+            logger.warning(
+                "Both 'limit' and 'page-size' are provided, using 'page-size'."
+            )
+            page_params.pop("limit")
+        return page_params
 
 
 def _as_json(obj):

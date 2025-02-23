@@ -1654,12 +1654,11 @@ class SQLDB(DBInterface):
 
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
+        # join may lose order, make sure order is applied on outer as well
+        outer_query = outer_query.order_by(ArtifactV2.updated.desc())
+
         if not limit:
-            # When a limit is applied, the results are ordered before limiting, so no additional ordering is needed.
-            # If no limit is specified, ensure the results are ordered after all filtering and joins have been applied.
-            outer_query = self._paginate_query(
-                outer_query.order_by(ArtifactV2.updated.desc()), offset, limit=None
-            )
+            outer_query = self._paginate_query(outer_query, offset, limit=None)
 
         results = outer_query.all()
         if not attach_tags:

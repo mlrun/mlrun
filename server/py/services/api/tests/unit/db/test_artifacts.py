@@ -1557,12 +1557,16 @@ class TestArtifacts(TestDatabaseBase):
     @pytest.mark.parametrize("limit", [None, 6])
     def test_list_artifacts_returns_elements_by_order_updated_field(self, limit):
         project = "artifact_project"
+        artifact_kinds = ArtifactCategories.all()
 
         # Create artifacts
         number_of_artifacts = 10
         for counter in range(number_of_artifacts):
+            next_cyclic_item = artifact_kinds[counter % len(artifact_kinds)]
             artifact_key = f"artifact-{counter}"
-            artifact_body = self._generate_artifact(artifact_key, project=project)
+            artifact_body = self._generate_artifact(
+                artifact_key, project=project, kind=next_cyclic_item
+            )
             self._db.store_artifact(
                 self._db_session, artifact_key, artifact_body, project=project
             )
@@ -2605,6 +2609,7 @@ class TestArtifacts(TestDatabaseBase):
                 name=project_name,
             ),
             spec=mlrun.common.schemas.ProjectSpec(description="some-description"),
+            kind=mlrun.common.schemas.ObjectKind.project,
         )
         self._db.create_project(self._db_session, project)
 

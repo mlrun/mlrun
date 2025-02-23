@@ -15,6 +15,7 @@
 import os
 import pathlib
 import shutil
+import time
 import unittest.mock
 
 import pandas
@@ -39,9 +40,22 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
         artifact = mlrun.artifacts.Artifact(key, body, target_path="/a.txt")
 
         db.store_artifact(key, artifact, tree=tree, project=prj)
+        # to ensure order on updated_at field
+        time.sleep(0.01)
         db.store_artifact(key, artifact, tree=tree, project=prj, iter=42)
         artifacts = db.list_artifacts(project=prj, tag="*", tree=tree)
         assert len(artifacts) == 2, "bad number of artifacts"
+
+        # validate ordering by checking that list of returned artifacts is sorted
+        # by updated time in descending order
+        artifacts = db.list_artifacts(project=prj)
+        assert len(artifacts) == 2, "bad number of artifacts"
+        for i in range(1, len(artifacts)):
+            assert (
+                artifacts[i]["metadata"]["updated"]
+                <= artifacts[i - 1]["metadata"]["updated"]
+            ), "bad ordering"
+
         assert artifacts.to_objects()[0].key == key, "not a valid artifact object"
         assert artifacts.dataitems()[0].url, "not a valid artifact dataitem"
 

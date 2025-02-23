@@ -19,6 +19,7 @@ import pytest
 
 import mlrun.errors
 
+from framework.db.sqldb.db import unversioned_tagged_object_uid_prefix
 from framework.db.sqldb.models import Function
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
@@ -103,6 +104,14 @@ class TestFunctions(TestDatabaseBase):
         )
         assert function_result_1 is not None
         assert function_result_1["metadata"]["tag"] == "latest"
+
+        function_result_2 = self._db.get_function(
+            self._db_session,
+            function_1.metadata.name,
+            hash_key=f"{unversioned_tagged_object_uid_prefix}latest",
+        )
+        assert function_result_2 is not None
+        assert function_result_2["metadata"]["tag"] == "latest"
 
         # not versioned so not queryable by hash key
         with pytest.raises(mlrun.errors.MLRunNotFoundError):

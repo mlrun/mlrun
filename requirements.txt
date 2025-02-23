@@ -39,8 +39,8 @@ deprecated~=1.2
 jinja2~=3.1, >=3.1.3
 orjson>=3.9.15, <4
 # mlrun pipeline adapters
-mlrun-pipelines-kfp-common~=0.3.11
-mlrun-pipelines-kfp-v1-8~=0.3.7; python_version < "3.11"
+mlrun-pipelines-kfp-common~=0.3.12
+mlrun-pipelines-kfp-v1-8~=0.3.8; python_version < "3.11"
 # uncomment when we make the switch to mlrun 1.9
 # mlrun-pipelines-kfp-v2~=0.3.7; python_version >= "3.11"
 docstring_parser~=0.16

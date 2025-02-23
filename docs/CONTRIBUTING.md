@@ -136,3 +136,19 @@ mlrun.projects module
 .. autoclass:: MlrunProject
    :members:
 ```
+
+## Tips & Tricks
+
+### Math documentation
+
+Math documentation can be added with:
+
+```text
+:math:`a^2 + b^2 = c^2`
+```
+
+It will show as: $a^2 + b^2 = c^2$.
+
+Note that not all the notations are supported in HTML/PDF outputs.
+For example, instead of `\text{}` command of the `amsmath` package in LaTeX,
+use the more standard `\operatorname{}` command.

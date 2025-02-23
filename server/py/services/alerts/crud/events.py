@@ -54,9 +54,9 @@ class Events(
                 self._cache.pop((project, event_kind, entity_id))
 
     def delete_project_alert_events(self, project):
-        to_delete = [key for key in self._cache if key[0] == project]
-        for key in to_delete:
-            self._cache.pop(key)
+        self._cache = {
+            key: value for key, value in self._cache.items() if key[0] != project
+        }
 
     def process_event(
         self,

@@ -306,15 +306,15 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             cast(str, key): (self._value_classifier.value_to_status(value), value)
             for key, value in drift_per_feature_values.items()
         }
-        monitoring_context.logger.debug("Logging plotly artifact")
-        monitoring_context.log_artifact(
-            mm_drift_table.FeaturesDriftTablePlot().produce(
-                sample_set_statistics=sample_set_statistics,
-                inputs_statistics=inputs_statistics,
-                metrics=metrics_per_feature.T.to_dict(),  # pyright: ignore[reportArgumentType]
-                drift_results=drift_results,
-            )
+        monitoring_context.logger.debug("Producing plotly artifact")
+        artifact = mm_drift_table.FeaturesDriftTablePlot().produce(
+            sample_set_statistics=sample_set_statistics,
+            inputs_statistics=inputs_statistics,
+            metrics=metrics_per_feature.T.to_dict(),  # pyright: ignore[reportArgumentType]
+            drift_results=drift_results,
         )
+        monitoring_context.logger.debug("Logging plotly artifact")
+        monitoring_context.log_artifact(artifact)
         monitoring_context.logger.debug("Logged plotly artifact successfully")
 
     def _log_drift_artifacts(

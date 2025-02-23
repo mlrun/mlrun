@@ -1886,7 +1886,7 @@ def _create_runs(
                 }
             if start_time:
                 run.setdefault("status", {})["start_time"] = start_time.isoformat()
-            response = client.post(f"run/{project_name}/{run_uid}", json=run)
+            response = client.post(f"projects/{project_name}/runs/{run_uid}", json=run)
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
 

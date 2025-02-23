@@ -46,7 +46,8 @@ def test_kafka_source_with_old_nuclio():
 
 def test_kafka_source_with_new_nuclio():
     kafka_source = KafkaSource()
-    function = new_function(name="test-function", kind="remote")
+    function = new_function(name="test-function", kind="serving")
+    function.set_topology(topology="flow", engine="async")
     function.spec.min_replicas = 2
     function.spec.max_replicas = 2
 

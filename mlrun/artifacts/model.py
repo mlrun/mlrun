@@ -279,7 +279,11 @@ class ModelArtifact(Artifact):
         )
         if label_columns:
             inferer.infer_schema(
-                df[label_columns], self.spec.outputs, {}, options=InferOptions.Features
+                df[label_columns],
+                self.spec.outputs,
+                {},
+                options=InferOptions.Features,
+                push_at_start=True,
             )
         if with_stats:
             self.spec.feature_stats = inferer.get_stats(

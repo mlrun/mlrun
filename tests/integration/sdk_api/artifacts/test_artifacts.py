@@ -45,6 +45,10 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert artifacts.to_objects()[0].key == key, "not a valid artifact object"
         assert artifacts.dataitems()[0].url, "not a valid artifact dataitem"
 
+        # ensure limit on sdk level
+        artifacts = db.list_artifacts(project=prj, limit=1)
+        assert len(artifacts) == 1, "bad number of artifacts"
+
         artifacts = db.list_artifacts(project=prj, tag="*", iter=0)
         assert len(artifacts) == 1, "bad number of artifacts"
 

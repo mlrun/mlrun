@@ -1425,6 +1425,17 @@ def to_non_empty_values_dict(input_dict: dict) -> dict:
     return {key: value for key, value in input_dict.items() if value}
 
 
+def get_enriched_gpu_limits(function_limits: dict) -> dict[str, int]:
+    """
+    Creates new limits containing the GPU-related limits from the function's limits,
+    mapping each to zero. This is used for pods like Kaniko and Argo pods, which inherit
+    GPU-related selectors but do not require GPU resources. By setting these
+    limits to zero, the pods receive the necessary tolerations from the cloud provider for scheduling,
+    without actually consuming GPU resources.
+    """
+    return {resource: 0 for resource in function_limits if "/gpu" in resource.lower()}
+
+
 def str_to_timestamp(time_str: str, now_time: Timestamp = None):
     """convert fixed/relative time string to Pandas Timestamp
 
@@ -2146,10 +2157,12 @@ def as_dict(data: typing.Union[dict, str]) -> dict:
 
 
 def encode_user_code(
-    user_code: str, max_len_warning: typing.Optional[int] = None
+    user_code: typing.Union[str, bytes], max_len_warning: typing.Optional[int] = None
 ) -> str:
     max_len_warning = max_len_warning or config.function.spec.source_code_max_bytes
-    encoded = base64.b64encode(user_code.encode("utf-8")).decode("utf-8")
+    if isinstance(user_code, str):
+        user_code = user_code.encode("utf-8")
+    encoded = base64.b64encode(user_code).decode("utf-8")
     if len(encoded) > max_len_warning:
         logger.warning(
             f"User code exceeds the maximum allowed size of {max_len_warning} bytes for non remote source. "

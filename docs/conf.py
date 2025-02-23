@@ -207,6 +207,8 @@ linkcheck_ignore = [
     "http://function.py",
     "http://localhost:30040",
     "https://dev.mysql.com/doc/refman/8.0/en/keywords.html",
+    # Returns 404 thought link is valid
+    "https://docs.databricks.com/aws/en/reference/jobs-2.0-api",
 ]
 
 # -- Autosummary -------------------------------------------------------------

@@ -316,6 +316,7 @@ class MonitoringDeployment:
         :return: `ServingRuntime` object with stream trigger.
         """
         profile = self._stream_profile
+        # Note: explicit_ack_mode = "explicitOnly" while working with 'async' engine
         if isinstance(
             profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
         ):
@@ -418,11 +419,11 @@ class MonitoringDeployment:
             != mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
             else mlrun.mlconf.get_v3io_access_key()
         )
-        kwargs = {"access_key": access_key}
-        if mlrun.mlconf.is_explicit_ack_enabled():
-            kwargs["explicit_ack_mode"] = "explicitOnly"
-        kwargs["worker_allocation_mode"] = "static"
-        kwargs["max_workers"] = stream_args.v3io.num_workers
+        kwargs = {
+            "access_key": access_key,
+            "worker_allocation_mode": "static",
+            "max_workers": stream_args.v3io.num_workers,
+        }
         services.api.api.endpoints.nuclio.create_model_monitoring_stream(
             project=self.project,
             stream_path=stream_path,
@@ -1498,6 +1499,7 @@ class MonitoringDeployment:
                             track_models=track_models,
                             sampling_percentage=sampling_percentage,
                             uid=uid,
+                            label_names=route.class_args.get("outputs"),
                             model_path=route.class_args.get("model_path", ""),
                         ),
                         route.model_endpoint_creation_strategy,
@@ -1586,6 +1588,7 @@ class MonitoringDeployment:
         children_names: typing.Optional[list[str]] = None,
         children_uids: typing.Optional[list[str]] = None,
         sampling_percentage: typing.Optional[float] = None,
+        label_names: typing.Optional[list[str]] = None,
         model_path: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         function_tag = function_tag or "latest"
@@ -1596,6 +1599,7 @@ class MonitoringDeployment:
             spec=mlrun.common.schemas.ModelEndpointSpec(
                 function_name=function_name,
                 function_tag=function_tag,
+                label_names=label_names or [],
                 model_class=model_class,
                 children=children_names,
                 children_uids=children_uids,

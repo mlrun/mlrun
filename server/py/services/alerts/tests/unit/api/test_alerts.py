@@ -186,6 +186,18 @@ class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
         result = client.get(f"projects/{project_name}/alerts/wrong-name/activations/1")
         assert result.status_code == 404
 
+    @unittest.mock.patch.object(services.alerts.crud.Alerts, "delete_alerts")
+    def test_delete_alerts(
+        self, patched_get_alert_activation, db: Session, client: TestClient
+    ):
+        project_name = "project-name"
+
+        self._create_project(db, project_name)
+        patched_get_alert_activation.return_value = None
+
+        result = client.delete(f"projects/{project_name}/alerts")
+        assert result.status_code == 204
+
     # TODO: Move to test utils framework
     @staticmethod
     def _create_project(session: Session, project_name: str):

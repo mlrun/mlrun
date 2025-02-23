@@ -19,7 +19,6 @@ import typing
 import warnings
 from urllib.parse import parse_qs, urlparse
 
-import kafka
 import pandas as pd
 import semver
 
@@ -227,6 +226,8 @@ def validate_additional_filters(additional_filters):
 
 class KafkaParameters:
     def __init__(self, kwargs: dict):
+        import kafka
+
         self._kafka = kafka
         self._kwargs = kwargs
         self._client_configs = {

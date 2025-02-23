@@ -210,7 +210,7 @@ To opt out of some of the components, use the following helm values:
 If you are using Docker Desktop, you can install MLRun CE on your local machine.
 Docker Desktop is available for Mac and Windows. For download information, system requirements, and installation instructions, see:
 
-- [Install Docker Desktop on Mac](https://docs.docker.com/docker-for-mac/install/)
+- [Install Docker Desktop on Mac](https://docs.docker.com/desktop/setup/install/mac-install/)
 - [Install Docker Desktop on Windows](https://docs.docker.com/docker-for-windows/install/). Note that WSL 2 backend was tested, Hyper-V was not tested.
 
 #### Configuring Docker Desktop
@@ -219,7 +219,7 @@ Docker Desktop includes a standalone Kubernetes server and client, as well as Do
 Kubernetes server runs locally within your Docker instance. To enable Kubernetes support and install a standalone instance of Kubernetes 
 running as a Docker container, go to **Preferences** > **Kubernetes** and then press **Enable Kubernetes**. Press **Apply & Restart** to 
 save the settings and then press **Install** to confirm. This instantiates the images that are required to run the Kubernetes server as 
-containers, and installs the `/usr/local/bin/kubectl` command on your machine. For more information, see [the Kubernetes documentation](https://docs.docker.com/desktop/kubernetes/).
+containers, and installs the `/usr/local/bin/kubectl` command on your machine. For more information, see [the Kubernetes documentation](https://docs.docker.com/desktop/features/kubernetes/).
 
 It's recommended to limit the amount of memory allocated to Kubernetes. If you're using Windows and WSL 2, you can configure global WSL options by placing a `.wslconfig` file into the root directory of 
 your users folder: `C:\Users\<yourUserName>\.wslconfig`. Keep in mind that you might need to run `wsl --shutdown` to shut down the WSL 2 VM and then restart your WSL instance for these changes to take effect.
@@ -231,8 +231,8 @@ memory=8GB # Limits VM memory in WSL 2 to 8 GB
 
 To learn about the various UI options and their usage, see:
 
-- [Docker Desktop for Mac user manual](https://docs.docker.com/docker-for-mac/)
-- [Docker Desktop for Windows user manual](https://docs.docker.com/docker-for-windows/)
+- [Docker Desktop for Mac user manual](https://docs.docker.com/desktop/setup/install/mac-install/)
+- [Docker Desktop for Windows user manual](https://docs.docker.com/desktop/setup/install/windows-install/)
 
 ## Storage resources
 

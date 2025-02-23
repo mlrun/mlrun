@@ -695,7 +695,7 @@ class TestArtifacts(TestDatabaseBase):
             kind=ArtifactCategories.model,
             key=artifact_key,
             uid=artifact_tree,
-            tag=artifact_1_tag,
+            iter=0,
         )
 
         # overwrite the tag for only one of the artifacts

@@ -1055,16 +1055,6 @@ class MonitoringDeployment:
             ).admin()
             client_id = f"{mlrun.mlconf.system_id}_{self.project}_kafka-python_{kafka.__version__}"
 
-            from mlrun.utils.debug import debug_info
-
-            debug_info(
-                {
-                    "bootstrap_servers": profile.brokers,
-                    "client_id": client_id,
-                    "kafka_admin_client_kwargs": kafka_admin_client_kwargs,
-                }
-            )
-
             try:
                 kafka_client = kafka.KafkaAdminClient(
                     bootstrap_servers=profile.brokers,
@@ -1198,14 +1188,6 @@ class MonitoringDeployment:
                 attributes
             ).consumer()
 
-            from mlrun.utils.debug import debug_info
-
-            debug_info(
-                {
-                    "kafka_brokers": kafka_brokers,
-                    "kafka_admin_client_kwargs": kafka_admin_client_kwargs,
-                }
-            )
             consumer = kafka.KafkaConsumer(
                 bootstrap_servers=kafka_brokers, **kafka_admin_client_kwargs
             )

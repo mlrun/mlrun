@@ -153,10 +153,6 @@ class KafkaStoreyTarget(storey.KafkaTarget):
 
         attributes = mlrun.datastore.utils.KafkaParameters(attributes).producer()
 
-        from mlrun.utils.debug import debug_info
-
-        debug_info({"producer_options": attributes, "kwargs": kwargs})
-
         super().__init__(*args, **kwargs, producer_options=attributes)
 
 

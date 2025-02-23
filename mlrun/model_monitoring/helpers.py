@@ -314,10 +314,6 @@ def _get_kafka_output_stream(
     attributes = kafka_profile.attributes()
     producer_options = mlrun.datastore.utils.KafkaParameters(attributes).producer()
 
-    from mlrun.utils.debug import debug_info
-
-    debug_info({"producer_options": producer_options})
-
     return mlrun.platforms.iguazio.KafkaOutputStream(
         brokers=kafka_profile.brokers,
         topic=topic,

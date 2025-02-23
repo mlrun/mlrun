@@ -215,15 +215,6 @@ class KafkaOutputStream:
 
         import kafka
 
-        from mlrun.utils.debug import debug_info
-
-        debug_info(
-            {
-                "bootstrap_servers": self._brokers,
-                "producer_options": self._producer_options,
-            }
-        )
-
         self._kafka_producer = kafka.KafkaProducer(
             bootstrap_servers=self._brokers,
             **self._producer_options,

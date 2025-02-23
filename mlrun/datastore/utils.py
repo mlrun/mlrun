@@ -259,7 +259,7 @@ class KafkaParameters:
     def admin(self) -> dict:
         return self._get_config("admin")
 
-    def nuclio_sasl(self, usr=None, pwd=None) -> dict:
+    def sasl(self, usr=None, pwd=None) -> dict:
         usr = usr or self._kwargs.get("sasl_plain_username", None)
         pwd = pwd or self._kwargs.get("sasl_plain_password", None)
         res = self._kwargs.get("sasl", {})

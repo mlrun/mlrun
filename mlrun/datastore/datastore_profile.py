@@ -216,9 +216,9 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
         attributes["initial_offset"] = self.initial_offset
         if self.partitions is not None:
             attributes["partitions"] = self.partitions
-        sasl = mlrun.datastore.utils.KafkaParameters(attributes).nuclio_sasl(
-            self.sasl_user, self.sasl_pass
-        )
+        sasl = mlrun.datastore.utils.KafkaParameters(
+            attributes, self.sasl_user, self.sasl_pass
+        ).sasl()
         if sasl:
             attributes["sasl"] = sasl
         return attributes

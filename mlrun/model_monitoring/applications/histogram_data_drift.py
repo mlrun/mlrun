@@ -105,7 +105,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     The application can log two artifacts:
 
     * JSON with the general drift value per feature, produced by default.
-    * Plotly table with the various metrics and histograms per feature, disabled by default due to performance issues.
+    * Plotly table with the various metrics and histograms per feature (disabled by default due to performance issues).
 
     This application is deployed by default when calling:
 
@@ -116,7 +116,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     To avoid it, pass :code:`deploy_histogram_data_drift_app=False`.
 
     If you want to change the application defaults, such as the classifier or which artifacts to produce, you
-    need to inherit from this class and deploy is as any other model monitoring application.
+    need to inherit from this class and deploy it as any other model monitoring application.
     """
 
     NAME: Final[str] = HistogramDataDriftApplicationConstants.NAME

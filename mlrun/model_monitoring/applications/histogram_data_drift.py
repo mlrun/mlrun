@@ -102,10 +102,10 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     Each metric is calculated over all the features individually and the mean is taken as the metric value.
     The average of Hellinger and total variance distance is taken as the result.
 
-    The application logs two artifacts:
+    The application can log two artifacts:
 
-    * A JSON with the general drift per feature.
-    * A plotly table different metrics per feature.
+    * JSON with the general drift value per feature, produced by default.
+    * Plotly table with the various metrics and histograms per feature, disabled by default due to performance issues.
 
     This application is deployed by default when calling:
 
@@ -114,6 +114,9 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         project.enable_model_monitoring()
 
     To avoid it, pass :code:`deploy_histogram_data_drift_app=False`.
+
+    If you want to change the application defaults, such as the classifier or which artifacts to produce, you
+    need to inherit from this class and deploy is as any other model monitoring application.
     """
 
     NAME: Final[str] = HistogramDataDriftApplicationConstants.NAME
@@ -127,7 +130,12 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         TotalVarianceDistance,
     ]
 
-    def __init__(self, value_classifier: Optional[ValueClassifier] = None) -> None:
+    def __init__(
+        self,
+        value_classifier: Optional[ValueClassifier] = None,
+        produce_json_artifact: bool = True,
+        produce_plotly_artifact: bool = False,
+    ) -> None:
         """
         :param value_classifier: Classifier object that adheres to the `ValueClassifier` protocol.
                                  If not provided, the default `DataDriftClassifier()` is used.
@@ -136,6 +144,9 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         assert self._REQUIRED_METRICS <= set(
             self.metrics
         ), "TVD and Hellinger distance are required for the general data drift result"
+
+        self._produce_json_artifact = produce_json_artifact
+        self._produce_plotly_artifact = produce_plotly_artifact
 
     def _compute_metrics_per_feature(
         self, monitoring_context: mm_context.MonitoringApplicationContext
@@ -310,25 +321,28 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         self,
         monitoring_context: mm_context.MonitoringApplicationContext,
         metrics_per_feature: DataFrame,
-        log_json_artifact: bool = True,
     ) -> None:
         """Log JSON and Plotly drift data per feature artifacts"""
+        if not self._produce_json_artifact and not self._produce_plotly_artifact:
+            return
+
         drift_per_feature_values = metrics_per_feature[
             [HellingerDistance.NAME, TotalVarianceDistance.NAME]
         ].mean(axis=1)
 
-        if log_json_artifact:
+        if self._produce_json_artifact:
             self._log_json_artifact(drift_per_feature_values, monitoring_context)
 
-        self._log_plotly_table_artifact(
-            sample_set_statistics=self._get_shared_features_sample_stats(
-                monitoring_context
-            ),
-            inputs_statistics=monitoring_context.feature_stats,
-            metrics_per_feature=metrics_per_feature,
-            drift_per_feature_values=drift_per_feature_values,
-            monitoring_context=monitoring_context,
-        )
+        if self._produce_plotly_artifact:
+            self._log_plotly_table_artifact(
+                sample_set_statistics=self._get_shared_features_sample_stats(
+                    monitoring_context
+                ),
+                inputs_statistics=monitoring_context.feature_stats,
+                metrics_per_feature=metrics_per_feature,
+                drift_per_feature_values=drift_per_feature_values,
+                monitoring_context=monitoring_context,
+            )
 
     def do_tracking(
         self, monitoring_context: mm_context.MonitoringApplicationContext

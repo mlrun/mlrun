@@ -1173,11 +1173,8 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
                 "mlrun/endpoint-id": model_endpoint.metadata.uid,
             }
         )
-        assert len(artifacts) == 2
-        assert {art["metadata"]["key"] for art in artifacts} == {
-            "drift_table_plot",
-            "features_drift_results",
-        }
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == "features_drift_results"
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured

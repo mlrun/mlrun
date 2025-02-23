@@ -871,7 +871,7 @@ class ModelEndpoints:
             )
 
         logger.info(
-            "Model endpoint monitoring infrastructure were delete",
+            "Model endpoint monitoring infrastructure were deleted",
             project=project,
             amount=len(uids),
         )

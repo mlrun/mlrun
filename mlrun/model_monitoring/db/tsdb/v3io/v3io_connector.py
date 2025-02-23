@@ -435,21 +435,31 @@ class V3IOTSDBConnector(TSDBConnector):
             number_of_endpoints_to_delete=len(endpoint_ids),
         )
         tables = mm_schemas.V3IOTSDBTables.list()
-        filter_query = f"endpoint_id IN({str(endpoint_ids)[1:-1]}) "
-        for table in tables:
-            try:
-                self.frames_client.delete(
-                    backend=_TSDB_BE,
-                    table=self.tables[table],
-                    filter=filter_query,
-                    start="0",
-                )
-            except Exception as e:
-                logger.warning(
-                    f"Failed to delete TSDB records for the provided endpoints from table '{table}'",
-                    error=mlrun.errors.err_to_str(e),
-                    project=self.project,
-                )
+        if len(endpoint_ids) > V3IO_MEPS_LIMIT:
+            # Split the endpoint ids into chunks to avoid exceeding the v3io-engine filter-expression limit
+            endpoint_id_chunks = [
+                endpoint_ids[i : i + V3IO_MEPS_LIMIT]
+                for i in range(0, len(endpoint_ids), V3IO_MEPS_LIMIT)
+            ]
+        else:
+            endpoint_id_chunks = [endpoint_ids]
+
+        for endpoint_id_chunk in endpoint_id_chunks:
+            filter_query = f"endpoint_id IN({str(endpoint_id_chunk)[1:-1]}) "
+            for table in tables:
+                try:
+                    self.frames_client.delete(
+                        backend=_TSDB_BE,
+                        table=self.tables[table],
+                        filter=filter_query,
+                        start="0",
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to delete TSDB records for the provided endpoints from table '{table}'",
+                        error=mlrun.errors.err_to_str(e),
+                        project=self.project,
+                    )
         logger.debug(
             "Deleted all model endpoint resources using the V3IO connector",
             project=self.project,

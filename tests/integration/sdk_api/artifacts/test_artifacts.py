@@ -203,8 +203,8 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
         artifacts = project.list_artifacts().to_objects()
         assert len(artifacts) == 2, f"Expected 2 artifacts, found {len(artifacts)}"
 
-        assert artifacts[1].tag == "latest"
-        assert artifacts[0].tag is None
+        assert artifacts[0].tag == "latest"
+        assert artifacts[1].tag is None
 
         # Assert attempting to retrieve an artifact with a URI missing the UID raises the expected error
         uri_without_uid = artifacts[0].uri.split("^")[0]

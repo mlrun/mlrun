@@ -122,7 +122,10 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     NAME: Final[str] = HistogramDataDriftApplicationConstants.NAME
 
     _REQUIRED_METRICS = {HellingerDistance, TotalVarianceDistance}
-    _STATS_TYPES: tuple[StatsKind] = (StatsKind.CURRENT_STATS, StatsKind.DRIFT_MEASURES)
+    _STATS_TYPES: tuple[StatsKind, StatsKind] = (
+        StatsKind.CURRENT_STATS,
+        StatsKind.DRIFT_MEASURES,
+    )
 
     metrics: list[type[HistogramDistanceMetric]] = [
         HellingerDistance,

@@ -5366,7 +5366,7 @@ class HTTPRunDB(RunDBInterface):
         # this may happen only when page-size was explicitly set along with limit
         # this is to ensure we will not get stopped by API on similar below validation
         # but rather simply fallback to use page-size.
-        if "page-size" in page_params and "limit" in page_params:
+        if page_params.get("page-size") and page_params.get("limit"):
             logger.warning(
                 "Both 'limit' and 'page-size' are provided, using 'page-size'."
             )

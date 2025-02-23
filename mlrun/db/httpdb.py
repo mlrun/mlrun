@@ -5357,7 +5357,7 @@ class HTTPRunDB(RunDBInterface):
             page_size = config.httpdb.pagination.default_page_size
 
             if page_params.get("limit") is not None:
-                page_size = params["limit"]
+                page_size = page_params["limit"]
 
                 # limit and page/page size are conflicting
                 page_params.pop("limit")

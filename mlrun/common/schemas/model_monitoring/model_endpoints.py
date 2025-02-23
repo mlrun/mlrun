@@ -123,11 +123,12 @@ class ModelEndpointMetadata(ObjectMetadata, ModelEndpointParser):
 
 
 class ModelEndpointSpec(ObjectSpec, ModelEndpointParser):
-    model_uid: Optional[str] = ""
-    model_path: Optional[str] = ""  # new maybe not
     model_class: Optional[str] = ""
     function_name: Optional[str] = ""
     function_tag: Optional[str] = ""
+    model_path: Optional[str] = ""
+    model_name: Optional[str] = ""
+    model_tag: Optional[str] = ""
     feature_names: Optional[list[str]] = []
     label_names: Optional[list[str]] = []
     feature_stats: Optional[dict] = {}

@@ -101,60 +101,35 @@ class ModelEndpoints:
         if not model_endpoint.metadata.uid:
             model_endpoint.metadata.uid = uuid.uuid4().hex
 
-        if not model_endpoint.spec.function_uid:
-            # get function_uid from db
-            try:
-                logger.info("Getting function uid from db")
-                current_function = await run_in_threadpool(
-                    framework.utils.singletons.db.get_db().get_function,
-                    db_session,
-                    name=model_endpoint.spec.function_name,
-                    tag=model_endpoint.spec.function_tag,
-                    project=model_endpoint.metadata.project,
-                )
-                model_endpoint.spec.function_uid = current_function.get(
-                    "metadata", {}
-                ).get("uid")
-            except mlrun.errors.MLRunNotFoundError:
-                logger.info("The model endpoint is created on a non-existing function")
-        model_obj = None
+        model_obj, model_uri = None, None
+        model_path = model_endpoint.spec.model_path
         if model_path and mlrun.datastore.is_store_uri(model_path):
             _, model_uri = mlrun.datastore.parse_store_uri(model_path)
             project, key, iteration, tag, tree, uid = parse_artifact_uri(
                 model_uri, model_endpoint.metadata.project
             )
-        else:
-            project, key, iteration, tag, tree, uid = (
-                model_endpoint.metadata.project,
-                model_endpoint.spec.model_db_key,
-                None,
-                model_endpoint.spec.model_tag,
-                None,
-                model_endpoint.spec.model_uid,
-            )
-        try:
-            logger.info("Getting model object from db")
-            model_obj = mlrun.artifacts.dict_to_artifact(
-                services.api.crud.Artifacts().get_artifact(
-                    db_session,
-                    key=key,
-                    tag=tag,
-                    iter=iteration,
-                    project=project,
-                    producer_id=tree,
-                    object_uid=uid,
+            try:
+                logger.info("Getting model object from db")
+                model_obj = mlrun.artifacts.dict_to_artifact(
+                    services.api.crud.Artifacts().get_artifact(
+                        db_session,
+                        key=key,
+                        tag=tag,
+                        iter=iteration,
+                        project=project,
+                        producer_id=tree,
+                        object_uid=uid,
+                    )
                 )
-            )
 
-            model_endpoint.spec.model_name = model_obj.metadata.key
-            model_endpoint.spec.model_db_key = model_obj.spec.db_key
-            model_endpoint.spec.model_uid = model_obj.metadata.uid
-            model_endpoint.spec.model_tag = model_obj.tag
-            model_endpoint.metadata.labels.update(
-                model_obj.labels
-            )  # todo : check if we still need this
-        except mlrun.errors.MLRunNotFoundError:
-            logger.info("The model endpoint is created on a non-existing model")
+                model_endpoint.spec.model_name = model_obj.metadata.key
+                model_endpoint.spec.model_tag = model_obj.tag
+                model_endpoint.spec.model_uri = model_obj.get_store_url(with_tag=False)
+                model_endpoint.metadata.labels.update(
+                    model_obj.labels
+                )  # todo : check if we still need this
+            except mlrun.errors.MLRunNotFoundError:
+                logger.info("The model endpoint is created on a non-existing model")
 
         if (
             creation_strategy

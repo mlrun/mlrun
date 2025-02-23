@@ -927,15 +927,17 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         uid = Column(String(32), default=lambda: uuid.uuid4().hex, unique=True)
+        name = Column(String(255, collation=SQLTypesUtil.collation()))
         endpoint_type = Column(Integer, nullable=False)
         project = Column(String(255, collation=SQLTypesUtil.collation()))
+        function_name = Column(String(255, collation=SQLTypesUtil.collation()))
         function_tag = Column(
             String(64, collation=SQLTypesUtil.collation())
         )  # remember the origin function tag
+        model_name = Column(String(255, collation=SQLTypesUtil.collation()))
         model_tag = Column(
             String(64, collation=SQLTypesUtil.collation())
         )  # remember the origin model tag
-        model_db_key = Column(String(255, collation=SQLTypesUtil.collation()))
         body = Column(SQLTypesUtil.blob())
 
         created = Column(
@@ -946,19 +948,12 @@ with warnings.catch_warnings():
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
         )
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
         function_id = Column(
             Optional[Integer],
             ForeignKey("functions.id", onupdate="CASCADE"),
             nullable=True,
         )
-        function = relationship(Function, backref="model_endpoints")
-        model_id = Column(
-            Optional[Integer],
-            ForeignKey("artifacts_v2.id", onupdate="CASCADE"),
-            nullable=True,
-        )
-        model = relationship(ArtifactV2, backref="model_endpoints")
+        function = relationship(Function, backref="model_endpoints")  # backref?
 
         Label = make_label(__tablename__)
         Tag = make_tag_v2(__tablename__)  # for versioning (latest and empty tags only)

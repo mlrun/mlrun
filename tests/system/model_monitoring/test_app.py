@@ -96,7 +96,7 @@ _DefaultDataDriftAppData = _AppData(
     deploy=False,
     results={"general_drift"},
     metrics={"hellinger_mean", "kld_mean", "tvd_mean"},
-    artifacts={"features_drift_results", "drift_table_plot"},
+    artifacts={"features_drift_results"},
 )
 
 

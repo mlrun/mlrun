@@ -422,7 +422,6 @@ class SQLDB(DBInterface):
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
-        last: int = 0,
         iter: bool = False,
         start_time_from: typing.Optional[datetime] = None,
         start_time_to: typing.Optional[datetime] = None,
@@ -461,12 +460,6 @@ class SQLDB(DBInterface):
             query = query.filter(Run.end_time <= end_time_to)
         if sort:
             query = query.order_by(Run.start_time.desc())
-        if last:
-            if not sort:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Limiting the number of returned records without sorting will provide non-deterministic results"
-                )
-            query = query.limit(last)
         if not iter:
             query = query.filter(Run.iteration == 0)
         if requested_logs is not None:
@@ -1654,12 +1647,11 @@ class SQLDB(DBInterface):
 
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
+        # join may lose order, make sure order is applied on outer as well
+        outer_query = outer_query.order_by(ArtifactV2.updated.desc())
+
         if not limit:
-            # When a limit is applied, the results are ordered before limiting, so no additional ordering is needed.
-            # If no limit is specified, ensure the results are ordered after all filtering and joins have been applied.
-            outer_query = self._paginate_query(
-                outer_query.order_by(ArtifactV2.updated.desc()), offset, limit=None
-            )
+            outer_query = self._paginate_query(outer_query, offset, limit=None)
 
         results = outer_query.all()
         if not attach_tags:
@@ -2457,7 +2449,7 @@ class SQLDB(DBInterface):
         format_: str = mlrun.common.formatters.FunctionFormat.full,
     ):
         project = project or config.default_project
-        computed_tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        tag, computed_tag = self._compute_function_tag(tag, hash_key)
 
         obj, uid = self._get_function_db_object(session, name, project, tag, hash_key)
         tag_function_uid = None if not tag and hash_key else uid
@@ -2496,7 +2488,7 @@ class SQLDB(DBInterface):
     def _get_function_uid(
         self, session, name: str, tag: str, hash_key: str, project: str
     ):
-        computed_tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        tag, computed_tag = self._compute_function_tag(tag, hash_key)
         if not tag and hash_key:
             return hash_key
         else:
@@ -2509,6 +2501,15 @@ class SQLDB(DBInterface):
                     f"Function tag not found {function_uri}"
                 )
             return tag_function_uid
+
+    @staticmethod
+    def _compute_function_tag(tag: str, hash_key: str):
+        if hash_key and unversioned_tagged_object_uid_prefix in hash_key:
+            computed_tag = tag or hash_key.split("-", maxsplit=1)[1]
+            tag = computed_tag
+        else:
+            computed_tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        return tag, computed_tag
 
     def _delete_project_functions(self, session: Session, project: str):
         logger.debug("Removing project functions from db", project=project)
@@ -3707,7 +3708,6 @@ class SQLDB(DBInterface):
         self.delete_model_endpoints(session, project=name)
         self._delete_project_artifacts(session, project=name)
         self.delete_run_notifications(session, project=name)
-        self.delete_alert_notifications(session, project=name)
         self._delete_project_runs(session, project=name)
         self.delete_project_schedules(session, name)
         self._delete_project_functions(session, name)
@@ -5261,7 +5261,7 @@ class SQLDB(DBInterface):
         session,
         cls,
         name: typing.Optional[str] = None,
-        parent_id: typing.Optional[str] = None,
+        parent_id: typing.Optional[int] = None,
         project: typing.Optional[str] = None,
         limit: typing.Optional[int] = None,
     ):
@@ -6067,7 +6067,12 @@ class SQLDB(DBInterface):
             return self.create_alert(session, alert)
         alert_record.full_object = alert.dict()
 
-        self._delete_alert_notifications(session, alert.name, alert, alert.project)
+        self._delete_alert_notifications(
+            session,
+            name=alert.name,
+            alert_id=alert.id,
+            project=alert.project,
+        )
         self._store_notifications(
             session,
             AlertConfig,
@@ -6136,6 +6141,81 @@ class SQLDB(DBInterface):
                 alert.updated = None
             alerts.append(alert)
         return alerts
+
+    def delete_project_alerts(
+        self,
+        session,
+        project: str,
+        chunk_size: typing.Optional[int] = None,
+    ) -> list[int]:
+        """
+        List all alert IDs associated with the specified project and delete them,
+        along with their related notifications, while ensuring foreign key constraints are respected.
+
+        Steps:
+        1. Retrieve all alert ids for the given project.
+        2. Delete the alerts from the database using ORM-based deletion to ensure cascading works.
+        3. Commit everything at once to improve performance and maintain transactional integrity.
+
+        :param session: SQLAlchemy session for database connection.
+        :param project: Project identifier for which alerts need to be listed and deleted.
+        :param chunk_size: Number of records to delete in each batch (default is 100).
+
+        :return: List of deleted alert IDs.
+        """
+        chunk_size = (
+            chunk_size or mlrun.mlconf.alerts.chunk_size_during_project_deletion
+        )
+        alert_ids = []
+        last_id = None
+
+        logger.debug(
+            "Deleting project alerts from db in chunks",
+            project=project,
+            chunk_size=chunk_size,
+        )
+
+        while True:
+            # Step 1: Retrieve alerts ids for the given project in chunks
+            query = session.query(AlertConfig.id).filter(AlertConfig.project == project)
+            if last_id is not None:
+                query = query.filter(AlertConfig.id > last_id)
+
+            alerts = query.order_by(AlertConfig.id).limit(chunk_size).all()
+
+            if not alerts:
+                # Exit the loop if there are no more alerts to delete
+                break
+
+            alert_ids_chunk = [alert[0] for alert in alerts]
+
+            # Update last processed ID
+            last_id = alert_ids_chunk[-1]
+
+            # Collect all deleted alert IDs
+            alert_ids.extend(alert_ids_chunk)
+
+            # Step 2: Perform ORM-based deletion for alerts in the current chunk
+            alerts_to_delete = (
+                session.query(AlertConfig)
+                .filter(AlertConfig.id.in_(alert_ids_chunk))
+                .all()
+            )
+            for alert in alerts_to_delete:
+                # Deleting via ORM ensures cascading works
+                # TODO: fix the foreign key constraint by implementing db level cascade
+                session.delete(alert)
+
+            # Step 3: Commit all changes in one transaction for the current chunk
+            session.commit()
+
+        logger.debug(
+            "Successfully deleted project alerts from db",
+            project=project,
+            number_of_deleted_alerts=len(alert_ids),
+        )
+        # Return the list of deleted alert IDs
+        return alert_ids
 
     def get_alert(
         self,
@@ -6484,25 +6564,16 @@ class SQLDB(DBInterface):
         state = AlertState(count=0, parent_id=alert_id)
         self._upsert(session, [state])
 
-    def delete_alert_notifications(
+    def _delete_alert_notifications(
         self,
         session,
+        alert_id: int,
         project: str,
-    ):
-        if resp := self._query(session, AlertConfig, project=project).all():
-            for alert in resp:
-                self._delete_alert_notifications(
-                    session, alert.name, alert, project, commit=False
-                )
-                session.delete(alert)
-
-            session.commit()
-
-    def _delete_alert_notifications(
-        self, session, name: str, alert: AlertConfig, project: str, commit: bool = True
+        name: typing.Optional[str] = None,
+        commit: bool = True,
     ):
         query = self._get_db_notifications(
-            session, AlertConfig, None, alert.id, project
+            session, AlertConfig, name, alert_id, project
         )
         for notification in query:
             session.delete(notification)

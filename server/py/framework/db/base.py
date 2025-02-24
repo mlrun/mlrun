@@ -119,7 +119,6 @@ class DBInterface(ABC):
         labels: Optional[Union[str, list[str]]] = None,
         states: Optional[list[str]] = None,
         sort: bool = True,
-        last: int = 0,
         iter: bool = False,
         start_time_from: Optional[datetime.datetime] = None,
         start_time_to: Optional[datetime.datetime] = None,
@@ -904,6 +903,15 @@ class DBInterface(ABC):
         project: typing.Optional[typing.Union[str, list[str]]] = None,
         exclude_updated: bool = False,
     ) -> list[mlrun.common.schemas.AlertConfig]:
+        pass
+
+    @abstractmethod
+    def delete_project_alerts(
+        self,
+        session,
+        project: str,
+        chunk_size: typing.Optional[int] = None,
+    ) -> list[int]:
         pass
 
     @abstractmethod

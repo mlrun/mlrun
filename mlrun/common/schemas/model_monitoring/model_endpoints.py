@@ -141,12 +141,9 @@ class ModelEndpointSpec(ObjectSpec, ModelEndpointParser):
     @classmethod
     def mutable_fields(cls):
         return [
-            "model_uid",
             "model_name",
-            "model_db_key",
             "model_tag",
             "model_class",
-            "function_uid",
             "feature_names",
             "label_names",
             "children",
@@ -210,7 +207,6 @@ class ModelEndpoint(BaseModel):
             ModelEndpointSchema.CURRENT_STATS,
             ModelEndpointSchema.DRIFT_MEASURES,
             ModelEndpointSchema.FUNCTION_URI,
-            ModelEndpointSchema.MODEL_URI,
         }
         # Initialize a flattened dictionary that will be filled with the model endpoint dictionary attributes
         flatten_dict = {}

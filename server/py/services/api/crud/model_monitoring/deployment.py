@@ -1398,7 +1398,11 @@ class MonitoringDeployment:
             batch = model_endpoints_instructions[i : i + batchsize]
             coroutines.append(
                 MonitoringDeployment._create_model_endpoint_limited(
-                    semaphore, batch, project
+                    semaphore,
+                    batch,
+                    project,
+                    function_name=function.metadata.name,
+                    function_tag=function.metadata.tag or "latest",
                 )
             )
 
@@ -1419,12 +1423,16 @@ class MonitoringDeployment:
             ]
         ],
         project: str,
+        function_name: str,
+        function_tag: str,
     ):
         async with semaphore:
             result = await framework.db.session.run_async_function_with_new_db_session(
                 func=services.api.crud.ModelEndpoints().create_model_endpoints,
                 model_endpoints_instructions=model_endpoints_instructions,
                 project=project,
+                function_name=function_name,
+                function_tag=function_tag,
             )
             return result
 

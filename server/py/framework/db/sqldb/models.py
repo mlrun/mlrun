@@ -17,7 +17,6 @@ import pickle
 import uuid
 import warnings
 from datetime import datetime, timezone
-from typing import Optional
 
 import orjson
 from sqlalchemy import (
@@ -303,7 +302,6 @@ with warnings.catch_warnings():
         __tablename__ = "functions"
         __table_args__ = (
             UniqueConstraint("name", "project", "uid", name="_functions_uc"),
-            Index("idx_functions_name_uid_project", "name", "uid", "project"),
         )
 
         Label = make_label(__tablename__)
@@ -949,7 +947,7 @@ with warnings.catch_warnings():
             default=lambda: datetime.now(timezone.utc),
         )
         function_id = Column(
-            Optional[Integer],
+            Integer,
             ForeignKey("functions.id", onupdate="CASCADE"),
             nullable=True,
         )

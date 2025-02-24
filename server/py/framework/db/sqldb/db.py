@@ -5114,8 +5114,8 @@ class SQLDB(DBInterface):
             .filter(
                 cls.project == project,
                 cls.name == name,
-                cls.function.name == function_name,
-                ModelEndpoint.function.tags.any(Function.Tag.name == function_tag),
+                cls.function_name == function_name,
+                cls.function_tag == function_tag,
                 cls.Tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
             )
         )
@@ -5389,7 +5389,7 @@ class SQLDB(DBInterface):
 
         # Apply filters
         if names:
-            query = query.filter(ModelEndpoint.uid.in_(uids))
+            query = query.filter(ModelEndpoint.name.in_(names))
         if function_name:
             query = query.filter(ModelEndpoint.function_name == function_name)
         if function_tag:
@@ -7298,14 +7298,17 @@ class SQLDB(DBInterface):
         session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
     ) -> str:
-        function_record, function_hash = self._get_function_db_object(
-            session,
-            name=model_endpoint.spec.function_name,
-            project=model_endpoint.metadata.project,
-            tag=model_endpoint.spec.function_tag,
-            hash_key=f"{unversioned_tagged_object_uid_prefix}{model_endpoint.spec.function_tag}",
-            # model endpoints always points on unversioned function
-        )
+        try:
+            function_record, function_hash = self._get_function_db_object(
+                session,
+                name=model_endpoint.spec.function_name,
+                project=model_endpoint.metadata.project,
+                tag=model_endpoint.spec.function_tag,
+                hash_key=f"{unversioned_tagged_object_uid_prefix}{model_endpoint.spec.function_tag}",
+                # model endpoints always points on unversioned function
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            function_record, function_hash = None, None
         mep = self._create_mep_record_to_store(model_endpoint, function_record)
         logger.debug(
             "Storing Model Endpoint Before upsert",

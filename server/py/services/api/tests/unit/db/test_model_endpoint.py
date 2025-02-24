@@ -43,46 +43,43 @@ class TestModelEndpoint(TestDatabaseBase):
         self,
         function_name: str = "function-1",
         project: str = "project-1",
-    ) -> str:
+    ) -> None:
         function = self._generate_function(function_name=function_name, project=project)
-        function_hash_key = self._db.store_function(
+        self._db.store_function(
             self._db_session,
             function.to_dict(),
             function.metadata.name,
             function.metadata.project,
+            versioned=False,
         )
-        return function_hash_key
 
-    def _store_artifact(self, key: str) -> str:
+    def _store_artifact(self, key: str) -> None:
         artifact = {
             "metadata": {"tree": "artifact_tree", "tag": "latest"},
             "spec": {"src_path": "/some/path"},
             "kind": "model",
             "status": {"bla": "blabla"},
         }
-        model_uid = self._db.store_artifact(
+        self._db.store_artifact(
             self._db_session,
             key,
             artifact,
             tag="latest",
             project="project-1",
         )
-        return model_uid
 
     def test_sanity(self) -> None:
         uids = []
-        model_uids = []
         # store artifact
         for i in range(2):
-            model_uids.append(self._store_artifact(f"model-{i}"))
+            self._store_artifact(f"model-{i}")
         # store function
         self._store_function()
         model_endpoint = mlrun.common.schemas.ModelEndpoint(
             metadata={"name": "model-endpoint-1", "project": "project-1"},
             spec={
                 "function_name": "function-1",
-                "function_uid": f"{unversioned_tagged_object_uid_prefix}latest",
-                "model_uid": model_uids[1],
+                "function_tag": "latest",
                 "model_name": "model-1",
             },
             status={"monitoring_mode": "enabled", "last_request": datetime.now()},
@@ -154,18 +151,16 @@ class TestModelEndpoint(TestDatabaseBase):
                 )
 
     def test_batch_insert_and_update(self) -> None:
-        model_uids = []
         # store artifact
         for i in range(2):
-            model_uids.append(self._store_artifact(f"model-{i}"))
+            self._store_artifact(f"model-{i}")
         # store function
         self._store_function()
         model_endpoint_1 = mlrun.common.schemas.ModelEndpoint(
             metadata={"name": "model-endpoint-1", "project": "project-1", "uid": 111},
             spec={
                 "function_name": "function-1",
-                "function_uid": f"{unversioned_tagged_object_uid_prefix}latest",
-                "model_uid": model_uids[1],
+                "function_tag": "latest",
                 "model_name": "model-1",
             },
             status={"monitoring_mode": "enabled", "last_request": datetime.now()},
@@ -175,8 +170,7 @@ class TestModelEndpoint(TestDatabaseBase):
             metadata={"name": "model-endpoint-2", "project": "project-1", "uid": 222},
             spec={
                 "function_name": "function-1",
-                "function_uid": f"{unversioned_tagged_object_uid_prefix}latest",
-                "model_uid": model_uids[1],
+                "function_tag": "latest",
                 "model_name": "model-1",
             },
             status={"monitoring_mode": "enabled", "last_request": datetime.now()},
@@ -185,6 +179,8 @@ class TestModelEndpoint(TestDatabaseBase):
         self._db.store_model_endpoints(
             self._db_session,
             [model_endpoint_1, model_endpoint_2],
+            "function-1",
+            "latest",
             "project-1",
         )
 
@@ -229,18 +225,16 @@ class TestModelEndpoint(TestDatabaseBase):
 
     def test_list_filters(self) -> None:
         uids = []
-        model_uids = []
         # store artifact
         for i in range(3):
-            model_uids.append(self._store_artifact(f"model-{i}"))
+            self._store_artifact(f"model-{i}")
         # store function
-        _ = self._store_function()
+        self._store_function()
         model_endpoint = mlrun.common.schemas.ModelEndpoint(
             metadata={"name": "model-endpoint-1", "project": "project-1"},
             spec={
                 "function_name": "function-1",
-                "function_uid": f"{unversioned_tagged_object_uid_prefix}latest",
-                "model_uid": model_uids[1],
+                "function_tag": "latest",
                 "model_name": "model-1",
             },
             status={"monitoring_mode": "enabled"},
@@ -249,8 +243,7 @@ class TestModelEndpoint(TestDatabaseBase):
             metadata={"name": "model-endpoint-2", "project": "project-1"},
             spec={
                 "function_name": "function-1",
-                "function_uid": f"{unversioned_tagged_object_uid_prefix}latest",
-                "model_uid": model_uids[2],
+                "function_tag": "latest",
                 "model_name": "model-1",
             },
             status={"monitoring_mode": "enabled"},
@@ -430,18 +423,16 @@ class TestModelEndpoint(TestDatabaseBase):
         assert len(list_mep) == 1
 
     def test_update_automatically_after_function_update(self) -> None:
-        model_uids = []
         # store artifact
         for i in range(2):
-            model_uids.append(self._store_artifact(f"model-{i}"))
+            self._store_artifact(f"model-{i}")
         # store function
         self._store_function()
         model_endpoint = mlrun.common.schemas.ModelEndpoint(
             metadata={"name": "model-endpoint-1", "project": "project-1"},
             spec={
                 "function_name": "function-1",
-                "function_uid": f"{unversioned_tagged_object_uid_prefix}latest",
-                "model_uid": model_uids[1],
+                "function_tag": "latest",
                 "model_name": "model-0",
             },
             status={"monitoring_mode": "enabled"},
@@ -493,79 +484,17 @@ class TestModelEndpoint(TestDatabaseBase):
                 # archived model endpoint should not have function_uri
                 assert mep.spec.function_uri is None
 
-    def test_update_automatically_after_model_update(self) -> None:
-        model_uids = []
-        # store artifact
-        for i in range(2):
-            model_uids.append(self._store_artifact(f"model-{i}"))
-        # store function
-        self._store_function()
-        model_endpoint = mlrun.common.schemas.ModelEndpoint(
-            metadata={"name": "model-endpoint-1", "project": "project-1"},
-            spec={
-                "function_name": "function-1",
-                "function_uid": f"{unversioned_tagged_object_uid_prefix}latest",
-                "model_uid": model_uids[1],
-                "model_name": "model-1",
-                "model_tag": "latest",
-            },
-            status={"monitoring_mode": "enabled"},
-        )
-
-        self._db.store_model_endpoint(
-            self._db_session,
-            model_endpoint,
-        )
-        model_endpoint_from_db = self._db.get_model_endpoint(
-            self._db_session,
-            name=model_endpoint.metadata.name,
-            project=model_endpoint.metadata.project,
-            function_name="function-1",
-            function_tag="latest",
-        )
-        assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
-        assert model_endpoint_from_db.metadata.project == "project-1"
-        assert model_endpoint_from_db.spec.model_name == "model-1"
-        assert model_endpoint_from_db.spec.model_tag == "latest"
-
-        artifact = {
-            "metadata": {"tree": "artifact_tree"},
-            "spec": {"src_path": "/some/new/path"},
-            "kind": "model",
-            "status": {"bla": "blablasdvcfs"},
-        }
-        self._db.store_artifact(
-            self._db_session,
-            f"model-{1}",
-            artifact,
-            project="project-1",
-        )
-
-        model_endpoint_from_db = self._db.get_model_endpoint(
-            self._db_session,
-            name=model_endpoint.metadata.name,
-            project=model_endpoint.metadata.project,
-            function_name="function-1",
-            function_tag="latest",
-        )
-        assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
-        assert model_endpoint_from_db.metadata.project == "project-1"
-        assert model_endpoint_from_db.spec.model_name == "model-1"
-        assert model_endpoint_from_db.spec.model_tag == "latest"
-
     def test_update(self) -> None:
-        model_uids = []
         # store artifact
         for i in range(2):
-            model_uids.append(self._store_artifact(f"model-{i}"))
+            self._store_artifact(f"model-{i}")
         # store function
         self._store_function()
         model_endpoint = mlrun.common.schemas.ModelEndpoint(
             metadata={"name": "model-endpoint-1", "project": "project-1"},
             spec={
                 "function_name": "function-1",
-                "function_uid": f"{unversioned_tagged_object_uid_prefix}latest",
-                "model_uid": model_uids[1],
+                "function_tag": "latest",
                 "model_name": "model-1",
             },
             status={"monitoring_mode": "enabled"},
@@ -644,21 +573,18 @@ class TestModelEndpoint(TestDatabaseBase):
         assert model_endpoint_from_db.metadata.project == "project-1"
         assert model_endpoint_from_db.metadata.uid == uids[0]
         assert model_endpoint_from_db.spec.feature_names == ["a", "b"]
-        assert model_endpoint_from_db.spec.function_uid == "111"
 
     def test_delete_model_endpoints(self) -> None:
-        model_uids = []
         # store artifact
         for i in range(2):
-            model_uids.append(self._store_artifact(f"model-{i}"))
+            self._store_artifact(f"model-{i}")
         # store function
         self._store_function()
         model_endpoint = mlrun.common.schemas.ModelEndpoint(
             metadata={"name": "model-endpoint-1", "project": "project-1"},
             spec={
                 "function_name": "function-1",
-                "function_uid": f"{unversioned_tagged_object_uid_prefix}latest",
-                "model_uid": model_uids[1],
+                "function_tag": "latest",
                 "model_name": "model-1",
             },
             status={"monitoring_mode": "enabled"},
@@ -687,7 +613,7 @@ class TestModelEndpoint(TestDatabaseBase):
             metadata={"name": "model-endpoint-1", "project": "project-1"},
             spec={
                 "function_name": "function-1",
-                "function_uid": f"{unversioned_tagged_object_uid_prefix}latest",
+                "function_tag": "latest",
             },
             status={"monitoring_mode": "enabled", "last_request": datetime.now()},
         )
@@ -752,7 +678,7 @@ class TestModelEndpoint(TestDatabaseBase):
                 metadata={"name": "model-endpoint-1", "project": "project-1"},
                 spec={
                     "function_name": f"f-{i}",
-                    "function_uid": None,
+                    "function_tag": "latest",
                 },
                 status={"monitoring_mode": "enabled", "last_request": datetime.now()},
             )
@@ -783,7 +709,7 @@ class TestModelEndpoint(TestDatabaseBase):
                 metadata={"name": "model-endpoint-1", "project": "project-1"},
                 spec={
                     "function_name": "func",
-                    "function_uid": None,
+                    "function_tag": None,
                 },
                 status={"monitoring_mode": "enabled", "last_request": datetime.now()},
             )

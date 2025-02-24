@@ -56,11 +56,9 @@ def mock_random_endpoint(
     project_name: str,
     name: str,
     function_name: Optional[str] = "function-1",
-    function_uid: Optional[str] = None,
     function_tag: Optional[str] = "v1",
     model_name: Optional[str] = None,
-    model_uid: Optional[str] = None,
-    model_db_key: Optional[str] = None,
+    model_path: Optional[str] = None,
     add_labels=True,
 ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
     def random_labels():
@@ -75,10 +73,8 @@ def mock_random_endpoint(
         spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
             function_name=function_name,
             function_tag=function_tag,
-            function_uid=function_uid,
             model_name=model_name,
-            model_uid=model_uid,
-            model_db_key=model_db_key,
+            model_path=model_path,
             model_class="modelcc",
             model_tag="latest",
         ),
@@ -94,7 +90,7 @@ def mock_random_endpoint(
 class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
-    project_name = "mm-app-project"
+    project_name = "mm-app-project-v6"
 
     def setup_method(self, method):
         super().setup_method(method)
@@ -462,9 +458,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         model_endpoint = mock_random_endpoint(
             self.project_name,
             "testing",
-            model_name=model_obj.key,
-            model_uid=model_obj.uid,
-            model_db_key=model_obj.db_key,
+            model_path=f"store://models/{self.project_name}/{model_obj.key}:latest",
         )
 
         db = mlrun.get_run_db()
@@ -482,9 +476,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         model_endpoint_2 = mock_random_endpoint(
             self.project_name,
             "testing",
-            model_name=model_obj_2.key,
-            model_uid=model_obj_2.uid,
-            model_db_key=model_obj_2.db_key,
+            model_path=f"store://models/{self.project_name}/{model_obj_2.key}:latest",
         )
 
         db.create_model_endpoint(model_endpoint_2)  # in-place update

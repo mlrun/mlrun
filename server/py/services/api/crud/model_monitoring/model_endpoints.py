@@ -198,6 +198,8 @@ class ModelEndpoints:
             ]
         ],
         project: str,
+        function_name: str,
+        function_tag: str,
     ) -> None:
         # extra improvement to list all the relevant meps before - can be relevant to inplace and to the deletion
         # extra improvement to upsert all feature sets together
@@ -232,6 +234,8 @@ class ModelEndpoints:
                 session=db_session,
                 project=project,
                 model_endpoints=model_endpoints_dict.get("create"),
+                function_name=function_name,
+                function_tag=function_tag,
             )
         if model_endpoints_dict.get("update"):
             await run_in_threadpool(

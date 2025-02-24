@@ -38,7 +38,7 @@ def upgrade():
         "model_endpoints", sa.Column("function_id", sa.Integer(), nullable=True)
     )
     op.create_foreign_key(
-        None,
+        "fk_model_endpoints_functions",
         "model_endpoints",
         "functions",
         ["function_id"],
@@ -77,6 +77,8 @@ def downgrade():
             nullable=True,
         ),
     )
-    op.drop_constraint(None, "model_endpoints", type_="foreignkey")
+    op.drop_constraint(
+        "fk_model_endpoints_functions", "model_endpoints", type_="foreignkey"
+    )
     op.drop_column("model_endpoints", "function_id")
     # ### end Alembic commands ###

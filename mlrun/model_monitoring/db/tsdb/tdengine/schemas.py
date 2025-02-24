@@ -144,12 +144,6 @@ class TDEngineSchema:
             )
         return f"SELECT DISTINCT tbname FROM {self.database}.{self.super_table} WHERE {values};"
 
-    def drop_database_query(self) -> str:
-        return f"DROP DATABASE IF EXISTS {self.database};"
-
-    def get_table_name_query(self) -> str:
-        return f"SELECT table_name FROM information_schema.ins_tables where db_name='{self.database}' LIMIT 1;"
-
     @staticmethod
     def _get_records_query(
         table: str,

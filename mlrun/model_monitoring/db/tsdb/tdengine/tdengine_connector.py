@@ -187,6 +187,12 @@ class TDEngineConnector(TSDBConnector):
                 "Invalid 'endpoint_id' filter: must be a string or a list."
             )
 
+    def _drop_database_query(self) -> str:
+        return f"DROP DATABASE IF EXISTS {self.database};"
+
+    def _get_table_name_query(self) -> str:
+        return f"SELECT table_name FROM information_schema.ins_tables where db_name='{self.database}' LIMIT 1;"
+
     def apply_monitoring_stream_steps(self, graph, **kwarg):
         """
         Apply TSDB steps on the provided monitoring graph. Throughout these steps, the graph stores live data of
@@ -301,9 +307,7 @@ class TDEngineConnector(TSDBConnector):
         self._drop_database_if_empty()
 
     def _drop_database_if_empty(self):
-        query_random_table_name = self.tables[
-            mm_schemas.TDEngineSuperTables.PREDICTIONS
-        ].get_table_name_query()
+        query_random_table_name = self._get_table_name_query()
         drop_database = False
         try:
             table_name = self.connection.run(
@@ -328,9 +332,7 @@ class TDEngineConnector(TSDBConnector):
                 project=self.project,
                 database=self.database,
             )
-            drop_database_query = self.tables[
-                mm_schemas.TDEngineSuperTables.PREDICTIONS
-            ].drop_database_query()
+            drop_database_query = self._drop_database_query()
             try:
                 self.connection.run(
                     statements=drop_database_query,

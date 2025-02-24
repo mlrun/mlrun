@@ -2229,9 +2229,10 @@ class SQLDB(DBInterface):
         fn.updated = updated
         labels = get_in(function, "metadata.labels", {})
         update_labels(fn, labels)
-        # avoiding data duplications as the kind is given in the function object
-        # and we store it on a specific "kind" column
+        # avoiding data duplications as the attributes below are given in the function object
+        # and we store them on a specific columns
         fn.kind = function.pop("kind", None)
+        fn.state = function.get("status", {}).pop("state", None)
         fn.struct = function
         self._upsert(session, [fn])
         self.tag_objects_v2(session, [fn], project, tag)
@@ -2246,6 +2247,7 @@ class SQLDB(DBInterface):
         kind: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         hash_key: typing.Optional[str] = None,
+        states: typing.Optional[list[mlrun.common.schemas.FunctionState]] = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
@@ -2264,6 +2266,7 @@ class SQLDB(DBInterface):
             since=since,
             until=until,
             kind=kind,
+            states=states,
             offset=offset,
             limit=limit,
         ):
@@ -2460,6 +2463,8 @@ class SQLDB(DBInterface):
                 function["metadata"]["tag"] = computed_tag
                 function["metadata"]["uid"] = tag_function_uid
             function["kind"] = obj.kind
+            function.setdefault("status", {})
+            function["status"]["state"] = obj.state
             return mlrun.common.formatters.FunctionFormat.format_obj(function, format_)
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
@@ -5289,6 +5294,7 @@ class SQLDB(DBInterface):
         since: typing.Optional[datetime] = None,
         until: typing.Optional[datetime] = None,
         kind: typing.Optional[str] = None,
+        states: typing.Optional[list[mlrun.common.schemas.FunctionState]] = None,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
     ) -> list[tuple[Function, str]]:
@@ -5304,6 +5310,7 @@ class SQLDB(DBInterface):
         :param since: Filter functions that were updated after this time
         :param until: Filter functions that were updated before this time
         :param kind: The kind of the function to query.
+        :param states: The states of the function to query.
         :param offset: SQL query offset.
         :param limit: SQL query limit.
         """
@@ -5318,6 +5325,9 @@ class SQLDB(DBInterface):
 
         if kind is not None:
             query = query.filter(Function.kind == kind)
+
+        if states is not None:
+            query = query.filter(Function.state.in_(states))
 
         if since or until:
             query = generate_time_range_query(

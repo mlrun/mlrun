@@ -7271,14 +7271,17 @@ class SQLDB(DBInterface):
         project: str,
     ) -> None:
         meps = []
-        function_record, function_hash = self._get_function_db_object(
-            session,
-            name=function_name,
-            project=project,
-            tag=function_tag,
-            hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
-            # model endpoints always points on unversioned function
-        )
+        try:
+            function_record, function_hash = self._get_function_db_object(
+                session,
+                name=function_name,
+                project=project,
+                tag=function_tag,
+                hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
+                # model endpoints always points on unversioned function
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            function_record, function_hash = None, None
         for model_endpoint in model_endpoints:
             meps.append(
                 self._create_mep_record_to_store(model_endpoint, function_record)

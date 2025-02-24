@@ -118,6 +118,16 @@ your internet speed).
 ```
 
 To install the chart with the release name `mlrun-ce` use the following command.
+```{admonition} Note
+If you are using NFS storage in your Kubernetes cluster, add these flags to the chart deployment command:
+```
+--set kube-prometheus-stack.grafana.securityContext.runAsUser=1000 
+--set kube-prometheus-stack.grafana.securityContext.runAsGroup=1000 
+--set kube-prometheus-stack.grafana.securityContext.fsGroup=1000 
+--set kube-prometheus-stack.grafana.securityContext.fsGroupChangePolicy=OnRootMismatch 
+--set kube-prometheus-stack.grafana.initChownData.enabled
+```
+```
 Note the reference to the pre-created `registry-credentials` secret in `global.registry.secretName`:
 
 ```bash
@@ -139,9 +149,9 @@ Where:
 When the installation is complete, the helm command prints the URLs and ports of all the MLRun CE services.
 
 ```{admonition} Note
-There is currently a known issue with installing the chart on Macs using Apple silicon (M1/M2). The current pipelines
-MySQL database fails to start. The workaround for now is to opt out of pipelines by installing the chart with the
-`--set pipelines.enabled=false`.
+Known issue when installing the chart on Macs using Apple silicon (M1/M2/M3/M4):
+- The current pipelines MySQL database fails to start. The workaround for now is to opt out of pipelines by installing the chart with `--set pipelines.enabled=false`.
+- The Grafana statistics do not work well in this release. A fix will be delivered in a subsequent release.
 ```
 
 ## Configuring the online feature store

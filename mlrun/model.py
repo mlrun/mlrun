@@ -430,6 +430,19 @@ class ObjectList:
         self._children[child_obj.name] = child_obj
         return child_obj
 
+    def move_to_end(self, child, last=True):
+        self._children.move_to_end(child, last)
+
+    def update_list(self, object_list: "ObjectList", push_at_start: bool = False):
+        if push_at_start:
+            self._children = OrderedDict(
+                list(object_list._children.items()) + list(self._children.items())
+            )
+        else:
+            self._children = OrderedDict(
+                list(self._children.items()) + list(object_list._children.items())
+            )
+
 
 class Credentials(ModelObj):
     generate_access_key = "$generate"

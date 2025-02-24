@@ -229,7 +229,6 @@ class Runs(
             if state is not None
             else states or None,
             sort=sort,
-            last=last,
             iter=iter,
             start_time_from=start_time_from,
             start_time_to=start_time_to,

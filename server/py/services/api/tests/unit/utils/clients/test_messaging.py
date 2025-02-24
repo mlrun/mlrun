@@ -14,6 +14,7 @@
 import asyncio
 import http
 import threading
+import time
 import unittest.mock
 
 import aioresponses
@@ -185,6 +186,7 @@ def test_messaging_client_should_not_forward_request(
 
 def test_sessions_are_different_per_thread():
     num_threads = 3
+    session_ids = [None] * num_threads
     sessions = [None] * num_threads
     threads = []
 
@@ -192,11 +194,17 @@ def test_sessions_are_different_per_thread():
         async def get_session():
             client = framework.utils.clients.messaging.Client()
             session = await client._resolve_session()
-            sessions[index] = id(session) if session else None
+            session_ids[index] = id(session) if session else None
+            sessions[index] = session
+            # sleep to ensure multiple threads remain active simultaneously
+            time.sleep(2)
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+
+        # close the session before closing the loop
         loop.run_until_complete(get_session())
+        sessions[index].close()
         loop.close()
 
     for i in range(num_threads):
@@ -208,7 +216,7 @@ def test_sessions_are_different_per_thread():
         t.join()
 
     # Ensure all session IDs are unique per thread
-    assert None not in sessions, f"Some sessions were not initialized: {sessions}"
+    assert None not in session_ids, f"Some sessions were not initialized: {session_ids}"
     assert (
-        len(set(sessions)) == num_threads
-    ), f"Sessions should be unique per thread, got: {sessions}"
+        len(set(session_ids)) == num_threads
+    ), f"Sessions should be unique per thread, got: {session_ids}"

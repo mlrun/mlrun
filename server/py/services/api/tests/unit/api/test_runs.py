@@ -51,7 +51,7 @@ def test_run_with_nan_in_body(db: Session, client: TestClient) -> None:
     uid = "some-uid"
     project = "some-project"
     services.api.crud.Runs().store_run(db, run_with_nan_float, uid, project=project)
-    resp = client.get(f"run/{project}/{uid}")
+    resp = client.get(f"projects/{project}/runs/{uid}")
     assert resp.status_code == HTTPStatus.OK.value
 
 
@@ -101,16 +101,22 @@ def test_legacy_abort_run(db: Session, client: TestClient) -> None:
     runtime_resources.delete_runtime_resources = unittest.mock.Mock()
     abort_body = {"status.state": mlrun.common.runtimes.constants.RunStates.aborted}
     # completed is terminal state - should fail
-    response = client.patch(f"run/{project}/{run_completed_uid}", json=abort_body)
+    response = client.patch(
+        f"projects/{project}/runs/{run_completed_uid}", json=abort_body
+    )
     assert response.status_code == HTTPStatus.CONFLICT.value
     # aborted is terminal state - should fail
-    response = client.patch(f"run/{project}/{run_aborted_uid}", json=abort_body)
+    response = client.patch(
+        f"projects/{project}/runs/{run_aborted_uid}", json=abort_body
+    )
     assert response.status_code == HTTPStatus.CONFLICT.value
     # dask kind not abortable - should fail
-    response = client.patch(f"run/{project}/{run_dask_uid}", json=abort_body)
+    response = client.patch(f"projects/{project}/runs/{run_dask_uid}", json=abort_body)
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # running is ok - should succeed
-    response = client.patch(f"run/{project}/{run_in_progress_uid}", json=abort_body)
+    response = client.patch(
+        f"projects/{project}/runs/{run_in_progress_uid}", json=abort_body
+    )
     assert response.status_code == HTTPStatus.OK.value
     runtime_resources.delete_runtime_resources.assert_called_once()
 
@@ -335,16 +341,18 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     get_db()._upsert(db, [run], ignore=True)
 
     # all start time range
-    assert_time_range_request(client, [run_1_uid, run_2_uid])
+    assert_time_range_request(client, [run_1_uid, run_2_uid], config.default_project)
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
+        config.default_project,
         start_time_from=run_1_start_time.isoformat(),
         start_time_to=run_2_update_time.isoformat(),
     )
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
+        config.default_project,
         start_time_from=run_1_start_time.isoformat(),
     )
 
@@ -352,17 +360,20 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
+        config.default_project,
         last_update_time_from=run_1_update_time,
         last_update_time_to=run_2_update_time,
     )
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
+        config.default_project,
         last_update_time_from=run_1_update_time,
     )
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
+        config.default_project,
         last_update_time_to=run_2_update_time,
     )
 
@@ -370,17 +381,20 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     assert_time_range_request(
         client,
         [run_1_uid],
+        config.default_project,
         start_time_from=run_1_start_time,
         start_time_to=between_run_1_and_2,
     )
     assert_time_range_request(
         client,
         [run_1_uid],
+        config.default_project,
         start_time_to=between_run_1_and_2,
     )
     assert_time_range_request(
         client,
         [run_1_uid],
+        config.default_project,
         last_update_time_from=run_1_update_time,
         last_update_time_to=run_2_start_time,
     )
@@ -389,24 +403,28 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     assert_time_range_request(
         client,
         [run_2_uid],
+        config.default_project,
         start_time_from=run_2_start_time,
         start_time_to=run_2_update_time,
     )
     assert_time_range_request(
         client,
         [run_2_uid],
+        config.default_project,
         last_update_time_from=run_2_start_time,
     )
 
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
+        config.default_project,
         end_time_from=run_1_start_time,
     )
 
     assert_time_range_request(
         client,
         [run_1_uid],
+        config.default_project,
         end_time_from=run_1_start_time,
         end_time_to=run_2_start_time,
     )
@@ -414,6 +432,7 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     assert_time_range_request(
         client,
         [run_2_uid],
+        config.default_project,
         end_time_from=run_2_start_time,
     )
 
@@ -794,7 +813,7 @@ def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock):
     }
 
     services.api.crud.Runs().store_run(db, run, uid, project=project)
-    resp = client.get(f"run/{project}/{uid}")
+    resp = client.get(f"projects/{project}/runs/{uid}")
     assert resp.status_code == HTTPStatus.OK.value
 
     response_body = resp.json()["data"]
@@ -1060,8 +1079,10 @@ def _list_and_assert_objects(
     return runs
 
 
-def assert_time_range_request(client: TestClient, expected_run_uids: list, **filters):
-    resp = client.get("runs", params=filters)
+def assert_time_range_request(
+    client: TestClient, expected_run_uids: list, project: str, **filters
+):
+    resp = client.get(f"projects/{project}/runs", params=filters)
     assert resp.status_code == HTTPStatus.OK.value
 
     runs = resp.json()["runs"]

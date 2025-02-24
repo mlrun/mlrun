@@ -525,6 +525,7 @@ class ModelEndpoints:
                     model=model_obj,
                     run_db=framework.api.utils.get_run_db_instance(db_session),
                     project=model_endpoint.metadata.project,
+                    model_endpoint_labels=model_endpoint.spec.label_names,
                 )
                 model_endpoint.spec.feature_names = [
                     feature.name
@@ -626,11 +627,15 @@ class ModelEndpoints:
         model: mlrun.artifacts.ModelArtifact,
         project: str,
         run_db: mlrun.db.RunDBInterface,
+        model_endpoint_labels: list[str],
     ) -> list[mlrun.feature_store.Feature]:
         """Get features to the feature set according to the model object"""
+        labels_feature = [
+            mlrun.feature_store.Feature(name=name) for name in model_endpoint_labels
+        ] or model.spec.outputs
         features = []
         if model.spec.inputs:
-            for feature in itertools.chain(model.spec.inputs, model.spec.outputs):
+            for feature in itertools.chain(model.spec.inputs, labels_feature):
                 name = mlrun.feature_store.api.norm_column_name(feature.name)
                 features.append(
                     mlrun.feature_store.Feature(

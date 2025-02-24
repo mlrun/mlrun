@@ -271,6 +271,11 @@ async def deploy_function(
         background_tasks=[]
     )
     if function.get("kind") == mlrun.runtimes.RuntimeKinds.serving:
+        model_endpoints_instructions, function = (
+            services.api.crud.model_monitoring.deployment.MonitoringDeployment.create_model_endpoints_instructions(
+                function=function, function_name=name, project=project
+            )
+        )
         logger.info(
             "Creating Background Task for model endpoints creation",
             project=project,
@@ -282,7 +287,7 @@ async def deploy_function(
             background_tasks=background_tasks,
             project_name=project,
             function_name=name,
-            function=function,
+            model_endpoints_instructions=model_endpoints_instructions,
         )
         returned_background_tasks.background_tasks.append(returned_background_task)
 

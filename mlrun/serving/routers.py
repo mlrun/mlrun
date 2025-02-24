@@ -18,6 +18,7 @@ import copy
 import json
 import traceback
 import typing
+from datetime import timedelta
 from enum import Enum
 from io import BytesIO
 from typing import Union
@@ -78,6 +79,8 @@ class BaseModelRouter(RouterToDict):
         self.inputs_key = "instances" if self.protocol == "v1" else "inputs"
         self._input_path = input_path
         self._result_path = result_path
+        self._background_task_check_timestamp = None
+        self._background_task_terminate = False
         self.kwargs = kwargs
 
     def parse_event(self, event):
@@ -160,6 +163,44 @@ class BaseModelRouter(RouterToDict):
         """run tasks after processing the event"""
         return event
 
+    def _get_background_task_status(
+        self, event_id: str
+    ) -> mlrun.common.schemas.BackgroundTaskState:
+        self._background_task_check_timestamp = now_date()
+        server: mlrun.serving.GraphServer = getattr(
+            self.context, "_server", None
+        ) or getattr(self.context, "server", None)
+        if not self.context.is_mock or self.context.monitoring_mock:
+            if server.model_endpoint_creation_task_name:
+                background_task = mlrun.get_run_db().get_project_background_task(
+                    server.project, server.model_endpoint_creation_task_name
+                )
+                logger.debug(
+                    "Checking model endpoint creation task status",
+                    task_name=server.model_endpoint_creation_task_name,
+                )
+                if (
+                    background_task.status.state
+                    in mlrun.common.schemas.BackgroundTaskState.terminal_states()
+                ):
+                    logger.debug(
+                        f"Model endpoint creation task completed with state {background_task.status.state}"
+                    )
+                    self._background_task_terminate = True
+                else:  # in progress
+                    logger.debug(
+                        f"Model endpoint creation task is still in progress with the current state: "
+                        f"{background_task.status.state}. This event will not be monitored.",
+                        name=self.name,
+                        event_id=event_id,
+                    )
+                return background_task.status.state
+            else:
+                logger.debug(
+                    "Model endpoint creation task name not provided",
+                )  # TODO do we want to log all this in here without model
+        return mlrun.common.schemas.BackgroundTaskState.failed
+
 
 class ModelRouter(BaseModelRouter):
     def _resolve_route(self, body, urlpath):
@@ -195,6 +236,14 @@ class ModelRouter(BaseModelRouter):
 
     def _handle_event(self, event):
         name, route, subpath = self._resolve_route(event.body, event.path)
+        if (
+            not self._background_task_terminate
+            and now_date() - self._background_task_check_timestamp
+            >= timedelta(seconds=15)
+        ):
+            event.body["background_task_state"] = self._get_background_task_status(
+                event.id
+            )
         if not route:
             # if model wasn't specified return model list
             setattr(event, "terminated", True)

@@ -1343,9 +1343,15 @@ class MonitoringDeployment:
 
     @staticmethod
     async def create_model_endpoints(
-        function: dict,
         function_name: str,
         project: str,
+        model_endpoints_instructions: list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+                str,
+            ]
+        ],
     ):
         """
         Create model endpoints for the given function.
@@ -1355,44 +1361,17 @@ class MonitoringDeployment:
         3. Update the router model endpoint instructions with the children uids.
         4. Create the Router model endpoints according to the instructions list.
 
-        :param function:        The function object.
-        :param function_name:   The name of the function.
-        :param project:         The project name.
+        :param function_name:                The name of the function.
+        :param project:                      The project name.
+        :param model_endpoints_instructions: list of tuples of ModelEndpoint schema, CreationStrategy and str stands
+                                             for model_path
         """
         logger.info(
             "Start Running BGT for model endpoint creation",
             project=project,
             function=function_name,
         )
-        try:
-            function = mlrun.new_function(
-                runtime=function,
-                project=project,
-                name=function_name,
-            )
-        except Exception as err:
-            logger.error(traceback.format_exc())
-            framework.api.utils.log_and_raise(
-                HTTPStatus.BAD_REQUEST.value,
-                reason=f"Runtime error: {mlrun.errors.err_to_str(err)}",
-            )
-        model_endpoints_instructions: list[
-            tuple[
-                mlrun.common.schemas.ModelEndpoint,
-                mm_constants.ModelEndpointCreationStrategy,
-                str,
-            ]
-        ] = MonitoringDeployment(
-            project=project
-        )._extract_model_endpoints_from_function_graph(
-            function_name=function.metadata.name,
-            function_tag=function.metadata.tag,
-            track_models=function.spec.track_models,
-            graph=function.spec.graph,
-            sampling_percentage=function.spec.parameters.get(
-                mm_constants.EventFieldType.SAMPLING_PERCENTAGE, 100
-            ),
-        )  # model endpoint, creation strategy, model path
+
         semaphore = Semaphore(50)  # Limit concurrent tasks
         coroutines = []
         batchsize = 500
@@ -1430,6 +1409,41 @@ class MonitoringDeployment:
                 project=project,
             )
             return result
+
+    @staticmethod
+    def create_model_endpoints_instructions(
+        function: dict, function_name: str, project: str
+    ):
+        try:
+            function = mlrun.new_function(
+                runtime=function,
+                project=project,
+                name=function_name,
+            )
+        except Exception as err:
+            logger.error(traceback.format_exc())
+            framework.api.utils.log_and_raise(
+                HTTPStatus.BAD_REQUEST.value,
+                reason=f"Runtime error: {mlrun.errors.err_to_str(err)}",
+            )
+        model_endpoints_instructions: list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+                str,
+            ]
+        ] = MonitoringDeployment(
+            project=project
+        )._extract_model_endpoints_from_function_graph(
+            function_name=function.metadata.name,
+            function_tag=function.metadata.tag,
+            track_models=function.spec.track_models,
+            graph=function.spec.graph,
+            sampling_percentage=function.spec.parameters.get(
+                mm_constants.EventFieldType.SAMPLING_PERCENTAGE, 100
+            ),
+        )  # model endpoint, creation strategy, model path
+        return model_endpoints_instructions, function
 
     def _extract_model_endpoints_from_function_graph(
         self,
@@ -1493,6 +1507,7 @@ class MonitoringDeployment:
                 != mm_constants.ModelEndpointCreationStrategy.SKIP
             ):
                 uid = uuid.uuid4().hex
+                route.class_args["model_endpoint_uid"] = uid
                 model_endpoints_instructions.append(
                     (
                         self._model_endpoint_draft(
@@ -1516,6 +1531,8 @@ class MonitoringDeployment:
             router_step.model_endpoint_creation_strategy
             != mm_constants.ModelEndpointCreationStrategy.SKIP
         ):
+            uid = uuid.uuid4().hex
+            router_step.class_args["model_endpoint_uid"] = uid
             model_endpoints_instructions.append(
                 (
                     self._model_endpoint_draft(
@@ -1528,6 +1545,7 @@ class MonitoringDeployment:
                         children_names=routes_names,
                         children_uids=routes_uids,
                         sampling_percentage=sampling_percentage,
+                        uid=uid,
                     ),
                     router_step.model_endpoint_creation_strategy,
                     "",
@@ -1567,6 +1585,8 @@ class MonitoringDeployment:
                     step.model_endpoint_creation_strategy
                     != mm_constants.ModelEndpointCreationStrategy.SKIP
                 ):
+                    uid = uuid.uuid4().hex
+                    step.class_args["model_endpoint_uid"] = uid
                     model_endpoints_instructions.append(
                         (
                             self._model_endpoint_draft(
@@ -1576,6 +1596,7 @@ class MonitoringDeployment:
                                 function_name=function_name,
                                 function_tag=function_tag,
                                 track_models=track_models,
+                                uid=uid,
                             ),
                             step.model_endpoint_creation_strategy,
                             step.class_args.get("model_path", ""),
@@ -1624,8 +1645,14 @@ class MonitoringDeployment:
         db_session: sqlalchemy.orm.Session,
         background_tasks: BackgroundTasks,
         function_name: str,
-        function: dict,
         project_name: str,
+        model_endpoints_instructions: list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+                str,
+            ]
+        ],
     ):
         background_task_name = str(uuid.uuid4())
         return framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
@@ -1635,9 +1662,9 @@ class MonitoringDeployment:
             MonitoringDeployment.create_model_endpoints,
             mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_creation,
             background_task_name,
-            function,
             function_name,
             project_name,
+            model_endpoints_instructions,
         )
 
     @staticmethod

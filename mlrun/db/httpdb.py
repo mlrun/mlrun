@@ -5156,7 +5156,7 @@ class HTTPRunDB(RunDBInterface):
             "since": datetime_to_iso(since),
             "until": datetime_to_iso(until),
             "format": format_,
-            "states": states,
+            "state": states or None,
             "page": page,
             "page-size": page_size,
             "page-token": page_token,

@@ -218,7 +218,7 @@ async def list_functions(
     since: Optional[str] = None,
     until: Optional[str] = None,
     kind: Optional[str] = None,
-    states: list[str] = Query([]),
+    states: list[str] = Query([], alias="state"),
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
     page_token: str = Query(None, alias="page-token"),

@@ -117,7 +117,7 @@ class Functions(
             tag=tag,
             kind=kind,
             labels=labels,
-            states=states,
+            states=states or None,
             hash_key=hash_key,
             format_=format_,
             since=since,

@@ -435,14 +435,10 @@ class V3IOTSDBConnector(TSDBConnector):
             number_of_endpoints_to_delete=len(endpoint_ids),
         )
         tables = mm_schemas.V3IOTSDBTables.list()
-        if len(endpoint_ids) > V3IO_MEPS_LIMIT:
-            # Split the endpoint ids into chunks to avoid exceeding the v3io-engine filter-expression limit
-            endpoint_id_chunks = [
-                endpoint_ids[i : i + V3IO_MEPS_LIMIT]
-                for i in range(0, len(endpoint_ids), V3IO_MEPS_LIMIT)
-            ]
-        else:
-            endpoint_id_chunks = [endpoint_ids]
+
+        # Split the endpoint ids into chunks to avoid exceeding the v3io-engine filter-expression limit
+        for i in range(0, len(endpoint_ids), V3IO_MEPS_LIMIT):
+            endpoint_id_chunks = endpoint_ids[i : i + V3IO_MEPS_LIMIT]
 
         for endpoint_id_chunk in endpoint_id_chunks:
             filter_query = f"endpoint_id IN({str(endpoint_id_chunk)[1:-1]}) "

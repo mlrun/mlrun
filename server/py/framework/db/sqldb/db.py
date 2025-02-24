@@ -5600,7 +5600,7 @@ class SQLDB(DBInterface):
             model_endpoint_full_dict[ModelEndpointSchema.STATE] = (
                 function_full_dict.get("status", {}).get(ModelEndpointSchema.STATE)
             )
-            model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG.FUNCTION_URI] = (
+            model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_URI] = (
                 generate_object_uri(
                     project=model_endpoint_record.project,
                     name=model_endpoint_record.function_name,
@@ -5609,7 +5609,7 @@ class SQLDB(DBInterface):
             )
         else:
             model_endpoint_full_dict[ModelEndpointSchema.STATE] = "unknown"
-            model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG.FUNCTION_URI] = None
+            model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_URI] = None
         return model_endpoint_full_dict
 
     def _transform_project_record_to_schema(

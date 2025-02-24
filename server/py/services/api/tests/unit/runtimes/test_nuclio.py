@@ -1152,11 +1152,12 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert decode_event_strings_env_var_name not in deploy_configs[0]["spec"]["env"]
 
         logger.info(
-            "Function runtime is configured to python:3.7, nuclio version <1.6.0 - explode"
+            "Function runtime is configured to python:3.7, nuclio version > 1.14.0 and no base image - explode"
         )
         function = self._generate_runtime(self.runtime_kind)
         function.spec.nuclio_runtime = "python:3.7"
         mlconf.nuclio_version = "1.14.1"
+        function.spec.image = None
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
             match=r"(.*)Nuclio version does not support(.*)",

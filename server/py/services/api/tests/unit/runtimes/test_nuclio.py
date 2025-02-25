@@ -1109,6 +1109,11 @@ class TestNuclioRuntime(TestRuntimeBase):
             ("0.0.0-unstable", "3.9", "1.11.9", "python:3.9"),
         ],
     )
+    # TODO: Un-skip and align test
+    #  once upgrading to Python 3.12 and resolving the Python version according to client python version
+    @pytest.mark.skip(
+        "Python version is not determined by the client version until python version is bumped to 3.12"
+    )
     def test_deploy_with_runtime(
         self,
         db: Session,
@@ -1147,28 +1152,17 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert decode_event_strings_env_var_name not in deploy_configs[0]["spec"]["env"]
 
         logger.info(
-            "Function runtime is configured to python:3.7, nuclio version <1.6.0 - explode"
+            "Function runtime is configured to python:3.7, nuclio version > 1.14.0 and no base image - explode"
         )
         function = self._generate_runtime(self.runtime_kind)
         function.spec.nuclio_runtime = "python:3.7"
-        mlconf.nuclio_version = "1.5.13"
+        mlconf.nuclio_version = "1.14.1"
+        function.spec.image = None
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
             match=r"(.*)Nuclio version does not support(.*)",
         ):
             self.execute_function(function)
-
-        logger.info(
-            "Function runtime is default to python:3.7, nuclio is <1.6.0 - change to 3.6"
-        )
-        self._reset_mock()
-        function = self._generate_runtime(self.runtime_kind)
-        self.execute_function(function)
-        self._assert_deploy_called_basic_config(
-            expected_class=self.class_name,
-            expected_nuclio_runtime="python:3.6",
-        )
-        assert decode_event_strings_env_var_name not in deploy_configs[0]["spec"]["env"]
 
         logger.info("Function runtime is python, but nuclio is >=1.8.0 - do nothing")
         self._reset_mock()

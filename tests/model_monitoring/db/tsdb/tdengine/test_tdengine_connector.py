@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 
 import pytest
 import taosws
+import taoswswrap.tdengine_connection
 
 from mlrun.common.schemas.model_monitoring import (
     ModelEndpointMonitoringMetric,
@@ -79,13 +80,14 @@ def test_write_application_event(
         "result_extra_data": """{"question": "Who wrote 'To Kill a Mockingbird'?"}""",
         "result_value": result_value,
     }
+    connector._create_connection()  # Recreate the connection to verify that the database exists
     connector.create_tables()
     connector.write_application_event(data)
-    read_back_results = connector.read_metrics_data(
-        endpoint_id=endpoint_id,
-        start=datetime(2023, 1, 1, 1, 0, 0),
-        end=datetime(2025, 1, 1, 1, 0, 0),
-        metrics=[
+    read_data_kwargs = {
+        "endpoint_id": endpoint_id,
+        "start": datetime(2023, 1, 1, 1, 0, 0),
+        "end": datetime(2025, 1, 1, 1, 0, 0),
+        "metrics": [
             ModelEndpointMonitoringMetric(
                 project=project,
                 app=app_name,
@@ -93,9 +95,10 @@ def test_write_application_event(
                 type=ModelEndpointMonitoringMetricType.RESULT,
             ),
         ],
-        type="results",
-        with_result_extra_data=with_result_extra_data,
-    )
+        "type": "results",
+        "with_result_extra_data": with_result_extra_data,
+    }
+    read_back_results = connector.read_metrics_data(**read_data_kwargs)
     assert len(read_back_results) == 1
     read_back_result = read_back_results[0]
     assert read_back_result.full_name == f"{project}.{app_name}.result.{result_name}"
@@ -110,5 +113,8 @@ def test_write_application_event(
     if with_result_extra_data:
         assert read_back_values.extra_data == data["result_extra_data"]
 
-    # ML-8062
+    # Delete resources and verify that database is deleted
     connector.delete_tsdb_resources()
+
+    with pytest.raises(taoswswrap.tdengine_connection.TDEngineError):
+        connector.read_metrics_data(**read_data_kwargs)

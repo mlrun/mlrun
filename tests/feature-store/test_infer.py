@@ -130,8 +130,7 @@ def test_check_permissions(rundb_mock, monkeypatch):
     )
 
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
-        fstore.preview(
-            data_set1,
+        data_set1.preview(
             data,
             entity_columns=[Entity("string")],
         )
@@ -141,10 +140,10 @@ def test_check_permissions(rundb_mock, monkeypatch):
     features = ["fs1.*"]
     feature_vector = fstore.FeatureVector("test", features)
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
-        fstore.get_offline_features(feature_vector)
+        feature_vector.get_offline_features()
 
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
-        fstore.get_online_feature_service(feature_vector)
+        feature_vector.get_online_feature_service()
 
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         data_set1.deploy_ingestion_service()

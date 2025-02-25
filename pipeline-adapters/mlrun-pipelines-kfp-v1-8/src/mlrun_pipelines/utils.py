@@ -47,7 +47,7 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
     def retry_run(
         self,
         run_id: str,
-        project:str,
+        project: str,
     ) -> str:
         """
         Retries a given run by its run ID. If the run is not in a valid state for retry,

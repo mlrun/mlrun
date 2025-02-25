@@ -1100,10 +1100,9 @@ class KafkaSource(OnlineSource):
         attributes["initial_offset"] = initial_offset
         if partitions is not None:
             attributes["partitions"] = partitions
-        sasl = mlrun.datastore.utils.KafkaParameters(attributes).sasl(
-            sasl_user, sasl_pass
-        )
-        if sasl:
+        if sasl := mlrun.datastore.utils.KafkaParameters(attributes).sasl(
+            usr=sasl_user, pwd=sasl_pass
+        ):
             attributes["sasl"] = sasl
         super().__init__(attributes=attributes, **kwargs)
 

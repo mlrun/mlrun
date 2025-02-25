@@ -171,7 +171,7 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
                 FutureWarning,
             )
 
-    def get_topic(self) -> str:
+    def get_topic(self) -> typing.Optional[str]:
         return self.topic
 
     def attributes(self):
@@ -196,7 +196,7 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
     kwargs_public: typing.Optional[dict]
     kwargs_private: typing.Optional[dict]
 
-    def get_topic(self) -> str:
+    def get_topic(self) -> typing.Optional[str]:
         topics = [self.topics] if isinstance(self.topics, str) else self.topics
         return topics[0] if topics else None
 
@@ -216,10 +216,9 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
         attributes["initial_offset"] = self.initial_offset
         if self.partitions is not None:
             attributes["partitions"] = self.partitions
-        sasl = mlrun.datastore.utils.KafkaParameters(attributes).sasl(
-            self.sasl_user, self.sasl_pass
-        )
-        if sasl:
+        if sasl := mlrun.datastore.utils.KafkaParameters(attributes).sasl(
+            usr=self.sasl_user, pwd=self.sasl_pass
+        ):
             attributes["sasl"] = sasl
         return attributes
 

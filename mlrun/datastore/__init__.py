@@ -131,7 +131,10 @@ def get_stream_pusher(stream_path: str, **kwargs):
                 if parsed_url.path
                 else datastore_profile.get_topic()
             )
-            return KafkaOutputStream(topic, brokers, producer_options=attributes)
+            producer_options = mlrun.datastore.utils.KafkaParameters(
+                attributes
+            ).producer()
+            return KafkaOutputStream(topic, brokers, producer_options=producer_options)
 
         elif isinstance(datastore_profile, DatastoreProfileV3io):
             parsed_url = urlparse(stream_path)
@@ -139,7 +142,9 @@ def get_stream_pusher(stream_path: str, **kwargs):
             endpoint, stream_path = parse_path(stream_path)
             return OutputStream(stream_path, endpoint=endpoint, **kwargs)
         else:
-            raise ValueError(f"unsupported stream path {type(datastore_profile)}")
+            raise ValueError(
+                f"Unsupported datastore profile type: {type(datastore_profile)}"
+            )
     else:
         kafka_brokers = get_kafka_brokers_from_dict(kwargs)
         if stream_path.startswith("kafka://") or kafka_brokers:

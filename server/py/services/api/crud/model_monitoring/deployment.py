@@ -1184,12 +1184,12 @@ class MonitoringDeployment:
         try:
             # The following constructor attempts to establish a connection
             attributes = kafka_profile.attributes()
-            kafka_admin_client_kwargs = mlrun.datastore.utils.KafkaParameters(
+            kafka_consumer_kwargs = mlrun.datastore.utils.KafkaParameters(
                 attributes
             ).consumer()
 
             consumer = kafka.KafkaConsumer(
-                bootstrap_servers=kafka_brokers, **kafka_admin_client_kwargs
+                bootstrap_servers=kafka_brokers, **kafka_consumer_kwargs
             )
         except kafka.errors.NoBrokersAvailable as err:
             logger.warn(

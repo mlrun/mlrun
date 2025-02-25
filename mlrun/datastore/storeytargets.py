@@ -20,6 +20,12 @@ from storey import V3ioDriver
 import mlrun
 import mlrun.model_monitoring.helpers
 from mlrun.datastore.base import DataStore
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileKafkaSource,
+    DatastoreProfileKafkaTarget,
+    TDEngineDatastoreProfile,
+    datastore_profile_read,
+)
 
 from ..platforms.iguazio import parse_path
 from .utils import (
@@ -46,13 +52,8 @@ def get_url_and_storage_options(path, external_storage_options=None):
 class TDEngineStoreyTarget(storey.TDEngineTarget):
     def __init__(self, *args, url: str, **kwargs):
         if url.startswith("ds://"):
-            datastore_profile = (
-                mlrun.datastore.datastore_profile.datastore_profile_read(url)
-            )
-            if not isinstance(
-                datastore_profile,
-                mlrun.datastore.datastore_profile.TDEngineDatastoreProfile,
-            ):
+            datastore_profile = datastore_profile_read(url)
+            if not isinstance(datastore_profile, TDEngineDatastoreProfile):
                 raise ValueError(
                     f"Unexpected datastore profile type:{datastore_profile.type}."
                     "Only TDEngineDatastoreProfile is supported"
@@ -130,9 +131,15 @@ class KafkaStoreyTarget(storey.KafkaTarget):
         path = kwargs.pop("path")
         attributes = kwargs.pop("attributes", {})
         if path and path.startswith("ds://"):
-            datastore_profile = (
-                mlrun.datastore.datastore_profile.datastore_profile_read(path)
-            )
+            datastore_profile = datastore_profile_read(path)
+            if not isinstance(
+                datastore_profile,
+                (DatastoreProfileKafkaSource, DatastoreProfileKafkaTarget),
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Unsupported datastore profile type: {type(datastore_profile)}"
+                )
+
             attributes = merge(attributes, datastore_profile.attributes())
             brokers = attributes.pop("brokers", None)
             # Override the topic with the one in the url (if any)

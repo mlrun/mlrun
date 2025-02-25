@@ -5690,9 +5690,9 @@ class SQLDB(DBInterface):
         latest: bool,
     ) -> dict:
         if model_endpoint_record.function and latest:
-            function_full_dict = model_endpoint_record.function.struct
+            # function_full_dict = model_endpoint_record.function.struct
             model_endpoint_full_dict[ModelEndpointSchema.STATE] = (
-                function_full_dict.get("status", {}).get(ModelEndpointSchema.STATE)
+                "unknown"  # TODO ="unknown" and comment out above change it back
             )
             model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG.FUNCTION_URI] = (
                 generate_object_uri(
@@ -5716,15 +5716,9 @@ class SQLDB(DBInterface):
                 uri=generate_artifact_uri(
                     project=model_endpoint_record.project,
                     key=model_endpoint_record.model.key,
-                    iter=model_endpoint_record.model.full_object.get(
-                        "metadata", {}
-                    ).get("iter"),
-                    tree=model_endpoint_record.model.full_object.get(
-                        "metadata", {}
-                    ).get("tree"),
-                    uid=model_endpoint_record.model.full_object.get("metadata", {}).get(
-                        "uid"
-                    ),
+                    iter=model_endpoint_record.model.iteration,
+                    tree=model_endpoint_record.model.producer_id,
+                    uid=model_endpoint_record.model.uid,
                 ),
             )
 
@@ -7565,8 +7559,13 @@ class SQLDB(DBInterface):
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         order_by: typing.Optional[str] = None,
-    ) -> mlrun.common.schemas.ModelEndpointList:
-        model_endpoints: list[mlrun.common.schemas.ModelEndpoint] = []
+        as_dict: bool = False,
+    ) -> Union[mlrun.common.schemas.ModelEndpointList, list[ModelEndpoint]]:
+        if not as_dict:
+            model_endpoints: list[mlrun.common.schemas.ModelEndpoint]
+        else:
+            model_endpoints: list[ModelEndpoint]
+        model_endpoints = []
         for mep_record in self._find_model_endpoints(
             session=session,
             names=names,
@@ -7585,10 +7584,18 @@ class SQLDB(DBInterface):
             limit=limit,
             order_by=order_by,
         ):
-            model_endpoints.append(
-                self._transform_model_endpoint_model_to_schema(mep_record)
-            )
-        return mlrun.common.schemas.ModelEndpointList(endpoints=model_endpoints)
+            if not as_dict:
+                model_endpoints.append(
+                    self._transform_model_endpoint_model_to_schema(mep_record)
+                )
+            else:
+                model_endpoints.append(mep_record)
+        model_endpoints_list = (
+            model_endpoints
+            if as_dict
+            else mlrun.common.schemas.ModelEndpointList(endpoints=model_endpoints)
+        )
+        return model_endpoints_list
 
     def delete_model_endpoint(
         self,

@@ -79,8 +79,9 @@ class BaseModelRouter(RouterToDict):
         self.inputs_key = "instances" if self.protocol == "v1" else "inputs"
         self._input_path = input_path
         self._result_path = result_path
-        self._background_task_check_timestamp = None
+        self._background_task_check_timestamp = now_date()
         self._background_task_terminate = False
+        self._background_task_current_state = None
         self.kwargs = kwargs
 
     def parse_event(self, event):
@@ -241,9 +242,14 @@ class ModelRouter(BaseModelRouter):
             and now_date() - self._background_task_check_timestamp
             >= timedelta(seconds=15)
         ):
-            event.body["background_task_state"] = self._get_background_task_status(
+            self._background_task_current_state = self._get_background_task_status(
                 event.id
             )
+        event.body["background_task_state"] = (
+            self._background_task_current_state
+            or mlrun.common.schemas.BackgroundTaskState.running
+        )
+
         if not route:
             # if model wasn't specified return model list
             setattr(event, "terminated", True)

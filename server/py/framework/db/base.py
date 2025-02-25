@@ -1330,7 +1330,11 @@ class DBInterface(ABC):
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         order_by: typing.Optional[str] = None,
-    ) -> mlrun.common.schemas.ModelEndpointList:
+        as_dict: bool = False,
+    ) -> Union[
+        mlrun.common.schemas.ModelEndpointList,
+        list[framework.db.sqldb.models.ModelEndpoint],
+    ]:
         """
         List model endpoints by project and optional filters.
 
@@ -1350,6 +1354,7 @@ class DBInterface(ABC):
         :param offset:          SQL query offset.
         :param limit:           SQL query limit.
         :param order_by:        Name of column to order by it (in ascending order).
+        :param as_dict:         Allow returning endpoints as list of framework.db.sqldb.models.ModelEndpoint dictionary.
         :return:                A list of model endpoints.
         """
         pass

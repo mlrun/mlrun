@@ -271,24 +271,31 @@ async def deploy_function(
         background_tasks=[]
     )
     if function.get("kind") == mlrun.runtimes.RuntimeKinds.serving:
-        model_endpoints_instructions, function = (
-            services.api.crud.model_monitoring.deployment.MonitoringDeployment.create_model_endpoints_instructions(
-                function=function, function_name=name, project=project
-            )
+        db_session = framework.db.session.create_session()
+        (
+            model_endpoints_instructions,
+            function,
+        ) = await services.api.crud.model_monitoring.deployment.MonitoringDeployment.create_model_endpoints_instructions(
+            db_session=db_session,
+            function=function,
+            function_name=name,
+            project=project,
         )
         logger.info(
             "Creating Background Task for model endpoints creation",
             project=project,
             function=name,
+            function_dict=function,
         )
         returned_background_task = await run_in_threadpool(
-            framework.db.session.run_function_with_new_db_session,
             services.api.crud.model_monitoring.deployment.MonitoringDeployment._create_model_endpoint_background_task,
+            db_session=db_session,
             background_tasks=background_tasks,
             project_name=project,
             function_name=name,
             model_endpoints_instructions=model_endpoints_instructions,
         )
+        framework.db.session.close_session(db_session)
         returned_background_tasks.background_tasks.append(returned_background_task)
 
     model_endpoint_creation_task_name = (

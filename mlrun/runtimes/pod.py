@@ -1578,11 +1578,11 @@ class KubeResource(BaseRuntime):
                 f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
             )
         if watch and not ready:
-            state = self._build_watch(
+            self.status.state = self._build_watch(
                 watch=watch,
                 show_on_failure=show_on_failure,
             )
-            ready = state == "ready"
+            ready = self.status.state == "ready"
             if not ready:
                 raise mlrun.errors.MLRunRuntimeError("Deploy failed")
         return ready

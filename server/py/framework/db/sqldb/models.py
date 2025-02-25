@@ -949,7 +949,7 @@ with warnings.catch_warnings():
         )
         function_id = Column(
             Integer,
-            ForeignKey("functions.id", onupdate="CASCADE"),
+            ForeignKey("functions.id"),
             nullable=True,
         )
         function = relationship(Function)

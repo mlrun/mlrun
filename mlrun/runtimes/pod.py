@@ -1582,7 +1582,8 @@ class KubeResource(BaseRuntime):
                 watch=watch,
                 show_on_failure=show_on_failure,
             )
-            if self.status.state != "ready":
+            ready = self.status.state == "ready"
+            if not ready:
                 raise mlrun.errors.MLRunRuntimeError("Deploy failed")
         return ready
 

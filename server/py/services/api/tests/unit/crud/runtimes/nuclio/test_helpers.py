@@ -106,15 +106,15 @@ def test_resolve_work_dir_and_handler(handler, expected):
 @pytest.mark.parametrize(
     "mlrun_client_version,python_version,expected_runtime",
     [
-        ("1.3.0", "3.9.16", "python:3.9"),
-        ("1.3.0", "3.7.16", "python:3.7"),
+        ("1.9.0", "3.12.16", mlrun.mlconf.default_nuclio_runtime),
+        ("1.8.0", "3.9.16", "python:3.9"),
         (None, None, mlrun.mlconf.default_nuclio_runtime),
         (None, "3.9.16", mlrun.mlconf.default_nuclio_runtime),
-        ("1.3.0", None, mlrun.mlconf.default_nuclio_runtime),
+        ("1.9.0", None, mlrun.mlconf.default_nuclio_runtime),
         ("0.0.0-unstable", "3.9.16", "python:3.9"),
-        ("0.0.0-unstable", "3.7.16", "python:3.7"),
-        ("1.2.0", "3.9.16", "python:3.7"),
-        ("1.2.0", "3.7.16", "python:3.7"),
+        ("0.0.0-unstable", "3.12.16", "python:3.12"),
+        ("1.7.0", "3.12.16", "python:3.9"),
+        ("1.7.0", "3.9.16", "python:3.9"),
     ],
 )
 def test_resolve_nuclio_runtime_python_image(

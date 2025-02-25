@@ -231,7 +231,7 @@ def test_add_default_hub_source_if_needed():
         assert update_default_hub_source.call_count == 0
 
 
-def test_migrate_function_kind():
+def test_migrate_function_kind_and_state():
     db, db_session = _initialize_db_without_migrations()
     num_of_functions = 10
     chunk_size = 1
@@ -245,18 +245,94 @@ def test_migrate_function_kind():
     fn_name_none_kind = "name-10"
     _insert_function(db, db_session, fn_name_none_kind, function_kind=None)
 
+    # Insert a function with None state
+    fn_name_none_state = "name-11"
+    _insert_function(db, db_session, fn_name_none_state, function_state=None)
+
+    # Insert a function with both kind and state as None
+    fn_name_none_kind_state = "name-12"
+    _insert_function(
+        db, db_session, fn_name_none_kind_state, function_kind=None, function_state=None
+    )
+
     # Migrate function kind
-    services.api.initial_data._ensure_function_kind(
+    services.api.initial_data._ensure_function_kind_and_state(
         db, db_session, chunk_size=chunk_size
     )
 
     # Verify the migration for the first set of functions
     for fn_counter in range(num_of_functions):
         fn_name = f"name-{fn_counter}"
-        _verify_function_kind(db, db_session, fn_name, expected_kind="remote")
+        _verify_function_attr(
+            db,
+            db_session,
+            fn_name,
+            attribute_name="kind",
+            attribute_path="kind",
+            expected_value="remote",
+        )
+        _verify_function_attr(
+            db,
+            db_session,
+            fn_name,
+            attribute_name="state",
+            attribute_path="status.state",
+            expected_value="ready",
+        )
 
     # Verify the migration for the function with None as kind
-    _verify_function_kind(db, db_session, fn_name_none_kind, expected_kind="")
+    _verify_function_attr(
+        db,
+        db_session,
+        fn_name_none_kind,
+        attribute_name="kind",
+        attribute_path="kind",
+        expected_value="",
+    )
+    _verify_function_attr(
+        db,
+        db_session,
+        fn_name_none_kind,
+        attribute_name="state",
+        attribute_path="status.state",
+        expected_value="ready",
+    )
+
+    # Verify the migration for the function with None as state
+    _verify_function_attr(
+        db,
+        db_session,
+        fn_name_none_state,
+        attribute_name="kind",
+        attribute_path="kind",
+        expected_value="remote",
+    )
+    _verify_function_attr(
+        db,
+        db_session,
+        fn_name_none_state,
+        attribute_name="state",
+        attribute_path="status.state",
+        expected_value="",
+    )
+
+    # Verify the migration for the function with both kind and state as None
+    _verify_function_attr(
+        db,
+        db_session,
+        fn_name_none_kind_state,
+        attribute_name="kind",
+        attribute_path="kind",
+        expected_value="",
+    )
+    _verify_function_attr(
+        db,
+        db_session,
+        fn_name_none_kind_state,
+        attribute_name="state",
+        attribute_path="status.state",
+        expected_value="",
+    )
 
 
 def test_create_project_summaries():
@@ -618,12 +694,16 @@ def _initialize_db_without_migrations() -> (
 
 
 def _insert_function(
-    db, db_session, fn_name, function_kind: typing.Optional[str] = "remote"
+    db,
+    db_session,
+    fn_name,
+    function_kind: typing.Optional[str] = "remote",
+    function_state: typing.Optional[str] = "ready",
 ):
     function_body = {
         "metadata": {"name": fn_name},
         "kind": function_kind,
-        "status": {"state": "online"},
+        "status": {"state": function_state},
         "spec": {"description": "some_description"},
     }
 
@@ -646,14 +726,16 @@ def _insert_function(
     assert db_function.struct["kind"] == function_kind
 
 
-def _verify_function_kind(db, db_session, fn_name, expected_kind):
+def _verify_function_attr(
+    db, db_session, fn_name, attribute_name, attribute_path, expected_value
+):
     db_function, _ = db._get_function_db_object(db_session, fn_name)
-    assert "kind" not in db_function.struct
-    assert db_function.kind == expected_kind
+    assert not mlrun.utils.get_in(db_function.struct, attribute_path)
+    assert getattr(db_function, attribute_name) == expected_value
 
     # Verify migration was stored correctly
     migrated_function = db.get_function(db_session, fn_name)
-    assert migrated_function["kind"] == expected_kind
+    assert mlrun.utils.get_in(migrated_function, attribute_path) == expected_value
 
 
 def _insert_artifact(db, db_session, artifact_key, artifact_uri=None, with_uri=True):

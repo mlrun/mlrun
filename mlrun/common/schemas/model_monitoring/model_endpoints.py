@@ -36,12 +36,6 @@ from .constants import (
 Model = TypeVar("Model", bound=BaseModel)
 
 
-class ModelMonitoringStoreKinds:
-    # TODO: do changes in examples & demos In 1.5.0 remove
-    ENDPOINTS = "endpoints"
-    EVENTS = "events"
-
-
 class Histogram(BaseModel):
     buckets: list[float]
     counts: list[int]

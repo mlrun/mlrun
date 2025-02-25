@@ -952,7 +952,7 @@ with warnings.catch_warnings():
             ForeignKey("functions.id", onupdate="CASCADE"),
             nullable=True,
         )
-        function = relationship(Function, backref="model_endpoints")  # backref?
+        function = relationship(Function)
 
         Label = make_label(__tablename__)
         Tag = make_tag_v2(__tablename__)  # for versioning (latest and empty tags only)

@@ -5138,7 +5138,7 @@ class HTTPRunDB(RunDBInterface):
         format_: Optional[str] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
-        states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
+        states: typing.Optional[list[mlrun.common.schemas.FunctionState]] = None,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,

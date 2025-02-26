@@ -1412,7 +1412,7 @@ class MonitoringDeployment:
             return result
 
     @staticmethod
-    async def create_model_endpoints_instructions(
+    async def _create_model_endpoints_instructions(
         db_session: sqlalchemy.orm.Session,
         function: dict,
         function_name: str,
@@ -1427,14 +1427,6 @@ class MonitoringDeployment:
         ],
         dict,
     ]:
-        """
-
-        :param db_session:
-        :param function:
-        :param function_name:
-        :param project:
-        :return:
-        """
         logger.info(
             "Start creating model endpoint instructions",
             project=project,

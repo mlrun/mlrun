@@ -44,7 +44,6 @@ import services.api.crud.runtimes.nuclio.function
 import services.api.launcher
 from framework.api import deps
 from framework.constants import MINIMUM_CLIENT_VERSION_FOR_MM
-from services.api.crud.model_monitoring.deployment import MonitoringDeployment
 from services.api.crud.secrets import Secrets, SecretsClientType
 
 router = APIRouter()
@@ -276,12 +275,13 @@ async def deploy_function(
         (
             model_endpoints_instructions,
             function,
-        ) = await MonitoringDeployment._create_model_endpoints_instructions(
+        ) = await (
+            services.api.crud.model_monitoring.deployment.MonitoringDeployment._create_model_endpoints_instructions(
             db_session=db_session,
             function=function,
             function_name=name,
             project=project,
-        )
+        ))
         logger.info(
             "Creating Background Task for model endpoints creation",
             project=project,
@@ -289,7 +289,7 @@ async def deploy_function(
             function_dict=function,
         )
         returned_background_task = await run_in_threadpool(
-            MonitoringDeployment._create_model_endpoint_background_task,
+            services.api.crud.model_monitoring.deployment.MonitoringDeployment._create_model_endpoint_background_task,
             db_session=db_session,
             background_tasks=background_tasks,
             project_name=project,

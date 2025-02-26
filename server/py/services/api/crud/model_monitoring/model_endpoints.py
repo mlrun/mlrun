@@ -22,6 +22,7 @@ import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.artifacts
+import mlrun.common.formatters
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
@@ -110,7 +111,7 @@ class ModelEndpoints:
             )
             try:
                 logger.info("Getting model object from db")
-                artifact = framework.utils.singletons.db.get_db().read_artifact(
+                db_artifact = framework.utils.singletons.db.get_db().read_artifact(
                     db_session,
                     key,
                     tag,
@@ -118,14 +119,15 @@ class ModelEndpoints:
                     project,
                     tree,
                     uid,
-                    as_records=True,
+                    as_record=True,
                 )
+                artifact = db_artifact.full_object
 
                 model_obj = mlrun.artifacts.dict_to_artifact(
                     mlrun.common.formatters.ArtifactFormat.format_obj(artifact, "full")
                 )
 
-                model_endpoint.spec._model_id = artifact.id
+                model_endpoint.spec._model_id = db_artifact.id
                 model_endpoint.spec.model_name = model_obj.metadata.key
                 model_endpoint.spec.model_tag = model_obj.tag
                 model_endpoint.spec.model_uri = model_obj.get_store_url(with_tag=False)

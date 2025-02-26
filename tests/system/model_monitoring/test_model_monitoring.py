@@ -57,7 +57,6 @@ def mock_random_endpoint(
     name: str,
     function_name: Optional[str] = "function-1",
     function_tag: Optional[str] = "v1",
-    model_name: Optional[str] = None,
     model_path: Optional[str] = None,
     add_labels=True,
 ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
@@ -73,10 +72,8 @@ def mock_random_endpoint(
         spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
             function_name=function_name,
             function_tag=function_tag,
-            model_name=model_name,
             model_path=model_path,
             model_class="modelcc",
-            model_tag="latest",
         ),
         status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(
             monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled,
@@ -96,6 +93,8 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         super().setup_method(method)
         if method.__name__ == "test_list_endpoints_without_creds":
             return
+        function = mlrun.new_function(name="function-1", kind="serving", tag="v1")
+        function.save()
         self.set_mm_credentials()
 
     @pytest.mark.parametrize("by_uid", [True, False])
@@ -141,7 +140,6 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         model_endpoint = mock_random_endpoint(
             self.project_name,
             "testing",
-            function_name="function1",
             function_tag=None,  # latest is the default
         )
         db = mlrun.get_run_db()
@@ -319,7 +317,8 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
     def test_list_endpoints_filter(self):
         number_of_endpoints = 5
         db = mlrun.get_run_db()
-
+        function = mlrun.new_function(name="filterme", kind="serving", tag="v45")
+        function.save()
         for i in range(number_of_endpoints):
             endpoint = mock_random_endpoint(
                 self.project_name, name=f"testing-{i}", function_tag=None

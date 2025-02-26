@@ -140,8 +140,8 @@ When the installation is complete, the helm command prints the URLs and ports of
 
 ```{admonition} Note
 There is currently a known issue with installing the chart on Macs using Apple silicon (M1/M2). The current pipelines
-MySQL database fails to start. The workaround for now is to opt out of pipelines by installing the chart with the
-`--set pipelines.enabled=false`.
+MySQL database fails to start. The workaround for now is to is to run this line `docker pull mysql:5.7 --platform linux/amd64` before installing the chart.
+in addition there is an issue with prometheus node selector the workaround for now is to opt out of kube-prometheus-stack by installing the chart with the `--set kube-prometheus-stack.enabled=false`.
 ```
 
 ## Configuring the online feature store
@@ -201,7 +201,7 @@ To opt out of some of the components, use the following helm values:
 ...
 --set pipelines.enabled=false \
 --set kube-prometheus-stack.enabled=false \
---set sparkOperator.enabled=false \
+--set spark-operator.enabled=false \
 ...
 ```
 

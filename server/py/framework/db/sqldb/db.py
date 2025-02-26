@@ -7454,7 +7454,8 @@ class SQLDB(DBInterface):
                 session,
                 name=model_endpoint.spec.function_name,
                 project=model_endpoint.metadata.project,
-                tag=model_endpoint.spec.function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+                tag=model_endpoint.spec.function_tag
+                or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
                 hash_key=f"{unversioned_tagged_object_uid_prefix}{model_endpoint.spec.function_tag}",
                 # model endpoints always points on unversioned function
             )

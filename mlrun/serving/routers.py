@@ -204,17 +204,18 @@ class BaseModelRouter(RouterToDict):
 
     def _update_background_task_state(self, event):
         if (
-                not self._background_task_terminate
-                and now_date() - self._background_task_check_timestamp
-                >= timedelta(seconds=15)
+            not self._background_task_terminate
+            and now_date() - self._background_task_check_timestamp
+            >= timedelta(seconds=15)
         ):
             self._background_task_current_state = self._get_background_task_status(
                 event.id
             )
         event.body["background_task_state"] = (
-                self._background_task_current_state
-                or mlrun.common.schemas.BackgroundTaskState.running
+            self._background_task_current_state
+            or mlrun.common.schemas.BackgroundTaskState.running
         )
+
 
 class ModelRouter(BaseModelRouter):
     def _resolve_route(self, body, urlpath):
@@ -668,14 +669,14 @@ class VotingEnsemble(ParallelRun):
         if event and isinstance(event, dict):
             background_task_state = event.get("background_task_state", None)
             if (
-                    background_task_state
-                    == mlrun.common.schemas.BackgroundTaskState.succeeded
+                background_task_state
+                == mlrun.common.schemas.BackgroundTaskState.succeeded
             ):
                 self._model_logger = (
                     _ModelLogPusher(self, self.context)
                     if self.context
-                       and self.context.stream.enabled
-                       and self.model_endpoint_uid
+                    and self.context.stream.enabled
+                    and self.model_endpoint_uid
                     else None
                 )
                 self.initialized = True

@@ -288,7 +288,7 @@ class TestAlerts(TestMLRunSystem):
         # to detect the event.
         time.sleep(mlconf.alerts.events_generation_interval)
 
-        # Wait for more than one minute to simulate a delay that is slightly longer than the alert period
+        # Wait for more than half minute to simulate a delay that is slightly longer than the alert period
         time.sleep(32)
 
         # this is the second failure

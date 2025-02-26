@@ -75,6 +75,7 @@ class TDEngineConnector(TSDBConnector):
         """Establish a connection to the TSDB server."""
         logger.debug("Creating a new connection to TDEngine", project=self.project)
         conn = TDEngineConnection(self._tdengine_connection_profile.dsn())
+        conn.prefix_statements = [f"USE {self.database}"]
 
         return conn
 

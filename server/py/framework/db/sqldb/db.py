@@ -2369,6 +2369,7 @@ class SQLDB(DBInterface):
             function.kind = (
                 struct.pop("kind", None) if not function.kind else function.kind
             )
+            function.state = struct.get("status", {}).pop("state", None)
             function.struct = struct
             self._upsert(session, [function])
 
@@ -5587,6 +5588,9 @@ class SQLDB(DBInterface):
             model_endpoint_full_dict,
             latest=bool(model_endpoint_record.tags),
         )
+        model_endpoint_full_dict = self._fill_model_endpoint_with_model_data(
+            model_endpoint_record, model_endpoint_full_dict
+        )
 
         model_endpoint_full_dict = (
             mlrun.common.formatters.ModelEndpointFormat.format_obj(
@@ -5606,9 +5610,8 @@ class SQLDB(DBInterface):
         latest: bool,
     ) -> dict:
         if model_endpoint_record.function and latest:
-            function_full_dict = model_endpoint_record.function.struct
             model_endpoint_full_dict[ModelEndpointSchema.STATE] = (
-                function_full_dict.get("status", {}).get(ModelEndpointSchema.STATE)
+                model_endpoint_record.function.state
             )
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_URI] = (
                 generate_object_uri(
@@ -5620,6 +5623,25 @@ class SQLDB(DBInterface):
         else:
             model_endpoint_full_dict[ModelEndpointSchema.STATE] = "unknown"
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_URI] = None
+        return model_endpoint_full_dict
+
+    @staticmethod
+    def _fill_model_endpoint_with_model_data(
+        model_endpoint_record: ModelEndpoint, model_endpoint_full_dict: dict
+    ) -> dict:
+        if model_endpoint_record.model:
+            model_artifact_uri = mlrun.datastore.get_store_uri(
+                kind=mlrun.utils.helpers.StorePrefix.Model,
+                uri=generate_artifact_uri(
+                    project=model_endpoint_record.project,
+                    key=model_endpoint_record.model.key,
+                    iter=model_endpoint_record.model.iteration,
+                    tree=model_endpoint_record.model.producer_id,
+                    uid=model_endpoint_record.model.uid,
+                ),
+            )
+
+            model_endpoint_full_dict[ModelEndpointSchema.MODEL_URI] = model_artifact_uri
         return model_endpoint_full_dict
 
     def _transform_project_record_to_schema(

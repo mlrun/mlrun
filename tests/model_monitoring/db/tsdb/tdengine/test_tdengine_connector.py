@@ -31,6 +31,7 @@ from mlrun.model_monitoring.db.tsdb.tdengine import TDEngineConnector
 project = "test-tdengine-connector"
 connection_string = os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION")
 database = "test_tdengine_connector_" + uuid.uuid4().hex
+connection_string = "taosws://root:taosdata@localhost:6041"
 
 
 def drop_database(connection: taosws.Connection) -> None:
@@ -80,10 +81,10 @@ def test_write_application_event(
         "result_extra_data": """{"question": "Who wrote 'To Kill a Mockingbird'?"}""",
         "result_value": result_value,
     }
-
-    with pytest.raises(taoswswrap.tdengine_connection.TDEngineError) as err:
+    with pytest.raises(
+        taoswswrap.tdengine_connection.TDEngineError, match="Database not exist"
+    ):
         connector.write_application_event(data)
-        assert "Database not exist" in str(err)
     connector.create_tables()  # DB is created here
     connector.write_application_event(data)
     read_data_kwargs = {

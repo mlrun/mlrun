@@ -80,7 +80,11 @@ def test_write_application_event(
         "result_extra_data": """{"question": "Who wrote 'To Kill a Mockingbird'?"}""",
         "result_value": result_value,
     }
-    connector.create_tables()
+
+    with pytest.raises(taoswswrap.tdengine_connection.TDEngineError) as err:
+        connector.write_application_event(data)
+        assert "Database not exist" in str(err)
+    connector.create_tables()  # DB is created here
     connector.write_application_event(data)
     read_data_kwargs = {
         "endpoint_id": endpoint_id,

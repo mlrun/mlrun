@@ -1497,6 +1497,7 @@ class HTTPRunDB(RunDBInterface):
         until: Optional[datetime] = None,
         kind: Optional[str] = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
+        states: typing.Optional[list[mlrun.common.schemas.FunctionState]] = None,
     ):
         """Retrieve a list of functions, filtered by specific criteria.
 
@@ -1514,6 +1515,7 @@ class HTTPRunDB(RunDBInterface):
         :param until: Return functions updated before this date (as datetime object).
         :param kind: Return only functions of a specific kind.
         :param format_: The format in which to return the functions. Default is 'full'.
+        :param states: Return only functions whose state is one of the provided states.
         :returns: List of function objects (as dictionary).
         """
         functions, _ = self._list_functions(
@@ -1525,6 +1527,7 @@ class HTTPRunDB(RunDBInterface):
             format_=format_,
             since=since,
             until=until,
+            states=states,
             return_all=True,
         )
         return functions
@@ -5135,6 +5138,7 @@ class HTTPRunDB(RunDBInterface):
         format_: Optional[str] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
+        states: typing.Optional[list[mlrun.common.schemas.FunctionState]] = None,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
@@ -5152,6 +5156,7 @@ class HTTPRunDB(RunDBInterface):
             "since": datetime_to_iso(since),
             "until": datetime_to_iso(until),
             "format": format_,
+            "state": states or None,
             "page": page,
             "page-size": page_size,
             "page-token": page_token,

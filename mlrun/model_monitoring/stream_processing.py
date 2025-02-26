@@ -31,7 +31,6 @@ from mlrun.common.schemas.model_monitoring.constants import (
     FileTargetKind,
     ProjectSecretKeys,
 )
-from mlrun.datastore import parse_kafka_url
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.utils import logger
 
@@ -259,39 +258,13 @@ class EventStreamProcessor:
 
         # controller branch
         def apply_push_controller_stream(stream_uri: str):
-            if stream_uri.startswith("v3io://"):
-                graph.add_step(
-                    ">>",
-                    "controller_stream_v3io",
-                    path=stream_uri,
-                    sharding_func=ControllerEvent.ENDPOINT_ID,
-                    access_key=self.v3io_access_key,
-                    after="ForwardNOP",
-                )
-            elif stream_uri.startswith("kafka://"):
-                topic, brokers = parse_kafka_url(stream_uri)
-                logger.info(
-                    "Controller stream uri for kafka",
-                    stream_uri=stream_uri,
-                    topic=topic,
-                    brokers=brokers,
-                )
-                if isinstance(brokers, list):
-                    path = f"kafka://{brokers[0]}/{topic}"
-                elif isinstance(brokers, str):
-                    path = f"kafka://{brokers}/{topic}"
-                else:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        "Brokers must be a list or str check controller stream uri"
-                    )
-                graph.add_step(
-                    ">>",
-                    "controller_stream_kafka",
-                    path=path,
-                    kafka_brokers=brokers,
-                    _sharding_func=ControllerEvent.ENDPOINT_ID,
-                    after="ForwardNOP",
-                )
+            graph.add_step(
+                ">>",
+                "controller_stream",
+                path=stream_uri,
+                sharding_func=ControllerEvent.ENDPOINT_ID,
+                after="ForwardNOP",
+            )
 
         apply_push_controller_stream(controller_stream_uri)
 

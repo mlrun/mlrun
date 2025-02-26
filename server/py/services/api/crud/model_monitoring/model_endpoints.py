@@ -110,18 +110,22 @@ class ModelEndpoints:
             )
             try:
                 logger.info("Getting model object from db")
-                model_obj = mlrun.artifacts.dict_to_artifact(
-                    services.api.crud.Artifacts().get_artifact(
-                        db_session,
-                        key=key,
-                        tag=tag,
-                        iter=iteration,
-                        project=project,
-                        producer_id=tree,
-                        object_uid=uid,
-                    )
+                artifact = framework.utils.singletons.db.get_db().read_artifact(
+                    db_session,
+                    key,
+                    tag,
+                    iteration,
+                    project,
+                    tree,
+                    uid,
+                    as_records=True,
                 )
 
+                model_obj = mlrun.artifacts.dict_to_artifact(
+                    mlrun.common.formatters.ArtifactFormat.format_obj(artifact, "full")
+                )
+
+                model_endpoint.spec._model_id = artifact.id
                 model_endpoint.spec.model_name = model_obj.metadata.key
                 model_endpoint.spec.model_tag = model_obj.tag
                 model_endpoint.spec.model_uri = model_obj.get_store_url(with_tag=False)

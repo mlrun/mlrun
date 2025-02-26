@@ -120,9 +120,11 @@ class ModelEndpointSpec(ObjectSpec, ModelEndpointParser):
     model_class: Optional[str] = ""
     function_name: Optional[str] = ""
     function_tag: Optional[str] = ""
+    function_tags: Optional[list[str]] = ""
     model_path: Optional[str] = ""
     model_name: Optional[str] = ""
-    model_tag: Optional[str] = ""
+    model_tags: Optional[list[str]] = ""
+    _model_id: Optional[int] = ""
     feature_names: Optional[list[str]] = []
     label_names: Optional[list[str]] = []
     feature_stats: Optional[dict] = {}

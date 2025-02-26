@@ -44,7 +44,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
-from sqlalchemy.orm import Session, aliased
+from sqlalchemy.orm import Session, aliased, joinedload
 from sqlalchemy.orm.attributes import flag_modified
 
 import mlrun
@@ -2976,6 +2976,7 @@ class SQLDB(DBInterface):
         project: str,
         name: str,
         obj_name_attribute: Union[str, list[str]] = "name",
+        obj_name_sufix: Optional[str] = None,
     ):
         tags = []
         obj_name_attribute = (
@@ -2983,18 +2984,21 @@ class SQLDB(DBInterface):
             if isinstance(obj_name_attribute, str)
             else obj_name_attribute
         )
+
         for obj in objs:
+            obj_name_list = []
+            for attr in obj_name_attribute:
+                obj_name_temp = get_in(obj, attr)
+                if obj_name_temp:
+                    obj_name_list.append(obj_name_temp)
+            if obj_name_sufix:
+                obj_name_list.append(obj_name_sufix)
             query = self._query(
                 session,
                 obj.Tag,
                 name=name,
                 project=project,
-                obj_name="-".join(
-                    [
-                        getattr(obj, attr) if getattr(obj, attr) else ""
-                        for attr in obj_name_attribute
-                    ]
-                ),
+                obj_name="-".join(obj_name_list),
             )
 
             tag = query.one_or_none()
@@ -3002,12 +3006,7 @@ class SQLDB(DBInterface):
                 tag = obj.Tag(
                     project=project,
                     name=name,
-                    obj_name="-".join(
-                        [
-                            getattr(obj, attr) if getattr(obj, attr) else ""
-                            for attr in obj_name_attribute
-                        ]
-                    ),
+                    obj_name="-".join(obj_name_list),
                 )
             tag.obj_id = obj.id
             tags.append(tag)
@@ -5112,21 +5111,73 @@ class SQLDB(DBInterface):
         return query.one_or_none()
 
     def _get_mep_latest_instance(
-        self, session, cls, name, function_name, project, function_tag
+        self, session, cls, name, function_name, project, function_tag, _get_query=False
     ):
         query = (
             session.query(cls)
-            .join(cls.Tag)
-            .filter(
-                cls.project == project,
-                cls.name == name,
-                cls.function_name == function_name,
-                cls.function_tag == function_tag,
-                cls.Tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+            .options(
+                joinedload(cls.function),
+                joinedload(cls.model),
+                joinedload(cls.tags),
             )
+            .filter(cls.project == project, cls.name == name)
         )
 
-        return query.one_or_none()
+        # Apply function name filter (must join Function first)
+        if function_name:
+            query = query.join(Function).filter(Function.name == function_name)
+
+        # Apply function tag filter (must join Function.tags first)
+        if function_tag:
+            query = query.join(Function.tags).filter(Function.Tag.name == function_tag)
+
+        # Apply latest tag filter
+        query = query.join(cls.tags).filter(
+            cls.Tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
+
+        if _get_query:
+            return query
+
+        return query.first()  # Use `.first()` instead of `.one_or_none()` for safety
+
+    def _get_mep_instances(
+        self, session, cls, name, function_name, project, function_tag, _get_query=False
+    ):
+        """
+        Retrieves model endpoint instances based on filtering criteria.
+
+        :param session: The database session.
+        :param cls: The model class (ModelEndpoint).
+        :param name: The name of the model endpoint.
+        :param function_name: (Optional) The associated function name.
+        :param project: The project name.
+        :param function_tag: (Optional) The function tag.
+        :param _get_query: If True, return the query instead of executing it.
+        :return: Query or matching model endpoint(s).
+        """
+        query = (
+            session.query(cls)
+            .options(
+                joinedload(cls.function),
+                joinedload(cls.model),
+                joinedload(cls.tags),
+            )
+            .filter(cls.project == project, cls.name == name)
+        )
+
+        # Apply function name filter (must join Function table first)
+        if function_name:
+            query = query.join(Function).filter(Function.name == function_name)
+
+        # Apply function tag filter
+        if function_tag:
+            query = query.join(Function.tags).filter(Function.Tag.name == function_tag)
+
+        if _get_query:
+            return query
+
+        return query.all()  # Return list instead of a single result
 
     def _get_run(
         self,
@@ -5384,31 +5435,34 @@ class SQLDB(DBInterface):
 
         :param session: The DB session.
         :param project: The project of the model endpoint to query.
-        :param names: The name of the model endpoint to query.
-        :param function_name: The function name of the model endpoint to query.
-        :param model_name: The model name of the model endpoint to query.
-        :param labels: The labels of the model endpoint to query.
-        :param start: Filter model endpoint that were created after this time
-        :param end: Filter model endpoints that were crated before this time
-        :param uids : The uids of the model endpoint to query.
-        :param latest_only: If true, then return only the latest model endpoint.
+        :param names: The list of model endpoint names to query.
+        :param function_name: The function name of the model endpoint.
+        :param function_tag: The function tag associated with the model endpoint.
+        :param model_name: The model name of the model endpoint.
+        :param model_tag: The model tag associated with the model endpoint.
+        :param top_level: If True, filters for top-level model endpoints.
+        :param labels: The labels to filter model endpoints.
+        :param start: Start date-time filter.
+        :param end: End date-time filter.
+        :param uids: The list of model endpoint UIDs to query.
+        :param latest_only: If True, return only the latest model endpoint.
         :param offset: SQL query offset.
         :param limit: SQL query limit.
+        :param order_by: Column name for ordering results.
         """
-        query = session.query(ModelEndpoint)
-        query = query.filter(ModelEndpoint.project == project)
+        query = (
+            session.query(ModelEndpoint)
+            .options(
+                joinedload(ModelEndpoint.function),
+                joinedload(ModelEndpoint.model),
+                joinedload(ModelEndpoint.tags),
+            )
+            .filter(ModelEndpoint.project == project)
+        )
 
-        # Apply filters
+        # Apply filters for direct attributes
         if names:
             query = query.filter(ModelEndpoint.name.in_(names))
-        if function_name:
-            query = query.filter(ModelEndpoint.function_name == function_name)
-        if function_tag:
-            query = query.filter(ModelEndpoint.function_tag == function_tag)
-        if model_name:
-            query = query.filter(ModelEndpoint.model_name == model_name)
-        if model_tag:
-            query = query.filter(ModelEndpoint.model_tag == model_tag)
         if uids:
             query = query.filter(ModelEndpoint.uid.in_(uids))
         if top_level:
@@ -5416,9 +5470,28 @@ class SQLDB(DBInterface):
                 ModelEndpoint.endpoint_type.in_(EndpointType.top_level_list())
             )
 
+        # Apply function-related filters
+        if function_name or function_tag:
+            query = query.join(Function, ModelEndpoint.function_id == Function.id)
+            if function_name:
+                query = query.filter(Function.name == function_name)
+            if function_tag:
+                query = query.filter(
+                    Function.tags.any(Function.Tag.name == function_tag)
+                )
+
+        if model_name or model_tag:
+            query = query.join(ArtifactV2, ModelEndpoint.model_id == ArtifactV2.id)
+            if model_name:
+                query = query.filter(ArtifactV2.key == model_name)
+            if model_tag:
+                query = query.filter(
+                    ArtifactV2.tags.any(ArtifactV2.Tag.name == model_tag)
+                )
+
         if start or end:
             query = generate_time_range_query(
-                query=query, field=ModelEndpoint.created, since=start, until=end
+                query, ModelEndpoint.created, since=start, until=end
             )
 
         if latest_only:
@@ -5430,19 +5503,28 @@ class SQLDB(DBInterface):
                 ModelEndpoint.Tag, ModelEndpoint.id == ModelEndpoint.Tag.obj_id
             )
 
-        labels = label_set(labels)
-        query = self._add_labels_filter(session, query, ModelEndpoint, labels)
+        # Apply label filters
+        query = self._add_labels_filter(
+            session, query, ModelEndpoint, label_set(labels)
+        )
+
+        # Apply pagination
         query = self._paginate_query(query, offset, limit)
-        try:
-            if order_by:
+
+        # Apply ordering with proper error handling
+        if order_by:
+            try:
                 query = query.order_by(getattr(ModelEndpoint, order_by).asc())
-        except AttributeError as err:
-            logger.warning("Skipping order by", error=mlrun.errors.err_to_str(err))
+            except AttributeError as err:
+                logger.warning(
+                    "Skipping order_by due to invalid column",
+                    error=mlrun.errors.err_to_str(err),
+                )
 
         return query
 
-    def _delete(self, session, cls, **kw):
-        query = session.query(cls).filter_by(**kw)
+    def _delete(self, session, cls, query=None, **kw):
+        query = query or session.query(cls).filter_by(**kw)
         for obj in query:
             session.delete(obj)
         session.commit()
@@ -5580,9 +5662,6 @@ class SQLDB(DBInterface):
             model_endpoint_record.created
         )
         model_endpoint_full_dict[ModelEndpointSchema.UID] = model_endpoint_record.uid
-        model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG] = (
-            model_endpoint_record.function_tag
-        )
         model_endpoint_full_dict = self._fill_model_endpoint_with_function_data(
             model_endpoint_record,
             model_endpoint_full_dict,
@@ -5597,51 +5676,87 @@ class SQLDB(DBInterface):
                 model_endpoint_full_dict, format_
             )
         )
+
         model_endpoint_resp = mlrun.common.schemas.ModelEndpoint.from_flat_dict(
             model_endpoint_full_dict
         )
-
+        model_endpoint_full_dict["_model_id"] = None
         return model_endpoint_resp
 
-    @staticmethod
     def _fill_model_endpoint_with_function_data(
+        self,
         model_endpoint_record: ModelEndpoint,
         model_endpoint_full_dict: dict,
         latest: bool,
     ) -> dict:
         if model_endpoint_record.function and latest:
+            model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_NAME] = (
+                model_endpoint_record.function.name
+            )
+            function_tag_list = model_endpoint_record.function.tags
+            model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAGS] = (
+                [tag.name for tag in function_tag_list] if function_tag_list else []
+            )
+            model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG] = (
+                self._get_function_tag(function_tag_list)
+            )
             model_endpoint_full_dict[ModelEndpointSchema.STATE] = (
                 model_endpoint_record.function.state
             )
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_URI] = (
                 generate_object_uri(
-                    project=model_endpoint_record.project,
-                    name=model_endpoint_record.function_name,
+                    project=model_endpoint_record.function.project,
+                    name=model_endpoint_record.function.name,
                     hash_key=model_endpoint_record.function.uid,
                 )
             )
+
         else:
+            model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_NAME] = ""
+            model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG] = ""
+            model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAGS] = []
             model_endpoint_full_dict[ModelEndpointSchema.STATE] = "unknown"
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_URI] = None
         return model_endpoint_full_dict
+
+    def _get_function_tag(self, function_tag_list):
+        latest = False
+        for tag in function_tag_list:
+            if tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST:
+                latest = True
+            else:
+                return tag.name
+        if latest:
+            return mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        return ""
 
     @staticmethod
     def _fill_model_endpoint_with_model_data(
         model_endpoint_record: ModelEndpoint, model_endpoint_full_dict: dict
     ) -> dict:
-        if model_endpoint_record.model:
+        model = model_endpoint_record.model
+        if model:
+            model_endpoint_full_dict[ModelEndpointSchema.MODEL_NAME] = model.key
+            model_tags = model.tags
+            model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAGS] = (
+                [tag.name for tag in model_tags] if model_tags else []
+            )
             model_artifact_uri = mlrun.datastore.get_store_uri(
                 kind=mlrun.utils.helpers.StorePrefix.Model,
                 uri=generate_artifact_uri(
-                    project=model_endpoint_record.project,
-                    key=model_endpoint_record.model.key,
-                    iter=model_endpoint_record.model.iteration,
-                    tree=model_endpoint_record.model.producer_id,
-                    uid=model_endpoint_record.model.uid,
+                    project=model.project,
+                    key=model.key,
+                    iter=model.iteration,
+                    tree=model.producer_id,
+                    uid=model.uid,
                 ),
             )
 
             model_endpoint_full_dict[ModelEndpointSchema.MODEL_URI] = model_artifact_uri
+        else:
+            model_endpoint_full_dict[ModelEndpointSchema.MODEL_NAME] = ""
+            model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAGS] = []
+            model_endpoint_full_dict[ModelEndpointSchema.MODEL_URI] = None
         return model_endpoint_full_dict
 
     def _transform_project_record_to_schema(
@@ -7325,7 +7440,8 @@ class SQLDB(DBInterface):
             meps,
             project,
             mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
-            obj_name_attribute=["name", "function_name", "function_tag"],
+            obj_name_attribute=["name", "function.name"],
+            obj_name_sufix=function_tag if function_record else None,
         )
 
     def store_model_endpoint(
@@ -7355,7 +7471,10 @@ class SQLDB(DBInterface):
             [mep],
             model_endpoint.metadata.project,
             mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
-            obj_name_attribute=["name", "function_name", "function_tag"],
+            obj_name_attribute=["name", "function.name"],
+            obj_name_sufix=model_endpoint.spec.function_tag
+            if function_record
+            else None,
         )
         return mep.uid
 
@@ -7378,10 +7497,7 @@ class SQLDB(DBInterface):
             name=model_endpoint.metadata.name,
             project=model_endpoint.metadata.project,
             function_id=function_record.id if function_record else None,
-            function_name=model_endpoint.spec.function_name,
-            function_tag=model_endpoint.spec.function_tag,
-            model_name=model_endpoint.spec.model_name,
-            model_tag=model_endpoint.spec.model_tag,
+            model_id=model_endpoint.spec._model_id or None,
             endpoint_type=model_endpoint.metadata.endpoint_type.value,
             created=current_time,
             updated=current_time,
@@ -7550,9 +7666,19 @@ class SQLDB(DBInterface):
                 uid=uid,
             )
         else:
+            query = self._get_mep_instances(
+                session,
+                cls=ModelEndpoint,
+                project=project,
+                name=name,
+                function_name=function_name,
+                function_tag=function_tag,
+                _get_query=True,
+            )
             self._delete(
                 session,
                 ModelEndpoint,
+                query=query,
                 project=project,
                 name=name,
                 function_name=function_name,

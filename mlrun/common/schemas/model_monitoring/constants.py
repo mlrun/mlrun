@@ -42,6 +42,9 @@ class ModelEndpointSchema(MonitoringStrEnum):
     # spec
     FUNCTION_NAME = "function_name"
     FUNCTION_TAG = "function_tag"
+    FUNCTION_TAGS = "function_tags"
+    MODEL_NAME = "model_name"
+    MODEL_TAGS = "model_tags"
     MODEL_PATH = "model_path"
     MODEL_CLASS = "model_class"
     FEATURE_NAMES = "feature_names"

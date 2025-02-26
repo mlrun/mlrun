@@ -15,9 +15,9 @@
 
 """Update model endpoints table 2.0
 
-Revision ID: ec572ac26e3e
+Revision ID: fa304088c8fb
 Revises: 6f9a8e3857ec
-Create Date: 2025-02-25 13:36:22.460725
+Create Date: 2025-02-26 20:11:59.597693
 
 """
 
@@ -26,7 +26,7 @@ from alembic import op
 from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
-revision = "ec572ac26e3e"
+revision = "fa304088c8fb"
 down_revision = "6f9a8e3857ec"
 branch_labels = None
 depends_on = None
@@ -37,17 +37,29 @@ def upgrade():
     op.add_column(
         "model_endpoints", sa.Column("function_id", sa.Integer(), nullable=True)
     )
+    op.add_column("model_endpoints", sa.Column("model_id", sa.Integer(), nullable=True))
+    op.drop_index("_mep_uc_2", table_name="model_endpoints")
+    op.create_foreign_key(
+        "fk_model_endpoints_artifacts",
+        "model_endpoints",
+        "artifacts_v2",
+        ["model_id"],
+        ["id"],
+    )
     op.create_foreign_key(
         "fk_model_endpoints_functions",
         "model_endpoints",
         "functions",
         ["function_id"],
         ["id"],
-        onupdate="CASCADE",
     )
+    op.drop_column("model_endpoints", "function_name")
+    op.drop_column("model_endpoints", "function_tag")
+    op.drop_column("model_endpoints", "model_name")
     op.drop_column("model_endpoints", "model_db_key")
-    op.drop_column("model_endpoints", "function_uid")
     op.drop_column("model_endpoints", "model_uid")
+    op.drop_column("model_endpoints", "function_uid")
+    op.drop_column("model_endpoints", "model_tag")
     # ### end Alembic commands ###
 
 
@@ -56,8 +68,8 @@ def downgrade():
     op.add_column(
         "model_endpoints",
         sa.Column(
-            "model_uid",
-            mysql.VARCHAR(charset="utf8mb3", collation="utf8mb3_bin", length=255),
+            "model_tag",
+            mysql.VARCHAR(charset="utf8mb3", collation="utf8mb3_bin", length=64),
             nullable=True,
         ),
     )
@@ -72,7 +84,39 @@ def downgrade():
     op.add_column(
         "model_endpoints",
         sa.Column(
+            "model_uid",
+            mysql.VARCHAR(charset="utf8mb3", collation="utf8mb3_bin", length=255),
+            nullable=True,
+        ),
+    )
+    op.add_column(
+        "model_endpoints",
+        sa.Column(
             "model_db_key",
+            mysql.VARCHAR(charset="utf8mb3", collation="utf8mb3_bin", length=255),
+            nullable=True,
+        ),
+    )
+    op.add_column(
+        "model_endpoints",
+        sa.Column(
+            "model_name",
+            mysql.VARCHAR(charset="utf8mb3", collation="utf8mb3_bin", length=255),
+            nullable=True,
+        ),
+    )
+    op.add_column(
+        "model_endpoints",
+        sa.Column(
+            "function_tag",
+            mysql.VARCHAR(charset="utf8mb3", collation="utf8mb3_bin", length=64),
+            nullable=True,
+        ),
+    )
+    op.add_column(
+        "model_endpoints",
+        sa.Column(
+            "function_name",
             mysql.VARCHAR(charset="utf8mb3", collation="utf8mb3_bin", length=255),
             nullable=True,
         ),
@@ -80,5 +124,15 @@ def downgrade():
     op.drop_constraint(
         "fk_model_endpoints_functions", "model_endpoints", type_="foreignkey"
     )
+    op.drop_constraint(
+        "fk_model_endpoints_artifacts", "model_endpoints", type_="foreignkey"
+    )
+    op.create_index(
+        "_mep_uc_2",
+        "model_endpoints",
+        ["project", "name", "uid", "function_name", "function_tag"],
+        unique=True,
+    )
+    op.drop_column("model_endpoints", "model_id")
     op.drop_column("model_endpoints", "function_id")
     # ### end Alembic commands ###

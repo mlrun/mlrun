@@ -266,7 +266,7 @@ class TestAlerts(TestMLRunSystem):
         # create an alert with webhook notification that should trigger when the job fails twice in two minutes
         alert_name = "failure-webhook"
         alert_summary = "Job failed"
-        alert_criteria = alert_objects.AlertCriteria(period="2m", count=2)
+        alert_criteria = alert_objects.AlertCriteria(period="1m", count=2)
         run_id = f"{function_name}-handler"
         notifications = self._generate_failure_notifications(nuclio_function_url)
 
@@ -284,15 +284,16 @@ class TestAlerts(TestMLRunSystem):
         with pytest.raises(Exception):
             self.project.run_function(function_name)
 
-        # Wait for more than two minutes to simulate a delay that is slightly longer than the alert period
-        time.sleep(125)
+        # wait for the periodic monitor runs function to run as it may take up to the maximum events_generation_interval
+        # to detect the event.
+        time.sleep(mlconf.alerts.events_generation_interval)
+
+        # Wait for more than one minute to simulate a delay that is slightly longer than the alert period
+        time.sleep(62)
 
         # this is the second failure
         with pytest.raises(Exception):
             self.project.run_function(function_name)
-
-        # wait since there is a might be a delay
-        time.sleep(mlconf.alerts.events_generation_interval)
 
         # validate that no notifications were sent yet, as the two failures did not occur within the same period
         expected_notifications = []

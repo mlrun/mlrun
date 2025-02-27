@@ -57,6 +57,15 @@ class ArtifactCategories(mlrun.common.types.StrEnum):
             return cls(kind)
         return cls.other
 
+    @staticmethod
+    def all():
+        """Return all applicable artifact categories"""
+        return [
+            ArtifactCategories.model,
+            ArtifactCategories.dataset,
+            ArtifactCategories.document,
+        ]
+
 
 class ArtifactIdentifier(pydantic.v1.BaseModel):
     # artifact kind

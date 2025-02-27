@@ -119,7 +119,6 @@ class DBInterface(ABC):
         labels: Optional[Union[str, list[str]]] = None,
         states: Optional[list[str]] = None,
         sort: bool = True,
-        last: int = 0,
         iter: bool = False,
         start_time_from: Optional[datetime.datetime] = None,
         start_time_to: Optional[datetime.datetime] = None,
@@ -145,7 +144,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def del_runs(self, session, name="", project="", labels=None, state="", days_ago=0):
+    def del_runs(
+        self, session, name="", project="", labels=None, state="", days_ago=0, uids=None
+    ):
         pass
 
     def overwrite_artifacts_with_tag(
@@ -368,6 +369,7 @@ class DBInterface(ABC):
         tag: Optional[str] = None,
         kind: Optional[str] = None,
         labels: Optional[list[str]] = None,
+        states: Optional[list[mlrun.common.schemas.FunctionState]] = None,
         hash_key: Optional[str] = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
         offset: Optional[int] = None,
@@ -905,6 +907,15 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def delete_project_alerts(
+        self,
+        session,
+        project: str,
+        chunk_size: typing.Optional[int] = None,
+    ) -> list[int]:
+        pass
+
+    @abstractmethod
     def get_alert(
         self,
         session,
@@ -1305,7 +1316,7 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-        name: typing.Optional[str] = None,
+        names: typing.Optional[list[str]] = None,
         function_name: typing.Optional[str] = None,
         function_tag: typing.Optional[str] = None,
         model_name: typing.Optional[str] = None,
@@ -1325,7 +1336,7 @@ class DBInterface(ABC):
 
         :param session:         The database session.
         :param project:         The project name.
-        :param name:            The model endpoint name.
+        :param names:           The model endpoint list of names.
         :param function_name:   The function name.
         :param function_tag:    The function tag.
         :param model_name:      The model name.

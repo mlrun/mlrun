@@ -615,13 +615,21 @@ class _KFPRunner(_PipelineRunner):
                 "Notifications will only be sent if you wait for pipeline completion. "
                 "Some of the features (like setting message or severity level) are not supported."
             )
-            # for start message, fallback to old notification behavior
             for notification in notifications or []:
                 params = notification.params
                 params.update(notification.secret_params)
-                project.notifiers.add_notification(notification.kind, params)
+                project.notifiers.add_notification(
+                    notification_type=notification.kind,
+                    params=params,
+                    name=notification.name,
+                    message=notification.message,
+                    severity=notification.severity,
+                    when=notification.when,
+                    condition=notification.condition,
+                    secret_params=notification.secret_params,
+                )
 
-            project.spec.notifications = notifications
+        project.spec.notifications = project.notifiers.server_notifications
 
         run_id = _run_pipeline(
             workflow_handler,
@@ -1130,6 +1138,11 @@ def load_and_run_workflow(
         for notification in context.get_notifications(unmask_secret_params=True)
         if "running" in notification.when
     ]
+
+    # Prevent redundant notifications for run completion by ensuring that notifications are only triggered when the run
+    # reaches the "running" state, as the server already handles the completion notifications.
+    for notification in start_notifications:
+        notification.when = ["running"]
 
     workflow_log_message = workflow_name or workflow_path
     context.logger.info(f"Running workflow {workflow_log_message} from remote")

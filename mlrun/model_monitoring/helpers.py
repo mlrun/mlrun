@@ -137,28 +137,26 @@ def get_stream_path(
     )
 
     if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
-        stream_uri = "v3io"
-    elif isinstance(
-        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
-    ):
-        stream_uri = f"kafka://{profile.brokers[0]}"
-    else:
-        raise mlrun.errors.MLRunValueError(
-            f"Received an unexpected stream profile type: {type(profile)}\n"
-            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
-        )
-
-    if not stream_uri or stream_uri == "v3io":
         stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project,
             kind=mm_constants.FileTargetKind.STREAM,
             target="online",
             function_name=function_name,
         )
+        return stream_uri.replace("v3io://", f"ds://{profile.name}")
 
-    return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-        stream_uri=stream_uri, project=project, function_name=function_name
-    )
+    elif isinstance(
+        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+    ):
+        topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
+            project=project, function_name=function_name
+        )
+        return f"ds://{profile.name}/{topic}"
+    else:
+        raise mlrun.errors.MLRunValueError(
+            f"Received an unexpected stream profile type: {type(profile)}\n"
+            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+        )
 
 
 def get_monitoring_parquet_path(
@@ -246,21 +244,6 @@ def get_monitoring_drift_measures_data(project: str, endpoint_id: str) -> "DataI
     )
 
 
-def get_tsdb_connection_string(
-    secret_provider: Optional[Callable[[str], str]] = None,
-) -> str:
-    """Get TSDB connection string from the project secret. If wasn't set, take it from the system
-    configurations.
-    :param secret_provider: An optional secret provider to get the connection string secret.
-    :return:                Valid TSDB connection string.
-    """
-
-    return mlrun.get_secret_or_env(
-        key=mm_constants.ProjectSecretKeys.TSDB_CONNECTION,
-        secret_provider=secret_provider,
-    )
-
-
 def _get_profile(
     project: str,
     secret_provider: Optional[Callable[[str], str]],
@@ -328,18 +311,9 @@ def _get_kafka_output_stream(
     topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
         project=project, function_name=function_name
     )
-    profile_attributes = kafka_profile.attributes()
-    producer_options = profile_attributes.get("producer_options", {})
-    if "sasl" in profile_attributes:
-        sasl = profile_attributes["sasl"]
-        producer_options.update(
-            {
-                "security_protocol": "SASL_PLAINTEXT",
-                "sasl_mechanism": sasl["mechanism"],
-                "sasl_plain_username": sasl["user"],
-                "sasl_plain_password": sasl["password"],
-            },
-        )
+    attributes = kafka_profile.attributes()
+    producer_options = mlrun.datastore.utils.KafkaParameters(attributes).producer()
+
     return mlrun.platforms.iguazio.KafkaOutputStream(
         brokers=kafka_profile.brokers,
         topic=topic,
@@ -552,6 +526,22 @@ def get_result_instance_fqn(
     model_endpoint_id: str, app_name: str, result_name: str
 ) -> str:
     return f"{model_endpoint_id}.{app_name}.result.{result_name}"
+
+
+def get_alert_name_from_result_fqn(result_fqn: str):
+    """
+    :param   result_fqn: current get_result_instance_fqn format: `{model_endpoint_id}.{app_name}.result.{result_name}`
+
+    :return: shorter fqn without forbidden alert characters.
+    """
+    if result_fqn.count(".") != 3 or result_fqn.split(".")[2] != "result":
+        raise mlrun.errors.MLRunValueError(
+            f"result_fqn: {result_fqn} is not in the correct format: {{model_endpoint_id}}.{{app_name}}."
+            f"result.{{result_name}}"
+        )
+    # Name format cannot contain "."
+    # The third component is always `result`, so it is not necessary for checking uniqueness.
+    return "_".join(result_fqn.split(".")[i] for i in [0, 1, 3])
 
 
 def get_default_result_instance_fqn(model_endpoint_id: str) -> str:

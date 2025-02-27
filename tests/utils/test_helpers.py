@@ -989,6 +989,40 @@ def test_get_pretty_types_names():
         assert pretty_result == expected
 
 
+@pytest.mark.parametrize(
+    "value, expected, exception",
+    [
+        # True values
+        ("y", True, does_not_raise()),
+        ("yes", True, does_not_raise()),
+        ("t", True, does_not_raise()),
+        ("true", True, does_not_raise()),
+        ("on", True, does_not_raise()),
+        ("1", True, does_not_raise()),
+        # False values
+        ("n", False, does_not_raise()),
+        ("no", False, does_not_raise()),
+        ("f", False, does_not_raise()),
+        ("false", False, does_not_raise()),
+        ("off", False, does_not_raise()),
+        ("0", False, does_not_raise()),
+        # Invalid values
+        ("maybe", None, pytest.raises(ValueError)),
+        ("2", None, pytest.raises(ValueError)),
+        ("", None, pytest.raises(ValueError)),
+        (" ", None, pytest.raises(ValueError)),
+        # Case insensitivity
+        ("Y", True, does_not_raise()),
+        ("nO", False, does_not_raise()),
+        ("TrUe", True, does_not_raise()),
+        ("FaLsE", False, does_not_raise()),
+    ],
+)
+def test_str_to_bool(value, expected, exception):
+    with exception:
+        assert mlrun.utils.str_to_bool(value) == expected
+
+
 def test_str_to_timestamp():
     now_time = Timestamp("2021-01-01 00:01:00")
     cases = [
@@ -1379,3 +1413,25 @@ def test_validate_single_def_handler_valid_handler(code):
 )
 def test_join_urls(base_url, path, expected_result):
     assert mlrun.utils.helpers.join_urls(base_url, path) == expected_result
+
+
+@pytest.mark.parametrize(
+    "input_time, expected_output",
+    [
+        (None, None),
+        # no timezone
+        ("2025-01-15T11:00:00", datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc)),
+        # timezone-aware datetime (UTC+2), should convert to UTC
+        (
+            "2025-01-15T11:00:00+02:00",
+            datetime(2025, 1, 15, 9, 0, 0, tzinfo=timezone.utc),
+        ),
+        # already in UTC
+        (
+            "2025-01-15T11:00:00+00:00",
+            datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc),
+        ),
+    ],
+)
+def test_datetime_from_iso(input_time, expected_output):
+    assert mlrun.utils.helpers.datetime_from_iso(input_time) == expected_output

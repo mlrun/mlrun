@@ -153,7 +153,7 @@ def _register_stream_profile(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         name=stream_profile_name,
         brokers=["localhost"],
         topics=[],
-        kwargs_public={"producer_options": {"api_version": (3, 9)}},
+        kwargs_public={"api_version": (3, 9)},
     )
     register_temporary_client_datastore_profile(profile)
     yield

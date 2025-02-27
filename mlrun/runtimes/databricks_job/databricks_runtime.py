@@ -11,14 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import typing
 from ast import FunctionDef, parse, unparse
-from base64 import b64decode, b64encode
+from base64 import b64decode
 from typing import Callable, Optional, Union
 
 import mlrun
 import mlrun.runtimes.kubejob as kubejob
 import mlrun.runtimes.pod as pod
+import mlrun.utils.helpers
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.model import HyperParamOptions, RunObject
 
@@ -138,7 +139,7 @@ class DatabricksRuntime(kubejob.KubejobRuntime):
             )
 
     def _get_modified_user_code(self, original_handler: str, log_artifacts_code: str):
-        encoded_code = (
+        encoded_code: typing.Optional[str] = (
             self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
         )
         if not encoded_code:
@@ -162,7 +163,7 @@ class DatabricksRuntime(kubejob.KubejobRuntime):
         if original_handler:
             decoded_code += f"\nresult = {original_handler}(**handler_arguments)\n"
             decoded_code += _return_artifacts_code
-        return b64encode(decoded_code.encode("utf-8")).decode("utf-8")
+        return mlrun.utils.helpers.encode_user_code(decoded_code)
 
     def get_internal_parameters(self, runobj: RunObject):
         """
@@ -202,7 +203,7 @@ from mlrun.runtimes.databricks_job import databricks_wrapper
 def run_mlrun_databricks_job(context,task_parameters: dict, **kwargs):
         databricks_wrapper.run_mlrun_databricks_job(context, task_parameters, **kwargs)
 """
-        wrap_code = b64encode(wrap_code).decode("utf-8")
+        wrap_code = mlrun.utils.helpers.encode_user_code(wrap_code)
         self.spec.build.functionSourceCode = wrap_code
         runspec.spec.handler = "run_mlrun_databricks_job"
 

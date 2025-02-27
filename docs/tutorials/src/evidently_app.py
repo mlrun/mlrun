@@ -10,10 +10,10 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultStatusApp,
 )
 from mlrun.feature_store.api import norm_column_name
-from mlrun.model_monitoring.applications import (
+from mlrun.model_monitoring.applications import ModelMonitoringApplicationResult
+from mlrun.model_monitoring.applications.evidently import (
     _HAS_EVIDENTLY,
     EvidentlyModelMonitoringApplicationBase,
-    ModelMonitoringApplicationResult,
 )
 
 if _HAS_EVIDENTLY:

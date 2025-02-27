@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import os
 import time
 import typing
 
@@ -35,6 +34,7 @@ from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.datastore_profile import DatastoreProfileV3io
 from mlrun.model_monitoring.helpers import get_stream_path
 from tests.system.base import TestMLRunSystem
+from tests.system.model_monitoring import TestMLRunSystemModelMonitoring
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -159,13 +159,23 @@ class TestAlerts(TestMLRunSystem):
         validate that an alert is sent with different result kind and different detection result
         """
         # enable model monitoring - deploy writer function
-        self.project.set_model_monitoring_credentials(
-            stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=os.getenv(
-                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
-            ),
+        tsdb_profile = TestMLRunSystemModelMonitoring.get_tsdb_profile(
+            self.mm_tsdb_profile_data
         )
+        self.project.register_datastore_profile(tsdb_profile)
+
+        stream_profile = TestMLRunSystemModelMonitoring.get_stream_profile(
+            self.mm_stream_profile_data
+        )
+        self.project.register_datastore_profile(stream_profile)
+
+        self.project.set_model_monitoring_credentials(
+            tsdb_profile_name=tsdb_profile.name,
+            stream_profile_name=stream_profile.name,
+        )
+
         self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
+
         # deploy nuclio func for storing notifications, to validate an alert notifications were sent on drift detection
         nuclio_function_url = notification_helpers.deploy_notification_nuclio(
             self.project, self.image
@@ -256,7 +266,7 @@ class TestAlerts(TestMLRunSystem):
         # create an alert with webhook notification that should trigger when the job fails twice in two minutes
         alert_name = "failure-webhook"
         alert_summary = "Job failed"
-        alert_criteria = alert_objects.AlertCriteria(period="2m", count=2)
+        alert_criteria = alert_objects.AlertCriteria(period="30s", count=2)
         run_id = f"{function_name}-handler"
         notifications = self._generate_failure_notifications(nuclio_function_url)
 
@@ -274,15 +284,13 @@ class TestAlerts(TestMLRunSystem):
         with pytest.raises(Exception):
             self.project.run_function(function_name)
 
-        # Wait for more than two minutes to simulate a delay that is slightly longer than the alert period
-        time.sleep(125)
+        # wait for the periodic monitor runs function to run as it may take up to the maximum events_generation_interval
+        # to detect the event + an extra 40s to simulate a delay that is slightly longer than the alert period
+        time.sleep(mlconf.alerts.events_generation_interval + 40)
 
         # this is the second failure
         with pytest.raises(Exception):
             self.project.run_function(function_name)
-
-        # wait since there is a might be a delay
-        time.sleep(mlconf.alerts.events_generation_interval)
 
         # validate that no notifications were sent yet, as the two failures did not occur within the same period
         expected_notifications = []
@@ -298,7 +306,7 @@ class TestAlerts(TestMLRunSystem):
         # validate that the alert was triggered and the notification was sent
         expected_notifications = ["notification failure"]
 
-        # wait since there is a might be a delay
+        # wait since there might be a delay
         mlrun.utils.retry_until_successful(
             3,
             10 * 3,
@@ -400,7 +408,7 @@ class TestAlerts(TestMLRunSystem):
             severity=alert_objects.AlertSeverity.LOW,
             criteria=criteria,
         )
-        mlrun.get_run_db().store_alert_config(name, alert_data[0])
+        self.project.store_alert_config(alert_data[0])
 
     def _validate_project_alerts_summary(
         self,

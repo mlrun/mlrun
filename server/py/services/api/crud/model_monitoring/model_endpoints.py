@@ -18,10 +18,8 @@ import uuid
 from datetime import datetime
 from typing import Callable, Optional
 
-import pandas as pd
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy.util import asyncio
 
 import mlrun.artifacts
 import mlrun.common.helpers
@@ -122,34 +120,41 @@ class ModelEndpoints:
                 logger.info("The model endpoint is created on a non-existing function")
         model_obj = None
         if model_path and mlrun.datastore.is_store_uri(model_path):
-            try:
-                logger.info("Getting model object from db")
-                _, model_uri = mlrun.datastore.parse_store_uri(model_path)
-                project, key, iteration, tag, tree, uid = parse_artifact_uri(
-                    model_uri, model_endpoint.metadata.project
-                )
-                model_obj = mlrun.artifacts.dict_to_artifact(
-                    services.api.crud.Artifacts().get_artifact(
-                        db_session,
-                        key=key,
-                        tag=tag,
-                        iter=iteration,
-                        project=project,
-                        producer_id=tree,
-                        object_uid=uid,
-                    )
-                )
-
-                model_endpoint.spec.model_name = model_obj.metadata.key
-                model_endpoint.spec.model_db_key = model_obj.spec.db_key
-                model_endpoint.spec.model_uid = model_obj.metadata.uid
-                model_endpoint.spec.model_tag = model_obj.tag
-                model_endpoint.metadata.labels.update(
-                    model_obj.labels
-                )  # todo : check if we still need this
-            except mlrun.errors.MLRunNotFoundError:
-                logger.info("The model endpoint is created on a non-existing model")
+            _, model_uri = mlrun.datastore.parse_store_uri(model_path)
+            project, key, iteration, tag, tree, uid = parse_artifact_uri(
+                model_uri, model_endpoint.metadata.project
+            )
         else:
+            project, key, iteration, tag, tree, uid = (
+                model_endpoint.metadata.project,
+                model_endpoint.spec.model_db_key,
+                None,
+                model_endpoint.spec.model_tag,
+                None,
+                model_endpoint.spec.model_uid,
+            )
+        try:
+            logger.info("Getting model object from db")
+            model_obj = mlrun.artifacts.dict_to_artifact(
+                services.api.crud.Artifacts().get_artifact(
+                    db_session,
+                    key=key,
+                    tag=tag,
+                    iter=iteration,
+                    project=project,
+                    producer_id=tree,
+                    object_uid=uid,
+                )
+            )
+
+            model_endpoint.spec.model_name = model_obj.metadata.key
+            model_endpoint.spec.model_db_key = model_obj.spec.db_key
+            model_endpoint.spec.model_uid = model_obj.metadata.uid
+            model_endpoint.spec.model_tag = model_obj.tag
+            model_endpoint.metadata.labels.update(
+                model_obj.labels
+            )  # todo : check if we still need this
+        except mlrun.errors.MLRunNotFoundError:
             logger.info("The model endpoint is created on a non-existing model")
 
         if (
@@ -350,6 +355,15 @@ class ModelEndpoints:
             attributes[mlrun.common.schemas.ModelEndpointSchema.LABEL_NAMES] = (
                 model_endpoint.spec.label_names
             )
+        elif (
+            model_endpoint.status.monitoring_mode
+            == exist_model_endpoint.status.monitoring_mode
+        ):
+            model_endpoint.spec.monitoring_feature_set_uri = (
+                exist_model_endpoint.spec.monitoring_feature_set_uri
+            )
+            model_endpoint.spec.feature_names = exist_model_endpoint.spec.feature_names
+            model_endpoint.spec.label_names = exist_model_endpoint.spec.label_names
         if upsert:
             await run_in_threadpool(
                 framework.utils.singletons.db.get_db().update_model_endpoint,
@@ -377,7 +391,7 @@ class ModelEndpoints:
                 await run_in_threadpool(
                     framework.utils.singletons.db.get_db().list_model_endpoints,
                     project=model_endpoint.metadata.project,
-                    name=model_endpoint.metadata.name,
+                    names=[model_endpoint.metadata.name],
                     function_name=model_endpoint.spec.function_name,
                     function_tag=model_endpoint.spec.function_tag,
                     latest_only=True,
@@ -422,7 +436,7 @@ class ModelEndpoints:
                     await run_in_threadpool(
                         framework.utils.singletons.db.get_db().list_model_endpoints,
                         project=model_endpoint.metadata.project,
-                        name=model_endpoint.metadata.name,
+                        names=[model_endpoint.metadata.name],
                         function_name=model_endpoint.spec.function_name,
                         function_tag=model_endpoint.spec.function_tag,
                         latest_only=False,
@@ -511,9 +525,12 @@ class ModelEndpoints:
                     model=model_obj,
                     run_db=framework.api.utils.get_run_db_instance(db_session),
                     project=model_endpoint.metadata.project,
+                    model_endpoint_labels=model_endpoint.spec.label_names,
                 )
                 model_endpoint.spec.feature_names = [
-                    feature.name for feature in features
+                    feature.name
+                    for feature in features
+                    if feature.name not in model_endpoint.spec.label_names
                 ]
 
         return model_endpoint, features
@@ -610,11 +627,15 @@ class ModelEndpoints:
         model: mlrun.artifacts.ModelArtifact,
         project: str,
         run_db: mlrun.db.RunDBInterface,
+        model_endpoint_labels: list[str],
     ) -> list[mlrun.feature_store.Feature]:
         """Get features to the feature set according to the model object"""
+        labels_feature = [
+            mlrun.feature_store.Feature(name=name) for name in model_endpoint_labels
+        ] or model.spec.outputs
         features = []
         if model.spec.inputs:
-            for feature in itertools.chain(model.spec.inputs, model.spec.outputs):
+            for feature in itertools.chain(model.spec.inputs, labels_feature):
                 name = mlrun.feature_store.api.norm_column_name(feature.name)
                 features.append(
                     mlrun.feature_store.Feature(
@@ -746,7 +767,7 @@ class ModelEndpoints:
             model_endpoint_list = await run_in_threadpool(
                 framework.utils.singletons.db.get_db().list_model_endpoints,
                 project=project,
-                name=name,
+                names=[name],
                 function_name=function_name,
                 function_tag=function_tag,
                 latest_only=False,
@@ -891,7 +912,7 @@ class ModelEndpoints:
         self,
         project: str,
         db_session: sqlalchemy.orm.Session,
-        name: typing.Optional[str] = None,
+        names: typing.Optional[list[str]] = None,
         model_name: typing.Optional[str] = None,
         model_tag: typing.Optional[str] = None,
         function_name: typing.Optional[str] = None,
@@ -908,7 +929,7 @@ class ModelEndpoints:
         List model endpoints based on the provided filters.
         :param project:             The name of the project.
         :param db_session:          A session that manages the current dialog with the database.
-        :param name:                The name of the model endpoint.
+        :param names:               A list of the names of the model endpoints.
         :param model_name:          The name of the model.
         :param function_name:       The name of the function.
         :param function_tag:        The tag of the function.
@@ -928,7 +949,7 @@ class ModelEndpoints:
 
         logger.info(
             "Listing endpoints",
-            name=name,
+            names=names,
             project=project,
             model_name=model_name,
             model_tag=model_tag,
@@ -948,7 +969,7 @@ class ModelEndpoints:
             framework.utils.singletons.db.get_db().list_model_endpoints,
             session=db_session,
             project=project,
-            name=name,
+            names=names,
             model_name=model_name,
             model_tag=model_tag,
             function_name=function_name,
@@ -1052,7 +1073,6 @@ class ModelEndpoints:
         cls._delete_model_monitoring_stream_resources(
             project_name=project_name,
             model_monitoring_applications=model_monitoring_applications,
-            model_monitoring_access_key=model_monitoring_access_key,
             stream_profile=stream_profile,
         )
         # Delete model monitoring stats folder.
@@ -1128,7 +1148,6 @@ class ModelEndpoints:
         project_name: str,
         model_monitoring_applications: typing.Optional[list[str]],
         stream_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
-        model_monitoring_access_key: typing.Optional[str] = None,
     ) -> None:
         """
         Delete model monitoring stream resources.
@@ -1137,8 +1156,6 @@ class ModelEndpoints:
         :param model_monitoring_applications: A list of model monitoring applications that their resources should
                                               be deleted.
         :param stream_profile:                The datastore profile for the stream.
-        :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
-                                              V3IO resources.
         """
         logger.debug(
             "Deleting model monitoring stream resources",
@@ -1157,7 +1174,6 @@ class ModelEndpoints:
                 project=project_name
             )._delete_model_monitoring_stream_resources(
                 function_names=model_monitoring_applications,
-                access_key=model_monitoring_access_key,
                 stream_profile=stream_profile,
             )
             logger.debug(
@@ -1294,22 +1310,6 @@ class ModelEndpoints:
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
 
-        def _add_metric(
-            mep: mlrun.common.schemas.ModelEndpoint,
-            df_dictionary: dict[str, pd.DataFrame],
-        ):
-            for metric in df_dictionary.keys():
-                df = df_dictionary.get(metric, pd.DataFrame())
-                if not df.empty:
-                    line = df[df["endpoint_id"] == mep.metadata.uid]
-                    if not line.empty and metric in line:
-                        value = line[metric].item()
-                        if isinstance(value, pd.Timestamp):
-                            value = value.to_pydatetime()
-                        setattr(mep.status, metric, value)
-
-            return mep
-
         try:
             tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
                 project=project,
@@ -1325,32 +1325,8 @@ class ModelEndpoints:
             )
             return model_endpoint_objects
 
-        uids = [mep.metadata.uid for mep in model_endpoint_objects]
-        tasks = [
-            run_in_threadpool(tsdb_connector.get_error_count, endpoint_ids=uids),
-            run_in_threadpool(tsdb_connector.get_last_request, endpoint_ids=uids),
-            run_in_threadpool(tsdb_connector.get_avg_latency, endpoint_ids=uids),
-            run_in_threadpool(tsdb_connector.get_drift_status, endpoint_ids=uids),
-        ]
-        (
-            error_count_df,
-            last_request_df,
-            avg_latency_df,
-            drift_status_df,
-        ) = await asyncio.gather(*tasks)
-        return list(
-            map(
-                lambda mep: _add_metric(
-                    mep=mep,
-                    df_dictionary={
-                        "error_count": error_count_df,
-                        "last_request": last_request_df,
-                        "avg_latency": avg_latency_df,
-                        "result_status": drift_status_df,
-                    },
-                ),
-                model_endpoint_objects,
-            )
+        return await tsdb_connector.add_basic_metrics(
+            model_endpoint_objects, project, run_in_threadpool
         )
 
     @classmethod

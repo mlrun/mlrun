@@ -240,19 +240,9 @@ class EventKeyMetrics:
     REAL_TIME = "real_time"
 
 
-class ModelEndpointTarget(MonitoringStrEnum):
-    V3IO_NOSQL = "v3io-nosql"
-    SQL = "sql"
-
-
 class TSDBTarget(MonitoringStrEnum):
     V3IO_TSDB = "v3io-tsdb"
     TDEngine = "tdengine"
-
-
-class DefaultProfileName(StrEnum):
-    STREAM = "mm-infra-stream"
-    TSDB = "mm-infra-tsdb"
 
 
 class ProjectSecretKeys:
@@ -272,17 +262,6 @@ class GetEventsFormat(MonitoringStrEnum):
     SINGLE = "single"
     SEPARATION = "separation"
     INTERSECTION = "intersection"
-
-
-class ModelEndpointTargetSchemas(MonitoringStrEnum):
-    V3IO = "v3io"
-    MYSQL = "mysql"
-    SQLITE = "sqlite"
-
-
-class ModelMonitoringStoreKinds:
-    ENDPOINTS = "endpoints"
-    EVENTS = "events"
 
 
 class FileTargetKind:
@@ -434,10 +413,6 @@ class ModelMonitoringAppLabel:
         return f"{self.KEY}={self.VAL}"
 
 
-class ControllerPolicy:
-    BASE_PERIOD = "base_period"
-
-
 class HistogramDataDriftApplicationConstants:
     NAME = "histogram-data-drift"
     GENERAL_RESULT_NAME = "general_drift"
@@ -453,8 +428,6 @@ class SpecialApps:
 
 
 _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]
-
-V3IO_MODEL_MONITORING_DB = "v3io"
 
 
 class ModelEndpointMonitoringMetricType(StrEnum):
@@ -473,8 +446,8 @@ FQN_REGEX = re.compile(FQN_PATTERN)
 
 # refer to `mlrun.utils.regex.project_name`
 PROJECT_PATTERN = r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
-
 MODEL_ENDPOINT_ID_PATTERN = r"^[a-zA-Z0-9_-]+$"
+RESULT_NAME_PATTERN = r"[a-zA-Z_][a-zA-Z0-9_]*"
 
 INTERSECT_DICT_KEYS = {
     ModelEndpointMonitoringMetricType.METRIC: "intersect_metrics",

@@ -340,7 +340,7 @@ class TestRuns(TestDatabaseBase):
         self._ensure_run_after_align_runs_migration(run)
 
     def test_store_run_success(self):
-        project, name, uid, iteration, run = self._create_new_run()
+        project, name, uid, iteration, run_dict = self._create_new_run()
 
         # use to internal function to get the record itself to be able to assert columns
         runs = self._db._find_runs(
@@ -362,6 +362,24 @@ class TestRuns(TestDatabaseBase):
         assert (
             self._db._add_utc_timezone(run.updated).isoformat()
             == run.struct["status"]["last_update"]
+        )
+
+        end_time = datetime.now(timezone.utc)
+        run_dict["status"]["state"] = (
+            mlrun.common.runtimes.constants.RunStates.completed
+        )
+        run_dict["status"]["end_time"] = end_time.isoformat()
+        self._db.store_run(self._db_session, run_dict, uid, project, iter=iteration)
+
+        runs = self._db._find_runs(
+            self._db_session, uid=None, project=project, labels=None
+        ).all()
+        assert len(runs) == 1
+        run = runs[0]
+        assert (
+            self._db._add_utc_timezone(run.end_time).isoformat()
+            == run.struct["status"]["end_time"]
+            == end_time.isoformat()
         )
 
     def test_update_runs_requested_logs(self):
@@ -389,7 +407,11 @@ class TestRuns(TestDatabaseBase):
         ) as update_labels_mock:
             self._db.update_run(
                 self._db_session,
-                {"metadata.some-new-field": "value", "spec.another-new-field": "value"},
+                {
+                    "metadata.some-new-field": "value",
+                    "spec.another-new-field": "value",
+                    "status.state": "completed",
+                },
                 uid,
                 project,
                 iteration,
@@ -399,6 +421,8 @@ class TestRuns(TestDatabaseBase):
             assert run["metadata"]["name"] == name
             assert run["metadata"]["some-new-field"] == "value"
             assert run["spec"]["another-new-field"] == "value"
+            assert run["status"]["state"] == "completed"
+            assert run["status"]["end_time"] is not None
             assert update_labels_mock.call_count == 0
 
     def test_run_iter(self):
@@ -464,17 +488,6 @@ class TestRuns(TestDatabaseBase):
                 iteration,
             )
 
-    def test_list_runs_limited_unsorted_failure(self):
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError,
-            match="Limiting the number of returned records without sorting will provide non-deterministic results",
-        ):
-            self._db.list_runs(
-                self._db_session,
-                sort=False,
-                last=1,
-            )
-
     def test_list_runs_with_same_names(self):
         run_names = ["run_name_1", "run_name_2"]
         project_names = ["project1", "project2"]
@@ -508,7 +521,10 @@ class TestRuns(TestDatabaseBase):
         # update the run's end_time
         end_time = datetime.now(timezone.utc)
         end_time_iso = end_time.isoformat()
-        updates = {"status.end_time": end_time_iso}
+        updates = {
+            "status.state": "completed",
+            "status.end_time": end_time_iso,
+        }
         self._db.update_run(self._db_session, updates, run_uid, project)
 
         # fetch the run and verify the end_time

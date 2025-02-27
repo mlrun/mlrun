@@ -66,3 +66,4 @@ class ClientSpec(pydantic.v1.BaseModel):
     external_platform_tracking: typing.Optional[dict]
     alerts_mode: typing.Optional[str]
     system_id: typing.Optional[str]
+    model_endpoint_monitoring_store_prefixes: typing.Optional[dict[str, str]]

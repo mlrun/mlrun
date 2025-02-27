@@ -14,9 +14,7 @@
 
 from .constants import (
     INTERSECT_DICT_KEYS,
-    V3IO_MODEL_MONITORING_DB,
     ApplicationEvent,
-    ControllerPolicy,
     DriftStatus,
     EndpointType,
     EndpointUID,
@@ -30,10 +28,7 @@ from .constants import (
     ModelEndpointCreationStrategy,
     ModelEndpointMonitoringMetricType,
     ModelEndpointSchema,
-    ModelEndpointTarget,
-    ModelEndpointTargetSchemas,
     ModelMonitoringMode,
-    ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
     PredictionsQueryConstants,
     ProjectSecretKeys,
@@ -51,11 +46,9 @@ from .constants import (
 from .grafana import (
     GrafanaColumn,
     GrafanaColumnType,
-    GrafanaDataPoint,
     GrafanaNumberColumn,
     GrafanaStringColumn,
     GrafanaTable,
-    GrafanaTimeSeriesTarget,
 )
 from .model_endpoints import (
     Features,

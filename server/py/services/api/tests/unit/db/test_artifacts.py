@@ -695,7 +695,7 @@ class TestArtifacts(TestDatabaseBase):
             kind=ArtifactCategories.model,
             key=artifact_key,
             uid=artifact_tree,
-            tag=artifact_1_tag,
+            iter=0,
         )
 
         # overwrite the tag for only one of the artifacts
@@ -1557,12 +1557,16 @@ class TestArtifacts(TestDatabaseBase):
     @pytest.mark.parametrize("limit", [None, 6])
     def test_list_artifacts_returns_elements_by_order_updated_field(self, limit):
         project = "artifact_project"
+        artifact_kinds = ArtifactCategories.all()
 
         # Create artifacts
         number_of_artifacts = 10
         for counter in range(number_of_artifacts):
+            next_cyclic_item = artifact_kinds[counter % len(artifact_kinds)]
             artifact_key = f"artifact-{counter}"
-            artifact_body = self._generate_artifact(artifact_key, project=project)
+            artifact_body = self._generate_artifact(
+                artifact_key, project=project, kind=next_cyclic_item
+            )
             self._db.store_artifact(
                 self._db_session, artifact_key, artifact_body, project=project
             )
@@ -2465,6 +2469,65 @@ class TestArtifacts(TestDatabaseBase):
         assert artifacts[0]["metadata"]["uid"] == artifact_2["metadata"]["uid"]
         assert artifacts[0]["metadata"]["tag"] == "latest"
 
+    @pytest.mark.parametrize(
+        "kwargs, expected",
+        [
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": True,
+                    "tag": "latest",
+                },
+                True,
+                id="default_query",
+            ),
+            pytest.param(
+                {
+                    "best_iteration": True,
+                    "tag": "latest",
+                },
+                False,
+                id="no_pagination",
+            ),
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": False,
+                    "tag": "latest",
+                },
+                False,
+                id="best_iteration_false",
+            ),
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": True,
+                    "tag": "any_tag",
+                },
+                False,
+                id="tag_not_latest",
+            ),
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": True,
+                    "tag": "latest",
+                    "name": "any_name",
+                },
+                False,
+                id="additional_params",
+            ),
+        ],
+    )
+    def test_is_default_list_artifacts_query(self, kwargs: dict, expected: bool):
+        ignored_params = {
+            "project": "any_project",
+            "category": "any_category",
+            "offset": 5,  # any offset
+        }
+        kwargs.update(ignored_params)
+        assert self._db._is_default_list_artifacts_query(**kwargs) == expected
+
     def _generate_artifact_with_iterations(
         self, key, tree, num_iters, best_iter, kind, project=""
     ):
@@ -2546,6 +2609,7 @@ class TestArtifacts(TestDatabaseBase):
                 name=project_name,
             ),
             spec=mlrun.common.schemas.ProjectSpec(description="some-description"),
+            kind=mlrun.common.schemas.ObjectKind.project,
         )
         self._db.create_project(self._db_session, project)
 

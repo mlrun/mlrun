@@ -75,7 +75,11 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
             else:
                 pods_phases = self.get_pods(meta.name, meta.namespace)
                 txt = f"MpiJob status unknown or failed, check pods: {pods_phases}"
-                logger.warning(txt)
+                logger.warning(
+                    "MpiJob status unknown or failed",
+                    pods_phases=pods_phases,
+                    resp_status=mlrun.utils.get_in(resp, "status"),
+                )
                 run.status.status_text = txt
 
     def get_pods(self, name=None, namespace=None, launcher=False):

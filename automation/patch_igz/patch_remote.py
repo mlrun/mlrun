@@ -63,6 +63,8 @@ class MLRunPatcher:
         patch_mlrun_image: bool,
         skip_patch_api: bool,
         patch_alerts: bool,
+        no_build: bool,
+        no_push: bool,
     ):
         self._config = yaml.safe_load(conf_file)
         patch_yaml_data = yaml.safe_load(patch_file)
@@ -74,6 +76,8 @@ class MLRunPatcher:
         self._patch_mlrun_image = patch_mlrun_image
         self._skip_patch_api = skip_patch_api
         self._patch_alerts = patch_alerts
+        self._no_build = no_build
+        self._no_push = no_push
 
         if self._skip_patch_api and self._patch_alerts:
             raise ValueError("Cannot skip api and patch alerts at the same time")
@@ -106,11 +110,12 @@ class MLRunPatcher:
             targets=targets,
             image_tag=image_tag,
         )
-        # Build and push Docker images
-        built_images = self._tag_images_for_multi_node_registries(
-            target_to_built_images.values()
-        )
-        self._push_docker_images(built_images)
+
+        if not self._no_push:
+            built_images = self._tag_images_for_multi_node_registries(
+                target_to_built_images.values()
+            )
+            self._push_docker_images(built_images)
 
         # Connect to the first node and start deployment patching process
         node = self._cluster_data_nodes[0]
@@ -212,13 +217,14 @@ class MLRunPatcher:
                 f"{mlrun_docker_registry}/{mlrun_docker_repo.rstrip('/')}"
             )
 
-        env = {
-            "MLRUN_VERSION": image_tag,
-            "MLRUN_DOCKER_REPO": mlrun_docker_registry,
-        }
-        cmd = ["make"]
-        cmd.extend(targets)
-        self._exec_local(cmd, live=True, env=env)
+        if not self._no_build:
+            env = {
+                "MLRUN_VERSION": image_tag,
+                "MLRUN_DOCKER_REPO": mlrun_docker_registry,
+            }
+            cmd = ["make"]
+            cmd.extend(targets)
+            self._exec_local(cmd, live=True, env=env)
 
         return {
             target: f"{mlrun_docker_registry}/{Constants.targets_to_image_name[target]}:{image_tag}"
@@ -610,6 +616,18 @@ class MLRunPatcher:
     is_flag=True,
     help="Deploy the the alerts service",
 )
+@click.option(
+    "-nb",
+    "--no-build",
+    is_flag=True,
+    help="Skip building the image",
+)
+@click.option(
+    "-np",
+    "--no-push",
+    is_flag=True,
+    help="Skip pushing the image",
+)
 def main(
     verbose: bool,
     config: str,
@@ -620,6 +638,8 @@ def main(
     mlrun: bool,
     skip_api: bool,
     alerts: bool,
+    no_build: bool,
+    no_push: bool,
 ):
     if verbose:
         coloredlogs.set_level(logging.DEBUG)
@@ -633,6 +653,8 @@ def main(
         patch_mlrun_image=mlrun,
         skip_patch_api=skip_api,
         patch_alerts=alerts,
+        no_build=no_build,
+        no_push=no_push,
     ).patch()
 
 

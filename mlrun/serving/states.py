@@ -31,6 +31,13 @@ import storey.utils
 
 import mlrun
 import mlrun.common.schemas as schemas
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileKafkaSource,
+    DatastoreProfileKafkaTarget,
+    DatastoreProfileV3io,
+    datastore_profile_read,
+)
+from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import logger
 
 from ..config import config
@@ -812,8 +819,8 @@ class RouterStep(TaskStep):
             * **archive**:
             1. If model endpoints with the same name exist, preserve them.
             2. Create a new model endpoint with the same name and set it to `latest`.
-
         """
+
         if len(self.routes.keys()) >= MAX_MODELS_PER_ROUTER and key not in self.routes:
             raise mlrun.errors.MLRunModelLimitExceededError(
                 f"Router cannot support more than {MAX_MODELS_PER_ROUTER} model endpoints. "
@@ -1885,7 +1892,29 @@ def _init_async_objects(context, steps):
 
                     kafka_brokers = get_kafka_brokers_from_dict(options, pop=True)
 
-                    if stream_path.startswith("kafka://") or kafka_brokers:
+                    if stream_path and stream_path.startswith("ds://"):
+                        datastore_profile = datastore_profile_read(stream_path)
+                        if isinstance(
+                            datastore_profile,
+                            (DatastoreProfileKafkaTarget, DatastoreProfileKafkaSource),
+                        ):
+                            step._async_object = KafkaStoreyTarget(
+                                path=stream_path,
+                                context=context,
+                                **options,
+                            )
+                        elif isinstance(datastore_profile, DatastoreProfileV3io):
+                            step._async_object = StreamStoreyTarget(
+                                stream_path=stream_path,
+                                context=context,
+                                **options,
+                            )
+                        else:
+                            raise mlrun.errors.MLRunValueError(
+                                f"Received an unexpected stream profile type: {type(datastore_profile)}\n"
+                                "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+                            )
+                    elif stream_path.startswith("kafka://") or kafka_brokers:
                         topic, brokers = parse_kafka_url(stream_path, kafka_brokers)
 
                         kafka_producer_options = options.pop(

@@ -11,9 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import typing
+import asyncio
 from datetime import datetime, timedelta
+from threading import Lock
+from typing import Callable, Literal, Optional, Union
 
 import pandas as pd
 import taosws
@@ -25,9 +26,13 @@ from taoswswrap.tdengine_connection import (
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
+from mlrun.datastore.datastore_profile import DatastoreProfile
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
+
+_connection = None
+_connection_lock = Lock()
 
 
 class TDEngineConnector(TSDBConnector):
@@ -36,26 +41,18 @@ class TDEngineConnector(TSDBConnector):
     """
 
     type: str = mm_schemas.TSDBTarget.TDEngine
+    database = f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
 
     def __init__(
         self,
         project: str,
-        database: typing.Optional[str] = None,
+        profile: DatastoreProfile,
         **kwargs,
     ):
         super().__init__(project=project)
-        if "connection_string" not in kwargs:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "connection_string is a required parameter for TDEngineConnector."
-            )
 
-        self._tdengine_connection_string = kwargs.get("connection_string")
-        self.database = (
-            database
-            or f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
-        )
+        self._tdengine_connection_profile = profile
 
-        self._connection = None
         self._init_super_tables()
 
         self._timeout = mlrun.mlconf.model_endpoint_monitoring.tdengine.timeout
@@ -63,21 +60,23 @@ class TDEngineConnector(TSDBConnector):
 
     @property
     def connection(self) -> TDEngineConnection:
-        if not self._connection:
-            self._connection = self._create_connection()
-        return self._connection
+        global _connection
+
+        if _connection:
+            return _connection
+
+        with _connection_lock:
+            if not _connection:
+                _connection = self._create_connection()
+
+        return _connection
 
     def _create_connection(self) -> TDEngineConnection:
         """Establish a connection to the TSDB server."""
         logger.debug("Creating a new connection to TDEngine", project=self.project)
-        conn = TDEngineConnection(self._tdengine_connection_string)
-        conn.run(
-            statements=f"CREATE DATABASE IF NOT EXISTS {self.database}",
-            timeout=self._timeout,
-            retries=self._retries,
-        )
+        conn = TDEngineConnection(self._tdengine_connection_profile.dsn())
         conn.prefix_statements = [f"USE {self.database}"]
-        logger.debug("Connected to TDEngine", project=self.project)
+
         return conn
 
     def _init_super_tables(self):
@@ -97,11 +96,31 @@ class TDEngineConnector(TSDBConnector):
             ),
         }
 
+    def _create_db_if_not_exists(self):
+        """Create the database if it does not exist."""
+        self.connection.prefix_statements = []
+        self.connection.run(
+            statements=f"CREATE DATABASE IF NOT EXISTS {self.database}",
+            timeout=self._timeout,
+            retries=self._retries,
+        )
+        self.connection.prefix_statements = [f"USE {self.database}"]
+        logger.debug(
+            "The TDEngine database is currently in use",
+            project=self.project,
+            database=self.database,
+        )
+
     def create_tables(self):
         """Create TDEngine supertables."""
+
+        # Create the database if it does not exist
+        self._create_db_if_not_exists()
+
         for table in self.tables:
             create_table_query = self.tables[table]._create_super_table_query()
-            self.connection.run(
+            conn = self.connection
+            conn.run(
                 statements=create_table_query,
                 timeout=self._timeout,
                 retries=self._retries,
@@ -168,11 +187,11 @@ class TDEngineConnector(TSDBConnector):
         )
 
     @staticmethod
-    def _convert_to_datetime(val: typing.Union[str, datetime]) -> datetime:
+    def _convert_to_datetime(val: Union[str, datetime]) -> datetime:
         return datetime.fromisoformat(val) if isinstance(val, str) else val
 
     @staticmethod
-    def _get_endpoint_filter(endpoint_id: typing.Union[str, list[str]]) -> str:
+    def _get_endpoint_filter(endpoint_id: Union[str, list[str]]) -> str:
         if isinstance(endpoint_id, str):
             return f"endpoint_id='{endpoint_id}'"
         elif isinstance(endpoint_id, list):
@@ -181,6 +200,12 @@ class TDEngineConnector(TSDBConnector):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid 'endpoint_id' filter: must be a string or a list."
             )
+
+    def _drop_database_query(self) -> str:
+        return f"DROP DATABASE IF EXISTS {self.database};"
+
+    def _get_table_name_query(self) -> str:
+        return f"SELECT table_name FROM information_schema.ins_tables where db_name='{self.database}' LIMIT 1;"
 
     def apply_monitoring_stream_steps(self, graph, **kwarg):
         """
@@ -200,10 +225,10 @@ class TDEngineConnector(TSDBConnector):
 
         def apply_tdengine_target(name, after):
             graph.add_step(
-                "storey.TDEngineTarget",
+                "mlrun.datastore.storeytargets.TDEngineStoreyTarget",
                 name=name,
                 after=after,
-                url=self._tdengine_connection_string,
+                url=f"ds://{self._tdengine_connection_profile.name}",
                 supertable=self.tables[
                     mm_schemas.TDEngineSuperTables.PREDICTIONS
                 ].super_table,
@@ -242,10 +267,10 @@ class TDEngineConnector(TSDBConnector):
             after="ForwardError",
         )
         graph.add_step(
-            "storey.TDEngineTarget",
+            "mlrun.datastore.storeytargets.TDEngineStoreyTarget",
             name="tsdb_error",
             after="error_extractor",
-            url=self._tdengine_connection_string,
+            url=f"ds://{self._tdengine_connection_profile.name}",
             supertable=self.tables[mm_schemas.TDEngineSuperTables.ERRORS].super_table,
             table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
             time_col=mm_schemas.EventFieldType.TIME,
@@ -292,6 +317,55 @@ class TDEngineConnector(TSDBConnector):
             project=self.project,
         )
 
+        # Check if database is empty and if so, drop it
+        self._drop_database_if_empty()
+
+    def _drop_database_if_empty(self):
+        query_random_table_name = self._get_table_name_query()
+        drop_database = False
+        try:
+            table_name = self.connection.run(
+                query=query_random_table_name,
+                timeout=self._timeout,
+                retries=self._retries,
+            )
+            if len(table_name.data) == 0:
+                # no tables were found under the database
+                drop_database = True
+
+        except Exception as e:
+            logger.warning(
+                "Failed to query tables in the database. You may need to drop the database manually if it is empty.",
+                project=self.project,
+                error=mlrun.errors.err_to_str(e),
+            )
+
+        if drop_database:
+            logger.debug(
+                "Going to drop the TDEngine database",
+                project=self.project,
+                database=self.database,
+            )
+            drop_database_query = self._drop_database_query()
+            try:
+                self.connection.run(
+                    statements=drop_database_query,
+                    timeout=self._timeout,
+                    retries=self._retries,
+                )
+                logger.debug(
+                    "The TDEngine database has been successfully dropped",
+                    project=self.project,
+                    database=self.database,
+                )
+
+            except Exception as e:
+                logger.warning(
+                    "Failed to drop the database. You may need to drop it manually if it is empty.",
+                    project=self.project,
+                    error=mlrun.errors.err_to_str(e),
+                )
+
     def get_model_endpoint_real_time_metrics(
         self,
         endpoint_id: str,
@@ -307,17 +381,17 @@ class TDEngineConnector(TSDBConnector):
         table: str,
         start: datetime,
         end: datetime,
-        columns: typing.Optional[list[str]] = None,
-        filter_query: typing.Optional[str] = None,
-        interval: typing.Optional[str] = None,
-        agg_funcs: typing.Optional[list] = None,
-        limit: typing.Optional[int] = None,
-        sliding_window_step: typing.Optional[str] = None,
+        columns: Optional[list[str]] = None,
+        filter_query: Optional[str] = None,
+        interval: Optional[str] = None,
+        agg_funcs: Optional[list] = None,
+        limit: Optional[int] = None,
+        sliding_window_step: Optional[str] = None,
         timestamp_column: str = mm_schemas.EventFieldType.TIME,
-        group_by: typing.Optional[typing.Union[list[str], str]] = None,
-        preform_agg_columns: typing.Optional[list] = None,
-        order_by: typing.Optional[str] = None,
-        desc: typing.Optional[bool] = None,
+        group_by: Optional[Union[list[str], str]] = None,
+        preform_agg_columns: Optional[list] = None,
+        order_by: Optional[str] = None,
+        desc: Optional[bool] = None,
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
@@ -387,17 +461,17 @@ class TDEngineConnector(TSDBConnector):
         start: datetime,
         end: datetime,
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
-        type: typing.Literal["metrics", "results"],
+        type: Literal["metrics", "results"],
         with_result_extra_data: bool = False,
-    ) -> typing.Union[
+    ) -> Union[
         list[
-            typing.Union[
+            Union[
                 mm_schemas.ModelEndpointMonitoringResultValues,
                 mm_schemas.ModelEndpointMonitoringMetricNoData,
             ],
         ],
         list[
-            typing.Union[
+            Union[
                 mm_schemas.ModelEndpointMonitoringMetricValues,
                 mm_schemas.ModelEndpointMonitoringMetricNoData,
             ],
@@ -475,10 +549,10 @@ class TDEngineConnector(TSDBConnector):
         endpoint_id: str,
         start: datetime,
         end: datetime,
-        aggregation_window: typing.Optional[str] = None,
-        agg_funcs: typing.Optional[list] = None,
-        limit: typing.Optional[int] = None,
-    ) -> typing.Union[
+        aggregation_window: Optional[str] = None,
+        agg_funcs: Optional[list] = None,
+        limit: Optional[int] = None,
+    ) -> Union[
         mm_schemas.ModelEndpointMonitoringMetricValues,
         mm_schemas.ModelEndpointMonitoringMetricNoData,
     ]:
@@ -530,9 +604,10 @@ class TDEngineConnector(TSDBConnector):
 
     def get_last_request(
         self,
-        endpoint_ids: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_ids: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start, end = self._get_start_end(start, end)
@@ -570,9 +645,10 @@ class TDEngineConnector(TSDBConnector):
 
     def get_drift_status(
         self,
-        endpoint_ids: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_ids: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
@@ -603,9 +679,9 @@ class TDEngineConnector(TSDBConnector):
 
     def get_metrics_metadata(
         self,
-        endpoint_id: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_id: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -640,9 +716,9 @@ class TDEngineConnector(TSDBConnector):
 
     def get_results_metadata(
         self,
-        endpoint_id: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_id: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -679,9 +755,10 @@ class TDEngineConnector(TSDBConnector):
 
     def get_error_count(
         self,
-        endpoint_ids: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_ids: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         filter_query += f"AND {mm_schemas.EventFieldType.ERROR_TYPE} = '{mm_schemas.EventFieldType.INFER_ERROR}'"
@@ -709,9 +786,10 @@ class TDEngineConnector(TSDBConnector):
 
     def get_avg_latency(
         self,
-        endpoint_ids: typing.Union[str, list[str]],
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        endpoint_ids: Union[str, list[str]],
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
@@ -739,11 +817,74 @@ class TDEngineConnector(TSDBConnector):
             df.dropna(inplace=True)
         return df
 
+    async def add_basic_metrics(
+        self,
+        model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
+        project: str,
+        run_in_threadpool: Callable,
+    ) -> list[mlrun.common.schemas.ModelEndpoint]:
+        """
+        Add basic metrics to the model endpoint object.
+
+        :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
+                                        be filled with the relevant basic metrics.
+        :param project:                The name of the project.
+        :param run_in_threadpool:      A function that runs another function in a thread pool.
+
+        :return: A list of `ModelEndpointMonitoringMetric` objects.
+        """
+
+        uids = [mep.metadata.uid for mep in model_endpoint_objects]
+        coroutines = [
+            run_in_threadpool(self.get_error_count, endpoint_ids=uids),
+            run_in_threadpool(self.get_last_request, endpoint_ids=uids),
+            run_in_threadpool(self.get_avg_latency, endpoint_ids=uids),
+            run_in_threadpool(self.get_drift_status, endpoint_ids=uids),
+        ]
+
+        (
+            error_count_df,
+            last_request_df,
+            avg_latency_df,
+            drift_status_df,
+        ) = await asyncio.gather(*coroutines)
+
+        def add_metrics(
+            mep: mlrun.common.schemas.ModelEndpoint,
+            df_dictionary: dict[str, pd.DataFrame],
+        ):
+            for metric in df_dictionary.keys():
+                df = df_dictionary.get(metric, pd.DataFrame())
+                if not df.empty:
+                    line = df[df["endpoint_id"] == mep.metadata.uid]
+                    if not line.empty and metric in line:
+                        value = line[metric].item()
+                        if isinstance(value, pd.Timestamp):
+                            value = value.to_pydatetime()
+                        setattr(mep.status, metric, value)
+
+            return mep
+
+        return list(
+            map(
+                lambda mep: add_metrics(
+                    mep=mep,
+                    df_dictionary={
+                        "error_count": error_count_df,
+                        "last_request": last_request_df,
+                        "avg_latency": avg_latency_df,
+                        "result_status": drift_status_df,
+                    },
+                ),
+                model_endpoint_objects,
+            )
+        )
+
     # Note: this function serves as a reference for checking the TSDB for the existence of a metric.
     #
     # def read_prediction_metric_for_endpoint_if_exists(
     #     self, endpoint_id: str
-    # ) -> typing.Optional[mm_schemas.ModelEndpointMonitoringMetric]:
+    # ) -> Optional[mm_schemas.ModelEndpointMonitoringMetric]:
     #     """
     #     Read the "invocations" metric for the provided model endpoint, and return the metric object
     #     if it exists.

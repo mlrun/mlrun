@@ -244,6 +244,83 @@ def _get_namespace(run_config: RunConfig) -> dict[str, Any]:
         return get_caller_globals()
 
 
+def ingest(
+    mlrun_context: Union["mlrun.MLrunProject", "mlrun.MLClientCtx"],
+    featureset: Union[FeatureSet, str] = None,
+    source=None,
+    targets: Optional[list[DataTargetBase]] = None,
+    namespace=None,
+    return_df: bool = True,
+    infer_options: InferOptions = InferOptions.default(),
+    run_config: RunConfig = None,
+    spark_context=None,
+    overwrite=None,
+) -> Optional[pd.DataFrame]:
+    """Read local DataFrame, file, URL, or source into the feature store
+    Ingest reads from the source, run the graph transformations, infers  metadata and stats
+    and writes the results to the default of specified targets
+
+    when targets are not specified data is stored in the configured default targets
+    (will usually be NoSQL for real-time and Parquet for offline).
+
+    the `run_config` parameter allow specifying the function and job configuration,
+    see: :py:class:`~mlrun.feature_store.RunConfig`
+
+    example::
+
+        stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
+        stocks = pd.read_csv("stocks.csv")
+        df = ingest(stocks_set, stocks, infer_options=fstore.InferOptions.default())
+
+        # for running as remote job
+        config = RunConfig(image="mlrun/mlrun")
+        df = ingest(stocks_set, stocks, run_config=config)
+
+        # specify source and targets
+        source = CSVSource("mycsv", path="measurements.csv")
+        targets = [CSVTarget("mycsv", path="./mycsv.csv")]
+        ingest(measurements, source, targets)
+
+    :param mlrun_context: mlrun context
+    :param featureset:    feature set object or featureset.uri. (uri must be of a feature set that is in the DB,
+                          call `.save()` if it's not)
+    :param source:        source dataframe or other sources (e.g. parquet source see:
+                          :py:class:`~mlrun.datastore.ParquetSource` and other classes in mlrun.datastore with suffix
+                          Source)
+    :param targets:       optional list of data target objects
+    :param namespace:     namespace or module containing graph classes
+    :param return_df:     indicate if to return a dataframe with the graph results
+    :param infer_options: schema (for discovery of entities, features in featureset), index, stats,
+                          histogram and preview infer options (:py:class:`~mlrun.feature_store.InferOptions`)
+    :param run_config:    function and/or run configuration for remote jobs,
+                          see :py:class:`~mlrun.feature_store.RunConfig`
+    :param spark_context: local spark session for spark ingestion, example for creating the spark context:
+                          `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
+                          For remote spark ingestion, this should contain the remote spark service name
+    :param overwrite:     delete the targets' data prior to ingestion
+                          (default: True for non scheduled ingest - deletes the targets that are about to be ingested.
+                          False for scheduled ingest - does not delete the target)
+    :return:              if return_df is True, a dataframe will be returned based on the graph
+    """
+    if not mlrun_context:
+        raise mlrun.errors.MLRunValueError(
+            "mlrun_context must be defined when calling ingest()"
+        )
+
+    return _ingest(
+        featureset,
+        source,
+        targets,
+        namespace,
+        return_df,
+        infer_options,
+        run_config,
+        mlrun_context,
+        spark_context,
+        overwrite,
+    )
+
+
 def _ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,

@@ -240,11 +240,6 @@ class EventKeyMetrics:
     REAL_TIME = "real_time"
 
 
-class ModelEndpointTarget(MonitoringStrEnum):
-    V3IO_NOSQL = "v3io-nosql"
-    SQL = "sql"
-
-
 class TSDBTarget(MonitoringStrEnum):
     V3IO_TSDB = "v3io-tsdb"
     TDEngine = "tdengine"
@@ -267,17 +262,6 @@ class GetEventsFormat(MonitoringStrEnum):
     SINGLE = "single"
     SEPARATION = "separation"
     INTERSECTION = "intersection"
-
-
-class ModelEndpointTargetSchemas(MonitoringStrEnum):
-    V3IO = "v3io"
-    MYSQL = "mysql"
-    SQLITE = "sqlite"
-
-
-class ModelMonitoringStoreKinds:
-    ENDPOINTS = "endpoints"
-    EVENTS = "events"
 
 
 class FileTargetKind:
@@ -429,10 +413,6 @@ class ModelMonitoringAppLabel:
         return f"{self.KEY}={self.VAL}"
 
 
-class ControllerPolicy:
-    BASE_PERIOD = "base_period"
-
-
 class HistogramDataDriftApplicationConstants:
     NAME = "histogram-data-drift"
     GENERAL_RESULT_NAME = "general_drift"
@@ -448,8 +428,6 @@ class SpecialApps:
 
 
 _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]
-
-V3IO_MODEL_MONITORING_DB = "v3io"
 
 
 class ModelEndpointMonitoringMetricType(StrEnum):

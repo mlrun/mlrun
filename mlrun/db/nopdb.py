@@ -274,6 +274,7 @@ class NopDB(RunDBInterface):
         tag: Optional[str] = None,
         kind: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        states: Optional[list[mlrun.common.schemas.FunctionState]] = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
         since: Optional[datetime.datetime] = None,
         until: Optional[datetime.datetime] = None,

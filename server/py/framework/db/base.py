@@ -369,6 +369,7 @@ class DBInterface(ABC):
         tag: Optional[str] = None,
         kind: Optional[str] = None,
         labels: Optional[list[str]] = None,
+        states: Optional[list[mlrun.common.schemas.FunctionState]] = None,
         hash_key: Optional[str] = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
         offset: Optional[int] = None,

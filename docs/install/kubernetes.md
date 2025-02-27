@@ -148,10 +148,10 @@ Where:
 
 When the installation is complete, the helm command prints the URLs and ports of all the MLRun CE services.
 
-```{admonition} Note
-Known issue when installing the chart on Macs using Apple silicon (M1/M2/M3/M4):
-- The current pipelines MySQL database fails to start. The workaround for now is to opt out of pipelines by installing the chart with `--set pipelines.enabled=false`.
+```{admonition} Known issue when installing the chart on Macs using Apple silicon (M1/M2/M3/M4):
+- The current pipelines MySQL database fails to start. The workaround for now is to run this line `docker pull mysql:5.7 --platform linux/amd64` before installing the chart.
 - The Grafana statistics do not work well in this release. A fix will be delivered in a subsequent release.
+- An issue with Prometheus node selector. The workaround for now is to opt out of kube-prometheus-stack by installing the chart with the `--set kube-prometheus-stack.enabled=false`.
 ```
 
 ## Configuring the online feature store
@@ -211,7 +211,7 @@ To opt out of some of the components, use the following helm values:
 ...
 --set pipelines.enabled=false \
 --set kube-prometheus-stack.enabled=false \
---set sparkOperator.enabled=false \
+--set spark-operator.enabled=false \
 ...
 ```
 

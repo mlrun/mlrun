@@ -16,6 +16,7 @@ import concurrent.futures
 import datetime
 import json
 import os
+import traceback
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from types import TracebackType
@@ -551,14 +552,29 @@ class MonitoringApplicationController:
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=min(len(endpoints), 10)
         ) as pool:
-            for endpoint in endpoints:
+            futures = {
                 pool.submit(
                     MonitoringApplicationController.endpoint_to_regular_event,
                     endpoint,
                     policy,
                     set(applications_names),
                     self.v3io_access_key,
-                )
+                ): endpoint
+                for endpoint in endpoints
+            }
+            for future in concurrent.futures.as_completed(futures):
+                if future.exception():
+                    exception = future.exception()
+                    error = (
+                        f"Failed to push event. Endpoint name: {futures[future].metadata.name}, "
+                        f"endpoint uid: {futures[future].metadata.uid}, traceback:\n"
+                    )
+                    error += "".join(
+                        traceback.format_exception(
+                            None, exception, exception.__traceback__
+                        )
+                    )
+                    logger.error(error)
         logger.info("Finishing monitoring controller chief")
 
     @staticmethod

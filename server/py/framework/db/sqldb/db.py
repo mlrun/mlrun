@@ -7422,7 +7422,8 @@ class SQLDB(DBInterface):
                 name=normalized_function_name,
                 project=project,
                 tag=function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
-                hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST}",
+                hash_key=f"{unversioned_tagged_object_uid_prefix}"
+                f"{function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST}",
                 # model endpoints always points on unversioned function
             )
             obj_name_suffix = f"{function_name}-{function_tag}"
@@ -7461,7 +7462,8 @@ class SQLDB(DBInterface):
                 project=model_endpoint.metadata.project,
                 tag=model_endpoint.spec.function_tag
                 or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
-                hash_key=f"{unversioned_tagged_object_uid_prefix}{model_endpoint.spec.function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST}",
+                hash_key=f"{unversioned_tagged_object_uid_prefix}"
+                f"{model_endpoint.spec.function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST}",
                 # model endpoints always points on unversioned function
             )
             obj_name_suffix = f"{model_endpoint.spec.function_name}-{model_endpoint.spec.function_tag}"

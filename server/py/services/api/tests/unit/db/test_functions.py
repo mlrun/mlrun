@@ -17,8 +17,10 @@ import time
 
 import pytest
 
+import mlrun.common.schemas
 import mlrun.errors
 
+from framework.db.sqldb.db import unversioned_tagged_object_uid_prefix
 from framework.db.sqldb.models import Function
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
@@ -103,6 +105,14 @@ class TestFunctions(TestDatabaseBase):
         )
         assert function_result_1 is not None
         assert function_result_1["metadata"]["tag"] == "latest"
+
+        function_result_2 = self._db.get_function(
+            self._db_session,
+            function_1.metadata.name,
+            hash_key=f"{unversioned_tagged_object_uid_prefix}latest",
+        )
+        assert function_result_2 is not None
+        assert function_result_2["metadata"]["tag"] == "latest"
 
         # not versioned so not queryable by hash key
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
@@ -517,6 +527,47 @@ class TestFunctions(TestDatabaseBase):
         assert len(functions) == 0
 
         functions = self._db.list_functions(self._db_session, kind=None)
+        assert len(functions) == 2
+
+    def test_list_functions_by_states(self):
+        function_1_name = "function-name-1"
+        function_2_name = "function-name-2"
+        function_1 = self._generate_function(function_1_name)
+        function_2 = self._generate_function(function_2_name)
+        function_1.status.state = mlrun.common.schemas.FunctionState.ready
+        function_2.status.state = mlrun.common.schemas.FunctionState.error
+        for function in [function_1, function_2]:
+            self._db.store_function(
+                self._db_session, function.to_dict(), function.metadata.name
+            )
+        functions = self._db.list_functions(
+            self._db_session, states=[mlrun.common.schemas.FunctionState.ready]
+        )
+        assert len(functions) == 1
+        assert functions[0]["metadata"]["name"] == function_1_name
+
+        functions = self._db.list_functions(
+            self._db_session, states=[mlrun.common.schemas.FunctionState.error]
+        )
+        assert len(functions) == 1
+        assert functions[0]["metadata"]["name"] == function_2_name
+
+        functions = self._db.list_functions(self._db_session, states=["x"])
+        assert len(functions) == 0
+
+        functions = self._db.list_functions(self._db_session, states=[])
+        assert len(functions) == 0
+
+        functions = self._db.list_functions(self._db_session, states=None)
+        assert len(functions) == 2
+
+        functions = self._db.list_functions(
+            self._db_session,
+            states=[
+                mlrun.common.schemas.FunctionState.ready,
+                mlrun.common.schemas.FunctionState.error,
+            ],
+        )
         assert len(functions) == 2
 
     def test_list_untagged_functions(self):

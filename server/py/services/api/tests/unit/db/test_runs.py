@@ -488,17 +488,6 @@ class TestRuns(TestDatabaseBase):
                 iteration,
             )
 
-    def test_list_runs_limited_unsorted_failure(self):
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError,
-            match="Limiting the number of returned records without sorting will provide non-deterministic results",
-        ):
-            self._db.list_runs(
-                self._db_session,
-                sort=False,
-                last=1,
-            )
-
     def test_list_runs_with_same_names(self):
         run_names = ["run_name_1", "run_name_2"]
         project_names = ["project1", "project2"]

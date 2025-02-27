@@ -50,19 +50,6 @@ def get_kafka_topic(project: str, function_name: typing.Optional[str] = None) ->
     )
 
 
-def parse_monitoring_stream_path(
-    stream_uri: str, project: str, function_name: typing.Optional[str] = None
-) -> str:
-    if stream_uri.startswith("kafka://"):
-        if "?topic" in stream_uri:
-            raise mlrun.errors.MLRunValueError("Custom kafka topic is not allowed")
-        # Add topic to stream kafka uri
-        topic = get_kafka_topic(project=project, function_name=function_name)
-        stream_uri += f"?topic={topic}"
-
-    return stream_uri
-
-
 def _get_counts(hist: Histogram) -> BinCounts:
     """Return the histogram counts"""
     return BinCounts(hist[0])

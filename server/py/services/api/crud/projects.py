@@ -31,6 +31,7 @@ from mlrun.utils import logger, retry_until_successful
 import framework.db.session
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
+import framework.utils.clients.messaging
 import framework.utils.clients.nuclio
 import framework.utils.projects.remotes.follower as project_follower
 import framework.utils.singletons.db
@@ -203,14 +204,19 @@ class Projects(
             project_name=name,
         )
 
-        # TODO: Forward to alerts service
-        # The messaging client is async, and project deletion is sync.
-        # When deleting a project, we need to use a sync client to send the delete event request to the alerts service,
-        # or to Chief if in Hydra mode. (ML-8390)
-        # Until we implement the sync client, we can allow Chief to delete the project alerts itself, instead of
-        # actually forwarding the request and waiting for a response, since the project deletion flow is handled
-        # by Chief only.
-        services.alerts.crud.Events().delete_project_alert_events(name)
+        # TODO: This should be refactored once we have a proper hydra implementation
+        # Delete alert's service resources
+        # When running in Hydra, alerts is part of the current running service, so we can delete the resources directly
+        # Otherwise, we need to send a message to the alerts service to delete the resources
+        if mlrun.mlconf.services.hydra.services == "*":
+            services.alerts.crud.Alerts().delete_alerts(session=session, project=name)
+        else:
+            messaging_client = framework.utils.clients.messaging.Client()
+            messaging_client.delete(
+                path=f"projects/{name}/alerts",
+                headers=auth_info.request_headers,
+                raise_on_failure=True,
+            )
 
         # Initialize the MM deleter with data from the DB, before the relevant DB data is deleted
         model_monitoring_deleter = (

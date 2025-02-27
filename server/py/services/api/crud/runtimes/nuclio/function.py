@@ -311,10 +311,6 @@ def _compile_function_config(
         config=function.spec.config,
     )
 
-    _resolve_and_set_nuclio_runtime(
-        function, nuclio_spec, client_version, client_python_version
-    )
-
     handler = function.spec.function_handler
 
     _set_build_params(function, nuclio_spec, builder_env, project, auth_info)
@@ -364,6 +360,9 @@ def _compile_function_config(
     )
     _set_function_metadata(function, config)
     _resolve_and_set_base_image(function, config, client_version, client_python_version)
+    _resolve_and_set_nuclio_runtime(
+        function, config, client_version, client_python_version
+    )
     _resolve_and_set_build_requirements_and_commands(function, config)
 
     function_name = _set_function_name(function, config, project, tag)
@@ -506,34 +505,41 @@ def _resolve_env_vars(function):
 
 
 def _resolve_and_set_nuclio_runtime(
-    function, nuclio_spec, client_version, client_python_version
+    function, config, client_version, client_python_version
 ):
     nuclio_runtime = (
         function.spec.nuclio_runtime
-        or services.api.crud.runtimes.nuclio.helpers.resolve_nuclio_runtime_python_image(
-            mlrun_client_version=client_version, python_version=client_python_version
-        )
+        # TODO: Uncomment when the function is aligned with the supported python versions
+        # or services.api.crud.runtimes.nuclio.helpers.resolve_nuclio_runtime_python_image(
+        #     mlrun_client_version=client_version, python_version=client_python_version
+        # )
+        or mlrun.mlconf.default_nuclio_runtime
     )
 
-    # For backwards compatibility, we need to adjust the runtime for old Nuclio versions
-    # TODO: remove in 1.8, default to 3.9
-    if services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-        "0.0.0", "1.6.0"
+    if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
+        "1.14.1",
     ) and nuclio_runtime in [
+        "python:3.6",
         "python:3.7",
         "python:3.8",
-        "python:3.9",
     ]:
         nuclio_runtime_set_from_spec = nuclio_runtime == function.spec.nuclio_runtime
-        if nuclio_runtime_set_from_spec:
+        if nuclio_runtime_set_from_spec and not mlrun.utils.get_in(
+            config, "spec.build.baseImage"
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Nuclio version does not support the configured runtime: {nuclio_runtime}"
+                f"Nuclio version does not support the configured runtime: {nuclio_runtime}, and no base image was given"
             )
         else:
-            # our default is python:3.9, simply set it to python:3.6 to keep supporting envs with old Nuclio
-            nuclio_runtime = "python:3.6"
+            logger.info(
+                "Nuclio version does not support the configured runtime, using the default runtime",
+                nuclio_runtime=nuclio_runtime,
+                client_version=client_version,
+                default_nuclio_runtime=mlrun.mlconf.default_nuclio_runtime,
+            )
+            nuclio_runtime = mlrun.mlconf.default_nuclio_runtime
 
-    nuclio_spec.set_config("spec.runtime", nuclio_runtime)
+    mlrun.utils.update_in(config, "spec.runtime", nuclio_runtime)
 
 
 @pure_nuclio_deployed_restricted()

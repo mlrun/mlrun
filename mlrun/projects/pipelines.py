@@ -1139,6 +1139,11 @@ def load_and_run_workflow(
         if "running" in notification.when
     ]
 
+    # Prevent redundant notifications for run completion by ensuring that notifications are only triggered when the run
+    # reaches the "running" state, as the server already handles the completion notifications.
+    for notification in start_notifications:
+        notification.when = ["running"]
+
     workflow_log_message = workflow_name or workflow_path
     context.logger.info(f"Running workflow {workflow_log_message} from remote")
     run = project.run(

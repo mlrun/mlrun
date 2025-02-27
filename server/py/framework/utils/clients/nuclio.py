@@ -61,7 +61,7 @@ class Client(
                 raise
             self._post_project_to_nuclio(body)
         else:
-            self._put_project_to_nuclio(body)
+            self._put_project_to_nuclio(name, body)
 
     def patch_project(
         self,
@@ -90,7 +90,7 @@ class Client(
             response_body.setdefault("spec", {})["description"] = project["spec"][
                 "description"
             ]
-        self._put_project_to_nuclio(response_body)
+        self._put_project_to_nuclio(name, response_body)
 
     def delete_project(
         self,
@@ -205,16 +205,18 @@ class Client(
         return self._send_request_to_api("GET", f"projects/{name}", auth_info=auth_info)
 
     def _post_project_to_nuclio(
-        self, body, auth_info: mlrun.common.schemas.AuthInfo = None
+        self, body: dict, auth_info: mlrun.common.schemas.AuthInfo = None
     ):
         return self._send_request_to_api(
             "POST", "projects", auth_info=auth_info, json=body
         )
 
     def _put_project_to_nuclio(
-        self, body, auth_info: mlrun.common.schemas.AuthInfo = None
+        self, name: str, body, auth_info: mlrun.common.schemas.AuthInfo = None
     ):
-        self._send_request_to_api("PUT", "projects", auth_info=auth_info, json=body)
+        self._send_request_to_api(
+            "PUT", f"projects/{name}", auth_info=auth_info, json=body
+        )
 
     def _send_request_to_api(
         self,

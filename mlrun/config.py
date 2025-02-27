@@ -30,7 +30,6 @@ import typing
 import warnings
 from collections.abc import Mapping
 from datetime import timedelta
-from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
 
@@ -105,7 +104,7 @@ default_config = {
     # custom logger format, workes only with log_formatter: custom
     # Note that your custom format must include those 4 fields - timestamp, level, message and more
     "log_format_override": None,
-    "submit_timeout": "180",  # timeout when submitting a new k8s resource
+    "submit_timeout": "280",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
     "monitoring": {
@@ -812,11 +811,16 @@ default_config = {
         "mode": "enabled",
         # maximum number of alerts we allow to be configured.
         # user will get an error when exceeding this
-        "max_allowed": 10000,
+        "max_allowed": 20000,
         # maximum allowed value for count in criteria field inside AlertConfig
         "max_criteria_count": 100,
         # interval for periodic events generation job
         "events_generation_interval": 30,  # seconds
+        # number of alerts to delete in each chunk
+        "chunk_size_during_project_deletion": 100,
+        # maximum allowed alert config cache size in alert's CRUD
+        # for the best performance, it is recommended to set this value to the maximum number of alerts
+        "max_allowed_cache_size": 20000,
     },
     "auth_with_client_id": {
         "enabled": False,
@@ -1471,17 +1475,6 @@ def _convert_resources_to_str(config: typing.Optional[dict] = None):
             if value is None:
                 continue
             resource_requirement[resource_type] = str(value)
-
-
-def _convert_str(value, typ):
-    if typ in (str, _none_type):
-        return value
-
-    if typ is bool:
-        return strtobool(value)
-
-    # e.g. int('8080') → 8080
-    return typ(value)
 
 
 def _configure_ssl_verification(verify_ssl: bool) -> None:

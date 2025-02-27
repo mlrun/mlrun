@@ -2281,7 +2281,7 @@ class SQLDB(DBInterface):
             else:
                 function_dict["metadata"]["tag"] = function_tag
                 function_dict.setdefault("status", {})
-                function_dict["state"] = function.state
+                function_dict["status"]["state"] = function.state
 
             functions.append(
                 mlrun.common.formatters.FunctionFormat.format_obj(

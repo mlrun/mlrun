@@ -79,7 +79,7 @@ class BaseModelRouter(RouterToDict):
         self.inputs_key = "instances" if self.protocol == "v1" else "inputs"
         self._input_path = input_path
         self._result_path = result_path
-        self._background_task_check_timestamp = now_date()
+        self._background_task_check_timestamp = None
         self._background_task_terminate = False
         self._background_task_current_state = None
         self.kwargs = kwargs
@@ -171,7 +171,7 @@ class BaseModelRouter(RouterToDict):
         server: mlrun.serving.GraphServer = getattr(
             self.context, "_server", None
         ) or getattr(self.context, "server", None)
-        if not self.context.is_mock or self.context.monitoring_mock:
+        if not self.context.is_mock:
             if server.model_endpoint_creation_task_name:
                 background_task = mlrun.get_run_db().get_project_background_task(
                     server.project, server.model_endpoint_creation_task_name
@@ -200,21 +200,24 @@ class BaseModelRouter(RouterToDict):
                 logger.debug(
                     "Model endpoint creation task name not provided",
                 )  # TODO do we want to log all this in here without model
+        elif self.context.monitoring_mock:
+            return mlrun.common.schemas.BackgroundTaskState.succeeded
         return mlrun.common.schemas.BackgroundTaskState.failed
 
     def _update_background_task_state(self, event):
-        if (
-            not self._background_task_terminate
-            and now_date() - self._background_task_check_timestamp
+        if not self._background_task_terminate and (
+            self._background_task_check_timestamp is None
+            or now_date() - self._background_task_check_timestamp
             >= timedelta(seconds=15)
         ):
             self._background_task_current_state = self._get_background_task_status(
                 event.id
             )
-        event.body["background_task_state"] = (
-            self._background_task_current_state
-            or mlrun.common.schemas.BackgroundTaskState.running
-        )
+        if event.body:
+            event.body["background_task_state"] = (
+                self._background_task_current_state
+                or mlrun.common.schemas.BackgroundTaskState.running
+            )
 
 
 class ModelRouter(BaseModelRouter):
@@ -660,6 +663,7 @@ class VotingEnsemble(ParallelRun):
         self.format_response_with_col_name_flag = format_response_with_col_name_flag
         self.model_endpoint_uid = kwargs.get("model_endpoint_uid", None)
         self.shard_by_endpoint = shard_by_endpoint
+        self._model_logger = None
         self.initialized = False
 
     def post_init(self, mode="sync", **kwargs):
@@ -886,7 +890,7 @@ class VotingEnsemble(ParallelRun):
         """
         if not self.initialized:
             self._update_background_task_state(event)
-            self._lazy_init(event.id)
+            self._lazy_init(event.body)
         start = now_date()
         # Handle and verify the request
         original_body = event.body

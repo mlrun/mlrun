@@ -41,13 +41,37 @@ from mlrun.utils import logger
 
 def generate_test_routes(model_class):
     return {
-        "m1": TaskStep(model_class, class_args={"model_path": "", "multiplier": 100}),
-        "m2": TaskStep(model_class, class_args={"model_path": "", "multiplier": 200}),
+        "m1": TaskStep(
+            model_class,
+            class_args={
+                "model_path": "",
+                "multiplier": 100,
+                "model_endpoint_uid": "m1_uid",
+            },
+        ),
+        "m2": TaskStep(
+            model_class,
+            class_args={
+                "model_path": "",
+                "multiplier": 200,
+                "model_endpoint_uid": "m2_uid",
+            },
+        ),
         "m3:v1": TaskStep(
-            model_class, class_args={"model_path": "", "multiplier": 300}
+            model_class,
+            class_args={
+                "model_path": "",
+                "multiplier": 300,
+                "model_endpoint_uid": "m3_uid",
+            },
         ),
         "m3:v2": TaskStep(
-            model_class, class_args={"model_path": "", "multiplier": 400}
+            model_class,
+            class_args={
+                "model_path": "",
+                "multiplier": 400,
+                "model_endpoint_uid": "m3_uid",
+            },
         ),
     }
 
@@ -271,7 +295,9 @@ def test_ensemble_get_metadata_of_models(rundb_mock):
     graph = fn.set_topology(
         "router",
         mlrun.serving.routers.VotingEnsemble(
-            vote_type="regression", prediction_col_name="predictions"
+            vote_type="regression",
+            prediction_col_name="predictions",
+            **{"model_endpoint_uid": "VotingEnsemble_uid"},
         ),
     )
     graph.routes = generate_test_routes("EnsembleModelTestingClass")

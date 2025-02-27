@@ -524,11 +524,10 @@ class TestModelEndpoint(TestDatabaseBase):
         assert model_endpoint_from_db.metadata.project == "project-1"
         assert model_endpoint_from_db.spec.model_name == "model-1"
         assert model_endpoint_from_db.spec.model_tags == ["latest"]
+        identifier = mlrun.common.schemas.ArtifactIdentifier(key="model-1", uid=uid)
 
-        self._store_artifact(
-            f"model-{1}",
-            uid=uid,
-            status={"bla": "blabla2"},
+        self._db.append_tag_to_artifacts(
+            self._db_session, "project-1", "v3", [identifier]
         )
 
         model_endpoint_from_db = self._db.get_model_endpoint(
@@ -541,7 +540,7 @@ class TestModelEndpoint(TestDatabaseBase):
         assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
         assert model_endpoint_from_db.metadata.project == "project-1"
         assert model_endpoint_from_db.spec.model_name == "model-1"
-        assert model_endpoint_from_db.spec.model_tags == ["latest"]
+        assert model_endpoint_from_db.spec.model_tags == ["latest", "v3"]
 
     def test_update(self) -> None:
         # store artifact

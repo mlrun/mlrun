@@ -5511,10 +5511,7 @@ class SQLDB(DBInterface):
             try:
                 query = query.order_by(getattr(ModelEndpoint, order_by).asc())
             except AttributeError as err:
-                logger.warning(
-                    "Skipping order_by due to invalid column",
-                    error=mlrun.errors.err_to_str(err),
-                )
+                logger.warning("Skipping order by", error=mlrun.errors.err_to_str(err))
 
         return query
 
@@ -5729,8 +5726,7 @@ class SQLDB(DBInterface):
     def _fill_model_endpoint_with_model_data(
         model_endpoint_record: ModelEndpoint, model_endpoint_full_dict: dict
     ) -> dict:
-        model = model_endpoint_record.model
-        if model:
+        if model := model_endpoint_record.model:
             model_endpoint_full_dict[ModelEndpointSchema.MODEL_NAME] = model.key
             model_tags = model.tags
             model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAGS] = (

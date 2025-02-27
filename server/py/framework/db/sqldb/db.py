@@ -2976,7 +2976,7 @@ class SQLDB(DBInterface):
         project: str,
         name: str,
         obj_name_attribute: Union[str, list[str]] = "name",
-        obj_name_sufix: Optional[str] = None,
+        obj_name_suffix: Optional[str] = None,
     ):
         tags = []
         obj_name_attribute = (
@@ -2984,30 +2984,22 @@ class SQLDB(DBInterface):
             if isinstance(obj_name_attribute, str)
             else obj_name_attribute
         )
-
         for obj in objs:
-            obj_name_list = []
-            for attr in obj_name_attribute:
-                obj_name_temp = get_in(obj, attr)
-                if obj_name_temp:
-                    obj_name_list.append(obj_name_temp)
-            if obj_name_sufix:
-                obj_name_list.append(obj_name_sufix)
+            obj_name = "-".join(
+                [
+                    getattr(obj, attr) if getattr(obj, attr) else ""
+                    for attr in obj_name_attribute
+                ]
+            )
+            if obj_name_suffix:
+                obj_name += f"-{obj_name_suffix}"
             query = self._query(
-                session,
-                obj.Tag,
-                name=name,
-                project=project,
-                obj_name="-".join(obj_name_list),
+                session, obj.Tag, name=name, project=project, obj_name=obj_name
             )
 
             tag = query.one_or_none()
             if not tag:
-                tag = obj.Tag(
-                    project=project,
-                    name=name,
-                    obj_name="-".join(obj_name_list),
-                )
+                tag = obj.Tag(project=project, name=name, obj_name=obj_name)
             tag.obj_id = obj.id
             tags.append(tag)
         self._upsert(session, tags)
@@ -7423,25 +7415,27 @@ class SQLDB(DBInterface):
                 session,
                 name=function_name,
                 project=project,
-                tag=function_tag,
+                tag=function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
                 hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
                 # model endpoints always points on unversioned function
             )
+            obj_name_suffix = f"{function_name}-{function_tag}"
         except mlrun.errors.MLRunNotFoundError:
-            function_record = None
+            function_record, obj_name_suffix = None, None
         for model_endpoint in model_endpoints:
             meps.append(
                 self._create_mep_record_to_store(model_endpoint, function_record)
             )
 
         self._upsert_batch(session, meps)
+
         self.tag_objects_v2(
             session,
             meps,
             project,
             mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
-            obj_name_attribute=["name", "function.name"],
-            obj_name_sufix=function_tag if function_record else None,
+            obj_name_attribute=["name"],
+            obj_name_suffix=obj_name_suffix,
         )
 
     def store_model_endpoint(
@@ -7459,8 +7453,9 @@ class SQLDB(DBInterface):
                 hash_key=f"{unversioned_tagged_object_uid_prefix}{model_endpoint.spec.function_tag}",
                 # model endpoints always points on unversioned function
             )
+            obj_name_suffix = f"{model_endpoint.spec.function_name}-{model_endpoint.spec.function_tag}"
         except mlrun.errors.MLRunNotFoundError:
-            function_record = None
+            function_record, obj_name_suffix = None, None
         mep = self._create_mep_record_to_store(model_endpoint, function_record)
         logger.debug(
             "Storing Model Endpoint Before upsert",
@@ -7472,10 +7467,8 @@ class SQLDB(DBInterface):
             [mep],
             model_endpoint.metadata.project,
             mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
-            obj_name_attribute=["name", "function.name"],
-            obj_name_sufix=model_endpoint.spec.function_tag
-            if function_record
-            else None,
+            obj_name_attribute=["name"],
+            obj_name_suffix=obj_name_suffix
         )
         return mep.uid
 

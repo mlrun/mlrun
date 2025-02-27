@@ -122,11 +122,9 @@ class ModelEndpoints:
                     as_record=True,
                 )
                 artifact = db_artifact.full_object
-
                 model_obj = mlrun.artifacts.dict_to_artifact(
                     mlrun.common.formatters.ArtifactFormat.format_obj(artifact, "full")
                 )
-
                 model_endpoint.spec._model_id = db_artifact.id
                 model_endpoint.spec.model_name = model_obj.metadata.key
                 model_endpoint.spec.model_tag = model_obj.tag

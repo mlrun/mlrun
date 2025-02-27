@@ -566,6 +566,17 @@ class HTTPRunDB(RunDBInterface):
             )
             config.alerts.mode = server_cfg.get("alerts_mode") or config.alerts.mode
             config.system_id = server_cfg.get("system_id") or config.system_id
+            model_monitoring_store_prefixes = (
+                server_cfg.get("model_endpoint_monitoring_store_prefixes") or {}
+            )
+            for prefix in ["default", "user_space", "monitoring_application"]:
+                store_prefix_value = model_monitoring_store_prefixes.get(prefix)
+                if server_prefix_value is not None:
+                    setattr(
+                        config.model_endpoint_monitoring.store_prefixes,
+                        prefix,
+                        store_prefix_value,
+                    )
 
         except Exception as exc:
             logger.warning(

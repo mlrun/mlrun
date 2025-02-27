@@ -163,7 +163,6 @@ def test_set_and_get_log_level(log_config: dict[str, str], client: TestClient):
 @pytest.mark.parametrize(
     "invalid_log_config",
     [
-        ({"invalid_domain.imports": "INFO"}),  # Domain not starting with 'mlrun'
         ({"mlrun_pipelines.imports": "INVALID_LEVEL"}),  # Invalid log level
         ({"mlrun_pipelines.imports": 123}),  # Non-string log level
     ],

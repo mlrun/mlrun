@@ -29,7 +29,7 @@ class SQLTypesUtil:
 
     class _Datetime:
         sqlite = sqlalchemy.DATETIME(timezone=True)
-        mysql = sqlalchemy.dialects.mysql.DATETIME(timezone=True, fsp=3)
+        mysql = sqlalchemy.dialects.mysql.DATETIME(timezone=True, fsp=6)
 
     class _Blob:
         sqlite = sqlalchemy.BLOB

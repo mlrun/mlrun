@@ -773,6 +773,11 @@ class Service(framework.service.Service):
         # since the last time we pushed notifications.
         # On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
         # and their notifications haven't been sent yet.
+        self._logger.debug(
+            "Checking notifications since last end time",
+            last_update_time=last_update_time,
+            now=datetime.datetime.now(),
+        )
 
         runs = db.list_runs(
             db_session,
@@ -781,6 +786,13 @@ class Service(framework.service.Service):
             end_time_from=last_update_time,
             with_notifications=True,
         )
+
+        if not len(runs):
+            self._logger.debug(
+                "No runs ended during the current window",
+                last_update_time=last_update_time,
+                now=datetime.datetime.now(),
+            )
 
         if not len(runs):
             return

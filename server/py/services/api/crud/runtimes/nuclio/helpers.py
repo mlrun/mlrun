@@ -39,26 +39,30 @@ def resolve_nuclio_runtime_python_image(
     if not python_version or not mlrun_client_version:
         return mlrun.mlconf.default_nuclio_runtime
 
-    # If the mlrun version is 0.0.0-<unstable>, it is a dev version,
-    # so we can't check if it is higher than 1.3.0, but if the python version was passed,
-    # it means it is 1.3.0-rc or higher, so use the image according to the python version
+    # If mlrun version is 0.0.0-<unstable>, it is a version in development,
+    # so best-effort use the client python version.
     if mlrun_client_version.startswith("0.0.0-") or "unstable" in mlrun_client_version:
-        if python_version.startswith("3.7"):
-            return "python:3.7"
+        # take the 'major.minor' version only
+        version_parts = python_version.split(".")
+        if all(part.isdigit() for part in version_parts) and len(version_parts) in [
+            2,
+            3,
+        ]:
+            return f"python:{version_parts[0]}.{version_parts[1]}"
 
         return mlrun.mlconf.default_nuclio_runtime
 
-    # if mlrun version is older than 1.3.0 we need to use the previous default runtime which is python 3.7
+    # if mlrun version is older than 1.9.0 we need to use the previous default runtime which is python 3.9
     if semver.VersionInfo.parse(mlrun_client_version) < semver.VersionInfo.parse(
-        "1.3.0-X"
+        "1.9.0-X"
     ):
-        return "python:3.7"
+        return "python:3.9"
 
-    # if mlrun version is 1.3.0 or newer and python version is 3.7 we need to use python 3.7 image
+    # if mlrun version is 1.9.0 or newer and python version is 3.9 we need to use python 3.9 image
     if semver.VersionInfo.parse(mlrun_client_version) >= semver.VersionInfo.parse(
-        "1.3.0-X"
-    ) and python_version.startswith("3.7"):
-        return "python:3.7"
+        "1.9.0-X"
+    ) and python_version.startswith("3.9"):
+        return "python:3.9"
 
     # if none of the above conditions are met we use the default runtime which is python 3.9
     return mlrun.mlconf.default_nuclio_runtime

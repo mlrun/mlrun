@@ -238,7 +238,9 @@ def test_build_runtime_target_image(monkeypatch):
     assert target_image == function.spec.build.image
 
 
-def test_build_runtime_use_default_node_selector(monkeypatch):
+def test_build_runtime_use_default_node_selector_and_sets_gpu_limits_to_zero(
+    monkeypatch,
+):
     _patch_k8s_helper(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
     node_selector = {
@@ -256,6 +258,9 @@ def test_build_runtime_use_default_node_selector(monkeypatch):
         kind=RuntimeKinds.job,
         requirements=["some-package"],
     )
+    gpu_type = "nvidia.com/gpu"
+    function.with_limits(gpus=1, gpu_type=gpu_type)
+
     func_node_selector, func_val = "label-3", "val3"
     function.spec.node_selector = {func_node_selector: func_val}
 
@@ -263,9 +268,11 @@ def test_build_runtime_use_default_node_selector(monkeypatch):
         mlrun.common.schemas.AuthInfo(),
         function,
     )
+    kaniko_pod_spec_mock = _create_pod_mock_pod_spec()
+    assert kaniko_pod_spec_mock.containers[0].resources["limits"][gpu_type] == 0
     assert (
         deepdiff.DeepDiff(
-            _create_pod_mock_pod_spec().node_selector,
+            kaniko_pod_spec_mock.node_selector,
             {**node_selector, func_node_selector: func_val},
             ignore_order=True,
         )

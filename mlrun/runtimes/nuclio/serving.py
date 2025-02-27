@@ -376,6 +376,7 @@ class ServingRuntime(RemoteRuntime):
         creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
         ] = schemas.ModelEndpointCreationStrategy.INPLACE,
+        outputs: Optional[list[str]] = None,
         **class_args,
     ):
         """add ml model and/or route to the function.
@@ -408,6 +409,9 @@ class ServingRuntime(RemoteRuntime):
             * **archive**:
             1. If model endpoints with the same name exist, preserve them.
             2. Create a new model endpoint with the same name and set it to `latest`.
+        :param outputs: list of the model outputs (e.g. labels) ,if provided will override the outputs that been
+                        configured in the model artifact, please note that those outputs need to be equal to the
+                        model serving function outputs (length, and order)
         :param class_args:  extra kwargs to pass to the model serving class __init__
                             (can be read in the model using .get_param(key) method)
         """
@@ -443,6 +447,8 @@ class ServingRuntime(RemoteRuntime):
         if class_name and hasattr(class_name, "to_dict"):
             if model_path:
                 class_name.model_path = model_path
+            if outputs:
+                class_name.outputs = outputs
             key, state = params_to_step(
                 class_name,
                 key,
@@ -470,6 +476,7 @@ class ServingRuntime(RemoteRuntime):
             else:
                 class_args = deepcopy(class_args)
                 class_args["model_path"] = model_path
+                class_args["outputs"] = outputs
                 state = TaskStep(
                     class_name,
                     class_args,

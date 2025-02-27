@@ -223,6 +223,16 @@ def make_kaniko_pod(
             mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
         )
     }
+    # Some cloud providers add a toleration when a GPU limit is set.
+    # If the Kaniko pod inherits a GPU-related node selector from the function
+    # but lacks a GPU limit, it may get stuck in a pending state due to unsatisfiable scheduling.
+    # Setting GPU limits to zero ensures tolerations are applied while preventing GPU allocation.
+    if runtime_spec:
+        gpu_resources = mlrun.utils.get_enriched_gpu_limits(
+            runtime_spec.resources.get("limits", {})
+        )
+        if gpu_resources:
+            resources["limits"] = gpu_resources
 
     kpod = framework.utils.singletons.k8s.BasePod(
         name or "mlrun-build",

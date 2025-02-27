@@ -14,32 +14,14 @@
 import asyncio
 import traceback
 import typing
+import uuid
 
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.errors
-from mlrun.utils import logger
+from mlrun.utils import context_id_var, logger
 
 tasks: dict = {}
-
-
-async def _periodic_function_wrapper(
-    interval: typing.Union[int, float], function, *args, **kwargs
-):
-    while True:
-        try:
-            if asyncio.iscoroutinefunction(function):
-                await function(*args, **kwargs)
-            else:
-                await run_in_threadpool(function, *args, **kwargs)
-        except Exception as exc:
-            logger.warning(
-                "Failed during periodic function execution",
-                func_name=function.__name__,
-                exc=mlrun.errors.err_to_str(exc),
-                tb=traceback.format_exc(),
-            )
-        await asyncio.sleep(interval)
 
 
 def run_function_periodically(
@@ -81,3 +63,23 @@ def cancel_all_periodic_functions():
     for task in tasks.values():
         task.cancel()
     tasks = {}
+
+
+async def _periodic_function_wrapper(
+    interval: typing.Union[int, float], function, *args, **kwargs
+):
+    context_id_var.set(str(uuid.uuid4()))
+    while True:
+        try:
+            if asyncio.iscoroutinefunction(function):
+                await function(*args, **kwargs)
+            else:
+                await run_in_threadpool(function, *args, **kwargs)
+        except Exception as exc:
+            logger.warning(
+                "Failed during periodic function execution",
+                func_name=function.__name__,
+                exc=mlrun.errors.err_to_str(exc),
+                tb=traceback.format_exc(),
+            )
+        await asyncio.sleep(interval)

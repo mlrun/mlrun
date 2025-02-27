@@ -2498,6 +2498,8 @@ class SQLDB(DBInterface):
         tag, computed_tag = self._compute_function_tag(tag, hash_key)
         if not tag and hash_key:
             return hash_key
+        elif unversioned_tagged_object_uid_prefix in hash_key:
+            return hash_key
         else:
             tag_function_uid = self._resolve_class_tag_uid(
                 session, Function, project, name, computed_tag
@@ -7420,7 +7422,7 @@ class SQLDB(DBInterface):
                 name=normalized_function_name,
                 project=project,
                 tag=function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
-                hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
+                hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST}",
                 # model endpoints always points on unversioned function
             )
             obj_name_suffix = f"{function_name}-{function_tag}"
@@ -7459,7 +7461,7 @@ class SQLDB(DBInterface):
                 project=model_endpoint.metadata.project,
                 tag=model_endpoint.spec.function_tag
                 or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
-                hash_key=f"{unversioned_tagged_object_uid_prefix}{model_endpoint.spec.function_tag}",
+                hash_key=f"{unversioned_tagged_object_uid_prefix}{model_endpoint.spec.function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST}",
                 # model endpoints always points on unversioned function
             )
             obj_name_suffix = f"{model_endpoint.spec.function_name}-{model_endpoint.spec.function_tag}"

@@ -572,9 +572,9 @@ def test_v2_get_modelmeta(rundb_mock):
     fn = mlrun.new_function("tst", kind="serving")
     model_uri = _log_model(project)
     print(model_uri)
-    fn.add_model("m1", model_uri, "ModelTestingClass")
-    fn.add_model("m2", model_uri, "ModelTestingClass")
-    fn.add_model("m3:v2", model_uri, "ModelTestingClass")
+    fn.add_model("m1", model_uri, "ModelTestingClass", model_endpoint_uid="m1_uid")
+    fn.add_model("m2", model_uri, "ModelTestingClass", model_endpoint_uid="m2_uid")
+    fn.add_model("m3:v2", model_uri, "ModelTestingClass", model_endpoint_uid="m3_uid")
     fn.set_tracking("dummy://")  # track using the _DummyStream
 
     server = fn.to_mock_server()
@@ -687,7 +687,11 @@ def test_v2_mock():
 def test_function(rundb_mock):
     fn = mlrun.new_function("tests", kind="serving")
     fn.set_topology("router")
-    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
+    fn.add_model(
+        "my",
+        ".",
+        class_name=ModelTestingClass(multiplier=100, model_endpoint_uid="my-uid"),
+    )
     fn.set_tracking("dummy://")  # track using the _DummyStream
 
     server = fn.to_mock_server()
@@ -702,7 +706,11 @@ def test_function(rundb_mock):
 def test_sampling_percentage(rundb_mock):
     fn = mlrun.new_function("tests", kind="serving")
     fn.set_topology("router")
-    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
+    fn.add_model(
+        "my",
+        ".",
+        class_name=ModelTestingClass(multiplier=100, model_endpoint_uid="my-uid"),
+    )
     random.seed(0)
     random_sample_percentage = 50
 

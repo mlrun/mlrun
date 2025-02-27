@@ -199,7 +199,7 @@ class BaseModelRouter(RouterToDict):
             else:
                 logger.debug(
                     "Model endpoint creation task name not provided",
-                )  # TODO do we want to log all this in here without model
+                )
         elif self.context.monitoring_mock:
             return mlrun.common.schemas.BackgroundTaskState.succeeded
         return mlrun.common.schemas.BackgroundTaskState.failed
@@ -888,8 +888,8 @@ class VotingEnsemble(ParallelRun):
         Response
             Event response after running the requested logic
         """
+        self._update_background_task_state(event)
         if not self.initialized:
-            self._update_background_task_state(event)
             self._lazy_init(event.body)
         start = now_date()
         # Handle and verify the request

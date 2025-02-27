@@ -285,7 +285,6 @@ async def deploy_function(
             "Creating Background Task for model endpoints creation",
             project=project,
             function=name,
-            function_dict=function,
         )
         returned_background_task = await run_in_threadpool(
             mm_deployment.MonitoringDeployment._create_model_endpoint_background_task,

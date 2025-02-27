@@ -285,11 +285,8 @@ class TestAlerts(TestMLRunSystem):
             self.project.run_function(function_name)
 
         # wait for the periodic monitor runs function to run as it may take up to the maximum events_generation_interval
-        # to detect the event.
-        time.sleep(mlconf.alerts.events_generation_interval)
-
-        # Wait for more than half minute to simulate a delay that is slightly longer than the alert period
-        time.sleep(32)
+        # to detect the event + an extra 40s to simulate a delay that is slightly longer than the alert period
+        time.sleep(mlconf.alerts.events_generation_interval + 40)
 
         # this is the second failure
         with pytest.raises(Exception):

@@ -137,8 +137,7 @@ class ModelEndpointSpec(ObjectSpec, ModelEndpointParser):
     @classmethod
     def mutable_fields(cls):
         return [
-            "model_name",
-            "model_tag",
+            "model_path",
             "model_class",
             "feature_names",
             "label_names",

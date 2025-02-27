@@ -76,6 +76,7 @@ from mlrun.utils import (
     get_in,
     is_legacy_artifact,
     logger,
+    parse_artifact_uri,
     update_in,
     validate_artifact_key_name,
     validate_tag_name,
@@ -7411,9 +7412,12 @@ class SQLDB(DBInterface):
     ) -> None:
         meps = []
         try:
+            normalized_function_name = (
+                mlrun.utils.normalize_name(function_name) if function_name else None
+            )
             function_record, _ = self._get_function_db_object(
                 session,
-                name=function_name,
+                name=normalized_function_name,
                 project=project,
                 tag=function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
                 hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
@@ -7444,9 +7448,14 @@ class SQLDB(DBInterface):
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
     ) -> str:
         try:
+            normalized_function_name = (
+                mlrun.utils.normalize_name(model_endpoint.spec.function_name)
+                if model_endpoint.spec.function_name
+                else None
+            )
             function_record, _ = self._get_function_db_object(
                 session,
-                name=model_endpoint.spec.function_name,
+                name=normalized_function_name,
                 project=model_endpoint.metadata.project,
                 tag=model_endpoint.spec.function_tag
                 or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
@@ -7468,7 +7477,7 @@ class SQLDB(DBInterface):
             model_endpoint.metadata.project,
             mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
             obj_name_attribute=["name"],
-            obj_name_suffix=obj_name_suffix
+            obj_name_suffix=obj_name_suffix,
         )
         return mep.uid
 
@@ -7511,8 +7520,11 @@ class SQLDB(DBInterface):
         function_tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
+        normalized_function_name = (
+            mlrun.utils.normalize_name(function_name) if function_name else None
+        )
         mep_record = self._get_model_endpoint(
-            session, project, name, function_name, function_tag, uid
+            session, project, name, normalized_function_name, function_tag, uid
         )
         if not mep_record:
             raise mlrun.errors.MLRunNotFoundError(
@@ -7536,7 +7548,7 @@ class SQLDB(DBInterface):
         ):
             model_endpoint_records.append(
                 self._update_mep_record(
-                    mep_record, attributes.get(mep_record.uid, {}), updated
+                    session, mep_record, attributes.get(mep_record.uid, {}), updated
                 )
             )
         self._upsert_batch(session, model_endpoint_records)
@@ -7551,12 +7563,17 @@ class SQLDB(DBInterface):
         function_tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
     ) -> str:
+        normalized_function_name = (
+            mlrun.utils.normalize_name(function_name) if function_name else None
+        )
         mep_record = self._get_model_endpoint(
-            session, project, name, function_name, function_tag, uid
+            session, project, name, normalized_function_name, function_tag, uid
         )
         if mep_record:
             updated = datetime.now(timezone.utc)
-            mep_record = self._update_mep_record(mep_record, attributes, updated)
+            mep_record = self._update_mep_record(
+                session, mep_record, attributes, updated
+            )
             self._upsert(session, [mep_record])
             return mep_record.uid
         else:
@@ -7565,9 +7582,11 @@ class SQLDB(DBInterface):
             )
 
     def _update_mep_record(
-        self, mep_record: ModelEndpoint, attributes: dict, updated: datetime
+        self, session, mep_record: ModelEndpoint, attributes: dict, updated: datetime
     ) -> ModelEndpoint:
-        attributes, schema_attr, labels = self._split_mep_update_attr(attributes)
+        attributes, schema_attr, labels, model_path = self._split_mep_update_attr(
+            attributes
+        )
         struct = mep_record.struct
         for key, val in attributes.items():
             update_in(struct, key, val)
@@ -7577,6 +7596,8 @@ class SQLDB(DBInterface):
         if labels is not None and isinstance(labels, dict):
             update_labels(mep_record, labels)
             update_in(struct, "labels", labels)
+        if model_path is not None:
+            self._update_model_link(session, mep_record, model_path)
         mep_record.struct = struct
         mep_record.updated = updated
         return mep_record
@@ -7584,15 +7605,16 @@ class SQLDB(DBInterface):
     def _split_mep_update_attr(self, attributes: dict):
         if "labels" in attributes:
             # labels can be None, so if labels key exists, return {} and override existing labels.
-            labels = attributes.pop("labels") or {}
+            labels = attributes.pop(ModelEndpointSchema.LABELS) or {}
         else:
             labels = None
+        model_path = attributes.pop(ModelEndpointSchema.MODEL_PATH, "")
         schema_attr = {}
         for key in list(attributes.keys()):
             if hasattr(ModelEndpoint, key):
                 schema_attr[key] = attributes.pop(key)
 
-        return attributes, schema_attr, labels
+        return attributes, schema_attr, labels, model_path
 
     def list_model_endpoints(
         self,
@@ -7619,7 +7641,9 @@ class SQLDB(DBInterface):
             names=names,
             project=project,
             labels=labels,
-            function_name=function_name,
+            function_name=mlrun.utils.normalize_name(function_name)
+            if function_name
+            else None,
             function_tag=function_tag,
             model_name=model_name,
             model_tag=model_tag,
@@ -7815,3 +7839,21 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unsupported column type '{column.type}' for validation."
             )
+
+    def _update_model_link(self, session, mep_record: ModelEndpoint, model_path: str):
+        if model_path and mlrun.datastore.is_store_uri(model_path):
+            _, model_uri = mlrun.datastore.parse_store_uri(model_path)
+            project, key, iteration, tag, tree, uid = parse_artifact_uri(
+                model_uri, mep_record.project
+            )
+            db_artifact = self.read_artifact(
+                session,
+                key,
+                tag,
+                iteration,
+                project,
+                tree,
+                uid,
+                as_record=True,
+            )
+            mep_record.model_id = db_artifact.id

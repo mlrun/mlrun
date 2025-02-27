@@ -776,7 +776,6 @@ class Service(framework.service.Service):
         self._logger.debug(
             "Checking notifications since last end time",
             last_update_time=last_update_time,
-            now=datetime.datetime.now(),
         )
 
         runs = db.list_runs(
@@ -790,8 +789,7 @@ class Service(framework.service.Service):
         if not len(runs):
             self._logger.debug(
                 "No runs ended during the current window",
-                last_update_time=last_update_time,
-                now=datetime.datetime.now(),
+                end_time_from=last_update_time,
             )
 
         if not len(runs):

@@ -271,7 +271,6 @@ async def deploy_function(
         background_tasks=[]
     )
     if function.get("kind") == mlrun.runtimes.RuntimeKinds.serving:
-        db_session = framework.db.session.create_session()
         (
             model_endpoints_instructions,
             function,
@@ -294,7 +293,6 @@ async def deploy_function(
             function_name=name,
             model_endpoints_instructions=model_endpoints_instructions,
         )
-        framework.db.session.close_session(db_session)
         returned_background_tasks.background_tasks.append(returned_background_task)
 
     model_endpoint_creation_task_name = (

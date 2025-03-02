@@ -139,6 +139,7 @@ class BaseModelRouter(RouterToDict):
             raise ValueError(
                 f"illegal path prefix {urlpath}, must start with {self.url_prefix}"
             )
+        self._update_background_task_state(event)
         return event
 
     def do_event(self, event, *args, **kwargs):
@@ -191,9 +192,9 @@ class BaseModelRouter(RouterToDict):
                 else:  # in progress
                     logger.debug(
                         f"Model endpoint creation task is still in progress with the current state: "
-                        f"{background_task.status.state}. This event will not be monitored.",
+                        f"{background_task.status.state}. Events will not be monitored for the next 15 seconds",
                         name=self.name,
-                        event_id=event_id,
+                        background_task_check_timestamp=self._background_task_check_timestamp.isoformat(),
                     )
                 return background_task.status.state
             else:
@@ -258,8 +259,6 @@ class ModelRouter(BaseModelRouter):
 
     def _handle_event(self, event):
         name, route, subpath = self._resolve_route(event.body, event.path)
-        self._update_background_task_state(event)
-
         if not route:
             # if model wasn't specified return model list
             setattr(event, "terminated", True)
@@ -414,7 +413,6 @@ class ParallelRun(BaseModelRouter):
             self._shutdown_pool()
             return event
 
-        self._update_background_task_state(event)
         response = copy.copy(event)
         results = self._parallel_run(event)
         self._apply_logic(results, response)
@@ -892,15 +890,14 @@ class VotingEnsemble(ParallelRun):
         Response
             Event response after running the requested logic
         """
-        self._update_background_task_state(event)
-        if not self.initialized:
-            self._lazy_init(event.body)
         start = now_date()
         # Handle and verify the request
         original_body = event.body
         event.body = _extract_input_data(self._input_path, event.body)
         event = self.preprocess(event)
         event = self._pre_handle_event(event)
+        if not self.initialized:
+            self._lazy_init(event.body)
 
         # Should we terminate the event?
         if hasattr(event, "terminated") and event.terminated:

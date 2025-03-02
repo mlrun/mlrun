@@ -1452,7 +1452,7 @@ class MonitoringDeployment:
             ]
         ]
 
-        model_endpoints_list: list[ModelEndpoint] = await run_in_threadpool(
+        model_endpoints_list: dict[str, ModelEndpoint] = await run_in_threadpool(
             framework.utils.singletons.db.get_db().list_model_endpoints,
             project=project,
             function_name=function_name,
@@ -1473,6 +1473,7 @@ class MonitoringDeployment:
                 mm_constants.EventFieldType.SAMPLING_PERCENTAGE, 100
             ),
             model_endpoints=model_endpoints_list,
+            project=project,
         )  # model endpoint, creation strategy, model path
         function.spec.graph = graph
         return model_endpoints_instructions, function.to_dict()
@@ -1486,7 +1487,8 @@ class MonitoringDeployment:
             mlrun.serving.states.RouterStep, mlrun.serving.states.RootFlowStep
         ],
         sampling_percentage: float,
-        model_endpoints: list[ModelEndpoint],
+        model_endpoints: dict[str, ModelEndpoint],
+        project: str,
     ) -> tuple[
         list[
             tuple[
@@ -1499,9 +1501,6 @@ class MonitoringDeployment:
             mlrun.serving.states.RouterStep, mlrun.serving.states.RootFlowStep
         ],
     ]:
-        endpoints_names_uid_map = {
-            endpoint.model_name: endpoint.uid for endpoint in model_endpoints
-        }
         model_endpoints_instructions = []
         if isinstance(graph, mlrun.serving.states.RouterStep):
             model_endpoints_instructions.extend(
@@ -1511,7 +1510,8 @@ class MonitoringDeployment:
                     track_models=track_models,
                     router_step=graph,
                     sampling_percentage=sampling_percentage,
-                    model_endpoints_mapping=endpoints_names_uid_map,
+                    model_endpoints_mapping=model_endpoints,
+                    project=project,
                 )
             )
         elif isinstance(graph, mlrun.serving.states.RootFlowStep):
@@ -1522,7 +1522,8 @@ class MonitoringDeployment:
                     track_models=track_models,
                     root_flow_step=graph,
                     sampling_percentage=sampling_percentage,
-                    model_endpoints_mapping=endpoints_names_uid_map,
+                    model_endpoints_mapping=model_endpoints,
+                    project=project,
                 )
             )
         return model_endpoints_instructions, graph
@@ -1534,7 +1535,8 @@ class MonitoringDeployment:
         track_models: bool,
         router_step: mlrun.serving.states.RouterStep,
         sampling_percentage: float,
-        model_endpoints_mapping: dict[str, str],
+        model_endpoints_mapping: dict[str, ModelEndpoint],
+        project: str,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -1542,6 +1544,7 @@ class MonitoringDeployment:
             str,
         ]
     ]:
+        filter_string = f"{project}-{function_name}-{function_tag}-"
         model_endpoints_instructions = []
         routes_names = []
         routes_uids = []
@@ -1550,13 +1553,8 @@ class MonitoringDeployment:
                 route.model_endpoint_creation_strategy
                 != mm_constants.ModelEndpointCreationStrategy.SKIP
             ):
-                old_uid = model_endpoints_mapping.get(route.name)
-                uid = (
-                    old_uid
-                    if old_uid
-                    and route.model_endpoint_creation_strategy
-                    == mm_constants.ModelEndpointCreationStrategy.INPLACE
-                    else uuid.uuid4().hex
+                uid = self._get_or_create_uid(
+                    filter_string, model_endpoints_mapping, route
                 )
                 route.class_args["model_endpoint_uid"] = uid
                 model_endpoints_instructions.append(
@@ -1582,13 +1580,8 @@ class MonitoringDeployment:
             router_step.model_endpoint_creation_strategy
             != mm_constants.ModelEndpointCreationStrategy.SKIP
         ):
-            old_uid = model_endpoints_mapping.get(router_step.name)
-            uid = (
-                old_uid
-                if old_uid
-                and router_step.model_endpoint_creation_strategy
-                == mm_constants.ModelEndpointCreationStrategy.INPLACE
-                else uuid.uuid4().hex
+            uid = self._get_or_create_uid(
+                filter_string, model_endpoints_mapping, router_step
             )
             router_step.class_args["model_endpoint_uid"] = uid
             model_endpoints_instructions.append(
@@ -1619,7 +1612,8 @@ class MonitoringDeployment:
         track_models: bool,
         root_flow_step: mlrun.serving.states.RootFlowStep,
         sampling_percentage: float,
-        model_endpoints_mapping: dict[str, str],
+        model_endpoints_mapping: dict[str, ModelEndpoint],
+        project: str,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -1627,6 +1621,7 @@ class MonitoringDeployment:
             str,
         ]
     ]:
+        filter_string = f"{project}-{function_name}-{function_tag}-"
         model_endpoints_instructions = []
         for step in root_flow_step.steps.values():
             if isinstance(step, mlrun.serving.states.RouterStep):
@@ -1638,6 +1633,7 @@ class MonitoringDeployment:
                         router_step=step,
                         sampling_percentage=sampling_percentage,
                         model_endpoints_mapping=model_endpoints_mapping,
+                        project=project,
                     )
                 )
             else:
@@ -1645,13 +1641,8 @@ class MonitoringDeployment:
                     step.model_endpoint_creation_strategy
                     != mm_constants.ModelEndpointCreationStrategy.SKIP
                 ):
-                    old_uid = model_endpoints_mapping.get(step.name)
-                    uid = (
-                        old_uid
-                        if old_uid
-                        and step.model_endpoint_creation_strategy
-                        == mm_constants.ModelEndpointCreationStrategy.INPLACE
-                        else uuid.uuid4().hex
+                    uid = self._get_or_create_uid(
+                        filter_string, model_endpoints_mapping, step
                     )
                     step.class_args["model_endpoint_uid"] = uid
                     model_endpoints_instructions.append(
@@ -1670,6 +1661,20 @@ class MonitoringDeployment:
                         )
                     )
         return model_endpoints_instructions
+
+    @staticmethod
+    def _get_or_create_uid(
+        filter_string: str, model_endpoints_mapping: dict[str, ModelEndpoint], step
+    ) -> str:
+        old_model_endpoint = model_endpoints_mapping.get(filter_string + step.name)
+        uid = (
+            old_model_endpoint
+            if old_model_endpoint
+            and step.model_endpoint_creation_strategy
+            == mm_constants.ModelEndpointCreationStrategy.INPLACE
+            else uuid.uuid4().hex
+        )
+        return uid
 
     def _model_endpoint_draft(
         self,

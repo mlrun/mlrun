@@ -862,7 +862,7 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, autoincrement=True)
-        activation_time = Column(SQLTypesUtil.datetime(), nullable=False)
+        activation_time = Column(SQLTypesUtil.datetime(fsp=3), nullable=False)
         name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
         project = Column(
             String(255, collation=SQLTypesUtil.collation()), nullable=False
@@ -881,7 +881,7 @@ with warnings.catch_warnings():
             String(255, collation=SQLTypesUtil.collation()), nullable=False
         )
         number_of_events = Column(Integer, nullable=False)
-        reset_time = Column(SQLTypesUtil.datetime(), nullable=True)
+        reset_time = Column(SQLTypesUtil.datetime(fsp=3), nullable=True)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.id}"

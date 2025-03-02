@@ -200,9 +200,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
     # deprecated, use ArtifactV2 instead
-    # TODO: remove in 1.8.0. Note that removing it will require upgrading mlrun in at least 2 steps:
-    #  1. upgrade to 1.6.x which will create the new table
-    #  2. upgrade to 1.7.x which will remove the old table
+    # TODO: Remove once data migration v5 is obsolete and add schema migration to remove this table
     class Artifact(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "artifacts"
         __table_args__ = (

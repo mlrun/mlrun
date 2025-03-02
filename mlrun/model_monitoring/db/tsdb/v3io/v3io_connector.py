@@ -428,7 +428,9 @@ class V3IOTSDBConnector(TSDBConnector):
         store, _, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
         store.rm(tsdb_path, recursive=True)
 
-    def delete_tsdb_records(self, endpoint_ids: list[str]):
+    def delete_tsdb_records(
+        self, endpoint_ids: list[str], delete_timeout: Optional[int] = None
+    ):
         logger.debug(
             "Deleting model endpoints resources using the V3IO TSDB connector",
             project=self.project,
@@ -438,9 +440,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         # Split the endpoint ids into chunks to avoid exceeding the v3io-engine filter-expression limit
         for i in range(0, len(endpoint_ids), V3IO_MEPS_LIMIT):
-            endpoint_id_chunks = endpoint_ids[i : i + V3IO_MEPS_LIMIT]
-
-        for endpoint_id_chunk in endpoint_id_chunks:
+            endpoint_id_chunk = endpoint_ids[i : i + V3IO_MEPS_LIMIT]
             filter_query = f"endpoint_id IN({str(endpoint_id_chunk)[1:-1]}) "
             for table in tables:
                 try:

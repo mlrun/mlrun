@@ -11,11 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Add model_endpoints table
+#
 
-Revision ID: 2fa14ac323db
-Revises: 650f0ce2da6f
-Create Date: 2024-11-04 17:17:46.239870
+"""Create model endpoints table
+
+Revision ID: 6925effc8fb1
+Revises: 6f9a8e3857ec
+Create Date: 2025-03-02 21:50:08.179139
 
 """
 
@@ -24,8 +26,8 @@ from alembic import op
 from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
-revision = "2fa14ac323db"
-down_revision = "650f0ce2da6f"
+revision = "6925effc8fb1"
+down_revision = "6f9a8e3857ec"
 branch_labels = None
 depends_on = None
 
@@ -35,35 +37,29 @@ def upgrade():
     op.create_table(
         "model_endpoints",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("uid", sa.String(length=255, collation="utf8mb3_bin"), nullable=True),
+        sa.Column("uid", sa.String(length=32), nullable=True),
+        sa.Column(
+            "name", sa.String(length=255, collation="utf8mb3_bin"), nullable=True
+        ),
         sa.Column("endpoint_type", sa.Integer(), nullable=False),
         sa.Column(
             "project", sa.String(length=255, collation="utf8mb3_bin"), nullable=True
         ),
-        sa.Column(
-            "function_name",
-            sa.String(length=255, collation="utf8mb3_bin"),
-            nullable=True,
-        ),
-        sa.Column(
-            "function_uid",
-            sa.String(length=255, collation="utf8mb3_bin"),
-            nullable=True,
-        ),
-        sa.Column(
-            "model_uid", sa.String(length=255, collation="utf8mb3_bin"), nullable=True
-        ),
-        sa.Column(
-            "model_name", sa.String(length=255, collation="utf8mb3_bin"), nullable=True
-        ),
         sa.Column("body", mysql.MEDIUMBLOB(), nullable=True),
         sa.Column("created", mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.Column("updated", mysql.TIMESTAMP(fsp=3), nullable=True),
-        sa.Column(
-            "name", sa.String(length=255, collation="utf8mb3_bin"), nullable=True
+        sa.Column("function_id", sa.Integer(), nullable=True),
+        sa.Column("model_id", sa.Integer(), nullable=True),
+        sa.ForeignKeyConstraint(
+            ["function_id"],
+            ["functions.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["model_id"],
+            ["artifacts_v2.id"],
         ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("project", "name", "uid", name="_mep_uc_2"),
+        sa.UniqueConstraint("uid"),
     )
     op.create_table(
         "model_endpoints_labels",

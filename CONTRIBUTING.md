@@ -327,7 +327,7 @@ def function_name(parameter1, parameter2):
 	# Function implementation
 ```
 
-Bulleted lists in docstrings do not throw an error if they are incorrectly formatted. Publish the doc locally to 
+Bulleted lists in docstrings do not throw an error if they are incorrectly formatted. Build the doc locally to 
 check the formatting. The basic rules are:
 - Add a blank line before and after bulleted lines
 - Nested bulleted lists also need a blank line before and after

@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from unittest.mock import MagicMock
+
 import pytest
 
 import mlrun_pipelines.utils
@@ -18,7 +20,9 @@ import mlrun_pipelines.utils
 
 @pytest.fixture
 def client():
-    return mlrun_pipelines.utils.ExtendedKfpClient
+    client_klass = mlrun_pipelines.utils.ExtendedKfpClient
+    client_klass.get_kfp_healthz = MagicMock()
+    return client_klass()
 
 
 @pytest.mark.parametrize(

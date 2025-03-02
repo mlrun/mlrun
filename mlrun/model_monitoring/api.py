@@ -354,9 +354,6 @@ def _generate_model_endpoint(
     :param model_endpoint_name:      Model endpoint name will be presented under the new model endpoint.
     :param function_name:            If a new model endpoint is created, use this function name.
     :param function_tag:             If a new model endpoint is created, use this function tag.
-    :param sample_set_statistics:    Dictionary of sample set statistics that will be used as a reference data for
-                                     the current model endpoint. Will be stored under
-                                     `model_endpoint.status.feature_stats`.
 
     :return `mlrun.common.schemas.ModelEndpoint` object.
     """

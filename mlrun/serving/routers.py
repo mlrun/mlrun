@@ -201,7 +201,9 @@ class BaseModelRouter(RouterToDict):
                     "Model endpoint creation task name not provided",
                 )
         elif self.context.monitoring_mock:
-            self._background_task_terminate = True  # If mock monitoring we return success and terminate task check.
+            self._background_task_terminate = (
+                True  # If mock monitoring we return success and terminate task check.
+            )
             return mlrun.common.schemas.BackgroundTaskState.succeeded
         self._background_task_terminate = True  # If mock without monitoring we return failed and terminate task check.
         return mlrun.common.schemas.BackgroundTaskState.failed

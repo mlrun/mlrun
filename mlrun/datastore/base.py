@@ -24,7 +24,6 @@ import pandas as pd
 import pyarrow
 import pytz
 import requests
-from deprecated import deprecated
 
 import mlrun.config
 import mlrun.errors
@@ -94,16 +93,6 @@ class DataStore:
     @staticmethod
     def uri_to_ipython(endpoint, subpath):
         return ""
-
-    # TODO: remove in 1.8.0
-    @deprecated(
-        version="1.8.0",
-        reason="'get_filesystem()' will be removed in 1.8.0, use "
-        "'filesystem' property instead",
-        category=FutureWarning,
-    )
-    def get_filesystem(self):
-        return self.filesystem
 
     @property
     def filesystem(self) -> Optional[fsspec.AbstractFileSystem]:

@@ -575,6 +575,7 @@ def _deploy_nuclio_runtime(
                 function=fn,
                 function_name=fn.metadata.name,
                 stream_args=config.model_endpoint_monitoring.application_stream_args,
+                ignore_stream_already_exists_failure=True,
             )
 
         if serving_to_monitor:

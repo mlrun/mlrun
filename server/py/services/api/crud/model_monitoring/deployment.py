@@ -1544,7 +1544,6 @@ class MonitoringDeployment:
             str,
         ]
     ]:
-        filter_string = f"{project}-{function_name}-{function_tag}-"
         model_endpoints_instructions = []
         routes_names = []
         routes_uids = []
@@ -1554,7 +1553,11 @@ class MonitoringDeployment:
                 != mm_constants.ModelEndpointCreationStrategy.SKIP
             ):
                 uid = self._get_or_create_uid(
-                    filter_string, model_endpoints_mapping, route
+                    project=project,
+                    function_name=function_name,
+                    function_tag=function_tag,
+                    model_endpoints_mapping=model_endpoints_mapping,
+                    step=route,
                 )
                 route.class_args["model_endpoint_uid"] = uid
                 model_endpoints_instructions.append(
@@ -1581,7 +1584,11 @@ class MonitoringDeployment:
             != mm_constants.ModelEndpointCreationStrategy.SKIP
         ):
             uid = self._get_or_create_uid(
-                filter_string, model_endpoints_mapping, router_step
+                project=project,
+                function_name=function_name,
+                function_tag=function_tag,
+                model_endpoints_mapping=model_endpoints_mapping,
+                step=router_step,
             )
             router_step.class_args["model_endpoint_uid"] = uid
             model_endpoints_instructions.append(
@@ -1621,7 +1628,6 @@ class MonitoringDeployment:
             str,
         ]
     ]:
-        filter_string = f"{project}-{function_name}-{function_tag}-"
         model_endpoints_instructions = []
         for step in root_flow_step.steps.values():
             if isinstance(step, mlrun.serving.states.RouterStep):
@@ -1642,7 +1648,11 @@ class MonitoringDeployment:
                     != mm_constants.ModelEndpointCreationStrategy.SKIP
                 ):
                     uid = self._get_or_create_uid(
-                        filter_string, model_endpoints_mapping, step
+                        project=project,
+                        function_name=function_name,
+                        function_tag=function_tag,
+                        model_endpoints_mapping=model_endpoints_mapping,
+                        step=step,
                     )
                     step.class_args["model_endpoint_uid"] = uid
                     model_endpoints_instructions.append(
@@ -1664,9 +1674,15 @@ class MonitoringDeployment:
 
     @staticmethod
     def _get_or_create_uid(
-        filter_string: str, model_endpoints_mapping: dict[str, ModelEndpoint], step
+        project: str,
+        function_name: str,
+        function_tag: str,
+        model_endpoints_mapping: dict[str, ModelEndpoint],
+        step,
     ) -> str:
-        old_model_endpoint = model_endpoints_mapping.get(filter_string + step.name)
+        old_model_endpoint = model_endpoints_mapping.get(
+            f"{project}-{function_name}-{function_tag}-{step.name}"
+        )
         uid = (
             old_model_endpoint.uid
             if old_model_endpoint

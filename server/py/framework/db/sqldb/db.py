@@ -5686,9 +5686,6 @@ class SQLDB(DBInterface):
                 model_endpoint_record.function.name
             )
             function_tag_list = model_endpoint_record.function.tags
-            model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAGS] = (
-                [tag.name for tag in function_tag_list] if function_tag_list else []
-            )
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG] = (
                 self._get_function_tag(function_tag_list)
             )
@@ -5706,7 +5703,6 @@ class SQLDB(DBInterface):
         else:
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_NAME] = ""
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG] = ""
-            model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAGS] = []
             model_endpoint_full_dict[ModelEndpointSchema.STATE] = "unknown"
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_URI] = None
         return model_endpoint_full_dict

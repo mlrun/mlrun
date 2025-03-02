@@ -643,7 +643,7 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         self._assert_model_endpoint_tags_and_labels(
             endpoint=endpoint,
             model_name=model_name,
-            tag="some-tag",
+            tags=["some-tag", "latest"],
             labels=labels,
         )
         _validate_model_uri(model_obj=model_obj, model_endpoint=endpoint)
@@ -664,12 +664,12 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         self,
         endpoint: mlrun.common.schemas.ModelEndpoint,
         model_name: str,
-        tag: str,
+        tags: list[str],
         labels: dict[str, str],
     ) -> None:
         assert endpoint.metadata.labels == labels
         assert endpoint.spec.model_name == model_name
-        assert endpoint.spec.model_tag == tag
+        assert endpoint.spec.model_tags == tags
 
 
 @pytest.mark.skip(reason="Chronically fails, see ML-5820")

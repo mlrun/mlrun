@@ -884,31 +884,37 @@ def _perform_version_8_data_migrations(
 def _perform_version_9_data_migrations(
     db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    _ensure_function_kind(db, db_session)
+    _ensure_function_kind_and_state(db, db_session)
     _add_producer_uri_to_artifact(db, db_session)
     _ensure_latest_tag_for_artifacts(db_session)
 
 
-def _ensure_function_kind(
+def _ensure_function_kind_and_state(
     db: framework.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
     chunk_size: int = 500,
 ):
-    def handle_function_kind(record):
+    def handle_function_kind_and_state(record):
         function_dict = record.struct
-        record.kind = function_dict.pop("kind", "")
+        # Since we filter by no kind or no state, check which attribute is the one missing or both are
+        if not record.kind:
+            record.kind = function_dict.pop("kind", "")
+        if not record.state:
+            record.state = function_dict.get("status", {}).pop("state", "")
         record.struct = function_dict
         return record
 
-    def filter_function_kind():
-        return getattr(framework.db.sqldb.models.Function, "kind").is_(None)
+    def filter_function_kind_or_state():
+        return getattr(framework.db.sqldb.models.Function, "kind").is_(None) | getattr(
+            framework.db.sqldb.models.Function, "state"
+        ).is_(None)
 
     _migrate_data(
         db,
         db_session,
         model=framework.db.sqldb.models.Function,
-        filter_func=filter_function_kind,
-        handle_field_record_func=handle_function_kind,
+        filter_func=filter_function_kind_or_state,
+        handle_field_record_func=handle_function_kind_and_state,
         chunk_size=chunk_size,
     )
 

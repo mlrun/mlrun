@@ -208,9 +208,6 @@ ModelEndpointList = DeprecationHelper(mlrun.common.schemas.ModelEndpointList)
 ModelEndpointMetadata = DeprecationHelper(mlrun.common.schemas.ModelEndpointMetadata)
 ModelEndpointSpec = DeprecationHelper(mlrun.common.schemas.ModelEndpointSpec)
 ModelEndpointStatus = DeprecationHelper(mlrun.common.schemas.ModelEndpointStatus)
-ModelMonitoringStoreKinds = DeprecationHelper(
-    mlrun.common.schemas.ModelMonitoringStoreKinds
-)
 NotificationSeverity = DeprecationHelper(mlrun.common.schemas.NotificationSeverity)
 NotificationStatus = DeprecationHelper(mlrun.common.schemas.NotificationStatus)
 ObjectKind = DeprecationHelper(mlrun.common.schemas.ObjectKind)

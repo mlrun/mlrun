@@ -7419,7 +7419,7 @@ class SQLDB(DBInterface):
         project: str,
     ) -> None:
         meps = []
-        function_record, function_name, function_tag = self._get_mep_function(
+        function_record, obj_name_suffix = self._get_mep_function(
             session=session,
             function_name=function_name,
             function_tag=function_tag,
@@ -7446,7 +7446,7 @@ class SQLDB(DBInterface):
         session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
     ) -> str:
-        function_record, function_name, function_tag = self._get_mep_function(
+        function_record, obj_name_suffix = self._get_mep_function(
             session=session,
             function_name=model_endpoint.spec.function_name,
             function_tag=model_endpoint.spec.function_tag,

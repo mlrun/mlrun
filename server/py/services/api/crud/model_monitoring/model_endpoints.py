@@ -111,6 +111,9 @@ class ModelEndpoints:
             )
             try:
                 logger.info("Getting model object from db")
+                # Retrieve the model object from the database to extract its ID.
+                # The ID is later used to link the model endpoint to the model object.
+                # Fetching it here prevents retrieving the model object twice.
                 db_artifact = framework.utils.singletons.db.get_db().read_artifact(
                     db_session,
                     key,

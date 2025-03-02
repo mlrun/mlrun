@@ -5710,6 +5710,11 @@ class SQLDB(DBInterface):
         return model_endpoint_full_dict
 
     def _get_function_tag(self, function_tag_list):
+        """
+        Used by model endpoints, this extracts the function tag from the list,
+        prioritizing the user tag over the system's latest tag if available.
+        If neither exists, it returns an empty string.
+        """
         latest = False
         for tag in function_tag_list:
             if tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST:
@@ -7411,16 +7416,18 @@ class SQLDB(DBInterface):
             normalized_function_name = (
                 mlrun.utils.normalize_name(function_name) if function_name else None
             )
+            function_tag = (
+                function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+            )
             function_record, _ = self._get_function_db_object(
                 session,
                 name=normalized_function_name,
                 project=project,
-                tag=function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
-                hash_key=f"{unversioned_tagged_object_uid_prefix}"
-                f"{function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST}",
+                tag=function_tag,
+                hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
                 # model endpoints always points on unversioned function
             )
-            obj_name_suffix = f"{function_name}-{function_tag}"
+            obj_name_suffix = f"{normalized_function_name}-{function_tag}"
         except mlrun.errors.MLRunNotFoundError:
             function_record, obj_name_suffix = None, None
         for model_endpoint in model_endpoints:
@@ -7450,17 +7457,19 @@ class SQLDB(DBInterface):
                 if model_endpoint.spec.function_name
                 else None
             )
+            function_tag = (
+                model_endpoint.spec.function_tag
+                or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+            )
             function_record, _ = self._get_function_db_object(
                 session,
                 name=normalized_function_name,
                 project=model_endpoint.metadata.project,
-                tag=model_endpoint.spec.function_tag
-                or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
-                hash_key=f"{unversioned_tagged_object_uid_prefix}"
-                f"{model_endpoint.spec.function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST}",
+                tag=function_tag,
+                hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
                 # model endpoints always points on unversioned function
             )
-            obj_name_suffix = f"{model_endpoint.spec.function_name}-{model_endpoint.spec.function_tag}"
+            obj_name_suffix = f"{normalized_function_name}-{function_tag}"
         except mlrun.errors.MLRunNotFoundError:
             function_record, obj_name_suffix = None, None
         mep = self._create_mep_record_to_store(model_endpoint, function_record)

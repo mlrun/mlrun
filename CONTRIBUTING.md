@@ -347,6 +347,7 @@ Example:
                            2. Otherwise, create a new entry.
 
         :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
+
                        - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
                          or `{"label": None}` to check for key existence.
                          

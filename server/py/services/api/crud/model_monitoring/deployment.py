@@ -1466,7 +1466,7 @@ class MonitoringDeployment:
             project=project
         )._extract_model_endpoints_from_function_graph(
             function_name=function.metadata.name,
-            function_tag=function.metadata.tag,
+            function_tag=function.metadata.tag or "latest",
             track_models=function.spec.track_models,
             graph=function.spec.graph,
             sampling_percentage=function.spec.parameters.get(
@@ -1668,7 +1668,7 @@ class MonitoringDeployment:
     ) -> str:
         old_model_endpoint = model_endpoints_mapping.get(filter_string + step.name)
         uid = (
-            old_model_endpoint
+            old_model_endpoint.uid
             if old_model_endpoint
             and step.model_endpoint_creation_strategy
             == mm_constants.ModelEndpointCreationStrategy.INPLACE

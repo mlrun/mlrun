@@ -166,7 +166,7 @@ class BaseModelRouter(RouterToDict):
         return event
 
     def _get_background_task_status(
-        self, event_id: str
+        self,
     ) -> mlrun.common.schemas.BackgroundTaskState:
         self._background_task_check_timestamp = now_date()
         server: mlrun.serving.GraphServer = getattr(
@@ -215,9 +215,7 @@ class BaseModelRouter(RouterToDict):
             or now_date() - self._background_task_check_timestamp
             >= timedelta(seconds=15)
         ):
-            self._background_task_current_state = self._get_background_task_status(
-                event.id
-            )
+            self._background_task_current_state = self._get_background_task_status()
         if event.body:
             event.body["background_task_state"] = (
                 self._background_task_current_state

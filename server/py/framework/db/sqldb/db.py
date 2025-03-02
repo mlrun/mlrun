@@ -7593,14 +7593,14 @@ class SQLDB(DBInterface):
                 )
             else:
                 model_endpoints[
-                    f"{mep_record.project}-{mep_record.function_name}-{mep_record.function_tag}-{mep_record.model_name}"
+                    f"{mep_record.project}-{mep_record.function_name}-{mep_record.function_tag}-{mep_record.name}"
                 ] = mep_record
-        model_endpoints = (
+        list_model_endpoints = (
             model_endpoints
             if as_dict
             else mlrun.common.schemas.ModelEndpointList(endpoints=model_endpoints)
         )
-        return model_endpoints
+        return list_model_endpoints
 
     def delete_model_endpoint(
         self,

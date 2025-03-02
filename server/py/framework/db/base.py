@@ -1333,7 +1333,7 @@ class DBInterface(ABC):
         as_dict: bool = False,
     ) -> Union[
         mlrun.common.schemas.ModelEndpointList,
-        list[framework.db.sqldb.models.ModelEndpoint],
+        dict[str, framework.db.sqldb.models.ModelEndpoint],
     ]:
         """
         List model endpoints by project and optional filters.

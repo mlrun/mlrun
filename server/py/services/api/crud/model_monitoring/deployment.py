@@ -1349,7 +1349,7 @@ class MonitoringDeployment:
         """
         Create model endpoints for the given function.
         1. Create model endpoint instructions list from the function graph.
-        The list is tuple which created from the model endpoint object, creation strategy and model path.
+        The list is tuple which created from the model endpoint object and creation strategy
         2. Create the Node/Leaf model endpoints according to the instructions list.
         3. Update the router model endpoint instructions with the children uids.
         4. Create the Router model endpoints according to the instructions list.
@@ -1398,9 +1398,9 @@ class MonitoringDeployment:
             batch = model_endpoints_instructions[i : i + batchsize]
             coroutines.append(
                 MonitoringDeployment._create_model_endpoint_limited(
-                    semaphore,
-                    batch,
-                    project,
+                    semaphore=semaphore,
+                    model_endpoints_instructions=batch,
+                    project=project,
                     function_name=function.metadata.name,
                     function_tag=function.metadata.tag or "latest",
                 )

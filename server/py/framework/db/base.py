@@ -1240,10 +1240,13 @@ class DBInterface(ABC):
     ) -> None:
         """
         Store list of model endpoints in the DB.
+        Note all the model endpoints should have the same function name and tag.
 
         :param session:         The database session.
         :param model_endpoints: Model endpoints object to store.
         :param project:         The project name.
+        :param function_name:   The function name.
+        :param function_tag:    The function tag.
         """
         pass
 

@@ -80,8 +80,7 @@ class ModelEndpoints:
             2. Otherwise, create a new entry.
             * **archive**:
             1. If model endpoints with the same name exist, preserve them.
-            2. Create a new model endpoint with the same name and set it to `latest`.
-        :param model_path:             The path to the model artifact.
+            2. Create a new model endpoint with the same name and set it to `latest`.m
         :param upsert:                 If True, will execute the creation/deletion/updating
                                        of the model endpoint in the DB.
 
@@ -201,7 +200,6 @@ class ModelEndpoints:
             tuple[
                 mlrun.common.schemas.ModelEndpoint,
                 mm_constants.ModelEndpointCreationStrategy,
-                str,
             ]
         ],
         project: str,

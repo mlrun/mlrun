@@ -5097,7 +5097,9 @@ class SQLDB(DBInterface):
             func.count(sqlalchemy_inspect(cls).primary_key[0])
         ).scalar()
 
-    def _get_class_instance_by_uid(self, session, cls, name, project, uid):
+    def _get_class_instance_by_uid(
+        self, session, cls, name: Optional[str], project: str, uid: str
+    ):
         query = (
             self._query(session, cls, name=name, project=project, uid=uid)
             if name
@@ -5106,7 +5108,14 @@ class SQLDB(DBInterface):
         return query.one_or_none()
 
     def _get_mep_latest_instance(
-        self, session, cls, name, function_name, project, function_tag, _get_query=False
+        self,
+        session,
+        cls,
+        name: str,
+        function_name: Optional[str],
+        project: str,
+        function_tag: Optional[str],
+        _get_query: bool = False,
     ):
         query = (
             session.query(cls)
@@ -7486,8 +7495,8 @@ class SQLDB(DBInterface):
         )
         return mep.uid
 
+    @staticmethod
     def _create_mep_record_to_store(
-        self,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
         function_record: Optional[Function] = None,
     ) -> ModelEndpoint:
@@ -7846,7 +7855,7 @@ class SQLDB(DBInterface):
             )
 
     def _update_model_link(self, session, mep_record: ModelEndpoint, model_path: str):
-        if model_path and mlrun.datastore.is_store_uri(model_path):
+        if mlrun.datastore.is_store_uri(model_path):
             _, model_uri = mlrun.datastore.parse_store_uri(model_path)
             project, key, iteration, tag, tree, uid = parse_artifact_uri(
                 model_uri, mep_record.project

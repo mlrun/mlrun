@@ -118,7 +118,6 @@ def get_or_create_model_endpoint(
             model_endpoint_name=model_endpoint_name,
             function_name=function_name,
             function_tag=function_tag,
-            sample_set_statistics=sample_set_statistics,
             monitoring_mode=monitoring_mode,
         )
     return model_endpoint
@@ -343,7 +342,6 @@ def _generate_model_endpoint(
     model_endpoint_name: str,
     function_name: str,
     function_tag: str,
-    sample_set_statistics: dict[str, typing.Any],
     monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.enabled,
 ) -> ModelEndpoint:
     """

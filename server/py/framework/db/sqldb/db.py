@@ -2496,9 +2496,7 @@ class SQLDB(DBInterface):
         self, session, name: str, tag: str, hash_key: str, project: str
     ):
         tag, computed_tag = self._compute_function_tag(tag, hash_key)
-        if not tag and hash_key:
-            return hash_key
-        elif unversioned_tagged_object_uid_prefix in hash_key:
+        if hash_key and (not tag or unversioned_tagged_object_uid_prefix in hash_key):
             return hash_key
         else:
             tag_function_uid = self._resolve_class_tag_uid(

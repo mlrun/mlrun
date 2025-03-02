@@ -93,12 +93,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         super().setup_method(method)
         if method.__name__ == "test_list_endpoints_without_creds":
             return
-        tag = None
-        if method.__name__ == "test_store_endpoint_update_existing":
-            tag = "latest"
-        function = mlrun.new_function(
-            name="function-1", kind="serving", tag=tag or "v1"
-        )
+        function = mlrun.new_function(name="function-1", kind="serving", tag="v1")
         function.save(versioned=False)
         self.set_mm_credentials()
 
@@ -141,7 +136,8 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
 
     def test_store_endpoint_update_existing(self):
         """Validates the process of create and update a basic model endpoint"""
-
+        function = mlrun.new_function(name="function-1", kind="serving", tag="latest")
+        function.save(versioned=False)
         model_endpoint = mock_random_endpoint(
             self.project_name,
             "testing",

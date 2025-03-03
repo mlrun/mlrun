@@ -271,10 +271,11 @@ async def deploy_function(
         background_tasks=[]
     )
     if function.get("kind") == mlrun.runtimes.RuntimeKinds.serving:
+        monitoring_deployment = mm_deployment.MonitoringDeployment(project=project)
         (
             model_endpoints_instructions,
             function,
-        ) = await mm_deployment.MonitoringDeployment._create_model_endpoints_instructions(
+        ) = await monitoring_deployment._create_model_endpoints_instructions(
             db_session=db_session,
             function=function,
             function_name=name,
@@ -286,7 +287,7 @@ async def deploy_function(
             function=name,
         )
         returned_background_task = await run_in_threadpool(
-            mm_deployment.MonitoringDeployment._create_model_endpoint_background_task,
+            monitoring_deployment._create_model_endpoint_background_task,
             db_session=db_session,
             background_tasks=background_tasks,
             project_name=project,

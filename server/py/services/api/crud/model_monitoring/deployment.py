@@ -1411,8 +1411,8 @@ class MonitoringDeployment:
             )
             return result
 
-    @staticmethod
     async def _create_model_endpoints_instructions(
+        self,
         db_session: sqlalchemy.orm.Session,
         function: dict,
         function_name: str,
@@ -1462,18 +1462,18 @@ class MonitoringDeployment:
             as_dict=True,
         )
 
-        model_endpoints_instructions, graph = MonitoringDeployment(
-            project=project
-        )._extract_model_endpoints_from_function_graph(
-            function_name=function.metadata.name,
-            function_tag=function.metadata.tag or "latest",
-            track_models=function.spec.track_models,
-            graph=function.spec.graph,
-            sampling_percentage=function.spec.parameters.get(
-                mm_constants.EventFieldType.SAMPLING_PERCENTAGE, 100
-            ),
-            model_endpoints_dict=model_endpoints_dict,
-            project=project,
+        model_endpoints_instructions, graph = (
+            self._extract_model_endpoints_from_function_graph(
+                function_name=function.metadata.name,
+                function_tag=function.metadata.tag or "latest",
+                track_models=function.spec.track_models,
+                graph=function.spec.graph,
+                sampling_percentage=function.spec.parameters.get(
+                    mm_constants.EventFieldType.SAMPLING_PERCENTAGE, 100
+                ),
+                model_endpoints_dict=model_endpoints_dict,
+                project=project,
+            )
         )  # model endpoint, creation strategy, model path
         function.spec.graph = graph
         return model_endpoints_instructions, function.to_dict()

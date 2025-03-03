@@ -114,13 +114,13 @@ class ModelEndpoints:
                 # The ID is later used to link the model endpoint to the model object.
                 # Fetching it here prevents retrieving the model object twice.
                 db_artifact = framework.utils.singletons.db.get_db().read_artifact(
-                    db_session,
-                    key,
-                    tag,
-                    iteration,
-                    project,
-                    tree,
-                    uid,
+                    session=db_session,
+                    key=key,
+                    tag=tag,
+                    iter=iteration,
+                    project=project,
+                    producer_id=tree,
+                    uid=uid,
                     as_record=True,
                 )
                 artifact = db_artifact.full_object

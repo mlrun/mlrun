@@ -354,6 +354,7 @@ def _generate_model_endpoint(
     :param model_endpoint_name:      Model endpoint name will be presented under the new model endpoint.
     :param function_name:            If a new model endpoint is created, use this function name.
     :param function_tag:             If a new model endpoint is created, use this function tag.
+    :param monitoring_mode:          Monitoring mode of the new model endpoint.
 
     :return `mlrun.common.schemas.ModelEndpoint` object.
     """

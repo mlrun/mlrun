@@ -7414,12 +7414,16 @@ class SQLDB(DBInterface):
         project: str,
     ) -> None:
         meps = []
-        function_record, obj_name_suffix = self._get_mep_function(
+        function_record = self._get_mep_function(
             session=session,
             function_name=function_name,
             function_tag=function_tag,
             project=project,
         )
+        if function_record is not None:
+            obj_name_suffix = f"{function_record.name}-{function_tag}"
+        else:
+            obj_name_suffix = None
         for model_endpoint in model_endpoints:
             meps.append(
                 self._create_mep_record_to_store(model_endpoint, function_record)
@@ -7441,12 +7445,18 @@ class SQLDB(DBInterface):
         session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
     ) -> str:
-        function_record, obj_name_suffix = self._get_mep_function(
+        function_record = self._get_mep_function(
             session=session,
             function_name=model_endpoint.spec.function_name,
             function_tag=model_endpoint.spec.function_tag,
             project=model_endpoint.metadata.project,
         )
+        if function_record is not None:
+            obj_name_suffix = (
+                f"{function_record.name}-{model_endpoint.spec.function_tag}"
+            )
+        else:
+            obj_name_suffix = None
         mep = self._create_mep_record_to_store(model_endpoint, function_record)
         logger.debug(
             "Storing Model Endpoint Before upsert",
@@ -7465,10 +7475,10 @@ class SQLDB(DBInterface):
 
     def _get_mep_function(
         self, session, function_name, function_tag, project
-    ) -> tuple[Optional[Function], Optional[str]]:
+    ) -> Optional[Function]:
         """
-        extarct the unversiond function record which have the this name and tag,
-        and return the function record, name and tag
+        Extract the unversioned function record that matches the given name and tag,
+        and return the function record.
         """
         normalized_function_name = (
             mlrun.utils.normalize_name(function_name) if function_name else None
@@ -7483,9 +7493,9 @@ class SQLDB(DBInterface):
                 hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
                 # model endpoints always points on unversioned function
             )
-            return function_record, f"{normalized_function_name}{function_tag}"
+            return function_record
         except mlrun.errors.MLRunNotFoundError:
-            return None, None
+            return None
 
     @staticmethod
     def _create_mep_record_to_store(

@@ -294,9 +294,9 @@ def build_function(
     :param force_build: Force building the image, even when no changes were made
     """
     if not overwrite_build_params:
-        # TODO: change overwrite_build_params default to True in 1.8.0
+        # TODO: change overwrite_build_params default to True in 1.9.0
         warnings.warn(
-            "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.8.0.",
+            "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.9.0.",
             mlrun.utils.OverwriteBuildParamsWarning,
         )
 
@@ -325,7 +325,7 @@ def build_function(
             skip_deployed=skip_deployed,
         )
     else:
-        # TODO: remove filter once overwrite_build_params default is changed to True in 1.8.0
+        # TODO: remove filter once overwrite_build_params default is changed to True in 1.9.0
         with warnings.catch_warnings():
             warnings.simplefilter(
                 "ignore", category=mlrun.utils.OverwriteBuildParamsWarning

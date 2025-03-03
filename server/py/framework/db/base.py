@@ -288,10 +288,10 @@ class DBInterface(ABC):
     ):
         return []
 
-    # TODO: remove in 1.8.0
+    # TODO: Remove once data migration v5 is obsolete
     @deprecated(
-        version="1.8.0",
-        reason="'store_artifact_v1' will be removed from this file in 1.8.0, use "
+        version="1.9.0",
+        reason="'store_artifact_v1' will be removed from this file in 1.9.0, use "
         "'store_artifact' instead",
         category=FutureWarning,
     )
@@ -312,10 +312,10 @@ class DBInterface(ABC):
         """
         pass
 
-    # TODO: remove in 1.8.0
+    # TODO: Remove once data migration v5 is obsolete
     @deprecated(
-        version="1.8.0",
-        reason="'read_artifact_v1' will be removed from this file in 1.8.0, use "
+        version="1.9.0",
+        reason="'read_artifact_v1' will be removed from this file in 1.9.0, use "
         "'read_artifact' instead",
         category=FutureWarning,
     )

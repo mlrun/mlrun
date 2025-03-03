@@ -1452,7 +1452,7 @@ class MonitoringDeployment:
             ]
         ]
 
-        model_endpoints_list: dict[str, ModelEndpoint] = await run_in_threadpool(
+        model_endpoints_dict: dict[str, ModelEndpoint] = await run_in_threadpool(
             framework.utils.singletons.db.get_db().list_model_endpoints,
             project=project,
             function_name=function_name,
@@ -1472,7 +1472,7 @@ class MonitoringDeployment:
             sampling_percentage=function.spec.parameters.get(
                 mm_constants.EventFieldType.SAMPLING_PERCENTAGE, 100
             ),
-            model_endpoints=model_endpoints_list,
+            model_endpoints_dict=model_endpoints_dict,
             project=project,
         )  # model endpoint, creation strategy, model path
         function.spec.graph = graph
@@ -1487,7 +1487,7 @@ class MonitoringDeployment:
             mlrun.serving.states.RouterStep, mlrun.serving.states.RootFlowStep
         ],
         sampling_percentage: float,
-        model_endpoints: dict[str, ModelEndpoint],
+        model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
     ) -> tuple[
         list[
@@ -1510,7 +1510,7 @@ class MonitoringDeployment:
                     track_models=track_models,
                     router_step=graph,
                     sampling_percentage=sampling_percentage,
-                    model_endpoints_mapping=model_endpoints,
+                    model_endpoints_dict=model_endpoints_dict,
                     project=project,
                 )
             )
@@ -1522,7 +1522,7 @@ class MonitoringDeployment:
                     track_models=track_models,
                     root_flow_step=graph,
                     sampling_percentage=sampling_percentage,
-                    model_endpoints_mapping=model_endpoints,
+                    model_endpoints_dict=model_endpoints_dict,
                     project=project,
                 )
             )
@@ -1535,7 +1535,7 @@ class MonitoringDeployment:
         track_models: bool,
         router_step: mlrun.serving.states.RouterStep,
         sampling_percentage: float,
-        model_endpoints_mapping: dict[str, ModelEndpoint],
+        model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
     ) -> list[
         tuple[
@@ -1556,7 +1556,7 @@ class MonitoringDeployment:
                     project=project,
                     function_name=function_name,
                     function_tag=function_tag,
-                    model_endpoints_mapping=model_endpoints_mapping,
+                    model_endpoints_dict=model_endpoints_dict,
                     step=route,
                 )
                 route.class_args["model_endpoint_uid"] = uid
@@ -1587,7 +1587,7 @@ class MonitoringDeployment:
                 project=project,
                 function_name=function_name,
                 function_tag=function_tag,
-                model_endpoints_mapping=model_endpoints_mapping,
+                model_endpoints_dict=model_endpoints_dict,
                 step=router_step,
             )
             router_step.class_args["model_endpoint_uid"] = uid
@@ -1619,7 +1619,7 @@ class MonitoringDeployment:
         track_models: bool,
         root_flow_step: mlrun.serving.states.RootFlowStep,
         sampling_percentage: float,
-        model_endpoints_mapping: dict[str, ModelEndpoint],
+        model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
     ) -> list[
         tuple[
@@ -1638,7 +1638,7 @@ class MonitoringDeployment:
                         track_models=track_models,
                         router_step=step,
                         sampling_percentage=sampling_percentage,
-                        model_endpoints_mapping=model_endpoints_mapping,
+                        model_endpoints_dict=model_endpoints_dict,
                         project=project,
                     )
                 )
@@ -1651,7 +1651,7 @@ class MonitoringDeployment:
                         project=project,
                         function_name=function_name,
                         function_tag=function_tag,
-                        model_endpoints_mapping=model_endpoints_mapping,
+                        model_endpoints_dict=model_endpoints_dict,
                         step=step,
                     )
                     step.class_args["model_endpoint_uid"] = uid
@@ -1677,10 +1677,10 @@ class MonitoringDeployment:
         project: str,
         function_name: str,
         function_tag: str,
-        model_endpoints_mapping: dict[str, ModelEndpoint],
+        model_endpoints_dict: dict[str, ModelEndpoint],
         step,
     ) -> str:
-        old_model_endpoint = model_endpoints_mapping.get(
+        old_model_endpoint = model_endpoints_dict.get(
             f"{project}-{function_name}-{function_tag}-{step.name}"
         )
         uid = (

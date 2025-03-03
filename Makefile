@@ -537,6 +537,7 @@ test: clean ## Run mlrun tests
 		--ignore=server/py/services/api/tests/unit/crud/test_pipelines.py \
 		--ignore=tests/serving/test_remote.py \
 		--ignore=tests/projects/test_remote_pipeline.py \
+		--ignore=pipeline-adapters/mlrun-pipelines-kfp-v1-8/tests \
 		"),);\
 	python \
 		-X faulthandler \

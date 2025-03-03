@@ -11,17 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import sys
 import unittest.mock
 
 import pytest
 
 import mlrun_pipelines.utils
-
-pytestmark = pytest.mark.skipif(
-    (sys.version_info.major == 3 and sys.version_info.minor == 9),
-    reason="Skipping on Python 3.9",
-)
 
 
 @pytest.fixture

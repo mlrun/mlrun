@@ -24,6 +24,7 @@ def client():
     client_klass.get_kfp_healthz = unittest.mock.MagicMock()
     return client_klass()
 
+
 #
 # @pytest.mark.parametrize(
 #     "original_name, project, expected",

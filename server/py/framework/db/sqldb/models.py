@@ -862,6 +862,10 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, autoincrement=True)
+        # Keep fsp=3 for activation_time as it is part of the primary key and partitioning logic,
+        # ensuring stable indexing and avoiding potential inconsistencies.
+        # This must remain unchanged to maintain compatibility with existing logic
+        # and prevent unintended precision changes.
         activation_time = Column(SQLTypesUtil.datetime(fsp=3), nullable=False)
         name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
         project = Column(
@@ -881,6 +885,9 @@ with warnings.catch_warnings():
             String(255, collation=SQLTypesUtil.collation()), nullable=False
         )
         number_of_events = Column(Integer, nullable=False)
+
+        # Similarly, keep fsp=3 for reset_time to ensure consistency with activation_time
+        # and maintain compatibility with the existing system behavior.
         reset_time = Column(SQLTypesUtil.datetime(fsp=3), nullable=True)
 
         def get_identifier_string(self) -> str:

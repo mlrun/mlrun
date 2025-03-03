@@ -438,6 +438,7 @@ def mock_pipeline_run(api_run_status: str) -> ApiRunDetail:
 
     return api_run_detail
 
+
 # TODO: uncomment after https://github.com/mlrun/mlrun/pull/7342 is merged
 # @unittest.mock.patch("tempfile.NamedTemporaryFile")
 # def test_retry(

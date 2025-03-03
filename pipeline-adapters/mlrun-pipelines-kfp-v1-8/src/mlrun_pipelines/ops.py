@@ -48,7 +48,7 @@ def generate_deployer_pipeline_node(
         command=cmd,
         file_outputs={"endpoint": "/tmp/output", "name": "/tmp/name"},
     )
-    cop = add_default_function_resources(cop)
+    cop = add_default_function_resources(container_op=cop, function=function)
     cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
     add_annotations(
@@ -88,7 +88,7 @@ def generate_image_builder_pipeline_node(
         command=cmd,
         file_outputs={"state": "/tmp/state", "image": "/tmp/image"},
     )
-    cop = add_default_function_resources(cop)
+    cop = add_default_function_resources(container_op=cop, function=function)
     cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
     add_annotations(
@@ -148,7 +148,7 @@ def generate_pipeline_node(
             "mlpipeline-metrics": os.path.join(KFPMETA_DIR, "mlpipeline-metrics.json"),
         },
     )
-    cop = add_default_function_resources(cop)
+    cop = add_default_function_resources(container_op=cop, function=function)
     cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
     add_annotations(
@@ -238,7 +238,8 @@ def add_labels(cop, function, scrape_metrics=False):
 
 
 def add_default_function_resources(
-    container_op: dsl.ContainerOp,
+    container_op,
+    function: dsl.ContainerOp,
 ) -> dsl.ContainerOp:
     default_resources = config.get_default_function_pod_resources()
     for resource_name, resource_value in default_resources["requests"].items():
@@ -248,6 +249,7 @@ def add_default_function_resources(
     for resource_name, resource_value in default_resources["limits"].items():
         if resource_value:
             container_op.container.add_resource_limit(resource_name, resource_value)
+    mlrun_pipelines.common.ops._enrich_gpu_limits(function=function, task=container_op)
     return container_op
 
 

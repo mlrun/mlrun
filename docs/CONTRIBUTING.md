@@ -35,6 +35,14 @@ Ask @yaronha to add you to the project if you don't have access.
 
 The master file is `docs/contents.rst`
 
+## Spaces and line breaks
+- If there are 2 spaces at the end of a line, it breaks to the next line in the same paragraph.
+- If there is one space, the text just continues and the publishing creates the appropriate line break.
+
+## Lists
+- Use numbered lists for steps that are executed in a specific order.
+- Use bullets for lists that have no specific order.
+
 ## Language (usage) guidelines
 
 **One idea per sentence**<br>
@@ -67,10 +75,6 @@ It depends on your sentence. Use **which** after a comma.
 - Yes: There is also an open marketplace that stores many pre-developed functions for...
 - Yes: If you update the project object you need to run project.save(), which updates the project.yaml file....
 - No: There is also an open marketplace which stores many pre-developed functions for...
-
-**Lists**<br>
-- Use numbered lists for steps that are executed in a specific order.
-- Use bullets for lists that have no specific order.
 
 **Tense**<br>
 Use present, active tense.
@@ -136,3 +140,19 @@ mlrun.projects module
 .. autoclass:: MlrunProject
    :members:
 ```
+
+## Tips & Tricks
+
+### Math documentation
+
+Math documentation can be added with:
+
+```text
+:math:`a^2 + b^2 = c^2`
+```
+
+It will show as: $a^2 + b^2 = c^2$.
+
+Note that not all the notations are supported in HTML/PDF outputs.
+For example, instead of `\text{}` command of the `amsmath` package in LaTeX,
+use the more standard `\operatorname{}` command.

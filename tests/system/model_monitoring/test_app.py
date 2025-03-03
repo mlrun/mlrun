@@ -96,7 +96,7 @@ _DefaultDataDriftAppData = _AppData(
     deploy=False,
     results={"general_drift"},
     metrics={"hellinger_mean", "kld_mean", "tvd_mean"},
-    artifacts={"features_drift_results", "drift_table_plot"},
+    artifacts={"features_drift_results"},
 )
 
 
@@ -1113,7 +1113,16 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
                 "model_name": "int_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": [1, 2, 3],
-                "schema": ["f0", "f1", "f2", "p0"],
+                "schema": ["feature0", "feature1", "feature2", "override_label"],
+                "training_set": pd.DataFrame(
+                    data={
+                        "feature0": [1, 2],
+                        "feature1": [1, 2],
+                        "feature2": [1, 2],
+                        "label": [1, 1],
+                    }
+                ),
+                "label_column": "label",
             },
         }
 
@@ -1182,6 +1191,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             model_name,
             model_path=f"store://models/{self.project_name}/{model_name}:latest",
             class_name=class_name,
+            outputs=kwargs.get("outputs"),
         )
         serving_fn.set_tracking(enable_tracking=enable_tracking)
         if self.image is not None:
@@ -1272,7 +1282,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             base_period=1,
             deploy_histogram_data_drift_app=False,
         )
-
+        kwargs = {"outputs": ["override_label"]}
         for model_name, model_dict in self.test_models_tracking.items():
             self._log_model(
                 model_name,
@@ -1293,7 +1303,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         )
 
         for model_name, model_dict in self.test_models_tracking.items():
-            self._deploy_model_serving(**model_dict, enable_tracking=True)
+            self._deploy_model_serving(**model_dict, enable_tracking=True, **kwargs)
 
         endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
             project=self.project_name
@@ -1411,18 +1421,21 @@ class TestAppJob(TestMLRunSystem):
         # Test the results
         returned_results = run_result.output("return")
         assert returned_results, "No returned results"
-        assert {
-            "ModelMonitoringApplicationMetric(name='hellinger_mean', value=1.0)",
+        assert [
+            {"metric_name": "hellinger_mean", "metric_value": 1.0},
             # Ignore KLD due to varying numerical accuracy on different systems
-            # "ModelMonitoringApplicationMetric(name='kld_mean', value=8.517193191416238)",
-            "ModelMonitoringApplicationMetric(name='tvd_mean', value=0.5)",
-            (
-                "ModelMonitoringApplicationResult(name='general_drift', value=0.75, "
-                "kind=<ResultKindApp.data_drift: 0>, status=<ResultStatusApp.detected: 2>, extra_data={})"
-            ),
-        } <= set(
-            returned_results
-        ), "The returned metrics do not include the expected ones"
+            # {"metric_name": "kld_mean", "metric_value": 8.517193191416238},
+            {"metric_name": "tvd_mean", "metric_value": 0.5},
+            {
+                "result_name": "general_drift",
+                "result_value": 0.75,
+                "result_kind": 0,
+                "result_status": 2,
+                "result_extra_data": "{}",
+            },
+        ] == [returned_results[0]] + returned_results[
+            2:4
+        ], "The returned metrics are different than the expected ones"
         # Test the artifacts
         for artifact_name in _DefaultDataDriftAppData.artifacts:
             assert run_result.output(
@@ -1562,18 +1575,22 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
             assert (
                 len(outputs) == 2
             ), "The number of outputs is different than the number of windows"
-            assert set(outputs.values()) == {
-                (
-                    "ModelMonitoringApplicationResult(name='count', value=14.0, "
-                    "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, "
-                    "extra_data={})"
-                ),
-                (
-                    "ModelMonitoringApplicationResult(name='count', value=4.0, "
-                    "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, "
-                    "extra_data={})"
-                ),
-            }, "The outputs are different than expected"
+            assert list(outputs.values()) == [
+                {
+                    "result_name": "count",
+                    "result_value": 14.0,
+                    "result_kind": 2,
+                    "result_status": 0,
+                    "result_extra_data": "{}",
+                },
+                {
+                    "result_name": "count",
+                    "result_value": 4.0,
+                    "result_kind": 2,
+                    "result_status": 0,
+                    "result_extra_data": "{}",
+                },
+            ], "The outputs are different than expected"
 
 
 class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):

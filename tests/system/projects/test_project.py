@@ -127,6 +127,7 @@ class TestProject(TestMLRunSystem):
             project=proj.to_yaml(),
         )
         proj.save()
+        proj.register_artifacts()
         return proj
 
     def test_project_persists_function_changes(self):

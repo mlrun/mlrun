@@ -5146,20 +5146,15 @@ class SQLDB(DBInterface):
         return query.first()  # Use `.first()` instead of `.one_or_none()` for safety
 
     def _get_mep_instances(
-        self, session, cls, name, function_name, project, function_tag, _get_query=False
-    ):
-        """
-        Retrieves model endpoint instances based on filtering criteria.
-
-        :param session: The database session.
-        :param cls: The model class (ModelEndpoint).
-        :param name: The name of the model endpoint.
-        :param function_name: (Optional) The associated function name.
-        :param project: The project name.
-        :param function_tag: (Optional) The function tag.
-        :param _get_query: If True, return the query instead of executing it.
-        :return: Query or matching model endpoint(s).
-        """
+        self,
+        session,
+        cls,
+        name: str,
+        project: str,
+        function_name: Optional[str],
+        function_tag: Optional[str],
+        _get_query=False,
+    ) -> typing.Union[sqlalchemy.orm.Query, list[ModelEndpoint]]:
         query = (
             session.query(cls)
             .options(

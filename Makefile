@@ -124,7 +124,6 @@ install-requirements: ## Install all requirements needed for development
 .PHONY: install-docs-requirements
 install-docs-requirements: ## Install all requirements needed for compiling mlrun docs
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_NO_CACHE_FLAG) pyopenssl==24.0.0
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_NO_CACHE_FLAG) -r docs/requirements.txt
 
 .PHONY: install-conda-requirements

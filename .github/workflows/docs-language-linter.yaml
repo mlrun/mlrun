@@ -52,6 +52,7 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: |
+          pip install pyopenssl==24.0.0
           make install-docs-requirements
       - name: Check for broken links
         env:

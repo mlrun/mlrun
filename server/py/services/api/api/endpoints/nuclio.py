@@ -292,6 +292,7 @@ async def deploy_function(
             background_tasks=background_tasks,
             project_name=project,
             function_name=name,
+            function_tag=function.get("metadata", {}).get("tag") or "latest",
             model_endpoints_instructions=model_endpoints_instructions,
         )
         returned_background_tasks.background_tasks.append(returned_background_task)

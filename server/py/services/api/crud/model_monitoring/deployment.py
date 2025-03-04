@@ -58,7 +58,6 @@ import framework.utils.singletons.k8s
 import services.api.api.endpoints.nuclio
 import services.api.crud.model_monitoring.helpers
 import services.api.utils.functions
-from framework.db.sqldb.db import unversioned_tagged_object_uid_prefix
 from framework.db.sqldb.models import ModelEndpoint
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
@@ -1350,7 +1349,7 @@ class MonitoringDeployment:
         model_endpoints_instructions: list[
             tuple[
                 mlrun.common.schemas.ModelEndpoint,
-                mm_constants.ModelEndpointCreationStrategy
+                mm_constants.ModelEndpointCreationStrategy,
             ]
         ],
     ):
@@ -1429,7 +1428,6 @@ class MonitoringDeployment:
             tuple[
                 mlrun.common.schemas.ModelEndpoint,
                 mm_constants.ModelEndpointCreationStrategy,
-                str,
             ]
         ],
         dict,
@@ -1458,12 +1456,12 @@ class MonitoringDeployment:
                 str,
             ]
         ]
-
+        function_tag = function.metadata.tag or "latest"
         model_endpoints_dict: dict[str, ModelEndpoint] = await run_in_threadpool(
             framework.utils.singletons.db.get_db().list_model_endpoints,
             project=project,
             function_name=function_name,
-            function_tag=function.metadata.tag,
+            function_tag=function_tag,
             latest_only=True,
             session=db_session,
             as_dict=True,
@@ -1471,8 +1469,8 @@ class MonitoringDeployment:
 
         model_endpoints_instructions, graph = (
             self._extract_model_endpoints_from_function_graph(
-                function_name=function.metadata.name,
-                function_tag=function.metadata.tag or "latest",
+                function_name=function_name,
+                function_tag=function_tag,
                 track_models=function.spec.track_models,
                 graph=function.spec.graph,
                 sampling_percentage=function.spec.parameters.get(
@@ -1737,6 +1735,7 @@ class MonitoringDeployment:
         db_session: sqlalchemy.orm.Session,
         background_tasks: BackgroundTasks,
         function_name: str,
+        function_tag: str,
         project_name: str,
         model_endpoints_instructions: list[
             tuple[
@@ -1754,6 +1753,7 @@ class MonitoringDeployment:
             mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_creation,
             background_task_name,
             function_name,
+            function_tag,
             project_name,
             model_endpoints_instructions,
         )

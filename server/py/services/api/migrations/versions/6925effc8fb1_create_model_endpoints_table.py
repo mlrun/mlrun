@@ -16,7 +16,7 @@
 """Create model endpoints table
 
 Revision ID: 6925effc8fb1
-Revises: 6f9a8e3857ec
+Revises: 22dd9f3bdc66
 Create Date: 2025-03-02 21:50:08.179139
 
 """
@@ -27,7 +27,7 @@ from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
 revision = "6925effc8fb1"
-down_revision = "6f9a8e3857ec"
+down_revision = "22dd9f3bdc66"
 branch_labels = None
 depends_on = None
 

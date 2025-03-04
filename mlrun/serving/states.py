@@ -981,25 +981,32 @@ class ModelRunnerStep(TaskStep):
         model_selector: Optional[Union[str, ModelSelector]] = None,
         **kwargs,
     ):
-        self._models = []
         super().__init__(
             *args,
             class_name="mlrun.serving.ModelRunner",
-            class_args=dict(runnables=self._models, model_selector=model_selector),
+            class_args=dict(model_selector=model_selector),
             **kwargs,
         )
 
-    def add_model(self, model: Model) -> None:
+    def add_model(self, model: Union[str, Model], **model_parameters) -> None:
         """Add a Model to this ModelRunner."""
-        self._models.append(model)
+        models = self.class_args.get("models", [])
+        models.append((model, model_parameters))
+        self.class_args["models"] = models
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         model_selector = self.class_args.get("model_selector")
+        models = self.class_args.get("models")
         if isinstance(model_selector, str):
             model_selector = get_class(model_selector, namespace)()
+        model_objects = []
+        for model, model_params in models:
+            if not isinstance(model, Model):
+                model = get_class(model, namespace)(**model_params)
+            model_objects.append(model)
         self._async_object = ModelRunner(
-            self.class_args.get("runnables"),
             model_selector=model_selector,
+            runnables=model_objects,
         )
 
 

@@ -7563,8 +7563,14 @@ class SQLDB(DBInterface):
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         order_by: typing.Optional[str] = None,
-    ) -> mlrun.common.schemas.ModelEndpointList:
-        model_endpoints: list[mlrun.common.schemas.ModelEndpoint] = []
+        as_dict: bool = False,
+    ) -> Union[mlrun.common.schemas.ModelEndpointList, dict[str, ModelEndpoint]]:
+        if not as_dict:
+            model_endpoints: mlrun.common.schemas.ModelEndpointList = (
+                mlrun.common.schemas.ModelEndpointList(endpoints=[])
+            )
+        else:
+            model_endpoints: dict[str, ModelEndpoint] = {}
         for mep_record in self._find_model_endpoints(
             session=session,
             names=names,
@@ -7583,10 +7589,15 @@ class SQLDB(DBInterface):
             limit=limit,
             order_by=order_by,
         ):
-            model_endpoints.append(
-                self._transform_model_endpoint_model_to_schema(mep_record)
-            )
-        return mlrun.common.schemas.ModelEndpointList(endpoints=model_endpoints)
+            if not as_dict:
+                model_endpoints.endpoints.append(
+                    self._transform_model_endpoint_model_to_schema(mep_record)
+                )
+            else:
+                model_endpoints[
+                    f"{mep_record.project}-{mep_record.function_name}-{mep_record.function_tag}-{mep_record.name}"
+                ] = mep_record
+        return model_endpoints
 
     def delete_model_endpoint(
         self,

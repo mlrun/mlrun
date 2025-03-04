@@ -52,9 +52,8 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip~=24.0
+          make install-docs-requirements
           pip install pyopenssl==24.0.0
-          pip install -r docs/requirements.txt
       - name: Check for broken links
         env:
           FORCE_COLOR: 1  # Force color output

@@ -114,9 +114,9 @@ class KubejobRuntime(KubeResource):
             e.g. builder_env={"GIT_TOKEN": token}
         """
         if not overwrite:
-            # TODO: change overwrite default to True in 1.8.0
+            # TODO: change overwrite default to True in 1.9.0
             warnings.warn(
-                "The `overwrite` parameter default will change from 'False' to 'True' in 1.8.0.",
+                "The `overwrite` parameter default will change from 'False' to 'True' in 1.9.0.",
                 mlrun.utils.OverwriteBuildParamsWarning,
             )
         image = mlrun.utils.helpers.remove_image_protocol_prefix(image)

@@ -5266,6 +5266,12 @@ class MlrunProject(ModelObj):
                 f"Invalid '{param_name}': '{file_path}'. Got a remote URL without a file suffix."
             )
 
+        _, in_context = self.get_item_absolute_path(file_path)
+
+        # if the file source is remote then skip the local file validation
+        if in_context and self.spec.source:
+            return
+
         code_path = self.spec.get_code_path()
 
         # If the file path is a relative path, it is completed by joining it with the code_path.

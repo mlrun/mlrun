@@ -25,7 +25,6 @@ def client():
     return client_klass()
 
 
-
 @pytest.mark.parametrize(
     "original_name, project, expected",
     [

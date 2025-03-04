@@ -7684,7 +7684,10 @@ class SQLDB(DBInterface):
                 )
             else:
                 model_endpoints[
-                    f"{mep_record.project}-{mep_record.function_name}-{mep_record.function_tag}-{mep_record.name}"
+                    (
+                        f"{mep_record.project}-{mep_record.function.name}-"
+                        f"{self._get_function_tag(mep_record.function.tags)}-{mep_record.name}"
+                    )
                 ] = mep_record
         return model_endpoints
 

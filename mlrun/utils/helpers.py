@@ -146,7 +146,7 @@ def get_artifact_target(item: dict, project=None):
     return item["spec"].get("target_path")
 
 
-# TODO: left for migrations testing purposes. Remove in 1.8.0.
+# TODO: Remove once data migration v5 is obsolete
 def is_legacy_artifact(artifact):
     if isinstance(artifact, dict):
         return "metadata" not in artifact

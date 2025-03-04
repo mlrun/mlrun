@@ -44,7 +44,7 @@ class TestDask(TestMLRunSystem):
             filename=str(self.assets_path / "dask_function.py"),
         ).apply(mount_v3io())
 
-        self.dask_function.spec.image = "mlrun/mlrun"
+        self.dask_function.spec.image = "mlrun/ml-base"
         self.dask_function.spec.remote = True
         self.dask_function.spec.replicas = 1
         self.dask_function.spec.service_type = "NodePort"

@@ -36,9 +36,9 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
+import mlrun_pipelines.utils
 from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
-from mlrun_pipelines.utils import get_client
 
 from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
@@ -1015,7 +1015,7 @@ def wait_for_pipeline_completion(
             _wait_for_pipeline_completion,
         )
     else:
-        client = get_client(namespace=namespace)
+        client = mlrun_pipelines.utils.get_client(namespace=namespace)
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
@@ -1076,7 +1076,7 @@ def get_pipeline(
         )
 
     else:
-        client = get_client(namespace=namespace)
+        client = mlrun_pipelines.utils.get_client(namespace=namespace)
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()

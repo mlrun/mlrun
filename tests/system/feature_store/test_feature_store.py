@@ -2160,7 +2160,7 @@ class TestFeatureStore(TestMLRunSystem):
     def test_featureset_uri(self):
         stocks_set = fstore.FeatureSet("stocks01", entities=[fstore.Entity("ticker")])
         stocks_set.save()
-        fstore.ingest(stocks_set.uri, stocks)
+        stocks_set.ingest(stocks)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -4221,7 +4221,7 @@ class TestFeatureStore(TestMLRunSystem):
         fset = fstore.FeatureSet(
             "test-fset", entities=[fstore.Entity("num")], engine="storey"
         )
-        result = fstore.ingest(fset, df)
+        result = fset.ingest(df)
         result.reset_index(drop=False, inplace=True)
         assert_frame_equal(df, result)
         #  test fails due to the inclusion of both ' and " in the same value.
@@ -4230,7 +4230,7 @@ class TestFeatureStore(TestMLRunSystem):
             fset = fstore.FeatureSet(
                 "test-fset-error", entities=[fstore.Entity("num")], engine="storey"
             )
-            fstore.ingest(fset, df)
+            fset.ingest(df)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -4504,8 +4504,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         feature_set.save()
         output_path = tempfile.TemporaryDirectory()
-        df = fstore.ingest(
-            feature_set.uri,
+        df = feature_set.ingest(
             df,
             targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
         )

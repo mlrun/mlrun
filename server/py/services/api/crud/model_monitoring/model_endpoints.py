@@ -23,6 +23,7 @@ import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.artifacts
+import mlrun.common.formatters
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
@@ -66,7 +67,6 @@ class ModelEndpoints:
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
         creation_strategy: mlrun.common.schemas.ModelEndpointCreationStrategy,
         delete_background_task: fastapi.BackgroundTasks,
-        model_path: Optional[str] = None,
         upsert: bool = True,
     ) -> typing.Union[tuple[mlrun.common.schemas.ModelEndpoint, str, list[str], dict],]:
         """
@@ -87,7 +87,6 @@ class ModelEndpoints:
             2. Create a new model endpoint with the same name and set it to `latest`.
         :param delete_background_task: A background task that will be used to delete old TSDB
                                        records (if required).
-        :param model_path:             The path to the model artifact.
         :param upsert:                 If True, will execute the creation/deletion/updating
                                        of the model endpoint in the DB.
 
@@ -108,60 +107,41 @@ class ModelEndpoints:
         if not model_endpoint.metadata.uid:
             model_endpoint.metadata.uid = uuid.uuid4().hex
 
-        if not model_endpoint.spec.function_uid:
-            # get function_uid from db
-            try:
-                logger.info("Getting function uid from db")
-                current_function = await run_in_threadpool(
-                    framework.utils.singletons.db.get_db().get_function,
-                    db_session,
-                    name=model_endpoint.spec.function_name,
-                    tag=model_endpoint.spec.function_tag,
-                    project=model_endpoint.metadata.project,
-                )
-                model_endpoint.spec.function_uid = current_function.get(
-                    "metadata", {}
-                ).get("uid")
-            except mlrun.errors.MLRunNotFoundError:
-                logger.info("The model endpoint is created on a non-existing function")
-        model_obj = None
+        model_obj, model_uri = None, None
+        model_path = model_endpoint.spec.model_path
         if model_path and mlrun.datastore.is_store_uri(model_path):
             _, model_uri = mlrun.datastore.parse_store_uri(model_path)
             project, key, iteration, tag, tree, uid = parse_artifact_uri(
                 model_uri, model_endpoint.metadata.project
             )
-        else:
-            project, key, iteration, tag, tree, uid = (
-                model_endpoint.metadata.project,
-                model_endpoint.spec.model_db_key,
-                None,
-                model_endpoint.spec.model_tag,
-                None,
-                model_endpoint.spec.model_uid,
-            )
-        try:
-            logger.info("Getting model object from db")
-            model_obj = mlrun.artifacts.dict_to_artifact(
-                services.api.crud.Artifacts().get_artifact(
-                    db_session,
+            try:
+                logger.info("Getting model object from db")
+                # Retrieve the model object from the database to extract its ID.
+                # The ID is later used to link the model endpoint to the model object.
+                # Fetching it here prevents retrieving the model object twice.
+                db_artifact = framework.utils.singletons.db.get_db().read_artifact(
+                    session=db_session,
                     key=key,
                     tag=tag,
                     iter=iteration,
                     project=project,
                     producer_id=tree,
-                    object_uid=uid,
+                    uid=uid,
+                    as_record=True,
                 )
-            )
-
-            model_endpoint.spec.model_name = model_obj.metadata.key
-            model_endpoint.spec.model_db_key = model_obj.spec.db_key
-            model_endpoint.spec.model_uid = model_obj.metadata.uid
-            model_endpoint.spec.model_tag = model_obj.tag
-            model_endpoint.metadata.labels.update(
-                model_obj.labels
-            )  # todo : check if we still need this
-        except mlrun.errors.MLRunNotFoundError:
-            logger.info("The model endpoint is created on a non-existing model")
+                artifact = db_artifact.full_object
+                model_obj = mlrun.artifacts.dict_to_artifact(
+                    mlrun.common.formatters.ArtifactFormat.format_obj(artifact, "full")
+                )
+                model_endpoint.spec._model_id = db_artifact.id
+                model_endpoint.spec.model_name = model_obj.metadata.key
+                model_endpoint.spec.model_tag = model_obj.tag
+                model_endpoint.spec.model_uri = model_obj.get_store_url(with_tag=False)
+                model_endpoint.metadata.labels.update(
+                    model_obj.labels
+                )  # todo : check if we still need this
+            except mlrun.errors.MLRunNotFoundError:
+                logger.info("The model endpoint is created on a non-existing model")
 
         if (
             creation_strategy
@@ -229,10 +209,11 @@ class ModelEndpoints:
             tuple[
                 mlrun.common.schemas.ModelEndpoint,
                 mm_constants.ModelEndpointCreationStrategy,
-                str,
             ]
         ],
         project: str,
+        function_name: str,
+        function_tag: str,
         delete_background_task: fastapi.BackgroundTasks,
     ) -> None:
         # extra improvement to list all the relevant meps before - can be relevant to inplace and to the deletion
@@ -242,7 +223,6 @@ class ModelEndpoints:
         for (
             model_endpoint,
             creation_strategy,
-            model_path,
         ) in model_endpoints_instructions:
             (
                 model_endpoint,
@@ -254,7 +234,6 @@ class ModelEndpoints:
                 model_endpoint=model_endpoint,
                 creation_strategy=creation_strategy,
                 delete_background_task=delete_background_task,
-                model_path=model_path,
                 upsert=False,
             )
             if method == "create":
@@ -271,6 +250,8 @@ class ModelEndpoints:
                 session=db_session,
                 project=project,
                 model_endpoints=model_endpoints_dict.get("create"),
+                function_name=function_name,
+                function_tag=function_tag,
             )
         if model_endpoints_dict.get("update"):
             await run_in_threadpool(

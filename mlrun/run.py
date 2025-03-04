@@ -437,7 +437,7 @@ def new_function(
     mode: Optional[str] = None,
     handler: Optional[str] = None,
     source: Optional[str] = None,
-    requirements: Optional[Union[str, list[str]]] = None,
+    requirements: Optional[list[str]] = None,
     kfp: Optional[bool] = None,
     requirements_file: str = "",
 ):

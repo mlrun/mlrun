@@ -2229,9 +2229,10 @@ class SQLDB(DBInterface):
         fn.updated = updated
         labels = get_in(function, "metadata.labels", {})
         update_labels(fn, labels)
-        # avoiding data duplications as the kind is given in the function object
-        # and we store it on a specific "kind" column
+        # avoiding data duplications as the attributes below are given in the function object
+        # and we store them on a specific columns
         fn.kind = function.pop("kind", None)
+        fn.state = function.get("status", {}).pop("state", None)
         fn.struct = function
         self._upsert(session, [fn])
         self.tag_objects_v2(session, [fn], project, tag)
@@ -2246,6 +2247,7 @@ class SQLDB(DBInterface):
         kind: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         hash_key: typing.Optional[str] = None,
+        states: typing.Optional[list[mlrun.common.schemas.FunctionState]] = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
@@ -2264,6 +2266,7 @@ class SQLDB(DBInterface):
             since=since,
             until=until,
             kind=kind,
+            states=states,
             offset=offset,
             limit=limit,
         ):
@@ -2277,6 +2280,8 @@ class SQLDB(DBInterface):
                 function_dict["status"] = None
             else:
                 function_dict["metadata"]["tag"] = function_tag
+                function_dict.setdefault("status", {})
+                function_dict["status"]["state"] = function.state
 
             functions.append(
                 mlrun.common.formatters.FunctionFormat.format_obj(
@@ -2366,6 +2371,7 @@ class SQLDB(DBInterface):
             function.kind = (
                 struct.pop("kind", None) if not function.kind else function.kind
             )
+            function.state = struct.get("status", {}).pop("state", None)
             function.struct = struct
             self._upsert(session, [function])
 
@@ -2460,6 +2466,8 @@ class SQLDB(DBInterface):
                 function["metadata"]["tag"] = computed_tag
                 function["metadata"]["uid"] = tag_function_uid
             function["kind"] = obj.kind
+            function.setdefault("status", {})
+            function["status"]["state"] = obj.state
             return mlrun.common.formatters.FunctionFormat.format_obj(function, format_)
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
@@ -5289,6 +5297,7 @@ class SQLDB(DBInterface):
         since: typing.Optional[datetime] = None,
         until: typing.Optional[datetime] = None,
         kind: typing.Optional[str] = None,
+        states: typing.Optional[list[mlrun.common.schemas.FunctionState]] = None,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
     ) -> list[tuple[Function, str]]:
@@ -5304,6 +5313,7 @@ class SQLDB(DBInterface):
         :param since: Filter functions that were updated after this time
         :param until: Filter functions that were updated before this time
         :param kind: The kind of the function to query.
+        :param states: The states of the function to query.
         :param offset: SQL query offset.
         :param limit: SQL query limit.
         """
@@ -5318,6 +5328,9 @@ class SQLDB(DBInterface):
 
         if kind is not None:
             query = query.filter(Function.kind == kind)
+
+        if states is not None:
+            query = query.filter(Function.state.in_(states))
 
         if since or until:
             query = generate_time_range_query(
@@ -5682,9 +5695,8 @@ class SQLDB(DBInterface):
         latest: bool,
     ) -> dict:
         if model_endpoint_record.function and latest:
-            function_full_dict = model_endpoint_record.function.struct
             model_endpoint_full_dict[ModelEndpointSchema.STATE] = (
-                function_full_dict.get("status", {}).get(ModelEndpointSchema.STATE)
+                model_endpoint_record.function.state
             )
             model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG.FUNCTION_URI] = (
                 generate_object_uri(
@@ -5708,15 +5720,9 @@ class SQLDB(DBInterface):
                 uri=generate_artifact_uri(
                     project=model_endpoint_record.project,
                     key=model_endpoint_record.model.key,
-                    iter=model_endpoint_record.model.full_object.get(
-                        "metadata", {}
-                    ).get("iter"),
-                    tree=model_endpoint_record.model.full_object.get(
-                        "metadata", {}
-                    ).get("tree"),
-                    uid=model_endpoint_record.model.full_object.get("metadata", {}).get(
-                        "uid"
-                    ),
+                    iter=model_endpoint_record.model.iteration,
+                    tree=model_endpoint_record.model.producer_id,
+                    uid=model_endpoint_record.model.uid,
                 ),
             )
 
@@ -7557,8 +7563,14 @@ class SQLDB(DBInterface):
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         order_by: typing.Optional[str] = None,
-    ) -> mlrun.common.schemas.ModelEndpointList:
-        model_endpoints: list[mlrun.common.schemas.ModelEndpoint] = []
+        as_dict: bool = False,
+    ) -> Union[mlrun.common.schemas.ModelEndpointList, dict[str, ModelEndpoint]]:
+        if not as_dict:
+            model_endpoints: mlrun.common.schemas.ModelEndpointList = (
+                mlrun.common.schemas.ModelEndpointList(endpoints=[])
+            )
+        else:
+            model_endpoints: dict[str, ModelEndpoint] = {}
         for mep_record in self._find_model_endpoints(
             session=session,
             names=names,
@@ -7577,10 +7589,15 @@ class SQLDB(DBInterface):
             limit=limit,
             order_by=order_by,
         ):
-            model_endpoints.append(
-                self._transform_model_endpoint_model_to_schema(mep_record)
-            )
-        return mlrun.common.schemas.ModelEndpointList(endpoints=model_endpoints)
+            if not as_dict:
+                model_endpoints.endpoints.append(
+                    self._transform_model_endpoint_model_to_schema(mep_record)
+                )
+            else:
+                model_endpoints[
+                    f"{mep_record.project}-{mep_record.function_name}-{mep_record.function_tag}-{mep_record.name}"
+                ] = mep_record
+        return model_endpoints
 
     def delete_model_endpoint(
         self,

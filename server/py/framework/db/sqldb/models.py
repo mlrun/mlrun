@@ -200,9 +200,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
     # deprecated, use ArtifactV2 instead
-    # TODO: remove in 1.8.0. Note that removing it will require upgrading mlrun in at least 2 steps:
-    #  1. upgrade to 1.6.x which will create the new table
-    #  2. upgrade to 1.7.x which will remove the old table
+    # TODO: Remove once data migration v5 is obsolete and add schema migration to remove this table
     class Artifact(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "artifacts"
         __table_args__ = (
@@ -315,6 +313,7 @@ with warnings.catch_warnings():
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         uid = Column(String(255, collation=SQLTypesUtil.collation()))
         kind = Column(String(255, collation=SQLTypesUtil.collation()))
+        state = Column(String(255, collation=SQLTypesUtil.collation()))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(SQLTypesUtil.blob())
         updated = Column(SQLTypesUtil.timestamp())
@@ -861,7 +860,11 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, autoincrement=True)
-        activation_time = Column(SQLTypesUtil.datetime(), nullable=False)
+        # Keep fsp=3 for activation_time as it is part of the primary key and partitioning logic,
+        # ensuring stable indexing and avoiding potential inconsistencies.
+        # This must remain unchanged to maintain compatibility with existing logic
+        # and prevent unintended precision changes.
+        activation_time = Column(SQLTypesUtil.datetime(fsp=3), nullable=False)
         name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
         project = Column(
             String(255, collation=SQLTypesUtil.collation()), nullable=False
@@ -880,7 +883,10 @@ with warnings.catch_warnings():
             String(255, collation=SQLTypesUtil.collation()), nullable=False
         )
         number_of_events = Column(Integer, nullable=False)
-        reset_time = Column(SQLTypesUtil.datetime(), nullable=True)
+
+        # Similarly, keep fsp=3 for reset_time to ensure consistency with activation_time
+        # and maintain compatibility with the existing system behavior.
+        reset_time = Column(SQLTypesUtil.datetime(fsp=3), nullable=True)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.id}"

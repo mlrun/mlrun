@@ -121,6 +121,11 @@ install-requirements: ## Install all requirements needed for development
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt
 
+.PHONY: install-docs-requirements
+install-docs-requirements: ## Install all requirements needed for compiling mlrun docs
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_NO_CACHE_FLAG) -r docs/requirements.txt
+
 .PHONY: install-conda-requirements
 install-conda-requirements: ## Install all requirements needed for development with specific conda packages for arm64
 	conda install --yes --file conda-arm64-requirements.txt
@@ -688,7 +693,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		--rm \
 		-v $(shell pwd)/docs/_build:/mlrun/docs/_build \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) \
-		bash -c 'python -m pip install -r docs/requirements.txt && make html-docs'
+		bash -c 'make install-docs-requirements && make html-docs'
 
 .PHONY: fmt
 fmt: ## Format the code using Ruff and blacken-docs

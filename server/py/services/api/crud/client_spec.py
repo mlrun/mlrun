@@ -118,6 +118,9 @@ class ClientSpec(
             packagers=self._get_config_value_if_not_default("packagers"),
             alerts_mode=self._get_config_value_if_not_default("alerts.mode"),
             system_id=self._get_config_value_if_not_default("system_id"),
+            model_endpoint_monitoring_store_prefixes=self._get_config_value_if_not_default(
+                "model_endpoint_monitoring.store_prefixes"
+            ),
         )
 
     @staticmethod

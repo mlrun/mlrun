@@ -1735,11 +1735,12 @@ class TestProject(TestMLRunSystem):
         is a remote repository (e.g., a Git repository).
         """
         project_name = "my-project"
-        self.custom_project_names_to_delete.append(project_name)
-        project = self._load_remote_pipeline_project(name=project_name)
+        source = "git://github.com/mlrun/project-demo.git#main"
+        project = mlrun.new_project(project_name, overwrite=True)
 
+        project.set_source(source=source)
         project.set_workflow(name="main", workflow_path="./kflow.py", engine="remote")
-        run = project.run("main", engine="remote")
+        run = project.run("main", engine="remote", source=source)
         mlrun.wait_for_pipeline_completion(run)
         assert run.state == mlrun.run.RunStatuses.succeeded
 

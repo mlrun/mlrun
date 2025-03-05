@@ -1234,14 +1234,19 @@ class DBInterface(ABC):
         self,
         session,
         model_endpoints: list[mlrun.common.schemas.ModelEndpoint],
+        function_name: str,
+        function_tag: str,
         project: str,
     ) -> None:
         """
         Store list of model endpoints in the DB.
+        Note all the model endpoints should have the same function name and tag.
 
         :param session:         The database session.
         :param model_endpoints: Model endpoints object to store.
         :param project:         The project name.
+        :param function_name:   The function name.
+        :param function_tag:    The function tag.
         """
         pass
 
@@ -1392,5 +1397,19 @@ class DBInterface(ABC):
 
         :param session: The database session.
         :param project: The project name.
+        """
+        pass
+
+    def delete_feature_sets(
+        self,
+        session,
+        project: str,
+        uids: typing.Optional[list[str]] = None,
+    ) -> None:
+        """
+        Delete multiple feature sets.
+        :param session: The database session.
+        :param project: The project name.
+        :param uids:    The feature set uids to delete.
         """
         pass

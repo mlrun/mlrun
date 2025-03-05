@@ -43,7 +43,7 @@ RUN chmod 777 /mlrun
 
 # Install MiniConda (Python 3.9):
 ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py39"
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_23.11.0-1-Linux-x86_64.sh -O ~/installconda.sh && \
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_25.1.1-2-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \
     rm ~/installconda.sh && \
     /opt/conda/bin/conda update --all --use-local --yes && \

@@ -500,7 +500,7 @@ class MonitoringApplicationController:
                 app_name=app_name,
                 app_stream_type=str(type(app_stream)),
             )
-            app_stream.push([data])
+            app_stream.push([data], partition_key=endpoint_id)
 
     def push_regular_event_to_controller_stream(self) -> None:
         """

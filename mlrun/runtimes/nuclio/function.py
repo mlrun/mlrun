@@ -306,9 +306,12 @@ class RemoteRuntime(KubeResource):
     def _validate_triggers(self, spec):
         # ML-7763 / NUC-233
         min_nuclio_version = "1.13.12"
-        if mlconf.nuclio_version and semver.VersionInfo.parse(
+        if (
             mlconf.nuclio_version
-        ) < semver.VersionInfo.parse(min_nuclio_version):
+            and mlconf.nuclio_version != "unstable"
+            and semver.VersionInfo.parse(mlconf.nuclio_version)
+            < semver.VersionInfo.parse(min_nuclio_version)
+        ):
             explicit_ack_enabled = False
             num_triggers = 0
             trigger_name = spec.get("name", "UNKNOWN")

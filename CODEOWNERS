@@ -19,7 +19,7 @@
 # The main owner of this repo is platform team,
 # any change that won't match a specific owner will automatically be assigned to them.
 # (The last match is the one that applies, keep that in mind when adding new lines)
-* @mlrun/platform-owners
+** @mlrun/platform-owners
 
 ##############################################
 ### CI, Automation, Packaging & Test Infra ###

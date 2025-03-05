@@ -42,7 +42,10 @@ import mlrun.runtimes.mounts
 import mlrun.runtimes.utils
 import mlrun.serving.routers
 import mlrun.utils
-from mlrun.common.schemas.model_monitoring.model_endpoints import ModelEndpointList
+from mlrun.common.schemas.model_monitoring.model_endpoints import (
+    ModelEndpoint,
+    ModelEndpointList,
+)
 from mlrun.model import BaseMetadata
 from mlrun.model_monitoring.helpers import get_output_stream, get_result_instance_fqn
 from mlrun.runtimes import BaseRuntime
@@ -1386,20 +1389,10 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
             cls.y_train,  # pyright: ignore[reportGeneralTypeIssues]
         )
 
-    def _get_monitoring_feature_set(
-        self, endpoint_id: str
-    ) -> mlrun.feature_store.FeatureSet:
-        model_endpoint = mlrun.get_run_db().get_model_endpoint(
-            project=self.project_name,
-            name=self.model_endpoint_name,
-            endpoint_id=endpoint_id,
-        )
-        return mlrun.feature_store.get_feature_set(
+    def _test_feature_names(self, model_endpoint: ModelEndpoint) -> None:
+        feature_set = mlrun.feature_store.get_feature_set(
             model_endpoint.spec.monitoring_feature_set_uri
         )
-
-    def _test_feature_names(self, endpoint_id: str) -> None:
-        feature_set = self._get_monitoring_feature_set(endpoint_id)
         features = feature_set.spec.features
         feature_names = [feat.name for feat in features]
         feature_names.sort()
@@ -1443,7 +1436,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
             # TODO: activate ad-hoc mode when ML-5792 is done
         )
 
-        self._test_feature_names(endpoint_id=model_endpoint.metadata.uid)
+        self._test_feature_names(model_endpoint=model_endpoint)
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured

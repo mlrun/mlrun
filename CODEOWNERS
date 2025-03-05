@@ -109,7 +109,7 @@ server/py/framework/utils/notifications/** @TomerShor @mlrun/platform-owners
 ### Endpoints ###
 
 # Most endpoints are owned by platform-owners, some of them are owned by data-flows-owners instead
-server/py/services/api/endpoints/** @mlrun/platform-owners
+server/py/services/api/api/endpoints/** @mlrun/platform-owners
 server/py/services/api/api/endpoints/datastore** @mlrun/data-flows-owners
 server/py/services/api/api/endpoints/feature_store** @mlrun/data-flows-owners
 server/py/services/api/api/endpoints/grafana** @mlrun/data-flows-owners

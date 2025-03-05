@@ -25,19 +25,8 @@
 ### CI, Automation, Packaging & Test Infra ###
 ##############################################
 
-# CI, automation, packaging & test infra is owned by liranbg
-.dockerignore @liranbg
-.git-blame-ignore-revs @liranbg
-.gitignore @liranbg
-conda-arm64-requirements.txt @liranbg
-dependencies.py @liranbg
-dev-requirements.txt @liranbg
-extra-requirements.txt @liranbg
-Makefile @liranbg
-packages.py @liranbg
-pyproject.toml @liranbg
-requirements.txt @liranbg
-setup.py @liranbg
+# Top level files, CI, automation, packaging & test infra is owned by liranbg
+* @liranbg
 .github/** @liranbg
 .run/** @liranbg
 automation/** @liranbg

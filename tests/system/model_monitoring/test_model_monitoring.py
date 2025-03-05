@@ -1363,7 +1363,6 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
         cls.infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
             mlrun.utils.datetime_now()
         )
-        cls.function_name = f"{cls.name_prefix}-function"
         cls.model_endpoint_name = f"{cls.name_prefix}-test"
         cls._train()
 
@@ -1387,19 +1386,20 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
             cls.y_train,  # pyright: ignore[reportGeneralTypeIssues]
         )
 
-    def _get_monitoring_feature_set(self) -> mlrun.feature_store.FeatureSet:
+    def _get_monitoring_feature_set(
+        self, endpoint_id: str
+    ) -> mlrun.feature_store.FeatureSet:
         model_endpoint = mlrun.get_run_db().get_model_endpoint(
             project=self.project_name,
             name=self.model_endpoint_name,
-            function_name=self.function_name,
-            function_tag="latest",
+            endpoint_id=endpoint_id,
         )
         return mlrun.feature_store.get_feature_set(
             model_endpoint.spec.monitoring_feature_set_uri
         )
 
-    def _test_feature_names(self) -> None:
-        feature_set = self._get_monitoring_feature_set()
+    def _test_feature_names(self, endpoint_id: str) -> None:
+        feature_set = self._get_monitoring_feature_set(endpoint_id)
         features = feature_set.spec.features
         feature_names = [feat.name for feat in features]
         feature_names.sort()
@@ -1432,19 +1432,18 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
         #     **({} if self.image is None else {"image": self.image}),
         # )
 
-        mlrun.model_monitoring.api.record_results(
+        model_endpoint = mlrun.model_monitoring.api.record_results(
             project=self.project_name,
             model_path=self.project.get_artifact_uri(
                 key=self.model_name, category="model", tag="latest"
             ),
             model_endpoint_name=self.model_endpoint_name,
-            function_name=self.function_name,
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
             # TODO: activate ad-hoc mode when ML-5792 is done
         )
 
-        self._test_feature_names()
+        self._test_feature_names(endpoint_id=model_endpoint.metadata.uid)
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured

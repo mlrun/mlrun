@@ -116,7 +116,6 @@ server/py/services/api/utils/projects/** @yaelgen @mlrun/platform-owners
 # alerts, events and notifications are owned by TomerShor
 server/py/services/alerts/** @TomerShor @mlrun/platform-owners
 server/py/framework/utils/notifications/** @TomerShor @mlrun/platform-owners
-mlrun/utils/notifications/** @TomerShor @mlrun/platform-owners
 
 ### Endpoints ###
 
@@ -127,7 +126,6 @@ server/py/services/api/api/endpoints/feature_store** @mlrun/data-flows-owners
 server/py/services/api/api/endpoints/grafana** @mlrun/data-flows-owners
 server/py/services/api/api/endpoints/model_endpoints** @mlrun/data-flows-owners
 server/py/services/api/api/endpoints/model_monitoring** @mlrun/data-flows-owners
-server/py/services/api/api/endpoints/nuclio** @mlrun/data-flows-owners
 
 ### End of Endpoints ###
 
@@ -163,6 +161,7 @@ mlrun/runtimes/nuclio/api_gateway.py @rokatyy @mlrun/platform-owners
 
 # application runtime is owned by TomerShor
 mlrun/runtimes/nuclio/application/** @TomerShor @mlrun/platform-owners
+mlrun/runtimes/nuclio/function.py @TomerShor @mlrun/platform-owners
 
 ### End of Runtimes ###
 

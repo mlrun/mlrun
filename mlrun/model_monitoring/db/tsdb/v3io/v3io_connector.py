@@ -1086,12 +1086,12 @@ class V3IOTSDBConnector(TSDBConnector):
         )
         add_metric(
             "avg_latency",
-            "max(result_status)",
-            drift_status_res,
+            "avg(latency)",
+            avg_latency_res,
         )
         add_metric(
             "result_status",
-            "avg(latency)",
-            avg_latency_res,
+            "max(result_status)",
+            drift_status_res,
         )
         return list(model_endpoint_objects_by_uid.values())

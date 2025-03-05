@@ -78,6 +78,9 @@ pipeline-adapters/** @adamdelman @mlrun/platform-owners
 ### Server ###
 ##############
 
+# most server frameworks are owned by alonmr
+server/** @alonmr @mlrun/platform-owners
+
 # MLRun's go code is owned by TomerShor
 server/go/** @TomerShor @mlrun/platform-owners
 
@@ -183,3 +186,5 @@ mlrun/model_monitoring/db/tsdb/tdengine/** @mlrun/data-flows-owners
 
 # framewarks, packagers and trackers are owned by mle-owners
 mlrun/frameworks/** @mlrun/mle-owners
+mlrun/package/** @mlrun/mle-owners
+mlrun/track/** @mlrun/mle-owners

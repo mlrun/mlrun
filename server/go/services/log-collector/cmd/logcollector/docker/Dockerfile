@@ -14,7 +14,7 @@
 
 ARG GO_VERSION=1.23
 
-ARG GRPC_HEALTH_PROBE_VERSION=v0.4.35
+ARG GRPC_HEALTH_PROBE_VERSION=v0.4.37
 FROM ghcr.io/grpc-ecosystem/grpc-health-probe:${GRPC_HEALTH_PROBE_VERSION} AS install-health-probe
 
 FROM gcr.io/iguazio/golang:${GO_VERSION} AS build-binary

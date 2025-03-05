@@ -32,8 +32,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import foreign, relationship
-from sqlalchemy.sql import and_
+from sqlalchemy.orm import relationship
 
 import mlrun.common.schemas
 import mlrun.utils.db
@@ -200,9 +199,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
     # deprecated, use ArtifactV2 instead
-    # TODO: remove in 1.8.0. Note that removing it will require upgrading mlrun in at least 2 steps:
-    #  1. upgrade to 1.6.x which will create the new table
-    #  2. upgrade to 1.7.x which will remove the old table
+    # TODO: Remove once data migration v5 is obsolete and add schema migration to remove this table
     class Artifact(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "artifacts"
         __table_args__ = (
@@ -244,7 +241,6 @@ with warnings.catch_warnings():
                 "project",
                 "kind",
             ),
-            Index("idx_artifacts_name_uid_project", "key", "uid", "project"),
             # Used for calculating the project counters more efficiently.
             # See https://iguazio.atlassian.net/browse/ML-8556
             Index("idx_project_kind_key", "project", "kind", "key"),
@@ -304,7 +300,6 @@ with warnings.catch_warnings():
         __tablename__ = "functions"
         __table_args__ = (
             UniqueConstraint("name", "project", "uid", name="_functions_uc"),
-            Index("idx_functions_name_uid_project", "name", "uid", "project"),
         )
 
         Label = make_label(__tablename__)
@@ -862,7 +857,11 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, autoincrement=True)
-        activation_time = Column(SQLTypesUtil.datetime(), nullable=False)
+        # Keep fsp=3 for activation_time as it is part of the primary key and partitioning logic,
+        # ensuring stable indexing and avoiding potential inconsistencies.
+        # This must remain unchanged to maintain compatibility with existing logic
+        # and prevent unintended precision changes.
+        activation_time = Column(SQLTypesUtil.datetime(fsp=3), nullable=False)
         name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
         project = Column(
             String(255, collation=SQLTypesUtil.collation()), nullable=False
@@ -881,7 +880,10 @@ with warnings.catch_warnings():
             String(255, collation=SQLTypesUtil.collation()), nullable=False
         )
         number_of_events = Column(Integer, nullable=False)
-        reset_time = Column(SQLTypesUtil.datetime(), nullable=True)
+
+        # Similarly, keep fsp=3 for reset_time to ensure consistency with activation_time
+        # and maintain compatibility with the existing system behavior.
+        reset_time = Column(SQLTypesUtil.datetime(fsp=3), nullable=True)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.id}"
@@ -916,30 +918,13 @@ with warnings.catch_warnings():
 
     class ModelEndpoint(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "model_endpoints"
-        __table_args__ = (
-            UniqueConstraint(
-                "project",
-                "name",
-                "uid",
-                "function_name",
-                "function_tag",
-                name="_mep_uc_2",
-            ),
-        )
 
         id = Column(Integer, primary_key=True)
         uid = Column(String(32), default=lambda: uuid.uuid4().hex, unique=True)
+        name = Column(String(255, collation=SQLTypesUtil.collation()))
         endpoint_type = Column(Integer, nullable=False)
         project = Column(String(255, collation=SQLTypesUtil.collation()))
-        function_name = Column(String(255, collation=SQLTypesUtil.collation()))
-        function_uid = Column(String(255, collation=SQLTypesUtil.collation()))
-        function_tag = Column(String(64, collation=SQLTypesUtil.collation()))
-        model_uid = Column(String(255, collation=SQLTypesUtil.collation()))
-        model_name = Column(String(255, collation=SQLTypesUtil.collation()))
-        model_tag = Column(String(64, collation=SQLTypesUtil.collation()))
-        model_db_key = Column(String(255, collation=SQLTypesUtil.collation()))
         body = Column(SQLTypesUtil.blob())
-
         created = Column(
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
@@ -948,29 +933,19 @@ with warnings.catch_warnings():
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
         )
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        function = relationship(
-            "Function",
-            cascade="save-update",
-            single_parent=True,
-            overlaps="model",
-            primaryjoin=and_(
-                foreign(function_name) == Function.name,
-                foreign(function_uid) == Function.uid,
-                foreign(project) == Function.project,
-            ),
+        function_id = Column(
+            Integer,
+            ForeignKey("functions.id"),
+            nullable=True,
         )
-        model = relationship(
-            "ArtifactV2",
-            cascade="save-update",
-            single_parent=True,
-            overlaps="function",
-            primaryjoin=and_(
-                foreign(model_uid) == ArtifactV2.uid,
-                foreign(project) == ArtifactV2.project,
-                foreign(model_db_key) == ArtifactV2.key,
-            ),
+        function = relationship(Function)
+
+        model_id = Column(
+            Integer,
+            ForeignKey("artifacts_v2.id"),
+            nullable=True,
         )
+        model = relationship(ArtifactV2)
 
         Label = make_label(__tablename__)
         Tag = make_tag_v2(__tablename__)  # for versioning (latest and empty tags only)

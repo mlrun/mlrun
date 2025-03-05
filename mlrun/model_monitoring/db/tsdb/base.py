@@ -81,6 +81,17 @@ class TSDBConnector(ABC):
         """
 
     @abstractmethod
+    def delete_tsdb_records(
+        self, endpoint_ids: list[str], delete_timeout: Optional[int] = None
+    ) -> None:
+        """
+        Delete model endpoint records from the TSDB connector.
+        :param endpoint_ids: List of model endpoint unique identifiers.
+        :param delete_timeout: The timeout in seconds to wait for the deletion to complete.
+        """
+        pass
+
+    @abstractmethod
     def delete_tsdb_resources(self):
         """
         Delete all project resources in the TSDB connector, such as model endpoints data and drift results.

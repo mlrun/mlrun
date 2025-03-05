@@ -288,10 +288,10 @@ class DBInterface(ABC):
     ):
         return []
 
-    # TODO: remove in 1.8.0
+    # TODO: Remove once data migration v5 is obsolete
     @deprecated(
-        version="1.8.0",
-        reason="'store_artifact_v1' will be removed from this file in 1.8.0, use "
+        version="1.9.0",
+        reason="'store_artifact_v1' will be removed from this file in 1.9.0, use "
         "'store_artifact' instead",
         category=FutureWarning,
     )
@@ -312,10 +312,10 @@ class DBInterface(ABC):
         """
         pass
 
-    # TODO: remove in 1.8.0
+    # TODO: Remove once data migration v5 is obsolete
     @deprecated(
-        version="1.8.0",
-        reason="'read_artifact_v1' will be removed from this file in 1.8.0, use "
+        version="1.9.0",
+        reason="'read_artifact_v1' will be removed from this file in 1.9.0, use "
         "'read_artifact' instead",
         category=FutureWarning,
     )
@@ -1234,14 +1234,19 @@ class DBInterface(ABC):
         self,
         session,
         model_endpoints: list[mlrun.common.schemas.ModelEndpoint],
+        function_name: str,
+        function_tag: str,
         project: str,
     ) -> None:
         """
         Store list of model endpoints in the DB.
+        Note all the model endpoints should have the same function name and tag.
 
         :param session:         The database session.
         :param model_endpoints: Model endpoints object to store.
         :param project:         The project name.
+        :param function_name:   The function name.
+        :param function_tag:    The function tag.
         """
         pass
 
@@ -1330,7 +1335,11 @@ class DBInterface(ABC):
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         order_by: typing.Optional[str] = None,
-    ) -> mlrun.common.schemas.ModelEndpointList:
+        as_dict: bool = False,
+    ) -> Union[
+        mlrun.common.schemas.ModelEndpointList,
+        dict[str, framework.db.sqldb.models.ModelEndpoint],
+    ]:
         """
         List model endpoints by project and optional filters.
 
@@ -1350,6 +1359,7 @@ class DBInterface(ABC):
         :param offset:          SQL query offset.
         :param limit:           SQL query limit.
         :param order_by:        Name of column to order by it (in ascending order).
+        :param as_dict:         Allow returning endpoints as list of framework.db.sqldb.models.ModelEndpoint dictionary.
         :return:                A list of model endpoints.
         """
         pass
@@ -1387,5 +1397,19 @@ class DBInterface(ABC):
 
         :param session: The database session.
         :param project: The project name.
+        """
+        pass
+
+    def delete_feature_sets(
+        self,
+        session,
+        project: str,
+        uids: typing.Optional[list[str]] = None,
+    ) -> None:
+        """
+        Delete multiple feature sets.
+        :param session: The database session.
+        :param project: The project name.
+        :param uids:    The feature set uids to delete.
         """
         pass

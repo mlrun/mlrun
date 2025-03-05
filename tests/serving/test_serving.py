@@ -41,13 +41,37 @@ from mlrun.utils import logger
 
 def generate_test_routes(model_class):
     return {
-        "m1": TaskStep(model_class, class_args={"model_path": "", "multiplier": 100}),
-        "m2": TaskStep(model_class, class_args={"model_path": "", "multiplier": 200}),
+        "m1": TaskStep(
+            model_class,
+            class_args={
+                "model_path": "",
+                "multiplier": 100,
+                "model_endpoint_uid": "m1_uid",
+            },
+        ),
+        "m2": TaskStep(
+            model_class,
+            class_args={
+                "model_path": "",
+                "multiplier": 200,
+                "model_endpoint_uid": "m2_uid",
+            },
+        ),
         "m3:v1": TaskStep(
-            model_class, class_args={"model_path": "", "multiplier": 300}
+            model_class,
+            class_args={
+                "model_path": "",
+                "multiplier": 300,
+                "model_endpoint_uid": "m3_uid",
+            },
         ),
         "m3:v2": TaskStep(
-            model_class, class_args={"model_path": "", "multiplier": 400}
+            model_class,
+            class_args={
+                "model_path": "",
+                "multiplier": 400,
+                "model_endpoint_uid": "m3_uid",
+            },
         ),
     }
 
@@ -271,7 +295,9 @@ def test_ensemble_get_metadata_of_models(rundb_mock):
     graph = fn.set_topology(
         "router",
         mlrun.serving.routers.VotingEnsemble(
-            vote_type="regression", prediction_col_name="predictions"
+            vote_type="regression",
+            prediction_col_name="predictions",
+            **{"model_endpoint_uid": "VotingEnsemble_uid"},
         ),
     )
     graph.routes = generate_test_routes("EnsembleModelTestingClass")
@@ -546,9 +572,9 @@ def test_v2_get_modelmeta(rundb_mock):
     fn = mlrun.new_function("tst", kind="serving")
     model_uri = _log_model(project)
     print(model_uri)
-    fn.add_model("m1", model_uri, "ModelTestingClass")
-    fn.add_model("m2", model_uri, "ModelTestingClass")
-    fn.add_model("m3:v2", model_uri, "ModelTestingClass")
+    fn.add_model("m1", model_uri, "ModelTestingClass", model_endpoint_uid="m1_uid")
+    fn.add_model("m2", model_uri, "ModelTestingClass", model_endpoint_uid="m2_uid")
+    fn.add_model("m3:v2", model_uri, "ModelTestingClass", model_endpoint_uid="m3_uid")
     fn.set_tracking("dummy://")  # track using the _DummyStream
 
     server = fn.to_mock_server()
@@ -661,7 +687,11 @@ def test_v2_mock():
 def test_function(rundb_mock):
     fn = mlrun.new_function("tests", kind="serving")
     fn.set_topology("router")
-    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
+    fn.add_model(
+        "my",
+        ".",
+        class_name=ModelTestingClass(multiplier=100, model_endpoint_uid="my-uid"),
+    )
     fn.set_tracking("dummy://")  # track using the _DummyStream
 
     server = fn.to_mock_server()
@@ -676,7 +706,11 @@ def test_function(rundb_mock):
 def test_sampling_percentage(rundb_mock):
     fn = mlrun.new_function("tests", kind="serving")
     fn.set_topology("router")
-    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
+    fn.add_model(
+        "my",
+        ".",
+        class_name=ModelTestingClass(multiplier=100, model_endpoint_uid="my-uid"),
+    )
     random.seed(0)
     random_sample_percentage = 50
 

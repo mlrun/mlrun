@@ -58,7 +58,7 @@ import framework.utils.singletons.k8s
 import services.api.api.endpoints.nuclio
 import services.api.crud.model_monitoring.helpers
 import services.api.utils.functions
-from framework.db.sqldb.db import unversioned_tagged_object_uid_prefix
+from framework.db.sqldb.models import ModelEndpoint
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
 _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
@@ -69,7 +69,7 @@ _HISTOGRAM_DATA_DRIFT_APP_PATH = str(
     Path(mlrun.model_monitoring.applications.__file__).parent
     / "histogram_data_drift.py"
 )
-BASE_PERIOD_LOOKUP_TABLE = {1: 1, 20: 2, 60: 5, 120: 10, float("inf"): 20}
+BASE_PERIOD_LOOKUP_TABLE = {1: 1, 20: 3, 60: 5, 120: 10, float("inf"): 20}
 
 
 class MonitoringDeployment:
@@ -915,7 +915,6 @@ class MonitoringDeployment:
         :param auth_info:                   The auth info of the request.
         :param background_task_name:        The name of the background task.
         :param delete_app_stream_resources: If True, delete the stream resources (e.g., v3io stream or kafka  topics).
-        :param access_key:                  Model monitoring access key, relevant only for V3IO stream.
         """
         await framework.api.utils._delete_function(
             db_session=db_session,
@@ -1343,24 +1342,103 @@ class MonitoringDeployment:
 
     @staticmethod
     async def create_model_endpoints(
-        function: dict,
         function_name: str,
+        function_tag: str,
         project: str,
+        delete_background_task: fastapi.BackgroundTasks,
+        model_endpoints_instructions: list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+            ]
+        ],
     ):
         """
         Create model endpoints for the given function.
         1. Create model endpoint instructions list from the function graph.
-        The list is tuple which created from the model endpoint object, creation strategy and model path.
+        The list is tuple which created from the model endpoint object and creation strategy
         2. Create the Node/Leaf model endpoints according to the instructions list.
         3. Update the router model endpoint instructions with the children uids.
         4. Create the Router model endpoints according to the instructions list.
 
-        :param function:        The function object.
-        :param function_name:   The name of the function.
-        :param project:         The project name.
+        :param function_name:                The name of the function.
+        :param function_tag:                 The tag of the function.
+        :param project:                      The project name.
+        :param delete_background_task: A background task that will be used to delete old TSDB records (if required).
+        :param model_endpoints_instructions: list of tuples of ModelEndpoint schema, CreationStrategy
+
         """
         logger.info(
             "Start Running BGT for model endpoint creation",
+            project=project,
+            function=function_name,
+        )
+
+        semaphore = Semaphore(50)  # Limit concurrent tasks
+        coroutines = []
+        batchsize = 500
+        for i in range(0, len(model_endpoints_instructions), batchsize):
+            batch = model_endpoints_instructions[i : i + batchsize]
+            coroutines.append(
+                MonitoringDeployment._create_model_endpoint_limited(
+                    semaphore=semaphore,
+                    model_endpoints_instructions=batch,
+                    project=project,
+                    function_name=function_name,
+                    function_tag=function_tag or "latest",
+                    delete_background_task=delete_background_task,
+                )
+            )
+
+        await asyncio.gather(*coroutines)
+        logger.info(
+            "Finish Running BGT for model endpoint creation",
+            project=project,
+            function=function_name,
+        )
+
+    @staticmethod
+    async def _create_model_endpoint_limited(
+        semaphore: Semaphore,
+        model_endpoints_instructions: list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+            ]
+        ],
+        project: str,
+        function_name: str,
+        function_tag: str,
+        delete_background_task: fastapi.BackgroundTasks,
+    ):
+        async with semaphore:
+            result = await framework.db.session.run_async_function_with_new_db_session(
+                func=services.api.crud.ModelEndpoints().create_model_endpoints,
+                model_endpoints_instructions=model_endpoints_instructions,
+                project=project,
+                function_name=function_name,
+                function_tag=function_tag,
+                delete_background_task=delete_background_task,
+            )
+            return result
+
+    async def _create_model_endpoints_instructions(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        function: dict,
+        function_name: str,
+        project: str,
+    ) -> tuple[
+        list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+            ]
+        ],
+        dict,
+    ]:
+        logger.info(
+            "Start creating model endpoint instructions",
             project=project,
             function=function_name,
         )
@@ -1382,54 +1460,33 @@ class MonitoringDeployment:
                 mm_constants.ModelEndpointCreationStrategy,
                 str,
             ]
-        ] = MonitoringDeployment(
-            project=project
-        )._extract_model_endpoints_from_function_graph(
-            function_name=function.metadata.name,
-            function_tag=function.metadata.tag,
-            track_models=function.spec.track_models,
-            graph=function.spec.graph,
-            sampling_percentage=function.spec.parameters.get(
-                mm_constants.EventFieldType.SAMPLING_PERCENTAGE, 100
-            ),
-        )  # model endpoint, creation strategy, model path
-        semaphore = Semaphore(50)  # Limit concurrent tasks
-        coroutines = []
-        batchsize = 500
-        for i in range(0, len(model_endpoints_instructions), batchsize):
-            batch = model_endpoints_instructions[i : i + batchsize]
-            coroutines.append(
-                MonitoringDeployment._create_model_endpoint_limited(
-                    semaphore, batch, project
-                )
-            )
-
-        await asyncio.gather(*coroutines)
-        logger.info(
-            "Finish Running BGT for model endpoint creation",
+        ]
+        function_tag = function.metadata.tag or "latest"
+        model_endpoints_dict: dict[str, ModelEndpoint] = await run_in_threadpool(
+            framework.utils.singletons.db.get_db().list_model_endpoints,
             project=project,
-            function=function_name,
+            function_name=function_name,
+            function_tag=function_tag,
+            latest_only=True,
+            session=db_session,
+            as_dict=True,
         )
 
-    @staticmethod
-    async def _create_model_endpoint_limited(
-        semaphore: Semaphore,
-        model_endpoints_instructions: list[
-            tuple[
-                mlrun.common.schemas.ModelEndpoint,
-                mm_constants.ModelEndpointCreationStrategy,
-                str,
-            ]
-        ],
-        project: str,
-    ):
-        async with semaphore:
-            result = await framework.db.session.run_async_function_with_new_db_session(
-                func=services.api.crud.ModelEndpoints().create_model_endpoints,
-                model_endpoints_instructions=model_endpoints_instructions,
+        model_endpoints_instructions, graph = (
+            self._extract_model_endpoints_from_function_graph(
+                function_name=function_name,
+                function_tag=function_tag,
+                track_models=function.spec.track_models,
+                graph=function.spec.graph,
+                sampling_percentage=function.spec.parameters.get(
+                    mm_constants.EventFieldType.SAMPLING_PERCENTAGE, 100
+                ),
+                model_endpoints_dict=model_endpoints_dict,
                 project=project,
             )
-            return result
+        )  # model endpoint, creation strategy, model path
+        function.spec.graph = graph
+        return model_endpoints_instructions, function.to_dict()
 
     def _extract_model_endpoints_from_function_graph(
         self,
@@ -1440,12 +1497,18 @@ class MonitoringDeployment:
             mlrun.serving.states.RouterStep, mlrun.serving.states.RootFlowStep
         ],
         sampling_percentage: float,
-    ) -> list[
-        tuple[
-            mlrun.common.schemas.ModelEndpoint,
-            mm_constants.ModelEndpointCreationStrategy,
-            str,
-        ]
+        model_endpoints_dict: dict[str, ModelEndpoint],
+        project: str,
+    ) -> tuple[
+        list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+            ]
+        ],
+        typing.Union[
+            mlrun.serving.states.RouterStep, mlrun.serving.states.RootFlowStep
+        ],
     ]:
         model_endpoints_instructions = []
         if isinstance(graph, mlrun.serving.states.RouterStep):
@@ -1456,6 +1519,8 @@ class MonitoringDeployment:
                     track_models=track_models,
                     router_step=graph,
                     sampling_percentage=sampling_percentage,
+                    model_endpoints_dict=model_endpoints_dict,
+                    project=project,
                 )
             )
         elif isinstance(graph, mlrun.serving.states.RootFlowStep):
@@ -1466,9 +1531,11 @@ class MonitoringDeployment:
                     track_models=track_models,
                     root_flow_step=graph,
                     sampling_percentage=sampling_percentage,
+                    model_endpoints_dict=model_endpoints_dict,
+                    project=project,
                 )
             )
-        return model_endpoints_instructions
+        return model_endpoints_instructions, graph
 
     def _extract_meps_from_router_step(
         self,
@@ -1477,11 +1544,12 @@ class MonitoringDeployment:
         track_models: bool,
         router_step: mlrun.serving.states.RouterStep,
         sampling_percentage: float,
+        model_endpoints_dict: dict[str, ModelEndpoint],
+        project: str,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
             mm_constants.ModelEndpointCreationStrategy,
-            str,
         ]
     ]:
         model_endpoints_instructions = []
@@ -1492,7 +1560,14 @@ class MonitoringDeployment:
                 route.model_endpoint_creation_strategy
                 != mm_constants.ModelEndpointCreationStrategy.SKIP
             ):
-                uid = uuid.uuid4().hex
+                uid = self._get_or_create_uid(
+                    project=project,
+                    function_name=function_name,
+                    function_tag=function_tag,
+                    model_endpoints_dict=model_endpoints_dict,
+                    step=route,
+                )
+                route.class_args["model_endpoint_uid"] = uid
                 model_endpoints_instructions.append(
                     (
                         self._model_endpoint_draft(
@@ -1505,9 +1580,9 @@ class MonitoringDeployment:
                             sampling_percentage=sampling_percentage,
                             uid=uid,
                             label_names=route.class_args.get("outputs"),
+                            model_path=route.class_args.get("model_path", ""),
                         ),
                         route.model_endpoint_creation_strategy,
-                        route.class_args.get("model_path", ""),
                     )
                 )
                 routes_names.append(route.name)
@@ -1516,6 +1591,14 @@ class MonitoringDeployment:
             router_step.model_endpoint_creation_strategy
             != mm_constants.ModelEndpointCreationStrategy.SKIP
         ):
+            uid = self._get_or_create_uid(
+                project=project,
+                function_name=function_name,
+                function_tag=function_tag,
+                model_endpoints_dict=model_endpoints_dict,
+                step=router_step,
+            )
+            router_step.class_args["model_endpoint_uid"] = uid
             model_endpoints_instructions.append(
                 (
                     self._model_endpoint_draft(
@@ -1528,9 +1611,9 @@ class MonitoringDeployment:
                         children_names=routes_names,
                         children_uids=routes_uids,
                         sampling_percentage=sampling_percentage,
+                        uid=uid,
                     ),
                     router_step.model_endpoint_creation_strategy,
-                    "",
                 )
             )
 
@@ -1543,11 +1626,12 @@ class MonitoringDeployment:
         track_models: bool,
         root_flow_step: mlrun.serving.states.RootFlowStep,
         sampling_percentage: float,
+        model_endpoints_dict: dict[str, ModelEndpoint],
+        project: str,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
             mm_constants.ModelEndpointCreationStrategy,
-            str,
         ]
     ]:
         model_endpoints_instructions = []
@@ -1560,6 +1644,8 @@ class MonitoringDeployment:
                         track_models=track_models,
                         router_step=step,
                         sampling_percentage=sampling_percentage,
+                        model_endpoints_dict=model_endpoints_dict,
+                        project=project,
                     )
                 )
             else:
@@ -1567,6 +1653,14 @@ class MonitoringDeployment:
                     step.model_endpoint_creation_strategy
                     != mm_constants.ModelEndpointCreationStrategy.SKIP
                 ):
+                    uid = self._get_or_create_uid(
+                        project=project,
+                        function_name=function_name,
+                        function_tag=function_tag,
+                        model_endpoints_dict=model_endpoints_dict,
+                        step=step,
+                    )
+                    step.class_args["model_endpoint_uid"] = uid
                     model_endpoints_instructions.append(
                         (
                             self._model_endpoint_draft(
@@ -1576,12 +1670,33 @@ class MonitoringDeployment:
                                 function_name=function_name,
                                 function_tag=function_tag,
                                 track_models=track_models,
+                                model_path=step.class_args.get("model_path", ""),
+                                uid=uid,
                             ),
                             step.model_endpoint_creation_strategy,
-                            step.class_args.get("model_path", ""),
                         )
                     )
         return model_endpoints_instructions
+
+    @staticmethod
+    def _get_or_create_uid(
+        project: str,
+        function_name: str,
+        function_tag: str,
+        model_endpoints_dict: dict[str, ModelEndpoint],
+        step,
+    ) -> str:
+        old_model_endpoint = model_endpoints_dict.get(
+            f"{project}-{function_name}-{function_tag}-{step.name}"
+        )
+        uid = (
+            old_model_endpoint.uid
+            if old_model_endpoint
+            and step.model_endpoint_creation_strategy
+            == mm_constants.ModelEndpointCreationStrategy.INPLACE
+            else uuid.uuid4().hex
+        )
+        return uid
 
     def _model_endpoint_draft(
         self,
@@ -1596,6 +1711,7 @@ class MonitoringDeployment:
         children_uids: typing.Optional[list[str]] = None,
         sampling_percentage: typing.Optional[float] = None,
         label_names: typing.Optional[list[str]] = None,
+        model_path: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         function_tag = function_tag or "latest"
         return mlrun.common.schemas.ModelEndpoint(
@@ -1605,11 +1721,11 @@ class MonitoringDeployment:
             spec=mlrun.common.schemas.ModelEndpointSpec(
                 function_name=function_name,
                 function_tag=function_tag,
-                function_uid=f"{unversioned_tagged_object_uid_prefix}{function_tag}",  # TODO: remove after ML-8596
                 label_names=label_names or [],
                 model_class=model_class,
                 children=children_names,
                 children_uids=children_uids,
+                model_path=model_path,
             ),
             status=mlrun.common.schemas.ModelEndpointStatus(
                 monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
@@ -1624,8 +1740,14 @@ class MonitoringDeployment:
         db_session: sqlalchemy.orm.Session,
         background_tasks: BackgroundTasks,
         function_name: str,
-        function: dict,
+        function_tag: str,
         project_name: str,
+        model_endpoints_instructions: list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+            ]
+        ],
     ):
         background_task_name = str(uuid.uuid4())
         return framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
@@ -1635,9 +1757,11 @@ class MonitoringDeployment:
             MonitoringDeployment.create_model_endpoints,
             mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_creation,
             background_task_name,
-            function,
             function_name,
+            function_tag,
             project_name,
+            background_tasks,
+            model_endpoints_instructions,
         )
 
     @staticmethod

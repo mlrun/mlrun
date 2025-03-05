@@ -101,6 +101,13 @@ def test_write_application_event(
         "type": "results",
         "with_result_extra_data": with_result_extra_data,
     }
+
+    # Write another event with different endpoint_id
+    data_v2 = data.copy()
+    data_v2["endpoint_id"] = "2"
+
+    connector.write_application_event(data_v2)
+
     read_back_results = connector.read_metrics_data(**read_data_kwargs)
     assert len(read_back_results) == 1
     read_back_result = read_back_results[0]
@@ -117,6 +124,12 @@ def test_write_application_event(
         assert read_back_values.extra_data == data["result_extra_data"]
 
     # Delete resources and verify that database is deleted
+    connector.delete_tsdb_records(endpoint_ids=[endpoint_id, "123"])
+    read_back_results = connector.read_metrics_data(**read_data_kwargs)
+    read_back_result = read_back_results[0]
+    assert not read_back_result.data
+
+    # Delete database
     connector.delete_tsdb_resources()
 
     with pytest.raises(taoswswrap.tdengine_connection.TDEngineError):

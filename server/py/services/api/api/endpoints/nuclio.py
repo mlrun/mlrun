@@ -39,7 +39,7 @@ import framework.utils.auth.verifier
 import framework.utils.clients.async_nuclio
 import framework.utils.clients.chief
 import framework.utils.singletons.project_member
-import services.api.crud.model_monitoring.deployment
+import services.api.crud.model_monitoring.deployment as mm_deployment
 import services.api.crud.runtimes.nuclio.function
 import services.api.launcher
 from framework.api import deps
@@ -271,18 +271,29 @@ async def deploy_function(
         background_tasks=[]
     )
     if function.get("kind") == mlrun.runtimes.RuntimeKinds.serving:
+        monitoring_deployment = mm_deployment.MonitoringDeployment(project=project)
+        (
+            model_endpoints_instructions,
+            function,
+        ) = await monitoring_deployment._create_model_endpoints_instructions(
+            db_session=db_session,
+            function=function,
+            function_name=name,
+            project=project,
+        )
         logger.info(
             "Creating Background Task for model endpoints creation",
             project=project,
             function=name,
         )
         returned_background_task = await run_in_threadpool(
-            framework.db.session.run_function_with_new_db_session,
-            services.api.crud.model_monitoring.deployment.MonitoringDeployment._create_model_endpoint_background_task,
+            monitoring_deployment._create_model_endpoint_background_task,
+            db_session=db_session,
             background_tasks=background_tasks,
             project_name=project,
             function_name=name,
-            function=function,
+            function_tag=function.get("metadata", {}).get("tag") or "latest",
+            model_endpoints_instructions=model_endpoints_instructions,
         )
         returned_background_tasks.background_tasks.append(returned_background_task)
 
@@ -549,13 +560,11 @@ def _deploy_nuclio_runtime(
         else:
             model_monitoring_access_key = None
 
-        monitoring_deployment = (
-            services.api.crud.model_monitoring.deployment.MonitoringDeployment(
-                project=fn.metadata.project,
-                auth_info=auth_info,
-                db_session=db_session,
-                model_monitoring_access_key=model_monitoring_access_key,
-            )
+        monitoring_deployment = mm_deployment.MonitoringDeployment(
+            project=fn.metadata.project,
+            auth_info=auth_info,
+            db_session=db_session,
+            model_monitoring_access_key=model_monitoring_access_key,
         )
         try:
             monitoring_deployment.check_if_credentials_are_set()
@@ -575,6 +584,7 @@ def _deploy_nuclio_runtime(
                 function=fn,
                 function_name=fn.metadata.name,
                 stream_args=config.model_endpoint_monitoring.application_stream_args,
+                ignore_stream_already_exists_failure=True,
             )
 
         if serving_to_monitor:

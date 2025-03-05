@@ -14,6 +14,8 @@
 #
 import datetime
 import os
+import random
+import string
 
 import kfp
 import kfp.compiler
@@ -40,7 +42,7 @@ class TestDask(TestMLRunSystem):
         self._logger.debug("Creating dask function")
 
     def test_dask(self):
-        dask_function = self._generate_dask_function("my-dask-1")
+        dask_function = self._generate_dask_function()
         run_object = dask_function.run(handler="main", params={"x": 12})
         self._logger.debug("Finished running task", run_object=run_object.to_dict())
 
@@ -73,7 +75,7 @@ class TestDask(TestMLRunSystem):
         assert run_object.state() == "completed"
 
     def test_run_pipeline(self):
-        dask_function = self._generate_dask_function("my-dask-2")
+        dask_function = self._generate_dask_function()
 
         @kfp.dsl.pipeline(name="dask_pipeline")
         def dask_pipe(x=1, y=10):
@@ -107,7 +109,7 @@ class TestDask(TestMLRunSystem):
         self._verify_run_metadata(
             run["metadata"],
             uid=run_uid,
-            name="my-dask-2-main",
+            name=f"{dask_function.metadata.name}-main",
             project=self.project_name,
             labels={
                 mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
@@ -130,8 +132,7 @@ class TestDask(TestMLRunSystem):
         os.remove("daskpipe.yaml")
 
     def test_dask_close(self):
-        dask_function_name = "my-dask-3"
-        dask_function = self._generate_dask_function(dask_function_name)
+        dask_function = self._generate_dask_function()
         self._logger.info("Initializing dask cluster")
         cluster_start_time = datetime.datetime.now()
 
@@ -157,7 +158,7 @@ class TestDask(TestMLRunSystem):
             self._logger,
             True,
             self._wait_for_dask_cluster_to_shutdown,
-            dask_function_name,
+            dask_function.metadata.name,
         )
 
         # Client supposed to be closed
@@ -168,7 +169,10 @@ class TestDask(TestMLRunSystem):
         with pytest.raises(AttributeError):
             client.restart()
 
-    def _generate_dask_function(self, function_name: str):
+    def _generate_dask_function(self):
+        function_name = (
+            f"my-dask-{random.choices(string.ascii_letters + string.digits, k=4)}"
+        )
         dask_function = code_to_function(
             function_name,
             kind="dask",

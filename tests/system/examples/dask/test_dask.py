@@ -170,9 +170,10 @@ class TestDask(TestMLRunSystem):
             client.restart()
 
     def _generate_dask_function(self):
-        function_name = (
-            f"my-dask-{random.choices(string.ascii_letters + string.digits, k=4)}"
+        random_suffix = "".join(
+            random.choices(string.ascii_letters + string.digits, k=4)
         )
+        function_name = f"my-dask-{random_suffix}"
         dask_function = code_to_function(
             function_name,
             kind="dask",

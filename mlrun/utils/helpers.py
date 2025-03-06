@@ -498,7 +498,6 @@ def get_in(obj, keys, default=None):
     """
     if isinstance(keys, str):
         keys = keys.split(".")
-
     for key in keys:
         if not obj or key not in obj:
             return default

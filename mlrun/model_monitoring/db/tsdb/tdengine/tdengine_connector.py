@@ -286,6 +286,67 @@ class TDEngineConnector(TSDBConnector):
             flush_after_seconds=tsdb_batching_timeout_secs,
         )
 
+    def delete_tsdb_records(
+        self, endpoint_ids: list[str], delete_timeout: Optional[int] = None
+    ):
+        """
+        To delete subtables within TDEngine, we first query the subtables names with the provided endpoint_ids.
+        Then, we drop each subtable.
+        """
+        logger.debug(
+            "Deleting model endpoint resources using the TDEngine connector",
+            project=self.project,
+            number_of_endpoints_to_delete=len(endpoint_ids),
+        )
+
+        # Get all subtables with the provided endpoint_ids
+        subtables = []
+        try:
+            for table in self.tables:
+                get_subtable_query = self.tables[table]._get_subtables_query_by_tag(
+                    filter_tag="endpoint_id", filter_values=endpoint_ids
+                )
+                subtables_result = self.connection.run(
+                    query=get_subtable_query,
+                    timeout=self._timeout,
+                    retries=self._retries,
+                )
+                subtables.extend([subtable[0] for subtable in subtables_result.data])
+        except Exception as e:
+            logger.warning(
+                "Failed to get subtables for deletion. You may need to delete them manually."
+                "These can be found under the following supertables: app_results, "
+                "metrics, errors, and predictions.",
+                project=self.project,
+                error=mlrun.errors.err_to_str(e),
+            )
+
+        # Prepare the drop statements
+        drop_statements = []
+        for subtable in subtables:
+            drop_statements.append(
+                self.tables[table].drop_subtable_query(subtable=subtable)
+            )
+        try:
+            self.connection.run(
+                statements=drop_statements,
+                timeout=delete_timeout or self._timeout,
+                retries=self._retries,
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to delete model endpoint resources. You may need to delete them manually. "
+                "These can be found under the following supertables: app_results, "
+                "metrics, errors, and predictions.",
+                project=self.project,
+                error=mlrun.errors.err_to_str(e),
+            )
+        logger.debug(
+            "Deleted all model endpoint resources using the TDEngine connector",
+            project=self.project,
+            number_of_endpoints_to_delete=len(endpoint_ids),
+        )
+
     def delete_tsdb_resources(self):
         """
         Delete all project resources in the TSDB connector, such as model endpoints data and drift results.
@@ -308,7 +369,7 @@ class TDEngineConnector(TSDBConnector):
             logger.warning(
                 "Failed to drop TDEngine tables. You may need to drop them manually. "
                 "These can be found under the following supertables: app_results, "
-                "metrics, and predictions.",
+                "metrics, errors, and predictions.",
                 project=self.project,
                 error=mlrun.errors.err_to_str(e),
             )

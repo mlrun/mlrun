@@ -708,6 +708,9 @@ def _deploy_ingestion_service_v2(
     function.metadata.name = function.metadata.name or name
 
     function.spec.graph = featureset.spec.graph
+    function.spec.graph.engine = (
+        "async" if featureset.spec.engine == "storey" else "sync"
+    )
     function.spec.parameters = run_config.parameters
     function.spec.graph_initializer = (
         "mlrun.feature_store.ingestion.featureset_initializer"

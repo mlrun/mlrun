@@ -447,7 +447,6 @@ class TestProject(TestMLRunSystem):
 
         db = mlrun.get_run_db()
         project.sync_functions(save=True)
-        project.register_artifacts()
 
         # get project from db for creation time
         project = db.get_project(name=self.project_name)
@@ -479,7 +478,6 @@ class TestProject(TestMLRunSystem):
 
         db = mlrun.get_run_db()
         project.sync_functions(save=True)
-        project.register_artifacts()
 
         # get project from db for creation time
         project = db.get_project(name=self.project_name)

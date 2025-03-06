@@ -789,8 +789,8 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
         )
         self.project.deploy_function(fn)
 
-    def _record_results(self) -> None:
-        mlrun.model_monitoring.api.record_results(
+    def _record_results(self) -> str:
+        model_endpoint = mlrun.model_monitoring.api.record_results(
             project=self.project_name,
             model_path=self.project.get_artifact_uri(  # pyright: ignore[reportOptionalMemberAccess]
                 key=self.model_name, category="model", tag="latest"
@@ -800,6 +800,8 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
         )
+
+        return model_endpoint.metadata.uid
 
     def _deploy_monitoring_infra(self) -> None:
         self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
@@ -814,15 +816,14 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             executor.submit(self._deploy_monitoring_app)
             executor.submit(self._deploy_monitoring_infra)
 
-        self._record_results()
+        endpoint_id = self._record_results()
 
         time.sleep(2.4 * self.app_interval_seconds)
 
         mep = mlrun.db.get_run_db().get_model_endpoint(
             name=f"{self.name_prefix}-test",
             project=self.project.name,
-            function_name=self.function_name,
-            function_tag="latest",
+            endpoint_id=endpoint_id,
             feature_analysis=True,
             tsdb_metrics=True,
         )

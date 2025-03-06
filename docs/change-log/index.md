@@ -24,36 +24,55 @@
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-7731|Model monitoring can now be run on a larger scale, using MLRun's additional replicas/workers. To benefit from the scale-out: After upgrading to v1.8.0, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
-|    |The model monitoring APIs changed. And new APIs
-|ML9305|Model monitoring is no longer in TechPreview status.|
+|    |The model monitoring APIs changed ??
+|ML-9305|Model monitoring is no longer in TechPreview status.|
+
+### Artifacts
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|   |New artifact type, **Documents**, that supports working with vector DBs. The UI has a new Projects > Documents page supporting this feature.|
+
 ### Alerts
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-7870|Alerts are now enabled by default.|
-|ML-8472|You can now list the alert activations and filter the list by various parameters using the SDK. See {ref}`alert_activations`.|
+|ML-8472|You can now list the alert activation history and filter the list by various parameters using the SDK. See {ref}`alert_activations`.|
 ||The 
+
+### Notifications
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-5985|You can now send notifications by email. See <link>|
+
+### Workflows
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-6341|Supports protobuf 4.x in the client, leaving the frames server untouched. Grafana/ Promethus etc continue to use the http connection which is not using protobuf. Pandas feature store works with the new frames client that will not provide grpc suport and might be affected performance-wise. @Gilad Shaham consider to add this to the release note and as a note on pnadas engine being a “playground” not against massive amount of data.|
+|ML-6379|New capabilities when using vector DBs as part of MLRun workflows.|
 
 ### Breaking changes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-8951|Evidently-related code is now in a dedicated module. Code that imported `mlrun.model_monitoring.applications.EvidentlyModelMonitoringApplicationBase` needs to import `mlrun.model_monitoring.applications.evidently.EvidentlyModelMonitoringApplicationBase` instead.|
+| |Model monitoring credentials are now part of the project. See [Enable model monitoring on the project](../tutorials/05-model-monitoring.ipynb#enable-model-monitoring-on-the-project).|
 
 ### Infrastructure
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
+|ML-2714|MLRun supports Confluent Kafka 7.8.|
 |ML-8314|KFP is no longer part of the MLRun images, except for the new `mlrun/mlrun-kfp`. This gives you greater flexibility for installing packages whose dependencies conflict with KFP 1.8. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images).|
-|ML-2714|Now supports Confluent Kafka 7.8.|
-|NA     |Square brackets are now allowed in user names, for example: `{dependabot[bot]}`|
+
 
 
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-8120|The main counters in the Projects page are now clickable, replacing the "See all" links.| 
-|ML-8276|You can now retry a workflow. The retry maintains the same experiment ID and just re-runs it, without changing anything in the workflow spec or code. The retry option is in enable in the 3-dots menu for the pipeline.|
+|ML-8276|You can now retry a workflow in the UI. The retry maintains the same experiment ID and just re-runs it, without changing anything in the workflow spec or code. The retry option is in enable in the 3-dots menu for the pipeline.|
 |ML-8346|The cross-project view now shows the number of alert activations within the project. From there you can drill down per endpoint, jobs, and application.<p align="center"><img src="../_static/images/alerts-dashboard.png" alt="alerts-summary" /></p><br>| 
 |ML-8352|Queries are now implemented with pagination, increasing responsiveness and reducing resource requirements.|
-
+|ML-7824|The Jobs and Workflow>Monitor Workflows and Schedule panes now have a pop-up filter, and the Batch Run button is in the same row &mdash; providing more space for the lists in the tables. |
+|ML-7825|The Feature Store panes now have a pop-up filter, and the Create Set/Vector button is in the same row &mdash; providing more space for the lists in the tables. |
 
 
 ## v1.7.2 (16 January 2025)

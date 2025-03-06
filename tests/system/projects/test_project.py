@@ -1729,21 +1729,6 @@ class TestProject(TestMLRunSystem):
             len(notifications) == 2
         ), f"Expected 2 notifications, got {len(notifications)}"
 
-    def test_set_and_run_remote_workflow(self):
-        """
-        This test verifies that a workflow can be set and executed remotely when the project source
-        is a remote repository (e.g., a Git repository) and the function files are not present locally.
-        """
-        project_name = "my-project"
-        source = "git://github.com/mlrun/project-demo.git#main"
-        project = mlrun.new_project(project_name, overwrite=True)
-
-        project.set_source(source=source)
-        project.set_workflow(name="main", workflow_path="./kflow.py", engine="remote")
-        run = project.run("main", engine="remote", source=source)
-        mlrun.wait_for_pipeline_completion(run)
-        assert run.state == mlrun.run.RunStatuses.succeeded
-
     @staticmethod
     def _generate_pipeline_notifications(
         nuclio_function_url: str,

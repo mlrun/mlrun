@@ -1412,7 +1412,9 @@ class MlrunProject(ModelObj):
         """
 
         # validate the provided workflow_path
-        self._validate_file_path(workflow_path, param_name="workflow_path")
+        self._validate_file_path(
+            workflow_path, param_name="workflow_path", engine=engine
+        )
 
         if engine and "local" in engine and schedule:
             raise ValueError("'schedule' argument is not supported for 'local' engine.")
@@ -5241,7 +5243,7 @@ class MlrunProject(ModelObj):
             if is_remote_enriched:
                 self.spec.repo.remotes[remote].set_url(clean_remote, enriched_remote)
 
-    def _validate_file_path(self, file_path: str, param_name: str):
+    def _validate_file_path(self, file_path: str, param_name: str, engine: str):
         """
         The function checks if the given file_path is a valid path.
         If the file_path is a relative path, it is completed by joining it with the self.spec.get_code_path()
@@ -5266,10 +5268,7 @@ class MlrunProject(ModelObj):
                 f"Invalid '{param_name}': '{file_path}'. Got a remote URL without a file suffix."
             )
 
-        _, in_context = self.get_item_absolute_path(file_path)
-
-        # if the file source is remote then skip the local file validation
-        if in_context and self.spec.source:
+        if engine and not engine.startswith("remote"):
             return
 
         code_path = self.spec.get_code_path()

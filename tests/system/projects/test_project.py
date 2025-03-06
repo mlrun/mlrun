@@ -1732,7 +1732,7 @@ class TestProject(TestMLRunSystem):
     def test_set_and_run_remote_workflow(self):
         """
         This test verifies that a workflow can be set and executed remotely when the project source
-        is a remote repository (e.g., a Git repository).
+        is a remote repository (e.g., a Git repository) and the function files are not present locally.
         """
         project_name = "my-project"
         source = "git://github.com/mlrun/project-demo.git#main"

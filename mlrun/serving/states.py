@@ -989,7 +989,12 @@ class ModelRunnerStep(TaskStep):
         )
 
     def add_model(self, model: Union[str, Model], **model_parameters) -> None:
-        """Add a Model to this ModelRunner."""
+        """
+        Add a Model to this ModelRunner.
+
+        :param model: Model class name or object
+        :param model_parameters: Parameters for model instantiation
+        """
         models = self.class_args.get("models", [])
         models.append((model, model_parameters))
         self.class_args["models"] = models

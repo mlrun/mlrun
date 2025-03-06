@@ -24,6 +24,8 @@ The `project_setup.py` script returns the updated MLRun project after applying t
 ```python
 def setup(project: mlrun.projects.MlrunProject) -> mlrun.projects.MlrunProject:
     # ... (setup configurations)
+    
+    # Return the project
     return project
 ```
 

@@ -24,9 +24,6 @@ The `project_setup.py` script returns the updated MLRun project after applying t
 ```python
 def setup(project: mlrun.projects.MlrunProject) -> mlrun.projects.MlrunProject:
     # ... (setup configurations)
-
-    # Save and return the project:
-    project.save()
     return project
 ```
 
@@ -89,8 +86,7 @@ def setup(project: mlrun.projects.MlrunProject) -> mlrun.projects.MlrunProject:
     # MLRun Workflows - note that paths are relative to the project context (./src)
     project.set_workflow("main", "workflows/main_workflow.py")
 
-    # Save and return the project:
-    project.save()
+    # Return the project
     return project
 ```
 

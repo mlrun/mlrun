@@ -5268,6 +5268,7 @@ class MlrunProject(ModelObj):
                 f"Invalid '{param_name}': '{file_path}'. Got a remote URL without a file suffix."
             )
 
+        # if engine is remote then skip the local file validation
         if engine and not engine.startswith("remote"):
             return
 

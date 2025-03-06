@@ -161,6 +161,7 @@ class ApplicationEvent:
     END_INFER_TIME = "end_infer_time"
     ENDPOINT_ID = "endpoint_id"
     ENDPOINT_NAME = "endpoint_name"
+    ENDPOINT_UPDATED = "endpoint_updated"
 
 
 class WriterEvent(MonitoringStrEnum):
@@ -190,7 +191,13 @@ class ControllerEvent(MonitoringStrEnum):
     ENDPOINT_TYPE = "endpoint_type"
     ENDPOINT_POLICY = "endpoint_policy"
     # Note: currently under endpoint policy we will have a dictionary including the keys: "application_names"
-    # and "base_period"
+    # "base_period", and "updated_endpoint" stand for when the MEP was updated
+
+
+class ControllerEventEndpointPolicy(MonitoringStrEnum):
+    BASE_PERIOD = "base_period"
+    MONITORING_APPLICATIONS = "monitoring_applications"
+    ENDPOINT_UPDATED = "endpoint_updated"
 
 
 class ControllerEventKind(MonitoringStrEnum):

@@ -165,14 +165,17 @@ def clone_git(url: str, context: str, secrets=None, clone: bool = True):
 
     branch = None
     tag = None
+    commit = None
     if url_obj.fragment:
         refs = url_obj.fragment
         if refs.startswith("refs/heads/"):
             branch = refs.replace("refs/heads/", "")
         elif refs.startswith("refs/tags/"):
             tag = refs.replace("refs/tags/", "")
+        elif refs.startswith("refs/commits/"):
+            commit = refs.replace("refs/commits/", "")
         else:
-            url = url.replace("#" + refs, f"#refs/heads/{refs}")
+            url = url.replace(f"#{refs}", f"#refs/heads/{refs}")
             branch = refs
 
     # when using the CLI and clone path was not enriched, username/password input will be requested via shell
@@ -182,8 +185,8 @@ def clone_git(url: str, context: str, secrets=None, clone: bool = True):
         # override enriched clone path for security reasons
         repo.remotes[0].set_url(clone_path, final_clone_path)
 
-    if tag:
-        repo.git.checkout(tag)
+    if tag_or_commit := tag or commit:
+        repo.git.checkout(tag_or_commit)
 
     return url, repo
 

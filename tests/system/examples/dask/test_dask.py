@@ -14,6 +14,8 @@
 #
 import datetime
 import os
+import random
+import string
 
 import kfp
 import kfp.compiler
@@ -38,20 +40,10 @@ from tests.system.base import TestMLRunSystem
 class TestDask(TestMLRunSystem):
     def custom_setup(self):
         self._logger.debug("Creating dask function")
-        self.dask_function = code_to_function(
-            "mydask",
-            kind="dask",
-            filename=str(self.assets_path / "dask_function.py"),
-        ).apply(mount_v3io())
-
-        self.dask_function.spec.image = "mlrun/ml-base"
-        self.dask_function.spec.remote = True
-        self.dask_function.spec.replicas = 1
-        self.dask_function.spec.service_type = "NodePort"
-        self.dask_function.spec.command = str(self.assets_path / "dask_function.py")
 
     def test_dask(self):
-        run_object = self.dask_function.run(handler="main", params={"x": 12})
+        dask_function = self._generate_dask_function()
+        run_object = dask_function.run(handler="main", params={"x": 12})
         self._logger.debug("Finished running task", run_object=run_object.to_dict())
 
         run_uid = run_object.uid()
@@ -83,10 +75,12 @@ class TestDask(TestMLRunSystem):
         assert run_object.state() == "completed"
 
     def test_run_pipeline(self):
+        dask_function = self._generate_dask_function()
+
         @kfp.dsl.pipeline(name="dask_pipeline")
         def dask_pipe(x=1, y=10):
             # use_db option will use a function (DB) pointer instead of adding the function spec to the YAML
-            self.dask_function.as_step(
+            dask_function.as_step(
                 new_task(handler="main", name="dask_pipeline", params={"x": x, "y": y}),
                 use_db=True,
             )
@@ -115,7 +109,7 @@ class TestDask(TestMLRunSystem):
         self._verify_run_metadata(
             run["metadata"],
             uid=run_uid,
-            name="mydask-main",
+            name=f"{dask_function.metadata.name}-main",
             project=self.project_name,
             labels={
                 mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
@@ -138,23 +132,24 @@ class TestDask(TestMLRunSystem):
         os.remove("daskpipe.yaml")
 
     def test_dask_close(self):
+        dask_function = self._generate_dask_function()
         self._logger.info("Initializing dask cluster")
         cluster_start_time = datetime.datetime.now()
 
         # initialize the dask cluster and get its dashboard url
-        client = self.dask_function.client
+        client = dask_function.client
         time_took = (datetime.datetime.now() - cluster_start_time).seconds
         self._logger.info(
             "Dask cluster initialization completed", took_in_seconds=time_took
         )
 
         worker_start_time = datetime.datetime.now()
-        client.wait_for_workers(self.dask_function.spec.replicas)
+        client.wait_for_workers(dask_function.spec.replicas)
         time_took = (datetime.datetime.now() - worker_start_time).seconds
         self._logger.info("Workers initialization completed", took_in_seconds=time_took)
 
         self._logger.info("Shutting Down Cluster")
-        self.dask_function.close()
+        dask_function.close()
 
         # wait for the dask cluster to completely shut down
         mlrun.utils.retry_until_successful(
@@ -163,7 +158,7 @@ class TestDask(TestMLRunSystem):
             self._logger,
             True,
             self._wait_for_dask_cluster_to_shutdown,
-            "mydask",
+            dask_function.metadata.name,
         )
 
         # Client supposed to be closed
@@ -174,6 +169,23 @@ class TestDask(TestMLRunSystem):
         with pytest.raises(AttributeError):
             client.restart()
 
+    def _generate_dask_function(self):
+        function_name = (
+            f"my-dask-{random.choices(string.ascii_letters + string.digits, k=4)}"
+        )
+        dask_function = code_to_function(
+            function_name,
+            kind="dask",
+            filename=str(self.assets_path / "dask_function.py"),
+        ).apply(mount_v3io())
+
+        dask_function.spec.image = "mlrun/ml-base"
+        dask_function.spec.remote = True
+        dask_function.spec.replicas = 1
+        dask_function.spec.service_type = "NodePort"
+        dask_function.spec.command = str(self.assets_path / "dask_function.py")
+        return dask_function
+
     def _wait_for_dask_cluster_to_shutdown(self, dask_cluster_name):
         runtime_resources = mlrun.get_run_db().list_runtime_resources(
             project=self.project_name,
@@ -183,9 +195,12 @@ class TestDask(TestMLRunSystem):
         resources = runtime_resources[0].resources
         # Waiting for workers to be removed and scheduler status to completed
         if len(resources.pod_resources) > 1:
+            pod_resource_dicts = [
+                pod_resource.json() for pod_resource in resources.pod_resources
+            ]
             self._logger.info(
                 "Waiting for cluster to shut down",
-                pod_resources=resources.pod_resources,
+                pod_resource_dicts=pod_resource_dicts,
             )
             raise mlrun.errors.MLRunRuntimeError("Cluster did not completely clean up")
 

@@ -53,10 +53,12 @@ def upgrade():
         sa.ForeignKeyConstraint(
             ["function_id"],
             ["functions.id"],
+            ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
             ["model_id"],
             ["artifacts_v2.id"],
+            ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("uid"),

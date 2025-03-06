@@ -935,16 +935,17 @@ with warnings.catch_warnings():
         )
         function_id = Column(
             Integer,
-            ForeignKey("functions.id"),
+            ForeignKey("functions.id", ondelete="SET NULL"),
             nullable=True,
         )
         function = relationship(Function)
 
         model_id = Column(
             Integer,
-            ForeignKey("artifacts_v2.id"),
+            ForeignKey("artifacts_v2.id", ondelete="SET NULL"),
             nullable=True,
         )
+
         model = relationship(ArtifactV2)
 
         Label = make_label(__tablename__)

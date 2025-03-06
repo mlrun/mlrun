@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
+
 import pytest
 
 import mlrun
@@ -33,6 +35,18 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
                 with_notifications=True,
             )
             assert len(runs) == 1
+            # Verify that `last_update` and `end_time` are very close in time
+            # This ensures that the final update to the run status happens
+            # at most within 1 millisecond after the run actual end time.
+            assert runs[0]["status"]["end_time"]
+            assert runs[0]["status"]["last_update"]
+            end_time = datetime.datetime.fromisoformat(runs[0]["status"]["end_time"])
+            last_updated_time = datetime.datetime.fromisoformat(
+                runs[0]["status"]["last_update"]
+            )
+            max_time_delta = datetime.timedelta(milliseconds=1)
+            assert last_updated_time - end_time < max_time_delta
+
             assert len(runs[0]["status"]["notifications"]) == 2
             for notification_name, notification in runs[0]["status"][
                 "notifications"

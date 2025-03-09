@@ -225,9 +225,11 @@ def validate_additional_filters(additional_filters):
 
 
 class KafkaParameters:
-    def __init__(self, kwargs: dict):
+    def __init__(self, kwargs: typing.Optional[dict] = None):
         import kafka
 
+        if kwargs is None:
+            kwargs = {}
         self._kafka = kafka
         self._kwargs = kwargs
         self._client_configs = {
@@ -245,17 +247,18 @@ class KafkaParameters:
             "sasl": "",
             "worker_allocation_mode": "",
         }
-        self._validate_keys()
-
-    def _validate_keys(self) -> None:
-        reference_dicts = (
+        self._reference_dicts = (
             self._custom_attributes,
             self._kafka.KafkaAdminClient.DEFAULT_CONFIG,
             self._kafka.KafkaProducer.DEFAULT_CONFIG,
             self._kafka.KafkaConsumer.DEFAULT_CONFIG,
         )
+
+        self._validate_keys()
+
+    def _validate_keys(self) -> None:
         for key in self._kwargs:
-            if all(key not in d for d in reference_dicts):
+            if all(key not in d for d in self._reference_dicts):
                 raise ValueError(
                     f"Key '{key}' not found in any of the Kafka reference dictionaries"
                 )
@@ -295,3 +298,10 @@ class KafkaParameters:
             res["password"] = pwd
             res["mechanism"] = self._kwargs.get("sasl_mechanism", "PLAIN")
         return res
+
+    def valid_entries_only(self, input_dict: dict) -> dict:
+        valid_keys = set()
+        for ref_dict in self._reference_dicts:
+            valid_keys.update(ref_dict.keys())
+        # Return a new dictionary with only valid keys
+        return {k: v for k, v in input_dict.items() if k in valid_keys}

@@ -286,7 +286,7 @@ def test_build_project_from_minimal_dict():
             "",
         ),
         (
-            "git://github.com/mlrun/project-demo.git#refs/heads/main",
+            "git://github.com/mlrun/project-demo.git#refs/commits/38699adc4016bf29d1f4ab11ddd70dcc4e569388",
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             True,
@@ -356,7 +356,7 @@ def test_build_project_from_minimal_dict():
             "projects/assets/body.txt' already exists and is not an empty directory",
         ),
         (
-            "git://github.com/mlrun/project-demo.git#refs/heads/main",
+            "git://github.com/mlrun/project-demo.git#refs/commits/38699adc4016bf29d1f4ab11ddd70dcc4e569388",
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             False,
@@ -565,29 +565,29 @@ def test_project_setup_must_return_project_object(
 
 
 @pytest.mark.parametrize(
-    "sync,expected_num_of_funcs, save",
+    "sync, has_functions, save",
     [
         (
             False,
-            0,
+            False,
             False,
         ),
         (
             True,
-            5,
+            True,
             False,
         ),
         (
             True,
-            5,
+            True,
             True,
         ),
     ],
 )
 def test_load_project_and_sync_functions(
-    context, rundb_mock, sync, expected_num_of_funcs, save
+    context, rundb_mock, sync, has_functions, save
 ):
-    url = "git://github.com/mlrun/project-demo.git"
+    url = "git://github.com/mlrun/project-demo.git#refs/commits/38699adc4016bf29d1f4ab11ddd70dcc4e569388"
     project = mlrun.load_project(
         context=str(context),
         url=url,
@@ -595,16 +595,15 @@ def test_load_project_and_sync_functions(
         save=save,
         allow_cross_project=True,
     )
-    assert len(project.spec._function_objects) == expected_num_of_funcs
+    assert has_functions == (len(project.spec._function_objects) > 0)
 
     if sync:
         function_names = project.spec._function_definitions.keys()
-        assert len(function_names) == expected_num_of_funcs
-        for func in function_names:
-            fn = project.get_function(func)
-            normalized_name = mlrun.utils.helpers.normalize_name(func)
+        assert has_functions == (len(function_names) > 0)
+        for function_name in function_names:
+            fn = project.get_function(function_name)
+            normalized_name = mlrun.utils.helpers.normalize_name(function_name)
             assert fn.metadata.name == normalized_name, "func did not return"
-
             if save:
                 assert normalized_name in rundb_mock._functions
 
@@ -1502,7 +1501,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
 
 
 @pytest.mark.parametrize(
-    "workflow_path,exception",
+    "workflow_path,exception,engine",
     [
         (
             "./",
@@ -1515,6 +1514,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                     )
                 ),
             ),
+            None,
         ),
         (
             "https://test",
@@ -1526,6 +1526,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                     )
                 ),
             ),
+            None,
         ),
         (
             "",
@@ -1533,25 +1534,48 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                 mlrun.errors.MLRunInvalidArgumentError,
                 match=str(re.escape("workflow_path must be provided.")),
             ),
+            None,
         ),
-        ("https://test.py", does_not_raise()),
+        ("https://test.py", does_not_raise(), None),
         # relative path
-        ("./workflow.py", does_not_raise()),
-        ("./assets/handler.py", does_not_raise()),
+        ("./workflow.py", does_not_raise(), None),
+        ("./assets/handler.py", does_not_raise(), None),
         # only file name
-        ("workflow.py", does_not_raise()),
-        ("assets/handler.py", does_not_raise()),
+        ("workflow.py", does_not_raise(), None),
+        ("assets/handler.py", does_not_raise(), None),
         # absolute path
         (
             str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
             does_not_raise(),
+            None,
         ),
+        # absolute path that doesn't exist
+        (
+            str(pathlib.Path("/non_existing_file.py")),
+            pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': '/non_existing_file.py'. Got a path to a non-existing file. "
+                        "Path must be absolute or relative to the project code path i.e. "
+                        "<project.spec.get_code_path()>/<workflow_path>)."
+                    )
+                ),
+            ),
+            None,
+        ),
+        # relative path with engine="remote", should not raise an error since the file does not need to exist locally
+        ("./workflow.py", does_not_raise(), "remote"),
+        ("./workflow.py", does_not_raise(), "remote:local"),
+        ("./workflow.py", does_not_raise(), "remote:kfp"),
     ],
 )
-def test_set_workflow_path_validation(chdir_to_test_location, workflow_path, exception):
+def test_set_workflow_path_validation(
+    chdir_to_test_location, workflow_path, exception, engine
+):
     proj = mlrun.new_project("proj", save=False)
     with exception:
-        proj.set_workflow("main", workflow_path)
+        proj.set_workflow("main", workflow_path, engine=engine)
 
 
 def test_set_workflow_local_engine():

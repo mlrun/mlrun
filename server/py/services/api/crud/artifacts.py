@@ -294,6 +294,7 @@ class Artifacts(
                 deletion_strategy=deletion_strategy,
                 secrets=secrets,
                 auth_info=auth_info,
+                artifact=artifact,
             )
 
         return return_val

@@ -15,6 +15,7 @@
 import datetime
 import typing
 
+import sqlalchemy.exc
 import sqlalchemy.orm
 
 import mlrun.artifacts.base
@@ -242,10 +243,46 @@ class Artifacts(
         project = project or mlrun.mlconf.default_project
 
         # delete artifacts data by deletion strategy
+        artifact = None
         if deletion_strategy in [
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_optional,
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force,
         ]:
+            artifact = self.get_artifact(
+                db_session,
+                key,
+                tag,
+                project=project,
+                producer_id=producer_id,
+                object_uid=object_uid,
+                iter=iteration,
+            )
+        try:
+            return_val = framework.utils.singletons.db.get_db().del_artifact(
+                session=db_session,
+                key=key,
+                tag=tag,
+                project=project,
+                uid=object_uid,
+                producer_id=producer_id,
+                iter=iteration,
+            )
+        except sqlalchemy.exc.IntegrityError as exc:
+            logger.debug(
+                "Failed deleting artifact",
+                key=key,
+                tag=tag,
+                project=project,
+                deletion_strategy=deletion_strategy,
+                err=err_to_str(exc),
+            )
+            raise mlrun.errors.MLRunConflictError(
+                f"Failed deleting artifact {key} in project {project}, tag {tag}, "
+                f"deletion strategy {deletion_strategy}, due to :\n "
+                f"{err_to_str(exc)}"
+            )
+
+        if artifact:
             self._delete_artifact_data(
                 db_session=db_session,
                 key=key,
@@ -259,15 +296,7 @@ class Artifacts(
                 auth_info=auth_info,
             )
 
-        return framework.utils.singletons.db.get_db().del_artifact(
-            session=db_session,
-            key=key,
-            tag=tag,
-            project=project,
-            uid=object_uid,
-            producer_id=producer_id,
-            iter=iteration,
-        )
+        return return_val
 
     def delete_artifacts(
         self,
@@ -319,11 +348,12 @@ class Artifacts(
         ),
         secrets: typing.Optional[dict] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        artifact: typing.Optional[dict] = None,
     ):
         logger.debug("Deleting artifact data", project=project, key=key, tag=tag)
 
         try:
-            artifact = self.get_artifact(
+            artifact = artifact or self.get_artifact(
                 db_session,
                 key,
                 tag,

@@ -5497,6 +5497,18 @@ class SQLDB(DBInterface):
             query = query.join(
                 ModelEndpoint.Tag, ModelEndpoint.id == ModelEndpoint.Tag.obj_id
             )
+            if not function_name:
+                query = query.join(
+                    Function,
+                    ModelEndpoint.function_id == Function.id,
+                    isouter=True,  # LEFT JOIN to Function
+                )
+                query = query.filter(
+                    or_(
+                        Function.name.isnot(None),
+                        ModelEndpoint.endpoint_type == EndpointType.BATCH_EP,
+                    )
+                )
         else:
             query = query.outerjoin(
                 ModelEndpoint.Tag, ModelEndpoint.id == ModelEndpoint.Tag.obj_id

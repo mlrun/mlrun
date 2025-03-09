@@ -41,6 +41,7 @@ from mlrun.utils import Logger, logger
 class TestEventPreparation:
     ENDPOINT_ID = "test-ep-id"
     APPLICATION_NAME = "test-app"
+    ENDPOINT_UPDATED = mlrun.utils.now_date().isoformat()
 
     @classmethod
     @pytest.fixture
@@ -48,6 +49,7 @@ class TestEventPreparation:
         return {
             mm_constants.ApplicationEvent.ENDPOINT_ID: cls.ENDPOINT_ID,
             mm_constants.ApplicationEvent.APPLICATION_NAME: cls.APPLICATION_NAME,
+            mm_constants.ApplicationEvent.ENDPOINT_UPDATED: cls.ENDPOINT_UPDATED
         }
 
     @classmethod

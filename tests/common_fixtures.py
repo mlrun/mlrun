@@ -702,6 +702,7 @@ class RunDBMock:
                 model_name="model_name-test",
                 model_class="modelcc",
                 model_tag="latest",
+                monitoring_feature_set_uri="", # TODO provide a feature set uri
             ),
             status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(
                 monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled,

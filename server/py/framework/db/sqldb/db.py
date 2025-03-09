@@ -304,8 +304,13 @@ class SQLDB(DBInterface):
             run.state in mlrun.common.runtimes.constants.RunStates.terminal_states()
             and not run.end_time
         ):
-            end_time = run_end_time(struct)
-            self._update_run_end_time(run, struct, now=end_time)
+            self._update_run_end_time(run, struct, now=datetime.now(timezone.utc))
+        elif (
+            run.state not in mlrun.common.runtimes.constants.RunStates.terminal_states()
+        ):
+            # Ensure end time is not set if the run is not in a terminal state
+            run.end_time = None
+            struct.setdefault("status", {}).pop("end_time", None)
 
         # Update the labels only if the run updates contains labels
         if run_labels(updates):
@@ -571,6 +576,13 @@ class SQLDB(DBInterface):
         ):
             end_time = run_end_time(run_data)
             self._update_run_end_time(run, run_data, now=end_time)
+        elif (
+            run.state not in mlrun.common.runtimes.constants.RunStates.terminal_states()
+        ):
+            # Ensure end time is not set if the run is not in a terminal state
+            run.end_time = None
+            run_data.setdefault("status", {}).pop("end_time", None)
+
         run.struct = run_data
 
     def _add_run_name_query(self, query, name):

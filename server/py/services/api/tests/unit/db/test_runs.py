@@ -425,6 +425,46 @@ class TestRuns(TestDatabaseBase):
             assert run["status"]["end_time"] is not None
             assert update_labels_mock.call_count == 0
 
+    def test_store_and_update_run_from_terminal_state_to_non_terminal_state(self):
+        project, name, uid, iteration, run = self._create_new_run(
+            state=mlrun.common.runtimes.constants.RunStates.completed
+        )
+        run = self._db.read_run(self._db_session, uid, project, iteration)
+
+        # Store completed expected to fill end time
+        initial_end_time = run["status"]["end_time"]
+        assert initial_end_time is not None
+
+        self._create_new_run(state=mlrun.common.runtimes.constants.RunStates.running)
+        run = self._db.read_run(self._db_session, uid, project, iteration)
+
+        # Store running expected to remove end time
+        assert "end_time" not in run["status"]
+
+        self._db.update_run(
+            self._db_session,
+            {"status.state": mlrun.common.runtimes.constants.RunStates.completed},
+            uid,
+            project,
+            iteration,
+        )
+        run = self._db.read_run(self._db_session, uid, project, iteration)
+
+        # Update completed expected to fill end time
+        assert run["status"]["end_time"] > initial_end_time
+
+        self._db.update_run(
+            self._db_session,
+            {"status.state": mlrun.common.runtimes.constants.RunStates.running},
+            uid,
+            project,
+            iteration,
+        )
+        run = self._db.read_run(self._db_session, uid, project, iteration)
+
+        # Update running expected to remove end time
+        assert "end_time" not in run["status"]
+
     def test_run_iter(self):
         uid, prj = "uid39", "lemon"
         run = new_run("s1", {"l1": "v1", "l2": "v2"}, x=1)

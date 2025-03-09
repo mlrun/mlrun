@@ -942,7 +942,7 @@ with warnings.catch_warnings():
 
         model_id = Column(
             Integer,
-            ForeignKey("artifacts_v2.id", ondelete="SET NULL"),
+            ForeignKey("artifacts_v2.id"),
             nullable=True,
         )
 

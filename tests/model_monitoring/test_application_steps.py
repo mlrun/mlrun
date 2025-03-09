@@ -49,7 +49,7 @@ class TestEventPreparation:
         return {
             mm_constants.ApplicationEvent.ENDPOINT_ID: cls.ENDPOINT_ID,
             mm_constants.ApplicationEvent.APPLICATION_NAME: cls.APPLICATION_NAME,
-            mm_constants.ApplicationEvent.ENDPOINT_UPDATED: cls.ENDPOINT_UPDATED
+            mm_constants.ApplicationEvent.ENDPOINT_UPDATED: cls.ENDPOINT_UPDATED,
         }
 
     @classmethod
@@ -57,7 +57,23 @@ class TestEventPreparation:
         cls, controller_event: dict[str, typing.Any], tmp_path: Path
     ) -> None:
         with patch.object(
-            mlrun.db.get_run_db(), "get_model_endpoint"
+            mlrun.db.get_run_db(),
+            "get_model_endpoint",
+            Mock(
+                return_value=mlrun.common.schemas.model_monitoring.ModelEndpoint(
+                    metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
+                        project="my-proj",
+                        name="my-endpoint",
+                    ),
+                    spec=mlrun.common.schemas.ModelEndpointSpec(
+                        function_name="my-func", function_tag="my-tag",
+                        monitoring_feature_set_uri=mlrun.utils.generate_object_uri(
+                            project="my-proj", name="my-serving"
+                        ),
+                    ),
+                    status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus()
+                )
+            ),
         ) as patch_get_model_endpoint:
             with patch.object(
                 mlrun.db.get_run_db(),

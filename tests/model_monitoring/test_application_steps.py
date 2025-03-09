@@ -66,12 +66,13 @@ class TestEventPreparation:
                         name="my-endpoint",
                     ),
                     spec=mlrun.common.schemas.ModelEndpointSpec(
-                        function_name="my-func", function_tag="my-tag",
+                        function_name="my-func",
+                        function_tag="my-tag",
                         monitoring_feature_set_uri=mlrun.utils.generate_object_uri(
                             project="my-proj", name="my-serving"
                         ),
                     ),
-                    status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus()
+                    status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(),
                 )
             ),
         ) as patch_get_model_endpoint:

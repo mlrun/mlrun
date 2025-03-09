@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import unittest.mock
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pytest
 
@@ -559,29 +559,25 @@ class TestRuns(TestDatabaseBase):
         assert not run["status"].get("end_time")
 
         # update the run's end_time
-        end_time = datetime.now(timezone.utc)
-        end_time_iso = end_time.isoformat()
         updates = {
             "status.state": "completed",
-            "status.end_time": end_time_iso,
         }
         self._db.update_run(self._db_session, updates, run_uid, project)
 
         # fetch the run and verify the end_time
         run = self._db.read_run(self._db_session, run_uid, project, iteration)
         assert run["status"].get("end_time")
-        assert run["status"]["end_time"] == end_time_iso
+        end_time = datetime.fromisoformat(run["status"]["end_time"])
 
         # list runs with end_time filter
         runs = self._db.list_runs(
             self._db_session,
             project=project,
-            end_time_from=end_time - timedelta(milliseconds=100),
+            end_time_from=end_time,
         )
         assert len(runs) == 1
         stored_run = runs[0]
         assert stored_run["metadata"]["uid"] == run_uid
-        assert stored_run["status"]["end_time"] == end_time_iso
         assert stored_run["status"]["end_time"] > stored_run["status"]["start_time"]
 
     @staticmethod

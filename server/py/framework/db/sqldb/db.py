@@ -300,17 +300,7 @@ class SQLDB(DBInterface):
         if start_time:
             run.start_time = start_time
 
-        if (
-            run.state in mlrun.common.runtimes.constants.RunStates.terminal_states()
-            and not run.end_time
-        ):
-            self._update_run_end_time(run, struct, now=datetime.now(timezone.utc))
-        elif (
-            run.state not in mlrun.common.runtimes.constants.RunStates.terminal_states()
-        ):
-            # Ensure end time is not set if the run is not in a terminal state
-            run.end_time = None
-            struct.setdefault("status", {}).pop("end_time", None)
+        self._update_run_end_time(run, struct)
 
         # Update the labels only if the run updates contains labels
         if run_labels(updates):
@@ -570,18 +560,7 @@ class SQLDB(DBInterface):
         run_data.setdefault("status", {})["start_time"] = start_time.isoformat()
         run.start_time = start_time
         self._update_run_updated_time(run, run_data, now=now)
-        if (
-            run.state in mlrun.common.runtimes.constants.RunStates.terminal_states()
-            and not run.end_time
-        ):
-            end_time = run_end_time(run_data)
-            self._update_run_end_time(run, run_data, now=end_time)
-        elif (
-            run.state not in mlrun.common.runtimes.constants.RunStates.terminal_states()
-        ):
-            # Ensure end time is not set if the run is not in a terminal state
-            run.end_time = None
-            run_data.setdefault("status", {}).pop("end_time", None)
+        self._update_run_end_time(run, run_data, end_time=run_end_time(run_data))
 
         run.struct = run_data
 
@@ -602,6 +581,23 @@ class SQLDB(DBInterface):
             )
 
     @staticmethod
+    def _update_run_end_time(run: Run, run_dict: dict, end_time: Optional[str] = None):
+        if (
+            run.state in mlrun.common.runtimes.constants.RunStates.terminal_states()
+            and not run.end_time
+        ):
+            if end_time is None:
+                end_time = datetime.now(timezone.utc)
+            run.end_time = end_time
+            run_dict.setdefault("status", {})["end_time"] = end_time.isoformat()
+        elif (
+            run.state not in mlrun.common.runtimes.constants.RunStates.terminal_states()
+        ):
+            # Ensure end time is not set if the run is not in a terminal state
+            run.end_time = None
+            run_dict.setdefault("status", {}).pop("end_time", None)
+
+    @staticmethod
     def _update_run_updated_time(
         run_record: Run, run_dict: dict, now: typing.Optional[datetime] = None
     ):
@@ -609,15 +605,6 @@ class SQLDB(DBInterface):
             now = datetime.now(timezone.utc)
         run_record.updated = now
         run_dict.setdefault("status", {})["last_update"] = now.isoformat()
-
-    @staticmethod
-    def _update_run_end_time(
-        run_record: Run, run_dict: dict, now: typing.Optional[datetime] = None
-    ):
-        if now is None:
-            now = datetime.now(timezone.utc)
-        run_record.end_time = now
-        run_dict.setdefault("status", {})["end_time"] = now.isoformat()
 
     @staticmethod
     def _update_run_state(run_record: Run, run_dict: dict):

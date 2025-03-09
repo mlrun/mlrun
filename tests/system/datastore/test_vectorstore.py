@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+# Check if langchain_community is available
+import importlib.util
 import os
 import random
 import string
@@ -28,6 +30,17 @@ from mlrun.datastore.datastore_profile import (
     register_temporary_client_datastore_profile,
 )
 from tests.system.base import TestMLRunSystem
+
+LANGCHAIN_AVAILABLE = (
+    importlib.util.find_spec("langchain") is not None
+    and importlib.util.find_spec("langchain_community") is not None
+)
+
+# Skip all tests in this module if langchain_community is not installed
+pytestmark = pytest.mark.skipif(
+    not LANGCHAIN_AVAILABLE,
+    reason="langchain or langchain_community package is not installed",
+)
 
 here = os.path.dirname(__file__)
 config_file_path = os.path.join(here, "../env.yml")

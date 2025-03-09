@@ -945,7 +945,6 @@ with warnings.catch_warnings():
             ForeignKey("artifacts_v2.id"),
             nullable=True,
         )
-
         model = relationship(ArtifactV2)
 
         Label = make_label(__tablename__)

@@ -37,11 +37,18 @@ updates:
   - package-ecosystem: gomod
     directories:
       - "server/go/services/**/*"
+      - "server/go/mlrun-go/**/*"
     schedule:
       interval: daily
     commit-message:
       prefix: "[Dependabot-automated] "
     open-pull-requests-limit: 6
+    groups:
+      # create one PR for all go modules matching group patterns
+      kubernetes:
+        patterns:
+          - 'k8s.io/*'
+          - 'sigs.k8s.io/*'
 
   # mlrun pipelines adapters
   - package-ecosystem: pip

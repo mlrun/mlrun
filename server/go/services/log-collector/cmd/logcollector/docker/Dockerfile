@@ -14,7 +14,7 @@
 
 ARG GO_VERSION=1.23
 
-ARG GRPC_HEALTH_PROBE_VERSION=v0.4.35
+ARG GRPC_HEALTH_PROBE_VERSION=v0.4.37
 FROM ghcr.io/grpc-ecosystem/grpc-health-probe:${GRPC_HEALTH_PROBE_VERSION} AS install-health-probe
 
 FROM gcr.io/iguazio/golang:${GO_VERSION} AS build-binary
@@ -52,7 +52,7 @@ RUN GOOS=linux \
 FROM gcr.io/iguazio/alpine:3.21
 
 # Upgrade OS packages
-RUN apk -U upgrade
+RUN apk --update --no-cache upgrade
 
 COPY --from=build-binary /app/services/log-collector/main /main
 COPY --from=install-health-probe /ko-app/grpc-health-probe /grpc_health_probe

@@ -360,7 +360,7 @@ class BaseRuntime(ModelObj):
                                in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
         :param out_path:       Default artifact output path.
         :param artifact_path:  Default artifact output path (will replace out_path).
-        :param workdir:        Default input artifacts path.
+        :param workdir:        Working directory of the executed job and the default path for artifact inputs
         :param watch:          Watch/follow run log.
         :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string
                                (which will be converted to the class using its `from_crontab` constructor),
@@ -711,7 +711,7 @@ class BaseRuntime(ModelObj):
                                 given in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
         :param outputs:         list of outputs which can pass in the workflow
         :param artifact_path:   default artifact output path (replace out_path)
-        :param workdir:         default input artifacts path
+        :param workdir:         working directory of the executed job and the default path for artifact inputs
         :param image:           container image to use
         :param labels:          labels to tag the job/run with ({key:val, ..})
         :param use_db:          save function spec in the db (vs the workflow file)

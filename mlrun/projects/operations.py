@@ -144,7 +144,7 @@ def run_function(
                             during runtime from `mlrun.DataItem` to the given type hint. The type hint can be given
                             in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
     :param outputs:         list of outputs which can pass in the workflow
-    :param workdir:         default input artifacts path
+    :param workdir:         working directory of the executed job and the default path for artifact inputs
     :param labels:          labels to tag the job/run with ({key:val, ..})
     :param base_task:       task object to use as base
     :param watch:           watch/follow run log, True by default

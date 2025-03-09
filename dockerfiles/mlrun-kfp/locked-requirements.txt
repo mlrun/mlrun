@@ -1139,9 +1139,9 @@ google-resumable-media==2.7.2 \
     # via
     #   google-cloud-bigquery
     #   google-cloud-storage
-googleapis-common-protos==1.69.0 \
-    --hash=sha256:17835fdc4fa8da1d61cfe2d4d5d57becf7c61d4112f8d81c67eaa9d7ce43042d \
-    --hash=sha256:5a46d58af72846f59009b9c4710425b9af2139555c71837081706b213b298187
+googleapis-common-protos==1.69.1 \
+    --hash=sha256:4077f27a6900d5946ee5a369fab9c8ded4c0ef1c6e880458ea2f70c14f7b70d5 \
+    --hash=sha256:e20d2d8dda87da6fe7340afbbdf4f0bcb4c8fae7e6cadf55926c31f946b0b9b1
     # via
     #   google-api-core
     #   grpcio-status
@@ -1458,9 +1458,9 @@ ipython==8.18.1 ; python_full_version < '3.10' \
     #   -r requirements.txt
     #   ipykernel
     #   nuclio-jupyter
-ipython==8.33.0 ; python_full_version >= '3.10' \
-    --hash=sha256:4c3e36a6dfa9e8e3702bd46f3df668624c975a22ff340e96ea7277afbd76217d \
-    --hash=sha256:aa5b301dfe1eaf0167ff3238a6825f810a029c9dad9d3f1597f30bd5ff65cc44
+ipython==8.34.0 ; python_full_version >= '3.10' \
+    --hash=sha256:0419883fa46e0baa182c5d50ebb8d6b49df1889fdb70750ad6d8cfe678eda6e3 \
+    --hash=sha256:c31d658e754673ecc6514583e7dda8069e47136eb62458816b7d1e6625948b5a
     # via
     #   -r requirements.txt
     #   ipykernel
@@ -2180,9 +2180,9 @@ nuclio-jupyter==0.11.1 \
     --hash=sha256:5e3d9ae673cf205dac803adb6058013c05ebd7a45db4d3dfaecb06ea19c98950 \
     --hash=sha256:6eea3278d8dd9abcf5e332d7809e575f4da25e7bd8d64337cb9599cffbc8fce8
     # via -r requirements.txt
-nuclio-sdk==0.5.14 \
-    --hash=sha256:2c0b01002729d99a56ff271f1298e59ca13a9127b98ec45aa56bde52086e612e \
-    --hash=sha256:689ee6820ff956c10af79fb9377921a8903d09d9b7f6b165cf5874c9127e876f
+nuclio-sdk==0.5.15 \
+    --hash=sha256:71689686762758ada6daf4229216c1f562f0d636cdc298db5e65002a069ec700 \
+    --hash=sha256:9791366dfeb88912b8e24b2ecf863e66d3ed749bd6f04dbaf65995e85b9603cb
     # via storey
 numpy==1.26.4 \
     --hash=sha256:03a8c78d01d9781b28a6989f6fa1bb2c4f2d51201cf99d3dd875df6fbd96b23b \
@@ -2993,9 +2993,9 @@ python-dotenv==1.0.1 \
     --hash=sha256:e324ee90a023d808f1959c46bcbc04446a10ced277783dc6ee09987c37ec10ca \
     --hash=sha256:f7b63ef50f1b690dddf550d03497b66d609393b40b564ed0d674909a68ebf16a
     # via -r requirements.txt
-python-json-logger==3.2.1 \
-    --hash=sha256:8eb0554ea17cb75b05d2848bc14fb02fbdbd9d6972120781b974380bfa162008 \
-    --hash=sha256:cdc17047eb5374bd311e748b42f99d71223f3b0e186f4206cc5d52aefe85b090
+python-json-logger==3.3.0 \
+    --hash=sha256:12b7e74b17775e7d565129296105bbe3910842d9d0eb083fc83a6a617aa8df84 \
+    --hash=sha256:dd980fae8cffb24c13caf6e158d3d61c0d6d22342f932cb6e9deedab3d35eec7
     # via jupyter-events
 pytz==2025.1 \
     --hash=sha256:89dd22dca55b46eac6eda23b2d72721bf1bdfef212645d81513ef5d03038de57 \
@@ -3515,9 +3515,9 @@ send2trash==1.8.3 \
     --hash=sha256:0c31227e0bd08961c7665474a3d1ef7193929fedda4233843689baa056be46c9 \
     --hash=sha256:b18e7a3966d99871aefeb00cfbcfdced55ce4871194810fc71f4aa484b953abf
     # via jupyter-server
-setuptools==75.8.2 \
-    --hash=sha256:4880473a969e5f23f2a2be3646b2dfd84af9028716d398e46192f84bc36900d2 \
-    --hash=sha256:558e47c15f1811c1fa7adbd0096669bf76c1d3f433f58324df69f3f5ecac4e8f
+setuptools==75.9.1 \
+    --hash=sha256:0a6f876d62f4d978ca1a11ab4daf728d1357731f978543ff18ecdbf9fd071f73 \
+    --hash=sha256:b6eca2c3070cdc82f71b4cb4bb2946bc0760a210d11362278cf1ff394e6ea32c
     # via
     #   -r requirements.txt
     #   grpcio-tools

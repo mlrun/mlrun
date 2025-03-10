@@ -16,7 +16,7 @@ MLRUN_DOCKER_REGISTRY ?=
 MLRUN_DOCKER_REPO ?= mlrun
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 
-GO_VERSION=$(shell grep -m1 'go ' ../go/go.work | awk '{split($$2,a,"."); print a[1] "." a[2]}')
+GO_VERSION=$(shell grep -m1 'go ' ../go/go.mod | awk '{split($$2,a,"."); print a[1] "." a[2]}')
 
 #
 # Build
@@ -59,8 +59,8 @@ compile-schemas-go: cleanup
 	mkdir -p proto/build/go
 	mv proto/tmp/proto/build/* proto/build/go
 	rm -rf proto/tmp
-	mkdir -p ../go/mlrun-go/pkg/proto/build
-	cp -RL proto/build/go/* ../go/mlrun-go/pkg/proto/build
+	mkdir -p ../go/proto/build
+	cp -RL proto/build/go/* ../go/proto/build
 
 .PHONY: compile-schemas-python
 compile-schemas-python:

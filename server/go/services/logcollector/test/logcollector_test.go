@@ -26,13 +26,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mlrun/mlrun-go/pkg/common"
-	"github.com/mlrun/mlrun-go/pkg/framework"
-	"github.com/mlrun/mlrun-go/pkg/proto/build/log_collector"
+	"github.com/mlrun/framework"
+	"github.com/mlrun/framework/common"
+
+	"github.com/mlrun/proto/build/log_collector"
+
+	"github.com/mlrun/services/logcollector"
+	"github.com/mlrun/services/logcollector/test/nop"
 
 	"github.com/google/uuid"
-	"github.com/mlrun/log-collector/pkg/services/logcollector"
-	"github.com/mlrun/log-collector/pkg/services/logcollector/test/nop"
 	"github.com/nuclio/logger"
 	"github.com/nuclio/loggerus"
 	"github.com/stretchr/testify/suite"
@@ -215,7 +217,7 @@ func (suite *LogCollectorTestSuite) TestStartLogFailureOnLabelSelector() {
 		RunUID:   runUID,
 		Selector: selector,
 	})
-
+	suite.Require().NotNil(startLogResponse)
 	suite.Require().False(startLogResponse.Success)
 	suite.Require().Error(err)
 }

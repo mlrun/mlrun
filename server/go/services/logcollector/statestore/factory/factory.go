@@ -15,9 +15,10 @@
 package factory
 
 import (
-	"github.com/mlrun/log-collector/pkg/services/logcollector/statestore"
-	"github.com/mlrun/log-collector/pkg/services/logcollector/statestore/file"
-	"github.com/mlrun/log-collector/pkg/services/logcollector/statestore/inmemory"
+	"github.com/mlrun/services/logcollector/statestore"
+	"github.com/mlrun/services/logcollector/statestore/file"
+	"github.com/mlrun/services/logcollector/statestore/inmemory"
+
 	"github.com/nuclio/errors"
 )
 

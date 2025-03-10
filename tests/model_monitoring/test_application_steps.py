@@ -40,6 +40,7 @@ from mlrun.utils import Logger, logger
 
 class TestEventPreparation:
     ENDPOINT_ID = "test-ep-id"
+    ENDPOINT_NAME = "test-ep-name"
     APPLICATION_NAME = "test-app"
 
     @classmethod
@@ -47,6 +48,7 @@ class TestEventPreparation:
     def controller_event(cls) -> dict[str, typing.Any]:
         return {
             mm_constants.ApplicationEvent.ENDPOINT_ID: cls.ENDPOINT_ID,
+            mm_constants.ApplicationEvent.ENDPOINT_NAME: cls.ENDPOINT_NAME,
             mm_constants.ApplicationEvent.APPLICATION_NAME: cls.APPLICATION_NAME,
         }
 

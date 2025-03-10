@@ -1501,7 +1501,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
 
 
 @pytest.mark.parametrize(
-    "workflow_path,exception",
+    "workflow_path,exception,engine",
     [
         (
             "./",
@@ -1514,6 +1514,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                     )
                 ),
             ),
+            None,
         ),
         (
             "https://test",
@@ -1525,6 +1526,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                     )
                 ),
             ),
+            None,
         ),
         (
             "",
@@ -1532,25 +1534,48 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                 mlrun.errors.MLRunInvalidArgumentError,
                 match=str(re.escape("workflow_path must be provided.")),
             ),
+            None,
         ),
-        ("https://test.py", does_not_raise()),
+        ("https://test.py", does_not_raise(), None),
         # relative path
-        ("./workflow.py", does_not_raise()),
-        ("./assets/handler.py", does_not_raise()),
+        ("./workflow.py", does_not_raise(), None),
+        ("./assets/handler.py", does_not_raise(), None),
         # only file name
-        ("workflow.py", does_not_raise()),
-        ("assets/handler.py", does_not_raise()),
+        ("workflow.py", does_not_raise(), None),
+        ("assets/handler.py", does_not_raise(), None),
         # absolute path
         (
             str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
             does_not_raise(),
+            None,
         ),
+        # absolute path that doesn't exist
+        (
+            str(pathlib.Path("/non_existing_file.py")),
+            pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': '/non_existing_file.py'. Got a path to a non-existing file. "
+                        "Path must be absolute or relative to the project code path i.e. "
+                        "<project.spec.get_code_path()>/<workflow_path>)."
+                    )
+                ),
+            ),
+            None,
+        ),
+        # relative path with engine="remote", should not raise an error since the file does not need to exist locally
+        ("./workflow.py", does_not_raise(), "remote"),
+        ("./workflow.py", does_not_raise(), "remote:local"),
+        ("./workflow.py", does_not_raise(), "remote:kfp"),
     ],
 )
-def test_set_workflow_path_validation(chdir_to_test_location, workflow_path, exception):
+def test_set_workflow_path_validation(
+    chdir_to_test_location, workflow_path, exception, engine
+):
     proj = mlrun.new_project("proj", save=False)
     with exception:
-        proj.set_workflow("main", workflow_path)
+        proj.set_workflow("main", workflow_path, engine=engine)
 
 
 def test_set_workflow_local_engine():

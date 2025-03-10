@@ -1708,6 +1708,11 @@ class KafkaTarget(BaseStoreTarget):
         if not path:
             raise mlrun.errors.MLRunInvalidArgumentError("KafkaTarget requires a path")
 
+        # Filter attributes to keep only Kafka-related parameters
+        # This removes any non-Kafka parameters inherited from BaseStoreTarget
+        attributes = mlrun.datastore.utils.KafkaParameters().valid_entries_only(
+            self.attributes
+        )
         graph.add_step(
             name=self.name or "KafkaTarget",
             after=after,
@@ -1715,7 +1720,7 @@ class KafkaTarget(BaseStoreTarget):
             class_name="mlrun.datastore.storeytargets.KafkaStoreyTarget",
             columns=column_list,
             path=path,
-            attributes=self.attributes,
+            attributes=attributes,
         )
 
     def purge(self):

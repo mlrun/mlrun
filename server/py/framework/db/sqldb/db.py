@@ -3868,7 +3868,6 @@ class SQLDB(DBInterface):
         function_tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
     ) -> typing.Union[ModelEndpoint, None]:
-        self._check_model_endpoint_params(uid, function_name, function_tag)
         if uid:
             mep_record = self._get_class_instance_by_uid(
                 session, ModelEndpoint, name, project, uid
@@ -5143,7 +5142,13 @@ class SQLDB(DBInterface):
         if _get_query:
             return query
 
-        return query.first()  # Use `.first()` instead of `.one_or_none()` for safety
+        if query.count() > 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "More than one instance found for the given Model Endpoint."
+                "Please provide endpoint_id or function name and tag to get a specific instance."
+            )
+
+        return query.one_or_none()
 
     def _get_mep_instances(
         self,

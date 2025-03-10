@@ -3839,9 +3839,7 @@ class HTTPRunDB(RunDBInterface):
 
         :return:                          A `ModelEndpoint` object.
         """
-        self._check_model_endpoint_representation(
-            function_name, function_tag, endpoint_id
-        )
+
         path = f"projects/{project}/model-endpoints/{name}"
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.GET,

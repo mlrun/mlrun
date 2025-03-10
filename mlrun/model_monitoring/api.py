@@ -54,11 +54,12 @@ def get_or_create_model_endpoint(
     model_endpoint_name: str = "",
     endpoint_id: str = "",
     function_name: str = "",
-    function_tag: str = "latest",
+    function_tag: str = "",
     context: typing.Optional["mlrun.MLClientCtx"] = None,
     sample_set_statistics: typing.Optional[dict[str, typing.Any]] = None,
     monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.enabled,
     db_session=None,
+    feature_analysis: bool = False,
 ) -> ModelEndpoint:
     """
     Get a single model endpoint object. If not exist, generate a new model endpoint with the provided parameters. Note
@@ -80,6 +81,7 @@ def get_or_create_model_endpoint(
     :param monitoring_mode:          If enabled, apply model monitoring features on the provided endpoint id
                                      (applicable only to new endpoint_id).
     :param db_session:               A runtime session that manages the current dialog with the database.
+    :param feature_analysis:         If True, the model endpoint will be retrieved with the feature analysis mode.
 
     :return: A ModelEndpoint object
     """
@@ -98,7 +100,8 @@ def get_or_create_model_endpoint(
             name=model_endpoint_name,
             endpoint_id=endpoint_id,
             function_name=function_name,
-            function_tag=function_tag or "latest",
+            function_tag=function_tag,
+            feature_analysis=feature_analysis,
         )
         # If other fields provided, validate that they are correspond to the existing model endpoint data
         _model_endpoint_validations(

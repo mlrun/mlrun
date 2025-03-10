@@ -851,6 +851,11 @@ class SQLDB(DBInterface):
         artifacts = ArtifactList()
         for artifact, artifact_tag in artifact_records:
             artifact_struct = artifact.full_object
+            # These fields are saved in full_object as timestamps with fsp=6, while the corresponding columns
+            # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from the column
+            # (not from the full_object) to ensure the ordering is correct.
+            artifact_struct["metadata"]["updated"] = artifact.updated
+            artifact_struct["metadata"]["created"] = artifact.created
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
             artifacts.append(
                 mlrun.common.formatters.ArtifactFormat.format_obj(

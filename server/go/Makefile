@@ -110,7 +110,7 @@ test-integration-dockerized: schemas-compiler
 # Misc
 #
 .PHONY: fmt
-fmt: ensure-golangci
+fmt: ensure-golangci compile-schemas-go
 	@echo Formatting...
 	gofmt -s -w .
 	$(CI_BIN_DIR)/golangci-lint run --fix ./...
@@ -121,6 +121,12 @@ lint: ensure-golangci compile-schemas-go ensure-test-files-annotated
 	@echo Linting...
 	$(CI_BIN_DIR)/golangci-lint run --verbose ./...
 	@echo Done.
+
+.PHONY: security
+security: compile-schemas-go
+	@echo Running security checks...
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
 
 .PHONY: ensure-test-files-annotated
 ensure-test-files-annotated:

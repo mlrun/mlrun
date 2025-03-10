@@ -143,6 +143,7 @@ mlrun/runtimes/** @alonmr @mlrun/platform-owners
 ### Runtimes ###
 
 # databricks, nuclio, serving spark runtimes is owned by data-flows-owners
+mlrun/serving/** @mlrun/data-flows-owners
 mlrun/runtimes/databricks_job/** @mlrun/data-flows-owners
 mlrun/runtimes/nuclio/** @mlrun/data-flows-owners
 mlrun/runtimes/serving/** @mlrun/data-flows-owners

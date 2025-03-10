@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 
-# Check if langchain_community is available
 import importlib.util
 import os
 import random

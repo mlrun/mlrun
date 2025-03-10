@@ -21,6 +21,14 @@
 # (The last match is the one that applies, keep that in mind when adding new lines)
 ** @mlrun/platform-owners
 
+##################
+### Deprecated ###
+##################
+
+# The examples and hack are deprecated and not owned by anyone (with the exception of /hack/benchmarks, see below)
+examples/**
+hack/**
+
 ##############################################
 ### CI, Automation, Packaging & Test Infra ###
 ##############################################
@@ -31,6 +39,7 @@
 .run/** @liranbg
 automation/** @liranbg
 dockerfiles/** @liranbg
+hack/benchmarks/** @gtopper
 tests/** @liranbg
 tests/**/test_*.py # owner left empty, the tests belong to the relevant component owner, not liranbg
 
@@ -39,7 +48,7 @@ tests/**/test_*.py # owner left empty, the tests belong to the relevant componen
 LICENSE @liranbg @assaf758
 
 # This CODEOWNERS file is owned by quaark
-CODEOWNERS @quaark
+.github/CODEOWNERS @quaark
 
 ############
 ### Docs ###
@@ -58,14 +67,6 @@ docs/Makefile @rokatyy
 docs/requirements.txt @rokatyy
 .readthedocs.yml @rokatyy
 .vale.ini @rokatyy
-
-##################
-### Deprecated ###
-##################
-
-# The examples and hack are deprecated and not owned by anyone
-examples/**
-hack/**
 
 #########################
 ### Pipeline Adapters ###
@@ -113,6 +114,7 @@ server/py/framework/utils/notifications/** @TomerShor @mlrun/platform-owners
 
 # Most endpoints are owned by platform-owners, some of them are owned by data-flows-owners instead
 server/py/services/api/api/endpoints/** @mlrun/platform-owners
+server/py/services/api/api/endpoints/artifacts** @moranbental @mlrun/platform-owners
 server/py/services/api/api/endpoints/datastore** @mlrun/data-flows-owners
 server/py/services/api/api/endpoints/feature_store** @mlrun/data-flows-owners
 server/py/services/api/api/endpoints/grafana** @mlrun/data-flows-owners
@@ -125,11 +127,25 @@ server/py/services/api/api/endpoints/model_monitoring** @mlrun/data-flows-owners
 
 # Similar to the endpoints ownership
 server/py/services/api/api/crud/** @mlrun/platform-owners
+server/py/services/api/api/crud/artifacts** @moranbental @mlrun/platform-owners
 server/py/services/api/api/crud/datastore** @mlrun/data-flows-owners
 server/py/services/api/api/crud/feature_store** @mlrun/data-flows-owners
 server/py/services/api/api/crud/model_monitoring** @mlrun/data-flows-owners
 
 ### End of CRUD ###
+
+### Schemas ###
+
+# Similar to the endpoints ownership, the dir is already owned by quaark and platform-owners, only listing exceptions
+mlrun/common/schemas/model_monitoring/** @mlrun/data-flows-owners
+mlrun/common/schemas/artifact.py @moranbental @mlrun/platform-owners
+mlrun/common/schemas/datastore_profile.py @mlrun/data-flows-owners
+mlrun/common/schemas/feature_store.py @mlrun/data-flows-owners
+mlrun/common/schemas/hub.py @mlrun/data-flows-owners
+mlrun/common/schemas/object.py @mlrun/data-flows-owners
+mlrun/common/schemas/serving.py @mlrun/data-flows-owners
+
+### End of Schemas ###
 
 #################
 ### MLRun SDK ###
@@ -183,7 +199,6 @@ mlrun/data_types/** @mlrun/data-flows-owners
 # model monitoring is owned by data-flows-owners
 mlrun/model_monitoring/** @mlrun/data-flows-owners
 mlrun/common/model_monitoring/** @mlrun/data-flows-owners
-mlrun/model_monitoring/db/tsdb/tdengine/** @mlrun/data-flows-owners
 
 # framewarks, packagers and trackers are owned by mle-owners
 mlrun/frameworks/** @mlrun/mle-owners

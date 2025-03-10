@@ -302,7 +302,7 @@ def test_delete_artifact_data_default_deletion_strategy(
         resp = unversioned_client.delete(url)
         delete_artifact_data.assert_not_called()
         delete_artifact_data.reset_mock()
-        assert resp.status_code == HTTPStatus.NO_CONTENT.value
+        assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
 
 def test_delete_artifact_with_uid(db: Session, unversioned_client: TestClient):

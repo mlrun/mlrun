@@ -1065,6 +1065,40 @@ class SQLDB(DBInterface):
         # the query returns a list of tuples, we need to extract the tag from each tuple
         return [tag for (tag,) in query]
 
+    def is_artifact_can_be_removed(
+        self,
+        session,
+        key,
+        tag="",
+        iter=None,
+        project="",
+        producer_id: Optional[str] = None,
+        uid: Optional[str] = None,
+    ):
+        db_artifact = self.read_artifact(
+            session=session,
+            key=key,
+            tag=tag,
+            iter=iter,
+            project=project,
+            producer_id=producer_id,
+            uid=uid,
+            as_record=True,
+        )
+        dependent_endpoints_count = (
+            session.query(ModelEndpoint)
+            .filter(ModelEndpoint.model_id == db_artifact.id)
+            .count()
+        )
+        if dependent_endpoints_count:
+            raise mlrun.errors.MLRunConflictError(
+                f"Failed deleting artifact {key} in project {project}, tag {tag}"
+                f", iteration {iter}. The artifact is used by {dependent_endpoints_count} endpoints"
+            )
+        return mlrun.common.formatters.ArtifactFormat.format_obj(
+            db_artifact.full_object, mlrun.common.formatters.ArtifactFormat.full
+        )
+
     @retry_on_conflict
     def overwrite_artifacts_with_tag(
         self,

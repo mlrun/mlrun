@@ -288,6 +288,36 @@ class DBInterface(ABC):
     ):
         return []
 
+    def is_artifact_can_be_removed(
+        self,
+        session,
+        key,
+        tag="",
+        iter=None,
+        project="",
+        producer_id: Optional[str] = None,
+        uid: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """
+        Validate whether an artifact can be safely removed from the system.
+
+        This method checks if the specified artifact is currently in use by other resources,
+        such as model endpoints. If it is, the deletion will be blocked, and an appropriate
+        exception should be raised (MLRunConflictError).
+
+        :param session:     Active SQLAlchemy DB session for querying.
+        :param key:         Artifact key.
+        :param tag:         Specific tag for the artifact.
+        :param iter:        Artifact iteration number, if applicable.
+        :param project:     Project to which the artifact belongs.
+        :param producer_id: Identifier of the artifact's producer.
+        :param uid:         UID of the artifact object.
+
+        :return: An artifact dictionary.
+        :raises MLRunConflictError: If the artifact is in use and cannot be deleted.
+        """
+        pass
+
     # TODO: Remove once data migration v5 is obsolete
     @deprecated(
         version="1.9.0",

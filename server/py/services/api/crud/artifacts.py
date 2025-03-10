@@ -241,48 +241,21 @@ class Artifacts(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         project = project or mlrun.mlconf.default_project
+        artifact = self.is_artifact_can_be_removed(
+            db_session=db_session,
+            key=key,
+            tag=tag,
+            iter=iteration,
+            project=project,
+            producer_id=producer_id,
+            object_uid=object_uid,
+        )
 
         # delete artifacts data by deletion strategy
-        artifact = None
         if deletion_strategy in [
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_optional,
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force,
         ]:
-            artifact = self.get_artifact(
-                db_session,
-                key,
-                tag,
-                project=project,
-                producer_id=producer_id,
-                object_uid=object_uid,
-                iter=iteration,
-            )
-        try:
-            return_val = framework.utils.singletons.db.get_db().del_artifact(
-                session=db_session,
-                key=key,
-                tag=tag,
-                project=project,
-                uid=object_uid,
-                producer_id=producer_id,
-                iter=iteration,
-            )
-        except sqlalchemy.exc.IntegrityError as exc:
-            logger.debug(
-                "Failed deleting artifact",
-                key=key,
-                tag=tag,
-                project=project,
-                deletion_strategy=deletion_strategy,
-                err=err_to_str(exc),
-            )
-            raise mlrun.errors.MLRunConflictError(
-                f"Failed deleting artifact {key} in project {project}, tag {tag}, "
-                f"deletion strategy {deletion_strategy}, due to :\n "
-                f"{err_to_str(exc)}"
-            )
-
-        if artifact:
             self._delete_artifact_data(
                 db_session=db_session,
                 key=key,
@@ -297,7 +270,15 @@ class Artifacts(
                 artifact=artifact,
             )
 
-        return return_val
+        return framework.utils.singletons.db.get_db().del_artifact(
+            session=db_session,
+            key=key,
+            tag=tag,
+            project=project,
+            uid=object_uid,
+            producer_id=producer_id,
+            iter=iteration,
+        )
 
     def delete_artifacts(
         self,
@@ -312,6 +293,45 @@ class Artifacts(
         project = project or mlrun.mlconf.default_project
         framework.utils.singletons.db.get_db().del_artifacts(
             db_session, name, project, tag, labels, producer_id=producer_id
+        )
+
+    @classmethod
+    def is_artifact_can_be_removed(
+        cls,
+        db_session: sqlalchemy.orm.Session,
+        key: str,
+        tag: str = "latest",
+        iter: typing.Optional[int] = None,
+        project: typing.Optional[str] = None,
+        producer_id: typing.Optional[str] = None,
+        object_uid: typing.Optional[str] = None,
+    ) -> dict:
+        """
+        Determine whether an artifact can be safely removed.
+
+        Currently, this method verifies only if the artifact is being referenced by any model endpoints.
+        If such a dependency exists, an MLRunConflictError is raised to prevent removal.
+
+        :param db_session:  Active SQLAlchemy DB session.
+        :param key:         Artifact key (required).
+        :param tag:         Artifact tag (default: 'latest').
+        :param iter:        Artifact iteration number (optional).
+        :param project:     Project name (optional).
+        :param producer_id: Producer identifier (optional).
+        :param object_uid:  Artifact UID (optional).
+
+        :return: An artifact dictionary.
+        :raises: MLRunConflictError if the artifact is in use by a model endpoint.
+        """
+        project = project or mlrun.mlconf.default_project
+        return framework.utils.singletons.db.get_db().is_artifact_can_be_removed(
+            session=db_session,
+            key=key,
+            tag=tag,
+            iter=iter,
+            project=project,
+            producer_id=producer_id,
+            uid=object_uid,
         )
 
     @staticmethod

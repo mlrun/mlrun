@@ -252,30 +252,45 @@ def test_delete_artifacts_after_storing_empty_dict(db: Session, client: TestClie
 
 
 @pytest.mark.parametrize(
-    "deletion_strategy, expected_status_code",
+    "deletion_strategy, expected_status_code, expected_status_code_for_getting_artifact",
     [
         (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_optional,
             HTTPStatus.NO_CONTENT.value,
+            # Artifact does not exist in DB after deleting data fails
+            HTTPStatus.NOT_FOUND.value,
         ),
         (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force,
             HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            # Artifact exists in DB after deleting data fails
+            HTTPStatus.OK.value,
         ),
     ],
 )
-def test_fails_deleting_artifact_data(
-    deletion_strategy, expected_status_code, db: Session, unversioned_client: TestClient
+def test_delete_artifact_data_failure(
+    deletion_strategy,
+    expected_status_code,
+    expected_status_code_for_getting_artifact,
+    unversioned_client: TestClient,
 ):
     # This test attempts to delete the artifact data, but fails - the request should
     # be failed or succeeded by the deletion strategy.
     _create_project(unversioned_client)
-    artifact = mlrun.artifacts.Artifact(key=KEY, body="123", target_path="dummy-path")
 
+    # Generate artifact
+    artifact_data = _generate_artifact_body()
     resp = unversioned_client.post(
-        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
-        data=artifact.to_json(),
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
     )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_response = resp.json()
+    artifact_uid = artifact_response["metadata"]["uid"]
+
+    # Check if the artifact is created successfully
+    artifact_url = _get_artifact_url(uid=artifact_uid)
+    resp = unversioned_client.get(artifact_url)
     assert resp.status_code == HTTPStatus.OK.value
 
     url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
@@ -289,6 +304,10 @@ def test_fails_deleting_artifact_data(
             url_with_deletion_strategy.format(deletion_strategy=deletion_strategy)
         )
     assert resp.status_code == expected_status_code
+
+    # Verify artifact exists in DB based on the deletion strategy
+    resp = unversioned_client.get(artifact_url)
+    assert resp.status_code == expected_status_code_for_getting_artifact
 
 
 def test_delete_artifact_data_default_deletion_strategy(

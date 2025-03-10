@@ -435,6 +435,7 @@ class TestRuns(TestDatabaseBase):
         initial_end_time = run["status"]["end_time"]
         assert initial_end_time is not None
 
+        # Update the run using `store` to running state to test the store flow as well
         self._create_new_run(state=mlrun.common.runtimes.constants.RunStates.running)
         run = self._db.read_run(self._db_session, uid, project, iteration)
 
@@ -464,6 +465,26 @@ class TestRuns(TestDatabaseBase):
 
         # Update running expected to remove end time
         assert "end_time" not in run["status"]
+
+    def test_consecutive_completed_update_requests(self):
+        project, name, uid, iteration, run = self._create_new_run(
+            state=mlrun.common.runtimes.constants.RunStates.completed
+        )
+        run = self._db.read_run(self._db_session, uid, project, iteration)
+
+        # Store completed expected to fill end time
+        initial_end_time = run["status"]["end_time"]
+        assert initial_end_time is not None
+
+        self._db.update_run(
+            self._db_session,
+            {"status.state": mlrun.common.runtimes.constants.RunStates.completed},
+            uid,
+            project,
+            iteration,
+        )
+        run = self._db.read_run(self._db_session, uid, project, iteration)
+        assert run["status"]["end_time"] == initial_end_time
 
     def test_run_iter(self):
         uid, prj = "uid39", "lemon"

@@ -130,10 +130,12 @@ async def run_with_time_window_tracker(
             cycle_tracker.update_window,
             now,
         )
+        # The window update succeeded above, no need to ensure it
         ensure_window_update = False
     finally:
         await run_in_threadpool(framework.db.close_session, db_session)
         if ensure_window_update:
+            # Sessions are not thread-safe, so we need to create a new one
             await run_in_threadpool(
                 framework.db.session.run_function_with_new_db_session,
                 cycle_tracker.update_window,

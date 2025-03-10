@@ -582,6 +582,13 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _update_run_end_time(run: Run, run_dict: dict, end_time: Optional[str] = None):
+        """
+        Update the run's end time if the run is in a terminal state and the end time is not set.
+        If the run is in terminal state and the end time is set then keep the end time as is.
+        :param run: The run object
+        :param run_dict: The run dict
+        :param end_time: The end time to set - used when in 'store' flow to set the end time
+        """
         if (
             run.state in mlrun.common.runtimes.constants.RunStates.terminal_states()
             and not run.end_time

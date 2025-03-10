@@ -78,7 +78,7 @@ class MonitoringApplicationContext:
         :param end_infer_time:          (pd.Timestamp) End time of the monitoring schedule.
         :param latest_request:          (pd.Timestamp) Timestamp of the latest request on this endpoint_id.
         :param endpoint_id:             (str) ID of the monitored model endpoint
-        :param feature_set              (FeatureSet) the model endpoint feature set
+        :param feature_set:              (FeatureSet) the model endpoint feature set
         :param endpoint_name:           (str) Name of the monitored model endpoint
         :param output_stream_uri:       (str) URI of the output stream for results
         :param model_endpoint:          (ModelEndpoint) The model endpoint object.

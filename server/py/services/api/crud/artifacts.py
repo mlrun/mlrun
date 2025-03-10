@@ -250,7 +250,9 @@ class Artifacts(
             producer_id=producer_id,
             object_uid=object_uid,
         )
-
+        if not artifact:
+            return None
+        # artifact = None
         # delete artifacts data by deletion strategy
         if deletion_strategy in [
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_optional,

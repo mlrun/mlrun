@@ -297,7 +297,7 @@ class DBInterface(ABC):
         project: str = "",
         producer_id: Optional[str] = None,
         uid: Optional[str] = None,
-    ) -> dict[str, Any]:
+    ) -> Optional[dict[str, Any]]:
         """
         Validate whether an artifact can be safely removed from the system.
 

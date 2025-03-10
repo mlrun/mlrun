@@ -1080,7 +1080,7 @@ class SQLDB(DBInterface):
         project: str = "",
         producer_id: Optional[str] = None,
         uid: Optional[str] = None,
-    ) -> dict[str, Any]:
+    ) -> Optional[dict[str, Any]]:
         """
         Validate whether an artifact can be safely removed from the system.
 
@@ -1099,16 +1099,19 @@ class SQLDB(DBInterface):
         :return: An artifact dictionary.
         :raises MLRunConflictError: If the artifact is in use and cannot be deleted.
         """
-        db_artifact = self.read_artifact(
-            session=session,
-            key=key,
-            tag=tag,
-            iter=iter,
-            project=project,
-            producer_id=producer_id,
-            uid=uid,
-            as_record=True,
-        )
+        try:
+            db_artifact = self.read_artifact(
+                session=session,
+                key=key,
+                tag=tag,
+                iter=iter,
+                project=project,
+                producer_id=producer_id,
+                uid=uid,
+                as_record=True,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            return None
         dependent_endpoints_count = (
             session.query(ModelEndpoint)
             .filter(ModelEndpoint.model_id == db_artifact.id)

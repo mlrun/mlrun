@@ -54,24 +54,24 @@ compile-schemas-dockerized: schemas-compiler
 .PHONY: compile-schemas-go
 compile-schemas-go: cleanup
 	@echo Compiling go schemas
-	mkdir -p proto/tmp
+	@mkdir -p proto/tmp
 	protoc --go_out=proto/tmp --go-grpc_out=proto/tmp --go-grpc_opt=require_unimplemented_servers=false proto/*.proto
-	mkdir -p proto/build/go
-	mv proto/tmp/proto/build/* proto/build/go
-	rm -rf proto/tmp
-	mkdir -p ../go/proto/build
-	cp -RL proto/build/go/* ../go/proto/build
+	@mkdir -p proto/build/go
+	@mv proto/tmp/proto/build/* proto/build/go
+	@rm -rf proto/tmp
+	@mkdir -p ../go/proto/build
+	@cp -RL proto/build/go/* ../go/proto/build
 
 .PHONY: compile-schemas-python
 compile-schemas-python:
 	@echo Compiling python schemas
 	python3 -m grpc_tools.protoc --proto_path=. --python_out=proto/build/ --grpc_python_out=proto/build/ proto/*.proto
 	@echo Fixing Python GRPC Dir and Imports
-	sh hack/scripts/fix_python_grpc_imports.sh
-	cp -RL proto/build/py/* ../py/schemas/proto
+	@sh hack/scripts/fix_python_grpc_imports.sh
+	@cp -RL proto/build/py/* ../py/schemas/proto
 
 .PHONY: cleanup
 cleanup:
-	rm -rf proto/build/
-	rm -f ../py/schemas/proto/*pb2*.py
-	rm -rf ../go/mlrun-go/pkg/proto/build/
+	@rm -rf proto/build/
+	@rm -f ../py/schemas/proto/*pb2*.py
+	@rm -rf ../go/mlrun-go/pkg/proto/build/

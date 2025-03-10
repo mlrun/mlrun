@@ -25,7 +25,7 @@
 ### Deprecated ###
 ##################
 
-# The examples and hack are deprecated and not owned by anyone
+# The examples and hack are deprecated and not owned by anyone (with the exception of /hack/benchmarks, see below)
 examples/**
 hack/**
 

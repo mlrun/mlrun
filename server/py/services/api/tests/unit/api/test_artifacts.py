@@ -1233,6 +1233,65 @@ def test_list_artifacts_partition_by(db: Session, unversioned_client: TestClient
     )
 
 
+def test_failed_to_delete_artifact_with_referenced_model_endpoint(
+    db: Session, unversioned_client: TestClient
+):
+    # Create a new project
+    _create_project(unversioned_client, project_name=PROJECT)
+
+    # Create and store a model artifact
+    model_artifact = mlrun.artifacts.ModelArtifact(
+        key="model",
+        body="123",
+        model_file="model.pkl",
+        metrics={"accuracy": 0.8},
+        model_dir="model",
+        framework="xgboost",
+    )
+
+    response = unversioned_client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key="model", tag=TAG),
+        data=model_artifact.to_json(),
+    )
+    assert (
+        response.status_code == HTTPStatus.OK.value
+    ), f"Expected 200 OK when storing the artifact, got {response.status_code}: {response.text}"
+
+    # Create a model endpoint that references the model artifact
+    model_endpoint = mlrun.common.schemas.ModelEndpoint(
+        metadata=mlrun.common.schemas.ModelEndpointMetadata(
+            project=PROJECT,
+            name="model-endpoint",
+        ),
+        spec=mlrun.common.schemas.ModelEndpointSpec(
+            model_class="model_class",
+            _model_id=1,
+        ),
+        status=mlrun.common.schemas.ModelEndpointStatus(state="ready"),
+    )
+
+    creation_strategy = mlrun.common.schemas.ModelEndpointCreationStrategy.INPLACE
+    response = unversioned_client.post(
+        f"/projects/{PROJECT}/model-endpoints?creation_strategy={creation_strategy}",
+        json=model_endpoint.dict(),
+    )
+    assert (
+        response.status_code == HTTPStatus.CREATED.value
+    ), f"Expected 201 CREATED when creating the model endpoint, got {response.status_code}: {response.text}"
+
+    # Attempt to delete the model artifact that is still referenced by the model endpoint
+    response = unversioned_client.delete(
+        DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key="model")
+    )
+    # Assert that the deletion fails with a conflict because of the reference
+    assert (
+        response.status_code == HTTPStatus.CONFLICT.value
+    ), f"Expected 409 CONFLICT when deleting an artifact in use, got {response.status_code}: {response.text}"
+    assert (
+        "The artifact is used by" in response.text
+    ), f"Expected conflict explanation in response, got: {response.text}"
+
+
 def _create_project(
     client: TestClient, project_name: str = PROJECT, prefix: Optional[str] = None
 ):

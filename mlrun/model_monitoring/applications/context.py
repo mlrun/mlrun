@@ -85,6 +85,7 @@ class MonitoringApplicationContext:
         :param label_names:             (list[str]) List of models label names.
         :param model:                   (tuple[str, ModelArtifact, dict]) The model file, model spec object,
                                         and a list of extra data items.
+        :param feature_set              (FeatureSet) the model endpoint feature set.
         """
         self.application_name = application_name
 

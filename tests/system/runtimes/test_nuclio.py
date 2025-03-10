@@ -31,6 +31,7 @@ import tests.system.base
 from mlrun import feature_store as fstore
 from mlrun.datastore.sources import KafkaSource
 from mlrun.datastore.targets import ParquetTarget
+from mlrun.serving import ModelRunnerStep
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -52,6 +53,29 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         graph = function.set_topology("flow", engine="async")
         graph.to(name="step1", handler="inc")
         graph.error_handler("catcher", handler="catcher", full_event=True)
+
+        self._logger.debug("Deploying nuclio function")
+        deployment = function.deploy()
+
+        assert deployment == function.get_url()  # check function url
+
+    def test_deploy_function_with_model_runner(self):
+        code_path = str(self.assets_path / "my_func.py")
+
+        self._logger.debug("Creating nuclio function")
+        function = mlrun.code_to_function(
+            name="function_with_model",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep()
+        model_runner_step.add_model("DummyModel", name="my-model")
+
+        graph.to(model_runner_step)
 
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()

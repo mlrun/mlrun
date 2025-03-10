@@ -959,7 +959,7 @@ class ModelRunner(storey.ParallelExecution):
         return self.model_selector.select(event, models)
 
 
-class ModelRunnerStep(TaskStep):
+class ModelRunnerStep(TaskStep, StepToDict):
     """
     Runs multiple Models on each event.
 

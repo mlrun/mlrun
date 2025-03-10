@@ -1074,13 +1074,31 @@ class SQLDB(DBInterface):
     def is_artifact_can_be_removed(
         self,
         session,
-        key,
-        tag="",
-        iter=None,
-        project="",
+        key: str,
+        tag: str = "",
+        iter: Optional[str] = None,
+        project: str = "",
         producer_id: Optional[str] = None,
         uid: Optional[str] = None,
-    ):
+    ) -> dict[str, Any]:
+        """
+        Validate whether an artifact can be safely removed from the system.
+
+        This method checks if the specified artifact is currently in use by other resources,
+        such as model endpoints. If it is, the deletion will be blocked, and an appropriate
+        exception should be raised (MLRunConflictError).
+
+        :param session:     Active SQLAlchemy DB session for querying.
+        :param key:         Artifact key.
+        :param tag:         Specific tag for the artifact.
+        :param iter:        Artifact iteration number, if applicable.
+        :param project:     Project to which the artifact belongs.
+        :param producer_id: Identifier of the artifact's producer.
+        :param uid:         UID of the artifact object.
+
+        :return: An artifact dictionary.
+        :raises MLRunConflictError: If the artifact is in use and cannot be deleted.
+        """
         db_artifact = self.read_artifact(
             session=session,
             key=key,
@@ -1099,10 +1117,11 @@ class SQLDB(DBInterface):
         if dependent_endpoints_count:
             raise mlrun.errors.MLRunConflictError(
                 f"Failed deleting artifact {key} in project {project}, tag {tag}"
-                f", iteration {iter}. The artifact is used by {dependent_endpoints_count} endpoints"
+                f", iteration {iter} and {db_artifact.uid} uid. "
+                f"The artifact is used by {dependent_endpoints_count} endpoints"
             )
         return mlrun.common.formatters.ArtifactFormat.format_obj(
-            db_artifact.full_object, mlrun.common.formatters.ArtifactFormat.full
+            db_artifact.full_object, mlrun.common.formatters.ArtifactFormat.minimal
         )
 
     @retry_on_conflict

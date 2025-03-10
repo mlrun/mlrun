@@ -291,10 +291,10 @@ class DBInterface(ABC):
     def is_artifact_can_be_removed(
         self,
         session,
-        key,
-        tag="",
-        iter=None,
-        project="",
+        key: str,
+        tag: str = "",
+        iter: Optional[str] = None,
+        project: str = "",
         producer_id: Optional[str] = None,
         uid: Optional[str] = None,
     ) -> dict[str, Any]:

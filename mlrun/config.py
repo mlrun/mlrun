@@ -549,6 +549,10 @@ default_config = {
         },
     },
     "model_endpoint_monitoring": {
+        # Scaling Rule
+        # The fundamental scaling rule to maintain is: Shards/Partitions = Replicas * Workers
+        # In other words, the number of shards (V3IO) or partitions (Kafka) must be equal to the
+        # total number of worker processes across all pods.
         "serving_stream": {
             "v3io": {
                 "shard_count": 2,

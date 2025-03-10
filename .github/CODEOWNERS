@@ -138,6 +138,7 @@ server/py/services/api/api/crud/model_monitoring** @mlrun/data-flows-owners
 
 # Similar to the endpoints ownership, the dir is already owned by quaark and platform-owners, only listing exceptions
 mlrun/common/schemas/model_monitoring/** @mlrun/data-flows-owners
+mlrun/common/schemas/artifact.py @moranbental @mlrun/platform-owners
 mlrun/common/schemas/datastore_profile.py @mlrun/data-flows-owners
 mlrun/common/schemas/feature_store.py @mlrun/data-flows-owners
 mlrun/common/schemas/hub.py @mlrun/data-flows-owners

@@ -50,8 +50,8 @@ DatasetType = typing.Union[
 
 def get_or_create_model_endpoint(
     project: str,
+    model_endpoint_name: str,
     model_path: str = "",
-    model_endpoint_name: str = "",
     endpoint_id: str = "",
     function_name: str = "",
     function_tag: str = "",
@@ -67,9 +67,10 @@ def get_or_create_model_endpoint(
     features, set `monitoring_mode=enabled`.
 
     :param project:                  Project name.
+    :param model_endpoint_name:      Model endpoint name. If not exist in DB, will generate a new record based on the
+                                     provided `model_endpoint_name`.
     :param model_path:               The model store path (applicable only to new endpoint_id).
-    :param model_endpoint_name:      If a new model endpoint is created, the model endpoint name will be presented
-                                     under this endpoint (applicable only to new endpoint_id).
+
     :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
                                      on the provided `endpoint_id`.
     :param function_name:            If a new model endpoint is created, use this function name.

@@ -60,7 +60,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         assert deployment == function.get_url()  # check function url
 
     def test_deploy_function_with_model_runner(self):
-        code_path = str(self.assets_path / "my_func.py")
+        code_path = str(self.assets_path / "function_with_model.py")
 
         self._logger.debug("Creating nuclio function")
         function = mlrun.code_to_function(

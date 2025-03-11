@@ -553,7 +553,7 @@ test: clean ## Run mlrun tests
 		$$COMMON_IGNORE_TEST_FLAGS \
 		$$PER_PYTHON_VERSION_IGNORE_TEST_FLAGS \
 		--forked \
-		-rf \
+		-rf; \
 	python \
 		-X faulthandler \
 		-m pytest -n auto --dist=loadscope -m "not problematic" -v \

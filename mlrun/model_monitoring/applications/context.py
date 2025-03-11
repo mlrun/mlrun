@@ -229,6 +229,14 @@ class MonitoringApplicationContext:
     @property
     def model_endpoint(self) -> ModelEndpoint:
         if not self._model_endpoint:
+            if self.endpoint_name is None or self.endpoint_id is None:
+                raise mlrun.errors.MLRunValueError(
+                    "You have NOT provided the model endpoint's name and ID: "
+                    f"`endpoint_name`={self.endpoint_name} and `endpoint_id`={self.endpoint_id}, "
+                    "but you have tried to access `monitoring_context.model_endpoint` "
+                    "directly or indirectly in your application. You can either provide them, "
+                    "or adapt the application's logic to not access the model endpoint."
+                )
             self._model_endpoint = mlrun.db.get_run_db().get_model_endpoint(
                 name=self.endpoint_name,
                 project=self.project_name,

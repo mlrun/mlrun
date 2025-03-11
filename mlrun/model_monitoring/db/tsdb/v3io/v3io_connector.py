@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import asyncio
 import math
 from datetime import datetime, timedelta, timezone
 from io import StringIO
@@ -1030,35 +1029,10 @@ class V3IOTSDBConnector(TSDBConnector):
             uids.append(uid)
             model_endpoint_objects_by_uid[uid] = model_endpoint_object
 
-        coroutines = [
-            run_in_threadpool(
-                self.get_error_count,
-                endpoint_ids=uids,
-                get_raw=True,
-            ),
-            run_in_threadpool(
-                self.get_last_request,
-                endpoint_ids=uids,
-                get_raw=True,
-            ),
-            run_in_threadpool(
-                self.get_avg_latency,
-                endpoint_ids=uids,
-                get_raw=True,
-            ),
-            run_in_threadpool(
-                self.get_drift_status,
-                endpoint_ids=uids,
-                get_raw=True,
-            ),
-        ]
-
-        (
-            error_count_res,
-            last_request_res,
-            avg_latency_res,
-            drift_status_res,
-        ) = await asyncio.gather(*coroutines)
+        error_count_res = self.get_error_count(endpoint_ids=uids, get_raw=True)
+        last_request_res = self.get_last_request(endpoint_ids=uids, get_raw=True)
+        avg_latency_res = self.get_avg_latency(endpoint_ids=uids, get_raw=True)
+        drift_status_res = self.get_drift_status(endpoint_ids=uids, get_raw=True)
 
         def add_metric(
             metric: str,

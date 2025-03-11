@@ -17,20 +17,18 @@
 ## v1.8.0
 
 ### Model monitoring
-```{admonition} Note
-{ref}`model-monitoring-overview` is no longer in TechPreview.
-```
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
+|ML-9305|Model monitoring is now GA.|
 |ML-7731|Model monitoring can now be run on a larger scale, using MLRun's additional replicas/workers. To benefit from the scale-out: After upgrading to v1.8.0, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
-|    |The model monitoring APIs changed ??
-|ML-9305|Model monitoring is no longer in TechPreview status.|
+
 
 ### Artifacts
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |   |New artifact type, **Documents**, that supports working with vector DBs. The UI has a new Projects > Documents page supporting this feature.|
+|ML-6379|New capabilities when using vector DBs as part of MLRun workflows.|
 
 ### Alerts
 | ID    |Description                                                                 |
@@ -48,7 +46,7 @@
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-6341|Supports protobuf 4.x in the client, leaving the frames server untouched. Grafana/ Promethus etc continue to use the http connection which is not using protobuf. Pandas feature store works with the new frames client that will not provide grpc suport and might be affected performance-wise. @Gilad Shaham consider to add this to the release note and as a note on pnadas engine being a “playground” not against massive amount of data.|
-|ML-6379|New capabilities when using vector DBs as part of MLRun workflows.|
+|ML-8281|The vector DB feature introduces a way to seamlessly integrate management of LangChain documents as MLRun artifacts. Additionally, it provides a mechanism for provisioning third-party configuration keys and settings.|
 
 ### Breaking changes
 | ID    |Description                                                                 |
@@ -78,8 +76,19 @@
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-8571|Jobs/runs with artifacts with `tag==None` now appear in the UI.|
-|ML-8948|Only one artifact is tagged as latest, resolving the MultipleResultsFound error.|
+|ML-4168|If a .yaml files is too large to view, a popup opens with the option to downoad the file.|
+|ML-6826|The improved error message for a non-scheduled pod, for example preempted, is now: A Kubernetes pod related to this run cannot be found, possibly it was preempted or evicted. Additional details may be available from Kubernetes events.|
+|ML-7270|Retrieving artifacts with `project.get_artifact` and `project.get_store_resource` now return the correct artifacts.|
+|ML-7384|New label validation for all of the list methods in the SDK, including `db.list_functions()`.|
+|ML-7789||
+|ML-7905|Users can start using a new docker service or edit the service name of the current service, MLRun now uses the correct pod pull secret. |
+|ML-8060/9||
+|ML-8064|Notifications with `when=running` no longer send the default notification.  |
+|ML-8107|The columns in the Job results page are now allocated appropriately.|
+|ML-8331|Non-root users can now build images when the source is zipped.|
+|ML-8571|Jobs/runs executed in a workflow with artifacts with `tag==None` now appear in the UI.|
+|ML-8781| resolved in 1.7.2?
+|ML-8949|Only one artifact is tagged as latest, resolving the MultipleResultsFound error.|
 |ML-9155|Resolved issue of MLRun workers restarting.|
 |ML-9201|Running project.run with dirty=True does not fail on git dirty checks.|
 |ML-9257|Model monitoring: model outputs are now correctly saved in the model endpoint (MEP) schema. If a user provides fewer outputs, None is sabved for the missing columns.|
@@ -1179,6 +1188,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4942|The Dask dashboard requires the relevant node ports to be open. | Your infrastructure provider must open the ports manually. If running MLRun locally or CE, make sure to port-forward the port Dask Dashboard uses to ensure it is available externally to the Kubernetes cluster.                                                                                                                                                        | v1.5.0 |
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy**                                                                                                                                                                                                                                                                                                                                            | v1.5.1 |
 |ML-5573|The default value of feature-set ingest() infer_options is "all" (which includes Preview) and as a result, during ingest, preview is done as well. As a result, if a validator was configured for a feature, each violation causes two messages to be printed.| NA                                                                                                                                                                                                                                                                                                                                                                       |v1.6.0|
+|ML-5632|The environmental variables of a scheduled job cannot be modified from the UI.|
 |ML-5876|The maximum length of project name + the longest function name for `project.enable_model_monitoring` is 63 chars. | Keep the name combination at a maximum of 63 chars.                                                                                                                                                                                                                                                                                                                      |v1.6.0|
 |ML-7159/7704|The evidently app pod memory consumption grows continuously due to use of the evidently workspace and project.|External dependency. Do not use (or only rarely use) these evidently APIs.|v1.7.0|
 |ML-7196|The models features statistics `feature_stats` is limited to 16MB. Further limitation to 1MB when using model-monitoring over V3IO-KV will be removed in 1.8.| NA                                                                                                                                                                                                                                                                                                                                                                       | v1.7.0|
@@ -1233,6 +1243,11 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
 |---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v1.10.0      | v1.8.0 |Feature store: `get_offline_features`                                                     |`FeatureVector.get_offline_features()`|
+| v1.10.0      | v1.8.0 |Feature store: `get_online_feature_service` |`FeatureVector.get_online_feature_service()`|
+| v1.10.0      | v1.8.0 |Feature store: `preview`                                                                   |`FeatureSet.preview()`|
+| v1.10.0      |v1.8.0 |HTTPDB: last parameter of `list_runs`                                                     |NA. Was not used.|
+| v1.10.0      |v1.8.0 |Artifacts: `uid` parameter of `store_artifact`                                            |`tree` parameter of `store_artifact` (artifact uid is generated in the backend)|
 | v1.10.0      |v1.8.0 |mlrun.platforms.VolumeMount                                                  |mlrun.runtimes.mounts.VolumeMount|
 | v1.10.0      |v1.8.0 |mlrun.platforms.auto_mount                                                  |.mounts.auto_mount|
 | v1.10.0      |v1.8.0 |mlrun.platforms.mount_configmap                                                  |.mounts.mount_configmap|
@@ -1261,8 +1276,12 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 ### Removed APIs
 
-| Version|API                                                                                                   |Replaced by                        |                                                                                                                                                                                                                                                                                              |Use instead                                                                  |
+| Version|API                                                    |Use instead                                                                  |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| v1.8.0 |`--watch` parameter of `mlrun logs`                                                        |NA|
+| v1.8.0 |datastore `get_filesystem`                                                                 |`filesystem` property|
+| v1.8.0 |`dashboard` of `RemoteRuntime.invoke`                                                      |NA|
+| v1.8.0 |Aborting runs by update request                                                           |Abort run API|
 | v1.8.0 |HTTPDB: `last` parameter of `list_runs`                                              | NA. Was not used.|
 | v1.8.0 |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|
 | v1.8.0 |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|

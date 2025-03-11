@@ -546,7 +546,17 @@ test: clean ## Run mlrun tests
 		"),);\
 	python \
 		-X faulthandler \
-		-m pytest -n auto --dist=loadscope -v \
+		-m pytest -m "problematic" -v \
+		--capture=no \
+		--disable-warnings \
+		--durations=100 \
+		$$COMMON_IGNORE_TEST_FLAGS \
+		$$PER_PYTHON_VERSION_IGNORE_TEST_FLAGS \
+		--forked \
+		-rf \
+	python \
+		-X faulthandler \
+		-m pytest -n auto --dist=loadscope -m "not problematic" -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \

@@ -16,6 +16,7 @@ from os import path
 
 from mlrun import code_to_function, new_model_server
 from tests.conftest import examples_path, results
+import pytest
 
 
 def test_job_nb():
@@ -64,6 +65,7 @@ def test_local_file_noembed():
     fn.run(workdir=str(examples_path))
 
 
+@pytest.mark.problematic
 def test_job_file_codeout():
     name = f"{examples_path}/mlrun_jobs.ipynb"
     out = f"{results}/ctf_tst.py"
@@ -74,6 +76,7 @@ def test_job_file_codeout():
     assert path.isfile(out), "output not generated"
 
 
+@pytest.mark.problematic
 def test_local_file_codeout():
     name = f"{examples_path}/mlrun_jobs.ipynb"
     out = f"{results}/ctf_tst.py"

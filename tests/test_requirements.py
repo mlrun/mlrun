@@ -57,6 +57,7 @@ def test_extras_requirement_file_aligned():
     )
 
 
+@pytest.mark.problematic
 def test_requirement_specifiers_convention():
     """
     This test exists to verify we follow our convention for requirement specifiers which is:

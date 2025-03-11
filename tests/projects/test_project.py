@@ -1248,6 +1248,7 @@ def test_get_item_absolute_path(
         assert result == expected_path and in_context == expected_in_context
 
 
+@pytest.mark.problematic
 def test_function_run_cli():
     # run function stored in the project spec
     project_dir_path = pathlib.Path(tests.conftest.results) / "project-run-func"

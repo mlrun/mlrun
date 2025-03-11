@@ -679,6 +679,7 @@ def test_read_env_httpdb_priority():
     assert conf["httpdb"]["http"]["verify"] is False
 
 
+@pytest.mark.problematic
 def test_set_config():
     env_path = f"{out_path}/env/myenv.env"
     api = "http://localhost:8080"

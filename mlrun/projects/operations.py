@@ -184,7 +184,7 @@ def run_function(
             "'artifact_path' parameter is deprecated in 1.9.0 and will be removed in 1.11.0, "
             "use 'output_path' instead.",
             # TODO: Remove this in 1.11.0
-            DeprecationWarning,
+            FutureWarning,
         )
     output_path = output_path or artifact_path
     engine, function = _get_engine_and_function(function, project_object)
@@ -224,7 +224,7 @@ def run_function(
 
         # remove this filter once the artifact_path parameter is deprecated in 1.11.0
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
+            warnings.simplefilter("ignore", category=FutureWarning)
             run_result = function.run(
                 name=name,
                 runspec=task,

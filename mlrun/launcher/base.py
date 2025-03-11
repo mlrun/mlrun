@@ -310,7 +310,7 @@ class BaseLauncher(abc.ABC):
                 f"'{deprecated_param}' parameter is deprecated in 1.9.0 and will be removed in 1.11.0, "
                 "use 'output_path' instead.",
                 # TODO: Remove this in 1.11.0
-                DeprecationWarning,
+                FutureWarning,
             )
         run.spec.output_path = (
             output_path or out_path or artifact_path or run.spec.output_path

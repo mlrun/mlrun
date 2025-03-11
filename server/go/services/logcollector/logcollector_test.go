@@ -72,9 +72,8 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	advancedLogLevel := 0
 	listRunsChunkSize := 10
 
-	// create base dir
-	suite.baseDir = path.Join(os.TempDir(), "/log_collector_test")
-	err = os.MkdirAll(suite.baseDir, 0777)
+	// ensure base dir
+	suite.baseDir, err = os.MkdirTemp("", "log_collector_test")
 	suite.Require().NoError(err, "Failed to create base dir")
 
 	// create log collector server

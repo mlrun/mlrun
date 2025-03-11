@@ -268,7 +268,9 @@ class MonitoringApplicationController:
 
     @staticmethod
     def _should_monitor_endpoint(
-        endpoint: mlrun.common.schemas.ModelEndpoint, application_names: set, base_period_minutes: int
+        endpoint: mlrun.common.schemas.ModelEndpoint,
+        application_names: set,
+        base_period_minutes: int,
     ) -> bool:
         if (
             # Is the model endpoint monitored?
@@ -291,8 +293,9 @@ class MonitoringApplicationController:
                     not batch_window_generator.get_min_last_analyzed()
                     or batch_window_generator.get_min_last_analyzed()
                     <= int(endpoint.status.last_request.timestamp())
-                    or mlrun.utils.datetime_now().timestamp() - batch_window_generator.get_min_last_analyzed() >=
-                    _MAX_OPEN_WINDOWS_ALLOWED * base_period_seconds
+                    or mlrun.utils.datetime_now().timestamp()
+                    - batch_window_generator.get_min_last_analyzed()
+                    >= _MAX_OPEN_WINDOWS_ALLOWED * base_period_seconds
                 ):
                     return True
                 else:
@@ -597,7 +600,9 @@ class MonitoringApplicationController:
         v3io_access_key: str,
     ) -> None:
         if MonitoringApplicationController._should_monitor_endpoint(
-            endpoint, set(applications_names), policy.get(ControllerEventEndpointPolicy.BASE_PERIOD)
+            endpoint,
+            set(applications_names),
+            policy.get(ControllerEventEndpointPolicy.BASE_PERIOD, 10),
         ):
             logger.info(
                 "Regular event is being pushed to controller stream for model endpoint",

@@ -873,7 +873,7 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             controller.spec.config["spec.triggers.cron_interval"]["attributes"][
                 "interval"
             ]
-            == "3m"
+            == "2m"
         )
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",

@@ -288,7 +288,7 @@ class DBInterface(ABC):
     ):
         return []
 
-    def is_artifact_can_be_removed(
+    def validate_artifact_removal_preconditions(
         self,
         session,
         key: str,

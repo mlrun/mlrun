@@ -1071,7 +1071,7 @@ class SQLDB(DBInterface):
         # the query returns a list of tuples, we need to extract the tag from each tuple
         return [tag for (tag,) in query]
 
-    def is_artifact_can_be_removed(
+    def validate_artifact_removal_preconditions(
         self,
         session,
         key: str,

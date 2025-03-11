@@ -241,14 +241,14 @@ class Artifacts(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         project = project or mlrun.mlconf.default_project
-        artifact = self.is_artifact_can_be_removed(
-            db_session=db_session,
+        artifact = framework.utils.singletons.db.get_db().validate_artifact_removal_preconditions(
+            session=db_session,
             key=key,
             tag=tag,
             iter=iteration,
             project=project,
             producer_id=producer_id,
-            object_uid=object_uid,
+            uid=object_uid,
         )
         if not artifact:
             return None
@@ -291,48 +291,12 @@ class Artifacts(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         producer_id: typing.Optional[str] = None,
     ):
+        # TODO : If, in the future, this API is extended to delete the artifact data as well,
+        #  we should include the validation we added in validate_artifact_removal_preconditions
+        #  before attempting the deletion.
         project = project or mlrun.mlconf.default_project
         framework.utils.singletons.db.get_db().del_artifacts(
             db_session, name, project, tag, labels, producer_id=producer_id
-        )
-
-    @classmethod
-    def is_artifact_can_be_removed(
-        cls,
-        db_session: sqlalchemy.orm.Session,
-        key: str,
-        tag: str = "latest",
-        iter: typing.Optional[int] = None,
-        project: typing.Optional[str] = None,
-        producer_id: typing.Optional[str] = None,
-        object_uid: typing.Optional[str] = None,
-    ) -> dict:
-        """
-        Determine whether an artifact can be safely removed.
-
-        Currently, this method verifies only if the artifact is being referenced by any model endpoints.
-        If such a dependency exists, an MLRunConflictError is raised to prevent removal.
-
-        :param db_session:  Active SQLAlchemy DB session.
-        :param key:         Artifact key (required).
-        :param tag:         Artifact tag (default: 'latest').
-        :param iter:        Artifact iteration number (optional).
-        :param project:     Project name (optional).
-        :param producer_id: Producer identifier (optional).
-        :param object_uid:  Artifact UID (optional).
-
-        :return: An artifact dictionary.
-        :raises: MLRunConflictError if the artifact is in use by a model endpoint.
-        """
-        project = project or mlrun.mlconf.default_project
-        return framework.utils.singletons.db.get_db().is_artifact_can_be_removed(
-            session=db_session,
-            key=key,
-            tag=tag,
-            iter=iter,
-            project=project,
-            producer_id=producer_id,
-            uid=object_uid,
         )
 
     @staticmethod

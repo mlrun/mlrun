@@ -155,11 +155,8 @@ class V3IOTSDBConnector(TSDBConnector):
         - metrics: a basic key value that represents a single numeric metric.
         Note that the predictions table is automatically created by the model monitoring stream pod.
         """
-        application_tables = [
-            mm_schemas.V3IOTSDBTables.APP_RESULTS,
-            mm_schemas.V3IOTSDBTables.METRICS,
-        ]
-        for table_name in application_tables:
+
+        for table_name in self.tables:
             logger.info("Creating table in V3IO TSDB", table_name=table_name)
             table = self.tables[table_name]
             self.frames_client.create(

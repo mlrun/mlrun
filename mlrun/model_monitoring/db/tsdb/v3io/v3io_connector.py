@@ -150,10 +150,14 @@ class V3IOTSDBConnector(TSDBConnector):
 
     def create_tables(self) -> None:
         """
-        Create the tables using the TSDB connector. The tables are being created in the V3IO TSDB and include:
+        Create the tables using the TSDB connector. These are the tables that are stored in the V3IO TSDB:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a single numeric metric.
-        Note that the predictions table is automatically created by the model monitoring stream pod.
+        - events: A statistics table that includes pre-aggregated metrics (such as average latency over the
+        last 5 minutes) and data samples
+        - predictions: a detailed prediction that includes latency, request timestamp, etc.
+        - errors: a detailed error that includes error desc, error type, etc.
+
         """
 
         for table_name in self.tables:

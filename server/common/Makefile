@@ -74,4 +74,4 @@ compile-schemas-python:
 cleanup:
 	@rm -rf proto/build/
 	@rm -f ../py/schemas/proto/*pb2*.py
-	@rm -rf ../go/mlrun-go/pkg/proto/build/
+	@rm -rf ../go/proto/build/

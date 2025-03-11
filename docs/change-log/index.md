@@ -74,6 +74,18 @@
 |ML-7824|The Jobs and Workflow>Monitor Workflows and Schedule panes now have a pop-up filter, and the Batch Run button is in the same row &mdash; providing more space for the lists in the tables. |
 |ML-7825|The Feature Store panes now have a pop-up filter, and the Create Set/Vector button is in the same row &mdash; providing more space for the lists in the tables. |
 
+### Closed issues
+
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-8571|Jobs/runs with artifacts with `tag==None` now appear in the UI.|
+|ML-8948|Only one artifact is tagged as latest, resolving the MultipleResultsFound error.|
+|ML-9155|Resolved issue of MLRun workers restarting.|
+|ML-9201|Running project.run with dirty=True does not fail on git dirty checks.|
+|ML-9257|Model monitoring: model outputs are now correctly saved in the model endpoint (MEP) schema. If a user provides fewer outputs, None is sabved for the missing columns.|
+
+
+
 
 ## v1.7.2 (16 January 2025)
 

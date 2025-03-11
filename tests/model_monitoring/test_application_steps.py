@@ -112,6 +112,7 @@ class TestEventPreparation:
                     "mlrun/producer-type": "model-monitoring-app",
                     "mlrun/app-name": cls.APPLICATION_NAME,
                     "mlrun/endpoint-id": cls.ENDPOINT_ID,
+                    "mlrun/endpoint-name": cls.ENDPOINT_NAME,
                 }.items() <= artifact.labels.items()
 
                 server.wait_for_completion()

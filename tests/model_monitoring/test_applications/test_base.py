@@ -114,7 +114,8 @@ class TestEvaluate:
         assert run.state() == "created"  # Should be "error", see ML-8507
         captured = capsys.readouterr()
         assert (
-            "mlrun.errors.MLRunValueError: You have NOT provided the model endpoint's name and ID, "
+            "mlrun.errors.MLRunValueError: You have NOT provided the model endpoint's name and ID: "
+            "`endpoint_name`=None and `endpoint_id`=None, "
             "but you have tried to access `monitoring_context.model_endpoint`"
             in captured.out
         ), "The error message is different than expected or was not captured"

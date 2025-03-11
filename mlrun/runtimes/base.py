@@ -412,7 +412,7 @@ class BaseRuntime(ModelObj):
                 f"'{deprecated_param}' parameter is deprecated in 1.9.0 and will be removed in 1.11.0, "
                 "use 'output_path' instead.",
                 # TODO: Remove this in 1.11.0
-                DeprecationWarning,
+                FutureWarning,
             )
         output_path = output_path or out_path or artifact_path
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
@@ -421,7 +421,7 @@ class BaseRuntime(ModelObj):
 
         # remove this filter once the artifact_path and out_path parameters are deprecated in 1.11.0
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
+            warnings.simplefilter("ignore", category=FutureWarning)
             return launcher.launch(
                 runtime=self,
                 task=runspec,

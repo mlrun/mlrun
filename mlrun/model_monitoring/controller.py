@@ -44,6 +44,7 @@ _SECONDS_IN_DAY = int(datetime.timedelta(days=1).total_seconds())
 _SECONDS_IN_MINUTE = 60
 _MAX_OPEN_WINDOWS_ALLOWED = 5
 
+
 class _Interval(NamedTuple):
     start: datetime.datetime
     end: datetime.datetime

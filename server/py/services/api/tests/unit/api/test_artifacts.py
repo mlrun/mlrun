@@ -1240,22 +1240,20 @@ def test_failed_to_delete_artifact_with_referenced_model_endpoint(
     _create_project(unversioned_client, project_name=PROJECT)
 
     # Create and store a model artifact
-    model_artifact = mlrun.artifacts.ModelArtifact(
-        key="model",
-        body="123",
-        model_file="model.pkl",
-        metrics={"accuracy": 0.8},
-        model_dir="model",
-        framework="xgboost",
+    # Generate artifact
+    artifact_data = _generate_artifact_body()
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
     )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_response = resp.json()
+    artifact_uid = artifact_response["metadata"]["uid"]
 
-    response = unversioned_client.post(
-        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key="model", tag=TAG),
-        data=model_artifact.to_json(),
-    )
-    assert (
-        response.status_code == HTTPStatus.OK.value
-    ), f"Expected 200 OK when storing the artifact, got {response.status_code}: {response.text}"
+    # Check if the artifact is created successfully
+    artifact_url = _get_artifact_url(uid=artifact_uid)
+    resp = unversioned_client.get(artifact_url)
+    assert resp.status_code == HTTPStatus.OK.value
 
     # Create a model endpoint that references the model artifact
     model_endpoint = mlrun.common.schemas.ModelEndpoint(
@@ -1281,7 +1279,7 @@ def test_failed_to_delete_artifact_with_referenced_model_endpoint(
 
     # Attempt to delete the model artifact that is still referenced by the model endpoint
     response = unversioned_client.delete(
-        DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key="model")
+        DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
     )
     # Assert that the deletion fails with a conflict because of the reference
     assert (

@@ -68,6 +68,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
+        output_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[
             Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
@@ -103,6 +104,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             scrape_metrics=scrape_metrics,
             out_path=out_path,
             artifact_path=artifact_path,
+            output_path=output_path,
             workdir=workdir,
             notifications=notifications,
             state_thresholds=state_thresholds,
@@ -196,6 +198,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         scrape_metrics=None,
         out_path=None,
         artifact_path=None,
+        output_path=None,
         workdir=None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
@@ -215,6 +218,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             scrape_metrics=scrape_metrics,
             out_path=out_path,
             artifact_path=artifact_path,
+            output_path=output_path,
             workdir=workdir,
             notifications=notifications,
             state_thresholds=state_thresholds,

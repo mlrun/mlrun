@@ -77,6 +77,7 @@ def run_function(
     auto_build: Optional[bool] = None,
     schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     artifact_path: Optional[str] = None,
+    output_path: Optional[str] = None,
     notifications: Optional[list[mlrun.model.Notification]] = None,
     returns: Optional[list[Union[str, dict[str, str]]]] = None,
     builder_env: Optional[list] = None,
@@ -158,6 +159,7 @@ def run_function(
                             see this link for help:
                             https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
     :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+    :param output_path:     path to store artifacts, when running in a workflow this will be set automatically
     :param notifications:   list of notifications to push when the run is completed
     :param returns:         List of log hints - configurations for how to log the returning values from the handler's
                             run (as artifacts or results). The list's length must be equal to the amount of returning
@@ -176,6 +178,14 @@ def run_function(
                             conjunction with the local=True argument.
     :return: MLRun RunObject or PipelineNodeWrapper
     """
+    if artifact_path:
+        warnings.warn(
+            "'artifact_path' parameter is deprecated in 1.9.0 and will be removed in 1.11.0, "
+            "use 'output_path' instead.",
+            # TODO: Remove this in 1.11.0
+            mlrun.utils.OverwriteBuildParamsWarning,
+        )
+    output_path = output_path or artifact_path
     engine, function = _get_engine_and_function(function, project_object)
     task = mlrun.new_task(
         handler=handler,
@@ -210,24 +220,31 @@ def run_function(
             function.spec.command = command
         if local and project and function.spec.build.source:
             workdir = workdir or project.spec.get_code_path()
-        run_result = function.run(
-            name=name,
-            runspec=task,
-            workdir=workdir,
-            verbose=verbose,
-            watch=watch,
-            local=local,
-            artifact_path=artifact_path
-            # workflow artifact_path has precedence over the project artifact_path equivalent to
-            # passing artifact_path to function.run() has precedence over the project.artifact_path and the default one
-            or pipeline_context.workflow_artifact_path
-            or (project.artifact_path if project else None),
-            auto_build=auto_build,
-            schedule=schedule,
-            notifications=notifications,
-            builder_env=builder_env,
-            reset_on_run=reset_on_run,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter(
+                "ignore", category=mlrun.utils.OverwriteBuildParamsWarning
+            )
+            run_result = function.run(
+                name=name,
+                runspec=task,
+                workdir=workdir,
+                verbose=verbose,
+                watch=watch,
+                local=local,
+                artifact_path=artifact_path
+                # workflow artifact_path has precedence over the project artifact_path equivalent to passing
+                # artifact_path to function.run() has precedence over the project.artifact_path and the default one
+                or pipeline_context.workflow_artifact_path
+                or (project.artifact_path if project else None),
+                output_path=output_path
+                or pipeline_context.workflow_artifact_path
+                or (project.artifact_path if project else None),
+                auto_build=auto_build,
+                schedule=schedule,
+                notifications=notifications,
+                builder_env=builder_env,
+                reset_on_run=reset_on_run,
+            )
         if run_result:
             run_result._notified = False
             pipeline_context.runs_map[run_result.uid()] = run_result

@@ -3873,6 +3873,7 @@ class MlrunProject(ModelObj):
         auto_build: Optional[bool] = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         artifact_path: Optional[str] = None,
+        output_path: Optional[str] = None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         builder_env: Optional[dict] = None,
@@ -3920,6 +3921,7 @@ class MlrunProject(ModelObj):
                                 see this link for help:
                                 https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+        :param output_path:     path to store artifacts, when running in a workflow this will be set automatically
         :param notifications:   list of notifications to push when the run is completed
         :param returns:         List of log hints - configurations for how to log the returning values from the
                                 handler's run (as artifacts or results). The list's length must be equal to the amount
@@ -3940,31 +3942,44 @@ class MlrunProject(ModelObj):
 
         :return: MLRun RunObject or PipelineNodeWrapper
         """
-        return run_function(
-            function,
-            handler=handler,
-            name=name,
-            params=params,
-            hyperparams=hyperparams,
-            hyper_param_options=hyper_param_options,
-            inputs=inputs,
-            outputs=outputs,
-            workdir=workdir,
-            labels=labels,
-            base_task=base_task,
-            watch=watch,
-            local=local,
-            verbose=verbose,
-            selector=selector,
-            project_object=self,
-            auto_build=auto_build,
-            schedule=schedule,
-            artifact_path=artifact_path,
-            notifications=notifications,
-            returns=returns,
-            builder_env=builder_env,
-            reset_on_run=reset_on_run,
-        )
+        if artifact_path:
+            warnings.warn(
+                "'artifact_path' parameter is deprecated in 1.9.0 and will be removed in 1.11.0, "
+                "use 'output_path' instead.",
+                # TODO: Remove this in 1.11.0
+                mlrun.utils.OverwriteBuildParamsWarning,
+            )
+        output_path = output_path or artifact_path
+        with warnings.catch_warnings():
+            warnings.simplefilter(
+                "ignore", category=mlrun.utils.OverwriteBuildParamsWarning
+            )
+            return run_function(
+                function,
+                handler=handler,
+                name=name,
+                params=params,
+                hyperparams=hyperparams,
+                hyper_param_options=hyper_param_options,
+                inputs=inputs,
+                outputs=outputs,
+                workdir=workdir,
+                labels=labels,
+                base_task=base_task,
+                watch=watch,
+                local=local,
+                verbose=verbose,
+                selector=selector,
+                project_object=self,
+                auto_build=auto_build,
+                schedule=schedule,
+                artifact_path=artifact_path,
+                output_path=output_path,
+                notifications=notifications,
+                returns=returns,
+                builder_env=builder_env,
+                reset_on_run=reset_on_run,
+            )
 
     def build_function(
         self,

@@ -168,8 +168,8 @@ class V3IOTSDBConnector(TSDBConnector):
         for table_name in self.tables:
             default_configurations["table"] = self.tables[table_name]
             if table_name == mm_schemas.V3IOTSDBTables.PREDICTIONS:
-                default_configurations["aggr"] = "count,avg,last"
-                default_configurations["aggr_granularity"] = "1m"
+                default_configurations["aggregates"] = "count,avg,last"
+                default_configurations["aggregation_granularity"] = "1m"
             elif table_name == mm_schemas.V3IOTSDBTables.EVENTS:
                 default_configurations["rate"] = "10/m"
             logger.info("Creating table in V3IO TSDB", table_name=table_name)

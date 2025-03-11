@@ -770,9 +770,9 @@ class RunDBMock:
 
 
 @pytest.fixture()
-def rundb_mock() -> RunDBMock:
+def rundb_mock(request) -> RunDBMock:
+    request.node.add_marker(pytest.mark.problematic)
     mock_object = RunDBMock()
-
     orig_get_run_db = mlrun.db.get_run_db
     mlrun.db.get_run_db = unittest.mock.Mock(return_value=mock_object)
     mlrun.get_run_db = unittest.mock.Mock(return_value=mock_object)

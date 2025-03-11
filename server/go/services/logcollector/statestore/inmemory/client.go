@@ -17,8 +17,8 @@ package inmemory
 import (
 	"context"
 
-	"github.com/mlrun/log-collector/pkg/services/logcollector/statestore"
-	"github.com/mlrun/log-collector/pkg/services/logcollector/statestore/abstract"
+	"github.com/mlrun/services/logcollector/statestore"
+	"github.com/mlrun/services/logcollector/statestore/abstract"
 )
 
 type Store struct {

@@ -27,26 +27,19 @@ ARG GO_VERSION=1.23
 
 # copy `go.mod` for definitions and `go.sum` to invalidate the next layer
 # in case of a change in the dependencies
-COPY mlrun-go/go.mod mlrun-go/go.sum ./mlrun-go/
-COPY services/log-collector/go.mod services/log-collector/go.sum ./services/log-collector/
-
-RUN echo "go ${GO_VERSION}\n use(\n\t mlrun-go \n\t services/log-collector \n)" > go.work && \
-    cat go.work && \
-    go work sync
+COPY go.mod go.sum ./
 
 RUN go mod download
 
-COPY mlrun-go/ ./mlrun-go/
-COPY services/log-collector/ ./services/log-collector/
-
-WORKDIR /app/services/log-collector
+COPY framework ./framework
+COPY services ./services
+COPY proto ./proto
 
 # build
 RUN GOOS=linux \
     GOARCH=amd64 \
     CGO_ENABLED=0 \
-    go build -a -installsuffix cgo -ldflags="-s -w" -o main cmd/logcollector/main.go
-
+    go build -a -installsuffix cgo -ldflags="-s -w" -o logcollector ./services/logcollector/cmd/main.go
 
 
 FROM gcr.io/iguazio/alpine:3.21
@@ -54,7 +47,7 @@ FROM gcr.io/iguazio/alpine:3.21
 # Upgrade OS packages
 RUN apk --update --no-cache upgrade
 
-COPY --from=build-binary /app/services/log-collector/main /main
+COPY --from=build-binary /app/logcollector /main
 COPY --from=install-health-probe /ko-app/grpc-health-probe /grpc_health_probe
 
 EXPOSE 8080

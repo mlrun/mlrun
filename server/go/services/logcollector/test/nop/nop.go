@@ -17,7 +17,7 @@ package nop
 import (
 	"context"
 
-	"github.com/mlrun/mlrun-go/pkg/proto/build/log_collector"
+	protologcollector "github.com/mlrun/proto/build/log_collector"
 
 	"google.golang.org/grpc"
 )
@@ -28,7 +28,7 @@ type GetLogsResponseStreamNop struct {
 	Logs []byte
 }
 
-func (m *GetLogsResponseStreamNop) Send(response *log_collector.GetLogsResponse) error {
+func (m *GetLogsResponseStreamNop) Send(response *protologcollector.GetLogsResponse) error {
 	m.Logs = append(m.Logs, response.Logs...)
 	return nil
 }
@@ -43,7 +43,7 @@ type ListRunsResponseStreamNop struct {
 	RunUIDs []string
 }
 
-func (m *ListRunsResponseStreamNop) Send(response *log_collector.ListRunsResponse) error {
+func (m *ListRunsResponseStreamNop) Send(response *protologcollector.ListRunsResponse) error {
 	m.RunUIDs = append(m.RunUIDs, response.RunUIDs...)
 	return nil
 }

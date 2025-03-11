@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import asyncio
 import math
 from datetime import datetime, timedelta, timezone
 from io import StringIO
@@ -150,16 +149,17 @@ class V3IOTSDBConnector(TSDBConnector):
 
     def create_tables(self) -> None:
         """
-        Create the tables using the TSDB connector. The tables are being created in the V3IO TSDB and include:
+        Create the tables using the TSDB connector. These are the tables that are stored in the V3IO TSDB:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a single numeric metric.
-        Note that the predictions table is automatically created by the model monitoring stream pod.
+        - events: A statistics table that includes pre-aggregated metrics (such as average latency over the
+        last 5 minutes) and data samples
+        - predictions: a detailed prediction that includes latency, request timestamp, etc.
+        - errors: a detailed error that includes error desc, error type, etc.
+
         """
-        application_tables = [
-            mm_schemas.V3IOTSDBTables.APP_RESULTS,
-            mm_schemas.V3IOTSDBTables.METRICS,
-        ]
-        for table_name in application_tables:
+
+        for table_name in self.tables:
             logger.info("Creating table in V3IO TSDB", table_name=table_name)
             table = self.tables[table_name]
             self.frames_client.create(
@@ -1018,7 +1018,7 @@ class V3IOTSDBConnector(TSDBConnector):
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
                                         be filled with the relevant basic metrics.
         :param project:                The name of the project.
-        :param run_in_threadpool:      A function that runs another function in a thread pool.
+        :param run_in_threadpool:      Has no effect.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
@@ -1030,35 +1030,10 @@ class V3IOTSDBConnector(TSDBConnector):
             uids.append(uid)
             model_endpoint_objects_by_uid[uid] = model_endpoint_object
 
-        coroutines = [
-            run_in_threadpool(
-                self.get_error_count,
-                endpoint_ids=uids,
-                get_raw=True,
-            ),
-            run_in_threadpool(
-                self.get_last_request,
-                endpoint_ids=uids,
-                get_raw=True,
-            ),
-            run_in_threadpool(
-                self.get_avg_latency,
-                endpoint_ids=uids,
-                get_raw=True,
-            ),
-            run_in_threadpool(
-                self.get_drift_status,
-                endpoint_ids=uids,
-                get_raw=True,
-            ),
-        ]
-
-        (
-            error_count_res,
-            last_request_res,
-            avg_latency_res,
-            drift_status_res,
-        ) = await asyncio.gather(*coroutines)
+        error_count_res = self.get_error_count(endpoint_ids=uids, get_raw=True)
+        last_request_res = self.get_last_request(endpoint_ids=uids, get_raw=True)
+        avg_latency_res = self.get_avg_latency(endpoint_ids=uids, get_raw=True)
+        drift_status_res = self.get_drift_status(endpoint_ids=uids, get_raw=True)
 
         def add_metric(
             metric: str,

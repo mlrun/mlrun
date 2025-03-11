@@ -1176,6 +1176,7 @@ def test_replace_exported_artifact_producer(rundb_mock):
         (None, None),
     ],
 )
+@pytest.mark.problematic
 def test_artifact_owner(
     rundb_mock, project_owner, username, monkeypatch: pytest.MonkeyPatch
 ):

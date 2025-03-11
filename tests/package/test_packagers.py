@@ -132,7 +132,7 @@ def _get_key_and_artifact_type(
 
     return key, artifact_type
 
-
+@pytest.mark.problematic
 @pytest.mark.parametrize(
     "tester, test",
     _get_tests_tuples(test_type=PackTest),

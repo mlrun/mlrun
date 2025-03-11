@@ -130,6 +130,7 @@ def get_test_dataframes():
     return dataframes
 
 
+@pytest.mark.problematic
 @pytest.mark.parametrize("obj", get_test_dataframes())
 @pytest.mark.parametrize(
     "file_format",

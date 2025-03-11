@@ -2142,7 +2142,7 @@ class MlrunProject(ModelObj):
         reset_policy: mlrun.common.schemas.alert.ResetPolicy = mlrun.common.schemas.alert.ResetPolicy.AUTO,
     ) -> list[mlrun.alerts.alert.AlertConfig]:
         """
-        Create AlertConfig by given endpoints and result names (regex or explicit, optional).
+Generate alert configurations based on specified model endpoints and result names, which can be defined explicitly or using regex patterns.
 
         :param name:                   The name of the AlertConfig template. It will be combined with mep_id, app-name
                                        and result name to generate a unique name.

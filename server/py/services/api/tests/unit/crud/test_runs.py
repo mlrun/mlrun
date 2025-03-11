@@ -481,48 +481,49 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
 
         self._validate_run_artifacts(artifacts, db, project, run_uid)
 
-    # @pytest.mark.parametrize("workflow_id", [None, str(uuid.uuid4())])
-    # def test_get_run_iteration_restore_artifacts_metadata(
-    #     self, db: sqlalchemy.orm.Session, workflow_id
-    # ):
-    #     project = "project-name"
-    #     run_uid = str(uuid.uuid4())
-    #     workflow_uid = workflow_id
-    #     iter = 3
-    #     artifacts = self._generate_artifacts(project, run_uid, workflow_uid, iter=iter)
-    #
-    #     for artifact in artifacts:
-    #         services.api.crud.Artifacts().store_artifact(
-    #             db,
-    #             artifact["spec"]["db_key"],
-    #             artifact,
-    #             iter=iter,
-    #             project=project,
-    #         )
-    #
-    #     labels = {mlrun_constants.MLRunInternalLabels.kind: "job"}
-    #     if workflow_id:
-    #         labels[mlrun_constants.MLRunInternalLabels.workflow] = workflow_id
-    #
-    #     services.api.crud.Runs().store_run(
-    #         db,
-    #         {
-    #             "metadata": {
-    #                 "name": "run-name",
-    #                 "uid": run_uid,
-    #                 "iter": iter,
-    #                 "labels": labels,
-    #             },
-    #             "status": {
-    #                 "artifacts": artifacts,
-    #             },
-    #         },
-    #         run_uid,
-    #         iter=iter,
-    #         project=project,
-    #     )
-    #
-    #     self._validate_run_artifacts(artifacts, db, project, run_uid, iter)
+    @pytest.mark.parametrize("workflow_id", [None, "uuid"])
+    def test_get_run_iteration_restore_artifacts_metadata(
+        self, db: sqlalchemy.orm.Session, workflow_id
+    ):
+        workflow_id = str(uuid.uuid4()) if workflow_id == "uuid" else workflow_id
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        workflow_uid = workflow_id
+        iter = 3
+        artifacts = self._generate_artifacts(project, run_uid, workflow_uid, iter=iter)
+
+        for artifact in artifacts:
+            services.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                iter=iter,
+                project=project,
+            )
+
+        labels = {mlrun_constants.MLRunInternalLabels.kind: "job"}
+        if workflow_id:
+            labels[mlrun_constants.MLRunInternalLabels.workflow] = workflow_id
+
+        services.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid,
+                    "iter": iter,
+                    "labels": labels,
+                },
+                "status": {
+                    "artifacts": artifacts,
+                },
+            },
+            run_uid,
+            iter=iter,
+            project=project,
+        )
+
+        self._validate_run_artifacts(artifacts, db, project, run_uid, iter)
 
     def test_get_workflow_run_best_iteration_restore_artifacts_metadata(
         self, db: sqlalchemy.orm.Session

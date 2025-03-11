@@ -26,11 +26,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mlrun/mlrun-go/pkg/common"
-	"github.com/mlrun/mlrun-go/pkg/proto/build/log_collector"
+	"github.com/mlrun/framework/common"
+
+	protologcollector "github.com/mlrun/proto/build/log_collector"
+
+	"github.com/mlrun/services/logcollector/test/nop"
 
 	"github.com/google/uuid"
-	"github.com/mlrun/log-collector/pkg/services/logcollector/test/nop"
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
 	"github.com/nuclio/loggerus"
@@ -57,7 +59,7 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	suite.logger, err = loggerus.NewLoggerusForTests("test")
 	suite.Require().NoError(err, "Failed to create logger")
 
-	suite.kubeClientSet = *fake.NewSimpleClientset()
+	suite.kubeClientSet = *fake.NewClientset()
 	suite.ctx = context.Background()
 	suite.namespace = "default"
 	suite.projectName = "test-project"
@@ -70,9 +72,8 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	advancedLogLevel := 0
 	listRunsChunkSize := 10
 
-	// create base dir
-	suite.baseDir = path.Join(os.TempDir(), "/log_collector_test")
-	err = os.MkdirAll(suite.baseDir, 0777)
+	// ensure base dir
+	suite.baseDir, err = os.MkdirTemp("", "log_collector_test")
 	suite.Require().NoError(err, "Failed to create base dir")
 
 	// create log collector server
@@ -252,7 +253,7 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 func (suite *LogCollectorTestSuite) TestStartLogBestEffort() {
 
 	// call start log for a non-existent pod, and expect no error
-	request := &log_collector.StartLogRequest{
+	request := &protologcollector.StartLogRequest{
 		RunUID:      "some-run-id",
 		ProjectName: "some-project",
 		Selector:    "app=some-app",
@@ -324,7 +325,7 @@ func (suite *LogCollectorTestSuite) TestStartLogOnPodStates() {
 		suite.Require().NoError(err, "Failed to create pod")
 
 		// call start log
-		request := &log_collector.StartLogRequest{
+		request := &protologcollector.StartLogRequest{
 			RunUID:      fmt.Sprintf("run-id-%d", runUidIndex),
 			ProjectName: projectName,
 			Selector:    selector,
@@ -437,7 +438,7 @@ func (suite *LogCollectorTestSuite) TestGetLogsWithSize() {
 	} {
 		suite.Run(testCase.name, func() {
 			nopStream := &nop.GetLogsResponseStreamNop{}
-			err := suite.logCollectorServer.GetLogs(&log_collector.GetLogsRequest{
+			err := suite.logCollectorServer.GetLogs(&protologcollector.GetLogsRequest{
 				RunUID:      runUID,
 				Offset:      int64(testCase.offset),
 				Size:        int64(testCase.readSize),
@@ -473,7 +474,7 @@ func (suite *LogCollectorTestSuite) TestGetLogsSuccessful() {
 	nopStream := &nop.GetLogsResponseStreamNop{}
 
 	// get logs
-	err = suite.logCollectorServer.GetLogs(&log_collector.GetLogsRequest{
+	err = suite.logCollectorServer.GetLogs(&protologcollector.GetLogsRequest{
 		RunUID:      runUID,
 		Offset:      0,
 		Size:        100,
@@ -499,7 +500,7 @@ func (suite *LogCollectorTestSuite) TestGetLogsSuccessful() {
 	}
 
 	// get logs with offset and size -1, to get all logs at once
-	err = suite.logCollectorServer.GetLogs(&log_collector.GetLogsRequest{
+	err = suite.logCollectorServer.GetLogs(&protologcollector.GetLogsRequest{
 		RunUID:      runUID,
 		Offset:      1,
 		Size:        -1,
@@ -597,7 +598,7 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 
 func (suite *LogCollectorTestSuite) TestGetLogSize() {
 	runUID := uuid.New().String()
-	request := &log_collector.GetLogSizeRequest{
+	request := &protologcollector.GetLogSizeRequest{
 		RunUID:      runUID,
 		ProjectName: suite.projectName,
 	}
@@ -651,7 +652,7 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 
 	// stop logs for all projects
 	for project, runs := range projectToRuns {
-		request := &log_collector.StopLogsRequest{
+		request := &protologcollector.StopLogsRequest{
 			Project: project,
 			RunUIDs: runs,
 		}
@@ -714,7 +715,7 @@ func (suite *LogCollectorTestSuite) TestDeleteLogs() {
 			suite.Require().Equal(testCase.logsNumToCreate, len(dirEntries), "Expected logs to exist")
 
 			// delete some logs
-			request := &log_collector.StopLogsRequest{
+			request := &protologcollector.StopLogsRequest{
 				Project: projectName,
 				RunUIDs: runUIDs[testCase.expectedLogsNumLeft:],
 			}
@@ -751,7 +752,7 @@ func (suite *LogCollectorTestSuite) TestDeleteProjectLogs() {
 	suite.Require().Equal(logsNum, len(dirEntries), "Expected logs to exist")
 
 	// delete all logs except the first one
-	request := &log_collector.StopLogsRequest{
+	request := &protologcollector.StopLogsRequest{
 		Project: projectName,
 		RunUIDs: runUIDs[1:],
 	}
@@ -788,7 +789,7 @@ func (suite *LogCollectorTestSuite) TestGetLogFilePath() {
 }
 
 func (suite *LogCollectorTestSuite) TestListRunsInProgress() {
-	listRunsInProgress := func(request *log_collector.ListRunsRequest) []string {
+	listRunsInProgress := func(request *protologcollector.ListRunsRequest) []string {
 		nopStream := &nop.ListRunsResponseStreamNop{}
 		err := suite.logCollectorServer.ListRunsInProgress(request, nopStream)
 		suite.Require().NoError(err, "Failed to list runs in progress")
@@ -804,7 +805,7 @@ func (suite *LogCollectorTestSuite) TestListRunsInProgress() {
 	}
 
 	// list runs without any runs in progress
-	runsInProgress := listRunsInProgress(&log_collector.ListRunsRequest{})
+	runsInProgress := listRunsInProgress(&protologcollector.ListRunsRequest{})
 	suite.Require().Empty(runsInProgress, "Expected no runs in progress")
 
 	// create log items in progress
@@ -829,13 +830,13 @@ func (suite *LogCollectorTestSuite) TestListRunsInProgress() {
 	}
 
 	// list runs in progress for all projects
-	runsInProgress = listRunsInProgress(&log_collector.ListRunsRequest{})
+	runsInProgress = listRunsInProgress(&protologcollector.ListRunsRequest{})
 	verifyRuns(expectedRunUIDs, runsInProgress)
 
 	// list runs in progress for a specific project
 	projectName := "project-1"
 	expectedRunUIDs = projectToRuns[projectName]
-	runsInProgress = listRunsInProgress(&log_collector.ListRunsRequest{Project: projectName})
+	runsInProgress = listRunsInProgress(&protologcollector.ListRunsRequest{Project: projectName})
 	verifyRuns(expectedRunUIDs, runsInProgress)
 }
 

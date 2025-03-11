@@ -1017,7 +1017,7 @@ class V3IOTSDBConnector(TSDBConnector):
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
                                         be filled with the relevant basic metrics.
         :param project:                The name of the project.
-        :param run_in_threadpool:      A function that runs another function in a thread pool.
+        :param run_in_threadpool:      Has no effect.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """

@@ -4080,21 +4080,6 @@ class HTTPRunDB(RunDBInterface):
                     deletion_failed = True
         return not deletion_failed
 
-    def deploy_histogram_data_drift_app(
-        self, project: str, image: str = "mlrun/mlrun"
-    ) -> None:
-        """
-        Deploy the histogram data drift application.
-
-        :param project: Project name.
-        :param image:   The image on which the application will run.
-        """
-        self.api_call(
-            method=mlrun.common.types.HTTPMethod.PUT,
-            path=f"projects/{project}/model-monitoring/histogram-data-drift-app",
-            params={"image": image},
-        )
-
     def set_model_monitoring_credentials(
         self,
         project: str,

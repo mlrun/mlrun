@@ -2488,30 +2488,6 @@ class MlrunProject(ModelObj):
                 )
             self._wait_for_functions_deployment(deployment_functions)
 
-    def deploy_histogram_data_drift_app(
-        self,
-        *,
-        image: str = "mlrun/mlrun",
-        db: Optional[mlrun.db.RunDBInterface] = None,
-        wait_for_deployment: bool = False,
-    ) -> None:
-        """
-        Deploy the histogram data drift application.
-
-        :param image:               The image on which the application will run.
-        :param db:                  An optional DB object.
-        :param wait_for_deployment: If true, return only after the deployment is done on the backend.
-                                    Otherwise, deploy the application on the background.
-        """
-        if db is None:
-            db = mlrun.db.get_run_db(secrets=self._secrets)
-        db.deploy_histogram_data_drift_app(project=self.name, image=image)
-
-        if wait_for_deployment:
-            self._wait_for_functions_deployment(
-                [mm_constants.HistogramDataDriftApplicationConstants.NAME]
-            )
-
     def update_model_monitoring_controller(
         self,
         base_period: int = 10,

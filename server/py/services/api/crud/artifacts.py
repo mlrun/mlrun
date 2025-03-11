@@ -293,7 +293,7 @@ class Artifacts(
     ):
         # TODO : If, in the future, this API is extended to delete the artifact data as well,
         #  we should include the validation we added in validate_artifact_removal_preconditions
-        #  before attempting the deletion.
+        #  before attempting the data deletion. Currently, deleting artifacts linked to model endpoints will fail with IntegrityError.
         project = project or mlrun.mlconf.default_project
         framework.utils.singletons.db.get_db().del_artifacts(
             db_session, name, project, tag, labels, producer_id=producer_id

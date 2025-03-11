@@ -546,7 +546,7 @@ test: clean ## Run mlrun tests
 		"),);\
 	python \
 		-X faulthandler \
-		-m pytest -v \
+		-m pytest -n auto --dist=loadscope -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \

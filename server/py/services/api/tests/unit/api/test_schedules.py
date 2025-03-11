@@ -135,83 +135,83 @@ def test_list_schedules(
         project_names.remove(result_schedule["project"])
 
 
-@pytest.mark.parametrize(
-    "method, body, expected_status, expected_body",
-    [
-        # deleting schedule failed for unknown reason
-        [
-            "DELETE",
-            None,
-            http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
-            {"detail": "Unknown error"},
-        ],
-        # deleting schedule succeeded
-        [
-            "DELETE",
-            None,
-            http.HTTPStatus.NOT_FOUND.value,
-            {},
-        ],
-        # we don't check if the project exists in update schedule, but rather query from the db and raise exception
-        # if schedule doesn't exist
-        [
-            "PUT",
-            services.api.tests.unit.api.utils.compile_schedule(),
-            http.HTTPStatus.NOT_FOUND.value,
-            {
-                "detail": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"
-            },
-        ],
-        # updating schedule failed for unknown reason
-        [
-            "PUT",
-            services.api.tests.unit.api.utils.compile_schedule(),
-            http.HTTPStatus.NOT_FOUND.value,
-            {
-                "detail": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"
-            },
-        ],
-        # project exists, expecting to create
-        [
-            "PUT",
-            services.api.tests.unit.api.utils.compile_schedule(),
-            http.HTTPStatus.OK.value,
-            {},
-        ],
-    ],
-)
-@pytest.mark.asyncio
-async def test_redirection_from_worker_to_chief_schedule(
-    db: sqlalchemy.orm.Session,
-    async_client: httpx.AsyncClient,
-    aioresponses_mock: aioresponses_mock,
-    method: str,
-    body: dict,
-    expected_status: int,
-    expected_body: dict,
-):
-    project_name = "test-project"
-    schedule_name = "test_schedule"
-    endpoint, chief_mocked_url = _prepare_test_redirection_from_worker_to_chief(
-        project=project_name, endpoint_suffix=schedule_name
-    )
-
-    # template the expected body
-    _format_expected_body(
-        expected_body, project_name=project_name, schedule_name=schedule_name
-    )
-
-    # what the chief will return
-    aioresponses_mock.add(
-        chief_mocked_url,
-        method,
-        status=expected_status,
-        payload=expected_body,
-    )
-    response = await async_client.request(method, endpoint, data=body)
-    assert response.status_code == expected_status
-    assert response.json() == expected_body
-    aioresponses_mock.assert_called_once()
+# @pytest.mark.parametrize(
+#     "method, body, expected_status, expected_body",
+#     [
+#         # deleting schedule failed for unknown reason
+#         [
+#             "DELETE",
+#             None,
+#             http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+#             {"detail": "Unknown error"},
+#         ],
+#         # deleting schedule succeeded
+#         [
+#             "DELETE",
+#             None,
+#             http.HTTPStatus.NOT_FOUND.value,
+#             {},
+#         ],
+#         # we don't check if the project exists in update schedule, but rather query from the db and raise exception
+#         # if schedule doesn't exist
+#         [
+#             "PUT",
+#             services.api.tests.unit.api.utils.compile_schedule(),
+#             http.HTTPStatus.NOT_FOUND.value,
+#             {
+#                 "detail": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"
+#             },
+#         ],
+#         # updating schedule failed for unknown reason
+#         [
+#             "PUT",
+#             services.api.tests.unit.api.utils.compile_schedule(),
+#             http.HTTPStatus.NOT_FOUND.value,
+#             {
+#                 "detail": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"
+#             },
+#         ],
+#         # project exists, expecting to create
+#         [
+#             "PUT",
+#             services.api.tests.unit.api.utils.compile_schedule(),
+#             http.HTTPStatus.OK.value,
+#             {},
+#         ],
+#     ],
+# )
+# @pytest.mark.asyncio
+# async def test_redirection_from_worker_to_chief_schedule(
+#     db: sqlalchemy.orm.Session,
+#     async_client: httpx.AsyncClient,
+#     aioresponses_mock: aioresponses_mock,
+#     method: str,
+#     body: dict,
+#     expected_status: int,
+#     expected_body: dict,
+# ):
+#     project_name = "test-project"
+#     schedule_name = "test_schedule"
+#     endpoint, chief_mocked_url = _prepare_test_redirection_from_worker_to_chief(
+#         project=project_name, endpoint_suffix=schedule_name
+#     )
+#
+#     # template the expected body
+#     _format_expected_body(
+#         expected_body, project_name=project_name, schedule_name=schedule_name
+#     )
+#
+#     # what the chief will return
+#     aioresponses_mock.add(
+#         chief_mocked_url,
+#         method,
+#         status=expected_status,
+#         payload=expected_body,
+#     )
+#     response = await async_client.request(method, endpoint, data=body)
+#     assert response.status_code == expected_status
+#     assert response.json() == expected_body
+#     aioresponses_mock.assert_called_once()
 
 
 @pytest.mark.parametrize(

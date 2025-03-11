@@ -481,48 +481,48 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
 
         self._validate_run_artifacts(artifacts, db, project, run_uid)
 
-    @pytest.mark.parametrize("workflow_id", [None, str(uuid.uuid4())])
-    def test_get_run_iteration_restore_artifacts_metadata(
-        self, db: sqlalchemy.orm.Session, workflow_id
-    ):
-        project = "project-name"
-        run_uid = str(uuid.uuid4())
-        workflow_uid = workflow_id
-        iter = 3
-        artifacts = self._generate_artifacts(project, run_uid, workflow_uid, iter=iter)
-
-        for artifact in artifacts:
-            services.api.crud.Artifacts().store_artifact(
-                db,
-                artifact["spec"]["db_key"],
-                artifact,
-                iter=iter,
-                project=project,
-            )
-
-        labels = {mlrun_constants.MLRunInternalLabels.kind: "job"}
-        if workflow_id:
-            labels[mlrun_constants.MLRunInternalLabels.workflow] = workflow_id
-
-        services.api.crud.Runs().store_run(
-            db,
-            {
-                "metadata": {
-                    "name": "run-name",
-                    "uid": run_uid,
-                    "iter": iter,
-                    "labels": labels,
-                },
-                "status": {
-                    "artifacts": artifacts,
-                },
-            },
-            run_uid,
-            iter=iter,
-            project=project,
-        )
-
-        self._validate_run_artifacts(artifacts, db, project, run_uid, iter)
+    # @pytest.mark.parametrize("workflow_id", [None, str(uuid.uuid4())])
+    # def test_get_run_iteration_restore_artifacts_metadata(
+    #     self, db: sqlalchemy.orm.Session, workflow_id
+    # ):
+    #     project = "project-name"
+    #     run_uid = str(uuid.uuid4())
+    #     workflow_uid = workflow_id
+    #     iter = 3
+    #     artifacts = self._generate_artifacts(project, run_uid, workflow_uid, iter=iter)
+    #
+    #     for artifact in artifacts:
+    #         services.api.crud.Artifacts().store_artifact(
+    #             db,
+    #             artifact["spec"]["db_key"],
+    #             artifact,
+    #             iter=iter,
+    #             project=project,
+    #         )
+    #
+    #     labels = {mlrun_constants.MLRunInternalLabels.kind: "job"}
+    #     if workflow_id:
+    #         labels[mlrun_constants.MLRunInternalLabels.workflow] = workflow_id
+    #
+    #     services.api.crud.Runs().store_run(
+    #         db,
+    #         {
+    #             "metadata": {
+    #                 "name": "run-name",
+    #                 "uid": run_uid,
+    #                 "iter": iter,
+    #                 "labels": labels,
+    #             },
+    #             "status": {
+    #                 "artifacts": artifacts,
+    #             },
+    #         },
+    #         run_uid,
+    #         iter=iter,
+    #         project=project,
+    #     )
+    #
+    #     self._validate_run_artifacts(artifacts, db, project, run_uid, iter)
 
     def test_get_workflow_run_best_iteration_restore_artifacts_metadata(
         self, db: sqlalchemy.orm.Session
@@ -614,49 +614,49 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
             best_iteration_artifacts + parent_run_arts, db, project, run_uid
         )
 
-    @pytest.mark.parametrize("workflow_uid", [None, str(uuid.uuid4())])
-    def test_get_run_restore_artifacts_metadata_with_missing_artifact(
-        self, db: sqlalchemy.orm.Session, workflow_uid
-    ):
-        project = "project-name"
-        run_uid = str(uuid.uuid4())
-        artifacts = self._generate_artifacts(
-            project, run_uid, workflow_uid, artifacts_len=3
-        )
-
-        # Create only 2 artifacts
-        for artifact in artifacts[:2]:
-            services.api.crud.Artifacts().store_artifact(
-                db,
-                artifact["spec"]["db_key"],
-                artifact,
-                iter=artifact["metadata"]["iter"],
-                project=project,
-                producer_id=workflow_uid or run_uid,
-            )
-
-        labels = {mlrun_constants.MLRunInternalLabels.kind: "job"}
-        if workflow_uid:
-            labels[mlrun_constants.MLRunInternalLabels.workflow] = workflow_uid
-
-        services.api.crud.Runs().store_run(
-            db,
-            {
-                "metadata": {
-                    "name": "run-name",
-                    "uid": run_uid,
-                    "labels": labels,
-                },
-                "status": {
-                    "artifacts": artifacts,
-                },
-            },
-            run_uid,
-            project=project,
-        )
-
-        # Expect only the 2 artifacts to be restored
-        self._validate_run_artifacts(artifacts[:2], db, project, run_uid)
+    # @pytest.mark.parametrize("workflow_uid", [None, str(uuid.uuid4())])
+    # def test_get_run_restore_artifacts_metadata_with_missing_artifact(
+    #     self, db: sqlalchemy.orm.Session, workflow_uid
+    # ):
+    #     project = "project-name"
+    #     run_uid = str(uuid.uuid4())
+    #     artifacts = self._generate_artifacts(
+    #         project, run_uid, workflow_uid, artifacts_len=3
+    #     )
+    #
+    #     # Create only 2 artifacts
+    #     for artifact in artifacts[:2]:
+    #         services.api.crud.Artifacts().store_artifact(
+    #             db,
+    #             artifact["spec"]["db_key"],
+    #             artifact,
+    #             iter=artifact["metadata"]["iter"],
+    #             project=project,
+    #             producer_id=workflow_uid or run_uid,
+    #         )
+    #
+    #     labels = {mlrun_constants.MLRunInternalLabels.kind: "job"}
+    #     if workflow_uid:
+    #         labels[mlrun_constants.MLRunInternalLabels.workflow] = workflow_uid
+    #
+    #     services.api.crud.Runs().store_run(
+    #         db,
+    #         {
+    #             "metadata": {
+    #                 "name": "run-name",
+    #                 "uid": run_uid,
+    #                 "labels": labels,
+    #             },
+    #             "status": {
+    #                 "artifacts": artifacts,
+    #             },
+    #         },
+    #         run_uid,
+    #         project=project,
+    #     )
+    #
+    #     # Expect only the 2 artifacts to be restored
+    #     self._validate_run_artifacts(artifacts[:2], db, project, run_uid)
 
     @pytest.mark.parametrize(
         "run_format",

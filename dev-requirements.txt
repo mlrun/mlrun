@@ -38,3 +38,5 @@ cryptography~=44.0
 
 # install to verify it doesn't cause a warning (ML-8951)
 evidently~=0.6.2
+
+pytest-xdist~=3.6.1

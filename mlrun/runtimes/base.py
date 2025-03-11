@@ -331,6 +331,7 @@ class BaseRuntime(ModelObj):
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
+        output_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
         hyperparams: Optional[dict[str, list]] = None,
@@ -360,6 +361,7 @@ class BaseRuntime(ModelObj):
                                in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
         :param out_path:       Default artifact output path.
         :param artifact_path:  Default artifact output path (will replace out_path).
+        :param output_path:    Default artifact output path.
         :param workdir:        Working directory of the executed job and the default path for artifact inputs
         :param watch:          Watch/follow run log.
         :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string
@@ -404,34 +406,48 @@ class BaseRuntime(ModelObj):
                              conjunction with the local=True argument.
         :return: Run context object (RunObject) with run metadata, results and status
         """
+        if artifact_path or out_path:
+            deprecated_param = "artifact_path" if artifact_path else "out_path"
+            warnings.warn(
+                f"'{deprecated_param}' parameter is deprecated in 1.9.0 and will be removed in 1.11.0, "
+                "use 'output_path' instead.",
+                # TODO: Remove this in 1.11.0
+                mlrun.utils.OverwriteBuildParamsWarning,
+            )
+        output_path = output_path or out_path or artifact_path
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
             self._is_remote, local=local, **launcher_kwargs
         )
-        return launcher.launch(
-            runtime=self,
-            task=runspec,
-            handler=handler,
-            name=name,
-            project=project,
-            params=params,
-            inputs=inputs,
-            out_path=out_path,
-            workdir=workdir,
-            artifact_path=artifact_path,
-            watch=watch,
-            schedule=schedule,
-            hyperparams=hyperparams,
-            hyper_param_options=hyper_param_options,
-            verbose=verbose,
-            scrape_metrics=scrape_metrics,
-            local_code_path=local_code_path,
-            auto_build=auto_build,
-            param_file_secrets=param_file_secrets,
-            notifications=notifications,
-            returns=returns,
-            state_thresholds=state_thresholds,
-            reset_on_run=reset_on_run,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter(
+                "ignore", category=mlrun.utils.OverwriteBuildParamsWarning
+            )
+            return launcher.launch(
+                runtime=self,
+                task=runspec,
+                handler=handler,
+                name=name,
+                project=project,
+                params=params,
+                inputs=inputs,
+                out_path=out_path,
+                workdir=workdir,
+                artifact_path=artifact_path,
+                output_path=output_path,
+                watch=watch,
+                schedule=schedule,
+                hyperparams=hyperparams,
+                hyper_param_options=hyper_param_options,
+                verbose=verbose,
+                scrape_metrics=scrape_metrics,
+                local_code_path=local_code_path,
+                auto_build=auto_build,
+                param_file_secrets=param_file_secrets,
+                notifications=notifications,
+                returns=returns,
+                state_thresholds=state_thresholds,
+                reset_on_run=reset_on_run,
+            )
 
     def _get_db_run(
         self,

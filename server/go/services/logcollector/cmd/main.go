@@ -18,11 +18,12 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/mlrun/mlrun-go/pkg/common"
-	"github.com/mlrun/mlrun-go/pkg/common/k8s"
-	"github.com/mlrun/mlrun-go/pkg/framework"
+	"github.com/mlrun/framework"
+	"github.com/mlrun/framework/common"
+	"github.com/mlrun/framework/common/k8s"
 
-	"github.com/mlrun/log-collector/pkg/services/logcollector"
+	"github.com/mlrun/services/logcollector"
+
 	"github.com/nuclio/errors"
 	"k8s.io/client-go/kubernetes"
 )

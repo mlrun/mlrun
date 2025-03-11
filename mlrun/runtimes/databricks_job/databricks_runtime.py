@@ -220,7 +220,6 @@ def run_mlrun_databricks_job(context,task_parameters: dict, **kwargs):
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
-        output_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
         hyperparams: Optional[dict[str, list]] = None,
@@ -235,6 +234,7 @@ def run_mlrun_databricks_job(context,task_parameters: dict, **kwargs):
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
+        output_path: Optional[str] = "",
         **launcher_kwargs,
     ) -> RunObject:
         if local:

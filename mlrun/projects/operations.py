@@ -77,11 +77,11 @@ def run_function(
     auto_build: Optional[bool] = None,
     schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     artifact_path: Optional[str] = None,
-    output_path: Optional[str] = None,
     notifications: Optional[list[mlrun.model.Notification]] = None,
     returns: Optional[list[Union[str, dict[str, str]]]] = None,
     builder_env: Optional[list] = None,
     reset_on_run: Optional[bool] = None,
+    output_path: Optional[str] = None,
 ) -> Union[mlrun.model.RunObject, mlrun_pipelines.models.PipelineNodeWrapper]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -158,8 +158,8 @@ def run_function(
                             (which will be converted to the class using its `from_crontab` constructor),
                             see this link for help:
                             https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-    :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
-    :param output_path:     path to store artifacts, when running in a workflow this will be set automatically
+    :param artifact_path:   (deprecated) path to store artifacts, when running in a workflow this will be set
+                            automatically
     :param notifications:   list of notifications to push when the run is completed
     :param returns:         List of log hints - configurations for how to log the returning values from the handler's
                             run (as artifacts or results). The list's length must be equal to the amount of returning
@@ -176,6 +176,7 @@ def run_function(
     :param reset_on_run:    When True, function python modules would reload prior to code execution.
                             This ensures latest code changes are executed. This argument must be used in
                             conjunction with the local=True argument.
+    :param output_path:     path to store artifacts, when running in a workflow this will be set automatically
     :return: MLRun RunObject or PipelineNodeWrapper
     """
     if artifact_path:
@@ -183,7 +184,7 @@ def run_function(
             "'artifact_path' parameter is deprecated in 1.9.0 and will be removed in 1.11.0, "
             "use 'output_path' instead.",
             # TODO: Remove this in 1.11.0
-            mlrun.utils.OverwriteBuildParamsWarning,
+            DeprecationWarning,
         )
     output_path = output_path or artifact_path
     engine, function = _get_engine_and_function(function, project_object)
@@ -220,10 +221,10 @@ def run_function(
             function.spec.command = command
         if local and project and function.spec.build.source:
             workdir = workdir or project.spec.get_code_path()
+
+        # remove this filter once the artifact_path parameter is deprecated in 1.11.0
         with warnings.catch_warnings():
-            warnings.simplefilter(
-                "ignore", category=mlrun.utils.OverwriteBuildParamsWarning
-            )
+            warnings.simplefilter("ignore", category=DeprecationWarning)
             run_result = function.run(
                 name=name,
                 runspec=task,

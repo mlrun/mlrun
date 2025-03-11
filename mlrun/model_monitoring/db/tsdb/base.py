@@ -333,6 +333,7 @@ class TSDBConnector(ABC):
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
         run_in_threadpool: Callable,
+        metrics: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         raise NotImplementedError()
 

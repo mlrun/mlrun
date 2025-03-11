@@ -980,6 +980,7 @@ class ModelEndpoints:
         tsdb_metrics: typing.Optional[bool] = None,
         uids: typing.Optional[list[str]] = None,
         latest_only: typing.Optional[bool] = None,
+        metrics: Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         List model endpoints based on the provided filters.
@@ -996,6 +997,7 @@ class ModelEndpoints:
         :param tsdb_metrics:        When True, the time series metrics will be added to the output of the resulting
         :param uids:                A list of unique ids of the model endpoints.
         :param latest_only:         When True, only the latest model endpoint will be returned.
+        :param metrics:             A list of metrics to add. Defaults to all metrics.
         :return:                    A list of `ModelEndpoint` objects.
         """
 
@@ -1355,6 +1357,7 @@ class ModelEndpoints:
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
+        metrics: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Add basic metrics to the model endpoint object.
@@ -1362,6 +1365,8 @@ class ModelEndpoints:
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
                                         be filled with the relevant basic metrics.
         :param project:                The name of the project.
+
+        :param metrics:                A list of metrics to add. Defaults to all metrics.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
@@ -1382,7 +1387,7 @@ class ModelEndpoints:
             return model_endpoint_objects
 
         return await tsdb_connector.add_basic_metrics(
-            model_endpoint_objects, project, run_in_threadpool
+            model_endpoint_objects, project, run_in_threadpool, metrics
         )
 
     @classmethod

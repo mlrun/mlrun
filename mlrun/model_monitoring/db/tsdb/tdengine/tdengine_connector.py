@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import asyncio
 from datetime import datetime, timedelta
 from threading import Lock
 from typing import Callable, Literal, Optional, Union
@@ -883,6 +882,7 @@ class TDEngineConnector(TSDBConnector):
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
         run_in_threadpool: Callable,
+        metrics: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Add basic metrics to the model endpoint object.
@@ -891,24 +891,29 @@ class TDEngineConnector(TSDBConnector):
                                         be filled with the relevant basic metrics.
         :param project:                The name of the project.
         :param run_in_threadpool:      A function that runs another function in a thread pool.
+        :param metrics:                A list of metrics to add. Defaults to all metrics.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
 
         uids = [mep.metadata.uid for mep in model_endpoint_objects]
-        coroutines = [
-            run_in_threadpool(self.get_error_count, endpoint_ids=uids),
-            run_in_threadpool(self.get_last_request, endpoint_ids=uids),
-            run_in_threadpool(self.get_avg_latency, endpoint_ids=uids),
-            run_in_threadpool(self.get_drift_status, endpoint_ids=uids),
-        ]
 
-        (
-            error_count_df,
-            last_request_df,
-            avg_latency_df,
-            drift_status_df,
-        ) = await asyncio.gather(*coroutines)
+        metric_name_to_function = {
+            "error_count": self.get_error_count,
+            "last_request": self.get_last_request,
+            "avg_latency": self.get_avg_latency,
+            "result_status": self.get_drift_status,
+        }
+
+        if metrics is not None:
+            for metric_name in list(metric_name_to_function):
+                if metric_name not in metrics:
+                    del metric_name_to_function[metric_name]
+
+        metric_name_to_df = {
+            metric_name: function(endpoint_ids=uids)
+            for metric_name, function in metric_name_to_function
+        }
 
         def add_metrics(
             mep: mlrun.common.schemas.ModelEndpoint,
@@ -930,12 +935,7 @@ class TDEngineConnector(TSDBConnector):
             map(
                 lambda mep: add_metrics(
                     mep=mep,
-                    df_dictionary={
-                        "error_count": error_count_df,
-                        "last_request": last_request_df,
-                        "avg_latency": avg_latency_df,
-                        "result_status": drift_status_df,
-                    },
+                    df_dictionary=metric_name_to_df,
                 ),
                 model_endpoint_objects,
             )

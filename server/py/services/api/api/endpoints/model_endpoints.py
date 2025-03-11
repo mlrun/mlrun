@@ -232,6 +232,7 @@ async def list_model_endpoints(
     tsdb_metrics: bool = True,
     uids: list[str] = Query(None, alias="uid"),
     latest_only: bool = False,
+    metrics: Optional[list[str]] = None,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ) -> schemas.ModelEndpointList:
@@ -250,6 +251,7 @@ async def list_model_endpoints(
     :param top_level:       Whether to return only top level model endpoints.
     :param uids:            A list of unique ids to filter by.
     :param latest_only:     Whether to return only the latest model endpoint for each name.
+    :param metrics:         A list of metrics to add. Defaults to all metrics.
     :param auth_info:       The auth info of the request.
     :param db_session:      A session that manages the current dialog with the database.
     :return:                A list of model endpoints.
@@ -274,6 +276,7 @@ async def list_model_endpoints(
         tsdb_metrics=tsdb_metrics,
         uids=uids,
         latest_only=latest_only,
+        metrics=metrics,
         db_session=db_session,
     )
     allowed_endpoints = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(

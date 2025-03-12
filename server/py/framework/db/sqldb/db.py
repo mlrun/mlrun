@@ -15,6 +15,7 @@
 import asyncio
 import collections
 import functools
+import gc
 import hashlib
 import inspect
 import pathlib
@@ -44,7 +45,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
-from sqlalchemy.orm import Session, aliased, joinedload
+from sqlalchemy.orm import Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 import mlrun
@@ -5124,11 +5125,16 @@ class SQLDB(DBInterface):
         _get_query: bool = False,
     ):
         query = (
-            session.query(cls)
+            session.query(ModelEndpoint)
             .options(
-                joinedload(cls.function),
-                joinedload(cls.model),
-                joinedload(cls.tags),
+                selectinload(ModelEndpoint.function).options(
+                    load_only("name", "state", "project", "uid"),
+                    selectinload(Function.tags),
+                ),
+                selectinload(ModelEndpoint.model).options(
+                    load_only("key", "project", "iteration", "producer_id", "uid")
+                ),
+                selectinload(ModelEndpoint.tags),
             )
             .filter(cls.project == project, cls.name == name)
         )
@@ -5162,11 +5168,16 @@ class SQLDB(DBInterface):
         _get_query=False,
     ) -> typing.Union[sqlalchemy.orm.Query, list[ModelEndpoint]]:
         query = (
-            session.query(cls)
+            session.query(ModelEndpoint)
             .options(
-                joinedload(cls.function),
-                joinedload(cls.model),
-                joinedload(cls.tags),
+                selectinload(ModelEndpoint.function).options(
+                    load_only("name", "state", "project", "uid"),
+                    selectinload(Function.tags),
+                ),
+                selectinload(ModelEndpoint.model).options(
+                    load_only("key", "project", "iteration", "producer_id", "uid")
+                ),
+                selectinload(ModelEndpoint.tags),
             )
             .filter(cls.project == project, cls.name == name)
         )
@@ -5458,9 +5469,14 @@ class SQLDB(DBInterface):
         query = (
             session.query(ModelEndpoint)
             .options(
-                joinedload(ModelEndpoint.function),
-                joinedload(ModelEndpoint.model),
-                joinedload(ModelEndpoint.tags),
+                selectinload(ModelEndpoint.function).options(
+                    load_only("name", "state", "project", "uid"),
+                    selectinload(Function.tags),
+                ),
+                selectinload(ModelEndpoint.model).options(
+                    load_only("key", "project", "iteration", "producer_id", "uid")
+                ),
+                selectinload(ModelEndpoint.tags),
             )
             .filter(ModelEndpoint.project == project)
         )
@@ -5709,7 +5725,6 @@ class SQLDB(DBInterface):
                     hash_key=model_endpoint_record.function.uid,
                 )
             )
-
         else:
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_NAME] = ""
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG] = ""
@@ -7695,6 +7710,9 @@ class SQLDB(DBInterface):
                         f"{self._get_function_tag(mep_record.function.tags)}-{mep_record.name}"
                     )
                 ] = mep_record
+        session.flush()
+        session.expunge_all()
+        gc.collect()
         return model_endpoints
 
     def delete_model_endpoint(

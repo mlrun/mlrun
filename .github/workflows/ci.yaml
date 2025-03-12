@@ -153,8 +153,9 @@ jobs:
         UNIT_TEST_PATH=tests/ \
         make test-dockerized
 
-  tests-server-3_9:
-    name: Run server Dockerized Tests
+  tests-non-standard-3_9:
+    name: Run non-standard Dockerized Tests
+    # running tests that are not included in the /tests folder, such as those in server/
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -185,7 +186,7 @@ jobs:
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_PYTHON_VERSION=3.9 \
-        UNIT_TEST_PATH=server/ \
+        UNIT_TEST_IGNORE_PATH=tests/ \
         make test-dockerized 
     
 

@@ -1046,7 +1046,10 @@ class V3IOTSDBConnector(TSDBConnector):
 
         metric_name_to_result = {}
 
-        for metric_name, (function, _) in metric_name_to_function_and_column_name:
+        for metric_name, (
+            function,
+            _,
+        ) in metric_name_to_function_and_column_name.items():
             metric_name_to_result[metric_name] = function(
                 endpoint_ids=uids, get_raw=True
             )

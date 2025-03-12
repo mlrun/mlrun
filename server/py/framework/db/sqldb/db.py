@@ -15,7 +15,6 @@
 import asyncio
 import collections
 import functools
-import gc
 import hashlib
 import inspect
 import pathlib
@@ -7778,9 +7777,6 @@ class SQLDB(DBInterface):
                         f"{self._get_function_tag(mep_record.function.tags)}-{mep_record.name}"
                     )
                 ] = mep_record
-        session.flush()
-        session.expunge_all()
-        gc.collect()
         return model_endpoints
 
     def delete_model_endpoint(

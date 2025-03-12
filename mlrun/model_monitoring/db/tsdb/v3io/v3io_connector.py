@@ -1068,7 +1068,7 @@ class V3IOTSDBConnector(TSDBConnector):
                     if mep and value is not None and not math.isnan(value):
                         setattr(mep.status, metric, value)
 
-        for metric_name, result in metric_name_to_result:
+        for metric_name, result in metric_name_to_result.items():
             add_metric(
                 metric_name,
                 metric_name_to_function_and_column_name[metric_name],

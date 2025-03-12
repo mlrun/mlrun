@@ -912,7 +912,7 @@ class TDEngineConnector(TSDBConnector):
 
         metric_name_to_df = {
             metric_name: function(endpoint_ids=uids)
-            for metric_name, function in metric_name_to_function
+            for metric_name, function in metric_name_to_function.items()
         }
 
         def add_metrics(

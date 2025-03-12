@@ -1071,7 +1071,7 @@ class V3IOTSDBConnector(TSDBConnector):
         for metric_name, result in metric_name_to_result.items():
             add_metric(
                 metric_name,
-                metric_name_to_function_and_column_name[metric_name],
+                metric_name_to_function_and_column_name[metric_name][1],
                 result,
             )
         return list(model_endpoint_objects_by_uid.values())

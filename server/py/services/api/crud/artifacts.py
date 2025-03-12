@@ -15,6 +15,7 @@
 import datetime
 import typing
 
+import sqlalchemy.exc
 import sqlalchemy.orm
 
 import mlrun.artifacts.base
@@ -240,7 +241,17 @@ class Artifacts(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         project = project or mlrun.mlconf.default_project
-
+        artifact = framework.utils.singletons.db.get_db().validate_artifact_removal_preconditions(
+            session=db_session,
+            key=key,
+            tag=tag,
+            iter=iteration,
+            project=project,
+            producer_id=producer_id,
+            uid=object_uid,
+        )
+        if not artifact:
+            return None
         # delete artifacts data by deletion strategy
         if deletion_strategy in [
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_optional,
@@ -257,6 +268,7 @@ class Artifacts(
                 deletion_strategy=deletion_strategy,
                 secrets=secrets,
                 auth_info=auth_info,
+                artifact=artifact,
             )
 
         return framework.utils.singletons.db.get_db().del_artifact(
@@ -279,6 +291,10 @@ class Artifacts(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         producer_id: typing.Optional[str] = None,
     ):
+        # TODO : If, in the future, this API is extended to delete the artifact data as well,
+        #  we should include the validation we added in validate_artifact_removal_preconditions
+        #  before attempting the data deletion. Currently, deleting artifacts linked to model
+        #  endpoints will fail with IntegrityError.
         project = project or mlrun.mlconf.default_project
         framework.utils.singletons.db.get_db().del_artifacts(
             db_session, name, project, tag, labels, producer_id=producer_id
@@ -319,11 +335,12 @@ class Artifacts(
         ),
         secrets: typing.Optional[dict] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        artifact: typing.Optional[dict] = None,
     ):
         logger.debug("Deleting artifact data", project=project, key=key, tag=tag)
 
         try:
-            artifact = self.get_artifact(
+            artifact = artifact or self.get_artifact(
                 db_session,
                 key,
                 tag,

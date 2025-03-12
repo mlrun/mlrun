@@ -1071,6 +1071,62 @@ class SQLDB(DBInterface):
         # the query returns a list of tuples, we need to extract the tag from each tuple
         return [tag for (tag,) in query]
 
+    def validate_artifact_removal_preconditions(
+        self,
+        session,
+        key: str,
+        tag: str = "",
+        iter: Optional[str] = None,
+        project: str = "",
+        producer_id: Optional[str] = None,
+        uid: Optional[str] = None,
+    ) -> Optional[dict[str, Any]]:
+        """
+        Validate whether an artifact can be safely removed from the system.
+
+        This method checks if the specified artifact is currently in use by other resources,
+        such as model endpoints. If it is, the deletion will be blocked, and an appropriate
+        exception should be raised (MLRunConflictError).
+
+        :param session:     Active SQLAlchemy DB session for querying.
+        :param key:         Artifact key.
+        :param tag:         Specific tag for the artifact.
+        :param iter:        Artifact iteration number, if applicable.
+        :param project:     Project to which the artifact belongs.
+        :param producer_id: Identifier of the artifact's producer.
+        :param uid:         UID of the artifact object.
+
+        :return: An artifact dictionary.
+        :raises MLRunConflictError: If the artifact is in use and cannot be deleted.
+        """
+        try:
+            db_artifact = self.read_artifact(
+                session=session,
+                key=key,
+                tag=tag,
+                iter=iter,
+                project=project,
+                producer_id=producer_id,
+                uid=uid,
+                as_record=True,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            return None
+        dependent_endpoints_count = (
+            session.query(ModelEndpoint)
+            .filter(ModelEndpoint.model_id == db_artifact.id)
+            .count()
+        )
+        if dependent_endpoints_count:
+            raise mlrun.errors.MLRunConflictError(
+                f"Failed deleting artifact {key} in project {project}, tag {tag}"
+                f", iteration {iter} and {db_artifact.uid} uid. "
+                f"The artifact is used by {dependent_endpoints_count} endpoints"
+            )
+        return mlrun.common.formatters.ArtifactFormat.format_obj(
+            db_artifact.full_object, mlrun.common.formatters.ArtifactFormat.minimal
+        )
+
     @retry_on_conflict
     def overwrite_artifacts_with_tag(
         self,
@@ -5503,6 +5559,18 @@ class SQLDB(DBInterface):
             query = query.join(
                 ModelEndpoint.Tag, ModelEndpoint.id == ModelEndpoint.Tag.obj_id
             )
+            if not function_name:
+                query = query.join(
+                    Function,
+                    ModelEndpoint.function_id == Function.id,
+                    isouter=True,  # LEFT JOIN to Function
+                )
+                query = query.filter(
+                    or_(
+                        Function.name.isnot(None),
+                        ModelEndpoint.endpoint_type == EndpointType.BATCH_EP,
+                    )
+                )
         else:
             query = query.outerjoin(
                 ModelEndpoint.Tag, ModelEndpoint.id == ModelEndpoint.Tag.obj_id

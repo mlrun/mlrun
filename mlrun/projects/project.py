@@ -3974,7 +3974,6 @@ class MlrunProject(ModelObj):
                 project_object=self,
                 auto_build=auto_build,
                 schedule=schedule,
-                artifact_path=artifact_path,
                 output_path=output_path,
                 notifications=notifications,
                 returns=returns,

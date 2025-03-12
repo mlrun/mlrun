@@ -78,8 +78,6 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
             hyper_param_options=hyper_param_options,
             verbose=verbose,
             scrape_metrics=scrape_metrics,
-            out_path=out_path,
-            artifact_path=artifact_path,
             output_path=output_path,
             workdir=workdir,
             notifications=notifications,

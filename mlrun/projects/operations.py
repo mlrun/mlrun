@@ -232,11 +232,6 @@ def run_function(
                 verbose=verbose,
                 watch=watch,
                 local=local,
-                artifact_path=artifact_path
-                # workflow artifact_path has precedence over the project artifact_path equivalent to passing
-                # artifact_path to function.run() has precedence over the project.artifact_path and the default one
-                or pipeline_context.workflow_artifact_path
-                or (project.artifact_path if project else None),
                 output_path=output_path
                 or pipeline_context.workflow_artifact_path
                 or (project.artifact_path if project else None),

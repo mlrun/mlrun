@@ -430,9 +430,7 @@ class BaseRuntime(ModelObj):
                 project=project,
                 params=params,
                 inputs=inputs,
-                out_path=out_path,
                 workdir=workdir,
-                artifact_path=artifact_path,
                 output_path=output_path,
                 watch=watch,
                 schedule=schedule,
@@ -726,7 +724,7 @@ class BaseRuntime(ModelObj):
                                 parsed during runtime from `mlrun.DataItem` to the given type hint. The type hint can be
                                 given in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
         :param outputs:         list of outputs which can pass in the workflow
-        :param artifact_path:   (deprecated) default artifact output path (replace out_path)
+        :param artifact_path:   default artifact output path (replace out_path)
         :param workdir:         working directory of the executed job and the default path for artifact inputs
         :param image:           container image to use
         :param labels:          labels to tag the job/run with ({key:val, ..})

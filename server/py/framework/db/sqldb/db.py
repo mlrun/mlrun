@@ -860,6 +860,7 @@ class SQLDB(DBInterface):
             # These fields are saved in full_object as timestamps with fsp=6, while the corresponding columns
             # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from the column
             # (not from the full_object) to ensure the ordering is correct.
+            # In SQLite, the updated and created columns return timestamps with fsp=6.
             artifact_struct["metadata"]["updated"] = artifact.updated.strftime(
                 "%Y-%m-%d %H:%M:%S.%f"
             )

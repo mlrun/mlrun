@@ -186,7 +186,7 @@ jobs:
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_PYTHON_VERSION=3.9 \
-        UNIT_TEST_PATH=server/ \
+        UNIT_TEST_PATH=server/py/services/api/tests/unit/ \
         make test-dockerized 
     
 

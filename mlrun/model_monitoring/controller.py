@@ -42,7 +42,6 @@ from mlrun.utils import datetime_now, logger
 
 _SECONDS_IN_DAY = int(datetime.timedelta(days=1).total_seconds())
 _SECONDS_IN_MINUTE = 60
-_MAX_OPEN_WINDOWS_ALLOWED = 5
 
 
 class _Interval(NamedTuple):
@@ -244,6 +243,8 @@ class MonitoringApplicationController:
     Note that the MonitoringApplicationController object requires access keys along with valid project configurations.
     """
 
+    _MAX_OPEN_WINDOWS_ALLOWED = 5
+
     def __init__(self) -> None:
         """Initialize Monitoring Application Controller"""
         self.project = cast(str, mlrun.mlconf.default_project)
@@ -267,8 +268,8 @@ class MonitoringApplicationController:
             access_key = mlrun.mlconf.get_v3io_access_key()
         return access_key
 
-    @staticmethod
     def _should_monitor_endpoint(
+        self,
         endpoint: mlrun.common.schemas.ModelEndpoint,
         application_names: set,
         base_period_minutes: int,
@@ -296,7 +297,7 @@ class MonitoringApplicationController:
                     <= int(endpoint.status.last_request.timestamp())
                     or mlrun.utils.datetime_now().timestamp()
                     - batch_window_generator.get_min_last_analyzed()
-                    >= _MAX_OPEN_WINDOWS_ALLOWED * base_period_seconds
+                    >= self._MAX_OPEN_WINDOWS_ALLOWED * base_period_seconds
                 ):
                     return True
                 else:
@@ -562,7 +563,7 @@ class MonitoringApplicationController:
                         )
                     )
                 ).total_seconds()
-                // 60
+                // _SECONDS_IN_MINUTE
             ),
         }
         with concurrent.futures.ThreadPoolExecutor(

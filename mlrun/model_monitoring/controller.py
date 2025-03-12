@@ -32,6 +32,7 @@ import mlrun.model_monitoring.helpers
 from mlrun.common.schemas import EndpointType
 from mlrun.common.schemas.model_monitoring.constants import (
     ControllerEvent,
+    ControllerEventEndpointPolicy,
     ControllerEventKind,
 )
 from mlrun.errors import err_to_str
@@ -351,7 +352,7 @@ class MonitoringApplicationController:
             endpoint_id = event[ControllerEvent.ENDPOINT_ID]
             endpoint_name = event[ControllerEvent.ENDPOINT_NAME]
             applications_names = event[ControllerEvent.ENDPOINT_POLICY][
-                "monitoring_applications"
+                ControllerEventEndpointPolicy.MONITORING_APPLICATIONS
             ]
 
             not_batch_endpoint = (
@@ -410,8 +411,13 @@ class MonitoringApplicationController:
                                 project=project_name,
                                 applications_names=[application],
                                 model_monitoring_access_key=self.model_monitoring_access_key,
+                                endpoint_updated=event[ControllerEvent.ENDPOINT_POLICY][
+                                    ControllerEventEndpointPolicy.ENDPOINT_UPDATED
+                                ],
                             )
-                base_period = event[ControllerEvent.ENDPOINT_POLICY]["base_period"]
+                base_period = event[ControllerEvent.ENDPOINT_POLICY][
+                    ControllerEventEndpointPolicy.BASE_PERIOD
+                ]
                 current_time = mlrun.utils.datetime_now()
                 if (
                     current_time.timestamp()
@@ -463,6 +469,7 @@ class MonitoringApplicationController:
         project: str,
         applications_names: list[str],
         model_monitoring_access_key: str,
+        endpoint_updated: str,
     ):
         """
         Pushes data to multiple stream applications.
@@ -473,7 +480,7 @@ class MonitoringApplicationController:
         :param project: mlrun               Project name.
         :param applications_names:          List of application names to which data will be pushed.
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
-
+        :param endpoint_updated:            str isoformet for the timestamp the model endpoint was updated
         """
         data = {
             mm_constants.ApplicationEvent.START_INFER_TIME: start_infer_time.isoformat(
@@ -484,6 +491,7 @@ class MonitoringApplicationController:
             ),
             mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
             mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
+            mm_constants.ApplicationEvent.ENDPOINT_UPDATED: endpoint_updated,
         }
         for app_name in applications_names:
             data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})
@@ -536,8 +544,8 @@ class MonitoringApplicationController:
             logger.info("No monitoring functions found", project=self.project)
             return
         policy = {
-            "monitoring_applications": applications_names,
-            "base_period": int(
+            ControllerEventEndpointPolicy.MONITORING_APPLICATIONS: applications_names,
+            ControllerEventEndpointPolicy.BASE_PERIOD: int(
                 batch_dict2timedelta(
                     json.loads(
                         cast(
@@ -600,6 +608,9 @@ class MonitoringApplicationController:
                 endpoint_type=endpoint.metadata.endpoint_type,
                 feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
                 endpoint_policy=json.dumps(policy),
+            )
+            policy[ControllerEventEndpointPolicy.ENDPOINT_UPDATED] = (
+                endpoint.metadata.updated.isoformat()
             )
             MonitoringApplicationController.push_to_controller_stream(
                 kind=mm_constants.ControllerEventKind.REGULAR_EVENT,

@@ -274,6 +274,18 @@ class MonitoringApplicationController:
         application_names: set,
         base_period_minutes: int,
     ) -> bool:
+        """
+        checks if there is a need to monitor the given endpoint, we should monitor endpoint if it stands in the
+        next conditions:
+            1.  monitoring_mode is enabled
+            2.  first request exists
+            3.  last request exists
+            4.  endpoint_type is not ROUTER
+        if the four above conditions apply we require one of the three conditions to monitor:
+            1.  never monitored the one of the endpoint applications meaning min_last_analyzed is None
+            2.  last request has a higher timestamp than the min_last_analyzed timestamp
+            3.  We didn't analyze one of the application for over than _MAX_OPEN_WINDOWS_ALLOWED windows
+        """
         if (
             # Is the model endpoint monitored?
             endpoint.status.monitoring_mode == mm_constants.ModelMonitoringMode.enabled

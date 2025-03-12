@@ -84,19 +84,16 @@ jobs:
         # limitations under the License.
         "
 
-  tests:
-    name: Run Dockerized Tests
+  tests-3.12:
+    name: Run Dockerized Tests 3.12
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.9", "3.12"]
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up python ${{ matrix.python-version }}
+    - name: Set up python 3.12
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: 3.12
         cache: pip
 
     - name: Extract git branch
@@ -118,7 +115,7 @@ jobs:
       run: |
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-        MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
+        MLRUN_PYTHON_VERSION=3.12 \
         make test-dockerized
 
   tests-folder-3.9:

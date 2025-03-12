@@ -418,34 +418,30 @@ class BaseRuntime(ModelObj):
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
             self._is_remote, local=local, **launcher_kwargs
         )
-
-        # remove this filter once the artifact_path and out_path parameters are deprecated in 1.11.0
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=FutureWarning)
-            return launcher.launch(
-                runtime=self,
-                task=runspec,
-                handler=handler,
-                name=name,
-                project=project,
-                params=params,
-                inputs=inputs,
-                workdir=workdir,
-                output_path=output_path,
-                watch=watch,
-                schedule=schedule,
-                hyperparams=hyperparams,
-                hyper_param_options=hyper_param_options,
-                verbose=verbose,
-                scrape_metrics=scrape_metrics,
-                local_code_path=local_code_path,
-                auto_build=auto_build,
-                param_file_secrets=param_file_secrets,
-                notifications=notifications,
-                returns=returns,
-                state_thresholds=state_thresholds,
-                reset_on_run=reset_on_run,
-            )
+        return launcher.launch(
+            runtime=self,
+            task=runspec,
+            handler=handler,
+            name=name,
+            project=project,
+            params=params,
+            inputs=inputs,
+            workdir=workdir,
+            output_path=output_path,
+            watch=watch,
+            schedule=schedule,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            verbose=verbose,
+            scrape_metrics=scrape_metrics,
+            local_code_path=local_code_path,
+            auto_build=auto_build,
+            param_file_secrets=param_file_secrets,
+            notifications=notifications,
+            returns=returns,
+            state_thresholds=state_thresholds,
+            reset_on_run=reset_on_run,
+        )
 
     def _get_db_run(
         self,

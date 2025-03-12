@@ -511,7 +511,6 @@ class DaskCluster(KubejobRuntime):
             inputs=inputs,
             out_path=out_path,
             workdir=workdir,
-            artifact_path=artifact_path,
             output_path=output_path,
             watch=watch,
             schedule=schedule,

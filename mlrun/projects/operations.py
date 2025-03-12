@@ -233,6 +233,8 @@ def run_function(
                 watch=watch,
                 local=local,
                 output_path=output_path
+                # workflow output_path has precedence over the project artifact_path equivalent to passing
+                # output_path to function.run() has precedence over the project.artifact_path and the default one
                 or pipeline_context.workflow_artifact_path
                 or (project.artifact_path if project else None),
                 auto_build=auto_build,

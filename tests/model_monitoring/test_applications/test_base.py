@@ -64,6 +64,19 @@ class InProgressApp1(ModelMonitoringApplicationBase):
         )
 
 
+class ModelEndpointAccessApp(ModelMonitoringApplicationBase):
+    def do_tracking(self, monitoring_context: MonitoringApplicationContext) -> None:
+        monitoring_context.logger.info(
+            "Accessing the model endpoint",
+            project=monitoring_context.project_name,
+        )
+        model_endpoint = monitoring_context.model_endpoint
+        monitoring_context.logger.info(
+            "Model endpoint labels",
+            labels=model_endpoint.metadata.labels,
+        )
+
+
 @pytest.mark.filterwarnings("error")
 def test_no_deprecation_instantiation() -> None:
     NoOpApp()
@@ -93,6 +106,19 @@ class TestEvaluate:
                 "result_extra_data": "{}",
             }
         }, "The run results are different than expected"
+
+    @staticmethod
+    def test_model_endpoint_blocked(capsys: pytest.CaptureFixture) -> None:
+        """Test that the logs contain the error message about the blocked model endpoint access"""
+        run = ModelEndpointAccessApp.evaluate(func_path=__file__)
+        assert run.state() == "created"  # Should be "error", see ML-8507
+        captured = capsys.readouterr()
+        assert (
+            "mlrun.errors.MLRunValueError: You have NOT provided the model endpoint's name and ID: "
+            "`endpoint_name`=None and `endpoint_id`=None, "
+            "but you have tried to access `monitoring_context.model_endpoint`"
+            in captured.out
+        ), "The error message is different than expected or was not captured"
 
 
 @pytest.mark.parametrize(

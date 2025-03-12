@@ -16,6 +16,11 @@ To use a vector database, you can create a function that stores the text data in
 For example, the following function adds data to a ChromaDB vector database:
 
 ```python
+import mlrun
+from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from mlrun.execution import MLClientCtx
+
 def handler_chroma(
     context: MLClientCtx, vector_db_data: DataItem, cache_dir: str, collection_name: str
 ):
@@ -31,13 +36,34 @@ def handler_chroma(
     # Add data to the collection
     collection = chroma_client.create_collection(name=collection_name)
 
-    collection.add(
-        documents=df["title"].tolist(),
-        metadatas=[{"topic": topic} for topic in df["topic"].tolist()],
-        ids=[f"id{x}" for x in range(len(documents))],
+    # Format and split docunments
+    documents = df.pop("page_content").to_list()
+    metadatas = df.to_dict(orient="records")
+    
+    docs = [Document(page_content=d, metadata=m) for d, m in zip(documents, metadatas)]
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size, chunk_overlap=chunk_overlap
     )
+    splits = text_splitter.split_documents(docs)
 
-    context.logger.info("Vector DB was created")
+    for doc in splits:
+        
+        # Make sure artifact key ends with alpha-numeric char
+        artifact_key = ensure_alphanumeric_end(mlrun.artifacts.DocumentArtifact.key_from_source(doc.metadata['link']))
+        
+        collection.add(ids=[artifact_key],
+                                metadatas=[doc.metadata],
+                                documents=[doc.page_content],
+                                )
+        
+        context.log_document(key=artifact_key,
+                             target_path=doc.metadata['link'],
+                             document_loader_spec=spec)
+    
+project = mlrun.get_or_create_project("mlrun-with-chromadb-prj")
+
+project.set_function("ingest-to-chroma", kind="job", image="mlrun/mlrun", handler="handler_chroma")
+
 ```
 
 Then, during inference, you might have a function that retrieves the documents of a specific topic. For example:

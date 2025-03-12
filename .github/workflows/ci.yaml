@@ -84,7 +84,7 @@ jobs:
         # limitations under the License.
         "
 
-  tests-3.12:
+  tests-3_12:
     name: Run Dockerized Tests 3.12
     runs-on: ubuntu-latest
     steps:
@@ -118,7 +118,7 @@ jobs:
         MLRUN_PYTHON_VERSION=3.12 \
         make test-dockerized
 
-  tests-folder-3.9:
+  tests-folder-3_9:
     name: Run Dockerized Tests from tests folder
     runs-on: ubuntu-latest
     steps:
@@ -153,7 +153,7 @@ jobs:
         UNIT_TEST_PATH=tests/common \
         make test-dockerized
 
-  tests-server-3.9:
+  tests-server-3_9:
     name: Run server Dockerized Tests
     runs-on: ubuntu-latest
     steps:

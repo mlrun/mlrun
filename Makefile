@@ -98,6 +98,12 @@ endif
 
 # Change to `--upgrade-package <package-name>` to upgrade only a specific package
 MLRUN_UV_UPGRADE_FLAG ?= --upgrade
+UNIT_TEST_PATH?=./
+UNIT_TEST_IGNORE_PATH?=
+
+.PHNOY x:
+x:
+	echo $(UNIT_TEST_PATH)
 
 .PHONY: help
 help: ## Display available commands
@@ -524,11 +530,17 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-e MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test  UNIT_TEST_IGNORE_PATH=$(UNIT_TEST_IGNORE_PATH) \
+		UNIT_TEST_PATH=$(UNIT_TEST_PATH)
 
 .PHONY: test
 test: clean ## Run mlrun tests
 	# TODO: Remove ignored tests for Python 3.11 compatibility with KFP 2
+	if [ "$(UNIT_TEST_IGNORE_PATH)" != "" ]; then \
+  		IGNORE_ADDITION="--ignore=$(UNIT_TEST_IGNORE_PATH)"; \
+	else \
+		IGNORE_ADDITION=""; \
+	fi; \
 	set -e ;\
 	COMMON_IGNORE_TEST_FLAGS=$$(echo "\
 		--ignore=tests/integration \
@@ -552,8 +564,10 @@ test: clean ## Run mlrun tests
 		--durations=100 \
 		$$COMMON_IGNORE_TEST_FLAGS \
 		$$PER_PYTHON_VERSION_IGNORE_TEST_FLAGS \
+		$$IGNORE_ADDITION \
 		--forked \
-		-rf
+		-rf \
+		-v $$UNIT_TEST_PATH
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test ## Run mlrun integration tests in docker container

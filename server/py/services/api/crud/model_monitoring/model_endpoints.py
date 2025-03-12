@@ -1020,6 +1020,7 @@ class ModelEndpoints:
             tsdb_metrics=tsdb_metrics,
             uids=uids,
             latest_only=latest_only,
+            metrics=metrics,
         )
 
         # Initialize an empty model endpoints list
@@ -1044,6 +1045,7 @@ class ModelEndpoints:
             endpoint_list.endpoints = await self._add_basic_metrics(
                 model_endpoint_objects=endpoint_list.endpoints,
                 project=project,
+                metrics=metrics,
             )
 
         return endpoint_list

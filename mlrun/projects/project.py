@@ -3800,6 +3800,7 @@ class MlrunProject(ModelObj):
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
         tsdb_metrics: bool = True,
+        metrics: Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         Returns a list of `ModelEndpoint` objects. Each `ModelEndpoint` object represents the current state of a
@@ -3833,6 +3834,7 @@ class MlrunProject(ModelObj):
         :param end:                       The end time to filter by. Corresponding to the `created` field.
         :param top_level: if true will return only routers and endpoint that are NOT children of any router
         :param uids: if passed will return a list `ModelEndpoint` object with uid in uids
+        :param metrics:             A list of metrics to add. Defaults to all metrics.
 
         :returns: Returns a list of `ModelEndpoint` objects.
         """
@@ -3851,6 +3853,7 @@ class MlrunProject(ModelObj):
             uids=uids,
             latest_only=latest_only,
             tsdb_metrics=tsdb_metrics,
+            metrics=metrics,
         )
 
     def run_function(

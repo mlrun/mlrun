@@ -3771,6 +3771,7 @@ class HTTPRunDB(RunDBInterface):
         top_level: bool = False,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
+        metrics: Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         List model endpoints with optional filtering by name, function name, model name, labels, and time range.
@@ -3788,6 +3789,7 @@ class HTTPRunDB(RunDBInterface):
         :param top_level:       Whether to return only top level model endpoints.
         :param uids:            A list of unique ids to filter by.
         :param latest_only:     Whether to return only the latest model endpoint version.
+        :param metrics:         A list of metrics to add. Defaults to all metrics.
         :return:                A list of model endpoints.
         """
         path = f"projects/{project}/model-endpoints"
@@ -3810,6 +3812,7 @@ class HTTPRunDB(RunDBInterface):
                 "top-level": top_level,
                 "uid": uids,
                 "latest_only": latest_only,
+                "metrics": metrics,
             },
         )
 

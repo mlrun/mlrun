@@ -36,53 +36,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-#  lint:
-#    name: Lint code (Python ${{ matrix.python-version }})
-#    runs-on: ubuntu-latest
-#    strategy:
-#      matrix:
-#        python-version: ["3.9", "3.12"]
-#    steps:
-#    - uses: actions/checkout@v4
-#    - name: Set up python ${{ matrix.python-version }}
-#      uses: actions/setup-python@v5
-#      with:
-#        python-version: ${{ matrix.python-version }}
-#        cache: pip
-#    - name: Install dependencies
-#      run: |
-#        python -m pip install --upgrade pip~=25.0
-#        pip install -r dev-requirements.txt
-#    - name: Lint
-#      run: make lint
-#
-#    # perform copyright check here, to avoid spinning up another runner needlessly
-#    - uses: denoland/setup-deno@v2
-#      with:
-#        deno-version: v1.x
-#    - name: Check
-#      run: |
-#        deno run --allow-read https://deno.land/x/license_checker@v3.2.3/main.ts
-#    - name: Instructions For Adding Copyright
-#      if: ${{ failure() }}
-#      run: |
-#        echo "
-#        Please add the following lines to the top of your code:
-#
-#        # Copyright 2024 Iguazio
-#        #
-#        # Licensed under the Apache License, Version 2.0 (the "License");
-#        # you may not use this file except in compliance with the License.
-#        # You may obtain a copy of the License at
-#        #
-#        #   http://www.apache.org/licenses/LICENSE-2.0
-#        #
-#        # Unless required by applicable law or agreed to in writing, software
-#        # distributed under the License is distributed on an "AS IS" BASIS,
-#        # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#        # See the License for the specific language governing permissions and
-#        # limitations under the License.
-#        "
+  lint:
+    name: Lint code (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12"]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: pip
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip~=25.0
+        pip install -r dev-requirements.txt
+    - name: Lint
+      run: make lint
+
+    # perform copyright check here, to avoid spinning up another runner needlessly
+    - uses: denoland/setup-deno@v2
+      with:
+        deno-version: v1.x
+    - name: Check
+      run: |
+        deno run --allow-read https://deno.land/x/license_checker@v3.2.3/main.ts
+    - name: Instructions For Adding Copyright
+      if: ${{ failure() }}
+      run: |
+        echo "
+        Please add the following lines to the top of your code:
+
+        # Copyright 2024 Iguazio
+        #
+        # Licensed under the Apache License, Version 2.0 (the "License");
+        # you may not use this file except in compliance with the License.
+        # You may obtain a copy of the License at
+        #
+        #   http://www.apache.org/licenses/LICENSE-2.0
+        #
+        # Unless required by applicable law or agreed to in writing, software
+        # distributed under the License is distributed on an "AS IS" BASIS,
+        # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        # See the License for the specific language governing permissions and
+        # limitations under the License.
+        "
 
   tests-3_12:
     name: Run Dockerized Tests 3.12
@@ -118,8 +118,8 @@ jobs:
         MLRUN_PYTHON_VERSION=3.12 \
         make test-dockerized
 
-  tests-folder-3_9:
-    name: Run Dockerized Tests from tests folder
+  tests-3_9:
+    name: Run general Dockerized Tests
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -150,7 +150,7 @@ jobs:
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_PYTHON_VERSION=3.9 \
-        UNIT_TEST_PATH=tests/common \
+        UNIT_TEST_PATH=tests/ \
         make test-dockerized
 
   tests-server-3_9:
@@ -185,180 +185,180 @@ jobs:
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_PYTHON_VERSION=3.9 \
-        UNIT_TEST_PATH=server/py/services/api/tests/unit/api/feature_store/test_feature_sets.py \
+        UNIT_TEST_PATH=server/ \
         make test-dockerized 
     
 
-#  integration-tests:
-#    name: Run Dockerized Integration Tests
-#    runs-on: ubuntu-latest
-#
-#    strategy:
-#      matrix:
-#        python-version: ["3.9", "3.12"]
-#
-#    steps:
-#    - uses: actions/checkout@v4
-#
-#    # since github-actions gives us 14G only, and fills it up with some garbage
-#    - name: Freeing up disk space
-#      run: |
-#        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
-#
-#    - name: Set up Python ${{ matrix.python-version }}
-#      uses: actions/setup-python@v5
-#      with:
-#        python-version: ${{ matrix.python-version }}
-#        cache: pip
-#
-#    # TODO: re-use the next 2 actions instead of duplicating
-#    - name: Extract git branch
-#      id: git_info
-#      run: |
-#        echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
-#
-#    - name: Resolve docker cache tag
-#      id: docker_cache
-#      run: |
-#        export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
-#        export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-#        echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
-#
-#    - name: Install automation scripts dependencies
-#      run: pip install -r automation/requirements.txt
-#
-#    - name: Run Dockerized tests
-#      run: |
-#          MLRUN_DOCKER_REGISTRY=ghcr.io/ \
-#          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-#          MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-#          make test-integration-dockerized
-#      timeout-minutes: 90
-#
-#  migrations-tests:
-#    name: Run Dockerized Migrations Tests
-#    runs-on: ubuntu-latest
-#    steps:
-#      - uses: actions/checkout@v4
-#      # TODO: re-use the next 2 actions instead of duplicating
-#      - name: Extract git branch
-#        id: git_info
-#        run: |
-#          echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
-#      - name: Resolve docker cache tag
-#        id: docker_cache
-#        run: |
-#          export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
-#          export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-#          echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
-#      - name: Run Dockerized DB Migration tests
-#        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized
-#
-#  package-tests:
-#    name: Run package tests (Python ${{ matrix.python-version }}, Pipelines ${{ matrix.pipeline-adapter }})
-#    runs-on: ubuntu-latest
-#    strategy:
-#      matrix:
-#        # Explicitly define combinations: KFP v1.8 with Python 3.9
-#        # TODO: Enable KFP v2 with Python 3.11 when it's supported (in 1.9.0)
-#        include:
-#          - python-version: "3.9"
-#            pipeline-adapter: "kfp-v1-8"
-##          - python-version: "3.11"
-##            pipeline-adapter: "kfp-v2"
-#    steps:
-#    - uses: actions/checkout@v4
-#    - name: Set up python ${{ matrix.python-version }}
-#      uses: actions/setup-python@v5
-#      with:
-#        python-version: ${{ matrix.python-version }}
-#        cache: 'pip'
-#    - name: Install automation scripts dependencies and add mlrun to dev packages
-#      run: pip install -r automation/requirements.txt && pip install -e .
-#      # Install KFP v2 only when the adapter is kfp-v2
-#    - name: Install KFP Adapter if required
-#      run: |
-#        if [[ "${{ matrix.pipeline-adapter }}" == "kfp-v2" ]]; then
-#          pip install mlrun-pipelines-kfp-v2
-#        fi
-#
-#    - name: Test package
-#      run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make test-package
-#
-#  docs:
-#    name: Build Project Documentation
-#    runs-on: ubuntu-latest
-#    steps:
-#      - uses: actions/checkout@v4
-#      # TODO: re-use the next 2 actions instead of duplicating
-#      - name: Extract git branch
-#        id: git_info
-#        run: |
-#          echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
-#      - name: Resolve docker cache tag
-#        id: docker_cache
-#        run: |
-#          export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
-#          export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-#          echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
-#      - name: Generate HTML docs
-#        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make html-docs-dockerized
-#      - name: Upload generated docs
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: docs
-#          path: docs/_build/html
-#
-#  backward-compatibility-tests:
-#    name: Run Backward Compatibility Tests
-#    if: github.event_name == 'pull_request'
-#    runs-on: ubuntu-latest
-#    env:
-#      MLRUN_BC_TESTS_HOME_PATH: /home/runner/work/mlrun/mlrun
-#      MLRUN_BC_TESTS_BASE_CODE_PATH: /home/runner/work/mlrun/mlrun/base/mlrun
-#      MLRUN_BC_TESTS_HEAD_CODE_PATH: /home/runner/work/mlrun/mlrun/head/mlrun
-#      MLRUN_DOCKER_REGISTRY: ghcr.io/
-#    steps:
-#      - id: resolve_base_branch
-#        run: |
-#            echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
-#      - name: Checkout PR Base (target) Branch
-#        uses: actions/checkout@v4
-#        with:
-#          ref: ${{ steps.resolve_base_branch.outputs.branch }}
-#          path: base/mlrun
-#      - name: Checkout Merge Commit (requested branch merged with the target branch)
-#        uses: actions/checkout@v4
-#        with:
-#          path: head/mlrun
-#      - name: Resolve docker cache tag
-#        id: docker_cache
-#        run: |
-#          export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
-#          export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-#          echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
-#      - name: Run Backward Compatibility Tests
-#        run: |
-#          cd head/mlrun
-#          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-backward-compatibility-dockerized
-#
-#  verify-compatible-requirements-one-after-one:
-#    name: Verify compatible requirements (one after one)
-#    runs-on: ubuntu-latest
-#    strategy:
-#      matrix:
-#        # 3.9 is the current >= 1.3.0 python version
-#        python-version: ["3.9", "3.12"]
-#    steps:
-#    - uses: actions/checkout@v4
-#    - name: Set up python ${{ matrix.python-version }}
-#      uses: actions/setup-python@v5
-#      with:
-#        python-version: ${{ matrix.python-version }}
-#        cache: 'pip'
-#    - name: Install requirements ${{ matrix.python-version }}
-#      run: make install-requirements
-#    - name: Install Complete Requirements ${{ matrix.python-version }}
-#      run: make install-complete-requirements
-#    - name: Install All Requirements ${{ matrix.python-version }}
-#      run: make install-all-requirements
+  integration-tests:
+    name: Run Dockerized Integration Tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # since github-actions gives us 14G only, and fills it up with some garbage
+    - name: Freeing up disk space
+      run: |
+        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: pip
+
+    # TODO: re-use the next 2 actions instead of duplicating
+    - name: Extract git branch
+      id: git_info
+      run: |
+        echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
+
+    - name: Resolve docker cache tag
+      id: docker_cache
+      run: |
+        export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
+        export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
+        echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
+
+    - name: Install automation scripts dependencies
+      run: pip install -r automation/requirements.txt
+
+    - name: Run Dockerized tests
+      run: |
+          MLRUN_DOCKER_REGISTRY=ghcr.io/ \
+          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+          MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
+          make test-integration-dockerized
+      timeout-minutes: 90
+
+  migrations-tests:
+    name: Run Dockerized Migrations Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # TODO: re-use the next 2 actions instead of duplicating
+      - name: Extract git branch
+        id: git_info
+        run: |
+          echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
+      - name: Resolve docker cache tag
+        id: docker_cache
+        run: |
+          export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
+          export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
+          echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
+      - name: Run Dockerized DB Migration tests
+        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized
+
+  package-tests:
+    name: Run package tests (Python ${{ matrix.python-version }}, Pipelines ${{ matrix.pipeline-adapter }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Explicitly define combinations: KFP v1.8 with Python 3.9
+        # TODO: Enable KFP v2 with Python 3.11 when it's supported (in 1.9.0)
+        include:
+          - python-version: "3.9"
+            pipeline-adapter: "kfp-v1-8"
+#          - python-version: "3.11"
+#            pipeline-adapter: "kfp-v2"
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+    - name: Install automation scripts dependencies and add mlrun to dev packages
+      run: pip install -r automation/requirements.txt && pip install -e .
+      # Install KFP v2 only when the adapter is kfp-v2
+    - name: Install KFP Adapter if required
+      run: |
+        if [[ "${{ matrix.pipeline-adapter }}" == "kfp-v2" ]]; then
+          pip install mlrun-pipelines-kfp-v2
+        fi
+
+    - name: Test package
+      run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make test-package
+
+  docs:
+    name: Build Project Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # TODO: re-use the next 2 actions instead of duplicating
+      - name: Extract git branch
+        id: git_info
+        run: |
+          echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
+      - name: Resolve docker cache tag
+        id: docker_cache
+        run: |
+          export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
+          export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
+          echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
+      - name: Generate HTML docs
+        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make html-docs-dockerized
+      - name: Upload generated docs
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs
+          path: docs/_build/html
+
+  backward-compatibility-tests:
+    name: Run Backward Compatibility Tests
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      MLRUN_BC_TESTS_HOME_PATH: /home/runner/work/mlrun/mlrun
+      MLRUN_BC_TESTS_BASE_CODE_PATH: /home/runner/work/mlrun/mlrun/base/mlrun
+      MLRUN_BC_TESTS_HEAD_CODE_PATH: /home/runner/work/mlrun/mlrun/head/mlrun
+      MLRUN_DOCKER_REGISTRY: ghcr.io/
+    steps:
+      - id: resolve_base_branch
+        run: |
+            echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
+      - name: Checkout PR Base (target) Branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve_base_branch.outputs.branch }}
+          path: base/mlrun
+      - name: Checkout Merge Commit (requested branch merged with the target branch)
+        uses: actions/checkout@v4
+        with:
+          path: head/mlrun
+      - name: Resolve docker cache tag
+        id: docker_cache
+        run: |
+          export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
+          export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
+          echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
+      - name: Run Backward Compatibility Tests
+        run: |
+          cd head/mlrun
+          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-backward-compatibility-dockerized
+
+  verify-compatible-requirements-one-after-one:
+    name: Verify compatible requirements (one after one)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 3.9 is the current >= 1.3.0 python version
+        python-version: ["3.9", "3.12"]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+    - name: Install requirements ${{ matrix.python-version }}
+      run: make install-requirements
+    - name: Install Complete Requirements ${{ matrix.python-version }}
+      run: make install-complete-requirements
+    - name: Install All Requirements ${{ matrix.python-version }}
+      run: make install-all-requirements

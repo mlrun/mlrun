@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
 import json
 import traceback
+from collections import OrderedDict
+from datetime import datetime
 from typing import Any, Optional, Union
 
 import mlrun.common.schemas
@@ -105,6 +108,8 @@ class _PushToMonitoringWriter(StepToDict):
 
 
 class _PrepareMonitoringEvent(StepToDict):
+    MAX_MODEL_ENDPOINTS: int = 1500
+
     def __init__(self, context: GraphContext, application_name: str) -> None:
         """
         Class for preparing the application event for the application step.
@@ -114,7 +119,10 @@ class _PrepareMonitoringEvent(StepToDict):
         self.graph_context = context
         _ = self.graph_context.project_obj  # Ensure project exists
         self.application_name = application_name
-        self.model_endpoints: dict[str, mlrun.common.schemas.ModelEndpoint] = {}
+        self.model_endpoints: OrderedDict[str, mlrun.common.schemas.ModelEndpoint] = (
+            collections.OrderedDict()
+        )
+        self.feature_sets: dict[str, mlrun.common.schemas.FeatureSet] = {}
 
     def do(self, event: dict[str, Any]) -> MonitoringApplicationContext:
         """
@@ -123,16 +131,48 @@ class _PrepareMonitoringEvent(StepToDict):
         :param event: Application event.
         :return: Application context.
         """
+        endpoint_id = event.get(mm_constants.ApplicationEvent.ENDPOINT_ID)
+        endpoint_updated = datetime.fromisoformat(
+            event.get(mm_constants.ApplicationEvent.ENDPOINT_UPDATED)
+        )
+        if (
+            endpoint_id in self.model_endpoints
+            and endpoint_updated != self.model_endpoints[endpoint_id].metadata.updated
+        ):
+            logger.debug(
+                "Updated endpoint removing endpoint from cash",
+                new_updated=endpoint_updated.isoformat(),
+                old_updated=self.model_endpoints[
+                    endpoint_id
+                ].metadata.updated.isoformat(),
+            )
+            self.model_endpoints.pop(endpoint_id)
+
         application_context = MonitoringApplicationContext._from_graph_ctx(
             application_name=self.application_name,
             event=event,
             model_endpoint_dict=self.model_endpoints,
             graph_context=self.graph_context,
+            feature_sets_dict=self.feature_sets,
         )
 
         self.model_endpoints.setdefault(
             application_context.endpoint_id, application_context.model_endpoint
         )
+        self.feature_sets.setdefault(
+            application_context.endpoint_id, application_context.feature_set
+        )
+        # every used endpoint goes to first location allowing to pop last used:
+        self.model_endpoints.move_to_end(application_context.endpoint_id, last=False)
+        if len(self.model_endpoints) > self.MAX_MODEL_ENDPOINTS:
+            removed_endpoint_id, _ = self.model_endpoints.popitem(
+                last=True
+            )  # Removing the LRU endpoint
+            self.feature_sets.pop(removed_endpoint_id, None)
+            logger.debug(
+                "Exceeded maximum number of model endpoints removing the LRU from cash",
+                endpoint_id=removed_endpoint_id,
+            )
 
         return application_context
 

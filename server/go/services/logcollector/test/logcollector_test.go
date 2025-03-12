@@ -26,13 +26,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mlrun/mlrun-go/pkg/common"
-	"github.com/mlrun/mlrun-go/pkg/framework"
-	"github.com/mlrun/mlrun-go/pkg/proto/build/log_collector"
+	"github.com/mlrun/framework"
+	"github.com/mlrun/framework/common"
+
+	protologcollector "github.com/mlrun/proto/build/log_collector"
+
+	"github.com/mlrun/services/logcollector"
+	"github.com/mlrun/services/logcollector/test/nop"
 
 	"github.com/google/uuid"
-	"github.com/mlrun/log-collector/pkg/services/logcollector"
-	"github.com/mlrun/log-collector/pkg/services/logcollector/test/nop"
 	"github.com/nuclio/logger"
 	"github.com/nuclio/loggerus"
 	"github.com/stretchr/testify/suite"
@@ -145,7 +147,7 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 	}()
 
 	// start log collection
-	startLogResponse, err := suite.LogCollectorServer.StartLog(suite.ctx, &log_collector.StartLogRequest{
+	startLogResponse, err := suite.LogCollectorServer.StartLog(suite.ctx, &protologcollector.StartLogRequest{
 		RunUID:      runUID,
 		Selector:    "app=test",
 		ProjectName: projectName,
@@ -179,7 +181,7 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 		nopStream.Logs = []byte{}
 
 		// get logs until everything is read
-		err := suite.LogCollectorServer.GetLogs(&log_collector.GetLogsRequest{
+		err := suite.LogCollectorServer.GetLogs(&protologcollector.GetLogsRequest{
 			RunUID:      runUID,
 			Offset:      0,
 			Size:        -1,
@@ -211,11 +213,11 @@ func (suite *LogCollectorTestSuite) TestStartLogFailureOnLabelSelector() {
 	selector := "mlrun/uid=cde099c6724742859b8b2115eb767429,mlrun/class in (j, o, b),mlrun/project=default"
 
 	// start log collection
-	startLogResponse, err := suite.LogCollectorServer.StartLog(suite.ctx, &log_collector.StartLogRequest{
+	startLogResponse, err := suite.LogCollectorServer.StartLog(suite.ctx, &protologcollector.StartLogRequest{
 		RunUID:   runUID,
 		Selector: selector,
 	})
-
+	suite.Require().NotNil(startLogResponse)
 	suite.Require().False(startLogResponse.Success)
 	suite.Require().Error(err)
 }

@@ -241,23 +241,18 @@ class Service(framework.service.Service):
         collect logs.
         :param start_logs_limit: Semaphore which limits the number of concurrent log collection tasks
         """
-        db_session = await fastapi.concurrency.run_in_threadpool(create_session)
-        try:
-            await framework.utils.time_window_tracker.run_with_time_window_tracker(
-                db_session,
-                key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
-                # If the API was down for more than the grace period, we will only collect logs for runs which reached
-                # terminal state within the grace period and not since the API actually went down.
-                max_window_size_seconds=min(
-                    int(mlconf.log_collector.api_downtime_grace_period),
-                    int(mlconf.runtime_resources_deletion_grace_period),
-                ),
-                ensure_window_update=True,
-                callback=self._verify_log_collection_started,
-                start_logs_limit=start_logs_limit,
-            )
-        finally:
-            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+        await framework.utils.time_window_tracker.run_with_time_window_tracker(
+            key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
+            # If the API was down for more than the grace period, we will only collect logs for runs which reached
+            # terminal state within the grace period and not since the API actually went down.
+            max_window_size_seconds=min(
+                int(mlconf.log_collector.api_downtime_grace_period),
+                int(mlconf.runtime_resources_deletion_grace_period),
+            ),
+            ensure_window_update=True,
+            callback=self._verify_log_collection_started,
+            start_logs_limit=start_logs_limit,
+        )
 
     async def _verify_log_collection_started(
         self, db_session, last_update_time: datetime.datetime, start_logs_limit
@@ -724,7 +719,6 @@ class Service(framework.service.Service):
                 )
         try:
             await framework.utils.time_window_tracker.run_with_time_window_tracker(
-                db_session,
                 key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.run_monitoring,
                 max_window_size_seconds=int(
                     mlconf.runtime_resources_deletion_grace_period

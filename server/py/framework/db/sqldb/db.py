@@ -300,12 +300,7 @@ class SQLDB(DBInterface):
         if start_time:
             run.start_time = start_time
 
-        if (
-            run.state in mlrun.common.runtimes.constants.RunStates.terminal_states()
-            and not run.end_time
-        ):
-            end_time = run_end_time(struct)
-            self._update_run_end_time(run, struct, now=end_time)
+        self._update_run_end_time(run, struct)
 
         # Update the labels only if the run updates contains labels
         if run_labels(updates):
@@ -565,12 +560,8 @@ class SQLDB(DBInterface):
         run_data.setdefault("status", {})["start_time"] = start_time.isoformat()
         run.start_time = start_time
         self._update_run_updated_time(run, run_data, now=now)
-        if (
-            run.state in mlrun.common.runtimes.constants.RunStates.terminal_states()
-            and not run.end_time
-        ):
-            end_time = run_end_time(run_data)
-            self._update_run_end_time(run, run_data, now=end_time)
+        self._update_run_end_time(run, run_data, end_time=run_end_time(run_data))
+
         run.struct = run_data
 
     def _add_run_name_query(self, query, name):
@@ -590,6 +581,30 @@ class SQLDB(DBInterface):
             )
 
     @staticmethod
+    def _update_run_end_time(run: Run, run_dict: dict, end_time: Optional[str] = None):
+        """
+        Update the run's end time if the run is in a terminal state and the end time is not set.
+        If the run is in terminal state and the end time is set then keep the end time as is.
+        :param run: The run object
+        :param run_dict: The run dict
+        :param end_time: The end time to set - used when in 'store' flow to set the end time
+        """
+        if (
+            run.state in mlrun.common.runtimes.constants.RunStates.terminal_states()
+            and not run.end_time
+        ):
+            if end_time is None:
+                end_time = datetime.now(timezone.utc)
+            run.end_time = end_time
+            run_dict.setdefault("status", {})["end_time"] = end_time.isoformat()
+        elif (
+            run.state not in mlrun.common.runtimes.constants.RunStates.terminal_states()
+        ):
+            # Ensure end time is not set if the run is not in a terminal state
+            run.end_time = None
+            run_dict.setdefault("status", {}).pop("end_time", None)
+
+    @staticmethod
     def _update_run_updated_time(
         run_record: Run, run_dict: dict, now: typing.Optional[datetime] = None
     ):
@@ -597,15 +612,6 @@ class SQLDB(DBInterface):
             now = datetime.now(timezone.utc)
         run_record.updated = now
         run_dict.setdefault("status", {})["last_update"] = now.isoformat()
-
-    @staticmethod
-    def _update_run_end_time(
-        run_record: Run, run_dict: dict, now: typing.Optional[datetime] = None
-    ):
-        if now is None:
-            now = datetime.now(timezone.utc)
-        run_record.end_time = now
-        run_dict.setdefault("status", {})["end_time"] = now.isoformat()
 
     @staticmethod
     def _update_run_state(run_record: Run, run_dict: dict):
@@ -1069,6 +1075,62 @@ class SQLDB(DBInterface):
 
         # the query returns a list of tuples, we need to extract the tag from each tuple
         return [tag for (tag,) in query]
+
+    def validate_artifact_removal_preconditions(
+        self,
+        session,
+        key: str,
+        tag: str = "",
+        iter: Optional[str] = None,
+        project: str = "",
+        producer_id: Optional[str] = None,
+        uid: Optional[str] = None,
+    ) -> Optional[dict[str, Any]]:
+        """
+        Validate whether an artifact can be safely removed from the system.
+
+        This method checks if the specified artifact is currently in use by other resources,
+        such as model endpoints. If it is, the deletion will be blocked, and an appropriate
+        exception should be raised (MLRunConflictError).
+
+        :param session:     Active SQLAlchemy DB session for querying.
+        :param key:         Artifact key.
+        :param tag:         Specific tag for the artifact.
+        :param iter:        Artifact iteration number, if applicable.
+        :param project:     Project to which the artifact belongs.
+        :param producer_id: Identifier of the artifact's producer.
+        :param uid:         UID of the artifact object.
+
+        :return: An artifact dictionary.
+        :raises MLRunConflictError: If the artifact is in use and cannot be deleted.
+        """
+        try:
+            db_artifact = self.read_artifact(
+                session=session,
+                key=key,
+                tag=tag,
+                iter=iter,
+                project=project,
+                producer_id=producer_id,
+                uid=uid,
+                as_record=True,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            return None
+        dependent_endpoints_count = (
+            session.query(ModelEndpoint)
+            .filter(ModelEndpoint.model_id == db_artifact.id)
+            .count()
+        )
+        if dependent_endpoints_count:
+            raise mlrun.errors.MLRunConflictError(
+                f"Failed deleting artifact {key} in project {project}, tag {tag}"
+                f", iteration {iter} and {db_artifact.uid} uid. "
+                f"The artifact is used by {dependent_endpoints_count} endpoints"
+            )
+        return mlrun.common.formatters.ArtifactFormat.format_obj(
+            db_artifact.full_object, mlrun.common.formatters.ArtifactFormat.minimal
+        )
 
     @retry_on_conflict
     def overwrite_artifacts_with_tag(
@@ -5508,6 +5570,18 @@ class SQLDB(DBInterface):
             query = query.join(
                 ModelEndpoint.Tag, ModelEndpoint.id == ModelEndpoint.Tag.obj_id
             )
+            if not function_name:
+                query = query.join(
+                    Function,
+                    ModelEndpoint.function_id == Function.id,
+                    isouter=True,  # LEFT JOIN to Function
+                )
+                query = query.filter(
+                    or_(
+                        Function.name.isnot(None),
+                        ModelEndpoint.endpoint_type == EndpointType.BATCH_EP,
+                    )
+                )
         else:
             query = query.outerjoin(
                 ModelEndpoint.Tag, ModelEndpoint.id == ModelEndpoint.Tag.obj_id

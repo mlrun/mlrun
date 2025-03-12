@@ -431,6 +431,71 @@ class TestModelEndpoint(TestDatabaseBase):
         ).endpoints
         assert len(list_mep) == 1
 
+    def test_latest_only(self) -> None:
+        # store artifact
+        for i in range(3):
+            self._store_artifact(f"model-{i}")
+        # store function
+        self._store_function()
+        model_endpoint = mlrun.common.schemas.ModelEndpoint(
+            metadata={"name": "model-endpoint-1", "project": "project-1"},
+            spec={
+                "function_name": "function-1",
+                "function_tag": "latest",
+                "_model_id": 2,
+            },
+            status={"monitoring_mode": "enabled"},
+        )
+        batch_model_endpoint = mlrun.common.schemas.ModelEndpoint(
+            metadata={
+                "name": "model-endpoint-2",
+                "project": "project-1",
+                "endpoint_type": EndpointType.BATCH_EP,
+            },
+            spec={
+                "_model_id": 2,
+            },
+            status={"monitoring_mode": "enabled"},
+        )
+
+        self._db.store_model_endpoint(
+            self._db_session,
+            model_endpoint,
+        )
+
+        self._db.store_model_endpoint(
+            self._db_session,
+            batch_model_endpoint,
+        )
+
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            latest_only=True,
+            project=model_endpoint.metadata.project,
+        ).endpoints
+
+        assert len(list_mep) == 2
+
+        self._db.delete_function(
+            self._db_session, name="function-1", project="project-1"
+        )
+
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            project=model_endpoint.metadata.project,
+        ).endpoints
+
+        assert len(list_mep) == 2
+
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            latest_only=True,
+            project=model_endpoint.metadata.project,
+        ).endpoints
+
+        assert len(list_mep) == 1
+        assert list_mep[0].metadata.name == "model-endpoint-2"
+
     def test_update_automatically_after_function_update(self) -> None:
         # store artifact
         for i in range(2):

@@ -26,7 +26,7 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfile2Json,
     DatastoreProfileKafkaTarget,
     DatastoreProfileV3io,
-    TDEngineDatastoreProfile,
+    DatastoreProfileTDEngine,
     datastore_profile_read,
     register_temporary_client_datastore_profile,
     remove_temporary_client_datastore_profile,
@@ -110,7 +110,7 @@ class TestTDEngineProfile:
     def test_from_dsn() -> None:
         dsn = "taosws://root:taosdata@localhost:6041"
         profile_name = "test-taosws"
-        profile = TDEngineDatastoreProfile.from_dsn(dsn=dsn, profile_name=profile_name)
+        profile = DatastoreProfileTDEngine.from_dsn(dsn=dsn, profile_name=profile_name)
         assert profile.type == "taosws"
         assert profile.user == "root"
         assert profile.password == "taosdata"

@@ -118,7 +118,7 @@ jobs:
         MLRUN_PYTHON_VERSION=3.12 \
         make test-dockerized
 
-  tests-general-3_9:
+  tests-non-server-3_9:
     name: Run Non-Server Dockerized Tests
     # running tests that are not included in the /server folder, such as those in tests/ and pipeline-adapters/
     runs-on: ubuntu-latest

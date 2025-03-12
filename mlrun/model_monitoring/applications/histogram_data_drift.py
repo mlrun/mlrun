@@ -107,12 +107,8 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     * JSON with the general drift value per feature, produced by default.
     * Plotly table with the various metrics and histograms per feature (disabled by default due to performance issues).
 
-    This application is deployed by default when calling:
-
-    .. code-block:: python
-
-        project.enable_model_monitoring()
-
+    This application is deployed by default when calling
+    :py:func:`~mlrun.projects.MlrunProject.enable_model_monitoring`.
     To avoid it, pass :code:`deploy_histogram_data_drift_app=False`.
 
     If you want to change the application defaults, such as the classifier or which artifacts to produce, you
@@ -140,8 +136,8 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         produce_plotly_artifact: bool = False,
     ) -> None:
         """
-        :param value_classifier: Classifier object that adheres to the `ValueClassifier` protocol.
-                                 If not provided, the default `DataDriftClassifier()` is used.
+        :param value_classifier: Classifier object that adheres to the :py:class:`~ValueClassifier` protocol.
+                                 If not provided, the default :py:class:`~DataDriftClassifier` is used.
         """
         self._value_classifier = value_classifier or DataDriftClassifier()
         assert self._REQUIRED_METRICS <= set(

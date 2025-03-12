@@ -16,7 +16,6 @@ import ast
 import copy
 import os
 import uuid
-import warnings
 from typing import Any, Callable, Optional, Union
 
 import mlrun.common.schemas
@@ -236,8 +235,6 @@ class BaseLauncher(abc.ABC):
         hyper_param_options=None,
         verbose=None,
         scrape_metrics=None,
-        out_path=None,
-        artifact_path=None,
         output_path=None,
         workdir=None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
@@ -304,17 +301,7 @@ class BaseLauncher(abc.ABC):
         meta = run.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
 
-        if artifact_path or out_path:
-            deprecated_param = "artifact_path" if artifact_path else "out_path"
-            warnings.warn(
-                f"'{deprecated_param}' parameter is deprecated in 1.9.0 and will be removed in 1.11.0, "
-                "use 'output_path' instead.",
-                # TODO: Remove this in 1.11.0
-                FutureWarning,
-            )
-        run.spec.output_path = (
-            output_path or out_path or artifact_path or run.spec.output_path
-        )
+        run.spec.output_path = output_path or run.spec.output_path
 
         if not run.spec.output_path:
             if run.metadata.project:

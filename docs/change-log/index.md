@@ -20,7 +20,7 @@
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9305|Model monitoring is now GA.|
+|ML-9305|Model monitoring is now GA. It requires Nuclio>=1.13.12.|
 |ML-7731|Model monitoring can now be run on a larger scale, using MLRun's additional replicas/workers. To benefit from the scale-out: After upgrading to v1.8.0, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
 |ML-8281|MLRun now supports experiment tracking for document-based models, integrating management of LangChain documents using the new artifact type "Document". Additionally, it provides a mechanism for provisioning third-party configuration keys and settings. The UI has a new Projects > Documents page supporting this feature. See <link to tutorial>.
 |ML-8537|You can now run and evaluate models before deploying them, saving time and resources. See <link>.|
@@ -80,6 +80,8 @@
 |ML-8060/9|Notifications are now sent by the workflow, and not  by the client as previously.|
 |ML-8064|Notifications with `when=running` no longer send the default notification.  |
 |ML-8107|The column widths of Name and Value in the Job results page are now allocated appropriately.|
+|ML-8115|Deploying a model without monitoring now creates an endpoint. | 
+|ML-8273|Resolved issue of mlrun worker occasionally not able to connect to chief.|
 |ML-8331|Non-root users can now build images when the source is stored in a zipped file.|
 |ML-8571|Jobs/runs executed in a workflow with artifacts with `tag==None` now appear in the UI.|
 |ML-8949|Only one artifact is tagged as latest, resolving the MultipleResultsFound error.|
@@ -1195,6 +1197,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-8064|When using notifications with `when=running` the user always gets a default notification.|NA| v1.7.0|
 |ML-8419|When the MySQL server is unavailable, a project with non-V3IO model monitoring cannot be deleted.|Run `project.set_model_monitoring_credentials(endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io", replace_creds=True)` before deleting the project.|v1.7.1|
 |ML-8427|Missing FK constraints in DB causes migration to fail after upgrade. | Delete old runs before upgrading. |v1.7.0|
+|ML-8564|If the size of `extra_data` exceeds 1KB, the value is not recorded in the tsdb app_results table, and extra_data is set to null. A warning is only displayed in the MM app pod.|NA|v1.8.0|
 |ML-8754|The default spot-labels node-selector are removed when configuring the `allow` preemption mode with one of the node selectors defined in `mlconf.get_preemptible_node_selector()`.|Use a non-default label.|v1.7.1|
 |ML-8796|The application runtime has two containers: the nuclio container uses the default resources and the sidecar container uses the function resources. | NA   |v1.7.1|
 |ML-8874|Documents that are added to different vectorstores with the same collection name cannot be differentiated.|Avoid using same collection name over different vectorstores.|v1.8.0|
@@ -1218,7 +1221,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5274|PySpark 3.2.x cannot always read parquet files written by pyarrow 13 or above. MLRun ingest might fail when `ingest()` is called with engine="spark" and a ParquetSource that points to parquet files that were written by pyarrow 13 or above. |Call `df.to_parquet()` with version="2.4" so that parquet files are backwards compatible.|v1.6.0|
 |ML-5669|When using `mlrun.mlrun` image, use PyTorch versions up to and including than 2.0.1, but not higher. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images) | You can build your own images with newer CUDA for a later release of PyTorch. |v1.6.0|  
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted. | Abort the job from the SDK instead of from the UI, or upgrade the client to v1.6.0 or higher. | v1.6.0 |
-|ML-8115|Deploying a model without monitoring does not create an endpoint. | NA | v1.7.0|
 |ML-8174| A loaded system takes a few minutes (±5) to calculate the statistics in the Projects Monitoring pane.|NA| v1.7.0|
 |ML-8528|In rare circumstances, KF pipelines fail.|NA|v1.6.3|
 |ML-8601|Default spot labels node selector is removed. |......| v1.7.0|

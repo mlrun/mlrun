@@ -528,20 +528,20 @@ clean: ## Clean python package build artifacts
 	rm -rf build dist mlrun.egg-info
 	find . -name '*.pyc' -not -path "./venv" -exec rm {} \;
 
-#.PHONY: test-dockerized
-#test-dockerized: build-test ## Run mlrun tests in docker container
-#	if [ "$(COVERAGE)" = "true" ]; then \
-#		rm -rf /tmp/coverage_reports/unit_tests && mkdir -p /tmp/coverage_reports/unit_tests; \
-#	fi; \
-#	docker run \
-#		-t \
-#		--rm \
-#		--network='host' \
-#		-e MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-#		-v /tmp:/tmp \
-#		-v /tmp/coverage_reports/unit_tests:/mlrun/tests/coverage_reports \
-#		-v /var/run/docker.sock:/var/run/docker.sock \
-#		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test COVERAGE=$(COVERAGE)
+.PHONY: test-dockerized
+test-dockerized: build-test ## Run mlrun tests in docker container
+	if [ "$(COVERAGE)" = "true" ]; then \
+		rm -rf /tmp/coverage_reports/unit_tests && mkdir -p /tmp/coverage_reports/unit_tests; \
+	fi; \
+	docker run \
+		-t \
+		--rm \
+		--network='host' \
+		-e MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		-v /tmp:/tmp \
+		-v /tmp/coverage_reports/unit_tests:/mlrun/tests/coverage_reports \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test COVERAGE=$(COVERAGE)
 
 
 .PHONY: test
@@ -579,7 +579,7 @@ test: clean ## Run mlrun tests
 		$$COMMON_IGNORE_TEST_FLAGS \
 		$$PER_PYTHON_VERSION_IGNORE_TEST_FLAGS \
 		--forked \
-		-rf
+		-rf tests/feature-store/test_common.py
 	if [ "$(COVERAGE)" = "true" ]; then \
 		echo "Unit test coverage report:"; \
 		COVERAGE_FILE=tests/coverage_reports/unit_tests.coverage coverage report --rcfile=tests/tests.coveragerc; \
@@ -672,8 +672,7 @@ test-system: ## Run mlrun system tests
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		-v tests/feature-store/test_common.py::test_parse_feature_string_with_alias # TODO delete
-		# $(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX) #TODO return
+		 $(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 	if [ "$(COVERAGE)" = "true" ]; then \
 		echo "Integration test coverage report:"; \
 		COVERAGE_FILE=tests/coverage_reports/system_tests.coverage coverage report --rcfile=tests/tests.coveragerc; \

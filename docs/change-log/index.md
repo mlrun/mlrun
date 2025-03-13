@@ -22,14 +22,9 @@
 |-------|----------------------------------------------------------------------------|
 |ML-9305|Model monitoring is now GA.|
 |ML-7731|Model monitoring can now be run on a larger scale, using MLRun's additional replicas/workers. To benefit from the scale-out: After upgrading to v1.8.0, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
-|ML-8281|MLRun now supports experiment tracking for document-based models, using the LangChain API to integrate directly with vector databases. See <link to tutorial>.
-||You can now run and evaluate models before deploying them, saving time and resources. See <link>.|
+|ML-8281|MLRun now supports experiment tracking for document-based models, integrating management of LangChain documents using the new artifact type "Document". Additionally, it provides a mechanism for provisioning third-party configuration keys and settings. The UI has a new Projects > Documents page supporting this feature. See <link to tutorial>.
+|ML-8537|You can now run and evaluate models before deploying them, saving time and resources. See <link>.|
 
-
-### Artifacts
-| ID    |Description                                                                 |
-|-------|----------------------------------------------------------------------------|
-|ML-8476|New artifact type, **Documents**, that supports working with vector DBs as part of MLRun workflows. The UI has a new Projects > Documents page supporting this feature.|
 
 ### Alerts
 | ID    |Description                                                                 |
@@ -47,7 +42,6 @@
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-6341|Supports protobuf 4.x in the client, leaving the frames server untouched. Grafana/ Promethus etc continue to use the http connection which is not using protobuf. Pandas feature store works with the new frames client that will not provide grpc suport and might be affected performance-wise. @Gilad Shaham consider to add this to the release note and as a note on pnadas engine being a “playground” not against massive amount of data.|
-|ML-8281|The vector DB feature introduces a way to seamlessly integrate management of LangChain documents as MLRun artifacts. Additionally, it provides a mechanism for provisioning third-party configuration keys and settings.|
 
 ### Breaking changes
 | ID    |Description                                                                 |
@@ -77,23 +71,21 @@
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-4168|If a .yaml files is too large to view, a popup opens with the option to downoad the file.|
+|ML-4168|If a `.yaml` file is too large to view, a popup opens with the option to downoad the file.|
 |ML-6826|The improved error message for a non-scheduled pod, for example preempted, is now: A Kubernetes pod related to this run cannot be found, possibly it was preempted or evicted. Additional details may be available from Kubernetes events.|
 |ML-7270|Retrieving artifacts with `project.get_artifact` and `project.get_store_resource` now return the correct artifacts.|
-|ML-7347|MM-app: Logging artifacts no does not leak memory. The artifact manager no longer saves each logged artifact.|
+|ML-7347|MM-app: Logging artifacts does not leak memory. (The artifact manager no longer saves each logged artifact.)|
 |ML-7384|New label validation for all of the list methods in the SDK, including `db.list_functions()`.|
-|ML-7905|Users can start using a new docker service or edit the service name of the current service, MLRun now uses the correct pod pull secret. |
-|ML-8060/9||
+|ML-7905|When changing the Docker Registry, MLRun now uses the correct secrets on redploy of the function.|
+|ML-8060/9|Notifications are now sent by the workflow, and not  by the client as previously.|
 |ML-8064|Notifications with `when=running` no longer send the default notification.  |
-|ML-8107|The columns in the Job results page are now allocated appropriately.|
-|ML-8331|Non-root users can now build images when the source is zipped.|
+|ML-8107|The column widths of Name and Value in the Job results page are now allocated appropriately.|
+|ML-8331|Non-root users can now build images when the source is stored in a zipped file.|
 |ML-8571|Jobs/runs executed in a workflow with artifacts with `tag==None` now appear in the UI.|
-|ML-8781| resolved in 1.7.2?
 |ML-8949|Only one artifact is tagged as latest, resolving the MultipleResultsFound error.|
-|ML-9155|Resolved issue of MLRun workers restarting.|
-|ML-9201|Running project.run with dirty=True does not fail on git dirty checks.|
-|ML-9341|
-|ML-9257|Model monitoring: model outputs are now correctly saved in the model endpoint (MEP) schema. If a user provides fewer outputs, None is sabved for the missing columns.|
+|ML-9155|The improved performance reduces timeouts that cause restart of MLRun workers.|
+|ML-9201|Running `project.run` with `dirty=True` skips the git check for dirty.|
+|ML-9257|Model monitoring: A mismatch between the serving function response and the MEP expected output is saved correctly (and does not cause the application to fail).|
 |ML-9432|Notifications no longer get stuck in "Pending" in the DB.|
 
 

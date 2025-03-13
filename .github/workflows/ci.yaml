@@ -187,7 +187,7 @@ jobs:
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_PYTHON_VERSION=3.9 \
-        UNIT_TEST_PATH=tests/feature-store/test_common.py::test_parse_feature_string_with_dot_in_feature_set_name server/py/services/api/tests/unit/api/test_projects.py::test_delete_project_not_deleting_versioned_objects_multiple_times \
+        UNIT_TEST_PATH="tests/feature-store/test_common.py::test_parse_feature_string_with_dot_in_feature_set_name server/py/services/api/tests/unit/api/test_projects.py::test_delete_project_not_deleting_versioned_objects_multiple_times" \
         make test-dockerized 
     
 

@@ -22,15 +22,14 @@
 |-------|----------------------------------------------------------------------------|
 |ML-9305|Model monitoring is now GA.|
 |ML-7731|Model monitoring can now be run on a larger scale, using MLRun's additional replicas/workers. To benefit from the scale-out: After upgrading to v1.8.0, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
-||MLRun now supports experiment tracking for document-based models, using the LangChain API to integrate directly with vector databases. See <link to tutorial>.
-||You can now run and evaluate models before deploying them, saving time and resoutces. See <link>.|
+|ML-8281|MLRun now supports experiment tracking for document-based models, using the LangChain API to integrate directly with vector databases. See <link to tutorial>.
+||You can now run and evaluate models before deploying them, saving time and resources. See <link>.|
 
 
 ### Artifacts
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|   |New artifact type, **Documents**, that supports working with vector DBs. The UI has a new Projects > Documents page supporting this feature.|
-|ML-6379|New capabilities when using vector DBs as part of MLRun workflows.|
+|ML-8476|New artifact type, **Documents**, that supports working with vector DBs as part of MLRun workflows. The UI has a new Projects > Documents page supporting this feature.|
 
 ### Alerts
 | ID    |Description                                                                 |
@@ -1232,6 +1231,9 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted. | Abort the job from the SDK instead of from the UI, or upgrade the client to v1.6.0 or higher. | v1.6.0 |
 |ML-8115|Deploying a model without monitoring does not create an endpoint. | NA | v1.7.0|
 |ML-8174| A loaded system takes a few minutes (±5) to calculate the statistics in the Projects Monitoring pane.|NA| v1.7.0|
+|ML-8528|In rare circumstances, KF pipelines fail.|NA|v1.6.3|
+|ML-8601|Default spot labels node selector is removed. |......| v1.7.0|
+|ML-8699|Event cache loss on cases where the chief restarts , such as upgrade, infra transient issue etc) |NA| v1.8.0|
 |ML-8996|Occasionally, deleting projects fails with 'Fail to delete project in MLRun' | Try deleting the project again.| v1.8.0|
 
 ## Deprecations and removed code

@@ -41,6 +41,7 @@ from mlrun.model_monitoring.helpers import batch_dict2timedelta
 from mlrun.utils import datetime_now, logger
 
 _SECONDS_IN_DAY = int(datetime.timedelta(days=1).total_seconds())
+_SECONDS_IN_MINUTE = 60
 
 
 class _Interval(NamedTuple):
@@ -242,6 +243,8 @@ class MonitoringApplicationController:
     Note that the MonitoringApplicationController object requires access keys along with valid project configurations.
     """
 
+    _MAX_OPEN_WINDOWS_ALLOWED = 5
+
     def __init__(self) -> None:
         """Initialize Monitoring Application Controller"""
         self.project = cast(str, mlrun.mlconf.default_project)
@@ -265,10 +268,24 @@ class MonitoringApplicationController:
             access_key = mlrun.mlconf.get_v3io_access_key()
         return access_key
 
-    @staticmethod
     def _should_monitor_endpoint(
-        endpoint: mlrun.common.schemas.ModelEndpoint, application_names: set
+        self,
+        endpoint: mlrun.common.schemas.ModelEndpoint,
+        application_names: set,
+        base_period_minutes: int,
     ) -> bool:
+        """
+        checks if there is a need to monitor the given endpoint, we should monitor endpoint if it stands in the
+        next conditions:
+            1.  monitoring_mode is enabled
+            2.  first request exists
+            3.  last request exists
+            4.  endpoint_type is not ROUTER
+        if the four above conditions apply we require one of the three conditions to monitor:
+            1.  never monitored the one of the endpoint applications meaning min_last_analyzed is None
+            2.  last request has a higher timestamp than the min_last_analyzed timestamp
+            3.  We didn't analyze one of the application for over than _MAX_OPEN_WINDOWS_ALLOWED windows
+        """
         if (
             # Is the model endpoint monitored?
             endpoint.status.monitoring_mode == mm_constants.ModelMonitoringMode.enabled
@@ -283,12 +300,16 @@ class MonitoringApplicationController:
                 project=endpoint.metadata.project,
                 endpoint_id=endpoint.metadata.uid,
             ) as batch_window_generator:
+                base_period_seconds = base_period_minutes * _SECONDS_IN_MINUTE
                 if application_names != batch_window_generator.get_application_list():
                     return True
                 elif (
                     not batch_window_generator.get_min_last_analyzed()
                     or batch_window_generator.get_min_last_analyzed()
                     <= int(endpoint.status.last_request.timestamp())
+                    or mlrun.utils.datetime_now().timestamp()
+                    - batch_window_generator.get_min_last_analyzed()
+                    >= self._MAX_OPEN_WINDOWS_ALLOWED * base_period_seconds
                 ):
                     return True
                 else:
@@ -554,7 +575,7 @@ class MonitoringApplicationController:
                         )
                     )
                 ).total_seconds()
-                // 60
+                // _SECONDS_IN_MINUTE
             ),
         }
         with concurrent.futures.ThreadPoolExecutor(
@@ -593,7 +614,9 @@ class MonitoringApplicationController:
         v3io_access_key: str,
     ) -> None:
         if MonitoringApplicationController._should_monitor_endpoint(
-            endpoint, set(applications_names)
+            endpoint,
+            set(applications_names),
+            policy.get(ControllerEventEndpointPolicy.BASE_PERIOD, 10),
         ):
             logger.info(
                 "Regular event is being pushed to controller stream for model endpoint",

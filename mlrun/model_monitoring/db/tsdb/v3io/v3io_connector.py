@@ -168,7 +168,7 @@ class V3IOTSDBConnector(TSDBConnector):
         for table_name in self.tables:
             default_configurations["table"] = self.tables[table_name]
             if table_name == mm_schemas.V3IOTSDBTables.PREDICTIONS:
-                default_configurations["aggregates"] = "count,avg,last"
+                default_configurations["aggregates"] = "count,avg"
                 default_configurations["aggregation_granularity"] = "1m"
             elif table_name == mm_schemas.V3IOTSDBTables.EVENTS:
                 default_configurations["rate"] = "10/m"
@@ -827,8 +827,13 @@ class V3IOTSDBConnector(TSDBConnector):
         end: Optional[datetime] = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
+        print("[EYAL]: now in last_request")
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start, end = self._get_start_end(start, end)
+        print("[EYAL]: now in last_request, filter_query:", filter_query)
+        print("[EYAL]: now in last_request, start:", start)
+        print("[EYAL]: now in last_request, end:", end)
+
         res = self._get_records(
             table=mm_schemas.V3IOTSDBTables.PREDICTIONS,
             start=start,
@@ -1045,8 +1050,13 @@ class V3IOTSDBConnector(TSDBConnector):
             frames: list,
         ):
             for frame in frames:
+                print("[EYAL]: now in add_metric, frame:", frame)
+                print("[EYAL]: now in add_metric, metric:", metric)
+                print("[EYAL]: now in add_metric, column_name:", column_name)
                 endpoint_ids = frame.column_data("endpoint_id")
                 metric_data = frame.column_data(column_name)
+                print("[EYAL]: now in add_metric, endpoint_ids:", endpoint_ids)
+                print("[EYAL]: now in add_metric, metric_data:", metric_data)
                 for index, endpoint_id in enumerate(endpoint_ids):
                     mep = model_endpoint_objects_by_uid.get(endpoint_id)
                     value = metric_data[index]

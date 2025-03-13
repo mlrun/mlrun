@@ -91,7 +91,7 @@ def _features_to_vector_and_check_permissions(features, update_stats):
 
 
 def _get_offline_features(
-    feature_vector: Union[str, FeatureVector],
+    feature_vector: FeatureVector,
     entity_rows=None,
     entity_timestamp_column: Optional[str] = None,
     target: DataTargetBase = None,
@@ -172,7 +172,7 @@ def _get_offline_features(
 
 
 def _get_online_feature_service(
-    feature_vector: Union[str, FeatureVector],
+    feature_vector: FeatureVector,
     run_config: RunConfig = None,
     fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
     impute_policy: Optional[dict] = None,

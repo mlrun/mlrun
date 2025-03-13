@@ -13,7 +13,7 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
-
+()
 ## v1.8.0
 
 ### Model monitoring
@@ -22,6 +22,8 @@
 |-------|----------------------------------------------------------------------------|
 |ML-9305|Model monitoring is now GA.|
 |ML-7731|Model monitoring can now be run on a larger scale, using MLRun's additional replicas/workers. To benefit from the scale-out: After upgrading to v1.8.0, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
+||MLRun now supports experiment tracking for document-based models, using the LangChain API to integrate directly with vector databases. See <link to tutorial>.
+||You can now run and evaluate models before deploying them, saving time and resoutces. See <link>.|
 
 
 ### Artifacts
@@ -35,7 +37,7 @@
 |-------|----------------------------------------------------------------------------|
 |ML-7870|Alerts are now enabled by default.|
 |ML-8472|You can now list the alert activation history and filter the list by various parameters using the SDK. See {ref}`alert_activations`.|
-||The 
+
 
 ### Notifications
 | ID    |Description                                                                 |
@@ -79,8 +81,8 @@
 |ML-4168|If a .yaml files is too large to view, a popup opens with the option to downoad the file.|
 |ML-6826|The improved error message for a non-scheduled pod, for example preempted, is now: A Kubernetes pod related to this run cannot be found, possibly it was preempted or evicted. Additional details may be available from Kubernetes events.|
 |ML-7270|Retrieving artifacts with `project.get_artifact` and `project.get_store_resource` now return the correct artifacts.|
+|ML-7347|MM-app: Logging artifacts no does not leak memory. The artifact manager no longer saves each logged artifact.|
 |ML-7384|New label validation for all of the list methods in the SDK, including `db.list_functions()`.|
-|ML-7789||
 |ML-7905|Users can start using a new docker service or edit the service name of the current service, MLRun now uses the correct pod pull secret. |
 |ML-8060/9||
 |ML-8064|Notifications with `when=running` no longer send the default notification.  |
@@ -91,8 +93,9 @@
 |ML-8949|Only one artifact is tagged as latest, resolving the MultipleResultsFound error.|
 |ML-9155|Resolved issue of MLRun workers restarting.|
 |ML-9201|Running project.run with dirty=True does not fail on git dirty checks.|
+|ML-9341|
 |ML-9257|Model monitoring: model outputs are now correctly saved in the model endpoint (MEP) schema. If a user provides fewer outputs, None is sabved for the missing columns.|
-
+|ML-9432|Notifications no longer get stuck in "Pending" in the DB.|
 
 
 
@@ -1192,7 +1195,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5876|The maximum length of project name + the longest function name for `project.enable_model_monitoring` is 63 chars. | Keep the name combination at a maximum of 63 chars.                                                                                                                                                                                                                                                                                                                      |v1.6.0|
 |ML-7159/7704|The evidently app pod memory consumption grows continuously due to use of the evidently workspace and project.|External dependency. Do not use (or only rarely use) these evidently APIs.|v1.7.0|
 |ML-7196|The models features statistics `feature_stats` is limited to 16MB. Further limitation to 1MB when using model-monitoring over V3IO-KV will be removed in 1.8.| NA                                                                                                                                                                                                                                                                                                                                                                       | v1.7.0|
-|ML-7347|MM-app: Logging artifacts leaks memory due to artifact manager saving each logged artifact.|Use the same artifact key to prevent accumulation.|v1.7.0|
 |ML-7568/7915| The SDK does not inform of invalid node selector combinations when running a function, but the pod remains stuck in the Pending state. | See [Preventing and resolving conflicts](../runtimes/configuring-job-resources.md#preventing-and-resolving-conflicts).| v1.7.0    |                                                                                                                                                                                                                                        |
 |ML-7571|For executions of Dask runtimes, the UI does not show node-selectors applied to the run. | NA   | v1.7.0|                                                                                                                                                                                                                                                                                                                                                                    | v1.7.0|  
 |ML-7746|In some cases, when the pipeline is extremely large it is not displayed in the graph.| NA | v1.7.0|      
@@ -1200,10 +1202,14 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-7955|The **Owner** field is blank for artifacts that are registered in the UI.| NA| v1.7.0|                                                                                                                                                                                                                                                                                                                                               | v1.7.0|
 |ML-8064|When using notifications with `when=running` the user always gets a default notification.|NA| v1.7.0|
 |ML-8419|When the MySQL server is unavailable, a project with non-V3IO model monitoring cannot be deleted.|Run `project.set_model_monitoring_credentials(endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io", replace_creds=True)` before deleting the project.|v1.7.1|
+|ML-8427|Missing FK constraints in DB causes migration to fail after upgrade. | Delete old runs before upgrading. |v1.7.0|
 |ML-8754|The default spot-labels node-selector are removed when configuring the `allow` preemption mode with one of the node selectors defined in `mlconf.get_preemptible_node_selector()`.|Use a non-default label.|v1.7.1|
 |ML-8796|The application runtime has two containers: the nuclio container uses the default resources and the sidecar container uses the function resources. | NA   |v1.7.1|
+
+|ML-8874|Documents that are added to different vectorstores with the same collection name cannot be differentiated.|Avoid using same collection name over different vectorstores.|v1.8.0|
 |ML-8949|Error `MultipleResultsFound` when reading DataItem because of duplicate artifacts tagged as `latest`.s|NA| v1.7.0| 
 |ML-9336|Attempts to delete more than 200 artifacts fail, and you are prompted to use a more granular filter.|Configure the limit with `mlrun.mlconf.artifacts.limits.max_deletions`.|v1.8.0|
+|ML-8996|  |    |v1.8.0|
 |ML-9338|If the same project+key were created from both a hyper-param run and single run, and you removed the latest tag from everything, MLRun assigns latest to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results: it might not be the actual latest.|NA|v1.8.0|
 |
 
@@ -1226,7 +1232,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted. | Abort the job from the SDK instead of from the UI, or upgrade the client to v1.6.0 or higher. | v1.6.0 |
 |ML-8115|Deploying a model without monitoring does not create an endpoint. | NA | v1.7.0|
 |ML-8174| A loaded system takes a few minutes (±5) to calculate the statistics in the Projects Monitoring pane.|NA| v1.7.0|
-
+|ML-8996|Occasionally, deleting projects fails with 'Fail to delete project in MLRun' | Try deleting the project again.| v1.8.0|
 
 ## Deprecations and removed code
 
@@ -1238,6 +1244,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.5.0 |ML-4366 |MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu`                                                                                                                                                                            |
 | v1.5.0 |ML-3605|Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards are not supported. |
 | v1.0.0 |NA      |MLRun / Nuclio does not support python 3.6.                                                                                                                                                                                         |
+|ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.
 
 ### Deprecated APIs  
 

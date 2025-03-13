@@ -125,8 +125,8 @@ class TestTDEngineSchema:
 
     def test_drop_subtable(self, super_table: TDEngineSchema):
         assert (
-            super_table._drop_subtable_query(subtable="subtable_1")
-            == f"DROP TABLE if EXISTS {_MODEL_MONITORING_DATABASE}.subtable_1;"
+            super_table.drop_subtable_query(subtable="subtable_1")
+            == f"DROP TABLE if EXISTS {_MODEL_MONITORING_DATABASE}.`subtable_1`;"
         )
 
     def test_drop_supertable(self, super_table: TDEngineSchema):
@@ -138,34 +138,41 @@ class TestTDEngineSchema:
         )
 
     @pytest.mark.parametrize(
-        ("subtable", "remove_tag"), [("subtable_1", False), ("subtable_2", True)]
+        ("tag", "invalid_tag", "operator"),
+        [("tag1", False, "OR"), ("tag2", True, "AND")],
     )
-    def test_get_subtables(
+    def test_get_subtables_by_tag(
         self,
         super_table: TDEngineSchema,
         values: dict[str, Union[str, int, float, datetime.datetime]],
-        subtable: str,
-        remove_tag: bool,
+        tag: str,
+        invalid_tag: bool,
+        operator: str,
     ):
         assert (
-            super_table._get_subtables_query(values=values)
-            == f"SELECT DISTINCT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} "
-            f"WHERE tag1 LIKE '{values['tag1']}' AND tag2 LIKE '{values['tag2']}';"
+            super_table._get_subtables_query_by_tag(
+                filter_tag=tag, filter_values=[values[tag]]
+            )
+            == f"SELECT DISTINCT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} WHERE "
+            f"{tag} LIKE '{values[tag]}';"
         )
 
-        if remove_tag:
-            # test with without one of the tags
-            values.pop("tag1")
-            assert (
-                super_table._get_subtables_query(values=values)
-                == f"SELECT DISTINCT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} "
-                f"WHERE tag2 LIKE '{values['tag2']}';"
+        # test operator
+        filter_values = [values[tag], f"{values[tag]}_2", f"{values[tag]}_3"]
+        assert (
+            super_table._get_subtables_query_by_tag(
+                filter_tag=tag, filter_values=filter_values, operator=operator
             )
-
-            # test without tags
-            values.pop("tag2")
+            == f"SELECT DISTINCT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} WHERE "
+            f"{tag} LIKE '{values[tag]}' {operator} {tag} LIKE '{filter_values[1]}' {operator} {tag} "
+            f"LIKE '{filter_values[2]}';"
+        )
+        if invalid_tag:
+            # test wiht invalid tag
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-                super_table._get_subtables_query(values=values)
+                super_table._get_subtables_query_by_tag(
+                    filter_tag="invalid_tag", filter_values=[values[tag]]
+                )
 
     @pytest.mark.parametrize(
         (

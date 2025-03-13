@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 from typing import Annotated, Literal, Optional, Union
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -54,14 +54,15 @@ async def create_model_endpoint(
     model_endpoint: schemas.ModelEndpoint,
     project: ProjectAnnotation,
     creation_strategy: mm_constants.ModelEndpointCreationStrategy,
+    delete_background_task: BackgroundTasks,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(framework.api.deps.get_db_session),
 ) -> schemas.ModelEndpoint:
     """
     Create a new model endpoint record in the DB.
-    :param model_endpoint:  The model endpoint object.
-    :param project:         The name of the project.
-    :param creation_strategy: Strategy for creating or updating the model endpoint:
+    :param model_endpoint:         The model endpoint object.
+    :param project:                The name of the project.
+    :param creation_strategy:      Strategy for creating or updating the model endpoint:
         * **overwrite**:
         1. If model endpoints with the same name exist, delete the `latest` one.
         2. Create a new model endpoint entry and set it as `latest`.
@@ -71,8 +72,9 @@ async def create_model_endpoint(
         * **archive**:
         1. If model endpoints with the same name exist, preserve them.
         2. Create a new model endpoint with the same name and set it to `latest`.
-    :param auth_info:       The auth info of the request.
-    :param db_session:      A session that manages the current dialog with the database.
+    :param delete_background_task: A background task that will be used to delete old TSDB records (if required).
+    :param auth_info:              The auth info of the request.
+    :param db_session:             A session that manages the current dialog with the database.
 
     :return: A Model endpoint object without operative data.
     """
@@ -104,6 +106,7 @@ async def create_model_endpoint(
         model_endpoint=model_endpoint,
         creation_strategy=creation_strategy,
         upsert=True,
+        delete_background_task=delete_background_task,
     )
     return model_endpoint
 
@@ -170,6 +173,7 @@ async def patch_model_endpoint(
 async def delete_model_endpoint(
     project: ProjectAnnotation,
     name: str,
+    delete_background_task: BackgroundTasks,
     function_name: Optional[str] = None,
     function_tag: Optional[str] = None,
     endpoint_id: typing.Optional[EndpointIDAnnotation] = "*",
@@ -178,13 +182,14 @@ async def delete_model_endpoint(
 ) -> None:
     """
     Delete a model endpoint record from the DB.
-    :param project:         The name of the project.
-    :param name:            The model endpoint name.
-    :param function_name:   The name of the function.
-    :param function_tag:    The tag of the function.
-    :param endpoint_id:     The unique id of the model endpoint.
-    :param auth_info:       The auth info of the request.
-    :param db_session:      A session that manages the current dialog with the database.
+    :param project:                The name of the project.
+    :param name:                   The model endpoint name.
+    :param delete_background_task: A background task that will be used to delete old TSDB records.
+    :param function_name:          The name of the function.
+    :param function_tag:           The tag of the function.
+    :param endpoint_id:            The unique id of the model endpoint.
+    :param auth_info:              The auth info of the request.
+    :param db_session:             A session that manages the current dialog with the database.
     """
 
     await (
@@ -204,6 +209,7 @@ async def delete_model_endpoint(
         function_tag=function_tag,
         db_session=db_session,
         endpoint_id=endpoint_id,
+        delete_background_task=delete_background_task,
     )
 
 

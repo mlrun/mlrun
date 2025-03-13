@@ -1755,17 +1755,12 @@ class BaseRuntimeHandler(ABC):
                 reason, message = self._resolve_container_error_status(runtime_resource)
 
         logger.info("Updating run state", run_uid=uid, run_state=run_state)
-        last_update_time = now_date().isoformat()
         run_updates = {
             "status.state": run_state,
-            "status.last_update": last_update_time,
             "status.reason": reason or "",
             "status.status_text": message or "",
             "status.error": "",
         }
-        if run_state in RunStates.terminal_states():
-            run_updates["status.end_time"] = last_update_time
-
         run = db.update_run(db_session, run_updates, uid, project)
 
         return True, run_state, run

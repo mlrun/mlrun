@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import asyncio
 import math
 from datetime import datetime, timedelta, timezone
 from io import StringIO
@@ -150,16 +149,17 @@ class V3IOTSDBConnector(TSDBConnector):
 
     def create_tables(self) -> None:
         """
-        Create the tables using the TSDB connector. The tables are being created in the V3IO TSDB and include:
+        Create the tables using the TSDB connector. These are the tables that are stored in the V3IO TSDB:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a single numeric metric.
-        Note that the predictions table is automatically created by the model monitoring stream pod.
+        - events: A statistics table that includes pre-aggregated metrics (such as average latency over the
+        last 5 minutes) and data samples
+        - predictions: a detailed prediction that includes latency, request timestamp, etc.
+        - errors: a detailed error that includes error desc, error type, etc.
+
         """
-        application_tables = [
-            mm_schemas.V3IOTSDBTables.APP_RESULTS,
-            mm_schemas.V3IOTSDBTables.METRICS,
-        ]
-        for table_name in application_tables:
+
+        for table_name in self.tables:
             logger.info("Creating table in V3IO TSDB", table_name=table_name)
             table = self.tables[table_name]
             self.frames_client.create(
@@ -427,6 +427,40 @@ class V3IOTSDBConnector(TSDBConnector):
         tsdb_path.replace("://u", ":///u")
         store, _, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
         store.rm(tsdb_path, recursive=True)
+
+    def delete_tsdb_records(
+        self, endpoint_ids: list[str], delete_timeout: Optional[int] = None
+    ):
+        logger.debug(
+            "Deleting model endpoints resources using the V3IO TSDB connector",
+            project=self.project,
+            number_of_endpoints_to_delete=len(endpoint_ids),
+        )
+        tables = mm_schemas.V3IOTSDBTables.list()
+
+        # Split the endpoint ids into chunks to avoid exceeding the v3io-engine filter-expression limit
+        for i in range(0, len(endpoint_ids), V3IO_MEPS_LIMIT):
+            endpoint_id_chunk = endpoint_ids[i : i + V3IO_MEPS_LIMIT]
+            filter_query = f"endpoint_id IN({str(endpoint_id_chunk)[1:-1]}) "
+            for table in tables:
+                try:
+                    self.frames_client.delete(
+                        backend=_TSDB_BE,
+                        table=self.tables[table],
+                        filter=filter_query,
+                        start="0",
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to delete TSDB records for the provided endpoints from table '{table}'",
+                        error=mlrun.errors.err_to_str(e),
+                        project=self.project,
+                    )
+        logger.debug(
+            "Deleted all model endpoint resources using the V3IO connector",
+            project=self.project,
+            number_of_endpoints_to_delete=len(endpoint_ids),
+        )
 
     def get_model_endpoint_real_time_metrics(
         self, endpoint_id: str, metrics: list[str], start: str, end: str
@@ -984,7 +1018,7 @@ class V3IOTSDBConnector(TSDBConnector):
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
                                         be filled with the relevant basic metrics.
         :param project:                The name of the project.
-        :param run_in_threadpool:      A function that runs another function in a thread pool.
+        :param run_in_threadpool:      Has no effect.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
@@ -996,35 +1030,10 @@ class V3IOTSDBConnector(TSDBConnector):
             uids.append(uid)
             model_endpoint_objects_by_uid[uid] = model_endpoint_object
 
-        coroutines = [
-            run_in_threadpool(
-                self.get_error_count,
-                endpoint_ids=uids,
-                get_raw=True,
-            ),
-            run_in_threadpool(
-                self.get_last_request,
-                endpoint_ids=uids,
-                get_raw=True,
-            ),
-            run_in_threadpool(
-                self.get_avg_latency,
-                endpoint_ids=uids,
-                get_raw=True,
-            ),
-            run_in_threadpool(
-                self.get_drift_status,
-                endpoint_ids=uids,
-                get_raw=True,
-            ),
-        ]
-
-        (
-            error_count_res,
-            last_request_res,
-            avg_latency_res,
-            drift_status_res,
-        ) = await asyncio.gather(*coroutines)
+        error_count_res = self.get_error_count(endpoint_ids=uids, get_raw=True)
+        last_request_res = self.get_last_request(endpoint_ids=uids, get_raw=True)
+        avg_latency_res = self.get_avg_latency(endpoint_ids=uids, get_raw=True)
+        drift_status_res = self.get_drift_status(endpoint_ids=uids, get_raw=True)
 
         def add_metric(
             metric: str,
@@ -1052,12 +1061,12 @@ class V3IOTSDBConnector(TSDBConnector):
         )
         add_metric(
             "avg_latency",
-            "max(result_status)",
-            drift_status_res,
+            "avg(latency)",
+            avg_latency_res,
         )
         add_metric(
             "result_status",
-            "avg(latency)",
-            avg_latency_res,
+            "max(result_status)",
+            drift_status_res,
         )
         return list(model_endpoint_objects_by_uid.values())

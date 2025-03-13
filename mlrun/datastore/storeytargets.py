@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from urllib.parse import urlparse
+
 import storey
 from mergedeep import merge
 from storey import V3ioDriver
@@ -18,6 +20,12 @@ from storey import V3ioDriver
 import mlrun
 import mlrun.model_monitoring.helpers
 from mlrun.datastore.base import DataStore
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileKafkaSource,
+    DatastoreProfileKafkaTarget,
+    TDEngineDatastoreProfile,
+    datastore_profile_read,
+)
 
 from ..platforms.iguazio import parse_path
 from .utils import (
@@ -44,13 +52,8 @@ def get_url_and_storage_options(path, external_storage_options=None):
 class TDEngineStoreyTarget(storey.TDEngineTarget):
     def __init__(self, *args, url: str, **kwargs):
         if url.startswith("ds://"):
-            datastore_profile = (
-                mlrun.datastore.datastore_profile.datastore_profile_read(url)
-            )
-            if not isinstance(
-                datastore_profile,
-                mlrun.datastore.datastore_profile.TDEngineDatastoreProfile,
-            ):
+            datastore_profile = datastore_profile_read(url)
+            if not isinstance(datastore_profile, TDEngineDatastoreProfile):
                 raise ValueError(
                     f"Unexpected datastore profile type:{datastore_profile.type}."
                     "Only TDEngineDatastoreProfile is supported"
@@ -126,16 +129,24 @@ class StreamStoreyTarget(storey.StreamTarget):
 class KafkaStoreyTarget(storey.KafkaTarget):
     def __init__(self, *args, **kwargs):
         path = kwargs.pop("path")
-        attributes = kwargs.pop("attributes", None)
+        attributes = kwargs.pop("attributes", {})
         if path and path.startswith("ds://"):
-            datastore_profile = (
-                mlrun.datastore.datastore_profile.datastore_profile_read(path)
-            )
+            datastore_profile = datastore_profile_read(path)
+            if not isinstance(
+                datastore_profile,
+                (DatastoreProfileKafkaSource, DatastoreProfileKafkaTarget),
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Unsupported datastore profile type: {type(datastore_profile)}"
+                )
+
             attributes = merge(attributes, datastore_profile.attributes())
-            brokers = attributes.pop(
-                "brokers", attributes.pop("bootstrap_servers", None)
+            brokers = attributes.pop("brokers", None)
+            # Override the topic with the one in the url (if any)
+            parsed = urlparse(path)
+            topic = (
+                parsed.path.strip("/") if parsed.path else datastore_profile.get_topic()
             )
-            topic = datastore_profile.topic
         else:
             brokers = attributes.pop(
                 "brokers", attributes.pop("bootstrap_servers", None)
@@ -146,7 +157,10 @@ class KafkaStoreyTarget(storey.KafkaTarget):
             raise mlrun.errors.MLRunInvalidArgumentError("KafkaTarget requires a topic")
         kwargs["brokers"] = brokers
         kwargs["topic"] = topic
-        super().__init__(*args, **kwargs, **attributes)
+
+        attributes = mlrun.datastore.utils.KafkaParameters(attributes).producer()
+
+        super().__init__(*args, **kwargs, producer_options=attributes)
 
 
 class NoSqlStoreyTarget(storey.NoSqlTarget):

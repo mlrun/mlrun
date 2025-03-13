@@ -108,7 +108,7 @@ class ArtifactProducer:
 def dict_to_artifact(struct: dict) -> Artifact:
     kind = struct.get("kind", "")
 
-    # TODO: remove this in 1.8.0
+    # TODO: Remove once data migration v5 is obsolete
     if mlrun.utils.is_legacy_artifact(struct):
         return mlrun.artifacts.base.convert_legacy_artifact_to_new_format(struct)
 

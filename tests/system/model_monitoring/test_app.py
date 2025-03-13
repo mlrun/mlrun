@@ -96,7 +96,7 @@ _DefaultDataDriftAppData = _AppData(
     deploy=False,
     results={"general_drift"},
     metrics={"hellinger_mean", "kld_mean", "tvd_mean"},
-    artifacts={"features_drift_results", "drift_table_plot"},
+    artifacts={"features_drift_results"},
 )
 
 
@@ -789,8 +789,8 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
         )
         self.project.deploy_function(fn)
 
-    def _record_results(self) -> None:
-        mlrun.model_monitoring.api.record_results(
+    def _record_results(self) -> str:
+        model_endpoint = mlrun.model_monitoring.api.record_results(
             project=self.project_name,
             model_path=self.project.get_artifact_uri(  # pyright: ignore[reportOptionalMemberAccess]
                 key=self.model_name, category="model", tag="latest"
@@ -800,6 +800,8 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
         )
+
+        return model_endpoint.metadata.uid
 
     def _deploy_monitoring_infra(self) -> None:
         self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
@@ -814,15 +816,14 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             executor.submit(self._deploy_monitoring_app)
             executor.submit(self._deploy_monitoring_infra)
 
-        self._record_results()
+        endpoint_id = self._record_results()
 
         time.sleep(2.4 * self.app_interval_seconds)
 
         mep = mlrun.db.get_run_db().get_model_endpoint(
             name=f"{self.name_prefix}-test",
             project=self.project.name,
-            function_name=self.function_name,
-            function_tag="latest",
+            endpoint_id=endpoint_id,
             feature_analysis=True,
             tsdb_metrics=True,
         )
@@ -872,7 +873,7 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             controller.spec.config["spec.triggers.cron_interval"]["attributes"][
                 "interval"
             ]
-            == "10m"
+            == "3m"
         )
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
@@ -1113,7 +1114,16 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
                 "model_name": "int_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": [1, 2, 3],
-                "schema": ["f0", "f1", "f2", "p0"],
+                "schema": ["feature0", "feature1", "feature2", "override_label"],
+                "training_set": pd.DataFrame(
+                    data={
+                        "feature0": [1, 2],
+                        "feature1": [1, 2],
+                        "feature2": [1, 2],
+                        "label": [1, 1],
+                    }
+                ),
+                "label_column": "label",
             },
         }
 
@@ -1182,6 +1192,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             model_name,
             model_path=f"store://models/{self.project_name}/{model_name}:latest",
             class_name=class_name,
+            outputs=kwargs.get("outputs"),
         )
         serving_fn.set_tracking(enable_tracking=enable_tracking)
         if self.image is not None:
@@ -1272,7 +1283,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             base_period=1,
             deploy_histogram_data_drift_app=False,
         )
-
+        kwargs = {"outputs": ["override_label"]}
         for model_name, model_dict in self.test_models_tracking.items():
             self._log_model(
                 model_name,
@@ -1293,7 +1304,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         )
 
         for model_name, model_dict in self.test_models_tracking.items():
-            self._deploy_model_serving(**model_dict, enable_tracking=True)
+            self._deploy_model_serving(**model_dict, enable_tracking=True, **kwargs)
 
         endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
             project=self.project_name

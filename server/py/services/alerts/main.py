@@ -43,7 +43,6 @@ import framework.utils.time_window_tracker
 import services.alerts.crud
 import services.alerts.initial_data
 import services.api.crud
-from framework.db.session import close_session, create_session
 from framework.routers import (
     alert_activations,
     alert_template,
@@ -219,6 +218,40 @@ class Service(framework.service.Service):
 
         await run_in_threadpool(
             services.alerts.crud.Alerts().delete_alert, db_session, project, name
+        )
+
+    async def delete_alerts(
+        self,
+        request: fastapi.Request,
+        project: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ):
+        # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
+        #  not access it directly (ML-8565)
+        await run_in_threadpool(
+            framework.utils.singletons.project_member.get_project_member().ensure_project,
+            db_session,
+            project,
+            auth_info=auth_info,
+        )
+
+        await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.alert,
+            project,
+            "*",
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
+
+        if not self._is_chief_or_standalone():
+            chief_client = framework.utils.clients.chief.Client()
+            return await chief_client.delete_alerts(project=project, request=request)
+
+        self._logger.debug("Deleting all alerts in project", project=project)
+
+        await run_in_threadpool(
+            services.alerts.crud.Alerts().delete_alerts, db_session, project
         )
 
     async def reset_alert(
@@ -570,10 +603,8 @@ class Service(framework.service.Service):
             )
 
     async def _generate_events(self):
-        db_session = await fastapi.concurrency.run_in_threadpool(create_session)
         try:
             await framework.utils.time_window_tracker.run_with_time_window_tracker(
-                db_session=db_session,
                 key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.events_generation,
                 max_window_size_seconds=int(
                     # TODO: This needs to be aligned with chief
@@ -587,8 +618,6 @@ class Service(framework.service.Service):
                 "Failed generating events. Ignoring",
                 exc=mlrun.errors.err_to_str(exc),
             )
-        finally:
-            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
     @staticmethod
     def _get_authorization_resource_for_alert_template():

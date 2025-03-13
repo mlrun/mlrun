@@ -171,6 +171,9 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
                 FutureWarning,
             )
 
+    def get_topic(self) -> typing.Optional[str]:
+        return self.topic
+
     def attributes(self):
         attributes = {"brokers": self.brokers or self.bootstrap_servers}
         if self.kwargs_public:
@@ -193,6 +196,10 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
     kwargs_public: typing.Optional[dict]
     kwargs_private: typing.Optional[dict]
 
+    def get_topic(self) -> typing.Optional[str]:
+        topics = [self.topics] if isinstance(self.topics, str) else self.topics
+        return topics[0] if topics else None
+
     def attributes(self) -> dict[str, typing.Any]:
         attributes = {}
         if self.kwargs_public:
@@ -209,13 +216,9 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
         attributes["initial_offset"] = self.initial_offset
         if self.partitions is not None:
             attributes["partitions"] = self.partitions
-        sasl = attributes.pop("sasl", {})
-        if self.sasl_user and self.sasl_pass:
-            sasl["enable"] = True
-            sasl["user"] = self.sasl_user
-            sasl["password"] = self.sasl_pass
-            sasl["mechanism"] = "PLAIN"
-        if sasl:
+        if sasl := mlrun.datastore.utils.KafkaParameters(attributes).sasl(
+            usr=self.sasl_user, pwd=self.sasl_pass
+        ):
             attributes["sasl"] = sasl
         return attributes
 

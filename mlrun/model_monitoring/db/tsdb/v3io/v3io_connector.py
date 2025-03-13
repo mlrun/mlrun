@@ -159,15 +159,21 @@ class V3IOTSDBConnector(TSDBConnector):
 
         """
 
+        default_configurations = {
+            "backend": _TSDB_BE,
+            "if_exists": v3io_frames.IGNORE,
+            "rate": _TSDB_RATE,
+        }
+
         for table_name in self.tables:
+            default_configurations["table"] = self.tables[table_name]
+            if table_name == mm_schemas.V3IOTSDBTables.PREDICTIONS:
+                default_configurations["aggregates"] = "count,avg"
+                default_configurations["aggregation_granularity"] = "1m"
+            elif table_name == mm_schemas.V3IOTSDBTables.EVENTS:
+                default_configurations["rate"] = "10/m"
             logger.info("Creating table in V3IO TSDB", table_name=table_name)
-            table = self.tables[table_name]
-            self.frames_client.create(
-                backend=_TSDB_BE,
-                table=table,
-                if_exists=v3io_frames.IGNORE,
-                rate=_TSDB_RATE,
-            )
+            self.frames_client.create(**default_configurations)
 
     def apply_monitoring_stream_steps(
         self,
@@ -228,7 +234,6 @@ class V3IOTSDBConnector(TSDBConnector):
             name="tsdb_predictions",
             after="FilterNOP",
             path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.PREDICTIONS]}",
-            rate="1/s",
             time_col=mm_schemas.EventFieldType.TIMESTAMP,
             container=self.container,
             v3io_frames=self.v3io_framesd,
@@ -241,8 +246,6 @@ class V3IOTSDBConnector(TSDBConnector):
             index_cols=[
                 mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
-            aggr="count,avg",
-            aggr_granularity="1m",
             max_events=tsdb_batching_max_events,
             flush_after_seconds=tsdb_batching_timeout_secs,
             key=mm_schemas.EventFieldType.ENDPOINT_ID,
@@ -281,7 +284,6 @@ class V3IOTSDBConnector(TSDBConnector):
                 name=name,
                 after=after,
                 path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.EVENTS]}",
-                rate="10/m",
                 time_col=mm_schemas.EventFieldType.TIMESTAMP,
                 container=self.container,
                 v3io_frames=self.v3io_framesd,
@@ -345,7 +347,6 @@ class V3IOTSDBConnector(TSDBConnector):
             name="tsdb_error",
             after="error_extractor",
             path=f"{self.container}/{self.tables[mm_schemas.FileTargetKind.ERRORS]}",
-            rate="1/s",
             time_col=mm_schemas.EventFieldType.TIMESTAMP,
             container=self.container,
             v3io_frames=self.v3io_framesd,
@@ -772,6 +773,9 @@ class V3IOTSDBConnector(TSDBConnector):
         end: Union[datetime, str],
         aggregation_window: Optional[str] = None,
         agg_funcs: Optional[list[str]] = None,
+        limit: Optional[
+            int
+        ] = None,  # no effect, just for compatibility with the abstract method
     ) -> Union[
         mm_schemas.ModelEndpointMonitoringMetricNoData,
         mm_schemas.ModelEndpointMonitoringMetricValues,
@@ -825,6 +829,7 @@ class V3IOTSDBConnector(TSDBConnector):
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start, end = self._get_start_end(start, end)
+
         res = self._get_records(
             table=mm_schemas.V3IOTSDBTables.PREDICTIONS,
             start=start,

@@ -120,12 +120,14 @@ def _get_offline_features(
             f" Target kind: {target.kind}"
         )
 
-    if isinstance(feature_vector, FeatureVector):
-        update_stats = True
-
-    feature_vector = _features_to_vector_and_check_permissions(
-        feature_vector, update_stats
-    )
+    if update_stats:
+        feature_vector = _features_to_vector_and_check_permissions(
+            feature_vector, update_stats
+        )
+    else:
+        verify_feature_vector_permissions(
+            feature_vector, mlrun.common.schemas.AuthorizationAction.read
+        )
 
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field

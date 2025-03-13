@@ -85,6 +85,7 @@
 |ML-8949|Only one artifact is tagged as latest, resolving the MultipleResultsFound error.|
 |ML-9155|The improved performance reduces timeouts that cause restart of MLRun workers.|
 |ML-9201|Running `project.run` with `dirty=True` skips the git check for dirty.|
+|ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.|
 |ML-9257|Model monitoring: A mismatch between the serving function response and the MEP expected output is saved correctly (and does not cause the application to fail).|
 |ML-9432|Notifications no longer get stuck in "Pending" in the DB.|
 
@@ -1200,7 +1201,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-9336|Attempts to delete more than 200 artifacts fail, and you are prompted to use a more granular filter.|Configure the limit with `mlrun.mlconf.artifacts.limits.max_deletions`.|v1.8.0|
 |ML-8996|  |    |v1.8.0|
 |ML-9338|If the same project+key were created from both a hyper-param run and single run, and you removed the latest tag from everything, MLRun assigns latest to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results: it might not be the actual latest.|NA|v1.8.0|
-|
 
 
 
@@ -1236,7 +1236,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.5.0 |ML-4366 |MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu`                                                                                                                                                                            |
 | v1.5.0 |ML-3605|Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards are not supported. |
 | v1.0.0 |NA      |MLRun / Nuclio does not support python 3.6.                                                                                                                                                                                         |
-|ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.
 
 ### Deprecated APIs  
 

@@ -252,30 +252,45 @@ def test_delete_artifacts_after_storing_empty_dict(db: Session, client: TestClie
 
 
 @pytest.mark.parametrize(
-    "deletion_strategy, expected_status_code",
+    "deletion_strategy, expected_status_code, expected_status_code_for_getting_artifact",
     [
         (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_optional,
             HTTPStatus.NO_CONTENT.value,
+            # Artifact does not exist in DB after deleting data fails
+            HTTPStatus.NOT_FOUND.value,
         ),
         (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force,
             HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            # Artifact exists in DB after deleting data fails
+            HTTPStatus.OK.value,
         ),
     ],
 )
-def test_fails_deleting_artifact_data(
-    deletion_strategy, expected_status_code, db: Session, unversioned_client: TestClient
+def test_delete_artifact_data_failure(
+    deletion_strategy,
+    expected_status_code,
+    expected_status_code_for_getting_artifact,
+    unversioned_client: TestClient,
 ):
     # This test attempts to delete the artifact data, but fails - the request should
     # be failed or succeeded by the deletion strategy.
     _create_project(unversioned_client)
-    artifact = mlrun.artifacts.Artifact(key=KEY, body="123", target_path="dummy-path")
 
+    # Generate artifact
+    artifact_data = _generate_artifact_body()
     resp = unversioned_client.post(
-        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
-        data=artifact.to_json(),
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
     )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_response = resp.json()
+    artifact_uid = artifact_response["metadata"]["uid"]
+
+    # Check if the artifact is created successfully
+    artifact_url = _get_artifact_url(uid=artifact_uid)
+    resp = unversioned_client.get(artifact_url)
     assert resp.status_code == HTTPStatus.OK.value
 
     url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
@@ -289,6 +304,10 @@ def test_fails_deleting_artifact_data(
             url_with_deletion_strategy.format(deletion_strategy=deletion_strategy)
         )
     assert resp.status_code == expected_status_code
+
+    # Verify artifact exists in DB based on the deletion strategy
+    resp = unversioned_client.get(artifact_url)
+    assert resp.status_code == expected_status_code_for_getting_artifact
 
 
 def test_delete_artifact_data_default_deletion_strategy(
@@ -1212,6 +1231,63 @@ def test_list_artifacts_partition_by(db: Session, unversioned_client: TestClient
         expected_number_of_artifacts=10,
         project=projects[0],
     )
+
+
+def test_failed_to_delete_artifact_with_referenced_model_endpoint(
+    db: Session, unversioned_client: TestClient
+):
+    # Create a new project
+    _create_project(unversioned_client, project_name=PROJECT)
+
+    # Create and store a model artifact
+    # Generate artifact
+    artifact_data = _generate_artifact_body()
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_response = resp.json()
+    artifact_uid = artifact_response["metadata"]["uid"]
+
+    # Check if the artifact is created successfully
+    artifact_url = _get_artifact_url(uid=artifact_uid)
+    resp = unversioned_client.get(artifact_url)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # Create a model endpoint that references the model artifact
+    model_endpoint = mlrun.common.schemas.ModelEndpoint(
+        metadata=mlrun.common.schemas.ModelEndpointMetadata(
+            project=PROJECT,
+            name="model-endpoint",
+        ),
+        spec=mlrun.common.schemas.ModelEndpointSpec(
+            model_class="model_class",
+            _model_id=1,
+        ),
+        status=mlrun.common.schemas.ModelEndpointStatus(state="ready"),
+    )
+
+    creation_strategy = mlrun.common.schemas.ModelEndpointCreationStrategy.INPLACE
+    response = unversioned_client.post(
+        f"/projects/{PROJECT}/model-endpoints?creation_strategy={creation_strategy}",
+        json=model_endpoint.dict(),
+    )
+    assert (
+        response.status_code == HTTPStatus.CREATED.value
+    ), f"Expected 201 CREATED when creating the model endpoint, got {response.status_code}: {response.text}"
+
+    # Attempt to delete the model artifact that is still referenced by the model endpoint
+    response = unversioned_client.delete(
+        DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+    )
+    # Assert that the deletion fails with a conflict because of the reference
+    assert (
+        response.status_code == HTTPStatus.CONFLICT.value
+    ), f"Expected 409 CONFLICT when deleting an artifact in use, got {response.status_code}: {response.text}"
+    assert (
+        "The artifact is used by" in response.text
+    ), f"Expected conflict explanation in response, got: {response.text}"
 
 
 def _create_project(

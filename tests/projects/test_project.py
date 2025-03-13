@@ -1501,7 +1501,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
 
 
 @pytest.mark.parametrize(
-    "workflow_path,exception",
+    "workflow_path,exception,engine",
     [
         (
             "./",
@@ -1514,6 +1514,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                     )
                 ),
             ),
+            None,
         ),
         (
             "https://test",
@@ -1525,6 +1526,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                     )
                 ),
             ),
+            None,
         ),
         (
             "",
@@ -1532,25 +1534,48 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                 mlrun.errors.MLRunInvalidArgumentError,
                 match=str(re.escape("workflow_path must be provided.")),
             ),
+            None,
         ),
-        ("https://test.py", does_not_raise()),
+        ("https://test.py", does_not_raise(), None),
         # relative path
-        ("./workflow.py", does_not_raise()),
-        ("./assets/handler.py", does_not_raise()),
+        ("./workflow.py", does_not_raise(), None),
+        ("./assets/handler.py", does_not_raise(), None),
         # only file name
-        ("workflow.py", does_not_raise()),
-        ("assets/handler.py", does_not_raise()),
+        ("workflow.py", does_not_raise(), None),
+        ("assets/handler.py", does_not_raise(), None),
         # absolute path
         (
             str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
             does_not_raise(),
+            None,
         ),
+        # absolute path that doesn't exist
+        (
+            str(pathlib.Path("/non_existing_file.py")),
+            pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': '/non_existing_file.py'. Got a path to a non-existing file. "
+                        "Path must be absolute or relative to the project code path i.e. "
+                        "<project.spec.get_code_path()>/<workflow_path>)."
+                    )
+                ),
+            ),
+            None,
+        ),
+        # relative path with engine="remote", should not raise an error since the file does not need to exist locally
+        ("./workflow.py", does_not_raise(), "remote"),
+        ("./workflow.py", does_not_raise(), "remote:local"),
+        ("./workflow.py", does_not_raise(), "remote:kfp"),
     ],
 )
-def test_set_workflow_path_validation(chdir_to_test_location, workflow_path, exception):
+def test_set_workflow_path_validation(
+    chdir_to_test_location, workflow_path, exception, engine
+):
     proj = mlrun.new_project("proj", save=False)
     with exception:
-        proj.set_workflow("main", workflow_path)
+        proj.set_workflow("main", workflow_path, engine=engine)
 
 
 def test_set_workflow_local_engine():
@@ -2491,6 +2516,49 @@ def test_run_project_sync_functions_fails_silently(rundb_mock):
     run_status = proj.run(name)
     assert run_status.state == RunStatuses.failed
     assert "Function tstfunc not found" in str(run_status.exc)
+
+
+@pytest.mark.parametrize(
+    "engine, should_call",
+    [
+        ("remote", False),
+        ("remote:local", False),
+        ("remote:kfp", False),
+        (None, True),
+    ],
+)
+def test_run_remote_engine_not_syncing_functions(rundb_mock, engine, should_call):
+    mlrun.mlconf.force_run_local = False
+    proj = mlrun.new_project("proj", save=False)
+    proj.spec._function_definitions = {
+        "prep-data": {
+            "url": "prep_data.py",
+            "image": "mlrun/mlrun",
+            "handler": "prep_data",
+        },
+        "train": {
+            "url": "/User/some-notebook.ipynb",  # Absolute path
+            "name": "train",
+            "kind": "job",
+            "image": "mlrun/mlrun",
+            "handler": "trainer",
+        },
+    }
+    name = "my-pipeline"
+    proj.set_workflow(
+        name=name,
+        workflow_path=str(assets_path() / "localpipe.py"),
+        handler="my_pipe",
+    )
+
+    with unittest.mock.patch(
+        "mlrun.projects.project.MlrunProject.sync_functions"
+    ) as mock_sync:
+        proj.run(name, engine=engine)
+        if should_call:
+            mock_sync.assert_called_once()
+        else:
+            mock_sync.assert_not_called()
 
 
 class TestModelMonitoring:

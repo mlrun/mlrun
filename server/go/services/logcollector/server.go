@@ -29,13 +29,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mlrun/mlrun-go/pkg/common"
-	"github.com/mlrun/mlrun-go/pkg/common/bufferpool"
-	"github.com/mlrun/mlrun-go/pkg/framework"
-	protologcollector "github.com/mlrun/mlrun-go/pkg/proto/build/log_collector"
+	"github.com/mlrun/framework"
+	"github.com/mlrun/framework/common"
+	"github.com/mlrun/framework/common/bufferpool"
 
-	"github.com/mlrun/log-collector/pkg/services/logcollector/statestore"
-	"github.com/mlrun/log-collector/pkg/services/logcollector/statestore/factory"
+	protologcollector "github.com/mlrun/proto/build/log_collector"
+
+	"github.com/mlrun/services/logcollector/statestore"
+	"github.com/mlrun/services/logcollector/statestore/factory"
+
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
 	"golang.org/x/sync/errgroup"

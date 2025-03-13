@@ -856,18 +856,7 @@ class SQLDB(DBInterface):
 
         artifacts = ArtifactList()
         for artifact, artifact_tag in artifact_records:
-            artifact_struct = artifact.full_object
-            # These fields are saved in full_object as timestamps with fsp=6, while the corresponding columns
-            # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from the column
-            # (not from the full_object) to ensure the ordering is correct.
-            # In SQLite, the updated and created columns return timestamps with fsp=6.
-            artifact_struct["metadata"]["updated"] = mlrun.utils.format_datetime(
-                artifact.updated
-            )
-            artifact_struct["metadata"]["created"] = mlrun.utils.format_datetime(
-                artifact.created
-            )
-
+            artifact_struct = self._get_artifact_full_object(artifact)
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
             artifacts.append(
                 mlrun.common.formatters.ArtifactFormat.format_obj(
@@ -876,6 +865,21 @@ class SQLDB(DBInterface):
             )
 
         return artifacts
+
+    @staticmethod
+    def _get_artifact_full_object(self, artifact):
+        artifact_struct = artifact.full_object
+        # These fields are saved in full_object as timestamps with fsp=6, while the corresponding columns
+        # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from the column
+        # (not from the full_object) to ensure the ordering is correct.
+        # In SQLite, the updated and created columns return timestamps with fsp=6.
+        artifact_struct["metadata"]["updated"] = mlrun.utils.format_datetime(
+            artifact.updated
+        )
+        artifact_struct["metadata"]["created"] = mlrun.utils.format_datetime(
+            artifact.created
+        )
+        return artifact_struct
 
     def list_artifacts_for_producer_id(
         self,
@@ -894,7 +898,7 @@ class SQLDB(DBInterface):
 
         artifacts = ArtifactList()
         for artifact, artifact_tag in artifact_records:
-            artifact_struct = artifact.full_object
+            artifact_struct = self._get_artifact_full_object(artifact)
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
             artifacts.append(artifact_struct)
 
@@ -969,14 +973,15 @@ class SQLDB(DBInterface):
                     )
                 return None
 
-        artifact = db_artifact.full_object
+        if as_record:
+            return db_artifact
+
+        artifact = self._get_artifact_full_object(db_artifact)
 
         # If connected to a tag add it to metadata
         if enrich_tag:
             self._set_tag_in_artifact_struct(artifact, tag)
 
-        if as_record:
-            return db_artifact
         return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 
     def del_artifact(

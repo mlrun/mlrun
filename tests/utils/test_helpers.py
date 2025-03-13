@@ -1440,16 +1440,26 @@ def test_datetime_from_iso(input_time, expected_output):
 @pytest.mark.parametrize(
     "dt, expected",
     [
-        (datetime(2025, 3, 13, 7, 48, 6, 930210), "2025-03-13 07:48:06.930210+00:00"),
+        # Test for naive datetime (without tzinfo), should be set to UTC
+        (datetime(2025, 3, 13, 12, 30, 45, 123456), "2025-03-13 12:30:45.123456+00:00"),
+        # Test for datetime with UTC timezone info
         (
-            datetime(2025, 3, 13, 7, 48, 6, 930210, tzinfo=timezone.utc),
-            "2025-03-13 07:48:06.930210+00:00",
+            datetime(2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone.utc),
+            "2025-03-13 12:30:45.123456+00:00",
         ),
+        # Test for datetime with a non-UTC timezone offset (+05:00)
         (
             datetime(
-                2025, 3, 13, 7, 48, 6, 930210, tzinfo=timezone(timedelta(hours=2))
+                2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone(timedelta(hours=5))
             ),
-            "2025-03-13 05:48:06.930210+00:00",
+            "2025-03-13 07:30:45.123456+00:00",
+        ),
+        # Test for datetime with a timezone offset (+02:00)
+        (
+            datetime(
+                2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone(timedelta(hours=2))
+            ),
+            "2025-03-13 10:30:45.123456+00:00",
         ),
     ],
 )

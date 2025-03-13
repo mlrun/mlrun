@@ -1376,9 +1376,6 @@ def format_datetime(dt: datetime) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
 
-    if dt.tzinfo != timezone.utc:
-        dt = dt.astimezone(timezone.utc)
-
     # TODO: Once Python 3.12 is the minimal version, use %:z to format the timezone offset with a colon
     formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S.%f%z")
 

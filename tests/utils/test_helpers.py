@@ -1447,19 +1447,19 @@ def test_datetime_from_iso(input_time, expected_output):
             datetime(2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone.utc),
             "2025-03-13 12:30:45.123456+00:00",
         ),
-        # Test for datetime with a non-UTC timezone offset (+05:00)
+        # Test for datetime with a non-UTC timezone offset (+05:00), should keep the original timezone
         (
             datetime(
                 2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone(timedelta(hours=5))
             ),
-            "2025-03-13 07:30:45.123456+00:00",
+            "2025-03-13 12:30:45.123456+05:00",
         ),
-        # Test for datetime with a timezone offset (+02:00)
+        # Test for datetime with a timezone offset (+02:00), should keep the original timezone
         (
             datetime(
                 2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone(timedelta(hours=2))
             ),
-            "2025-03-13 10:30:45.123456+00:00",
+            "2025-03-13 12:30:45.123456+02:00",
         ),
     ],
 )

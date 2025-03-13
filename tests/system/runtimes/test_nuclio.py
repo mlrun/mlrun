@@ -422,7 +422,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         time.sleep(20)  # wait for ingestion-service parquet to be written
 
         vec = fstore.FeatureVector("test-vec", [f"{fs_name}.*"])
-        resp = fstore.get_offline_features(feature_vector=vec, with_indexes=True)
+        resp = vec.get_offline_features(with_indexes=True)
         actual_df = resp.to_dataframe()
 
         print(actual_df)

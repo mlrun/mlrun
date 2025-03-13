@@ -1377,8 +1377,6 @@ def format_datetime(dt: datetime) -> str:
 
     # Convert to UTC timezone
     with_timezone = dt.astimezone(timezone.utc)
-
-    # Format as requested
     formatted_time = with_timezone.strftime("%Y-%m-%d %H:%M:%S.%f%z")
 
     # Replace the "+" sign with the ":"

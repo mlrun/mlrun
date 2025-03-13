@@ -856,7 +856,7 @@ class SQLDB(DBInterface):
 
         artifacts = ArtifactList()
         for artifact, artifact_tag in artifact_records:
-            artifact_struct = self._get_artifact_full_object(artifact)
+            artifact_struct = artifact.full_object
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
             artifacts.append(
                 mlrun.common.formatters.ArtifactFormat.format_obj(
@@ -898,7 +898,7 @@ class SQLDB(DBInterface):
 
         artifacts = ArtifactList()
         for artifact, artifact_tag in artifact_records:
-            artifact_struct = self._get_artifact_full_object(artifact)
+            artifact_struct = artifact.full_object
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
             artifacts.append(artifact_struct)
 
@@ -976,7 +976,7 @@ class SQLDB(DBInterface):
         if as_record:
             return db_artifact
 
-        artifact = self._get_artifact_full_object(db_artifact)
+        artifact = db_artifact.full_object
 
         # If connected to a tag add it to metadata
         if enrich_tag:

@@ -22,8 +22,8 @@ from mlrun import MlrunProject
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfileKafkaSource,
-    DatastoreProfileV3io,
     DatastoreProfileTDEngine,
+    DatastoreProfileV3io,
 )
 from tests.system.base import TestMLRunSystem
 

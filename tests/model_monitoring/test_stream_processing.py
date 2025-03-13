@@ -19,8 +19,8 @@ import mlrun.model_monitoring
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfileKafkaSource,
-    DatastoreProfileV3io,
     DatastoreProfileTDEngine,
+    DatastoreProfileV3io,
 )
 from mlrun.model_monitoring.stream_processing import EventStreamProcessor
 

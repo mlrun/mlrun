@@ -861,12 +861,13 @@ class SQLDB(DBInterface):
             # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from the column
             # (not from the full_object) to ensure the ordering is correct.
             # In SQLite, the updated and created columns return timestamps with fsp=6.
-            artifact_struct["metadata"]["updated"] = artifact.updated.strftime(
-                "%Y-%m-%d %H:%M:%S.%f"
+            artifact_struct["metadata"]["updated"] = mlrun.utils.format_datetime(
+                artifact.updated
             )
-            artifact_struct["metadata"]["created"] = artifact.created.strftime(
-                "%Y-%m-%d %H:%M:%S.%f"
+            artifact_struct["metadata"]["created"] = mlrun.utils.format_datetime(
+                artifact.created
             )
+
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
             artifacts.append(
                 mlrun.common.formatters.ArtifactFormat.format_obj(

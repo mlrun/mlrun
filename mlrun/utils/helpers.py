@@ -1371,6 +1371,20 @@ def has_timezone(timestamp):
         return False
 
 
+def format_datetime(dt: datetime) -> str:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    # Convert to UTC timezone
+    with_timezone = dt.astimezone(timezone.utc)
+
+    # Format as requested
+    formatted_time = with_timezone.strftime("%Y-%m-%d %H:%M:%S.%f%z")
+
+    # Replace the "+" sign with the ":"
+    return formatted_time[:-2] + ":" + formatted_time[-2:]
+
+
 def as_list(element: Any) -> list[Any]:
     return element if isinstance(element, list) else [element]
 

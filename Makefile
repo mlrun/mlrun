@@ -582,6 +582,7 @@ test: clean ## Run mlrun tests
 		-rf tests/feature-store/test_common.py
 	if [ "$(COVERAGE)" = "true" ]; then \
 		echo "Unit test coverage report:"; \
+		python -m coverage xml --data-file=tests/coverage_reports/unit_tests.coverage -o tests/coverage_reports/unit_tests.xml
 		COVERAGE_FILE=tests/coverage_reports/unit_tests.coverage coverage report --rcfile=tests/tests.coveragerc; \
 	fi;
 

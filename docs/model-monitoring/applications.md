@@ -4,6 +4,7 @@
 **In this section**
 - [Basics](#basics)
 - [Using the application context](#using-the-application-context)
+- [Testing your application  before deploying it](#testing-your-application-before-deploying-it)
 - [Evidently-based application](#evidently-based-application)
 
 ## Basics
@@ -46,14 +47,50 @@ The application class may implement a custom `__init__` constructor with argumen
 
 To register and deploy the application see {ref}`register-model-monitoring-app`.
 
-## Testing your application 
+## Testing your application before deploying it
 
-You can run and debug your application by running it as a job with data but without a model endpoint or datastore profiles. 
-You can check that the code runs with data, and you can debug it. This method is more efficient in terms of infrastructure. 
+You can evaluate a model using the MLRun model monitoring tool during development, without deploying the actual model. This reduces   
+the time required to refine your model before deploying. You run and debug your application by running it on a mock server as a job 
+with data, but without a model endpoint or datastore profiles. 
+The monitoring creates metrics that assist you in understanding and refining the model behavior. 
 You can use this flow for both local and remote.
-Use {py:method}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.evaluate` to test your code. 
-When you are satisfied with the application, just use {py:method}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.to_job` to run it as a job. 
+Use {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.evaluate` to test your code. 
+When you are satisfied with the application, just use {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.to_job` to run it as a job. 
 
+
+For example, run the application:
+```python
+%%writefile Myapp.py
+import mlrun
+from mlrun.model_monitoring.applications import (
+    ModelMonitoringApplicationBase,ModelMonitoringApplicationMetric,ModelMonitoringApplicationResult
+)
+class MyApp(ModelMonitoringApplicationBase):
+    """User code"""
+
+    def do_tracking(self, monitoring_context): 
+            print(monitoring_context.__dict__)
+            results = [ModelMonitoringApplicationMetric(name="test_metric",value=0.1),
+                    ModelMonitoringApplicationResult(name="test_result",value=0.2,
+                                         kind=mlrun.common.schemas.model_monitoring.constants.ResultKindApp.system_performance,
+                                        status=mlrun.common.schemas.model_monitoring.constants.ResultStatusApp.no_detection)]
+            return results
+
+from Myapp import MyApp
+
+
+MyApp.evaluate(
+    func_path="Myapp.py",run_local=False,sample_data=pd.DataFrame({"col":[1,2,3,4]}),
+    image="docker.io/mlrun/mlrun:1.8.0",
+)
+```
+After you have fine-tuned the model, deploy it:
+```python
+app_fn = MyApp.to_job(
+    func_path="Myapp.py", func_name="run-me-in-wf",
+    image="docker.io/mlrun/mlrun:1.8.0",
+)
+```
 
 
 ## Using the application context

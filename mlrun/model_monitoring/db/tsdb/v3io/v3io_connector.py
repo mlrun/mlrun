@@ -154,7 +154,8 @@ class V3IOTSDBConnector(TSDBConnector):
         - metrics: a basic key value that represents a single numeric metric.
         - events: A statistics table that includes pre-aggregated metrics (such as average latency over the
         last 5 minutes) and data samples
-        - predictions: a detailed prediction that includes latency, request timestamp, etc.
+        - predictions: a detailed prediction that includes latency, request timestamp, etc. This table also
+        includes pre-aggregated operations such as count and average on 1 minute granularity.
         - errors: a detailed error that includes error desc, error type, etc.
 
         """

@@ -132,12 +132,12 @@ jobs:
         pip install diff-cover
     - name: Run diff-cover to check PR changes
       run: |
-        diff-cover /tmp/coverage_reports/unit_tests/unit_tests.xml --compare-branch development --html-report /tmp/coverage_reports/unit_tests/unit_tests_diff.xml
+        diff-cover /tmp/coverage_reports/unit_tests/unit_tests.xml --compare-branch development --html-report /tmp/coverage_reports/unit_tests/unit_tests_diff.html
     - name: Upload coverage diff report xml
       uses: actions/upload-artifact@v4
       with:
         name: coverage_unit_tests_diff_report-${{ matrix.python-version }}-${{ github.run_id }}
-        path: /tmp/coverage_reports/unit_tests/unit_tests_diff.xml
+        path: /tmp/coverage_reports/unit_tests/unit_tests_diff.html
         retention-days: 90
 ##
 ##  integration-tests:

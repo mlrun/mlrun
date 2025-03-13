@@ -563,7 +563,7 @@ test: clean ## Run mlrun tests
 		$$IGNORE_ADDITION \
 		--forked \
 		-rf \
-		-v $$UNIT_TEST_PATH
+		$$UNIT_TEST_PATH
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test ## Run mlrun integration tests in docker container

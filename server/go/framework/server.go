@@ -21,7 +21,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/mlrun/mlrun-go/pkg/proto/build/health"
+	"github.com/mlrun/proto/build/health"
 
 	grpcrecovery "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/nuclio/errors"

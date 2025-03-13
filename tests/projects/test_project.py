@@ -2518,6 +2518,49 @@ def test_run_project_sync_functions_fails_silently(rundb_mock):
     assert "Function tstfunc not found" in str(run_status.exc)
 
 
+@pytest.mark.parametrize(
+    "engine, should_call",
+    [
+        ("remote", False),
+        ("remote:local", False),
+        ("remote:kfp", False),
+        (None, True),
+    ],
+)
+def test_run_remote_engine_not_syncing_functions(rundb_mock, engine, should_call):
+    mlrun.mlconf.force_run_local = False
+    proj = mlrun.new_project("proj", save=False)
+    proj.spec._function_definitions = {
+        "prep-data": {
+            "url": "prep_data.py",
+            "image": "mlrun/mlrun",
+            "handler": "prep_data",
+        },
+        "train": {
+            "url": "/User/some-notebook.ipynb",  # Absolute path
+            "name": "train",
+            "kind": "job",
+            "image": "mlrun/mlrun",
+            "handler": "trainer",
+        },
+    }
+    name = "my-pipeline"
+    proj.set_workflow(
+        name=name,
+        workflow_path=str(assets_path() / "localpipe.py"),
+        handler="my_pipe",
+    )
+
+    with unittest.mock.patch(
+        "mlrun.projects.project.MlrunProject.sync_functions"
+    ) as mock_sync:
+        proj.run(name, engine=engine)
+        if should_call:
+            mock_sync.assert_called_once()
+        else:
+            mock_sync.assert_not_called()
+
+
 class TestModelMonitoring:
     """Test model monitoring project methods"""
 

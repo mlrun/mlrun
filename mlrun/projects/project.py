@@ -3484,7 +3484,7 @@ class MlrunProject(ModelObj):
                 "Remote repo is not defined, use .create_remote() + push()"
             )
 
-        if engine not in ["remote"] and not schedule:
+        if (engine is None or not engine.startswith("remote")) and not schedule:
             # For remote/scheduled runs there is no need to sync functions as they can be loaded dynamically during run
             self.sync_functions(always=sync, silent=True)
             if not self.spec._function_objects:

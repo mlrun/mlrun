@@ -133,8 +133,8 @@ jobs:
         pip install diff-cover
     - name: Run diff-cover to check PR changes
       run: |
-        diff-cover /tmp/coverage_reports/unit_tests/unit_tests.xml --compare-branch origin/development --show-uncovered && \
-        diff-cover /tmp/coverage_reports/unit_tests/unit_tests.xml --compare-branch origin/development --html-report /tmp/coverage_reports/unit_tests/unit_tests_diff.html
+        diff-cover /tmp/coverage_reports/unit_tests/unit_tests.xml --compare-branch origin/development --show-uncovered \
+        --html-report /tmp/coverage_reports/unit_tests/unit_tests_diff.html
     - name: Upload coverage diff report xml
       uses: actions/upload-artifact@v4
       with:

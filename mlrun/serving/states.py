@@ -1800,17 +1800,13 @@ def params_to_step(
     class_args = class_args or {}
 
     if isinstance(class_name, QueueStep):
-        if not class_name.path:
-            raise MLRunInvalidArgumentError(
-                "path=<stream path or None> must be specified for queues"
-            )
         if not name or class_name.name:
             raise MLRunInvalidArgumentError("queue name must be specified")
 
         step = class_name
 
     elif class_name in queue_class_names:
-        if not class_args.get("path"):
+        if "path" not in class_args:
             raise MLRunInvalidArgumentError(
                 "path=<stream path or None> must be specified for queues"
             )

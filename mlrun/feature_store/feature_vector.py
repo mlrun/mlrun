@@ -26,11 +26,12 @@ import mlrun
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
-from ..datastore.targets import get_offline_target
+from ..datastore.targets import BaseStoreTarget, get_offline_target
 from ..feature_store.common import (
     get_feature_set_by_uri,
     parse_feature_string,
     parse_project_name_from_feature_string,
+    verify_feature_vector_permissions,
 )
 from ..feature_store.feature_set import FeatureSet
 from ..features import Entity, Feature
@@ -47,6 +48,21 @@ from ..runtimes.function_reference import FunctionReference
 from ..serving.states import RootFlowStep
 from ..utils import StorePrefix
 from .common import RunConfig
+from .retrieval import get_merger, run_merge_job
+
+
+def _features_to_vector_and_check_permissions(features: "FeatureVector", update_stats):
+    vector = features
+    if not vector.metadata.name:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "feature vector name must be specified"
+        )
+    verify_feature_vector_permissions(
+        vector, mlrun.common.schemas.AuthorizationAction.update
+    )
+
+    vector.save()
+    return vector
 
 
 class FeatureVectorSpec(ModelObj):
@@ -809,25 +825,69 @@ class FeatureVector(ModelObj):
                             https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetDataset.html
 
         """
+        if entity_rows is None and entity_timestamp_column is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "entity_timestamp_column param "
+                "can not be specified without entity_rows param"
+            )
 
-        return mlrun.feature_store.api._get_offline_features(
-            self,
+        if isinstance(target, BaseStoreTarget) and not target.support_pandas:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"get_offline_features does not support targets that do not support pandas engine."
+                f" Target kind: {target.kind}"
+            )
+
+        if update_stats:
+            feature_vector = _features_to_vector_and_check_permissions(
+                self, update_stats
+            )
+        else:
+            feature_vector = self
+            verify_feature_vector_permissions(
+                feature_vector, mlrun.common.schemas.AuthorizationAction.read
+            )
+
+        entity_timestamp_column = (
+            entity_timestamp_column or feature_vector.spec.timestamp_field
+        )
+
+        merger_engine = get_merger(engine)
+
+        if run_config and not run_config.local:
+            return run_merge_job(
+                feature_vector,
+                target,
+                merger_engine,
+                engine,
+                engine_args,
+                spark_service,
+                entity_rows,
+                entity_timestamp_column=entity_timestamp_column,
+                run_config=run_config,
+                drop_columns=drop_columns,
+                with_indexes=with_indexes,
+                query=query,
+                order_by=order_by,
+                start_time=start_time,
+                end_time=end_time,
+                timestamp_for_filtering=timestamp_for_filtering,
+                additional_filters=additional_filters,
+            )
+
+        merger = merger_engine(feature_vector, **(engine_args or {}))
+        return merger.start(
             entity_rows,
             entity_timestamp_column,
-            target,
-            run_config,
-            drop_columns,
-            start_time,
-            end_time,
-            with_indexes,
-            update_stats,
-            engine,
-            engine_args,
-            query,
-            order_by,
-            spark_service,
-            timestamp_for_filtering,
-            additional_filters,
+            target=target,
+            drop_columns=drop_columns,
+            start_time=start_time,
+            end_time=end_time,
+            timestamp_for_filtering=timestamp_for_filtering,
+            with_indexes=with_indexes,
+            update_stats=update_stats,
+            query=query,
+            order_by=order_by,
+            additional_filters=additional_filters,
         )
 
     def get_online_feature_service(
@@ -837,7 +897,7 @@ class FeatureVector(ModelObj):
         impute_policy: typing.Optional[dict] = None,
         update_stats: bool = False,
         entity_keys: typing.Optional[list[str]] = None,
-    ):
+    ) -> "OnlineVectorService":
         """initialize and return online feature vector service api,
         returns :py:class:`~mlrun.feature_store.OnlineVectorService`
 
@@ -900,13 +960,16 @@ class FeatureVector(ModelObj):
         :return:                    Initialize the `OnlineVectorService`.
                                     Will be used in subclasses where `support_online=True`.
         """
-        return mlrun.feature_store.api._get_online_feature_service(
-            self,
-            run_config,
-            fixed_window_type,
-            impute_policy,
-            update_stats,
-            entity_keys,
+        feature_vector = _features_to_vector_and_check_permissions(self, True)
+
+        engine_args = {"impute_policy": impute_policy}
+        merger_engine = get_merger("storey")
+        # todo: support remote service (using remote nuclio/mlrun function if run_config)
+
+        merger = merger_engine(feature_vector, **engine_args)
+
+        return merger.init_online_vector_service(
+            entity_keys, fixed_window_type, update_stats=True
         )
 
 

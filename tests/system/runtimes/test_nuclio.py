@@ -75,12 +75,15 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         model_runner_step = ModelRunnerStep()
         model_runner_step.add_model("DummyModel", name="my-model")
 
-        graph.to(model_runner_step)
+        graph.to(model_runner_step).respond()
 
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
 
         assert deployment == function.get_url()  # check function url
+
+        resp = function.invoke("/", {"x": "y"})
+        assert resp == {"x": "y", "extra": 123}
 
     # Nuclio sometimes passes b'' instead of None due to dirty memory
     def test_workaround_for_nuclio_bug(self):

@@ -44,7 +44,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
-from sqlalchemy.orm import Session, aliased, joinedload
+from sqlalchemy.orm import Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 import mlrun
@@ -958,14 +958,15 @@ class SQLDB(DBInterface):
                     )
                 return None
 
+        if as_record:
+            return db_artifact
+
         artifact = db_artifact.full_object
 
         # If connected to a tag add it to metadata
         if enrich_tag:
             self._set_tag_in_artifact_struct(artifact, tag)
 
-        if as_record:
-            return db_artifact
         return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 
     def del_artifact(
@@ -1696,8 +1697,11 @@ class SQLDB(DBInterface):
         if limit:
             # Order the results before applying the limit to ensure that the limit is applied to the correctly
             # ordered results.
+            # If the updated fields are the same, we need a secondary field to sort by.
             query = self._paginate_query(
-                query.order_by(ArtifactV2.updated.desc()), offset, limit
+                query.order_by(ArtifactV2.updated.desc(), ArtifactV2.id.desc()),
+                offset,
+                limit,
             )
 
         # limit operation loads all the results before performing the actual limiting,
@@ -1711,7 +1715,10 @@ class SQLDB(DBInterface):
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
         # join may lose order, make sure order is applied on outer as well
-        outer_query = outer_query.order_by(ArtifactV2.updated.desc())
+        # If the updated fields are the same, we need a secondary field to sort by.
+        outer_query = outer_query.order_by(
+            ArtifactV2.updated.desc(), ArtifactV2.id.desc()
+        )
 
         if not limit:
             outer_query = self._paginate_query(outer_query, offset, limit=None)
@@ -5180,11 +5187,16 @@ class SQLDB(DBInterface):
         _get_query: bool = False,
     ):
         query = (
-            session.query(cls)
+            session.query(ModelEndpoint)
             .options(
-                joinedload(cls.function),
-                joinedload(cls.model),
-                joinedload(cls.tags),
+                selectinload(ModelEndpoint.function).options(
+                    load_only("name", "state", "project", "uid"),
+                    selectinload(Function.tags),
+                ),
+                selectinload(ModelEndpoint.model).options(
+                    load_only("key", "project", "iteration", "producer_id", "uid")
+                ),
+                selectinload(ModelEndpoint.tags),
             )
             .filter(cls.project == project, cls.name == name)
         )
@@ -5218,11 +5230,16 @@ class SQLDB(DBInterface):
         _get_query=False,
     ) -> typing.Union[sqlalchemy.orm.Query, list[ModelEndpoint]]:
         query = (
-            session.query(cls)
+            session.query(ModelEndpoint)
             .options(
-                joinedload(cls.function),
-                joinedload(cls.model),
-                joinedload(cls.tags),
+                selectinload(ModelEndpoint.function).options(
+                    load_only("name", "state", "project", "uid"),
+                    selectinload(Function.tags),
+                ),
+                selectinload(ModelEndpoint.model).options(
+                    load_only("key", "project", "iteration", "producer_id", "uid")
+                ),
+                selectinload(ModelEndpoint.tags),
             )
             .filter(cls.project == project, cls.name == name)
         )
@@ -5511,12 +5528,21 @@ class SQLDB(DBInterface):
         :param limit: SQL query limit.
         :param order_by: Column name for ordering results.
         """
+        # Query explanation:
+        # - selectinload is used to efficiently load related objects in batches, avoiding unnecessary extra queries.
+        # - load_only restricts the fields retrieved from the related entities to improve performance.
+        # - This query ensures all necessary related data is fetched upfront with minimal database overhead.
         query = (
             session.query(ModelEndpoint)
             .options(
-                joinedload(ModelEndpoint.function),
-                joinedload(ModelEndpoint.model),
-                joinedload(ModelEndpoint.tags),
+                selectinload(ModelEndpoint.function).options(
+                    load_only("name", "state", "project", "uid"),
+                    selectinload(Function.tags),
+                ),
+                selectinload(ModelEndpoint.model).options(
+                    load_only("key", "project", "iteration", "producer_id", "uid")
+                ),
+                selectinload(ModelEndpoint.tags),
             )
             .filter(ModelEndpoint.project == project)
         )
@@ -5777,7 +5803,6 @@ class SQLDB(DBInterface):
                     hash_key=model_endpoint_record.function.uid,
                 )
             )
-
         else:
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_NAME] = ""
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG] = ""

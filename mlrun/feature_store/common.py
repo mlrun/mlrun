@@ -336,3 +336,16 @@ class RunConfig:
 
     def copy(self):
         return copy(self)
+
+
+def dummy_function(x):
+    """A simple dummy function that performs basic operations."""
+    y = x * 2
+    z = y + 10
+    result = z / 2
+    if result > 10:
+        return "High"
+    elif result < 5:
+        return "Low"
+    else:
+        return "Medium"

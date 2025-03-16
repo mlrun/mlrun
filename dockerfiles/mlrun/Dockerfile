@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG MLRUN_PYTHON_VERSION=3.9
+ARG MLRUN_PYTHON_VERSION=3.12
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
@@ -39,7 +39,7 @@ WORKDIR /mlrun
 RUN chmod 777 /mlrun
 
 # Install MiniConda:
-ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py39"
+ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py312"
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_25.1.1-2-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \
     rm ~/installconda.sh && \

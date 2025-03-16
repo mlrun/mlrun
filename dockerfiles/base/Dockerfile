@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-ARG MLRUN_PYTHON_VERSION=3.9
+ARG MLRUN_PYTHON_VERSION=3.12
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
@@ -41,8 +41,8 @@ WORKDIR /mlrun
 # non-recursive chmod for the run to be able to create the handler file with any security context
 RUN chmod 777 /mlrun
 
-# Install MiniConda (Python 3.9):
-ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py39"
+# Install MiniConda (Python 3.12):
+ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py312"
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_25.1.1-2-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \
     rm ~/installconda.sh && \
@@ -59,7 +59,7 @@ RUN conda install -y -n base conda-libmamba-solver && \
     conda clean -aqy
 
 # need to be redeclared since used in the from
-ARG MLRUN_PYTHON_VERSION=3.9
+ARG MLRUN_PYTHON_VERSION=3.12
 ARG MLRUN_PIP_VERSION=25.0
 
 # use /usr/local/bin/python to ensure system pip is also upgraded

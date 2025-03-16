@@ -505,7 +505,7 @@ class FeatureVector(ModelObj):
         start_time: typing.Optional[Union[str, datetime]] = None,
         end_time: typing.Optional[Union[str, datetime]] = None,
         with_indexes: bool = False,
-        update_stats: bool = False,
+        update_stats: bool = True,
         engine: typing.Optional[str] = None,
         engine_args: typing.Optional[dict] = None,
         query: typing.Optional[str] = None,
@@ -555,8 +555,9 @@ class FeatureVector(ModelObj):
                                         columns. This property can be specified also in the feature vector spec
                                         (feature_vector.spec.with_indexes)
                                         (default False)
-        :param update_stats:            update features statistics from the requested feature sets on the vector.
-                                        (default False).
+        :param update_stats:            When set to True (default), updates feature statistics from the requested
+                                        feature sets on the vector, which requires 'update' permissions. When set to
+                                        False, uses read-only operations that only require 'read' permissions.
         :param engine:                  processing engine kind ("local", "dask", or "spark")
         :param engine_args:             kwargs for the processing engine
         :param query:                   The query string used to filter rows on the output

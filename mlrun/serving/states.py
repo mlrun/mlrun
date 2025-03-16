@@ -1003,7 +1003,7 @@ class ModelRunnerStep(TaskStep):
         )
 
 
-class QueueStep(BaseStep):
+class QueueStep(BaseStep, StepToDict):
     """queue step, implement an async queue or represent a stream"""
 
     kind = "queue"
@@ -1799,7 +1799,26 @@ def params_to_step(
 
     class_args = class_args or {}
 
-    if class_name and hasattr(class_name, "to_dict"):
+    is_queue_step = isinstance(class_name, QueueStep)
+
+    if is_queue_step:
+        name = class_name.name
+
+    if is_queue_step or class_name in queue_class_names:
+        path = class_name.path if is_queue_step else class_args.get("path")
+        if not path:
+            raise MLRunInvalidArgumentError(
+                "path=<stream path or None> must be specified for queues"
+            )
+        if not name:
+            raise MLRunInvalidArgumentError("queue name must be specified")
+        # Pass full_event on only if it's explicitly defined
+        if full_event is not None:
+            class_args = class_args.copy()
+            class_args["full_event"] = full_event
+        step = QueueStep(name, **class_args)
+
+    elif class_name and hasattr(class_name, "to_dict"):
         struct = class_name.to_dict()
         kind = struct.get("kind", StepKinds.task)
         name = name or struct.get("name", struct.get("class_name"))
@@ -1812,19 +1831,6 @@ def params_to_step(
         if kind == StepKinds.task:
             step.model_endpoint_creation_strategy = model_endpoint_creation_strategy
             step.endpoint_type = endpoint_type
-
-    elif class_name and class_name in queue_class_names:
-        if "path" not in class_args:
-            raise MLRunInvalidArgumentError(
-                "path=<stream path or None> must be specified for queues"
-            )
-        if not name:
-            raise MLRunInvalidArgumentError("queue name must be specified")
-        # Pass full_event on only if it's explicitly defined
-        if full_event is not None:
-            class_args = class_args.copy()
-            class_args["full_event"] = full_event
-        step = QueueStep(name, **class_args)
 
     elif class_name and class_name.startswith("*"):
         routes = class_args.get("routes", None)

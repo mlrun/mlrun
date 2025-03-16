@@ -1371,6 +1371,18 @@ def has_timezone(timestamp):
         return False
 
 
+def format_datetime(dt: datetime) -> str:
+    # If the datetime is naive
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    # TODO: Once Python 3.12 is the minimal version, use %:z to format the timezone offset with a colon
+    formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S.%f%z")
+
+    # For versions earlier than Python 3.12, we manually insert the colon in the timezone offset
+    return formatted_time[:-2] + ":" + formatted_time[-2:]
+
+
 def as_list(element: Any) -> list[Any]:
     return element if isinstance(element, list) else [element]
 

@@ -528,7 +528,7 @@ def _deploy_function(
             db_session,
             fn,
         )
-        fn.save(versioned=True)
+        fn.save(versioned=False)
         logger.info("Resolved function", fn=fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())

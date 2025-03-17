@@ -958,14 +958,15 @@ class SQLDB(DBInterface):
                     )
                 return None
 
+        if as_record:
+            return db_artifact
+
         artifact = db_artifact.full_object
 
         # If connected to a tag add it to metadata
         if enrich_tag:
             self._set_tag_in_artifact_struct(artifact, tag)
 
-        if as_record:
-            return db_artifact
         return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 
     def del_artifact(
@@ -1696,8 +1697,11 @@ class SQLDB(DBInterface):
         if limit:
             # Order the results before applying the limit to ensure that the limit is applied to the correctly
             # ordered results.
+            # If the updated fields are the same, we need a secondary field to sort by.
             query = self._paginate_query(
-                query.order_by(ArtifactV2.updated.desc()), offset, limit
+                query.order_by(ArtifactV2.updated.desc(), ArtifactV2.id.desc()),
+                offset,
+                limit,
             )
 
         # limit operation loads all the results before performing the actual limiting,
@@ -1711,7 +1715,10 @@ class SQLDB(DBInterface):
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
         # join may lose order, make sure order is applied on outer as well
-        outer_query = outer_query.order_by(ArtifactV2.updated.desc())
+        # If the updated fields are the same, we need a secondary field to sort by.
+        outer_query = outer_query.order_by(
+            ArtifactV2.updated.desc(), ArtifactV2.id.desc()
+        )
 
         if not limit:
             outer_query = self._paginate_query(outer_query, offset, limit=None)

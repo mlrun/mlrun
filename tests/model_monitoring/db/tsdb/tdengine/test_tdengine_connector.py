@@ -25,7 +25,7 @@ from mlrun.common.schemas.model_monitoring import (
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricType,
 )
-from mlrun.datastore.datastore_profile import TDEngineDatastoreProfile
+from mlrun.datastore.datastore_profile import DatastoreProfileTDEngine
 from mlrun.model_monitoring.db.tsdb.tdengine import TDEngineConnector
 
 project = "test-tdengine-connector"
@@ -45,7 +45,7 @@ def is_tdengine_defined() -> bool:
 def connector() -> Iterator[TDEngineConnector]:
     connection = taosws.connect(connection_string)
     drop_database(connection)
-    profile = TDEngineDatastoreProfile.from_dsn(
+    profile = DatastoreProfileTDEngine.from_dsn(
         profile_name="mm-profile", dsn=connection_string
     )
     conn = TDEngineConnector(project, profile=profile, database=database)

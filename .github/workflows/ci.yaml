@@ -331,8 +331,6 @@ jobs:
     - name: Install All Requirements ${{ matrix.python-version }}
       run: make install-all-requirements
 
-
-
   coverage:
     name: Full coverage
     runs-on: ubuntu-latest

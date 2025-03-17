@@ -92,8 +92,6 @@ jobs:
         python-version: ["3.9", "3.12"]
     steps:
     - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
@@ -128,19 +126,7 @@ jobs:
         name: coverage_unit_tests_report-${{ matrix.python-version }}-${{ github.run_id }}
         path: /tmp/coverage_reports/unit_tests/unit_tests.coverage
         retention-days: 90
-    - name: install diff-cover
-      run: |
-        pip install diff-cover
-    - name: Run diff-cover to check PR changes
-      run: |
-        diff-cover /tmp/coverage_reports/unit_tests/unit_tests.xml --compare-branch origin/development --show-uncovered \
-        --html-report /tmp/coverage_reports/unit_tests/unit_tests_diff.html
-    - name: Upload coverage diff report xml
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage_unit_tests_diff_report-${{ matrix.python-version }}-${{ github.run_id }}
-        path: /tmp/coverage_reports/unit_tests/unit_tests_diff.html
-        retention-days: 90
+
 
   integration-tests:
     name: Run Dockerized Integration Tests
@@ -336,7 +322,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [tests, integration-tests, migrations-tests]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -375,4 +363,18 @@ jobs:
         with:
           name: coverage_combined_report-${{ github.run_id }}
           path: tests/coverage_reports/combined.coverage
+          retention-days: 90
+
+      - name: install diff-cover
+        run: |
+          pip install diff-cover
+      - name: Run diff-cover to check PR changes
+        run: |
+          diff-cover tests/coverage_reports/combined.xml --compare-branch origin/development --show-uncovered \
+          --html-report tests/coverage_reports/combined_diff.html
+      - name: Upload coverage diff report xml
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage_combined_diff_report-${{ matrix.python-version }}-3.9
+          path: tests/coverage_reports/combined_diff.html
           retention-days: 90

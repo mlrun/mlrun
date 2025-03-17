@@ -10,6 +10,7 @@
 - [Multi-port predictions](#multi-port-predictions)
 - [Batch inputs](#batch-inputs)
 - [Alerts and notifications](#alerts-and-notifications)
+- [Scale limitations](#scale-limitations)
 
 ## Overview
 
@@ -127,3 +128,14 @@ See an example of batch input in the [Serving pre-trained ML/DL models](../tutor
 
 You can set up {ref}`alerts` to inform you about suspected and detected issues in the model monitoring functions. 
 And you can use {ref}`notifications` to notify about the status of runs and pipelines.
+
+## Scale limitations
+
+General note: when referring to application results, this ticket refers to both metrics and results.
+- Number of MEP application results within a project = MEP *  sum (MM application’s results within the project)  should be < 50K. For example, this can be 5000MEP with 10 results or 1000 with 50 results.
+- Every project with MM enabled takes at least 3 system pods: stream (might have replication), controller, writer. And a pod per application (including the histogram app). By default 4 workers per app (configurable, config applies to all apps).
+- Number of projects and number of MEP per project affects
+Soft Limits
+- Max MEP supported: 5K per project.
+- Number of MM applications per project: 10.
+- Number of results: 20 per app.

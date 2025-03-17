@@ -28,7 +28,7 @@ import mlrun.serving
 import mlrun.utils
 from mlrun.artifacts import Artifact, DatasetArtifact, ModelArtifact, get_model
 from mlrun.common.model_monitoring.helpers import FeatureStats
-from mlrun.common.schemas import ModelEndpoint
+from mlrun.common.schemas import FeatureSet, ModelEndpoint
 from mlrun.model_monitoring.helpers import (
     calculate_inputs_statistics,
 )
@@ -59,6 +59,7 @@ class MonitoringApplicationContext:
         model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
         sample_df: Optional[pd.DataFrame] = None,
         feature_stats: Optional[FeatureStats] = None,
+        feature_sets_dict: Optional[dict[str, FeatureSet]] = None,
     ) -> None:
         """
         The :code:`MonitoringApplicationContext` object holds all the relevant information for the
@@ -77,6 +78,7 @@ class MonitoringApplicationContext:
         :param end_infer_time:          (pd.Timestamp) End time of the monitoring schedule.
         :param latest_request:          (pd.Timestamp) Timestamp of the latest request on this endpoint_id.
         :param endpoint_id:             (str) ID of the monitored model endpoint
+        :param feature_set:              (FeatureSet) the model endpoint feature set
         :param endpoint_name:           (str) Name of the monitored model endpoint
         :param output_stream_uri:       (str) URI of the output stream for results
         :param model_endpoint:          (ModelEndpoint) The model endpoint object.
@@ -123,6 +125,9 @@ class MonitoringApplicationContext:
         self._model_endpoint: Optional[ModelEndpoint] = (
             model_endpoint_dict.get(self.endpoint_id) if model_endpoint_dict else None
         )
+        self._feature_set: Optional[FeatureSet] = (
+            feature_sets_dict.get(self.endpoint_id) if feature_sets_dict else None
+        )
 
     @classmethod
     def _from_ml_ctx(
@@ -165,6 +170,7 @@ class MonitoringApplicationContext:
         model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
         sample_df: Optional[pd.DataFrame] = None,
         feature_stats: Optional[FeatureStats] = None,
+        feature_sets_dict: Optional[dict[str, FeatureSet]] = None,
     ) -> "MonitoringApplicationContext":
         nuclio_logger = graph_context.logger
         artifacts_logger = graph_context.project_obj
@@ -183,6 +189,7 @@ class MonitoringApplicationContext:
             artifacts_logger=artifacts_logger,
             sample_df=sample_df,
             feature_stats=feature_stats,
+            feature_sets_dict=feature_sets_dict,
         )
 
     def _get_default_labels(self) -> dict[str, str]:
@@ -201,9 +208,7 @@ class MonitoringApplicationContext:
     @property
     def sample_df(self) -> pd.DataFrame:
         if self._sample_df is None:
-            feature_set = fstore.get_feature_set(
-                self.model_endpoint.spec.monitoring_feature_set_uri
-            )
+            feature_set = self.feature_set
             features = [f"{feature_set.metadata.name}.*"]
             vector = fstore.FeatureVector(
                 name=f"{self.endpoint_id}_vector",
@@ -224,6 +229,14 @@ class MonitoringApplicationContext:
     @property
     def model_endpoint(self) -> ModelEndpoint:
         if not self._model_endpoint:
+            if self.endpoint_name is None or self.endpoint_id is None:
+                raise mlrun.errors.MLRunValueError(
+                    "You have NOT provided the model endpoint's name and ID: "
+                    f"`endpoint_name`={self.endpoint_name} and `endpoint_id`={self.endpoint_id}, "
+                    "but you have tried to access `monitoring_context.model_endpoint` "
+                    "directly or indirectly in your application. You can either provide them, "
+                    "or adapt the application's logic to not access the model endpoint."
+                )
             self._model_endpoint = mlrun.db.get_run_db().get_model_endpoint(
                 name=self.endpoint_name,
                 project=self.project_name,
@@ -231,6 +244,14 @@ class MonitoringApplicationContext:
                 feature_analysis=True,
             )
         return self._model_endpoint
+
+    @property
+    def feature_set(self) -> FeatureSet:
+        if not self._feature_set and self.model_endpoint:
+            self._feature_set = fstore.get_feature_set(
+                self.model_endpoint.spec.monitoring_feature_set_uri
+            )
+        return self._feature_set
 
     @property
     def feature_stats(self) -> FeatureStats:

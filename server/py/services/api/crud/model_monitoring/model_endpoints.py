@@ -294,8 +294,7 @@ class ModelEndpoints:
                 session=db_session,
                 project=model_endpoint.metadata.project,
                 name=model_endpoint.metadata.name,
-                function_name=model_endpoint.spec.function_name,
-                function_tag=model_endpoint.spec.function_tag,
+                uid=model_endpoint.metadata.uid,
             )
         except mlrun.errors.MLRunNotFoundError:
             exist_model_endpoint = None

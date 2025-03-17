@@ -338,6 +338,7 @@ class ServingRuntime(RemoteRuntime):
         # Applying model monitoring configurations
         self.spec.track_models = enable_tracking
         if self._spec and self._spec.function_refs:
+            logger.info("Set tracking for children references", enable_tracking=enable_tracking)
             for ref in self._spec.function_refs:
                 ref.track_models = enable_tracking
 
@@ -509,7 +510,11 @@ class ServingRuntime(RemoteRuntime):
         :return function object
         """
         function_reference = FunctionReference(
-            url, image, requirements=requirements, kind=kind or "serving", track_models=self.spec.track_models
+            url,
+            image,
+            requirements=requirements,
+            kind=kind or "serving",
+            track_models=self.spec.track_models,
         )
         self._spec.function_refs.update(function_reference, name)
         func = function_reference.to_function(self.kind)

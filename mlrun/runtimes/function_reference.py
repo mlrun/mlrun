@@ -36,7 +36,7 @@ class FunctionReference(ModelObj):
         spec=None,
         kind=None,
         name=None,
-        track_models=None
+        track_models=None,
     ):
         self.url = url
         self.kind = kind

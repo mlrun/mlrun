@@ -884,7 +884,7 @@ def enrich_image_url(
     tag = mlrun_version
 
     # TODO: Remove condition when mlrun/mlrun-kfp image is also supported
-    if "kfp" not in image_url:
+    if "mlrun-kfp" not in image_url:
         tag += resolve_image_tag_suffix(
             mlrun_version=mlrun_version, python_version=client_python_version
         )

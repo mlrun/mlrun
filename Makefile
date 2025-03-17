@@ -615,7 +615,7 @@ test-integration: clean ## Run mlrun integration tests
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		-rf tests/feature-store/test_common.py \
+		-rf tests/feature-store/test_common.py
 	if [ "$(COVERAGE)" = "true" ]; then \
 		echo "Integration test coverage report:"; \
 		COVERAGE_FILE=tests/coverage_reports/integration_tests.coverage coverage report --rcfile=tests/tests.coveragerc; \

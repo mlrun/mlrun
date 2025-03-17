@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import time
 import unittest.mock
 from datetime import datetime, timezone
 
@@ -442,6 +443,8 @@ class TestRuns(TestDatabaseBase):
         # Store running expected to remove end time
         assert "end_time" not in run["status"]
 
+        # Sleep 1 second to allow next end time to be different
+        time.sleep(1)
         self._db.update_run(
             self._db_session,
             {"status.state": mlrun.common.runtimes.constants.RunStates.completed},
@@ -599,7 +602,10 @@ class TestRuns(TestDatabaseBase):
         assert len(runs) == 1
         stored_run = runs[0]
         assert stored_run["metadata"]["uid"] == run_uid
-        assert stored_run["status"]["end_time"] > stored_run["status"]["start_time"]
+        # Cut the start time microsecond because sqlite doesn't store microseconds in NOW()
+        assert (
+            stored_run["status"]["end_time"] >= stored_run["status"]["start_time"][:19]
+        )
 
     @staticmethod
     def _change_run_record_to_before_align_runs_migration(run, time_before_creation):

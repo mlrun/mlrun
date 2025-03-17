@@ -20,6 +20,7 @@ import pytest
 
 import mlrun
 import mlrun.common.helpers
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import tests.integration.sdk_api.base
 from tests.conftest import examples_path
@@ -221,6 +222,38 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             local_fn["spec"]["build"]["functionSourceCode"]
             == fn.spec.build.functionSourceCode
         ), "code was not copied to local function"
+
+    def test_list_runs_with_end_time(self):
+        uid = "uid"
+        project_name = "project-1"
+        mlrun.new_project(project_name)
+        name = "completed-run"
+        run = {
+            "metadata": {
+                "name": name,
+                "uid": uid,
+                "project": project_name,
+            },
+            "status": {
+                "state": mlrun.common.runtimes.constants.RunStates.completed,
+            },
+        }
+        mlrun.get_run_db().store_run(run, uid, project_name)
+
+        # fetch the run and verify the end_time
+        run = mlrun.get_run_db().read_run(uid, project_name)
+        assert run["status"].get("end_time")
+        end_time = datetime.datetime.fromisoformat(run["status"]["end_time"])
+
+        # list runs with end_time filter
+        runs = mlrun.get_run_db().list_runs(
+            project=project_name,
+            end_time_from=end_time,
+        )
+        assert len(runs) == 1
+        stored_run = runs[0]
+        assert stored_run["metadata"]["uid"] == uid
+        assert stored_run["status"]["end_time"] > stored_run["status"]["start_time"]
 
 
 def _list_and_assert_objects(expected_number_of_runs: int, **kwargs):

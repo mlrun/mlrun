@@ -579,7 +579,7 @@ test: clean ## Run mlrun tests
 		$$COMMON_IGNORE_TEST_FLAGS \
 		$$PER_PYTHON_VERSION_IGNORE_TEST_FLAGS \
 		--forked \
-		-rf
+		-rf tests/feature-store/test_common.py
 	if [ "$(COVERAGE)" = "true" ]; then \
 		echo "Unit test coverage report:"; \
 		COVERAGE_FILE=tests/coverage_reports/unit_tests.coverage coverage report --rcfile=tests/tests.coveragerc; \

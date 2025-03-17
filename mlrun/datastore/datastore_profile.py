@@ -477,7 +477,7 @@ class DatastoreProfileHdfs(DatastoreProfile):
         return f"webhdfs://{self.host}:{self.http_port}{subpath}"
 
 
-class TDEngineDatastoreProfile(DatastoreProfile):
+class DatastoreProfileTDEngine(DatastoreProfile):
     """
     A profile that holds the required parameters for a TDEngine database, with the websocket scheme.
     https://docs.tdengine.com/developer-guide/connecting-to-tdengine/#websocket-connection
@@ -496,7 +496,7 @@ class TDEngineDatastoreProfile(DatastoreProfile):
         return f"{self.type}://{self.user}:{self.password}@{self.host}:{self.port}"
 
     @classmethod
-    def from_dsn(cls, dsn: str, profile_name: str) -> "TDEngineDatastoreProfile":
+    def from_dsn(cls, dsn: str, profile_name: str) -> "DatastoreProfileTDEngine":
         """
         Construct a TDEngine profile from DSN (connection string) and a name for the profile.
 
@@ -525,7 +525,7 @@ _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
     "gcs": DatastoreProfileGCS,
     "az": DatastoreProfileAzureBlob,
     "hdfs": DatastoreProfileHdfs,
-    "taosws": TDEngineDatastoreProfile,
+    "taosws": DatastoreProfileTDEngine,
     "config": ConfigProfile,
 }
 

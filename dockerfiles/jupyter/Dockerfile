@@ -73,8 +73,13 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     cd /tmp/mlrun && uv pip install '.[complete]'
 
+# cleanup uv cache
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    uv cache clean
+
 # cleanup, source code is not needed anymore
-RUN rm -rf /tmp/mlrun
+RUN rm -rf /tmp/mlrun && rm -rf $HOME/.cache
 
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial

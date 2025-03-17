@@ -277,7 +277,7 @@ class ServingRuntime(RemoteRuntime):
 
         :param topology:     - graph topology, router or flow
         :param class_name:   - optional for router, router class name/path or router object
-        :param engine:       - optional for flow, sync or async engine (default to async)
+        :param engine:       - optional for flow, sync or async engine
         :param exist_ok:     - allow overriding existing topology
         :param class_args:   - optional, router/flow class init args
 

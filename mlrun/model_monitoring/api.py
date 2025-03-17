@@ -118,8 +118,6 @@ def get_or_create_model_endpoint(
             model_endpoint_name=model_endpoint_name,
             function_name=function_name,
             function_tag=function_tag,
-            context=context,
-            sample_set_statistics=sample_set_statistics,
             monitoring_mode=monitoring_mode,
         )
     return model_endpoint
@@ -344,8 +342,6 @@ def _generate_model_endpoint(
     model_endpoint_name: str,
     function_name: str,
     function_tag: str,
-    context: "mlrun.MLClientCtx",
-    sample_set_statistics: dict[str, typing.Any],
     monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.enabled,
 ) -> ModelEndpoint:
     """
@@ -358,21 +354,10 @@ def _generate_model_endpoint(
     :param model_endpoint_name:      Model endpoint name will be presented under the new model endpoint.
     :param function_name:            If a new model endpoint is created, use this function name.
     :param function_tag:             If a new model endpoint is created, use this function tag.
-    :param context:                  MLRun context. If function_name not provided, use the context to generate the
-                                     full function hash.
-    :param sample_set_statistics:    Dictionary of sample set statistics that will be used as a reference data for
-                                     the current model endpoint. Will be stored under
-                                     `model_endpoint.status.feature_stats`.
+    :param monitoring_mode:          Monitoring mode of the new model endpoint.
 
     :return `mlrun.common.schemas.ModelEndpoint` object.
     """
-    model_obj = None
-    if model_path:
-        model_obj: mlrun.artifacts.ModelArtifact = (
-            mlrun.datastore.store_resources.get_store_resource(
-                model_path, db=db_session
-            )
-        )
     current_time = datetime_now()
     model_endpoint = mlrun.common.schemas.ModelEndpoint(
         metadata=mlrun.common.schemas.ModelEndpointMetadata(
@@ -383,10 +368,7 @@ def _generate_model_endpoint(
         spec=mlrun.common.schemas.ModelEndpointSpec(
             function_name=function_name or "function",
             function_tag=function_tag or "latest",
-            model_name=model_obj.metadata.key if model_obj else None,
-            model_uid=model_obj.metadata.uid if model_obj else None,
-            model_tag=model_obj.metadata.tag if model_obj else None,
-            model_db_key=model_obj.spec.db_key if model_obj else None,
+            model_path=model_path,
             model_class="drift-analysis",
         ),
         status=mlrun.common.schemas.ModelEndpointStatus(

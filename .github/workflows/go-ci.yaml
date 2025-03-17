@@ -49,8 +49,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: "server/go/services/log-collector/go.mod"
-          cache-dependency-path: "server/go/services/log-collector/go.sum"
+          go-version-file: "server/go/go.mod"
+          cache-dependency-path: "server/go/go.sum"
           cache: true
       - name: Install protobuf compiler
         run: |
@@ -60,7 +60,7 @@ jobs:
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
       - name: Lint
-        run: make lint-go
+        run: make lint-go security-go
 
   go-unit-tests:
     name: Run Unit Tests

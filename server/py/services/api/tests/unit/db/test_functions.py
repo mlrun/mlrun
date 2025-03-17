@@ -15,6 +15,7 @@
 import datetime
 import time
 
+import deepdiff
 import pytest
 
 import mlrun.common.schemas
@@ -214,6 +215,51 @@ class TestFunctions(TestDatabaseBase):
                 function_1.metadata.name,
                 hash_key="inexistent_hash_key",
             )
+
+    def test_get_and_list_functions_columns_enrichment(self):
+        function_1 = self._generate_function()
+        # Enrich status to ensure it is retained
+        function_1.status.state = "test"
+        function_1.status.build_pod = "test-build-pod"
+        self._db.store_function(
+            self._db_session,
+            function_1.to_dict(),
+            function_1.metadata.name,
+            versioned=True,
+        )
+        function_queried = self._db.get_function(
+            self._db_session, function_1.metadata.name
+        )
+        assert (
+            deepdiff.DeepDiff(
+                function_1.to_dict(),
+                function_queried,
+                exclude_paths=[
+                    # Exclude serverside generated fields
+                    "root['metadata']['updated']",
+                    "root['metadata']['created']",
+                    "root['metadata']['uid']",
+                    "root['metadata']['hash']",
+                ],
+            )
+            == {}
+        )
+
+        functions = self._db.list_functions(self._db_session, function_1.metadata.name)
+        assert len(functions) == 1
+        function_queried = functions[0]
+        assert (
+            deepdiff.DeepDiff(
+                function_1.to_dict(),
+                function_queried,
+                exclude_paths=[
+                    "root['metadata']['updated']",
+                    "root['metadata']['created']",
+                    "root['metadata']['hash']",
+                ],
+            )
+            == {}
+        )
 
     def test_list_functions_no_tags(self):
         function_1 = {"bla": "blabla", "status": {"bla": "blabla"}}
@@ -746,4 +792,11 @@ class TestFunctions(TestDatabaseBase):
             name=function_name,
             project=project,
             tag=tag,
+            kind="job",
+            command="training.py -x {x}",
+            image="test/test",
+            args=["test"],
+            handler="test",
+            source="git://github.com/mlrun/something.git",
+            requirements=["test"],
         )

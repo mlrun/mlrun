@@ -327,6 +327,32 @@ def function_name(parameter1, parameter2):
 	# Function implementation
 ```
 
+Bulleted lists in docstrings do not throw an error if they are incorrectly formatted. Build the doc locally to 
+check the formatting. The basic rules are:
+- Add a blank line before and after bulleted lines
+- Nested bulleted lists also need a blank line before and after
+- If the text of the bullet exceeds one line, indent the second line by 2 spaces.
+Example:
+```
+        :param creation_strategy: Strategy for creating or updating the model endpoint:
+
+                           - **overwrite**:
+                           
+                           1. If model endpoints with the same name exist, delete the `latest` one.
+                           2. Create a new model endpoint entry and set it as `latest`.
+
+                           - **inplace** (default):
+                           
+                           1. If model endpoints with the same name exist, update the `latest` entry.
+                           2. Otherwise, create a new entry.
+
+        :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                         
+        :param since: Not in use in :py:class:`HTTPRunDB`.					
+```
 15. When calling functions with multiple parameters, prefer using keyword arguments to improve readability and clarity.
 16. Logging: use structured variable instead of f-strings, for example: `logger.debug("Message", var1=var1, ...)`, and
 try to avoid logging large objects which are hard to decipher.

@@ -16,7 +16,7 @@ import asyncio
 import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from pandas import Timedelta, Timestamp
@@ -1435,3 +1435,33 @@ def test_join_urls(base_url, path, expected_result):
 )
 def test_datetime_from_iso(input_time, expected_output):
     assert mlrun.utils.helpers.datetime_from_iso(input_time) == expected_output
+
+
+@pytest.mark.parametrize(
+    "dt, expected",
+    [
+        # Test for naive datetime (without tzinfo), should be set to UTC
+        (datetime(2025, 3, 13, 12, 30, 45, 123456), "2025-03-13 12:30:45.123456+00:00"),
+        # Test for datetime with UTC timezone info
+        (
+            datetime(2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone.utc),
+            "2025-03-13 12:30:45.123456+00:00",
+        ),
+        # Test for datetime with a non-UTC timezone offset (+05:00), should keep the original timezone
+        (
+            datetime(
+                2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone(timedelta(hours=5))
+            ),
+            "2025-03-13 12:30:45.123456+05:00",
+        ),
+        # Test for datetime with a timezone offset (+02:00), should keep the original timezone
+        (
+            datetime(
+                2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone(timedelta(hours=2))
+            ),
+            "2025-03-13 12:30:45.123456+02:00",
+        ),
+    ],
+)
+def test_format_datetime(dt, expected):
+    assert mlrun.utils.helpers.format_datetime(dt) == expected

@@ -186,7 +186,7 @@ jobs:
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
           MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
           COVERAGE=$COVERAGE \
-          make test-integration-dockerized COVERAGE=true
+          make test-integration-dockerized COVERAGE=$COVERAGE
       timeout-minutes: 90
     - name: Upload coverage report
       uses: actions/upload-artifact@v4

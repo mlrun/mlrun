@@ -449,6 +449,8 @@ class SQLDB(DBInterface):
             query = query.filter(Run.updated >= last_update_time_from)
         if last_update_time_to is not None:
             query = query.filter(Run.updated <= last_update_time_to)
+        # func.DATE cast is needed for SQLite to solve the following bug:
+        # https://stackoverflow.com/questions/16228195/comparing-dates-with-sqlalchemy-sqlite
         if end_time_from is not None:
             query = query.filter(func.DATE(Run.end_time) >= func.DATE(end_time_from))
         if end_time_to is not None:

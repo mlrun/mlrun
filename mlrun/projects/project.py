@@ -2169,7 +2169,7 @@ class MlrunProject(ModelObj):
                 :param severity:               Severity of the alert.
                 :param criteria:               The threshold for triggering the alert based on the
                                                specified number of events within the defined time period.
-                :param reset_policy:           When to clear the alert. May be "manual" for manual reset of the alert,
+                :param reset_policy:           When to clear the alert. Either "manual" for manual reset of the alert,
                                                or "auto" if the criteria contains a time period.
                 :returns:                      List of AlertConfig according to endpoints results,
                                                filtered by result_names.

@@ -650,9 +650,7 @@ test-system-dockerized: build-test-system ## Run mlrun system tests in docker co
 		--env MLRUN_VERSION=$(MLRUN_VERSION) \
 		-t \
 		--rm \
-		--network='host' \
-		-v /tmp/coverage_reports/migration_tests:/mlrun/tests/coverage_reports \
-		$(MLRUN_SYSTEM_TEST_IMAGE_NAME) make test-system COVERAGE=$(COVERAGE)
+		$(MLRUN_SYSTEM_TEST_IMAGE_NAME)
 
 .PHONY: test-system
 test-system: ## Run mlrun system tests

@@ -69,7 +69,7 @@ _HISTOGRAM_DATA_DRIFT_APP_PATH = str(
     Path(mlrun.model_monitoring.applications.__file__).parent
     / "histogram_data_drift.py"
 )
-BASE_PERIOD_LOOKUP_TABLE = {1: 1, 20: 3, 60: 5, 120: 10, float("inf"): 20}
+BASE_PERIOD_LOOKUP_TABLE = {1: 1, 2: 2, 20: 3, 60: 5, 120: 10, float("inf"): 20}
 
 
 class MonitoringDeployment:
@@ -1126,11 +1126,11 @@ class MonitoringDeployment:
                     "MLRun CE supports only TDEngine TSDB, received a V3IO profile for the TSDB"
                 )
         elif not isinstance(
-            tsdb_profile, mlrun.datastore.datastore_profile.TDEngineDatastoreProfile
+            tsdb_profile, mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
         ):
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 f"The model monitoring TSDB profile is of an unexpected type: '{type(tsdb_profile)}'\n"
-                "Expects `DatastoreProfileV3io` or `TDEngineDatastoreProfile`."
+                "Expects `DatastoreProfileV3io` or `DatastoreProfileTDEngine`."
             )
 
         return tsdb_profile

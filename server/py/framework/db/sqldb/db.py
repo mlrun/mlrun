@@ -44,7 +44,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
-from sqlalchemy.orm import Session, aliased, joinedload
+from sqlalchemy.orm import Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 import mlrun
@@ -958,14 +958,15 @@ class SQLDB(DBInterface):
                     )
                 return None
 
+        if as_record:
+            return db_artifact
+
         artifact = db_artifact.full_object
 
         # If connected to a tag add it to metadata
         if enrich_tag:
             self._set_tag_in_artifact_struct(artifact, tag)
 
-        if as_record:
-            return db_artifact
         return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 
     def del_artifact(
@@ -1070,6 +1071,62 @@ class SQLDB(DBInterface):
 
         # the query returns a list of tuples, we need to extract the tag from each tuple
         return [tag for (tag,) in query]
+
+    def validate_artifact_removal_preconditions(
+        self,
+        session,
+        key: str,
+        tag: str = "",
+        iter: Optional[str] = None,
+        project: str = "",
+        producer_id: Optional[str] = None,
+        uid: Optional[str] = None,
+    ) -> Optional[dict[str, Any]]:
+        """
+        Validate whether an artifact can be safely removed from the system.
+
+        This method checks if the specified artifact is currently in use by other resources,
+        such as model endpoints. If it is, the deletion will be blocked, and an appropriate
+        exception should be raised (MLRunConflictError).
+
+        :param session:     Active SQLAlchemy DB session for querying.
+        :param key:         Artifact key.
+        :param tag:         Specific tag for the artifact.
+        :param iter:        Artifact iteration number, if applicable.
+        :param project:     Project to which the artifact belongs.
+        :param producer_id: Identifier of the artifact's producer.
+        :param uid:         UID of the artifact object.
+
+        :return: An artifact dictionary.
+        :raises MLRunConflictError: If the artifact is in use and cannot be deleted.
+        """
+        try:
+            db_artifact = self.read_artifact(
+                session=session,
+                key=key,
+                tag=tag,
+                iter=iter,
+                project=project,
+                producer_id=producer_id,
+                uid=uid,
+                as_record=True,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            return None
+        dependent_endpoints_count = (
+            session.query(ModelEndpoint)
+            .filter(ModelEndpoint.model_id == db_artifact.id)
+            .count()
+        )
+        if dependent_endpoints_count:
+            raise mlrun.errors.MLRunConflictError(
+                f"Failed deleting artifact {key} in project {project}, tag {tag}"
+                f", iteration {iter} and {db_artifact.uid} uid. "
+                f"The artifact is used by {dependent_endpoints_count} endpoints"
+            )
+        return mlrun.common.formatters.ArtifactFormat.format_obj(
+            db_artifact.full_object, mlrun.common.formatters.ArtifactFormat.minimal
+        )
 
     @retry_on_conflict
     def overwrite_artifacts_with_tag(
@@ -1640,8 +1697,11 @@ class SQLDB(DBInterface):
         if limit:
             # Order the results before applying the limit to ensure that the limit is applied to the correctly
             # ordered results.
+            # If the updated fields are the same, we need a secondary field to sort by.
             query = self._paginate_query(
-                query.order_by(ArtifactV2.updated.desc()), offset, limit
+                query.order_by(ArtifactV2.updated.desc(), ArtifactV2.id.desc()),
+                offset,
+                limit,
             )
 
         # limit operation loads all the results before performing the actual limiting,
@@ -1655,7 +1715,10 @@ class SQLDB(DBInterface):
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
         # join may lose order, make sure order is applied on outer as well
-        outer_query = outer_query.order_by(ArtifactV2.updated.desc())
+        # If the updated fields are the same, we need a secondary field to sort by.
+        outer_query = outer_query.order_by(
+            ArtifactV2.updated.desc(), ArtifactV2.id.desc()
+        )
 
         if not limit:
             outer_query = self._paginate_query(outer_query, offset, limit=None)
@@ -5124,11 +5187,16 @@ class SQLDB(DBInterface):
         _get_query: bool = False,
     ):
         query = (
-            session.query(cls)
+            session.query(ModelEndpoint)
             .options(
-                joinedload(cls.function),
-                joinedload(cls.model),
-                joinedload(cls.tags),
+                selectinload(ModelEndpoint.function).options(
+                    load_only("name", "state", "project", "uid"),
+                    selectinload(Function.tags),
+                ),
+                selectinload(ModelEndpoint.model).options(
+                    load_only("key", "project", "iteration", "producer_id", "uid")
+                ),
+                selectinload(ModelEndpoint.tags),
             )
             .filter(cls.project == project, cls.name == name)
         )
@@ -5162,11 +5230,16 @@ class SQLDB(DBInterface):
         _get_query=False,
     ) -> typing.Union[sqlalchemy.orm.Query, list[ModelEndpoint]]:
         query = (
-            session.query(cls)
+            session.query(ModelEndpoint)
             .options(
-                joinedload(cls.function),
-                joinedload(cls.model),
-                joinedload(cls.tags),
+                selectinload(ModelEndpoint.function).options(
+                    load_only("name", "state", "project", "uid"),
+                    selectinload(Function.tags),
+                ),
+                selectinload(ModelEndpoint.model).options(
+                    load_only("key", "project", "iteration", "producer_id", "uid")
+                ),
+                selectinload(ModelEndpoint.tags),
             )
             .filter(cls.project == project, cls.name == name)
         )
@@ -5455,12 +5528,21 @@ class SQLDB(DBInterface):
         :param limit: SQL query limit.
         :param order_by: Column name for ordering results.
         """
+        # Query explanation:
+        # - selectinload is used to efficiently load related objects in batches, avoiding unnecessary extra queries.
+        # - load_only restricts the fields retrieved from the related entities to improve performance.
+        # - This query ensures all necessary related data is fetched upfront with minimal database overhead.
         query = (
             session.query(ModelEndpoint)
             .options(
-                joinedload(ModelEndpoint.function),
-                joinedload(ModelEndpoint.model),
-                joinedload(ModelEndpoint.tags),
+                selectinload(ModelEndpoint.function).options(
+                    load_only("name", "state", "project", "uid"),
+                    selectinload(Function.tags),
+                ),
+                selectinload(ModelEndpoint.model).options(
+                    load_only("key", "project", "iteration", "producer_id", "uid")
+                ),
+                selectinload(ModelEndpoint.tags),
             )
             .filter(ModelEndpoint.project == project)
         )
@@ -5503,6 +5585,18 @@ class SQLDB(DBInterface):
             query = query.join(
                 ModelEndpoint.Tag, ModelEndpoint.id == ModelEndpoint.Tag.obj_id
             )
+            if not function_name:
+                query = query.join(
+                    Function,
+                    ModelEndpoint.function_id == Function.id,
+                    isouter=True,  # LEFT JOIN to Function
+                )
+                query = query.filter(
+                    or_(
+                        Function.name.isnot(None),
+                        ModelEndpoint.endpoint_type == EndpointType.BATCH_EP,
+                    )
+                )
         else:
             query = query.outerjoin(
                 ModelEndpoint.Tag, ModelEndpoint.id == ModelEndpoint.Tag.obj_id
@@ -5709,7 +5803,6 @@ class SQLDB(DBInterface):
                     hash_key=model_endpoint_record.function.uid,
                 )
             )
-
         else:
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_NAME] = ""
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG] = ""

@@ -579,7 +579,7 @@ test: clean ## Run mlrun tests
 		$$COMMON_IGNORE_TEST_FLAGS \
 		$$PER_PYTHON_VERSION_IGNORE_TEST_FLAGS \
 		--forked \
-		-rf tests/feature-store/test_common.py
+		-rf
 	if [ "$(COVERAGE)" = "true" ]; then \
 		echo "Unit test coverage report:"; \
 		COVERAGE_FILE=tests/coverage_reports/unit_tests.coverage coverage report --rcfile=tests/tests.coveragerc; \
@@ -615,7 +615,9 @@ test-integration: clean ## Run mlrun integration tests
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		-rf tests/feature-store/test_common.py
+		-rf \
+		tests/integration \
+		tests/rundb/test_httpdb.py
 	if [ "$(COVERAGE)" = "true" ]; then \
 		echo "Integration test coverage report:"; \
 		COVERAGE_FILE=tests/coverage_reports/integration_tests.coverage coverage report --rcfile=tests/tests.coveragerc; \

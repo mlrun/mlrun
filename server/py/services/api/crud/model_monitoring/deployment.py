@@ -422,7 +422,10 @@ class MonitoringDeployment:
             else mlrun.mlconf.get_v3io_access_key()
         )
         kwargs = {
-            "access_key": access_key,
+            # ML-9443: Removing the access key from parameters.add_v3io_stream_trigger() automatically sets it to
+            # mlrun.model.Credentials.generate_access_key, causing Nuclio to replace the key with its V3IO_ACCESS_KEY
+            # environment variable. This change prevents the access key from being displayed in the ML function YAML.
+            # "access_key": access_key,
             "worker_allocation_mode": "static",
             "max_workers": stream_args.v3io.num_workers,
         }

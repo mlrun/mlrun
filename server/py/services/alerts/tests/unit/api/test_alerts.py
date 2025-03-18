@@ -198,6 +198,52 @@ class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
         result = client.delete(f"projects/{project_name}/alerts")
         assert result.status_code == 204
 
+    def test_list_alert_configs_with_limits(
+        self,
+        db: Session,
+        client: TestClient,
+        k8s_secrets_mock,
+    ):
+        project = "test-alerts"
+        self._create_project(db, project)
+
+        # for the sake of the test, set the limit to 8
+        mlrun.mlconf.alerts.default_list_alert_configs_limit = 8
+
+        for i in range(10):
+            alert_name = f"alert-name-{i}"
+            alert_config = services.alerts.tests.unit.crud.utils.generate_alert_data(
+                project=project,
+                name=alert_name,
+                entity=services.alerts.tests.unit.crud.utils.generate_alert_entity(
+                    project=project
+                ),
+            )
+            resp = client.put(
+                STORE_ALERTS_PATH.format(project=project, name=alert_name),
+                json=alert_config.dict(),
+            )
+            assert resp.status_code == HTTPStatus.OK.value
+
+        for params, expected_length in [
+            # limit to 5
+            ({"page-size": 5}, 5),
+            # limit to 5, offset 2
+            ({"page-size": 5, "offset": 2}, 5),
+            # limit to 5, offset 6 - not enough alerts
+            ({"page-size": 5, "offset": 8}, 2),
+            # no limit at all
+            ({}, 8),
+            # only offset
+            ({"offset": 3}, 7),
+        ]:
+            resp = client.get(ALERTS_PATH.format(project=project), params=params)
+            assert resp.status_code == HTTPStatus.OK.value
+            alerts = resp.json()
+            assert (
+                len(alerts) == expected_length
+            ), f"Unexpected number of alerts for params: {params}"
+
     # TODO: Move to test utils framework
     @staticmethod
     def _create_project(session: Session, project_name: str):

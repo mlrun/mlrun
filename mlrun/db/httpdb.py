@@ -4818,18 +4818,30 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", endpoint_path, error_message)
         return AlertConfig.from_dict(response.json())
 
-    def list_alerts_configs(self, project="") -> list[AlertConfig]:
+    def list_alerts_configs(
+        self, project="", limit: Optional[int] = None, offset: Optional[int] = None
+    ) -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
 
         :param project: The project name.
+        :param limit: The maximum number of alerts to return.
+        :param offset: The number of alerts to skip.
 
         :returns: All the alerts objects of the project.
         """
         project = project or config.default_project
         endpoint_path = f"projects/{project}/alerts"
         error_message = f"get alerts {project}/alerts"
-        response = self.api_call("GET", endpoint_path, error_message).json()
+        params = {}
+        # TODO: remove limit and offset when pagination is implemented
+        if limit:
+            params["page-size"] = limit
+        if offset:
+            params["offset"] = offset
+        response = self.api_call(
+            "GET", endpoint_path, error_message, params=params
+        ).json()
         results = []
         for item in response:
             results.append(AlertConfig(**item))

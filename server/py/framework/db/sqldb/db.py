@@ -6247,6 +6247,8 @@ class SQLDB(DBInterface):
         session,
         project: typing.Optional[typing.Union[str, list[str]]] = None,
         exclude_updated: bool = False,
+        limit: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         query = self._query(session, AlertConfig)
 
@@ -6256,6 +6258,8 @@ class SQLDB(DBInterface):
         ).add_entity(AlertState)
 
         query = self._filter_query_by_resource_project(query, AlertConfig, project)
+        query = self._paginate_query(query, offset, limit)
+
         results = query.all()
 
         # Process each result, transforming and enriching the AlertConfig objects

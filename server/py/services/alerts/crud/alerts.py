@@ -83,7 +83,12 @@ class Alerts(
         # if the alert already exists we should check if it should be reset or not
         if existing_alert is not None:
             self._reset_if_needed(
-                session, project, name, existing_alert, alert_data, force_reset
+                session,
+                project,
+                name=name,
+                existing_alert=existing_alert,
+                alert_data=alert_data,
+                force_reset=force_reset,
             )
 
         framework.utils.singletons.db.get_db().enrich_alert(

@@ -602,8 +602,7 @@ class SQLDB(DBInterface):
             and not run.end_time
         ):
             if end_time is None:
-                # Ensures fsp 6 for MySQL NOW() to includes microseconds
-                end_time = func.now(6)
+                end_time = func.now()
             run.end_time = end_time
         elif (
             run.state not in mlrun.common.runtimes.constants.RunStates.terminal_states()

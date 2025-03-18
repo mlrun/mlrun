@@ -228,38 +228,38 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         mlrun.new_project(project_name)
         # Create 5 runs with different states
         # Runs 1, 2, 3 are completed and end in that order
-        run_names = [
-            "run-name-1",
-            "run-name-2",
-            "run-name-3",
-            "run-name-4",
-            "run-name-5",
-        ]
         statuses = [
             {
                 "state": mlrun.common.runtimes.constants.RunStates.completed,
-                "start_time": "2021-01-01T00:00:00+00:00",
-                "end_time": "2021-01-01T00:05:00+00:00",
+                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(days=1),
+                "end_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(hours=5),
             },
             {
                 "state": mlrun.common.runtimes.constants.RunStates.completed,
-                "start_time": "2021-01-01T00:06:00+00:00",
-                "end_time": "2021-01-01T00:10:00+00:00",
+                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(hours=5),
+                "end_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(hours=1),
             },
             {
                 "state": mlrun.common.runtimes.constants.RunStates.completed,
-                "start_time": "2021-01-01T00:00:00+00:00",
-                "end_time": "2021-01-01T01:00:00+00:00",
+                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(days=1),
+                "end_time": datetime.datetime.now(datetime.timezone.utc),
             },
             {
                 "state": mlrun.common.runtimes.constants.RunStates.running,
-                "start_time": "2021-01-01T00:00:00+00:00",
+                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(days=1),
             },
             {
                 "state": mlrun.common.runtimes.constants.RunStates.pending,
             },
         ]
-        for name, status in zip(run_names, statuses):
+        for i, status in enumerate(statuses):
+            name = f"run-name-{i}"
             run = {
                 "metadata": {
                     "name": name,
@@ -270,11 +270,8 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             }
             mlrun.get_run_db().store_run(run, run["metadata"]["uid"], project_name)
 
-        # Not using mlrun utils to ensure tz info is retained
-        run_1_start_time = datetime.datetime.fromisoformat(statuses[0]["start_time"])
-        run_2_start_time = datetime.datetime.fromisoformat(statuses[1]["start_time"])
-        assert run_1_start_time.tzinfo == datetime.timezone.utc
-        assert run_2_start_time.tzinfo == datetime.timezone.utc
+        run_1_start_time = statuses[0]["start_time"]
+        run_2_start_time = statuses[1]["start_time"]
 
         # list runs with end_time filter
         runs = _list_and_assert_objects(
@@ -282,13 +279,27 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             project=project_name,
             end_time_from=run_1_start_time,
         )
+        runs_by_end_time = _list_and_assert_objects(
+            expected_number_of_runs=3,
+            project=project_name,
+            end_time_from=statuses[0]["end_time"],
+        )
+        assert runs == runs_by_end_time
         stored_run = runs[0]
         assert stored_run["status"]["end_time"] > stored_run["status"]["start_time"]
         assert stored_run["status"]["end_time"].endswith("+00:00")
+        # Assert fsp 6
+        assert any(
+            datetime.datetime.fromisoformat(run["status"]["end_time"]).microsecond
+            for run in runs[:3]
+        )
         # 2nd run is 1st in order because it started last
-        assert runs[0]["metadata"]["name"] == run_names[1]
-        assert runs[1]["metadata"]["name"] == run_names[0]
-        assert runs[2]["metadata"]["name"] == run_names[2]
+        assert runs[0]["metadata"]["name"] == "run-name-1"
+        assert runs[0]["status"]["end_time"] == statuses[1]["end_time"].isoformat()
+        assert runs[1]["metadata"]["name"] == "run-name-0"
+        assert runs[1]["status"]["end_time"] == statuses[0]["end_time"].isoformat()
+        assert runs[2]["metadata"]["name"] == "run-name-2"
+        assert runs[2]["status"]["end_time"] == statuses[2]["end_time"].isoformat()
 
         _list_and_assert_objects(
             expected_number_of_runs=1,
@@ -302,8 +313,8 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             project=project_name,
             end_time_from=run_2_start_time,
         )
-        assert runs[0]["metadata"]["name"] == run_names[1]
-        assert runs[1]["metadata"]["name"] == run_names[2]
+        assert runs[0]["metadata"]["name"] == "run-name-1"
+        assert runs[1]["metadata"]["name"] == "run-name-2"
 
 
 def _list_and_assert_objects(expected_number_of_runs: int, **kwargs):

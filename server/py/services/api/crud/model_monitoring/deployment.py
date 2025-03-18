@@ -47,6 +47,7 @@ import mlrun.serving.states
 import mlrun.utils.v3io_clients
 from mlrun import feature_store as fstore
 from mlrun.config import config
+from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFileChief
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
@@ -248,6 +249,7 @@ class MonitoringDeployment:
             fn, ready = services.api.utils.functions.build_function(
                 db_session=self.db_session, auth_info=self.auth_info, function=fn
             )
+            ModelMonitoringSchedulesFileChief(project=self.project).create()
 
             logger.debug(
                 "Submitted the controller deployment",

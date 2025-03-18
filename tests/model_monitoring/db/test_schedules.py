@@ -20,7 +20,7 @@ import pytest
 import mlrun
 import mlrun.utils
 from mlrun.model_monitoring.db._schedules import (
-    ModelMonitoringSchedulesFile,
+    ModelMonitoringSchedulesFileEndpoint,
     delete_model_monitoring_schedules_folder,
 )
 from mlrun.model_monitoring.helpers import _get_monitoring_schedules_folder_path
@@ -36,15 +36,17 @@ def _patch_store_prefixes(tmpdir: Path, monkeypatch: pytest.MonkeyPatch) -> None
 
 
 @pytest.fixture
-def schedules_file() -> Iterator[ModelMonitoringSchedulesFile]:
-    f = ModelMonitoringSchedulesFile(project="project-0", endpoint_id="endpoint-0")
+def schedules_file() -> Iterator[ModelMonitoringSchedulesFileEndpoint]:
+    f = ModelMonitoringSchedulesFileEndpoint(
+        project="project-0", endpoint_id="endpoint-0"
+    )
     f.create()
     yield f
     f.delete()
 
 
 def test_create_file() -> None:
-    file = ModelMonitoringSchedulesFile(project="abc", endpoint_id="reoko1220a")
+    file = ModelMonitoringSchedulesFileEndpoint(project="abc", endpoint_id="reoko1220a")
     file.create()
     assert (
         file._item.get().decode() == "{}"
@@ -52,11 +54,15 @@ def test_create_file() -> None:
 
 
 def test_delete_non_existent_file() -> None:
-    ModelMonitoringSchedulesFile(project="p0", endpoint_id="ep-1-without-file").delete()
+    ModelMonitoringSchedulesFileEndpoint(
+        project="p0", endpoint_id="ep-1-without-file"
+    ).delete()
 
 
 def test_delete_file() -> None:
-    file = ModelMonitoringSchedulesFile(project="p1", endpoint_id="ep-1-with-file")
+    file = ModelMonitoringSchedulesFileEndpoint(
+        project="p1", endpoint_id="ep-1-with-file"
+    )
     file.create()
     file.delete()
     assert not file._fs.exists(file._path), "The schedules file wasn't deleted"
@@ -69,7 +75,9 @@ def test_delete_non_existent_folder() -> None:
 def test_delete_folder() -> None:
     project = "monitored-endpoints"
     for endpoint_id in ("ep-1", "ep-2", "ep-3"):
-        file = ModelMonitoringSchedulesFile(project=project, endpoint_id=endpoint_id)
+        file = ModelMonitoringSchedulesFileEndpoint(
+            project=project, endpoint_id=endpoint_id
+        )
         file.create()
         filesystem = file._fs
 
@@ -80,7 +88,7 @@ def test_delete_folder() -> None:
 
 
 def test_unique_last_analyzed_per_app(
-    schedules_file: ModelMonitoringSchedulesFile,
+    schedules_file: ModelMonitoringSchedulesFileEndpoint,
 ) -> None:
     app1_name = "app-A"
     app1_last_analyzed = 1716720842
@@ -94,7 +102,7 @@ def test_unique_last_analyzed_per_app(
 
 
 def test_stored_last_analyzed(
-    schedules_file: ModelMonitoringSchedulesFile,
+    schedules_file: ModelMonitoringSchedulesFileEndpoint,
 ) -> None:
     application_name = "dummy-app"
     # Try to get last analyzed value, we expect it to be empty
@@ -115,7 +123,9 @@ def test_stored_last_analyzed(
     assert last_analyzed == current_time
 
 
-def test_file_not_opened_error(schedules_file: ModelMonitoringSchedulesFile) -> None:
+def test_file_not_opened_error(
+    schedules_file: ModelMonitoringSchedulesFileEndpoint,
+) -> None:
     with pytest.raises(
         mlrun.errors.MLRunValueError,
         match="Open the schedules file as a context manager first",
@@ -125,7 +135,7 @@ def test_file_not_opened_error(schedules_file: ModelMonitoringSchedulesFile) -> 
 
 def test_not_found_error() -> None:
     with pytest.raises(FileNotFoundError):
-        with ModelMonitoringSchedulesFile(
+        with ModelMonitoringSchedulesFileEndpoint(
             project="project-0", endpoint_id="endpoint-0"
         ):
             pass

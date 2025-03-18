@@ -38,10 +38,10 @@
 |-------|----------------------------------------------------------------------------|
 |ML-5985|You can now send notifications by email. See <link>|
 
-### Workflows
+### Runtimes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-6341|Supports protobuf 4.x in the client, leaving the frames server untouched. Grafana/ Promethus etc continue to use the http connection which is not using protobuf. Pandas feature store works with the new frames client that will not provide grpc suport and might be affected performance-wise. @Gilad Shaham consider to add this to the release note and as a note on pnadas engine being a “playground” not against massive amount of data.|
+|ML-8642|{py:meth}`~mlrun.runtimes.ServingRuntime.add_model` and {py:meth}`~mlrun.serving.RouterStep.add_route` have a new parameter, `creation_strategy`. that defines whether / how endpoints are created or updated.|
 
 ### Breaking changes
 | ID    |Description                                                                 |
@@ -66,6 +66,7 @@
 |ML-8352|Queries are now implemented with pagination, increasing responsiveness and reducing resource requirements.|
 |ML-7824|The Jobs and Workflow>Monitor Workflows and Schedule panes now have a pop-up filter, and the Batch Run button is in the same row &mdash; providing more space for the lists in the tables. |
 |ML-7825|The Feature Store panes now have a pop-up filter, and the Create Set/Vector button is in the same row &mdash; providing more space for the lists in the tables. |
+
 
 ### Closed issues
 
@@ -1221,6 +1222,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5274|PySpark 3.2.x cannot always read parquet files written by pyarrow 13 or above. MLRun ingest might fail when `ingest()` is called with engine="spark" and a ParquetSource that points to parquet files that were written by pyarrow 13 or above. |Call `df.to_parquet()` with version="2.4" so that parquet files are backwards compatible.|v1.6.0|
 |ML-5669|When using `mlrun.mlrun` image, use PyTorch versions up to and including than 2.0.1, but not higher. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images) | You can build your own images with newer CUDA for a later release of PyTorch. |v1.6.0|  
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted. | Abort the job from the SDK instead of from the UI, or upgrade the client to v1.6.0 or higher. | v1.6.0 |
+|ML-8088|
 |ML-8174| A loaded system takes a few minutes (±5) to calculate the statistics in the Projects Monitoring pane.|NA| v1.7.0|
 |ML-8528|In rare circumstances, KF pipelines fail.|NA|v1.6.3|
 |ML-8601|Default spot labels node selector is removed. |......| v1.7.0|

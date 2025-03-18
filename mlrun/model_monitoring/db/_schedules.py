@@ -31,15 +31,7 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
     INITIAL_CONTENT = json.dumps(DEFAULT_SCHEDULES)
     ENCODING = "utf-8"
 
-    def __init__(self, project: str, endpoint_id: str, get_data_item: Callable) -> None:
-        """
-        Initialize applications monitoring schedules file object.
-        The JSON file stores a dictionary of registered application name as key and Unix timestamp as value.
-        When working with the schedules data, use this class as a context manager to read and write the data.
-
-        :param project:     The project name.
-        :param endpoint_id: The endpoint ID.
-        """
+    def __init__(self):
         self._item = None
 
     def _post_init(self):
@@ -141,6 +133,7 @@ class ModelMonitoringSchedulesFileEndpoint(ModelMonitoringSchedulesFileBase):
         :param endpoint_id: The endpoint ID.
         """
         # `self._item` is the persistent version of the monitoring schedules.
+        super().__init__()
         self._item = (
             mlrun.model_monitoring.helpers.get_monitoring_schedules_endpoint_data(
                 project=project, endpoint_id=endpoint_id
@@ -182,9 +175,9 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
         When working with the schedules data, use this class as a context manager to read and write the data.
 
         :param project:     The project name.
-        :param endpoint_id: The endpoint ID.
         """
         # `self._item` is the persistent version of the monitoring schedules.
+        super().__init__()
         self._item = mlrun.model_monitoring.helpers.get_monitoring_schedules_chief_data(
             project=project
         )

@@ -401,15 +401,38 @@ class RunDBMock:
         self,
         project,
         pipeline,
-        arguments,
-        experiment,
-        run,
-        namespace,
-        ops,
-        artifact_path,
+        arguments=None,
+        experiment=None,
+        run=None,
+        namespace=None,
+        artifact_path=None,
+        ops=None,
+        cleanup_ttl=None,
+        timeout=60,
     ):
         self._pipeline = pipeline
         return True
+
+    def push_pipeline_notifications(
+        self,
+        pipeline_id,
+        project="",
+        notifications=None,
+        timeout=45,
+    ):
+        pass
+
+    def get_pipeline(
+        self,
+        run_id: str,
+        namespace: Optional[str] = None,
+        timeout: int = 30,
+        format_: Union[
+            str, mlrun.common.formatters.PipelineFormat
+        ] = mlrun.common.formatters.PipelineFormat.summary,
+        project: Optional[str] = None,
+    ):
+        pass
 
     def store_project(self, name, project):
         return self.create_project(project)
@@ -678,18 +701,17 @@ class RunDBMock:
 
     def get_model_endpoint(
         self,
-        project: str = "default",
-        name: str = "default",
-        function_name: Optional[str] = "function-1",
-        function_uid: Optional[str] = None,
-        function_tag: Optional[str] = "v1",
-        model_name: Optional[str] = None,
-        model_uid: Optional[str] = None,
-        tsdb_metrics: Optional[str] = None,
+        name: str,
+        project: str,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
+        tsdb_metrics: bool = True,
+        feature_analysis: bool = False,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
         self._get_model_endpoint_calls += 1
         name = str.split(name, ":")[0]
-        model_uid = model_uid or f"{name}_uid"
+        model_uid = endpoint_id or f"{name}_uid"
         return mlrun.common.schemas.model_monitoring.ModelEndpoint(
             metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
                 name=name,
@@ -700,9 +722,7 @@ class RunDBMock:
             spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
                 function_name=function_name,
                 function_tag=function_tag,
-                function_uid=function_uid,
-                model_name=model_name,
-                model_uid=model_uid,
+                model_name="model_name-test",
                 model_class="modelcc",
                 model_tag="latest",
             ),

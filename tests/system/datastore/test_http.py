@@ -22,8 +22,8 @@ from tests.system.base import TestMLRunSystem
 
 class TestHttpDataStore(TestMLRunSystem):
     private_repo_function_path = (
-        "https://raw.githubusercontent.com/mlrun/private-system-tests/main/"
-        "support_private_hub_repo/func/function.yaml"
+        "https://api.github.com/repos/mlrun/private-system-tests/contents/support_private_hub_repo/func/"
+        "function.yaml?ref=main"
     )
 
     @pytest.mark.smoke

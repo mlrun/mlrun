@@ -893,7 +893,7 @@ def generate_target_path(item: Artifact, artifact_path, producer):
     return f"{artifact_path}{item.key}{suffix}"
 
 
-# TODO: left to support data migration from legacy artifacts to new artifacts. Remove in 1.8.0.
+# TODO: Remove once data migration v5 is obsolete
 def convert_legacy_artifact_to_new_format(
     legacy_artifact: dict,
 ) -> Artifact:
@@ -905,9 +905,9 @@ def convert_legacy_artifact_to_new_format(
     artifact_tag = legacy_artifact.get("tag", "")
     if artifact_tag:
         artifact_key = f"{artifact_key}:{artifact_tag}"
-    # TODO: remove in 1.8.0
+    # TODO: Remove once data migration v5 is obsolete
     warnings.warn(
-        f"Converting legacy artifact '{artifact_key}' to new format. This will not be supported in MLRun 1.8.0. "
+        f"Converting legacy artifact '{artifact_key}' to new format. This will not be supported in MLRun 1.9.0. "
         f"Make sure to save the artifact/project in the new format.",
         FutureWarning,
     )

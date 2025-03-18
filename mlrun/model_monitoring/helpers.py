@@ -137,29 +137,26 @@ def get_stream_path(
     )
 
     if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
-        stream_uri = "v3io"
-    elif isinstance(
-        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
-    ):
-        attributes = profile.attributes()
-        stream_uri = f"kafka://{attributes['brokers'][0]}"
-    else:
-        raise mlrun.errors.MLRunValueError(
-            f"Received an unexpected stream profile type: {type(profile)}\n"
-            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
-        )
-
-    if not stream_uri or stream_uri == "v3io":
         stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project,
             kind=mm_constants.FileTargetKind.STREAM,
             target="online",
             function_name=function_name,
         )
+        return stream_uri.replace("v3io://", f"ds://{profile.name}")
 
-    return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-        stream_uri=stream_uri, project=project, function_name=function_name
-    )
+    elif isinstance(
+        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+    ):
+        topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
+            project=project, function_name=function_name
+        )
+        return f"ds://{profile.name}/{topic}"
+    else:
+        raise mlrun.errors.MLRunValueError(
+            f"Received an unexpected stream profile type: {type(profile)}\n"
+            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+        )
 
 
 def get_monitoring_parquet_path(
@@ -314,18 +311,9 @@ def _get_kafka_output_stream(
     topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
         project=project, function_name=function_name
     )
-    profile_attributes = kafka_profile.attributes()
-    producer_options = profile_attributes.get("producer_options", {})
-    if "sasl" in profile_attributes:
-        sasl = profile_attributes["sasl"]
-        producer_options.update(
-            {
-                "security_protocol": "SASL_PLAINTEXT",
-                "sasl_mechanism": sasl["mechanism"],
-                "sasl_plain_username": sasl["user"],
-                "sasl_plain_password": sasl["password"],
-            },
-        )
+    attributes = kafka_profile.attributes()
+    producer_options = mlrun.datastore.utils.KafkaParameters(attributes).producer()
+
     return mlrun.platforms.iguazio.KafkaOutputStream(
         brokers=kafka_profile.brokers,
         topic=topic,

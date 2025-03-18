@@ -47,157 +47,18 @@ from .common import (
     get_feature_vector_by_uri,
     verify_feature_set_exists,
     verify_feature_set_permissions,
-    verify_feature_vector_permissions,
 )
 from .feature_set import FeatureSet
-from .feature_vector import (
-    FeatureVector,
-    FixedWindowType,
-    OfflineVectorResponse,
-    OnlineVectorService,
-)
 from .ingestion import (
     context_to_ingestion_params,
     init_featureset_graph,
     run_ingestion_job,
     run_spark_graph,
 )
-from .retrieval import RemoteVectorResponse, get_merger, run_merge_job
 
 _v3iofs = None
 spark_transform_handler = "transform"
 _TRANS_TABLE = str.maketrans({" ": "_", "(": "", ")": ""})
-
-
-def _features_to_vector_and_check_permissions(features, update_stats):
-    if isinstance(features, str):
-        vector = get_feature_vector_by_uri(features, update=update_stats)
-    elif isinstance(features, FeatureVector):
-        vector = features
-        if not vector.metadata.name:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "feature vector name must be specified"
-            )
-        verify_feature_vector_permissions(
-            vector, mlrun.common.schemas.AuthorizationAction.update
-        )
-
-        vector.save()
-    else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"illegal features value/type ({type(features)})"
-        )
-    return vector
-
-
-def _get_offline_features(
-    feature_vector: Union[str, FeatureVector],
-    entity_rows=None,
-    entity_timestamp_column: Optional[str] = None,
-    target: DataTargetBase = None,
-    run_config: RunConfig = None,
-    drop_columns: Optional[list[str]] = None,
-    start_time: Optional[Union[str, datetime]] = None,
-    end_time: Optional[Union[str, datetime]] = None,
-    with_indexes: bool = False,
-    update_stats: bool = False,
-    engine: Optional[str] = None,
-    engine_args: Optional[dict] = None,
-    query: Optional[str] = None,
-    order_by: Optional[Union[str, list[str]]] = None,
-    spark_service: Optional[str] = None,
-    timestamp_for_filtering: Optional[Union[str, dict[str, str]]] = None,
-    additional_filters=None,
-) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
-    if entity_rows is None and entity_timestamp_column is not None:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "entity_timestamp_column param "
-            "can not be specified without entity_rows param"
-        )
-    if isinstance(target, BaseStoreTarget) and not target.support_pandas:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"get_offline_features does not support targets that do not support pandas engine."
-            f" Target kind: {target.kind}"
-        )
-
-    if isinstance(feature_vector, FeatureVector):
-        update_stats = True
-
-    feature_vector = _features_to_vector_and_check_permissions(
-        feature_vector, update_stats
-    )
-
-    entity_timestamp_column = (
-        entity_timestamp_column or feature_vector.spec.timestamp_field
-    )
-
-    merger_engine = get_merger(engine)
-
-    if run_config and not run_config.local:
-        return run_merge_job(
-            feature_vector,
-            target,
-            merger_engine,
-            engine,
-            engine_args,
-            spark_service,
-            entity_rows,
-            entity_timestamp_column=entity_timestamp_column,
-            run_config=run_config,
-            drop_columns=drop_columns,
-            with_indexes=with_indexes,
-            query=query,
-            order_by=order_by,
-            start_time=start_time,
-            end_time=end_time,
-            timestamp_for_filtering=timestamp_for_filtering,
-            additional_filters=additional_filters,
-        )
-
-    merger = merger_engine(feature_vector, **(engine_args or {}))
-    return merger.start(
-        entity_rows,
-        entity_timestamp_column,
-        target=target,
-        drop_columns=drop_columns,
-        start_time=start_time,
-        end_time=end_time,
-        timestamp_for_filtering=timestamp_for_filtering,
-        with_indexes=with_indexes,
-        update_stats=update_stats,
-        query=query,
-        order_by=order_by,
-        additional_filters=additional_filters,
-    )
-
-
-def _get_online_feature_service(
-    feature_vector: Union[str, FeatureVector],
-    run_config: RunConfig = None,
-    fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
-    impute_policy: Optional[dict] = None,
-    update_stats: bool = False,
-    entity_keys: Optional[list[str]] = None,
-) -> OnlineVectorService:
-    if isinstance(feature_vector, FeatureVector):
-        update_stats = True
-    feature_vector = _features_to_vector_and_check_permissions(
-        feature_vector, update_stats
-    )
-
-    # Impute policies rely on statistics in many cases, so verifying that the fvec has stats in it
-    if impute_policy and not feature_vector.status.stats:
-        update_stats = True
-
-    engine_args = {"impute_policy": impute_policy}
-    merger_engine = get_merger("storey")
-    # todo: support remote service (using remote nuclio/mlrun function if run_config)
-
-    merger = merger_engine(feature_vector, **engine_args)
-
-    return merger.init_online_vector_service(
-        entity_keys, fixed_window_type, update_stats=update_stats
-    )
 
 
 def norm_column_name(name: str) -> str:
@@ -242,6 +103,83 @@ def _get_namespace(run_config: RunConfig) -> dict[str, Any]:
             return vars(__import__(module_name))
     else:
         return get_caller_globals()
+
+
+def ingest(
+    mlrun_context: Union["mlrun.MLrunProject", "mlrun.MLClientCtx"],
+    featureset: Union[FeatureSet, str] = None,
+    source=None,
+    targets: Optional[list[DataTargetBase]] = None,
+    namespace=None,
+    return_df: bool = True,
+    infer_options: InferOptions = InferOptions.default(),
+    run_config: RunConfig = None,
+    spark_context=None,
+    overwrite=None,
+) -> Optional[pd.DataFrame]:
+    """Read local DataFrame, file, URL, or source into the feature store
+    Ingest reads from the source, run the graph transformations, infers  metadata and stats
+    and writes the results to the default of specified targets
+
+    when targets are not specified data is stored in the configured default targets
+    (will usually be NoSQL for real-time and Parquet for offline).
+
+    the `run_config` parameter allow specifying the function and job configuration,
+    see: :py:class:`~mlrun.feature_store.RunConfig`
+
+    example::
+
+        stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
+        stocks = pd.read_csv("stocks.csv")
+        df = ingest(stocks_set, stocks, infer_options=fstore.InferOptions.default())
+
+        # for running as remote job
+        config = RunConfig(image="mlrun/mlrun")
+        df = ingest(stocks_set, stocks, run_config=config)
+
+        # specify source and targets
+        source = CSVSource("mycsv", path="measurements.csv")
+        targets = [CSVTarget("mycsv", path="./mycsv.csv")]
+        ingest(measurements, source, targets)
+
+    :param mlrun_context: mlrun context
+    :param featureset:    feature set object or featureset.uri. (uri must be of a feature set that is in the DB,
+                          call `.save()` if it's not)
+    :param source:        source dataframe or other sources (e.g. parquet source see:
+                          :py:class:`~mlrun.datastore.ParquetSource` and other classes in mlrun.datastore with suffix
+                          Source)
+    :param targets:       optional list of data target objects
+    :param namespace:     namespace or module containing graph classes
+    :param return_df:     indicate if to return a dataframe with the graph results
+    :param infer_options: schema (for discovery of entities, features in featureset), index, stats,
+                          histogram and preview infer options (:py:class:`~mlrun.feature_store.InferOptions`)
+    :param run_config:    function and/or run configuration for remote jobs,
+                          see :py:class:`~mlrun.feature_store.RunConfig`
+    :param spark_context: local spark session for spark ingestion, example for creating the spark context:
+                          `spark = SparkSession.builder.appName("Spark function").getOrCreate()`
+                          For remote spark ingestion, this should contain the remote spark service name
+    :param overwrite:     delete the targets' data prior to ingestion
+                          (default: True for non scheduled ingest - deletes the targets that are about to be ingested.
+                          False for scheduled ingest - does not delete the target)
+    :return:              if return_df is True, a dataframe will be returned based on the graph
+    """
+    if not mlrun_context:
+        raise mlrun.errors.MLRunValueError(
+            "mlrun_context must be defined when calling ingest()"
+        )
+
+    return _ingest(
+        featureset,
+        source,
+        targets,
+        namespace,
+        return_df,
+        infer_options,
+        run_config,
+        mlrun_context,
+        spark_context,
+        overwrite,
+    )
 
 
 def _ingest(
@@ -631,6 +569,9 @@ def _deploy_ingestion_service_v2(
     function.metadata.name = function.metadata.name or name
 
     function.spec.graph = featureset.spec.graph
+    function.spec.graph.engine = (
+        "async" if featureset.spec.engine == "storey" else "sync"
+    )
     function.spec.parameters = run_config.parameters
     function.spec.graph_initializer = (
         "mlrun.feature_store.ingestion.featureset_initializer"

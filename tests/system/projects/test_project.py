@@ -127,6 +127,7 @@ class TestProject(TestMLRunSystem):
             project=proj.to_yaml(),
         )
         proj.save()
+        proj.register_artifacts()
         return proj
 
     def test_project_persists_function_changes(self):
@@ -446,7 +447,6 @@ class TestProject(TestMLRunSystem):
 
         db = mlrun.get_run_db()
         project.sync_functions(save=True)
-        project.register_artifacts()
 
         # get project from db for creation time
         project = db.get_project(name=self.project_name)
@@ -478,7 +478,6 @@ class TestProject(TestMLRunSystem):
 
         db = mlrun.get_run_db()
         project.sync_functions(save=True)
-        project.register_artifacts()
 
         # get project from db for creation time
         project = db.get_project(name=self.project_name)
@@ -1680,6 +1679,54 @@ class TestProject(TestMLRunSystem):
         # Ensuring that the project's source has not changed in the db:
         project_from_db = self._run_db.get_project(name)
         assert project_from_db.source == source
+
+    def test_notifications_on_workflow_start_and_completion(self):
+        """
+        This test validates that notifications are sent correctly during the workflow run, when a notification with
+        when=["running", "completed"] is set.
+        one notification is sent when the workflow starts, and another is sent when the workflow completes successfully.
+        """
+        project_name = "my-project"
+        self.custom_project_names_to_delete.append(project_name)
+
+        project = self._load_remote_pipeline_project(name=project_name)
+        project.set_workflow("main", "kflow.py")
+
+        # nuclio function for storing notifications, to validate the notifications from the pipeline
+        nuclio_function_url = notification_helpers.deploy_notification_nuclio(project)
+
+        notification = mlrun.model.Notification(
+            kind="webhook",
+            when=["running", "completed"],
+            name="webhook_notification",
+            message="some message",
+            condition="",
+            severity="info",
+            params={"url": nuclio_function_url},
+        )
+
+        run_id = project.run(
+            "main", watch=True, engine="remote", notifications=[notification]
+        )
+        res = mlrun.wait_for_pipeline_completion(run_id)
+        assert (
+            res["run"]["status"] == mlrun_pipelines.common.models.RunStatuses.succeeded
+        )
+
+        # in order to trigger the periodic monitor runs function
+        time.sleep(35)
+
+        notifications = list(
+            notification_helpers.get_notifications_from_nuclio_and_reset_notification_cache(
+                nuclio_function_url
+            )
+        )
+
+        # Two notifications are expected: one from the client at the beginning when the workflow starts,
+        # and one from the server when the run completes.
+        assert (
+            len(notifications) == 2
+        ), f"Expected 2 notifications, got {len(notifications)}"
 
     @staticmethod
     def _generate_pipeline_notifications(

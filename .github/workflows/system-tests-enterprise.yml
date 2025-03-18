@@ -48,7 +48,7 @@ concurrency: one-at-a-time
 jobs:
   system-test-cleanup:
     name: System Test Cleanup
-    runs-on: [ self-hosted, Linux ]
+    runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
     container:
       image: ubuntu:latest
     timeout-minutes: 10
@@ -89,7 +89,7 @@ jobs:
     # When increasing the timeout make sure it's not larger than the schedule cron interval
     timeout-minutes: 55
     name: Prepare System Tests Enterprise
-    runs-on: [ self-hosted, Linux ]
+    runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
     container:
       image: python:3.9
     needs: [system-test-cleanup]
@@ -289,7 +289,7 @@ jobs:
     name: Test ${{ matrix.test_component }} [${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}]
     # requires prepare to finish before starting
     needs: [prepare-system-tests-enterprise-ci]
-    runs-on: [ self-hosted, Linux ]
+    runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
     container:
       image: python:3.9
     # let's not run this on every fork, change to your fork when developing

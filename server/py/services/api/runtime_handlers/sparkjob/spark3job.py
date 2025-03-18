@@ -604,9 +604,23 @@ with ctx:
         job: dict,
     ):
         if runtime.spec.priority_class_name:
+            # Spark 3.2
             verify_and_update_in(
                 job,
                 "spec.batchSchedulerOptions.priorityClassName",
+                runtime.spec.priority_class_name,
+                str,
+            )
+            # Spark 3.5
+            verify_and_update_in(
+                job,
+                "spec.driver.priorityClassName",
+                runtime.spec.priority_class_name,
+                str,
+            )
+            verify_and_update_in(
+                job,
+                "spec.executor.priorityClassName",
                 runtime.spec.priority_class_name,
                 str,
             )

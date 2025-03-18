@@ -232,6 +232,7 @@ default_config = {
                 "delete_project": "900",
                 "delete_function": "900",
                 "model_endpoint_creation": "600",
+                "model_endpoint_tsdb_leftovers": "900",
             },
             "runtimes": {"dask": "600"},
             "push_notifications": "60",
@@ -566,16 +567,16 @@ default_config = {
         },
         "application_stream_args": {
             "v3io": {
-                "shard_count": 1,
+                "shard_count": 4,
                 "retention_period_hours": 24,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
             "kafka": {
-                "partition_count": 1,
+                "partition_count": 4,
                 "replication_factor": 1,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },

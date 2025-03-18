@@ -13,6 +13,7 @@
 # limitations under the License.
 
 __all__ = [
+    "ingest",
     "delete_feature_set",
     "delete_feature_vector",
     "get_feature_set",
@@ -35,12 +36,15 @@ from .api import (
     delete_feature_vector,
     get_feature_set,
     get_feature_vector,
+    ingest,
 )
 from .common import RunConfig
 from .feature_set import FeatureSet
 from .feature_vector import (
     FeatureVector,
     FixedWindowType,
+)
+from .feature_vector_utils import (
     JoinGraph,
     OfflineVectorResponse,
     OnlineVectorService,

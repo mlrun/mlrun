@@ -40,14 +40,6 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         super().__init__()
         # Stores per-thread sessions in `session` attribute
         self._local = threading.local()
-        # Retry session is for internal messaging
-        # _retry_session is unused at the moment but kept for future use, its implementation shall be similar to
-        # _sync_retry_session but with async client. It is expected to be needed as our microservices architecture
-        # evolves, and we need to make more internal requests between services.
-        self._retry_session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
-        self._sync_retry_session: typing.Optional[mlrun.utils.HTTPSessionWithRetry] = (
-            None
-        )
         self._discovery = framework.utils.clients.discovery.Client()
 
     ##### Sync HTTP requests #####
@@ -243,7 +235,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         **kwargs,
     ) -> requests.Response:
         self._prepare_request_kwargs(headers=headers, kwargs=kwargs)
-        self._ensure_sync_retry_session()
+        session = self._resolve_sync_retry_session()
         kwargs_to_log = self._resolve_kwargs_to_log(kwargs)
         logger.debug(
             "Sending sync request to service",
@@ -252,7 +244,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             url=url,
             **kwargs_to_log,
         )
-        response = self._sync_retry_session.request(
+        response = session.request(
             method, url, verify=mlrun.mlconf.httpdb.http.verify, **kwargs
         )
         if not response.ok:
@@ -307,6 +299,11 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             self._local.session = self._get_new_session()
         return self._local.session
 
+    def _resolve_sync_retry_session(self):
+        if not hasattr(self._local, "sync_retry_session"):
+            self._local.sync_retry_session = mlrun.utils.HTTPSessionWithRetry()
+        return self._local.sync_retry_session
+
     @staticmethod
     def _get_new_session():
         session = mlrun.utils.AsyncClientWithRetry(
@@ -323,14 +320,6 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         # by returning `True`, we tell the client the response is "legit" and so, it returns it to its callee.
         session.retry_options.evaluate_response_callback = lambda _: True
         return session
-
-    def _ensure_retry_session(self):
-        if not self._retry_session:
-            self._retry_session = mlrun.utils.AsyncClientWithRetry()
-
-    def _ensure_sync_retry_session(self):
-        if not self._sync_retry_session:
-            self._sync_retry_session = mlrun.utils.HTTPSessionWithRetry()
 
     async def _on_request_failure(
         self,

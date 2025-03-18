@@ -33,6 +33,14 @@ import mlrun.launcher.factory
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
+from mlrun.model import (
+    BaseMetadata,
+    HyperParamOptions,
+    ImageBuilder,
+    ModelObj,
+    RunObject,
+    RunTemplate,
+)
 from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 from mlrun_pipelines.common.ops import mlrun_op
 
@@ -40,7 +48,6 @@ from ..config import config
 from ..datastore import store_manager
 from ..errors import err_to_str
 from ..lists import RunList
-from ..model import BaseMetadata, HyperParamOptions, ImageBuilder, ModelObj, RunObject
 from ..utils import (
     dict_to_json,
     dict_to_yaml,
@@ -668,7 +675,7 @@ class BaseRuntime(ModelObj):
 
     def as_step(
         self,
-        runspec: RunObject = None,
+        runspec: Union[RunObject, RunTemplate] = None,
         handler=None,
         name: str = "",
         project: str = "",

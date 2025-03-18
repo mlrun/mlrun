@@ -11,25 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import os
 import unittest.mock
-from typing import Optional
 
 import pytest
 from fastapi.testclient import TestClient
 from pytest import fail
 from sqlalchemy.orm import Session
-from v3io.dataplane import RaiseForStatus
 from v3io_frames import CreateError
 from v3io_frames import frames_pb2 as fpb2
 
-import mlrun.common.schemas
-import mlrun.common.schemas.model_monitoring.constants
+import mlrun
+import mlrun.common.schemas.model_monitoring
+import mlrun.utils
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
-from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
-from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
+from mlrun.utils.v3io_clients import get_frames_client
 
 import framework.utils.clients.iguazio
 from services.api.crud.model_monitoring.grafana import (
@@ -81,18 +79,12 @@ def test_grafana_proxy_model_endpoints_check_connection(
 def test_grafana_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
-    # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="v3io-nosql")
-    endpoint_store = store_type_object.to_object_store(
-        project=TEST_PROJECT, access_key=_get_access_key()
-    )
-
     for endpoint in endpoints_in:
-        endpoint_store.write_model_endpoint(endpoint.flat_dict())
+        endpoint_store.write_model_endpoint(endpoint.flat_dict())  # noqa: F821
 
     response = client.post(
         url="grafana-proxy/model-endpoints/query",
-        headers={"X-V3io-Session-Key": _get_access_key()},
+        headers={"X-V3io-Session-Key": mlrun.mlconf.get_v3io_access_key()},
         json={
             "targets": [
                 {"target": f"project={TEST_PROJECT};target_endpoint=list_endpoints"}
@@ -171,52 +163,20 @@ def test_validate_query_parameters_success():
     validate_query_parameters({"target_endpoint": "list_endpoints"}, {"list_endpoints"})
 
 
-def _get_access_key() -> Optional[str]:
-    return os.environ.get("V3IO_ACCESS_KEY")
-
-
 @pytest.fixture(autouse=True)
 def cleanup_endpoints(db: Session, client: TestClient):
     if not _is_env_params_dont_exist():
-        kv_path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=TEST_PROJECT,
-            kind=mlrun.common.schemas.model_monitoring.ModelMonitoringStoreKinds.ENDPOINTS,
-        )
-        _, kv_container, kv_path = parse_model_endpoint_store_prefix(kv_path)
-
-        tsdb_path = config.model_endpoint_monitoring.store_prefixes.default.format(
-            project=TEST_PROJECT,
-            kind=mlrun.common.schemas.model_monitoring.ModelMonitoringStoreKinds.EVENTS,
+        tsdb_path = (
+            mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+                project=TEST_PROJECT,
+                kind=mlrun.common.schemas.model_monitoring.FileTargetKind.EVENTS,
+            )
         )
         _, tsdb_container, tsdb_path = parse_model_endpoint_store_prefix(tsdb_path)
 
-        v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
-
         frames = get_frames_client(
-            token=_get_access_key(),
-            container=tsdb_container,
-            address=config.v3io_framesd,
+            container=tsdb_container, address=mlrun.mlconf.v3io_framesd
         )
-
-        try:
-            all_records = v3io.kv.new_cursor(
-                container=kv_container,
-                table_path=kv_path,
-                raise_for_status=RaiseForStatus.never,
-            ).all()
-
-            all_records = [r["__name"] for r in all_records]
-
-            # Cleanup KV
-            for record in all_records:
-                v3io.kv.delete(
-                    container=kv_container,
-                    table_path=kv_path,
-                    key=record,
-                    raise_for_status=RaiseForStatus.never,
-                )
-        except RuntimeError:
-            pass
 
         try:
             # Cleanup TSDB

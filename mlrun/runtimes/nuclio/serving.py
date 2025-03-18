@@ -341,6 +341,8 @@ class ServingRuntime(RemoteRuntime):
             logger.info("Set tracking for children references", enable_tracking=enable_tracking)
             for name in self._spec.function_refs.keys():
                 self._spec.function_refs[name].track_models = enable_tracking
+                if self._spec.function_refs[name]._function:
+                    self._spec.function_refs[name]._function.spec.track_models = enable_tracking
                 logger.info(f"Enable tracking for {name}" , enable_tracking=enable_tracking,
                             ref_track_models=self._spec.function_refs[name].track_models)
 

@@ -959,7 +959,7 @@ class ModelRunner(storey.ParallelExecution):
         return self.model_selector.select(event, models)
 
 
-class ModelRunnerStep(TaskStep):
+class ModelRunnerStep(TaskStep, StepToDict):
     """
     Runs multiple Models on each event.
 
@@ -981,29 +981,41 @@ class ModelRunnerStep(TaskStep):
         model_selector: Optional[Union[str, ModelSelector]] = None,
         **kwargs,
     ):
-        self._models = []
         super().__init__(
             *args,
             class_name="mlrun.serving.ModelRunner",
-            class_args=dict(runnables=self._models, model_selector=model_selector),
+            class_args=dict(model_selector=model_selector),
             **kwargs,
         )
 
-    def add_model(self, model: Model) -> None:
-        """Add a Model to this ModelRunner."""
-        self._models.append(model)
+    def add_model(self, model: Union[str, Model], **model_parameters) -> None:
+        """
+        Add a Model to this ModelRunner.
+
+        :param model: Model class name or object
+        :param model_parameters: Parameters for model instantiation
+        """
+        models = self.class_args.get("models", [])
+        models.append((model, model_parameters))
+        self.class_args["models"] = models
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         model_selector = self.class_args.get("model_selector")
+        models = self.class_args.get("models")
         if isinstance(model_selector, str):
             model_selector = get_class(model_selector, namespace)()
+        model_objects = []
+        for model, model_params in models:
+            if not isinstance(model, Model):
+                model = get_class(model, namespace)(**model_params)
+            model_objects.append(model)
         self._async_object = ModelRunner(
-            self.class_args.get("runnables"),
             model_selector=model_selector,
+            runnables=model_objects,
         )
 
 
-class QueueStep(BaseStep):
+class QueueStep(BaseStep, StepToDict):
     """queue step, implement an async queue or represent a stream"""
 
     kind = "queue"
@@ -1799,7 +1811,26 @@ def params_to_step(
 
     class_args = class_args or {}
 
-    if class_name and hasattr(class_name, "to_dict"):
+    if isinstance(class_name, QueueStep):
+        if not name or class_name.name:
+            raise MLRunInvalidArgumentError("queue name must be specified")
+
+        step = class_name
+
+    elif class_name in queue_class_names:
+        if "path" not in class_args:
+            raise MLRunInvalidArgumentError(
+                "path=<stream path or None> must be specified for queues"
+            )
+        if not name:
+            raise MLRunInvalidArgumentError("queue name must be specified")
+        # Pass full_event on only if it's explicitly defined
+        if full_event is not None:
+            class_args = class_args.copy()
+            class_args["full_event"] = full_event
+        step = QueueStep(name, **class_args)
+
+    elif class_name and hasattr(class_name, "to_dict"):
         struct = class_name.to_dict()
         kind = struct.get("kind", StepKinds.task)
         name = name or struct.get("name", struct.get("class_name"))
@@ -1812,19 +1843,6 @@ def params_to_step(
         if kind == StepKinds.task:
             step.model_endpoint_creation_strategy = model_endpoint_creation_strategy
             step.endpoint_type = endpoint_type
-
-    elif class_name and class_name in queue_class_names:
-        if "path" not in class_args:
-            raise MLRunInvalidArgumentError(
-                "path=<stream path or None> must be specified for queues"
-            )
-        if not name:
-            raise MLRunInvalidArgumentError("queue name must be specified")
-        # Pass full_event on only if it's explicitly defined
-        if full_event is not None:
-            class_args = class_args.copy()
-            class_args["full_event"] = full_event
-        step = QueueStep(name, **class_args)
 
     elif class_name and class_name.startswith("*"):
         routes = class_args.get("routes", None)

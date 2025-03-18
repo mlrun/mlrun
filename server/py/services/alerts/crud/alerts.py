@@ -61,7 +61,11 @@ class Alerts(
 
         if existing_alert is not None:
             self._handle_existing_alert(
-                session, project, existing_alert, alert_data, existing_alert_state
+                session,
+                project,
+                existing_alert=existing_alert,
+                alert_data=alert_data,
+                alert_state=existing_alert_state,
             )
         else:
             self._check_alerts_limit(session)
@@ -445,7 +449,7 @@ class Alerts(
         self,
         session: sqlalchemy.orm.Session,
         project: str,
-        alert: mlrun.common.schemas.AlertConfig,
+        existing_alert: mlrun.common.schemas.AlertConfig,
         alert_data: mlrun.common.schemas.AlertConfig,
         alert_state: framework.db.sqldb.models.AlertState,
     ):
@@ -459,21 +463,21 @@ class Alerts(
         - Updates the alert's 'updated' field to reflect the latest modification time.
         - Enriches the alert with its existing active state.
         """
-        self._delete_notifications(alert)
-        self._get_alert_by_id_cached().cache_remove(session, alert.id)
-        self._remove_event_configurations(project, alert)
+        self._delete_notifications(existing_alert)
+        self._get_alert_by_id_cached().cache_remove(session, existing_alert.id)
+        self._remove_event_configurations(project, existing_alert)
 
         # preserve the original creation time and id of the alert so that modifying the alert does not change them
-        alert_data.created = alert.created
-        alert_data.id = alert.id
+        alert_data.created = existing_alert.created
+        alert_data.id = existing_alert.id
 
         # set the updated field to reflect the latest modification time of the alert
         alert_data.updated = mlrun.utils.now_date()
 
         # Enrich the old alert with existing state
-        alert.state = mlrun.common.schemas.AlertActiveState.INACTIVE
+        existing_alert.state = mlrun.common.schemas.AlertActiveState.INACTIVE
         if alert_state and alert_state.to_dict()["active"]:
-            alert.state = mlrun.common.schemas.AlertActiveState.ACTIVE
+            existing_alert.state = mlrun.common.schemas.AlertActiveState.ACTIVE
 
     @staticmethod
     def _check_alerts_limit(session: sqlalchemy.orm.Session):
@@ -528,7 +532,9 @@ class Alerts(
         - Force reset: When the 'force_reset' flag is explicitly set to True.
         """
         should_reset, reset_reason = self._should_reset_alert(
-            existing_alert, alert_data, force_reset
+            old_alert_data=existing_alert,
+            alert_data=alert_data,
+            force_reset=force_reset,
         )
         if should_reset:
             logger.debug(

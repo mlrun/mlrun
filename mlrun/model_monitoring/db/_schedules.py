@@ -16,7 +16,7 @@ import json
 from abc import ABC
 from contextlib import AbstractContextManager
 from types import TracebackType
-from typing import Callable, Final, Optional
+from typing import Final, Optional
 
 import botocore.exceptions
 

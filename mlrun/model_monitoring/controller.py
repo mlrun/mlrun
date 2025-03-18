@@ -276,6 +276,7 @@ class MonitoringApplicationController:
         endpoint: mlrun.common.schemas.ModelEndpoint,
         application_names: set,
         base_period_minutes: int,
+        schedules_file: ModelMonitoringSchedulesFileChief,
     ) -> bool:
         """
         checks if there is a need to monitor the given endpoint, we should monitor endpoint if it stands in the
@@ -289,72 +290,64 @@ class MonitoringApplicationController:
             2.  last request has a higher timestamp than the min_last_analyzed timestamp
             3.  We didn't analyze one of the application for over than _MAX_OPEN_WINDOWS_ALLOWED windows
         """
-        with ModelMonitoringSchedulesFileChief(self.project) as schedules_file:
-            last_timestamp_sent = schedules_file.get_endpoint_time(
-                endpoint.metadata.uid
+        last_timestamp_sent = schedules_file.get_endpoint_time(endpoint.metadata.uid)
+        if (
+            # Is the model endpoint monitored?
+            endpoint.status.monitoring_mode == mm_constants.ModelMonitoringMode.enabled
+            # Was the model endpoint called? I.e., are the first and last requests nonempty?
+            and endpoint.status.first_request
+            and endpoint.status.last_request
+            # Is the model endpoint not a router endpoint? Router endpoint has no feature stats
+            and endpoint.metadata.endpoint_type.value
+            != mm_constants.EndpointType.ROUTER.value
+        ):
+            with _BatchWindowGenerator(
+                project=endpoint.metadata.project,
+                endpoint_id=endpoint.metadata.uid,
+            ) as batch_window_generator:
+                base_period_seconds = base_period_minutes * _SECONDS_IN_MINUTE
+                if application_names != batch_window_generator.get_application_list():
+                    schedules_file.update_endpoint_time(
+                        endpoint_uid=endpoint.metadata.uid,
+                        timestamp=int(endpoint.status.last_request.timestamp()),
+                    )
+                    return True
+                elif (
+                    not batch_window_generator.get_min_last_analyzed()
+                    or batch_window_generator.get_min_last_analyzed()
+                    <= int(endpoint.status.last_request.timestamp())
+                    or mlrun.utils.datetime_now().timestamp()
+                    - batch_window_generator.get_min_last_analyzed()
+                    >= self._MAX_OPEN_WINDOWS_ALLOWED * base_period_seconds
+                ) and (
+                    int(endpoint.status.last_request.timestamp()) != last_timestamp_sent
+                ):
+                    schedules_file.update_endpoint_time(
+                        endpoint_uid=endpoint.metadata.uid,
+                        timestamp=int(endpoint.status.last_request.timestamp()),
+                    )
+                    return True
+                else:
+                    logger.info(
+                        "All the possible intervals were already analyzed, didn't push regular event",
+                        endpoint_id=endpoint.metadata.uid,
+                        last_analyzed=datetime.datetime.fromtimestamp(
+                            batch_window_generator.get_min_last_analyzed(),
+                            tz=datetime.timezone.utc,
+                        ),
+                        last_request=endpoint.status.last_request,
+                    )
+        else:
+            logger.info(
+                "Should not monitor model endpoint, didn't push regular event",
+                endpoint_id=endpoint.metadata.uid,
+                endpoint_name=endpoint.metadata.name,
+                last_request=endpoint.status.last_request,
+                first_request=endpoint.status.first_request,
+                endpoint_type=endpoint.metadata.endpoint_type,
+                feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
             )
-            if (
-                # Is the model endpoint monitored?
-                endpoint.status.monitoring_mode
-                == mm_constants.ModelMonitoringMode.enabled
-                # Was the model endpoint called? I.e., are the first and last requests nonempty?
-                and endpoint.status.first_request
-                and endpoint.status.last_request
-                # Is the model endpoint not a router endpoint? Router endpoint has no feature stats
-                and endpoint.metadata.endpoint_type.value
-                != mm_constants.EndpointType.ROUTER.value
-            ):
-                with _BatchWindowGenerator(
-                    project=endpoint.metadata.project,
-                    endpoint_id=endpoint.metadata.uid,
-                ) as batch_window_generator:
-                    base_period_seconds = base_period_minutes * _SECONDS_IN_MINUTE
-                    if (
-                        application_names
-                        != batch_window_generator.get_application_list()
-                    ):
-                        schedules_file.update_endpoint_time(
-                            endpoint_uid=endpoint.metadata.uid,
-                            timestamp=int(endpoint.status.last_request.timestamp()),
-                        )
-                        return True
-                    elif (
-                        not batch_window_generator.get_min_last_analyzed()
-                        or batch_window_generator.get_min_last_analyzed()
-                        <= int(endpoint.status.last_request.timestamp())
-                        or mlrun.utils.datetime_now().timestamp()
-                        - batch_window_generator.get_min_last_analyzed()
-                        >= self._MAX_OPEN_WINDOWS_ALLOWED * base_period_seconds
-                    ) and (
-                        int(endpoint.status.last_request.timestamp())
-                        != last_timestamp_sent
-                    ):
-                        schedules_file.update_endpoint_time(
-                            endpoint_uid=endpoint.metadata.uid,
-                            timestamp=int(endpoint.status.last_request.timestamp()),
-                        )
-                        return True
-                    else:
-                        logger.info(
-                            "All the possible intervals were already analyzed, didn't push regular event",
-                            endpoint_id=endpoint.metadata.uid,
-                            last_analyzed=datetime.datetime.fromtimestamp(
-                                batch_window_generator.get_min_last_analyzed(),
-                                tz=datetime.timezone.utc,
-                            ),
-                            last_request=endpoint.status.last_request,
-                        )
-            else:
-                logger.info(
-                    "Should not monitor model endpoint, didn't push regular event",
-                    endpoint_id=endpoint.metadata.uid,
-                    endpoint_name=endpoint.metadata.name,
-                    last_request=endpoint.status.last_request,
-                    first_request=endpoint.status.first_request,
-                    endpoint_type=endpoint.metadata.endpoint_type,
-                    feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
-                )
-            return False
+        return False
 
     def run(self, event: nuclio_sdk.Event) -> None:
         """
@@ -603,29 +596,31 @@ class MonitoringApplicationController:
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=min(len(endpoints), 10)
         ) as pool:
-            futures = {
-                pool.submit(
-                    self.endpoint_to_regular_event,
-                    endpoint,
-                    policy,
-                    set(applications_names),
-                    self.v3io_access_key,
-                ): endpoint
-                for endpoint in endpoints
-            }
-            for future in concurrent.futures.as_completed(futures):
-                if future.exception():
-                    exception = future.exception()
-                    error = (
-                        f"Failed to push event. Endpoint name: {futures[future].metadata.name}, "
-                        f"endpoint uid: {futures[future].metadata.uid}, traceback:\n"
-                    )
-                    error += "".join(
-                        traceback.format_exception(
-                            None, exception, exception.__traceback__
+            with ModelMonitoringSchedulesFileChief(self.project) as schedule_file:
+                futures = {
+                    pool.submit(
+                        self.endpoint_to_regular_event,
+                        endpoint,
+                        policy,
+                        set(applications_names),
+                        self.v3io_access_key,
+                        schedule_file,
+                    ): endpoint
+                    for endpoint in endpoints
+                }
+                for future in concurrent.futures.as_completed(futures):
+                    if future.exception():
+                        exception = future.exception()
+                        error = (
+                            f"Failed to push event. Endpoint name: {futures[future].metadata.name}, "
+                            f"endpoint uid: {futures[future].metadata.uid}, traceback:\n"
                         )
-                    )
-                    logger.error(error)
+                        error += "".join(
+                            traceback.format_exception(
+                                None, exception, exception.__traceback__
+                            )
+                        )
+                        logger.error(error)
         logger.info("Finishing monitoring controller chief")
 
     def endpoint_to_regular_event(
@@ -634,11 +629,13 @@ class MonitoringApplicationController:
         policy: dict,
         applications_names: set,
         v3io_access_key: str,
+        schedule_file: ModelMonitoringSchedulesFileChief,
     ) -> None:
         if self._should_monitor_endpoint(
             endpoint,
             set(applications_names),
             policy.get(ControllerEventEndpointPolicy.BASE_PERIOD, 10),
+            schedule_file,
         ):
             logger.debug(
                 "endpoint data is being prepared for regular event",

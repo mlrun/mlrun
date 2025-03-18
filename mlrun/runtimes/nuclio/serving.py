@@ -338,13 +338,16 @@ class ServingRuntime(RemoteRuntime):
         # Applying model monitoring configurations
         self.spec.track_models = enable_tracking
         if self._spec and self._spec.function_refs:
-            logger.info("Set tracking for children references", enable_tracking=enable_tracking)
+            logger.debug(
+                "Set tracking for children references", enable_tracking=enable_tracking
+            )
             for name in self._spec.function_refs.keys():
                 self._spec.function_refs[name].track_models = enable_tracking
+                # Check if function_refs _function is filled if so update track_models field:
                 if self._spec.function_refs[name]._function:
-                    self._spec.function_refs[name]._function.spec.track_models = enable_tracking
-                logger.info(f"Enable tracking for {name}" , enable_tracking=enable_tracking,
-                            ref_track_models=self._spec.function_refs[name].track_models)
+                    self._spec.function_refs[
+                        name
+                    ]._function.spec.track_models = enable_tracking
 
         if not 0 < sampling_percentage <= 100:
             raise mlrun.errors.MLRunInvalidArgumentError(

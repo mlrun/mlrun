@@ -449,12 +449,10 @@ class SQLDB(DBInterface):
             query = query.filter(Run.updated >= last_update_time_from)
         if last_update_time_to is not None:
             query = query.filter(Run.updated <= last_update_time_to)
-        # func.DATE cast is needed for SQLite to solve the following bug:
-        # https://stackoverflow.com/questions/16228195/comparing-dates-with-sqlalchemy-sqlite
         if end_time_from is not None:
-            query = query.filter(func.DATE(Run.end_time) >= func.DATE(end_time_from))
+            query = query.filter(Run.end_time >= end_time_from)
         if end_time_to is not None:
-            query = query.filter(func.DATE(Run.end_time) <= func.DATE(end_time_to))
+            query = query.filter(Run.end_time <= end_time_to)
         if sort:
             query = query.order_by(Run.start_time.desc())
         if not iter:
@@ -527,8 +525,10 @@ class SQLDB(DBInterface):
     def _enrich_run_struct_from_model(
         self, run: Run, run_struct: dict, with_notifications: bool
     ):
-        if run.state in mlrun.common.runtimes.constants.RunStates.terminal_states():
-            run_struct.setdefault("status", {})["end_time"] = run.end_time.isoformat()
+        if run.end_time:
+            run_struct.setdefault("status", {})["end_time"] = self._add_utc_timezone(
+                run.end_time
+            ).isoformat()
         if with_notifications:
             self._fill_run_struct_with_notifications(run.notifications, run_struct)
 

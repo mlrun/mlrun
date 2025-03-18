@@ -451,8 +451,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "mytarget", path=f"{self.output_dir()}-get_offline_features"
         )
         kind = None if self.run_local else "remote-spark"
-        resp = fstore.get_offline_features(
-            feature_vector=vec,
+        resp = vec.get_offline_features(
             additional_filters=[
                 ("bad", "not in", [38, 100]),
                 ("movements", "<", 6),
@@ -530,7 +529,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         features = [f"{name}.*"]
         vec = fstore.FeatureVector("test-vec", features)
 
-        resp = fstore.get_offline_features(vec, with_indexes=True)
+        resp = vec.get_offline_features(with_indexes=True)
         df = resp.to_dataframe()
         assert type(df["timestamp"][0]).__name__ == "Timestamp"
 
@@ -875,7 +874,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             assert resp[4] is None
 
         # check offline
-        resp = fstore.get_offline_features(vec)
+        resp = vec.get_offline_features()
         assert len(resp.to_dataframe() == 4)
         assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
 
@@ -1007,7 +1006,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         ]
 
         vector = fstore.FeatureVector("my-vec", features)
-        resp = fstore.get_offline_features(vector, with_indexes=True)
+        resp = vector.get_offline_features(with_indexes=True)
 
         # We can't count on the order when reading the results back
         result_records = (
@@ -1420,7 +1419,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         features = [f"{name}.*"]
         vec = fstore.FeatureVector("test-vec", features)
 
-        resp = fstore.get_offline_features(vec)
+        resp = vec.get_offline_features()
         df = resp.to_dataframe()
         assert df.to_dict() == {"data": {0: 2000}}
 
@@ -1563,8 +1562,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         target = ParquetTarget(
             "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
         )
-        resp = fstore.get_offline_features(
-            fv_name,
+        resp = my_fv.get_offline_features(
             target=target,
             query="bad>6 and bad<8",
             engine="spark",
@@ -1679,8 +1677,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         target = ParquetTarget(
             "mytarget", path=f"{self.output_dir()}-get_offline_features"
         )
-        resp = fstore.get_offline_features(
-            fv_name,
+        resp = my_fv.get_offline_features(
             target=target,
             engine="spark",
             drop_columns=[drop_column],

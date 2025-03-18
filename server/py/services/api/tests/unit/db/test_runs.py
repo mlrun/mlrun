@@ -577,36 +577,6 @@ class TestRuns(TestDatabaseBase):
         )
         assert len(runs) == 4
 
-    def test_list_runs_with_end_time(self):
-        project, name, run_uid, iteration, run = self._create_new_run()
-
-        assert not run["status"].get("end_time")
-
-        # update the run's end_time
-        updates = {
-            "status.state": "completed",
-        }
-        self._db.update_run(self._db_session, updates, run_uid, project)
-
-        # fetch the run and verify the end_time
-        run = self._db.read_run(self._db_session, run_uid, project, iteration)
-        assert run["status"].get("end_time")
-        end_time = datetime.fromisoformat(run["status"]["end_time"])
-
-        # list runs with end_time filter
-        runs = self._db.list_runs(
-            self._db_session,
-            project=project,
-            end_time_from=end_time,
-        )
-        assert len(runs) == 1
-        stored_run = runs[0]
-        assert stored_run["metadata"]["uid"] == run_uid
-        # Cut the start time microsecond because sqlite doesn't store microseconds in NOW()
-        assert (
-            stored_run["status"]["end_time"] >= stored_run["status"]["start_time"][:19]
-        )
-
     @staticmethod
     def _change_run_record_to_before_align_runs_migration(run, time_before_creation):
         run_dict = run.struct

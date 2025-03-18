@@ -224,36 +224,86 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         ), "code was not copied to local function"
 
     def test_list_runs_with_end_time(self):
-        uid = "uid"
         project_name = "project-1"
         mlrun.new_project(project_name)
-        name = "completed-run"
-        run = {
-            "metadata": {
-                "name": name,
-                "uid": uid,
-                "project": project_name,
-            },
-            "status": {
+        # Create 5 runs with different states
+        # Runs 1, 2, 3 are completed and end in that order
+        run_names = [
+            "run-name-1",
+            "run-name-2",
+            "run-name-3",
+            "run-name-4",
+            "run-name-5",
+        ]
+        statuses = [
+            {
                 "state": mlrun.common.runtimes.constants.RunStates.completed,
+                "start_time": "2021-01-01T00:00:00+00:00",
+                "end_time": "2021-01-01T00:05:00+00:00",
             },
-        }
-        mlrun.get_run_db().store_run(run, uid, project_name)
+            {
+                "state": mlrun.common.runtimes.constants.RunStates.completed,
+                "start_time": "2021-01-01T00:06:00+00:00",
+                "end_time": "2021-01-01T00:10:00+00:00",
+            },
+            {
+                "state": mlrun.common.runtimes.constants.RunStates.completed,
+                "start_time": "2021-01-01T00:00:00+00:00",
+                "end_time": "2021-01-01T01:00:00+00:00",
+            },
+            {
+                "state": mlrun.common.runtimes.constants.RunStates.running,
+                "start_time": "2021-01-01T00:00:00+00:00",
+            },
+            {
+                "state": mlrun.common.runtimes.constants.RunStates.pending,
+            },
+        ]
+        for name, status in zip(run_names, statuses):
+            run = {
+                "metadata": {
+                    "name": name,
+                    "uid": f"{name}-uid",
+                    "project": project_name,
+                },
+                "status": status,
+            }
+            mlrun.get_run_db().store_run(run, run["metadata"]["uid"], project_name)
 
-        # fetch the run and verify the end_time
-        run = mlrun.get_run_db().read_run(uid, project_name)
-        assert run["status"].get("end_time")
-        end_time = datetime.datetime.fromisoformat(run["status"]["end_time"])
+        # Not using mlrun utils to ensure tz info is retained
+        run_1_start_time = datetime.datetime.fromisoformat(statuses[0]["start_time"])
+        run_2_start_time = datetime.datetime.fromisoformat(statuses[1]["start_time"])
+        assert run_1_start_time.tzinfo == datetime.timezone.utc
+        assert run_2_start_time.tzinfo == datetime.timezone.utc
 
         # list runs with end_time filter
-        runs = mlrun.get_run_db().list_runs(
+        runs = _list_and_assert_objects(
+            expected_number_of_runs=3,
             project=project_name,
-            end_time_from=end_time,
+            end_time_from=run_1_start_time,
         )
-        assert len(runs) == 1
         stored_run = runs[0]
-        assert stored_run["metadata"]["uid"] == uid
         assert stored_run["status"]["end_time"] > stored_run["status"]["start_time"]
+        assert stored_run["status"]["end_time"].endswith("+00:00")
+        # 2nd run is 1st in order because it started last
+        assert runs[0]["metadata"]["name"] == run_names[1]
+        assert runs[1]["metadata"]["name"] == run_names[0]
+        assert runs[2]["metadata"]["name"] == run_names[2]
+
+        _list_and_assert_objects(
+            expected_number_of_runs=1,
+            project=project_name,
+            end_time_from=run_1_start_time,
+            end_time_to=run_2_start_time,
+        )
+
+        runs = _list_and_assert_objects(
+            expected_number_of_runs=2,
+            project=project_name,
+            end_time_from=run_2_start_time,
+        )
+        assert runs[0]["metadata"]["name"] == run_names[1]
+        assert runs[1]["metadata"]["name"] == run_names[2]
 
 
 def _list_and_assert_objects(expected_number_of_runs: int, **kwargs):

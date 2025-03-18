@@ -67,7 +67,13 @@ class Alerts(
             self._check_alerts_limit(session)
 
         self._validate_and_mask_notifications(alert_data)
-        new_alert = self._store_or_create_alert(session, alert_data, existing_alert)
+        new_alert = (
+            framework.utils.singletons.db.get_db().store_alert(session, alert_data)
+            if existing_alert
+            else framework.utils.singletons.db.get_db().create_alert(
+                session, alert_data
+            )
+        )
         self._add_event_configurations(project, new_alert)
 
         # if the alert already exists we should check if it should be reset or not
@@ -380,24 +386,25 @@ class Alerts(
     ):
         """
         Validate the alert criteria, ensuring:
-        - The number of criteria does not exceed the maximum allowed.
+        - The criteria count does not exceed the maximum allowed.
         - If a period is specified, it is a valid duration.
         """
-        if criteria is not None:
-            if criteria.count >= mlconfig.alerts.max_criteria_count:
-                raise mlrun.errors.MLRunPreconditionFailedError(
-                    f"Maximum criteria count exceeded: {criteria.count}"
-                )
-            if (
-                criteria.period is not None
-                and framework.utils.helpers.string_to_timedelta(
-                    criteria.period, raise_on_error=False
-                )
-                is None
-            ):
-                raise mlrun.errors.MLRunBadRequestError(
-                    f"Invalid period ({criteria.period}) specified for alert {name} for project {project}"
-                )
+        if criteria is None:
+            return
+        if criteria.count >= mlconfig.alerts.max_criteria_count:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Maximum criteria count exceeded: {criteria.count}"
+            )
+        if (
+            criteria.period is not None
+            and framework.utils.helpers.string_to_timedelta(
+                criteria.period, raise_on_error=False
+            )
+            is None
+        ):
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Invalid period ({criteria.period}) specified for alert {name} for project {project}"
+            )
 
     @staticmethod
     def _validate_alert_notifications(
@@ -411,12 +418,9 @@ class Alerts(
         - Each notification's structure adheres to the defined notification schema.
         - If a cooldown period is specified, it must be a valid time string.
         """
+        valid_kinds = mlrun.common.schemas.NotificationKind.alert_notification_kinds()
         for alert_notification in notifications:
-            if alert_notification.notification.kind not in [
-                mlrun.common.schemas.NotificationKind.git,
-                mlrun.common.schemas.NotificationKind.slack,
-                mlrun.common.schemas.NotificationKind.webhook,
-            ]:
+            if alert_notification.notification.kind not in valid_kinds:
                 raise mlrun.errors.MLRunBadRequestError(
                     f"Unsupported notification ({alert_notification.notification.kind}) "
                     f"for alert {name} for project {project}"
@@ -483,23 +487,6 @@ class Alerts(
             raise mlrun.errors.MLRunPreconditionFailedError(
                 f"Allowed number of alerts exceeded: {num_alerts}"
             )
-
-    @staticmethod
-    def _store_or_create_alert(
-        session: sqlalchemy.orm.Session,
-        alert_data: mlrun.common.schemas.AlertConfig,
-        existing_alert: mlrun.common.schemas.AlertConfig,
-    ) -> mlrun.common.schemas.AlertConfig:
-        """
-        If an existing alert is provided, the method updates the alert's data.
-        Otherwise, it creates a new alert entry.
-        """
-        db = framework.utils.singletons.db.get_db()
-        return (
-            db.store_alert(session, alert_data)
-            if existing_alert
-            else db.create_alert(session, alert_data)
-        )
 
     @staticmethod
     def _add_event_configurations(

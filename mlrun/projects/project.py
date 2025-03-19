@@ -4563,7 +4563,7 @@ class MlrunProject(ModelObj):
         :param name: Return only functions with a specific name.
         :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
         :param labels: Filter functions by label key-value pairs or key existence. This can be provided as:
-        
+
                        - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
                          or `{"label": None}` to check for key existence.
                        - A list of strings formatted as `"label=value"` to match specific label key-value pairs,

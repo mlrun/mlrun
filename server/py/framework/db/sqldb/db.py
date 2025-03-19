@@ -6266,6 +6266,7 @@ class SQLDB(DBInterface):
         ).add_entity(AlertState)
 
         query = self._filter_query_by_resource_project(query, AlertConfig, project)
+        query = query.order_by(AlertConfig.id.desc())
         query = self._paginate_query(query, offset, limit)
 
         results = query.all()

@@ -146,7 +146,7 @@ class Service(framework.service.Service):
         self,
         request: fastapi.Request,
         project: str,
-        page_size: int,
+        page_size: typing.Optional[int],
         offset: typing.Optional[int],
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,

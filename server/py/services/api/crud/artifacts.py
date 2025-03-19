@@ -289,7 +289,7 @@ class Artifacts(
         producer_id: typing.Optional[str] = None,
     ):
         # TODO : If, in the future, this API is extended to delete the artifact data as well,
-        #  we should include the validation we added in validate_artifact_removals_preconditions
+        #  we should include the validation we added in validate_artifacts_removal_preconditions
         #  before attempting the data deletion. Currently, deleting artifacts linked to model
         #  endpoints will fail with IntegrityError.
         project = project or mlrun.mlconf.default_project

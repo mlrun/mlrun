@@ -1122,8 +1122,8 @@ class SQLDB(DBInterface):
         if artifacts_with_dependent_endpoints:
             raise mlrun.errors.MLRunConflictError(
                 f"Cannot delete the artifact(s) key:'{key}' in project:'{project}' tag:'{tag}', iteration:'{iter}'. "
-                f"These artifact(s) are currently in use by {len(artifacts_with_dependent_endpoints)} model endpoint(s). "
-                "To proceed with deletion, you must remove or update the associated model endpoints first."
+                f"These artifact(s) are currently in use by {len(artifacts_with_dependent_endpoints)} model "
+                "endpoint(s). To proceed with deletion, you must remove or update the associated model endpoints first."
             )
 
     @retry_on_conflict

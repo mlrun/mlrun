@@ -59,7 +59,7 @@ When you are satisfied with the application, just use {py:class}`~mlrun.model_mo
 
 
 For example, run the application:
-```
+```py
 %%writefile Myapp.py
 import mlrun
 from mlrun.model_monitoring.applications import (

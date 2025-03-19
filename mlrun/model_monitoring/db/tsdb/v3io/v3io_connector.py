@@ -884,37 +884,37 @@ class V3IOTSDBConnector(TSDBConnector):
         # Get the last request timestamp for each endpoint from the KV table.
         # The result of the query is a list of dictionaries,
         # each dictionary contains the endpoint id and the last request timestamp.
-
+        last_request_timestamps = {}
         if isinstance(endpoint_ids, str):
             endpoint_ids = [endpoint_ids]
 
-        if len(endpoint_ids) > V3IO_CLIENT_MEPS_LIMIT:
-            # Split the endpoint ids into chunks to avoid exceeding the v3io-engine filter-expression limit
-            last_request_timestamps = {}
-            for i in range(0, len(endpoint_ids), V3IO_CLIENT_MEPS_LIMIT):
-                endpoint_id_chunk = endpoint_ids[i : i + V3IO_CLIENT_MEPS_LIMIT]
-                filter_expression = " OR ".join(
-                    [f"__name=='{endpoint_id}'" for endpoint_id in endpoint_id_chunk]
+        # Split the endpoint ids into chunks to avoid exceeding the v3io-engine filter-expression limit
+
+        for i in range(0, len(endpoint_ids), V3IO_CLIENT_MEPS_LIMIT):
+            endpoint_id_chunk = endpoint_ids[i : i + V3IO_CLIENT_MEPS_LIMIT]
+            filter_expression = " OR ".join(
+                [f"__name=='{endpoint_id}'" for endpoint_id in endpoint_id_chunk]
+            )
+            try:
+                res = self.v3io_client.kv.new_cursor(
+                    container=self.container,
+                    table_path=self.last_request_table,
+                    filter_expression=filter_expression,
+                ).all()
+                last_request_timestamps.update(
+                    {d["__name"]: d["last_request_timestamp"] for d in res}
                 )
-                try:
-                    res = self.v3io_client.kv.new_cursor(
-                        container=self.container,
-                        table_path=self.last_request_table,
-                        filter_expression=filter_expression,
-                    ).all()
-                    last_request_timestamps.update(
-                        {d["__name"]: d["last_request_timestamp"] for d in res}
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "Failed to get last request timestamp from V3IO KV table.",
-                        err=mlrun.errors.err_to_str(e),
-                        project=self.project,
-                        table=self.last_request_table,
-                        endpoint_id_chunk_start=i,
-                        endpoint_id_chunk_end=i + V3IO_CLIENT_MEPS_LIMIT,
-                    )
-            return last_request_timestamps
+            except Exception as e:
+                logger.warning(
+                    "Failed to get last request timestamp from V3IO KV table.",
+                    err=mlrun.errors.err_to_str(e),
+                    project=self.project,
+                    table=self.last_request_table,
+                    endpoint_id_chunk_start=i,
+                    endpoint_id_chunk_end=i + V3IO_CLIENT_MEPS_LIMIT,
+                )
+
+        return last_request_timestamps
 
         # try:
         #     res = self.v3io_client.kv.new_cursor(

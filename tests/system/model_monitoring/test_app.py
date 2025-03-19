@@ -145,7 +145,14 @@ class _V3IORecordsChecker:
         if last_request:
             cls._logger.debug("Checking the MEP last_request")
             lr_tsdb = cls._tsdb_storage.get_last_request(endpoint_ids=ep_id)
-            cls._check_valid_tsdb_result(lr_tsdb, ep_id, "last_request", last_request)
+            if isinstance(lr_tsdb, pd.DataFrame):
+                cls._check_valid_tsdb_result(
+                    lr_tsdb, ep_id, "last_request", last_request
+                )
+            else:
+                cls._check_last_request_dict(
+                    lr_tsdb, ep_id, "last_request", last_request
+                )
 
         if error_count:
             cls._logger.debug("Checking the MEP error_count")
@@ -173,6 +180,22 @@ class _V3IORecordsChecker:
             assert (
                 df[df["endpoint_id"] == ep_id][result_name].item() == result_value
             ), f"The {result_name} is different than expected for {ep_id}"
+
+    @classmethod
+    def _check_last_request_dict(
+        cls,
+        data: dict[str, float],
+        ep_id: str,
+        result_name: str,
+        result_value: datetime,
+    ):
+        assert data, "No last request data"
+        assert (
+            list(data.keys())[0] == ep_id
+        ), "The endpoint IDs are different than expected"
+        assert (
+            data[ep_id] == result_value.timestamp()
+        ), f"The {result_name} is different than expected for {ep_id}"
 
     @classmethod
     def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:

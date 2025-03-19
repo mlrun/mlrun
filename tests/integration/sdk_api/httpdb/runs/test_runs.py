@@ -20,6 +20,7 @@ import pytest
 
 import mlrun
 import mlrun.common.helpers
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import tests.integration.sdk_api.base
 from tests.conftest import examples_path
@@ -221,6 +222,99 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             local_fn["spec"]["build"]["functionSourceCode"]
             == fn.spec.build.functionSourceCode
         ), "code was not copied to local function"
+
+    def test_list_runs_with_end_time(self):
+        project_name = "project-1"
+        mlrun.new_project(project_name)
+        # Create 5 runs with different states
+        # Runs 1, 2, 3 are completed and end in that order
+        statuses = [
+            {
+                "state": mlrun.common.runtimes.constants.RunStates.completed,
+                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(days=1),
+                "end_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(hours=5),
+            },
+            {
+                "state": mlrun.common.runtimes.constants.RunStates.completed,
+                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(hours=5),
+                "end_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(hours=1),
+            },
+            {
+                "state": mlrun.common.runtimes.constants.RunStates.completed,
+                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(days=1),
+                "end_time": datetime.datetime.now(datetime.timezone.utc),
+            },
+            {
+                "state": mlrun.common.runtimes.constants.RunStates.running,
+                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(days=1),
+            },
+            {
+                "state": mlrun.common.runtimes.constants.RunStates.pending,
+            },
+        ]
+        for i, status in enumerate(statuses):
+            name = f"run-name-{i}"
+            run = {
+                "metadata": {
+                    "name": name,
+                    "uid": f"{name}-uid",
+                    "project": project_name,
+                },
+                "status": status,
+            }
+            mlrun.get_run_db().store_run(run, run["metadata"]["uid"], project_name)
+
+        run_1_start_time = statuses[0]["start_time"]
+        run_2_start_time = statuses[1]["start_time"]
+
+        # list runs with end_time filter
+        runs = _list_and_assert_objects(
+            expected_number_of_runs=3,
+            project=project_name,
+            end_time_from=run_1_start_time,
+        )
+        runs_by_end_time = _list_and_assert_objects(
+            expected_number_of_runs=3,
+            project=project_name,
+            end_time_from=statuses[0]["end_time"],
+        )
+        assert runs == runs_by_end_time
+        stored_run = runs[0]
+        assert stored_run["status"]["end_time"] > stored_run["status"]["start_time"]
+        assert stored_run["status"]["end_time"].endswith("+00:00")
+        # Assert fsp 6
+        assert any(
+            datetime.datetime.fromisoformat(run["status"]["end_time"]).microsecond
+            for run in runs[:3]
+        )
+        # 2nd run is 1st in order because it started last
+        assert runs[0]["metadata"]["name"] == "run-name-1"
+        assert runs[0]["status"]["end_time"] == statuses[1]["end_time"].isoformat()
+        assert runs[1]["metadata"]["name"] == "run-name-0"
+        assert runs[1]["status"]["end_time"] == statuses[0]["end_time"].isoformat()
+        assert runs[2]["metadata"]["name"] == "run-name-2"
+        assert runs[2]["status"]["end_time"] == statuses[2]["end_time"].isoformat()
+
+        _list_and_assert_objects(
+            expected_number_of_runs=1,
+            project=project_name,
+            end_time_from=run_1_start_time,
+            end_time_to=run_2_start_time,
+        )
+
+        runs = _list_and_assert_objects(
+            expected_number_of_runs=2,
+            project=project_name,
+            end_time_from=run_2_start_time,
+        )
+        assert runs[0]["metadata"]["name"] == "run-name-1"
+        assert runs[1]["metadata"]["name"] == "run-name-2"
 
 
 def _list_and_assert_objects(expected_number_of_runs: int, **kwargs):

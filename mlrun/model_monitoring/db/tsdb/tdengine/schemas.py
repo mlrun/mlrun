@@ -122,26 +122,30 @@ class TDEngineSchema:
             )
         return f"DELETE FROM {self.database}.{subtable} WHERE {values};"
 
-    def _drop_subtable_query(
+    def drop_subtable_query(
         self,
         subtable: str,
     ) -> str:
-        return f"DROP TABLE if EXISTS {self.database}.{subtable};"
+        return f"DROP TABLE if EXISTS {self.database}.`{subtable}`;"
 
     def drop_supertable_query(self) -> str:
         return f"DROP STABLE if EXISTS {self.database}.{self.super_table};"
 
-    def _get_subtables_query(
+    def _get_subtables_query_by_tag(
         self,
-        values: dict[str, Union[str, int, float, datetime.datetime]],
+        filter_tag: str,
+        filter_values: list[str],
+        operator: str = "OR",
     ) -> str:
-        values = " AND ".join(
-            f"{val} LIKE '{values[val]}'" for val in self.tags if val in values
-        )
-        if not values:
+        if filter_tag not in self.tags:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"values must contain at least one tag: {self.tags.keys()}"
+                f"`filter_tag` must be one of the tags: {self.tags.keys()}"
             )
+
+        values = f" {operator} ".join(
+            f"{filter_tag} LIKE '{val}'" for val in filter_values
+        )
+
         return f"SELECT DISTINCT tbname FROM {self.database}.{self.super_table} WHERE {values};"
 
     @staticmethod

@@ -14,9 +14,7 @@
 
 from .constants import (
     INTERSECT_DICT_KEYS,
-    V3IO_MODEL_MONITORING_DB,
     ApplicationEvent,
-    ControllerPolicy,
     DriftStatus,
     EndpointType,
     EndpointUID,
@@ -30,10 +28,7 @@ from .constants import (
     ModelEndpointCreationStrategy,
     ModelEndpointMonitoringMetricType,
     ModelEndpointSchema,
-    ModelEndpointTarget,
-    ModelEndpointTargetSchemas,
     ModelMonitoringMode,
-    ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
     PredictionsQueryConstants,
     ProjectSecretKeys,

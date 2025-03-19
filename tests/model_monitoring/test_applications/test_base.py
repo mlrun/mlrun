@@ -17,7 +17,7 @@ from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 from unittest.mock import Mock, patch
 
 import pytest
@@ -26,6 +26,7 @@ import mlrun
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,
+    ModelMonitoringApplicationMetric,
     ModelMonitoringApplicationResult,
     MonitoringApplicationContext,
 )
@@ -63,6 +64,19 @@ class InProgressApp1(ModelMonitoringApplicationBase):
         )
 
 
+class ModelEndpointAccessApp(ModelMonitoringApplicationBase):
+    def do_tracking(self, monitoring_context: MonitoringApplicationContext) -> None:
+        monitoring_context.logger.info(
+            "Accessing the model endpoint",
+            project=monitoring_context.project_name,
+        )
+        model_endpoint = monitoring_context.model_endpoint
+        monitoring_context.logger.info(
+            "Model endpoint labels",
+            labels=model_endpoint.metadata.labels,
+        )
+
+
 @pytest.mark.filterwarnings("error")
 def test_no_deprecation_instantiation() -> None:
     NoOpApp()
@@ -83,6 +97,28 @@ class TestEvaluate:
         assert run.state() == "created"  # Should be "error", see ML-8507
         run = InProgressApp1.evaluate(func_path=__file__, func_name=func_name)
         assert run.state() == "completed"
+        assert run.status.results == {
+            "return": {
+                "result_name": "res0",
+                "result_value": 0.0,
+                "result_kind": 4,
+                "result_status": -1,
+                "result_extra_data": "{}",
+            }
+        }, "The run results are different than expected"
+
+    @staticmethod
+    def test_model_endpoint_blocked(capsys: pytest.CaptureFixture) -> None:
+        """Test that the logs contain the error message about the blocked model endpoint access"""
+        run = ModelEndpointAccessApp.evaluate(func_path=__file__)
+        assert run.state() == "created"  # Should be "error", see ML-8507
+        captured = capsys.readouterr()
+        assert (
+            "mlrun.errors.MLRunValueError: You have NOT provided the model endpoint's name and ID: "
+            "`endpoint_name`=None and `endpoint_id`=None, "
+            "but you have tried to access `monitoring_context.model_endpoint`"
+            in captured.out
+        ), "The error message is different than expected or was not captured"
 
 
 @pytest.mark.parametrize(
@@ -199,6 +235,50 @@ def test_job_handler() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("result", "expected_flattened_result"),
+    [
+        (
+            ModelMonitoringApplicationMetric(name="m1", value=98),
+            {"metric_name": "m1", "metric_value": 98},
+        ),
+        (
+            [
+                ModelMonitoringApplicationMetric(name="m0", value=-2),
+                ModelMonitoringApplicationResult(
+                    name="r0",
+                    value=0,
+                    status=ResultStatusApp.no_detection,
+                    kind=ResultKindApp.mm_app_anomaly,
+                ),
+            ],
+            [
+                {"metric_name": "m0", "metric_value": -2},
+                {
+                    "result_name": "r0",
+                    "result_value": 0,
+                    "result_status": 0,
+                    "result_kind": 4,
+                    "result_extra_data": "{}",
+                },
+            ],
+        ),
+    ],
+)
+def test_flatten_data_result(
+    result: Union[
+        ModelMonitoringApplicationMetric,
+        ModelMonitoringApplicationResult,
+        list[Union[ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult]],
+    ],
+    expected_flattened_result: Union[dict, list[dict]],
+) -> None:
+    assert (
+        ModelMonitoringApplicationBase._flatten_data_result(result)
+        == expected_flattened_result
+    ), "The flattened result is different than expected"
+
+
 class TestToJob:
     @staticmethod
     @pytest.fixture
@@ -230,3 +310,17 @@ class TestToJob:
         assert isinstance(job, mlrun.runtimes.KubejobRuntime)
         run = job.run(local=True)
         assert run.state() == "completed"
+
+
+@pytest.mark.parametrize(
+    "endpoints", ["model-ep-1", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]
+)
+def test_handle_endpoints_type_evaluate(
+    rundb_mock, endpoints: Union[str, list[str], list[tuple]]
+) -> None:
+    project = "test-endpoints-handler"
+    endpoints_output = ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
+        project, endpoints
+    )
+
+    assert endpoints_output == [("model-ep-1", "model-ep-1-uid")]

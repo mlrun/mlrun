@@ -350,17 +350,10 @@ class HTTPRunDB(RunDBInterface):
                 version=version,
             )
 
-        page_params = deepcopy(params) or {}
-
-        if page_params.get("page-token") is None and page_params.get("page") is None:
-            page_params["page"] = 1
-
-        if page_params.get("page-size") is None:
-            page_params["page-size"] = config.httpdb.pagination.default_page_size
-
+        page_params = self._resolve_page_params(params)
         response = _api_call(page_params)
 
-        # Yield only a single page of results
+        # yields a single page of results
         yield response
 
         if return_all:
@@ -573,6 +566,17 @@ class HTTPRunDB(RunDBInterface):
             )
             config.alerts.mode = server_cfg.get("alerts_mode") or config.alerts.mode
             config.system_id = server_cfg.get("system_id") or config.system_id
+            model_monitoring_store_prefixes = (
+                server_cfg.get("model_endpoint_monitoring_store_prefixes") or {}
+            )
+            for prefix in ["default", "user_space", "monitoring_application"]:
+                store_prefix_value = model_monitoring_store_prefixes.get(prefix)
+                if server_prefix_value is not None:
+                    setattr(
+                        config.model_endpoint_monitoring.store_prefixes,
+                        prefix,
+                        store_prefix_value,
+                    )
 
         except Exception as exc:
             logger.warning(
@@ -899,7 +903,6 @@ class HTTPRunDB(RunDBInterface):
         ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
-        last: int = 0,
         iter: bool = False,
         start_time_from: Optional[datetime] = None,
         start_time_to: Optional[datetime] = None,
@@ -946,7 +949,6 @@ class HTTPRunDB(RunDBInterface):
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
-        :param last: Deprecated - currently not used (will be removed in 1.8.0).
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
@@ -974,7 +976,6 @@ class HTTPRunDB(RunDBInterface):
             state=state,
             states=states,
             sort=sort,
-            last=last,
             iter=iter,
             start_time_from=start_time_from,
             start_time_to=start_time_to,
@@ -1035,6 +1036,7 @@ class HTTPRunDB(RunDBInterface):
 
         :param page: The page number to retrieve. If not provided, the next page will be retrieved.
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+            Defaults to `mlrun.mlconf.httpdb.pagination.default_page_size` if not provided.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
             for the first request.
 
@@ -1093,8 +1095,6 @@ class HTTPRunDB(RunDBInterface):
         self,
         key,
         artifact,
-        # TODO: deprecated, remove in 1.8.0
-        uid=None,
         iter=None,
         tag=None,
         project="",
@@ -1104,8 +1104,6 @@ class HTTPRunDB(RunDBInterface):
 
         :param key: Identifying key of the artifact.
         :param artifact: The :py:class:`~mlrun.artifacts.Artifact` to store.
-        :param uid: A unique ID for this specific version of the artifact
-                    (deprecated, artifact uid is generated in the backend use `tree` instead)
         :param iter: The task iteration which generated this artifact. If ``iter`` is not ``None`` the iteration will
             be added to the key provided to generate a unique key for the artifact of the specific iteration.
         :param tag: Tag of the artifact.
@@ -1113,15 +1111,6 @@ class HTTPRunDB(RunDBInterface):
         :param tree: The tree (producer id) which generated this artifact.
         :returns: The stored artifact dictionary.
         """
-        if uid:
-            warnings.warn(
-                "'uid' is deprecated in 1.6.0 and will be removed in 1.8.0, use 'tree' instead.",
-                # TODO: Remove this in 1.8.0
-                FutureWarning,
-            )
-
-        # we do this because previously the 'uid' name was used for the 'tree' parameter
-        tree = tree or uid
         project = project or mlrun.mlconf.default_project
         endpoint_path = f"projects/{project}/artifacts/{key}"
 
@@ -1294,7 +1283,7 @@ class HTTPRunDB(RunDBInterface):
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
             to return per group. Default value is 1.
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
-            Currently the only allowed values are `created` and `updated`.
+            Currently, the only allowed values are `created` and `updated`.
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         """
 
@@ -1317,7 +1306,7 @@ class HTTPRunDB(RunDBInterface):
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
-            return_all=True,
+            return_all=not limit,
         )
         return artifacts
 
@@ -1370,6 +1359,7 @@ class HTTPRunDB(RunDBInterface):
 
         :param page: The page number to retrieve. If not provided, the next page will be retrieved.
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+            Defaults to `mlrun.mlconf.httpdb.pagination.default_page_size` if not provided.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
             for the first request.
 
@@ -1518,6 +1508,7 @@ class HTTPRunDB(RunDBInterface):
         until: Optional[datetime] = None,
         kind: Optional[str] = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
+        states: typing.Optional[list[mlrun.common.schemas.FunctionState]] = None,
     ):
         """Retrieve a list of functions, filtered by specific criteria.
 
@@ -1535,6 +1526,7 @@ class HTTPRunDB(RunDBInterface):
         :param until: Return functions updated before this date (as datetime object).
         :param kind: Return only functions of a specific kind.
         :param format_: The format in which to return the functions. Default is 'full'.
+        :param states: Return only functions whose state is one of the provided states.
         :returns: List of function objects (as dictionary).
         """
         functions, _ = self._list_functions(
@@ -1546,6 +1538,7 @@ class HTTPRunDB(RunDBInterface):
             format_=format_,
             since=since,
             until=until,
+            states=states,
             return_all=True,
         )
         return functions
@@ -1599,6 +1592,7 @@ class HTTPRunDB(RunDBInterface):
 
         :param page: The page number to retrieve. If not provided, the next page will be retrieved.
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+            Defaults to `mlrun.mlconf.httpdb.pagination.default_page_size` if not provided.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
             for the first request.
 
@@ -4985,6 +4979,7 @@ class HTTPRunDB(RunDBInterface):
 
         :param page: The page number to retrieve. If not provided, the next page will be retrieved.
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+            Defaults to `mlrun.mlconf.httpdb.pagination.default_page_size` if not provided.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
             for the first request.
 
@@ -5154,6 +5149,7 @@ class HTTPRunDB(RunDBInterface):
         format_: Optional[str] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
+        states: typing.Optional[list[mlrun.common.schemas.FunctionState]] = None,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
@@ -5171,6 +5167,7 @@ class HTTPRunDB(RunDBInterface):
             "since": datetime_to_iso(since),
             "until": datetime_to_iso(until),
             "format": format_,
+            "state": states or None,
             "page": page,
             "page-size": page_size,
             "page-token": page_token,
@@ -5198,7 +5195,6 @@ class HTTPRunDB(RunDBInterface):
         ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
-        last: int = 0,
         iter: bool = False,
         start_time_from: Optional[datetime] = None,
         start_time_to: Optional[datetime] = None,
@@ -5230,13 +5226,6 @@ class HTTPRunDB(RunDBInterface):
                 "using the `with_notifications` flag."
             )
 
-        if last:
-            # TODO: Remove this in 1.8.0
-            warnings.warn(
-                "'last' is deprecated and will be removed in 1.8.0.",
-                FutureWarning,
-            )
-
         if state:
             # TODO: Remove this in 1.9.0
             warnings.warn(
@@ -5252,7 +5241,6 @@ class HTTPRunDB(RunDBInterface):
             and not labels
             and not state
             and not states
-            and not last
             and not start_time_from
             and not start_time_to
             and not last_update_time_from
@@ -5373,6 +5361,33 @@ class HTTPRunDB(RunDBInterface):
                 background_task.metadata.name
             )
         return None
+
+    def _resolve_page_params(self, params: typing.Optional[dict]) -> dict:
+        """
+        Resolve the page parameters, setting defaults where necessary.
+        """
+        page_params = deepcopy(params) or {}
+        if page_params.get("page-token") is None and page_params.get("page") is None:
+            page_params["page"] = 1
+        if page_params.get("page-size") is None:
+            page_size = config.httpdb.pagination.default_page_size
+
+            if page_params.get("limit") is not None:
+                page_size = page_params["limit"]
+
+                # limit and page/page size are conflicting
+                page_params.pop("limit")
+            page_params["page-size"] = page_size
+
+        # this may happen only when page-size was explicitly set along with limit
+        # this is to ensure we will not get stopped by API on similar below validation
+        # but rather simply fallback to use page-size.
+        if page_params.get("page-size") and page_params.get("limit"):
+            logger.warning(
+                "Both 'limit' and 'page-size' are provided, using 'page-size'."
+            )
+            page_params.pop("limit")
+        return page_params
 
 
 def _as_json(obj):

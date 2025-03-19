@@ -29,7 +29,10 @@ class SQLTypesUtil:
 
     class _Datetime:
         sqlite = sqlalchemy.DATETIME(timezone=True)
-        mysql = sqlalchemy.dialects.mysql.DATETIME(timezone=True, fsp=3)
+
+        @staticmethod
+        def mysql(fsp=6):
+            return sqlalchemy.dialects.mysql.DATETIME(timezone=True, fsp=fsp)
 
     class _Blob:
         sqlite = sqlalchemy.BLOB
@@ -48,17 +51,20 @@ class SQLTypesUtil:
         return cls._return_type(cls._Timestamp)
 
     @classmethod
-    def datetime(cls):
-        return cls._return_type(cls._Datetime)
+    def datetime(cls, fsp=6):
+        return cls._return_type(cls._Datetime, fsp=fsp)
 
     @classmethod
     def blob(cls):
         return cls._return_type(cls._Blob)
 
     @staticmethod
-    def _return_type(type_cls: type):
+    def _return_type(type_cls: type, *args, **kwargs):
         mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
         if mysql_dsn_data:
+            # If the mysql attribute is callable (as it is for _Datetime), call it with extra arguments.
+            if callable(getattr(type_cls, "mysql", None)):
+                return type_cls.mysql(*args, **kwargs)
+            # Otherwise just return the attribute (as for _Collations or _Timestamp).
             return type_cls.mysql
-
         return type_cls.sqlite

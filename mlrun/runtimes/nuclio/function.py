@@ -306,9 +306,12 @@ class RemoteRuntime(KubeResource):
     def _validate_triggers(self, spec):
         # ML-7763 / NUC-233
         min_nuclio_version = "1.13.12"
-        if mlconf.nuclio_version and semver.VersionInfo.parse(
+        if (
             mlconf.nuclio_version
-        ) < semver.VersionInfo.parse(min_nuclio_version):
+            and mlconf.nuclio_version != "unstable"
+            and semver.VersionInfo.parse(mlconf.nuclio_version)
+            < semver.VersionInfo.parse(min_nuclio_version)
+        ):
             explicit_ack_enabled = False
             num_triggers = 0
             trigger_name = spec.get("name", "UNKNOWN")
@@ -527,6 +530,17 @@ class RemoteRuntime(KubeResource):
         access_key = kwargs.pop("access_key", None)
         if not access_key:
             access_key = self._resolve_v3io_access_key()
+        engine = "sync"
+        explicit_ack_mode = kwargs.pop("explicit_ack_mode", None)
+        if (
+            self.spec
+            and hasattr(self.spec, "graph")
+            and self.spec.graph
+            and self.spec.graph.engine
+        ):
+            engine = self.spec.graph.engine
+        if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
+            explicit_ack_mode = explicit_ack_mode or "explicitOnly"
 
         self.add_trigger(
             name,
@@ -540,6 +554,7 @@ class RemoteRuntime(KubeResource):
                 extra_attributes=extra_attributes,
                 read_batch_size=256,
                 access_key=access_key,
+                explicit_ack_mode=explicit_ack_mode,
                 **kwargs,
             ),
         )
@@ -755,45 +770,10 @@ class RemoteRuntime(KubeResource):
 
     def _get_state(
         self,
-        dashboard="",
         last_log_timestamp=0,
         verbose=False,
         raise_on_exception=True,
-        resolve_address=True,
-        auth_info: AuthInfo = None,
     ) -> tuple[str, str, typing.Optional[float]]:
-        if dashboard:
-            (
-                state,
-                address,
-                name,
-                last_log_timestamp,
-                text,
-                function_status,
-            ) = get_nuclio_deploy_status(
-                self.metadata.name,
-                self.metadata.project,
-                self.metadata.tag,
-                dashboard,
-                last_log_timestamp=last_log_timestamp,
-                verbose=verbose,
-                resolve_address=resolve_address,
-                auth_info=auth_info,
-            )
-            self.status.internal_invocation_urls = function_status.get(
-                "internalInvocationUrls", []
-            )
-            self.status.external_invocation_urls = function_status.get(
-                "externalInvocationUrls", []
-            )
-            self.status.state = state
-            self.status.nuclio_name = name
-            self.status.container_image = function_status.get("containerImage", "")
-            if address:
-                self.status.address = address
-                self.spec.command = f"http://{address}"
-            return state, text, last_log_timestamp
-
         try:
             text, last_log_timestamp = self._get_db().get_nuclio_deploy_status(
                 self, last_log_timestamp=last_log_timestamp, verbose=verbose
@@ -904,7 +884,6 @@ class RemoteRuntime(KubeResource):
         body: typing.Optional[typing.Union[str, bytes, dict]] = None,
         method: typing.Optional[str] = None,
         headers: typing.Optional[dict] = None,
-        dashboard: str = "",
         force_external_address: bool = False,
         auth_info: AuthInfo = None,
         mock: typing.Optional[bool] = None,
@@ -920,7 +899,6 @@ class RemoteRuntime(KubeResource):
         :param body:     request body (str, bytes or a dict for json requests)
         :param method:   HTTP method (GET, PUT, ..)
         :param headers:  key/value dict with http headers
-        :param dashboard: nuclio dashboard address (deprecated)
         :param force_external_address:   use the external ingress URL
         :param auth_info: service AuthInfo
         :param mock:     use mock server vs a real Nuclio function (for local simulations)
@@ -928,14 +906,6 @@ class RemoteRuntime(KubeResource):
                                      see this link for more information:
                                      https://requests.readthedocs.io/en/latest/api/#requests.request
         """
-        if dashboard:
-            # TODO: remove in 1.8.0
-            warnings.warn(
-                "'dashboard' parameter is no longer supported on client side, "
-                "it is being configured through the MLRun API. It will be removed in 1.8.0.",
-                FutureWarning,
-            )
-
         if not method:
             method = "POST" if body else "GET"
 
@@ -965,7 +935,7 @@ class RemoteRuntime(KubeResource):
                         "so function can not be invoked via http. Either enable default http trigger creation or "
                         "create custom http trigger"
                     )
-                state, _, _ = self._get_state(dashboard, auth_info=auth_info)
+                state, _, _ = self._get_state()
                 if state not in ["ready", "scaledToZero"]:
                     logger.warning(f"Function is in the {state} state")
                 if not self.status.address:

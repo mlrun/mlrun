@@ -719,6 +719,13 @@ def _enrich_node_selector(function):
     return mlrun.utils.helpers.to_non_empty_values_dict(function_node_selector)
 
 
+def _enrich_gpu_limits(function, task):
+    function_limits = function.spec.resources.get("limits", {})
+    function_gpu_limits = mlrun.utils.helpers.get_enriched_gpu_limits(function_limits)
+    for resource_name, resource_value in function_gpu_limits.items():
+        task.container.add_resource_limit(resource_name, resource_value)
+
+
 def replace_kfp_plaintext_secret_env_vars_with_secret_refs(
     byte_buffer: bytes,
     content_type: str,
@@ -821,8 +828,9 @@ def _enrich_kfp_workflow_yaml_credentials(
     api_version = (
         workflow_dict.get("api_version") or workflow_dict.get("apiVersion", "").lower()
     )
+    api_version_project = api_version.split("/")[0]
 
-    if api_version.startswith("argoproj.io"):  # KFP Argo Workflow
+    if api_version_project == "argoproj.io":  # KFP Argo Workflow
         spec = workflow_dict.get("spec")
         if not spec:
             logger.warning("Missing spec, not modifying workflow")
@@ -839,7 +847,7 @@ def _enrich_kfp_workflow_yaml_credentials(
 
         return yaml.safe_dump(workflow_dict).encode()
 
-    elif api_version.startswith("tekton.dev"):  # KFP Tekton Pipeline
+    elif api_version_project == "tekton.dev":  # KFP Tekton Pipeline
         for task in workflow_dict["spec"].get("tasks", []):
             if "name" in task:
                 _replace_secret_envs_in_tekton_template(

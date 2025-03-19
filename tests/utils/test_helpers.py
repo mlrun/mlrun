@@ -16,7 +16,7 @@ import asyncio
 import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from pandas import Timedelta, Timestamp
@@ -989,6 +989,40 @@ def test_get_pretty_types_names():
         assert pretty_result == expected
 
 
+@pytest.mark.parametrize(
+    "value, expected, exception",
+    [
+        # True values
+        ("y", True, does_not_raise()),
+        ("yes", True, does_not_raise()),
+        ("t", True, does_not_raise()),
+        ("true", True, does_not_raise()),
+        ("on", True, does_not_raise()),
+        ("1", True, does_not_raise()),
+        # False values
+        ("n", False, does_not_raise()),
+        ("no", False, does_not_raise()),
+        ("f", False, does_not_raise()),
+        ("false", False, does_not_raise()),
+        ("off", False, does_not_raise()),
+        ("0", False, does_not_raise()),
+        # Invalid values
+        ("maybe", None, pytest.raises(ValueError)),
+        ("2", None, pytest.raises(ValueError)),
+        ("", None, pytest.raises(ValueError)),
+        (" ", None, pytest.raises(ValueError)),
+        # Case insensitivity
+        ("Y", True, does_not_raise()),
+        ("nO", False, does_not_raise()),
+        ("TrUe", True, does_not_raise()),
+        ("FaLsE", False, does_not_raise()),
+    ],
+)
+def test_str_to_bool(value, expected, exception):
+    with exception:
+        assert mlrun.utils.str_to_bool(value) == expected
+
+
 def test_str_to_timestamp():
     now_time = Timestamp("2021-01-01 00:01:00")
     cases = [
@@ -1379,3 +1413,55 @@ def test_validate_single_def_handler_valid_handler(code):
 )
 def test_join_urls(base_url, path, expected_result):
     assert mlrun.utils.helpers.join_urls(base_url, path) == expected_result
+
+
+@pytest.mark.parametrize(
+    "input_time, expected_output",
+    [
+        (None, None),
+        # no timezone
+        ("2025-01-15T11:00:00", datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc)),
+        # timezone-aware datetime (UTC+2), should convert to UTC
+        (
+            "2025-01-15T11:00:00+02:00",
+            datetime(2025, 1, 15, 9, 0, 0, tzinfo=timezone.utc),
+        ),
+        # already in UTC
+        (
+            "2025-01-15T11:00:00+00:00",
+            datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc),
+        ),
+    ],
+)
+def test_datetime_from_iso(input_time, expected_output):
+    assert mlrun.utils.helpers.datetime_from_iso(input_time) == expected_output
+
+
+@pytest.mark.parametrize(
+    "dt, expected",
+    [
+        # Test for naive datetime (without tzinfo), should be set to UTC
+        (datetime(2025, 3, 13, 12, 30, 45, 123456), "2025-03-13 12:30:45.123456+00:00"),
+        # Test for datetime with UTC timezone info
+        (
+            datetime(2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone.utc),
+            "2025-03-13 12:30:45.123456+00:00",
+        ),
+        # Test for datetime with a non-UTC timezone offset (+05:00), should keep the original timezone
+        (
+            datetime(
+                2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone(timedelta(hours=5))
+            ),
+            "2025-03-13 12:30:45.123456+05:00",
+        ),
+        # Test for datetime with a timezone offset (+02:00), should keep the original timezone
+        (
+            datetime(
+                2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone(timedelta(hours=2))
+            ),
+            "2025-03-13 12:30:45.123456+02:00",
+        ),
+    ],
+)
+def test_format_datetime(dt, expected):
+    assert mlrun.utils.helpers.format_datetime(dt) == expected

@@ -83,6 +83,9 @@ class Scheduler:
 
     async def stop(self):
         logger.info("Stopping scheduler")
+        if not self._scheduler.running:
+            # https://github.com/agronholm/apscheduler/issues/1019 mitigation
+            return
         self._scheduler.shutdown()
         # the scheduler shutdown and start operation are not fully async compatible yet -
         # https://github.com/agronholm/apscheduler/issues/360 - this sleep make them work

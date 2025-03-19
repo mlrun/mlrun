@@ -53,8 +53,8 @@ async def chief_client(
     try:
         yield client
     finally:
-        if client._messaging_client._session:
-            await client._messaging_client._session.close()
+        if client._messaging_client._local.session:
+            await client._messaging_client._local.session.close()
 
 
 @pytest.mark.asyncio
@@ -124,8 +124,10 @@ async def test_retry_on_exception(
     aioresponses_mock: aioresponses_mock,
 ):
     # ensure the session to make sure the retry options are set
-    await chief_client._messaging_client._ensure_session()
-    retry_attempts = chief_client._messaging_client._session.retry_options.attempts
+    await chief_client._messaging_client._resolve_session()
+    retry_attempts = (
+        chief_client._messaging_client._local.session.retry_options.attempts
+    )
 
     task_name = "test-for-chief"
     for i in range(retry_attempts):
@@ -319,8 +321,9 @@ async def test_do_not_escape_cookie(
     app.router.add_post("/api/v1/operations/migrations", handler)
     async with TestClient(TestServer(app)) as client:
         chief_client._api_url = ""
-        await chief_client._messaging_client._ensure_session()
-        chief_client._messaging_client._session._client = client
+        chief_client._messaging_client._resolve_session()
+        await chief_client._messaging_client._resolve_session()
+        chief_client._messaging_client._local.session._client = client
 
         # set that to make sure session escaping is on
         # coupled with chief_client._resolve_request_kwargs_from_request logic.

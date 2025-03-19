@@ -111,7 +111,6 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
             db.store_artifact(
                 artifact_key,
                 artifact_instance,
-                "some_uid",
                 tag="some-tag",
                 project=project.metadata.name,
             )

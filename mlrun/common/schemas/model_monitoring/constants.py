@@ -42,12 +42,10 @@ class ModelEndpointSchema(MonitoringStrEnum):
     # spec
     FUNCTION_NAME = "function_name"
     FUNCTION_TAG = "function_tag"
-    FUNCTION_UID = "function_uid"
     MODEL_NAME = "model_name"
-    MODEL_DB_KEY = "model_db_key"
-    MODEL_TAG = "model_tag"
+    MODEL_TAGS = "model_tags"
+    MODEL_PATH = "model_path"
     MODEL_CLASS = "model_class"
-    MODEL_UID = "model_uid"
     FEATURE_NAMES = "feature_names"
     LABEL_NAMES = "label_names"
     FEATURE_STATS = "feature_stats"
@@ -163,6 +161,7 @@ class ApplicationEvent:
     END_INFER_TIME = "end_infer_time"
     ENDPOINT_ID = "endpoint_id"
     ENDPOINT_NAME = "endpoint_name"
+    ENDPOINT_UPDATED = "endpoint_updated"
 
 
 class WriterEvent(MonitoringStrEnum):
@@ -192,7 +191,13 @@ class ControllerEvent(MonitoringStrEnum):
     ENDPOINT_TYPE = "endpoint_type"
     ENDPOINT_POLICY = "endpoint_policy"
     # Note: currently under endpoint policy we will have a dictionary including the keys: "application_names"
-    # and "base_period"
+    # "base_period", and "updated_endpoint" stand for when the MEP was updated
+
+
+class ControllerEventEndpointPolicy(MonitoringStrEnum):
+    BASE_PERIOD = "base_period"
+    MONITORING_APPLICATIONS = "monitoring_applications"
+    ENDPOINT_UPDATED = "endpoint_updated"
 
 
 class ControllerEventKind(MonitoringStrEnum):
@@ -240,11 +245,6 @@ class EventKeyMetrics:
     REAL_TIME = "real_time"
 
 
-class ModelEndpointTarget(MonitoringStrEnum):
-    V3IO_NOSQL = "v3io-nosql"
-    SQL = "sql"
-
-
 class TSDBTarget(MonitoringStrEnum):
     V3IO_TSDB = "v3io-tsdb"
     TDEngine = "tdengine"
@@ -269,17 +269,6 @@ class GetEventsFormat(MonitoringStrEnum):
     INTERSECTION = "intersection"
 
 
-class ModelEndpointTargetSchemas(MonitoringStrEnum):
-    V3IO = "v3io"
-    MYSQL = "mysql"
-    SQLITE = "sqlite"
-
-
-class ModelMonitoringStoreKinds:
-    ENDPOINTS = "endpoints"
-    EVENTS = "events"
-
-
 class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
@@ -292,6 +281,7 @@ class FileTargetKind:
     MONITORING_APPLICATION = "monitoring_application"
     ERRORS = "errors"
     STATS = "stats"
+    LAST_REQUEST = "last_request"
 
 
 class ModelMonitoringMode(StrEnum):
@@ -429,10 +419,6 @@ class ModelMonitoringAppLabel:
         return f"{self.KEY}={self.VAL}"
 
 
-class ControllerPolicy:
-    BASE_PERIOD = "base_period"
-
-
 class HistogramDataDriftApplicationConstants:
     NAME = "histogram-data-drift"
     GENERAL_RESULT_NAME = "general_drift"
@@ -448,8 +434,6 @@ class SpecialApps:
 
 
 _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]
-
-V3IO_MODEL_MONITORING_DB = "v3io"
 
 
 class ModelEndpointMonitoringMetricType(StrEnum):

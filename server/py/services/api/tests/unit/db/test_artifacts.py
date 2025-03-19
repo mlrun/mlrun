@@ -695,7 +695,7 @@ class TestArtifacts(TestDatabaseBase):
             kind=ArtifactCategories.model,
             key=artifact_key,
             uid=artifact_tree,
-            tag=artifact_1_tag,
+            iter=0,
         )
 
         # overwrite the tag for only one of the artifacts
@@ -1557,15 +1557,68 @@ class TestArtifacts(TestDatabaseBase):
     @pytest.mark.parametrize("limit", [None, 6])
     def test_list_artifacts_returns_elements_by_order_updated_field(self, limit):
         project = "artifact_project"
+        artifact_kinds = ArtifactCategories.all()
+
+        # Create artifacts
+        number_of_artifacts = 10
+        for counter in range(number_of_artifacts):
+            next_cyclic_item = artifact_kinds[counter % len(artifact_kinds)]
+            artifact_key = f"artifact-{counter}"
+            artifact_body = self._generate_artifact(
+                artifact_key, project=project, kind=next_cyclic_item
+            )
+            self._db.store_artifact(
+                self._db_session, artifact_key, artifact_body, project=project
+            )
+
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, limit=limit
+        )
+
+        expected_count = limit or number_of_artifacts
+        assert (
+            len(artifacts) == expected_count
+        ), f"Expected {expected_count} results, got {len(artifacts)}"
+
+        start_index = number_of_artifacts - 1
+        expected_names = [
+            f"artifact-{i}"
+            for i in range(start_index, start_index - expected_count, -1)
+        ]
+
+        for artifact, expected_name in zip(artifacts, expected_names):
+            artifact_name = artifact["metadata"]["key"]
+            assert (
+                artifact_name == expected_name
+            ), f"Expected {expected_name}, got {artifact_name}"
+
+    @pytest.mark.parametrize("limit", [None, 6])
+    def test_list_artifacts_orders_by_id_when_updated_is_identical(self, limit):
+        # this test is verified that when updated date is identical, artifacts should be ordered by artifact id
+
+        project = "artifact_project"
+        t1 = datetime.datetime.now()
 
         # Create artifacts
         number_of_artifacts = 10
         for counter in range(number_of_artifacts):
             artifact_key = f"artifact-{counter}"
-            artifact_body = self._generate_artifact(artifact_key, project=project)
+            artifact_body = self._generate_artifact(
+                artifact_key,
+                project=project,
+            )
             self._db.store_artifact(
                 self._db_session, artifact_key, artifact_body, project=project
             )
+
+            # Set the same `updated` timestamp for all artifacts
+            db_artifact = self._db._query(
+                self._db_session, ArtifactV2, key=artifact_key
+            ).one_or_none()
+            db_artifact.updated = t1
+            self._db_session.add(db_artifact)
+            self._db._commit(self._db_session, db_artifact)
+            self._db_session.flush()
 
         artifacts = self._db.list_artifacts(
             self._db_session, project=project, limit=limit
@@ -2605,6 +2658,7 @@ class TestArtifacts(TestDatabaseBase):
                 name=project_name,
             ),
             spec=mlrun.common.schemas.ProjectSpec(description="some-description"),
+            kind=mlrun.common.schemas.ObjectKind.project,
         )
         self._db.create_project(self._db_session, project)
 

@@ -247,6 +247,16 @@ class Client(
             "DELETE", f"projects/{project}/alerts/{name}", request
         )
 
+    async def delete_alerts(
+        self, project: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        """
+        Alerts are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "DELETE", f"projects/{project}/alerts", request
+        )
+
     async def reset_alert(
         self, project: str, name: str, request: fastapi.Request
     ) -> fastapi.Response:

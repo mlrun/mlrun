@@ -91,7 +91,7 @@ MLRUN_PYTHON_PACKAGE_INSTALLER ?= pip
 ifeq ($(MLRUN_PYTHON_PACKAGE_INSTALLER),pip)
 	MLRUN_PYTHON_VENV_PIP_INSTALL ?= python -m pip install
 else ifeq ($(MLRUN_PYTHON_PACKAGE_INSTALLER),uv)
-	MLRUN_PYTHON_VENV_PIP_INSTALL ?= uv pip install
+	MLRUN_PYTHON_VENV_PIP_INSTALL ?= uv pip install --python-version $(MLRUN_PYTHON_VERSION)
 else
 	$(error MLRUN_PYTHON_PACKAGE_INSTALLER must be either "pip" or "uv")
 endif
@@ -121,6 +121,11 @@ install-requirements: ## Install all requirements needed for development
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt
 
+.PHONY: install-docs-requirements
+install-docs-requirements: ## Install all requirements needed for compiling mlrun docs
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_NO_CACHE_FLAG) -r docs/requirements.txt
+
 .PHONY: install-conda-requirements
 install-conda-requirements: ## Install all requirements needed for development with specific conda packages for arm64
 	conda install --yes --file conda-arm64-requirements.txt
@@ -129,17 +134,20 @@ install-conda-requirements: ## Install all requirements needed for development w
 .PHONY: install-complete-requirements
 install-complete-requirements: ## Install all requirements needed for development and testing
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete]
+	$(eval MLRUN_PIP_INSTALL_FLAG := $(if $(and $(MLRUN_PYTHON_PACKAGE_INSTALLER),$(filter -m pip,$(MLRUN_PYTHON_PACKAGE_INSTALLER))),--ignore-requires-python,))
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete] $(MLRUN_PIP_INSTALL_FLAG)
 
 .PHONY: install-complete-kfp-requirements
 install-complete-kfp-requirements: ## Install all requirements needed for development and testing + KFP 1.8
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,kfp18]
+	$(eval MLRUN_PIP_INSTALL_FLAG := $(if $(and $(MLRUN_PYTHON_PACKAGE_INSTALLER),$(filter -m pip,$(MLRUN_PYTHON_PACKAGE_INSTALLER))),--ignore-requires-python,))
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,kfp18] $(MLRUN_PIP_INSTALL_FLAG)
 
 .PHONY: install-all-requirements
 install-all-requirements: ## Install all requirements needed for development and testing
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[all]
+	$(eval MLRUN_PIP_INSTALL_FLAG := $(if $(and $(MLRUN_PYTHON_PACKAGE_INSTALLER),$(filter -m pip,$(MLRUN_PYTHON_PACKAGE_INSTALLER))),--ignore-requires-python,))
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[all] $(MLRUN_PIP_INSTALL_FLAG)
 
 .PHONY: create-migration-mysql
 create-migration-mysql: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
@@ -528,12 +536,13 @@ test: clean ## Run mlrun tests
 		--ignore=tests/rundb/test_httpdb.py \
 		--ignore=server/py/services/api/migrations \
 	");\
-	PER_PYTHON_VERSION_IGNORE_TEST_FLAGS=$(if $(filter $(MLRUN_PYTHON_VERSION),3.11),$$(echo "\
+	PER_PYTHON_VERSION_IGNORE_TEST_FLAGS=$(if $(filter $(MLRUN_PYTHON_VERSION),3.12),$$(echo "\
 		--ignore=server/py/services/api/tests/unit/api/test_pipelines.py \
 		--ignore=tests/projects/test_kfp.py \
 		--ignore=server/py/services/api/tests/unit/crud/test_pipelines.py \
 		--ignore=tests/serving/test_remote.py \
 		--ignore=tests/projects/test_remote_pipeline.py \
+		--ignore=pipeline-adapters/mlrun-pipelines-kfp-v1-8/tests \
 		"),);\
 	python \
 		-X faulthandler \
@@ -684,7 +693,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		--rm \
 		-v $(shell pwd)/docs/_build:/mlrun/docs/_build \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) \
-		bash -c 'python -m pip install -r docs/requirements.txt && make html-docs'
+		bash -c 'make install-docs-requirements && make html-docs'
 
 .PHONY: fmt
 fmt: ## Format the code using Ruff and blacken-docs
@@ -720,6 +729,10 @@ lint-check: ## Check the code (using ruff)
 .PHONY: lint-go
 lint-go:
 	$(MAKE) -C server/go lint
+
+.PHONY: security-go
+security-go:
+	$(MAKE) -C server/go security
 
 .PHONY: fmt-go
 fmt-go:

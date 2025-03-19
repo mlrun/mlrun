@@ -17,9 +17,8 @@ import json
 import pathlib
 import socket
 import traceback
-import warnings
 from ast import literal_eval
-from base64 import b64decode, b64encode
+from base64 import b64decode
 from os import environ, path, remove
 from pprint import pprint
 
@@ -298,7 +297,7 @@ def run(
             if url_file and path.isfile(url_file):
                 with open(url_file) as fp:
                     body = fp.read()
-                based = b64encode(body.encode("utf-8")).decode("utf-8")
+                based = mlrun.utils.helpers.encode_user_code(body)
                 logger.info(f"packing code at {url_file}")
                 update_in(runtime, "spec.build.functionSourceCode", based)
                 url = f"main{pathlib.Path(url_file).suffix} {url_args}"
@@ -557,7 +556,7 @@ def build(
             exit(1)
         with open(source) as fp:
             body = fp.read()
-        based = b64encode(body.encode("utf-8")).decode("utf-8")
+        based = mlrun.utils.helpers.encode_user_code(body)
         logger.info(f"Packing code at {source}")
         b.functionSourceCode = based
         func.spec.command = ""
@@ -864,14 +863,8 @@ def version():
 )
 @click.option("--offset", type=int, default=0, help="byte offset")
 @click.option("--db", help="api and db service path/url")
-@click.option("--watch", "-w", is_flag=True, help="Deprecated. not in use")
-def logs(uid, project, offset, db, watch):
+def logs(uid, project, offset, db):
     """Get or watch task logs"""
-    if watch:
-        warnings.warn(
-            "'--watch' is deprecated in 1.6.0, and will be removed in 1.8.0, "
-            # TODO: Remove in 1.8.0
-        )
     mldb = get_run_db(db or mlconf.dbpath)
     if mldb.kind == "http":
         state, _ = mldb.watch_log(uid, project, watch=False, offset=offset)

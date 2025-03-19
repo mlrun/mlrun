@@ -15,9 +15,4 @@
 
 from .base import ModelMonitoringApplicationBase
 from .context import MonitoringApplicationContext
-from .evidently_base import (
-    _HAS_EVIDENTLY,
-    SUPPORTED_EVIDENTLY_VERSION,
-    EvidentlyModelMonitoringApplicationBase,
-)
 from .results import ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult

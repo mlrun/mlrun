@@ -81,7 +81,6 @@ from Myapp import MyApp
 
 MyApp.evaluate(
     func_path="Myapp.py",run_local=False,sample_data=pd.DataFrame({"col":[1,2,3,4]}),
-    image="docker.io/mlrun/mlrun:1.8.0",
 )
 ```
 After you have fine-tuned the model, deploy it:

@@ -50,7 +50,7 @@ You can also deploy the default histogram-based data drift application when you 
 
 And for configuring alerts on model monitoring:
 - {py:meth}`~mlrun.projects.MlrunProject.create_model_monitoring_alert_configs`Creates an alert for the specified model monitoring endpoint
-- {py:meth}`~mlrun.projects.MlrunProject.delete_model_monitoring_function` &mdash; Delete the specified model-monitoring-app function/s
+- {py:meth}`~mlrun.projects.MlrunProject.delete_model_monitoring_function` &mdash; Deletes the specified model-monitoring-app function/s
 
 
 ## Model and model monitoring endpoints

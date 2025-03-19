@@ -1286,7 +1286,7 @@ def test_failed_to_delete_artifact_with_referenced_model_endpoint(
         response.status_code == HTTPStatus.CONFLICT.value
     ), f"Expected 409 CONFLICT when deleting an artifact in use, got {response.status_code}: {response.text}"
     assert (
-        "The artifact is used by" in response.text
+        "These artifact(s) are currently in use" in response.text
     ), f"Expected conflict explanation in response, got: {response.text}"
 
 

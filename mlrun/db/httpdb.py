@@ -4826,6 +4826,7 @@ class HTTPRunDB(RunDBInterface):
 
         :param project: The project name.
         :param limit: The maximum number of alerts to return.
+            Defaults to `mlconf.alerts.default_list_alert_configs_limit` if not provided.
         :param offset: The number of alerts to skip.
 
         :returns: All the alerts objects of the project.
@@ -4834,7 +4835,7 @@ class HTTPRunDB(RunDBInterface):
         endpoint_path = f"projects/{project}/alerts"
         error_message = f"get alerts {project}/alerts"
         params = {}
-        # TODO: remove limit and offset when pagination is implemented
+        # TODO: Deprecate limit and offset when pagination is implemented
         if limit:
             params["page-size"] = limit
         if offset:
@@ -4843,7 +4844,7 @@ class HTTPRunDB(RunDBInterface):
             "GET", endpoint_path, error_message, params=params
         ).json()
         results = []
-        for item in response:
+        for item in response.get("alerts", []):
             results.append(AlertConfig(**item))
         return results
 

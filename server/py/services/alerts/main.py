@@ -150,7 +150,7 @@ class Service(framework.service.Service):
         offset: typing.Optional[int],
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
-    ) -> list[mlrun.common.schemas.AlertConfig]:
+    ) -> dict[str, list[mlrun.common.schemas.AlertConfig]]:
         if project != "*":
             # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
             #  not access it directly (ML-8565)
@@ -191,7 +191,9 @@ class Service(framework.service.Service):
             auth_info,
         )
 
-        return alerts
+        return {
+            "alerts": alerts,
+        }
 
     async def delete_alert(
         self,

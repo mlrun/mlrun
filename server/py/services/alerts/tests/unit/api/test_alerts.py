@@ -53,7 +53,7 @@ class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
             ALERTS_PATH.format(project=project),
         )
         assert resp.status_code == HTTPStatus.OK.value
-        alerts = resp.json()
+        alerts = resp.json().get("alerts", [])
         assert len(alerts) == 1
         assert alerts[0]["name"] == alert_name
 
@@ -82,7 +82,7 @@ class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
             ALERTS_PATH.format(project="*"),
         )
         assert resp.status_code == HTTPStatus.OK.value
-        alerts = resp.json()
+        alerts = resp.json().get("alerts", [])
         assert len(alerts) == 2
 
         # list alerts for a specific project
@@ -90,7 +90,7 @@ class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
             ALERTS_PATH.format(project="test-alerts-0"),
         )
         assert resp.status_code == HTTPStatus.OK.value
-        alerts = resp.json()
+        alerts = resp.json().get("alerts", [])
         assert len(alerts) == 1
 
         # list alerts for a non-existing project
@@ -239,7 +239,7 @@ class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
         ]:
             resp = client.get(ALERTS_PATH.format(project=project), params=params)
             assert resp.status_code == HTTPStatus.OK.value
-            alerts = resp.json()
+            alerts = resp.json().get("alerts", [])
             assert (
                 len(alerts) == expected_length
             ), f"Unexpected number of alerts for params: {params}"

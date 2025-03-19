@@ -82,7 +82,7 @@ async def get_alert(
 
 @router.get(
     "",
-    response_model=list[mlrun.common.schemas.AlertConfig],
+    response_model=dict[str, list[mlrun.common.schemas.AlertConfig]],
     response_model_exclude_none=True,
 )
 @inject

@@ -230,7 +230,8 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         monitoring_context: mm_context.MonitoringApplicationContext,
     ) -> list[mm_results._ModelMonitoringApplicationStats]:
         """
-        list the application calculated stats
+        Return a list of the statistics.
+
         :param metrics: the calculated metrics
         :param metrics_per_feature: metric calculated per feature
         :param monitoring_context:  context object for current monitoring application

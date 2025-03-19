@@ -291,7 +291,9 @@ class MonitoringApplicationController:
             3.  We didn't analyze one of the application for over than _MAX_OPEN_WINDOWS_ALLOWED windows
         """
         last_timestamp_sent = schedules_file.get_endpoint_time(endpoint.metadata.uid)
-        logger.info(f"last_timestamp_sent={last_timestamp_sent}")
+        logger.info(
+            f"last_timestamp_sent={last_timestamp_sent}, uid={endpoint.metadata.uid}"
+        )
         if (
             # Is the model endpoint monitored?
             endpoint.status.monitoring_mode == mm_constants.ModelMonitoringMode.enabled
@@ -307,18 +309,35 @@ class MonitoringApplicationController:
                 endpoint_id=endpoint.metadata.uid,
             ) as batch_window_generator:
                 base_period_seconds = base_period_minutes * _SECONDS_IN_MINUTE
-                if application_names != batch_window_generator.get_application_list():
+                current_time = mlrun.utils.datetime_now()
+                if (
+                    # Different application names, or last analyzed never updated
+                    application_names != batch_window_generator.get_application_list()
+                    or not batch_window_generator.get_min_last_analyzed()
+                ):
                     return True
                 elif (
-                    not batch_window_generator.get_min_last_analyzed()
-                    or batch_window_generator.get_min_last_analyzed()
+                    # Does nop event will be sent and contains data in the interval or there were
+                    # _MAX_OPEN_WINDOWS_ALLOWED windows open we would like to close
+                    batch_window_generator.get_min_last_analyzed()
+                    and batch_window_generator.get_min_last_analyzed()
                     <= int(endpoint.status.last_request.timestamp())
-                ) and (
-                    int(endpoint.status.last_request.timestamp()) != last_timestamp_sent
-                    or mlrun.utils.datetime_now().timestamp()
+                    and (
+                        self._should_send_nop_event(
+                            base_period_minutes, batch_window_generator, current_time
+                        )
+                        and int(endpoint.status.last_request.timestamp())
+                        != last_timestamp_sent
+                    )
+                ) or (
+                    mlrun.utils.datetime_now().timestamp()
                     - batch_window_generator.get_min_last_analyzed()
                     >= self._MAX_OPEN_WINDOWS_ALLOWED * base_period_seconds
                 ):
+                    schedules_file.update_endpoint_time(
+                        endpoint_uid=endpoint.metadata.uid,
+                        timestamp=int(endpoint.status.last_request.timestamp()),
+                    )
                     return True
                 else:
                     logger.info(
@@ -341,6 +360,22 @@ class MonitoringApplicationController:
                 feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
             )
         return False
+
+    @staticmethod
+    def _should_send_nop_event(
+        base_period_minutes: int,
+        batch_window_generator: _BatchWindowGenerator,
+        current_time: datetime.datetime,
+    ):
+        min_last_analyzed = batch_window_generator.get_min_last_analyzed()
+        if min_last_analyzed:
+            return (
+                current_time.timestamp() - min_last_analyzed
+                >= datetime.timedelta(minutes=base_period_minutes).total_seconds()
+                + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            )
+        else:
+            return True
 
     def run(self, event: nuclio_sdk.Event) -> None:
         """
@@ -449,10 +484,9 @@ class MonitoringApplicationController:
                 ]
                 current_time = mlrun.utils.datetime_now()
                 if (
-                    current_time.timestamp()
-                    - batch_window_generator.get_min_last_analyzed()
-                    >= datetime.timedelta(minutes=base_period).total_seconds()
-                    + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+                    self._should_send_nop_event(
+                        base_period, batch_window_generator, current_time
+                    )
                     and event[ControllerEvent.KIND] != ControllerEventKind.NOP_EVENT
                 ):
                     event = {
@@ -480,13 +514,6 @@ class MonitoringApplicationController:
                         event=event,
                         endpoint_id=endpoint_id,
                     )
-                    with ModelMonitoringSchedulesFileChief(
-                        project_name
-                    ) as schedules_file:
-                        schedules_file.update_endpoint_time(
-                            endpoint_uid=endpoint_id,
-                            timestamp=int(last_stream_timestamp.timestamp()),
-                        )
             logger.info(
                 "Finish analyze for", timestamp=event[ControllerEvent.TIMESTAMP]
             )

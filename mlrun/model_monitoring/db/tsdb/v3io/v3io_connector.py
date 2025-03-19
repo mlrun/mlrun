@@ -33,8 +33,12 @@ _TSDB_BE = "tsdb"
 _TSDB_RATE = "1/s"
 _CONTAINER = "users"
 
-V3IO_FRAMESD_MEPS_LIMIT = 200
-V3IO_CLIENT_MEPS_LIMIT = 150
+V3IO_FRAMESD_MEPS_LIMIT = (
+    200  # Maximum number of model endpoints per single request when using V3IO Frames
+)
+V3IO_CLIENT_MEPS_LIMIT = (
+    150  # Maximum number of model endpoints per single request when using V3IO Client
+)
 
 
 def _is_no_schema_error(exc: v3io_frames.Error) -> bool:

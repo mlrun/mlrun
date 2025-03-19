@@ -405,8 +405,7 @@ class SQLDB(DBInterface):
             )
 
         run_struct = run.struct
-        if with_notifications:
-            self._fill_run_struct_with_notifications(run.notifications, run_struct)
+        self._enrich_run_struct_from_model(run, run_struct, with_notifications)
         return run_struct
 
     def list_runs(
@@ -488,8 +487,7 @@ class SQLDB(DBInterface):
         runs = RunList()
         for run in query:
             run_struct = run.struct
-            if with_notifications:
-                self._fill_run_struct_with_notifications(run.notifications, run_struct)
+            self._enrich_run_struct_from_model(run, run_struct, with_notifications)
             runs.append(run_struct)
 
         return runs
@@ -523,6 +521,16 @@ class SQLDB(DBInterface):
         for run in query:  # Can not use query.delete with join
             session.delete(run)
         session.commit()
+
+    def _enrich_run_struct_from_model(
+        self, run: Run, run_struct: dict, with_notifications: bool
+    ):
+        if run.end_time:
+            run_struct.setdefault("status", {})["end_time"] = self._add_utc_timezone(
+                run.end_time
+            ).isoformat()
+        if with_notifications:
+            self._fill_run_struct_with_notifications(run.notifications, run_struct)
 
     def _delete_project_runs(self, session: Session, project: str):
         logger.debug("Removing project runs from db", project=project)
@@ -594,9 +602,8 @@ class SQLDB(DBInterface):
             and not run.end_time
         ):
             if end_time is None:
-                end_time = datetime.now(timezone.utc)
+                end_time = func.now()
             run.end_time = end_time
-            run_dict.setdefault("status", {})["end_time"] = end_time.isoformat()
         elif (
             run.state not in mlrun.common.runtimes.constants.RunStates.terminal_states()
         ):

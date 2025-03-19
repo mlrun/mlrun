@@ -177,10 +177,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         return metrics_per_feature
 
     def _get_general_drift_result(
-        self,
-        metrics: list[mm_results.ModelMonitoringApplicationMetric],
-        monitoring_context: mm_context.MonitoringApplicationContext,
-        metrics_per_feature: DataFrame,
+        self, metrics: list[mm_results.ModelMonitoringApplicationMetric]
     ) -> mm_results.ModelMonitoringApplicationResult:
         """Get the general drift result from the metrics list"""
         value = cast(

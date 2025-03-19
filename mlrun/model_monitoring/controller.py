@@ -285,10 +285,10 @@ class MonitoringApplicationController:
             2.  first request exists
             3.  last request exists
             4.  endpoint_type is not ROUTER
-        if the four above conditions apply we require one of the three conditions to monitor:
+        if the four above conditions apply we require one of the two condition monitor:
             1.  never monitored the one of the endpoint applications meaning min_last_analyzed is None
-            2.  last request has a higher timestamp than the min_last_analyzed timestamp
-            3.  We didn't analyze one of the application for over than _MAX_OPEN_WINDOWS_ALLOWED windows
+            2.  min_last_analyzed stands in the condition for sending NOP event and this the first time regular event
+            is sent with the current last_request per endpoint.
         """
         last_timestamp_sent = schedules_file.get_endpoint_time(endpoint.metadata.uid)
         logger.info(
@@ -317,22 +317,12 @@ class MonitoringApplicationController:
                 ):
                     return True
                 elif (
-                    # Does nop event will be sent and contains data in the interval or there were
-                    # _MAX_OPEN_WINDOWS_ALLOWED windows open we would like to close
-                    batch_window_generator.get_min_last_analyzed()
-                    and batch_window_generator.get_min_last_analyzed()
-                    <= int(endpoint.status.last_request.timestamp())
-                    and (
-                        self._should_send_nop_event(
-                            base_period_minutes, batch_window_generator, current_time
-                        )
-                        and int(endpoint.status.last_request.timestamp())
-                        != last_timestamp_sent
+                    # Does nop event will be sent to close the relevant window
+                    self._should_send_nop_event(
+                        base_period_minutes, batch_window_generator, current_time
                     )
-                ) or (
-                    mlrun.utils.datetime_now().timestamp()
-                    - batch_window_generator.get_min_last_analyzed()
-                    >= self._MAX_OPEN_WINDOWS_ALLOWED * base_period_seconds
+                    and int(endpoint.status.last_request.timestamp())
+                    != last_timestamp_sent
                 ):
                     schedules_file.update_endpoint_time(
                         endpoint_uid=endpoint.metadata.uid,

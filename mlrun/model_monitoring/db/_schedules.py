@@ -199,6 +199,17 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
         self._check_open_schedules()
         return min(self._schedules.values(), default=None)
 
+    def get_or_create(self) -> None:
+        try:
+            self._open()
+        except (
+            mlrun.errors.MLRunNotFoundError,
+            # Different errors are raised for S3 or local storage, see ML-8042
+            botocore.exceptions.ClientError,
+            FileNotFoundError,
+        ):
+            self.create()
+
 
 def delete_model_monitoring_schedules_folder(project: str) -> None:
     """Delete the model monitoring schedules folder of the project"""

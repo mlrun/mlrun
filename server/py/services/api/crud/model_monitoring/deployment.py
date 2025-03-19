@@ -150,6 +150,7 @@ class MonitoringDeployment:
         self.deploy_model_monitoring_stream_processing(
             stream_image=image,
         )
+        ModelMonitoringSchedulesFileChief(project=self.project).get_or_create()
         if deploy_histogram_data_drift_app:
             self.deploy_histogram_data_drift_app(image=image)
 
@@ -249,8 +250,6 @@ class MonitoringDeployment:
             fn, ready = services.api.utils.functions.build_function(
                 db_session=self.db_session, auth_info=self.auth_info, function=fn
             )
-            ModelMonitoringSchedulesFileChief(project=self.project).create()
-
             logger.debug(
                 "Submitted the controller deployment",
                 controller_data=fn.to_dict(),

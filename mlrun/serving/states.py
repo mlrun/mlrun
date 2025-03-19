@@ -356,22 +356,22 @@ class BaseStep(ModelObj):
                             event: {"x": 5} , result_path="y" means the output of the step will be written
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
-            
+
                             * **overwrite**:
-                            
+
                             1. If model endpoints with the same name exist, delete the `latest` one.
                             2. Create a new model endpoint entry and set it as `latest`.
-                            
+
                             * **inplace** (default):
-                            
+ 
                             1. If model endpoints with the same name exist, update the `latest` entry.
                             2. Otherwise, create a new entry.
-                            
+
                             * **archive**:
-                                                        
+
                             1. If model endpoints with the same name exist, preserve them.
                             2. Create a new model endpoint with the same name and set it to `latest`.
-            
+
         :param class_args:  class init arguments
         """
         if hasattr(self, "steps"):
@@ -812,20 +812,20 @@ class RouterStep(TaskStep):
         :param creation_strategy: Strategy for creating or updating the model endpoint:
 
                            * **overwrite**:
-                           
+
                            1. If model endpoints with the same name exist, delete the `latest` one.
                            2. Create a new model endpoint entry and set it as `latest`.
 
                            * **inplace** (default):
-                           
+
                            1. If model endpoints with the same name exist, update the `latest` entry.
                            2. Otherwise, create a new entry.
 
                            * **archive**:
-                           
+
                            1. If model endpoints with the same name exist, preserve them.
                            2. Create a new model endpoint with the same name and set it to `latest`.
-                            
+
         """
 
         if len(self.routes.keys()) >= MAX_MODELS_PER_ROUTER and key not in self.routes:
@@ -1202,22 +1202,22 @@ class FlowStep(BaseStep):
                             event: {"x": 5} , result_path="y" means the output of the step will be written
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
-        
+
                             * **overwrite**:
-                            
+
                             1. If model endpoints with the same name exist, delete the `latest` one.
                             2. Create a new model endpoint entry and set it as `latest`.
-                            
+
                             * **inplace** (default):
-                            
+
                             1. If model endpoints with the same name exist, update the `latest` entry.
                             2. Otherwise, create a new entry.
-                            
+
                             * **archive**:
-                            
+
                             1. If model endpoints with the same name exist, preserve them.
                             2. Create a new model endpoint with the same name and set it to `latest`.
-            
+
         :param class_args:  class init arguments
         """
 

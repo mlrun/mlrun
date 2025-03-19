@@ -146,7 +146,7 @@ class V2ModelServer(StepToDict):
             ]
 
         if (
-            kwargs.get("endpoint_type", mlrun.common.schemas.EndpointType.ROUTER)
+            kwargs.get("endpoint_type", mlrun.common.schemas.EndpointType.LEAF_EP)
             == mlrun.common.schemas.EndpointType.NODE_EP
         ):
             self._initialize_model_logger()

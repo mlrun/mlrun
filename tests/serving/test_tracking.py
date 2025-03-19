@@ -152,6 +152,29 @@ def test_tracked_function(rundb_mock, enable_tracking):
             assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 
 
+@pytest.mark.parametrize(
+    "track_before_creating_child, enable_tracking",
+    [(True, True), (False, False), (True, False), (False, True)],
+)
+def test_child_function_tracking(
+    rundb_mock, track_before_creating_child, enable_tracking
+):
+    with patch("mlrun.get_run_db", return_value=rundb_mock):
+        project = mlrun.new_project("test-child", save=False)
+        fn = mlrun.new_function("test-fn", kind="serving", project=project.name)
+        if track_before_creating_child:
+            fn.set_tracking("dummy://", enable_tracking=enable_tracking)
+            fn.add_child_function("child", "./assets/child_function.py", r"mlrun\mlrun")
+        else:
+            fn.add_child_function("child", "./assets/child_function.py", r"mlrun\mlrun")
+            fn.set_tracking("dummy://", enable_tracking=enable_tracking)
+        for name, ref in fn.spec.function_refs.items():
+            assert ref._function.spec.track_models == enable_tracking, (
+                f"{name} wrong track models value for child function expected to be "
+                f"equal to {enable_tracking}"
+            )
+
+
 def rec_to_data(rec):
     data = json.loads(rec["data"])
     inputs = data["request"]["inputs"]

@@ -5041,6 +5041,7 @@ class MlrunProject(ModelObj):
         Retrieve list of alerts of a project.
 
         :param limit: The maximum number of alerts to return.
+            Defaults to `mlconf.alerts.default_list_alert_configs_limit` if not provided.
         :param offset: The number of alerts to skip before starting to collect alerts.
 
         :return: All the alerts objects of the project.

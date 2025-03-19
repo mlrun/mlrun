@@ -79,7 +79,7 @@ The `params` argument is a dictionary that supports the following fields:
 You can read more about `start_tls` and `use_tls` on the  [aiosmtplib docs](https://aiosmtplib.readthedocs.io/en/stable/encryption.html).
 Missing params are enriched with default values, which can be configured in the `mlrun-smtp-config` kubernetes (see below).
 
-Local runs sending email notifications must explicitly include all SMTP settings.
+Email notifications on local runs must explicitly include all SMTP settings.
 
 ### MLRun on Iguazio
 If MLRun is deployed on the Iguazio platform, an SMTP server already exists.

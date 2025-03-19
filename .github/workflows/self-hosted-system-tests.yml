@@ -1,0 +1,304 @@
+# Copyright 2023 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+name: System Tests Open Source
+
+on:
+  push:
+    branches:
+      - '.+-os-system-tests'
+
+# disabled until we have a proper schedule definition
+#  schedule:
+#
+#    # * is a special character in YAML so you have to quote this string
+#    # Run the system tests every 3 hours
+#    - cron:  '0 */3 * * *'
+
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to run the system tests against (default: run on the latest commit in the development branch)'
+        required: false
+        default: ''
+      pytest_markers:
+        description: 'Pytest markers to run'
+        required: false
+        default: 'not enterprise and smoke'
+      clean_resources_in_teardown:
+        description: 'Clean test resources upon test teardown'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      debug_enabled:
+        description: 'Allow SSH debugging'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  NAMESPACE: mlrun
+  MLRUN_API_NODE_PORT: 30070
+  MLRUN_PYTHON_PACKAGE_INSTALLER: uv
+
+jobs:
+
+# Uncomment this job and make all other jobs depending on it
+# to restrict usage of self-hosted runners for org members only
+# This requires adding a secret with permissions to read org members
+
+#  verify-caller:
+#    runs-on: [ self-hosted ]
+#    steps:
+#      - name: Check if actor is member of org
+#        continue-on-error: false
+#        env:
+#          GH_ACTOR: ${{ github.actor }}
+#          GH_ORG: ${{ github.repository_owner }}
+#          ML_ORG_READ_TOKEN: ${{ secrets.ML_ORG_READ_TOKEN }}  # or a personal token if needed
+#        run: |
+#          echo "Caller = $GH_ACTOR"
+#          echo "ORG = $GH_ORG"
+#          response=$(curl -s -L -o /dev/null -w "%{http_code}" \
+#            -H "Authorization: token $ML_ORG_READ_TOKEN" \
+#            https://api.github.com/orgs/$GH_ORG/members/$GH_ACTOR)
+#          echo "Response = $response"
+#
+#          if [ "$response" != "204" ]; then
+#            echo "User $GH_ACTOR is not a member of $GH_ORG"
+#            exit 1
+#          else
+#            echo "User $GH_ACTOR is a verified member"
+#          fi
+
+  prepare-inputs:
+    name: Prepare Open Source inputs
+# Uncomment if veify-caller job is used
+#    needs: verify-caller
+    runs-on:
+      group: mlrun-ce
+    outputs:
+      mlrun_docker_repo: ${{ steps.computed_params.outputs.mlrun_docker_repo }}
+      mlrun_docker_tag: ${{ steps.computed_params.outputs.mlrun_docker_tag }}
+      mlrun_ui_version: ${{ steps.computed_params.outputs.mlrun_ui_version }}
+      mlrun_docker_registry: ${{ steps.computed_params.outputs.mlrun_docker_registry }}
+      mlrun_system_tests_clean_resources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
+      mlrun_version: ${{ steps.computed_params.outputs.mlrun_version }}
+      mlrun_version_specifier: ${{ steps.computed_params.outputs.mlrun_version_specifier }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract git hashes from upstream and latest version
+        id: git_upstream_info
+        run: |
+          # if the action is running on a PR, we need to get the latest commit hash from the PR branch
+          if [ -n "$PR_NUMBER" ]; then
+            echo "mlrun_hash=pr$PR_NUMBER" >> $GITHUB_OUTPUT
+          else
+            echo "mlrun_hash=$( \
+              cd /tmp && \
+              git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
+              cd mlrun-upstream && \
+              git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit --abbrev=8 HEAD && \
+              cd .. && \
+              rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
+          fi
+          
+          # NOTE: for now, always take the latest commit hash from the development branch
+          # TODO: take from relevant branch [pr head branch]
+          echo "ui_hash=$( \
+              cd /tmp && \
+              git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
+              cd mlrun-ui && \
+              git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit --abbrev=8 HEAD && \
+              cd .. && \
+              rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
+          echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
+        env:
+          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+
+      - name: Set computed versions params
+        id: computed_params
+        run: |
+          export mlrun_hash=$(echo ${{ steps.git_upstream_info.outputs.mlrun_hash }})
+          export ui_hash=$(echo ${{ steps.git_upstream_info.outputs.ui_hash }})
+          echo "mlrun_hash=$mlrun_hash" >> $GITHUB_OUTPUT
+          echo "ui_hash=$ui_hash" >> $GITHUB_OUTPUT
+
+          echo "mlrun_version=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}+$mlrun_hash)" >> $GITHUB_OUTPUT
+          echo "mlrun_ui_version=${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash" >> $GITHUB_OUTPUT
+          echo "mlrun_docker_tag=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)" >> $GITHUB_OUTPUT
+          
+          export mlrun_version_specifier=$mlrun_hash
+          if [ -n "$PR_NUMBER" ]; then
+            mlrun_version_specifier="refs/pull/${PR_NUMBER}/merge"
+          fi
+          echo "mlrun_version_specifier=$mlrun_version_specifier" >> $GITHUB_OUTPUT
+          
+          echo "mlrun_docker_registry=ghcr.io/" >> $GITHUB_OUTPUT
+          echo "mlrun_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          
+          echo "mlrun_system_tests_clean_resources=$( \
+            input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
+            echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
+        env:
+          INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
+          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+
+  build-mlrun:
+    if : github.event.inputs.pr_number != ''
+    name: Build MLRun
+    uses: ./.github/workflows/build-internal.yaml
+    needs: prepare-inputs
+    with:
+      docker_registries: ${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}
+      docker_repo: ${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}
+      version: ${{ needs.prepare-inputs.outputs.mlrun_version }}
+      cache_tag_suffix:  ${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}
+
+      # NOTE: currently we patch mlrun/api, mlrun/log-collector and mlrun/ui images.
+      # by overriding the version specifier, we allow using mlrun/mlrun as well.
+      # TODO: support patching jupyter as well (maybe on demand?)
+      # and use --override-mlrun-jupyter-image when patching mlrun ce
+      skip_images: test,mlrun-gpu,base,jupyter
+    secrets: inherit
+
+  run-system-tests-opensource-ci:
+    name: Run System Tests Open Source
+    runs-on:
+      group: mlrun-ce
+    needs: [prepare-inputs, build-mlrun]
+    steps:
+    - uses: actions/checkout@v4
+
+    # since github-actions gives us 14G only, and fills it up with some garbage
+    - name: Freeing up disk space
+      run: |
+        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+        cache-dependency-glob: "**/*requirements*.txt"
+
+    - name: Set up Python
+      run: uv python install 3.9
+
+    - name: Install automation scripts dependencies
+      run: |
+        sudo apt-get install curl jq make
+        uv venv venv --seed
+        source venv/bin/activate
+        make install-requirements install-complete-requirements
+        uv pip install -r automation/requirements.txt
+
+    - uses: jupyterhub/action-k3s-helm@v4
+      name: "Start a local k8s cluster"
+      with:
+        # - k3s versions at https://github.com/k3s-io/k3s/tags
+        k3s-version: v1.32.1+k3s1
+        # - helm versions at https://github.com/helm/helm/tags
+        helm-version: v3.17.1
+
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      if: ${{ github.event.inputs.debug_enabled == 'true' }}
+      with:
+
+        # run in detach mode to allow the workflow to continue running while session is active
+        # this will wait up to 10 minutes AFTER the entire job is done. Once user connects to the session,
+        # it will wait until the user disconnects before finishing up the job.
+        detached: true
+
+    - name: Setup Local Docker Registry
+      run: |
+        sudo tee "/etc/rancher/k3s/registries.yaml" << EOF
+        mirrors:
+          registry.localhost:
+            endpoint:
+            - http://registry.localhost:80
+        EOF
+
+        # restart k3s to apply the changes
+        sudo systemctl restart k3s
+
+        # wait ~30s for k3s to stabilize
+        sleep 30
+
+        # create the docker-registry namespace and deploy the registry
+        kubectl create namespace docker-registry
+        kubectl apply -f automation/system_test/k3s_docker_registry.yaml
+
+        # restart coredns to apply the changes
+        kubectl -n kube-system rollout restart deployment coredns
+
+    - name: Install MLRun CE helm chart
+      run: |
+        # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
+        source venv/bin/activate
+        python automation/deployment/ce.py deploy \
+            --verbose \
+            --registry-url="registry.localhost" \
+            --skip-registry-validation \
+            --namespace=${NAMESPACE} \
+            --registry-secret-name="" \
+            --devel \
+            --override-mlrun-api-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+            --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+            --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
+            --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
+            --set mlrun.api.extraEnvKeyValue.MLRUN_LOG_LEVEL="DEBUG" \
+            --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
+            --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100"
+
+    - name: Prepare system tests env
+      run: |
+        source venv/bin/activate
+        python automation/system_test/prepare.py env \
+          --mlrun-dbpath "http://localhost:${MLRUN_API_NODE_PORT}" \
+          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}"
+
+    - name: Run system tests
+      run: |
+        source venv/bin/activate
+        MLRUN_SYSTEM_TEST_MARKERS="$PYTEST_MARKERS" \
+        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-inputs.outputs.mlrun_system_tests_clean_resources }}" \
+        MLRUN_VERSION="${{ needs.prepare-inputs.outputs.mlrun_version }}" \
+          make test-system-open-source
+      env:
+        PYTEST_MARKERS: ${{ github.event.inputs.pytest_markers }}
+
+    - name: Output some logs in case of failure
+      if: ${{ failure() }}
+      # add set -x to print commands before executing to make logs reading easier
+      run: |
+        set -x
+        kubectl --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
+        kubectl --namespace ${NAMESPACE} get all
+        kubectl --namespace ${NAMESPACE} get all -o yaml
+        kubectl --namespace ${NAMESPACE} describe pods
+        kubectl --namespace ${NAMESPACE} get cm
+        kubectl --namespace ${NAMESPACE} get cm -o yaml
+        kubectl --namespace ${NAMESPACE} get secrets
+        kubectl --namespace ${NAMESPACE} get secrets -o yaml
+        kubectl --namespace ${NAMESPACE} get pvc
+        kubectl --namespace ${NAMESPACE} get pv
+        set +x

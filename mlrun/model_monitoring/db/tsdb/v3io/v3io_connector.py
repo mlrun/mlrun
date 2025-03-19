@@ -1149,4 +1149,8 @@ class V3IOTSDBConnector(TSDBConnector):
             endpoint_ids=list(model_endpoint_objects_by_uid.keys())
         )
         for uid, mep in model_endpoint_objects_by_uid.items():
-            mep.status.last_request = last_request_dictionary.get(uid)
+            # Set the last request timestamp to the MEP object. If not found, keep the existing value from the
+            # DB (relevant for batch EP).
+            mep.status.last_request = last_request_dictionary.get(
+                uid, mep.status.last_request
+            )

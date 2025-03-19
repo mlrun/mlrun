@@ -226,10 +226,15 @@ class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
     @pytest.mark.parametrize(
         "params, expected_length",
         [
+            # limit to 5
             ({"page-size": 5}, 5),
+            # limit to 5, offset 2
             ({"page-size": 5, "offset": 2}, 5),
+            # limit to 5, offset 8 - not enough alerts
             ({"page-size": 5, "offset": 8}, 2),
+            # no explicit limit, should return default limit (8)
             ({}, 8),
+            # only offset
             ({"offset": 3}, 7),
         ],
     )

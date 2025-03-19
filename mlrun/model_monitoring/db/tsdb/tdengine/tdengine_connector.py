@@ -13,6 +13,7 @@
 # limitations under the License.
 import asyncio
 from datetime import datetime, timedelta
+from threading import Lock
 from typing import Callable, Literal, Optional, Union
 
 import pandas as pd
@@ -30,6 +31,9 @@ from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
 
+_connection = None
+_connection_lock = Lock()
+
 
 class TDEngineConnector(TSDBConnector):
     """
@@ -37,23 +41,18 @@ class TDEngineConnector(TSDBConnector):
     """
 
     type: str = mm_schemas.TSDBTarget.TDEngine
+    database = f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
 
     def __init__(
         self,
         project: str,
         profile: DatastoreProfile,
-        database: Optional[str] = None,
         **kwargs,
     ):
         super().__init__(project=project)
 
         self._tdengine_connection_profile = profile
-        self.database = (
-            database
-            or f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
-        )
 
-        self._connection = None
         self._init_super_tables()
 
         self._timeout = mlrun.mlconf.model_endpoint_monitoring.tdengine.timeout
@@ -61,21 +60,23 @@ class TDEngineConnector(TSDBConnector):
 
     @property
     def connection(self) -> TDEngineConnection:
-        if not self._connection:
-            self._connection = self._create_connection()
-        return self._connection
+        global _connection
+
+        if _connection:
+            return _connection
+
+        with _connection_lock:
+            if not _connection:
+                _connection = self._create_connection()
+
+        return _connection
 
     def _create_connection(self) -> TDEngineConnection:
         """Establish a connection to the TSDB server."""
         logger.debug("Creating a new connection to TDEngine", project=self.project)
         conn = TDEngineConnection(self._tdengine_connection_profile.dsn())
-        conn.run(
-            statements=f"CREATE DATABASE IF NOT EXISTS {self.database}",
-            timeout=self._timeout,
-            retries=self._retries,
-        )
         conn.prefix_statements = [f"USE {self.database}"]
-        logger.debug("Connected to TDEngine", project=self.project)
+
         return conn
 
     def _init_super_tables(self):
@@ -95,11 +96,31 @@ class TDEngineConnector(TSDBConnector):
             ),
         }
 
+    def _create_db_if_not_exists(self):
+        """Create the database if it does not exist."""
+        self.connection.prefix_statements = []
+        self.connection.run(
+            statements=f"CREATE DATABASE IF NOT EXISTS {self.database}",
+            timeout=self._timeout,
+            retries=self._retries,
+        )
+        self.connection.prefix_statements = [f"USE {self.database}"]
+        logger.debug(
+            "The TDEngine database is currently in use",
+            project=self.project,
+            database=self.database,
+        )
+
     def create_tables(self):
         """Create TDEngine supertables."""
+
+        # Create the database if it does not exist
+        self._create_db_if_not_exists()
+
         for table in self.tables:
             create_table_query = self.tables[table]._create_super_table_query()
-            self.connection.run(
+            conn = self.connection
+            conn.run(
                 statements=create_table_query,
                 timeout=self._timeout,
                 retries=self._retries,
@@ -180,6 +201,12 @@ class TDEngineConnector(TSDBConnector):
                 "Invalid 'endpoint_id' filter: must be a string or a list."
             )
 
+    def _drop_database_query(self) -> str:
+        return f"DROP DATABASE IF EXISTS {self.database};"
+
+    def _get_table_name_query(self) -> str:
+        return f"SELECT table_name FROM information_schema.ins_tables where db_name='{self.database}' LIMIT 1;"
+
     def apply_monitoring_stream_steps(self, graph, **kwarg):
         """
         Apply TSDB steps on the provided monitoring graph. Throughout these steps, the graph stores live data of
@@ -259,6 +286,67 @@ class TDEngineConnector(TSDBConnector):
             flush_after_seconds=tsdb_batching_timeout_secs,
         )
 
+    def delete_tsdb_records(
+        self, endpoint_ids: list[str], delete_timeout: Optional[int] = None
+    ):
+        """
+        To delete subtables within TDEngine, we first query the subtables names with the provided endpoint_ids.
+        Then, we drop each subtable.
+        """
+        logger.debug(
+            "Deleting model endpoint resources using the TDEngine connector",
+            project=self.project,
+            number_of_endpoints_to_delete=len(endpoint_ids),
+        )
+
+        # Get all subtables with the provided endpoint_ids
+        subtables = []
+        try:
+            for table in self.tables:
+                get_subtable_query = self.tables[table]._get_subtables_query_by_tag(
+                    filter_tag="endpoint_id", filter_values=endpoint_ids
+                )
+                subtables_result = self.connection.run(
+                    query=get_subtable_query,
+                    timeout=self._timeout,
+                    retries=self._retries,
+                )
+                subtables.extend([subtable[0] for subtable in subtables_result.data])
+        except Exception as e:
+            logger.warning(
+                "Failed to get subtables for deletion. You may need to delete them manually."
+                "These can be found under the following supertables: app_results, "
+                "metrics, errors, and predictions.",
+                project=self.project,
+                error=mlrun.errors.err_to_str(e),
+            )
+
+        # Prepare the drop statements
+        drop_statements = []
+        for subtable in subtables:
+            drop_statements.append(
+                self.tables[table].drop_subtable_query(subtable=subtable)
+            )
+        try:
+            self.connection.run(
+                statements=drop_statements,
+                timeout=delete_timeout or self._timeout,
+                retries=self._retries,
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to delete model endpoint resources. You may need to delete them manually. "
+                "These can be found under the following supertables: app_results, "
+                "metrics, errors, and predictions.",
+                project=self.project,
+                error=mlrun.errors.err_to_str(e),
+            )
+        logger.debug(
+            "Deleted all model endpoint resources using the TDEngine connector",
+            project=self.project,
+            number_of_endpoints_to_delete=len(endpoint_ids),
+        )
+
     def delete_tsdb_resources(self):
         """
         Delete all project resources in the TSDB connector, such as model endpoints data and drift results.
@@ -281,7 +369,7 @@ class TDEngineConnector(TSDBConnector):
             logger.warning(
                 "Failed to drop TDEngine tables. You may need to drop them manually. "
                 "These can be found under the following supertables: app_results, "
-                "metrics, and predictions.",
+                "metrics, errors, and predictions.",
                 project=self.project,
                 error=mlrun.errors.err_to_str(e),
             )
@@ -289,6 +377,55 @@ class TDEngineConnector(TSDBConnector):
             "Deleted all project resources using the TDEngine connector",
             project=self.project,
         )
+
+        # Check if database is empty and if so, drop it
+        self._drop_database_if_empty()
+
+    def _drop_database_if_empty(self):
+        query_random_table_name = self._get_table_name_query()
+        drop_database = False
+        try:
+            table_name = self.connection.run(
+                query=query_random_table_name,
+                timeout=self._timeout,
+                retries=self._retries,
+            )
+            if len(table_name.data) == 0:
+                # no tables were found under the database
+                drop_database = True
+
+        except Exception as e:
+            logger.warning(
+                "Failed to query tables in the database. You may need to drop the database manually if it is empty.",
+                project=self.project,
+                error=mlrun.errors.err_to_str(e),
+            )
+
+        if drop_database:
+            logger.debug(
+                "Going to drop the TDEngine database",
+                project=self.project,
+                database=self.database,
+            )
+            drop_database_query = self._drop_database_query()
+            try:
+                self.connection.run(
+                    statements=drop_database_query,
+                    timeout=self._timeout,
+                    retries=self._retries,
+                )
+                logger.debug(
+                    "The TDEngine database has been successfully dropped",
+                    project=self.project,
+                    database=self.database,
+                )
+
+            except Exception as e:
+                logger.warning(
+                    "Failed to drop the database. You may need to drop it manually if it is empty.",
+                    project=self.project,
+                    error=mlrun.errors.err_to_str(e),
+                )
 
     def get_model_endpoint_real_time_metrics(
         self,
@@ -531,7 +668,6 @@ class TDEngineConnector(TSDBConnector):
         endpoint_ids: Union[str, list[str]],
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        get_raw: bool = False,
     ) -> pd.DataFrame:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start, end = self._get_start_end(start, end)

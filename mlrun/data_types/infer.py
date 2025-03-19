@@ -20,6 +20,8 @@ import pandas as pd
 import pyarrow
 from pandas.io.json._table_schema import convert_pandas_type_to_json_field
 
+import mlrun.features
+from mlrun.model import ObjectList
 from mlrun.utils import logger
 
 from .data_types import InferOptions, pa_type_to_value_type, pd_schema_to_value_type
@@ -29,17 +31,19 @@ default_num_bins = 20
 
 def infer_schema_from_df(
     df: pd.DataFrame,
-    features,
+    features: ObjectList,
     entities,
     timestamp_key: Optional[str] = None,
     entity_columns=None,
     options: InferOptions = InferOptions.Null,
+    push_at_start: Optional[bool] = False,
 ):
     """infer feature set schema from dataframe"""
     timestamp_fields = []
     current_entities = list(entities.keys())
     entity_columns = entity_columns or []
     index_columns = dict()
+    temp_features = ObjectList(mlrun.features.Feature)
 
     def upsert_entity(name, value_type):
         if name in current_entities:
@@ -74,9 +78,13 @@ def infer_schema_from_df(
             if column in features.keys():
                 features[column].value_type = value_type
             else:
-                features[column] = {"name": column, "value_type": value_type}
+                temp_features[column] = {"name": column, "value_type": value_type}
         if value_type == "datetime" and not is_entity:
             timestamp_fields.append(column)
+
+    features.update_list(
+        object_list=temp_features, push_at_start=push_at_start
+    )  # Push to start of the Object list
 
     index_type = None
     if InferOptions.get_common_options(options, InferOptions.Index):

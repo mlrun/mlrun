@@ -50,10 +50,8 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileV3io,
 )
 from mlrun.datastore.targets import ParquetTarget
-from mlrun.model_monitoring.applications import (
-    SUPPORTED_EVIDENTLY_VERSION,
-    ModelMonitoringApplicationBase,
-)
+from mlrun.model_monitoring.applications import ModelMonitoringApplicationBase
+from mlrun.model_monitoring.applications.evidently import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
 )
@@ -98,7 +96,7 @@ _DefaultDataDriftAppData = _AppData(
     deploy=False,
     results={"general_drift"},
     metrics={"hellinger_mean", "kld_mean", "tvd_mean"},
-    artifacts={"features_drift_results", "drift_table_plot"},
+    artifacts={"features_drift_results"},
 )
 
 
@@ -147,7 +145,14 @@ class _V3IORecordsChecker:
         if last_request:
             cls._logger.debug("Checking the MEP last_request")
             lr_tsdb = cls._tsdb_storage.get_last_request(endpoint_ids=ep_id)
-            cls._check_valid_tsdb_result(lr_tsdb, ep_id, "last_request", last_request)
+            if isinstance(lr_tsdb, pd.DataFrame):
+                cls._check_valid_tsdb_result(
+                    lr_tsdb, ep_id, "last_request", last_request
+                )
+            else:
+                cls._check_last_request_dict(
+                    lr_tsdb, ep_id, "last_request", last_request
+                )
 
         if error_count:
             cls._logger.debug("Checking the MEP error_count")
@@ -175,6 +180,22 @@ class _V3IORecordsChecker:
             assert (
                 df[df["endpoint_id"] == ep_id][result_name].item() == result_value
             ), f"The {result_name} is different than expected for {ep_id}"
+
+    @classmethod
+    def _check_last_request_dict(
+        cls,
+        data: dict[str, float],
+        ep_id: str,
+        result_name: str,
+        result_value: datetime,
+    ):
+        assert data, "No last request data"
+        assert (
+            list(data.keys())[0] == ep_id
+        ), "The endpoint IDs are different than expected"
+        assert (
+            data[ep_id] == result_value.timestamp()
+        ), f"The {result_name} is different than expected for {ep_id}"
 
     @classmethod
     def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:
@@ -791,8 +812,8 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
         )
         self.project.deploy_function(fn)
 
-    def _record_results(self) -> None:
-        mlrun.model_monitoring.api.record_results(
+    def _record_results(self) -> str:
+        model_endpoint = mlrun.model_monitoring.api.record_results(
             project=self.project_name,
             model_path=self.project.get_artifact_uri(  # pyright: ignore[reportOptionalMemberAccess]
                 key=self.model_name, category="model", tag="latest"
@@ -802,6 +823,8 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
         )
+
+        return model_endpoint.metadata.uid
 
     def _deploy_monitoring_infra(self) -> None:
         self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
@@ -816,15 +839,14 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             executor.submit(self._deploy_monitoring_app)
             executor.submit(self._deploy_monitoring_infra)
 
-        self._record_results()
+        endpoint_id = self._record_results()
 
         time.sleep(2.4 * self.app_interval_seconds)
 
         mep = mlrun.db.get_run_db().get_model_endpoint(
             name=f"{self.name_prefix}-test",
             project=self.project.name,
-            function_name=self.function_name,
-            function_tag="latest",
+            endpoint_id=endpoint_id,
             feature_analysis=True,
             tsdb_metrics=True,
         )
@@ -874,7 +896,7 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             controller.spec.config["spec.triggers.cron_interval"]["attributes"][
                 "interval"
             ]
-            == "10m"
+            == "3m"
         )
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
@@ -1061,7 +1083,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             .reshape(-1, 3)
             .tolist()
         )
-        cls.router_models = {
+        cls.model_by_endpoint_name = {
             "int_one_to_one": {
                 "model_name": "int_one_to_one",
                 "class_name": "OneToOne",
@@ -1115,7 +1137,16 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
                 "model_name": "int_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": [1, 2, 3],
-                "schema": ["f0", "f1", "f2", "p0"],
+                "schema": ["feature0", "feature1", "feature2", "override_label"],
+                "training_set": pd.DataFrame(
+                    data={
+                        "feature0": [1, 2],
+                        "feature1": [1, 2],
+                        "feature2": [1, 2],
+                        "label": [1, 1],
+                    }
+                ),
+                "label_column": "label",
             },
         }
 
@@ -1148,14 +1179,15 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             kind="serving",
         )
         serving_fn.set_topology("router")
-        for model_name, model_dict in self.router_models.items():
+        for endpoint_name, model_dict in self.model_by_endpoint_name.items():
+            model_name = model_dict["model_name"]
             self._log_model(
                 model_name=model_name,
                 training_set=model_dict.get("training_set"),
                 label_column=model_dict.get("label_column"),
             )
             serving_fn.add_model(
-                model_name,
+                endpoint_name,
                 model_path=f"store://models/{self.project_name}/{model_name}:latest",
                 class_name=model_dict.get("class_name"),
             )
@@ -1183,6 +1215,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             model_name,
             model_path=f"store://models/{self.project_name}/{model_name}:latest",
             class_name=class_name,
+            outputs=kwargs.get("outputs"),
         )
         serving_fn.set_tracking(enable_tracking=enable_tracking)
         if self.image is not None:
@@ -1192,22 +1225,22 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
 
     def _test_endpoint(
-        self, model_name, feature_set_uri, model_dict
+        self, endpoint_name, feature_set_uri, model_dict
     ) -> dict[str, typing.Any]:
         serving_fn = self.project.get_function(self.function_name)
         data_point = model_dict.get("data_point")
-        if model_name == "img_one_to_one":
+        if endpoint_name == "img_one_to_one":
             data_point = [data_point]
         serving_fn.invoke(
-            f"v2/models/{model_name}/infer",
+            f"v2/models/{endpoint_name}/infer",
             json.dumps(
                 {"inputs": data_point},
             ),
         )
-        if model_name == "img_one_to_one":
+        if endpoint_name == "img_one_to_one":
             data_point = data_point[0]
         serving_fn.invoke(
-            f"v2/models/{model_name}/infer",
+            f"v2/models/{endpoint_name}/infer",
             json.dumps({"inputs": [data_point, data_point]}),
         )
         time.sleep(
@@ -1225,7 +1258,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         has_all_the_events = offline_response_df.shape[0] == 3
 
         return {
-            "model_name": model_name,
+            "model_name": endpoint_name,
             "is_schema_saved": is_schema_saved,
             "has_all_the_events": has_all_the_events,
             "df": offline_response_df,
@@ -1250,15 +1283,9 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             for endpoint in endpoints:
                 future = executor.submit(
                     self._test_endpoint,
-                    model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[
-                        0
-                    ],
-                    feature_set_uri=endpoint[
-                        mm_constants.EventFieldType.FEATURE_SET_URI
-                    ],
-                    model_dict=self.router_models[
-                        endpoint[mm_constants.EventFieldType.MODEL].split(":")[0]
-                    ],
+                    endpoint_name=endpoint.metadata.name,
+                    feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
+                    model_dict=self.model_by_endpoint_name[endpoint.metadata.name],
                 )
                 futures.append(future)
 
@@ -1279,7 +1306,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             base_period=1,
             deploy_histogram_data_drift_app=False,
         )
-
+        kwargs = {"outputs": ["override_label"]}
         for model_name, model_dict in self.test_models_tracking.items():
             self._log_model(
                 model_name,
@@ -1300,7 +1327,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         )
 
         for model_name, model_dict in self.test_models_tracking.items():
-            self._deploy_model_serving(**model_dict, enable_tracking=True)
+            self._deploy_model_serving(**model_dict, enable_tracking=True, **kwargs)
 
         endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
             project=self.project_name
@@ -1314,7 +1341,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         )
 
         res_dict = self._test_endpoint(
-            model_name=endpoint.metadata.name,
+            endpoint_name=endpoint.metadata.name,
             feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
             model_dict=self.test_models_tracking[endpoint.metadata.name],
         )
@@ -1341,7 +1368,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         )
 
         res_dict = self._test_endpoint(
-            model_name=endpoint.metadata.name,
+            endpoint_name=endpoint.metadata.name,
             feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
             model_dict=self.test_models_tracking[endpoint.metadata.name],
         )
@@ -1418,18 +1445,21 @@ class TestAppJob(TestMLRunSystem):
         # Test the results
         returned_results = run_result.output("return")
         assert returned_results, "No returned results"
-        assert {
-            "ModelMonitoringApplicationMetric(name='hellinger_mean', value=1.0)",
+        assert [
+            {"metric_name": "hellinger_mean", "metric_value": 1.0},
             # Ignore KLD due to varying numerical accuracy on different systems
-            # "ModelMonitoringApplicationMetric(name='kld_mean', value=8.517193191416238)",
-            "ModelMonitoringApplicationMetric(name='tvd_mean', value=0.5)",
-            (
-                "ModelMonitoringApplicationResult(name='general_drift', value=0.75, "
-                "kind=<ResultKindApp.data_drift: 0>, status=<ResultStatusApp.detected: 2>, extra_data={})"
-            ),
-        } <= set(
-            returned_results
-        ), "The returned metrics do not include the expected ones"
+            # {"metric_name": "kld_mean", "metric_value": 8.517193191416238},
+            {"metric_name": "tvd_mean", "metric_value": 0.5},
+            {
+                "result_name": "general_drift",
+                "result_value": 0.75,
+                "result_kind": 0,
+                "result_status": 2,
+                "result_extra_data": "{}",
+            },
+        ] == [returned_results[0]] + returned_results[
+            2:4
+        ], "The returned metrics are different than the expected ones"
         # Test the artifacts
         for artifact_name in _DefaultDataDriftAppData.artifacts:
             assert run_result.output(
@@ -1569,18 +1599,22 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
             assert (
                 len(outputs) == 2
             ), "The number of outputs is different than the number of windows"
-            assert set(outputs.values()) == {
-                (
-                    "ModelMonitoringApplicationResult(name='count', value=14.0, "
-                    "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, "
-                    "extra_data={})"
-                ),
-                (
-                    "ModelMonitoringApplicationResult(name='count', value=4.0, "
-                    "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, "
-                    "extra_data={})"
-                ),
-            }, "The outputs are different than expected"
+            assert list(outputs.values()) == [
+                {
+                    "result_name": "count",
+                    "result_value": 14.0,
+                    "result_kind": 2,
+                    "result_status": 0,
+                    "result_extra_data": "{}",
+                },
+                {
+                    "result_name": "count",
+                    "result_value": 4.0,
+                    "result_kind": 2,
+                    "result_status": 0,
+                    "result_extra_data": "{}",
+                },
+            ], "The outputs are different than expected"
 
 
 class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):

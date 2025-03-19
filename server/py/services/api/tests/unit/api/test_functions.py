@@ -279,6 +279,52 @@ async def test_list_functions_with_hash_key_versioned(
     assert list_functions_results[0]["metadata"]["hash"] == hash_key
 
 
+@pytest.mark.asyncio
+async def test_list_functions_filter_by_states(db, async_client):
+    await services.api.tests.unit.api.utils.create_project_async(async_client, PROJECT)
+
+    function_name = "function-name"
+    function = {
+        "kind": "job",
+        "metadata": {
+            "name": function_name,
+            "project": PROJECT,
+            "tag": "latest",
+        },
+        "spec": {"image": "mlrun/mlrun"},
+        "status": {"state": mlrun.common.schemas.FunctionState.ready},
+    }
+
+    post_function_response = await async_client.post(
+        f"projects/{PROJECT}/functions/{function_name}",
+        json=function,
+    )
+
+    assert post_function_response.status_code == HTTPStatus.OK.value
+
+    response = await async_client.get(
+        f"projects/{PROJECT}/functions?state={mlrun.common.schemas.FunctionState.ready}&state={mlrun.common.schemas.FunctionState.error}",
+    )
+
+    assert response.status_code == HTTPStatus.OK.value
+    assert len(response.json()["funcs"]) == 1
+
+    # list with default param value
+    response = await async_client.get(
+        f"projects/{PROJECT}/functions",
+    )
+
+    assert response.status_code == HTTPStatus.OK.value
+    assert len(response.json()["funcs"]) == 1
+
+    response = await async_client.get(
+        f"projects/{PROJECT}/functions?state={mlrun.common.schemas.FunctionState.error}",
+    )
+
+    assert response.status_code == HTTPStatus.OK.value
+    assert len(response.json()["funcs"]) == 0
+
+
 @pytest.mark.parametrize(
     "kind",
     [

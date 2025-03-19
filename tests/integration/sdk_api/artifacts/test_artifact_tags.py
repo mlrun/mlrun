@@ -53,14 +53,14 @@ class TestArtifactTags(tests.integration.sdk_api.base.TestMLRunIntegration):
         mlrun.get_run_db().store_artifact(
             model_key,
             model_artifact.to_dict(),
-            model_tree,
+            tree=model_tree,
             tag=model_tag,
             project=project_name,
         )
         mlrun.get_run_db().store_artifact(
             model_key,
             model_artifact.to_dict(),
-            model_tree_2,
+            tree=model_tree_2,
             tag=model_tag_2,
             project=project_name,
         )

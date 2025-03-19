@@ -44,7 +44,7 @@ To build all images, run this command from the root directory of the mlrun repos
 Where:
 - MLRUN_VERSION is used as the tag of the image and also as the version injected into the code (e.g. latest or 0.7.0 or 0.6.5-rc6, defaults to unstable)
 - MLRUN_DOCKER_REPO is the docker repository (defaults to mlrun)
-- MLRUN_DOCKER_REGISTRY is the docker registry (e.g. quay.io/, gcr.io/, defaults to empty (docker hub))
+- MLRUN_DOCKER_REGISTRY is the docker registry (e.g. `quay.io/`, `gcr.io/`, defaults to empty (docker hub))
 
 For example, running `MLRUN_VERSION=x.y.z make docker-images` generates these images:
 - mlrun/mlrun-api:x.y.z

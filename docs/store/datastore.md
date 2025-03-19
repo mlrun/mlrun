@@ -219,7 +219,7 @@ Not supported by the spark and remote-spark runtimes.
 ```
 * `DATABRICKS_HOST` &mdash; hostname in the format: `https://abc-d1e2345f-a6b2.cloud.databricks.com`'
 * `DATABRICKS_TOKEN` &mdash; Databricks access token. 
-   Perform [Databricks personal access token authentication](https://docs.databricks.com/en/dev-tools/auth/pat.html).
+   Perform [Databricks personal access token authentication](https://docs.databricks.com/aws/en/dev-tools/auth/pat).
    
 ### DBFS data store profile
 

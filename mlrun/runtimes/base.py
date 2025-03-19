@@ -16,7 +16,6 @@ import http
 import re
 import typing
 import warnings
-from base64 import b64encode
 from os import environ
 from typing import Callable, Optional, Union
 
@@ -34,6 +33,14 @@ import mlrun.launcher.factory
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
+from mlrun.model import (
+    BaseMetadata,
+    HyperParamOptions,
+    ImageBuilder,
+    ModelObj,
+    RunObject,
+    RunTemplate,
+)
 from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 from mlrun_pipelines.common.ops import mlrun_op
 
@@ -41,7 +48,6 @@ from ..config import config
 from ..datastore import store_manager
 from ..errors import err_to_str
 from ..lists import RunList
-from ..model import BaseMetadata, HyperParamOptions, ImageBuilder, ModelObj, RunObject
 from ..utils import (
     dict_to_json,
     dict_to_yaml,
@@ -669,7 +675,7 @@ class BaseRuntime(ModelObj):
 
     def as_step(
         self,
-        runspec: RunObject = None,
+        runspec: Union[RunObject, RunTemplate] = None,
         handler=None,
         name: str = "",
         project: str = "",
@@ -795,9 +801,7 @@ class BaseRuntime(ModelObj):
                     mlrun.runtimes.nuclio.serving.serving_subkind
                 )
 
-        self.spec.build.functionSourceCode = b64encode(body.encode("utf-8")).decode(
-            "utf-8"
-        )
+        self.spec.build.functionSourceCode = mlrun.utils.helpers.encode_user_code(body)
         if with_doc:
             update_function_entry_points(self, body)
         return self

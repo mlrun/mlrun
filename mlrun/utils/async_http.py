@@ -26,8 +26,7 @@ from aiohttp_retry.client import _RequestContext
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.errors import raise_for_status as ml_raise_for_status
-
-from .helpers import logger as mlrun_logger
+from mlrun.utils.helpers import logger as mlrun_logger
 
 DEFAULT_BLACKLISTED_METHODS = [
     "POST",
@@ -111,6 +110,7 @@ class ExponentialRetryOverride(ExponentialRetry):
         # aiohttp exceptions that can be raised during connection establishment
         aiohttp.ClientConnectionError,
         aiohttp.ServerDisconnectedError,
+        asyncio.exceptions.TimeoutError,
     ]
 
     def __init__(
@@ -303,7 +303,7 @@ class _CustomRequestContext(_RequestContext):
                 if isinstance(exc.os_error, exc_type):
                     return
         if exc.__cause__:
-            # If the cause exception is retriable, return, otherwise, raise the original exception
+            # If the cause exception is retryable, return, otherwise, raise the original exception
             try:
                 self.verify_exception_type(exc.__cause__)
             except Exception:

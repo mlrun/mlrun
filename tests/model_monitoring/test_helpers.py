@@ -584,7 +584,7 @@ def test_get_kafka_topic(
                 topics=[],
                 sasl_user="user1",
                 sasl_pass="1234",
-                kwargs_public={"producer_options": {"api_version": (3, 9)}},
+                kwargs_public={"api_version": (3, 9)},
             ),
             KafkaOutputStream,
         ),

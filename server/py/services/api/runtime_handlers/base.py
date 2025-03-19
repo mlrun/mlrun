@@ -630,6 +630,7 @@ class BaseRuntimeHandler(ABC):
 
                 run.setdefault("status", {})["reason"] = reason
                 run.setdefault("status", {})["last_update"] = now.isoformat()
+                run.setdefault("status", {})["end_time"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
 
     def _get_runtime_resources(self, label_selector: str, namespace: str):
@@ -1756,7 +1757,6 @@ class BaseRuntimeHandler(ABC):
         logger.info("Updating run state", run_uid=uid, run_state=run_state)
         run_updates = {
             "status.state": run_state,
-            "status.last_update": now_date().isoformat(),
             "status.reason": reason or "",
             "status.status_text": message or "",
             "status.error": "",

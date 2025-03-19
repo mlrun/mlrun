@@ -40,5 +40,8 @@ def test_create_with_empty_feature_stats(
     model_endpoint: mlrun.common.schemas.ModelEndpoint,
 ) -> None:
     ModelEndpoints().create_model_endpoint(
-        db_session=db, model_endpoint=model_endpoint, creation_strategy="inplace"
+        db_session=db,
+        model_endpoint=model_endpoint,
+        creation_strategy="inplace",
+        delete_background_task="some_task",
     )

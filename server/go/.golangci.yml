@@ -55,7 +55,9 @@ linters-settings:
   gci:
     sections:
       - standard
-      - prefix(github.com/mlrun/mlrun)
+      - prefix(github.com/mlrun/framework)
+      - prefix(github.com/mlrun/proto)
+      - prefix(github.com/mlrun/services)
       - default
       - blank
       - dot

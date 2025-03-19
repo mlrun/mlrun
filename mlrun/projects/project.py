@@ -1412,7 +1412,9 @@ class MlrunProject(ModelObj):
         """
 
         # validate the provided workflow_path
-        self._validate_file_path(workflow_path, param_name="workflow_path")
+        self._validate_file_path(
+            workflow_path, param_name="workflow_path", engine=engine
+        )
 
         if engine and "local" in engine and schedule:
             raise ValueError("'schedule' argument is not supported for 'local' engine.")
@@ -2155,7 +2157,7 @@ class MlrunProject(ModelObj):
 
                                        For example:
                                        [`app1.result-*`, `*.result1`]
-                                       will match "mep1.app1.result.result-1" and "mep1.app2.result.result1".
+                                       will match "mep_uid1.app1.result.result-1" and "mep_uid1.app2.result.result1".
                                        A specific result_name (not a wildcard) will always create a new alert
                                        config, regardless of whether the result name exists.
         :param severity:               Severity of the alert.
@@ -3482,7 +3484,7 @@ class MlrunProject(ModelObj):
                 "Remote repo is not defined, use .create_remote() + push()"
             )
 
-        if engine not in ["remote"] and not schedule:
+        if (engine is None or not engine.startswith("remote")) and not schedule:
             # For remote/scheduled runs there is no need to sync functions as they can be loaded dynamically during run
             self.sync_functions(always=sync, silent=True)
             if not self.spec._function_objects:
@@ -3690,13 +3692,13 @@ class MlrunProject(ModelObj):
             import mlrun
             from mlrun.datastore.datastore_profile import (
                 DatastoreProfileKafkaSource,
-                TDEngineDatastoreProfile,
+                DatastoreProfileTDEngine,
             )
 
             project = mlrun.get_or_create_project("mm-infra-setup")
 
             # Create and register TSDB profile
-            tsdb_profile = TDEngineDatastoreProfile(
+            tsdb_profile = DatastoreProfileTDEngine(
                 name="my-tdengine",
                 host="<tdengine-server-ip-address>",
                 port=6041,
@@ -3748,7 +3750,7 @@ class MlrunProject(ModelObj):
                                           monitoring. The supported profiles are:
 
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileV3io`
-                                          * :py:class:`~mlrun.datastore.datastore_profile.TDEngineDatastoreProfile`
+                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileTDEngine`
 
                                           You need to register one of them, and pass the profile's name.
         :param stream_profile_name:       The datastore profile name of the stream to be used in model monitoring.
@@ -4059,9 +4061,9 @@ class MlrunProject(ModelObj):
             (by default `/home/mlrun_code`)
         """
         if not overwrite_build_params:
-            # TODO: change overwrite_build_params default to True in 1.8.0
+            # TODO: change overwrite_build_params default to True in 1.9.0
             warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.8.0.",
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.9.0.",
                 mlrun.utils.OverwriteBuildParamsWarning,
             )
         default_image_name = mlrun.mlconf.default_project_image_name.format(
@@ -4136,9 +4138,9 @@ class MlrunProject(ModelObj):
             )
 
         if not overwrite_build_params:
-            # TODO: change overwrite_build_params default to True in 1.8.0
+            # TODO: change overwrite_build_params default to True in 1.9.0
             warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.8.0.",
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.9.0.",
                 mlrun.utils.OverwriteBuildParamsWarning,
             )
 
@@ -4396,6 +4398,7 @@ class MlrunProject(ModelObj):
 
         :param page: The page number to retrieve. If not provided, the next page will be retrieved.
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+            Defaults to `mlrun.mlconf.httpdb.pagination.default_page_size` if not provided.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
             for the first request.
 
@@ -4515,6 +4518,7 @@ class MlrunProject(ModelObj):
 
         :param page: The page number to retrieve. If not provided, the next page will be retrieved.
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+            Defaults to `mlrun.mlconf.httpdb.pagination.default_page_size` if not provided.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
             for the first request.
 
@@ -4615,6 +4619,7 @@ class MlrunProject(ModelObj):
 
         :param page: The page number to retrieve. If not provided, the next page will be retrieved.
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+            Defaults to `mlrun.mlconf.httpdb.pagination.default_page_size` if not provided.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
             for the first request.
 
@@ -4675,7 +4680,6 @@ class MlrunProject(ModelObj):
         ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
-        last: int = 0,
         iter: bool = False,
         start_time_from: Optional[datetime.datetime] = None,
         start_time_to: Optional[datetime.datetime] = None,
@@ -4748,7 +4752,6 @@ class MlrunProject(ModelObj):
                 else states or None
             ),
             sort=sort,
-            last=last,
             iter=iter,
             start_time_from=start_time_from,
             start_time_to=start_time_to,
@@ -4806,6 +4809,7 @@ class MlrunProject(ModelObj):
 
         :param page: The page number to retrieve. If not provided, the next page will be retrieved.
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+            Defaults to `mlrun.mlconf.httpdb.pagination.default_page_size` if not provided.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
             for the first request.
 
@@ -5187,6 +5191,7 @@ class MlrunProject(ModelObj):
 
         :param page: The page number to retrieve. If not provided, the next page will be retrieved.
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+            Defaults to `mlrun.mlconf.httpdb.pagination.default_page_size` if not provided.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
             for the first request.
 
@@ -5238,7 +5243,7 @@ class MlrunProject(ModelObj):
             if is_remote_enriched:
                 self.spec.repo.remotes[remote].set_url(clean_remote, enriched_remote)
 
-    def _validate_file_path(self, file_path: str, param_name: str):
+    def _validate_file_path(self, file_path: str, param_name: str, engine: str):
         """
         The function checks if the given file_path is a valid path.
         If the file_path is a relative path, it is completed by joining it with the self.spec.get_code_path()
@@ -5262,6 +5267,10 @@ class MlrunProject(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Invalid '{param_name}': '{file_path}'. Got a remote URL without a file suffix."
             )
+
+        # if engine is remote then skip the local file validation
+        if engine and not engine.startswith("remote"):
+            return
 
         code_path = self.spec.get_code_path()
 

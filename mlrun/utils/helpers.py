@@ -146,7 +146,7 @@ def get_artifact_target(item: dict, project=None):
     return item["spec"].get("target_path")
 
 
-# TODO: left for migrations testing purposes. Remove in 1.8.0.
+# TODO: Remove once data migration v5 is obsolete
 def is_legacy_artifact(artifact):
     if isinstance(artifact, dict):
         return "metadata" not in artifact
@@ -498,7 +498,6 @@ def get_in(obj, keys, default=None):
     """
     if isinstance(keys, str):
         keys = keys.split(".")
-
     for key in keys:
         if not obj or key not in obj:
             return default
@@ -1329,7 +1328,11 @@ def get_handler_extended(
 def datetime_from_iso(time_str: str) -> Optional[datetime]:
     if not time_str:
         return
-    return parser.isoparse(time_str)
+    dt = parser.isoparse(time_str)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    # ensure the datetime is in UTC, converting if necessary
+    return dt.astimezone(timezone.utc)
 
 
 def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
@@ -1366,6 +1369,18 @@ def has_timezone(timestamp):
         return dt.tzinfo is not None
     except ValueError:
         return False
+
+
+def format_datetime(dt: datetime) -> str:
+    # If the datetime is naive
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    # TODO: Once Python 3.12 is the minimal version, use %:z to format the timezone offset with a colon
+    formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S.%f%z")
+
+    # For versions earlier than Python 3.12, we manually insert the colon in the timezone offset
+    return formatted_time[:-2] + ":" + formatted_time[-2:]
 
 
 def as_list(element: Any) -> list[Any]:
@@ -1421,6 +1436,17 @@ def to_non_empty_values_dict(input_dict: dict) -> dict:
     return {key: value for key, value in input_dict.items() if value}
 
 
+def get_enriched_gpu_limits(function_limits: dict) -> dict[str, int]:
+    """
+    Creates new limits containing the GPU-related limits from the function's limits,
+    mapping each to zero. This is used for pods like Kaniko and Argo pods, which inherit
+    GPU-related selectors but do not require GPU resources. By setting these
+    limits to zero, the pods receive the necessary tolerations from the cloud provider for scheduling,
+    without actually consuming GPU resources.
+    """
+    return {resource: 0 for resource in function_limits if "/gpu" in resource.lower()}
+
+
 def str_to_timestamp(time_str: str, now_time: Timestamp = None):
     """convert fixed/relative time string to Pandas Timestamp
 
@@ -1457,6 +1483,16 @@ def str_to_timestamp(time_str: str, now_time: Timestamp = None):
         return timestamp
 
     return Timestamp(time_str)
+
+
+def str_to_bool(value: str) -> bool:
+    """Convert a string to a boolean value."""
+    value = value.lower()
+    if value in ("true", "1", "t", "y", "yes", "on"):
+        return True
+    if value in ("false", "0", "f", "n", "no", "off"):
+        return False
+    raise ValueError(f"invalid boolean value: {value}")
 
 
 def is_link_artifact(artifact):
@@ -2129,3 +2165,18 @@ def as_dict(data: typing.Union[dict, str]) -> dict:
     if isinstance(data, str):
         return json.loads(data)
     return data
+
+
+def encode_user_code(
+    user_code: typing.Union[str, bytes], max_len_warning: typing.Optional[int] = None
+) -> str:
+    max_len_warning = max_len_warning or config.function.spec.source_code_max_bytes
+    if isinstance(user_code, str):
+        user_code = user_code.encode("utf-8")
+    encoded = base64.b64encode(user_code).decode("utf-8")
+    if len(encoded) > max_len_warning:
+        logger.warning(
+            f"User code exceeds the maximum allowed size of {max_len_warning} bytes for non remote source. "
+            "Consider using `with_source_archive` to add user code as a remote source to the function."
+        )
+    return encoded

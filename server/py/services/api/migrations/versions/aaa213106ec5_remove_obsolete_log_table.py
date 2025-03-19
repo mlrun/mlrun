@@ -16,7 +16,7 @@
 """remove obsolete log table
 
 Revision ID: aaa213106ec5
-Revises: c53a7f5bcd3a
+Revises: b103e4740e88
 Create Date: 2024-12-06 10:27:50.669582
 
 """
@@ -27,7 +27,7 @@ from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
 revision = "aaa213106ec5"
-down_revision = "c53a7f5bcd3a"
+down_revision = "b103e4740e88"
 branch_labels = None
 depends_on = None
 

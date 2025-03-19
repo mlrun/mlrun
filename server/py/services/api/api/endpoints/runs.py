@@ -39,13 +39,6 @@ from framework.api.utils import log_and_raise
 router = APIRouter()
 
 
-# TODO: remove /run/{project}/{uid} in 1.8.0
-@router.post(
-    "/run/{project}/{uid}",
-    deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
-    "use /projects/{project}/runs/{uid} instead",
-)
 @router.post("/projects/{project}/runs/{uid}")
 async def store_run(
     request: Request,
@@ -87,13 +80,6 @@ async def store_run(
     return {}
 
 
-# TODO: remove /run/{project}/{uid} in 1.8.0
-@router.patch(
-    "/run/{project}/{uid}",
-    deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
-    "use /projects/{project}/runs/{uid} instead",
-)
 @router.patch("/projects/{project}/runs/{uid}")
 async def update_run(
     request: Request,
@@ -129,13 +115,6 @@ async def update_run(
     return {}
 
 
-# TODO: remove /run/{project}/{uid} in 1.8.0
-@router.get(
-    "/run/{project}/{uid}",
-    deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
-    "use /projects/{project}/runs/{uid} instead",
-)
 @router.get("/projects/{project}/runs/{uid}")
 async def get_run(
     project: str,
@@ -164,13 +143,6 @@ async def get_run(
     }
 
 
-# TODO: remove /run/{project}/{uid} in 1.8.0
-@router.delete(
-    "/run/{project}/{uid}",
-    deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
-    "use /projects/{project}/runs/{uid} instead",
-)
 @router.delete("/projects/{project}/runs/{uid}")
 async def delete_run(
     project: str,
@@ -197,13 +169,6 @@ async def delete_run(
     return {}
 
 
-# TODO: remove /runs in 1.8.0
-@router.get(
-    "/runs",
-    deprecated=True,
-    description="/runs is deprecated in 1.5.0 and will be removed in 1.8.0, "
-    "use /projects/{project}/runs/ instead",
-)
 @router.get("/projects/{project}/runs")
 async def list_runs(
     project: Optional[str] = None,
@@ -211,7 +176,6 @@ async def list_runs(
     uid: list[str] = Query([]),
     labels: list[str] = Query([], alias="label"),
     states: list[str] = Query([], alias="state"),
-    last: int = 0,
     sort: bool = True,
     iter: bool = True,
     start_time_from: Optional[str] = None,
@@ -271,7 +235,6 @@ async def list_runs(
         labels=labels,
         states=states,
         sort=sort,
-        last=last,
         iter=iter,
         start_time_from=start_time_from,
         start_time_to=start_time_to,
@@ -292,13 +255,6 @@ async def list_runs(
     }
 
 
-# TODO: remove /runs in 1.8.0
-@router.delete(
-    "/runs",
-    deprecated=True,
-    description="/runs is deprecated in 1.5.0 and will be removed in 1.8.0, "
-    "use /projects/{project}/runs/{uid} instead",
-)
 @router.delete("/projects/{project}/runs")
 async def delete_runs(
     project: Optional[str] = None,

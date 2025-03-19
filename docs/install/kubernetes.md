@@ -118,7 +118,7 @@ your internet speed).
 ```
 
 To install the chart with the release name `mlrun-ce` use the following command.
-```{admonition} Note
+:::{admonition} Note
 If you are using NFS storage in your Kubernetes cluster, add these flags to the chart deployment command:
 ```
 --set kube-prometheus-stack.grafana.securityContext.runAsUser=1000 
@@ -127,7 +127,7 @@ If you are using NFS storage in your Kubernetes cluster, add these flags to the 
 --set kube-prometheus-stack.grafana.securityContext.fsGroupChangePolicy=OnRootMismatch 
 --set kube-prometheus-stack.grafana.initChownData.enabled
 ```
-```
+:::
 Note the reference to the pre-created `registry-credentials` secret in `global.registry.secretName`:
 
 ```bash

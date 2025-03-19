@@ -740,9 +740,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         )
 
         # Request (get or create) the offline dataset from the feature store and save to a parquet target
-        mlrun.feature_store.get_offline_features(
-            fv, target=mlrun.datastore.targets.ParquetTarget()
-        )
+        fv.get_offline_features(target=mlrun.datastore.targets.ParquetTarget())
 
         # Train the model using the auto trainer from the hub
         train = mlrun.import_function("hub://auto-trainer", new_name="train")

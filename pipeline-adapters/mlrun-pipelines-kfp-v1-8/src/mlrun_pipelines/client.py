@@ -14,7 +14,6 @@
 #
 import copy
 import datetime
-import json
 import logging
 import os
 import re
@@ -27,11 +26,12 @@ from typing import Optional
 
 import kfp_server_api
 import kubernetes as k8s
+import orjson
 import yaml
+from mlrun_pipelines.common.client import AbstractClient
 from mlrun_pipelines.common.models import RunStatuses
 
 import mlrun.utils
-from mlrun_pipelines.common.client import AbstractClient
 
 IN_CLUSTER_DNS_NAME = "ml-pipeline.{}.svc.cluster.local:8888"
 KUBE_PROXY_PATH = "api/v1/namespaces/{}/services/ml-pipeline:http/proxy/"
@@ -51,7 +51,10 @@ class FilterOperations(IntEnum):
 
 
 class ServiceAccountTokenVolumeCredentials:
-    def __init__(self, path=None):
+    def __init__(
+        self,
+        path=None,
+    ):
         self._token_path = (
             path or os.getenv(KF_PIPELINES_SA_TOKEN_ENV) or KF_PIPELINES_SA_TOKEN_PATH
         )
@@ -67,7 +70,10 @@ class ServiceAccountTokenVolumeCredentials:
             )
             raise
 
-    def refresh_api_key_hook(self, config: kfp_server_api.configuration):
+    def refresh_api_key_hook(
+        self,
+        config: kfp_server_api.configuration,
+    ):
         """Refresh the api key.
 
         This is a helper function for registering token refresh with swagger
@@ -83,14 +89,17 @@ class ServiceAccountTokenVolumeCredentials:
         config.api_key["authorization"] = self._get_token()
 
 
-invalid_characters_regex = re.compile(r'[^-0-9a-z]+')
-multiple_dashes_regex = re.compile(r'-+')
+invalid_characters_regex = re.compile(r"[^-0-9a-z]+")
+multiple_dashes_regex = re.compile(r"-+")
 
-def sanitize_k8s_name(name: str):
+
+def sanitize_k8s_name(
+    name: str,
+):
     name = name.lower()
-    cleaned_name = invalid_characters_regex.sub('-', name)
-    cleaned_name = multiple_dashes_regex.sub('-', cleaned_name)
-    return cleaned_name.lstrip('-').rstrip('-')
+    cleaned_name = invalid_characters_regex.sub("-", name)
+    cleaned_name = multiple_dashes_regex.sub("-", cleaned_name)
+    return cleaned_name.lstrip("-").rstrip("-")
 
 
 class Client(AbstractClient):
@@ -147,8 +156,7 @@ class Client(AbstractClient):
             credentials.refresh_api_key_hook(config_copy)
         except Exception:
             logging.warning(
-                "Failed to set up default credentials. Proceeding"
-                " without credentials..."
+                "Failed to set up default credentials. Proceeding without credentials..."
             )
             return config
 
@@ -174,7 +182,9 @@ class Client(AbstractClient):
         config = self._get_config_with_default_credentials(config)
 
         try:
-            k8s.config.load_kube_config(client_configuration=config)
+            k8s.config.load_kube_config(
+                client_configuration=config,
+            )
         except Exception:
             logging.error("Failed to load kube config.")
             return config
@@ -198,7 +208,9 @@ class Client(AbstractClient):
                 )
             else:
                 try:
-                    response: kfp_server_api.ApiGetHealthzResponse = self._healthz_api.get_healthz()
+                    response: kfp_server_api.ApiGetHealthzResponse = (
+                        self._healthz_api.get_healthz()
+                    )
                     return response
                 except kfp_server_api.ApiException:
                     logging.exception(
@@ -253,7 +265,9 @@ class Client(AbstractClient):
                 description=description,
                 resource_references=resource_references,
             )
-            experiment = self._experiment_api.create_experiment(body=experiment)
+            experiment = self._experiment_api.create_experiment(
+                body=experiment,
+            )
         return experiment
 
     def get_experiment(
@@ -266,7 +280,7 @@ class Client(AbstractClient):
             raise ValueError("Either experiment_id or experiment_name is required")
         if experiment_id is not None:
             return self._experiment_api.get_experiment(id=experiment_id)
-        experiment_filter = json.dumps(
+        experiment_filter = orjson.dumps(
             {
                 "predicates": [
                     {
@@ -326,7 +340,9 @@ class Client(AbstractClient):
             service_account=service_account,
         )
 
-        response = self._run_api.create_run(body=run_body)
+        response = self._run_api.create_run(
+            body=run_body,
+        )
 
         return response.run
 
@@ -367,7 +383,9 @@ class Client(AbstractClient):
         return response
 
     def get_run(self, run_id: str) -> kfp_server_api.ApiRun:
-        return self._run_api.get_run(run_id=run_id)
+        return self._run_api.get_run(
+            run_id=run_id,
+        )
 
     def wait_for_run_completion(
         self,
@@ -476,7 +494,9 @@ class Client(AbstractClient):
         workflow_manifest_path = None
         if not pipeline_spec.pipeline_id:
             with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".yaml", delete=False
+                mode="w",
+                suffix=".yaml",
+                delete=False,
             ) as temp_file:
                 temp_file.write(pipeline_spec.workflow_manifest)
                 workflow_manifest_path = temp_file.name
@@ -495,7 +515,10 @@ class Client(AbstractClient):
         if current_name.lower().startswith(desired_prefix_lower):
             job_name = current_name
         else:
-            job_name = self._normalize_retry_run(current_name, project)
+            job_name = self._normalize_retry_run(
+                current_name,
+                project,
+            )
         try:
             new_run = self.run_pipeline(
                 experiment_id=experiment_id,
@@ -507,7 +530,9 @@ class Client(AbstractClient):
             return new_run.id
         except kfp_server_api.OpenApiException as error:
             mlrun.utils.logger.error(
-                "Could not trigger new run for run.", run_id=run_id, error=error
+                "Could not trigger new run for run.",
+                run_id=run_id,
+                error=error,
             )
             raise error
         finally:
@@ -546,33 +571,42 @@ class Client(AbstractClient):
         """
 
         class JobConfig:
-            def __init__(self, spec, resource_references):
+            def __init__(
+                self,
+                spec,
+                resource_references,
+            ):
                 self.spec = spec
                 self.resource_references = resource_references
 
         params = params or {}
-        pipeline_json_string = None
+        pipeline_orjson_string = None
         if pipeline_package_path:
             pipeline_obj = self._extract_pipeline_yaml(pipeline_package_path)
 
             # Caching option set at submission time overrides the compile time settings.
             if enable_caching is not None:
-                self._override_caching_options(pipeline_obj, enable_caching)
+                self._override_caching_options(
+                    pipeline_obj,
+                    enable_caching,
+                )
 
-            pipeline_json_string = json.dumps(pipeline_obj)
+            pipeline_orjson_string = orjson.dumps(pipeline_obj)
         api_params = [
             kfp_server_api.ApiParameter(
-                name=sanitize_k8s_name(name=k, allow_capital_underscore=True),
-                value=str(v) if type(v) not in (list, dict) else json.dumps(v),
+                name=sanitize_k8s_name(name=k),
+                value=str(v) if type(v) not in (list, dict) else orjson.dumps(v),
             )
             for k, v in params.items()
         ]
         resource_references = []
         key = kfp_server_api.models.ApiResourceKey(
-            id=experiment_id, type=kfp_server_api.models.ApiResourceType.EXPERIMENT
+            id=experiment_id,
+            type=kfp_server_api.models.ApiResourceType.EXPERIMENT,
         )
         reference = kfp_server_api.models.ApiResourceReference(
-            key=key, relationship=kfp_server_api.models.ApiRelationship.OWNER
+            key=key,
+            relationship=kfp_server_api.models.ApiRelationship.OWNER,
         )
         resource_references.append(reference)
 
@@ -582,19 +616,26 @@ class Client(AbstractClient):
                 type=kfp_server_api.models.ApiResourceType.PIPELINE_VERSION,
             )
             reference = kfp_server_api.models.ApiResourceReference(
-                key=key, relationship=kfp_server_api.models.ApiRelationship.CREATOR
+                key=key,
+                relationship=kfp_server_api.models.ApiRelationship.CREATOR,
             )
             resource_references.append(reference)
 
         spec = kfp_server_api.models.ApiPipelineSpec(
             pipeline_id=pipeline_id,
-            workflow_manifest=pipeline_json_string,
+            workflow_manifest=pipeline_orjson_string,
             parameters=api_params,
         )
-        return JobConfig(spec=spec, resource_references=resource_references)
+        return JobConfig(
+            spec=spec,
+            resource_references=resource_references,
+        )
 
-    def _extract_pipeline_yaml(self, package_file):
-        def _choose_pipeline_yaml_file(file_list) -> str:
+    def _extract_pipeline_yaml(
+        self,
+        package_file: str,
+    ):
+        def _choose_pipeline_yaml_file(file_list: list[str]) -> str:
             yaml_files = [file for file in file_list if file.endswith(".yaml")]
             if len(yaml_files) == 0:
                 raise ValueError(
@@ -626,7 +667,22 @@ class Client(AbstractClient):
                 return yaml.safe_load(f)
         else:
             raise ValueError(
-                "The package_file "
-                + package_file
-                + " should end with one of the following formats: [.tar.gz, .tgz, .zip, .yaml, .yml]"
+                f"The package_file {package_file} should end with one of the following formats: [.tar.gz, .tgz, .zip, .yaml, .yml]"
             )
+
+    def _override_caching_options(
+        self,
+        workflow: dict,
+        enable_caching: bool,
+    ):
+        templates = workflow["spec"]["templates"]
+        for template in templates:
+            if (
+                "metadata" in template
+                and "labels" in template["metadata"]
+                and "pipelines.kubeflow.org/enable_caching"
+                in template["metadata"]["labels"]
+            ):
+                template["metadata"]["labels"][
+                    "pipelines.kubeflow.org/enable_caching"
+                ] = str(enable_caching).lower()

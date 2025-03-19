@@ -916,23 +916,6 @@ class V3IOTSDBConnector(TSDBConnector):
 
         return last_request_timestamps
 
-        # try:
-        #     res = self.v3io_client.kv.new_cursor(
-        #         container=self.container,
-        #         table_path=self.last_request_table,
-        #         filter_expression=filter_expression,
-        #     ).all()
-        # except Exception as e:
-        #     logger.warning(
-        #         "Failed to get last request timestamp from V3IO KV table.",
-        #         err=mlrun.errors.err_to_str(e),
-        #         project=self.project,
-        #         table=self.last_request_table,
-        #     )
-        #     return {}
-
-        # return {d["__name"]: d["last_request_timestamp"] for d in res}
-
     def get_drift_status(
         self,
         endpoint_ids: Union[str, list[str]],

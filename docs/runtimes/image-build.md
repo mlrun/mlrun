@@ -107,7 +107,7 @@ project.build_function("trainer", with_mlrun=True, mlrun_version_specifier="1.0.
 ```
 
 ### Working with code repository
-As the code matures and evolves, the code is usually stored in a git code repository.
+As the code matures and evolves, the code is usually stored in a git code repository. It can be stored in an archive file, such as tar.gz or zip.
 When the MLRun project is associated with a git repo (see {ref}`create-projects` for details), functions can be added
 by calling {py:func}`~mlrun.projects.MlrunProject.set_function()` and setting `with_repo=True`. This indicates that the 
 code of the function should be retrieved from the project code repository.

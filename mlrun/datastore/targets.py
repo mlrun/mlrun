@@ -40,7 +40,7 @@ from mlrun.utils.helpers import to_parquet
 from mlrun.utils.v3io_clients import get_frames_client
 
 from .. import errors
-from ..data_types import ValueType
+from ..data_types import ValueType, is_spark_dataframe
 from ..platforms.iguazio import parse_path, split_path
 from .datastore_profile import datastore_profile_read
 from .spark_utils import spark_session_update_hadoop_options
@@ -510,7 +510,7 @@ class BaseStoreTarget(DataTargetBase):
         chunk_id=0,
         **kwargs,
     ) -> Optional[int]:
-        if hasattr(df, "rdd"):
+        if is_spark_dataframe(df):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df, key_column, timestamp_key, options)
@@ -1376,7 +1376,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
-        if hasattr(df, "rdd"):
+        if is_spark_dataframe(df):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df)
@@ -2108,7 +2108,7 @@ class SQLTarget(BaseStoreTarget):
 
         self._create_sql_table()
 
-        if hasattr(df, "rdd"):
+        if is_spark_dataframe(df):
             raise ValueError("Spark is not supported")
         else:
             (

@@ -113,6 +113,8 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
 
     If you want to change the application defaults, such as the classifier or which artifacts to produce, you
     need to inherit from this class and deploy it as any other model monitoring application.
+    Please make sure to keep the default application name. This ensures that the full functionality of the application,
+    including the statistics view in the UI, is available.
     """
 
     NAME: Final[str] = HistogramDataDriftApplicationConstants.NAME

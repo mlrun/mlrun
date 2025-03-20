@@ -2460,7 +2460,7 @@ class MlrunProject(ModelObj):
                 import mlrun.model_monitoring.applications.histogram_data_drift as histogram_data_drift
 
                 hist_app = project.set_model_monitoring_function(
-                    name=histogram_data_drift.HistogramDataDriftApplicationConstants.NAME,
+                    name=histogram_data_drift.HistogramDataDriftApplicationConstants.NAME,  # keep the default name
                     func=histogram_data_drift.__file__,
                     application_class=histogram_data_drift.HistogramDataDriftApplication.__name__,
                 )

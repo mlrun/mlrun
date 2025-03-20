@@ -60,6 +60,7 @@ class MonitoringApplicationContext:
         sample_df: Optional[pd.DataFrame] = None,
         feature_stats: Optional[FeatureStats] = None,
         feature_sets_dict: Optional[dict[str, FeatureSet]] = None,
+        ml_ctx_generated: bool = False,
     ) -> None:
         """
         The :code:`MonitoringApplicationContext` object holds all the relevant information for the
@@ -76,7 +77,6 @@ class MonitoringApplicationContext:
         :param sample_df:               (pd.DataFrame) The new sample DataFrame.
         :param start_infer_time:        (pd.Timestamp) Start time of the monitoring schedule.
         :param end_infer_time:          (pd.Timestamp) End time of the monitoring schedule.
-        :param latest_request:          (pd.Timestamp) Timestamp of the latest request on this endpoint_id.
         :param endpoint_id:             (str) ID of the monitored model endpoint
         :param feature_set:              (FeatureSet) the model endpoint feature set
         :param endpoint_name:           (str) Name of the monitored model endpoint
@@ -129,6 +129,8 @@ class MonitoringApplicationContext:
             feature_sets_dict.get(self.endpoint_id) if feature_sets_dict else None
         )
 
+        self._ml_ctx_generated = ml_ctx_generated
+
     @classmethod
     def _from_ml_ctx(
         cls,
@@ -158,6 +160,7 @@ class MonitoringApplicationContext:
             artifacts_logger=artifacts_logger,
             sample_df=sample_df,
             feature_stats=feature_stats,
+            ml_ctx_generated=True,
         )
 
     @classmethod
@@ -208,6 +211,20 @@ class MonitoringApplicationContext:
     @property
     def sample_df(self) -> pd.DataFrame:
         if self._sample_df is None:
+            if self._ml_ctx_generated and not (
+                self.endpoint_name
+                and self.endpoint_id
+                and self.start_infer_time
+                and self.end_infer_time
+            ):
+                raise mlrun.errors.MLRunValueError(
+                    "You have tried to access `monitoring_context.sample_df`, but have not provided it directly "
+                    "through `sample_data`, nor have you provided the model endpoint's name, ID, and the start and "
+                    f"end times: `endpoint_name`={self.endpoint_name}, `endpoint_uid`={self.endpoint_id}, "
+                    f"`start`={self.start_infer_time}, and `end`={self.end_infer_time}. "
+                    "You can either provide the sample dataframe directly, the model endpoint's details and times, "
+                    "or adapt the application's logic to not access the sample dataframe."
+                )
             feature_set = self.feature_set
             features = [f"{feature_set.metadata.name}.*"]
             vector = fstore.FeatureVector(

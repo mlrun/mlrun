@@ -458,10 +458,7 @@ def test_delete_artifact_includes_multiple_results(
         DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
-    assert (
-        "Failed to delete artifact because multiple artifacts were found"
-        in response.text
-    )
+    assert "Failed to delete artifact, multiple artifacts matching" in response.text
 
 
 def test_list_artifacts(db: Session, client: TestClient) -> None:

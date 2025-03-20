@@ -1134,8 +1134,9 @@ class SQLDB(DBInterface):
             )
 
             error_message = (
-                "Failed to delete artifact because multiple artifacts were found. "
-                "Make your request more specific or use the delete multiple artifacts endpoint."
+                "Failed to delete artifact, multiple artifacts matching the search criteria were found. "
+                "Refine your request to specify a single artifact or use another endpoint to delete "
+                "multiple artifacts instead."
             )
             raise mlrun.errors.MLRunBadRequestError(error_message) from exc
 

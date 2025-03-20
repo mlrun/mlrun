@@ -321,7 +321,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         vector = fstore.FeatureVector(
             f"{target_name}-vec", features_ref, description="my test vector"
         )
-        service_ref = fstore.get_online_feature_service(vector)
+        service_ref = vector.get_online_feature_service()
         ref_output = service_ref.get([{key: 1}], as_list=True)
 
         # test
@@ -332,7 +332,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         vector = fstore.FeatureVector(
             f"{target_name}-vec", features, description="my test vector"
         )
-        with fstore.get_online_feature_service(vector) as svc:
+        with vector.get_online_feature_service() as svc:
             output = svc.get([{key: 1}], as_list=True)
             assert ref_output == output
 

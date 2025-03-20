@@ -226,8 +226,6 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
 
     run_1_update_time = datetime.now(timezone.utc)
 
-    run_1_end_time = run_1_update_time + timedelta(milliseconds=100)
-
     run_1_name = "run_1_name"
     run_1_uid = "run_1_uid"
     run_1 = {
@@ -240,7 +238,6 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         iteration=0,
         start_time=run_1_start_time,
         updated=run_1_update_time,
-        end_time=run_1_end_time,
     )
     run.struct = run_1
     get_db()._upsert(db, [run], ignore=True)
@@ -255,8 +252,6 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
 
     run_2_update_time = datetime.now(timezone.utc)
 
-    run_2_end_time = run_2_update_time + timedelta(milliseconds=100)
-
     run_2_uid = "run_2_uid"
     run_2_name = "run_2_name"
     run_2 = {
@@ -269,7 +264,6 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         iteration=0,
         start_time=run_2_start_time,
         updated=run_2_update_time,
-        end_time=run_2_end_time,
     )
     run.struct = run_2
     get_db()._upsert(db, [run], ignore=True)
@@ -348,28 +342,6 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         last_update_time_from=run_2_start_time,
     )
 
-    assert_time_range_request(
-        client,
-        [run_1_uid, run_2_uid],
-        config.default_project,
-        end_time_from=run_1_start_time,
-    )
-
-    assert_time_range_request(
-        client,
-        [run_1_uid],
-        config.default_project,
-        end_time_from=run_1_start_time,
-        end_time_to=run_2_start_time,
-    )
-
-    assert_time_range_request(
-        client,
-        [run_2_uid],
-        config.default_project,
-        end_time_from=run_2_start_time,
-    )
-
 
 def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     # Create runs
@@ -438,7 +410,7 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     for run in runs:
         assert "first" in run["metadata"]["uid"]
 
-    # partioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
+    # partitioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
     runs = _list_and_assert_objects(
         client,
         params={

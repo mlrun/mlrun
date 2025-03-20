@@ -31,6 +31,7 @@ import tests.system.base
 from mlrun import feature_store as fstore
 from mlrun.datastore.sources import KafkaSource
 from mlrun.datastore.targets import ParquetTarget
+from mlrun.serving import ModelRunnerStep
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -57,6 +58,32 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         deployment = function.deploy()
 
         assert deployment == function.get_url()  # check function url
+
+    def test_deploy_function_with_model_runner(self):
+        code_path = str(self.assets_path / "function_with_model.py")
+
+        self._logger.debug("Creating nuclio function")
+        function = mlrun.code_to_function(
+            name="function_with_model",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep()
+        model_runner_step.add_model("DummyModel", name="my-model")
+
+        graph.to(model_runner_step).respond()
+
+        self._logger.debug("Deploying nuclio function")
+        deployment = function.deploy()
+
+        assert deployment == function.get_url()  # check function url
+
+        resp = function.invoke("/", {"x": "y"})
+        assert resp == {"x": "y", "extra": 123}
 
     # Nuclio sometimes passes b'' instead of None due to dirty memory
     def test_workaround_for_nuclio_bug(self):
@@ -422,7 +449,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         time.sleep(20)  # wait for ingestion-service parquet to be written
 
         vec = fstore.FeatureVector("test-vec", [f"{fs_name}.*"])
-        resp = fstore.get_offline_features(feature_vector=vec, with_indexes=True)
+        resp = vec.get_offline_features(with_indexes=True)
         actual_df = resp.to_dataframe()
 
         print(actual_df)

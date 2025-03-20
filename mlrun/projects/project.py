@@ -5034,14 +5034,20 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.get_alert_config(alert_name, self.metadata.name)
 
-    def list_alerts_configs(self) -> list[AlertConfig]:
+    def list_alerts_configs(
+        self, limit: Optional[int] = None, offset: Optional[int] = None
+    ) -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
+
+        :param limit: The maximum number of alerts to return.
+            Defaults to `mlconf.alerts.default_list_alert_configs_limit` if not provided.
+        :param offset: The number of alerts to skip before starting to collect alerts.
 
         :return: All the alerts objects of the project.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        return db.list_alerts_configs(self.metadata.name)
+        return db.list_alerts_configs(self.metadata.name, limit=limit, offset=offset)
 
     def delete_alert_config(
         self, alert_data: AlertConfig = None, alert_name: Optional[str] = None

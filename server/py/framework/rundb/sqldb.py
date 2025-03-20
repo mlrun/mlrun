@@ -1310,7 +1310,9 @@ class SQLRunDB(RunDBInterface):
     def get_alert_config(self, alert_name: str, project=""):
         pass
 
-    def list_alerts_configs(self, project=""):
+    def list_alerts_configs(
+        self, project="", limit: Optional[int] = None, offset: Optional[int] = None
+    ):
         pass
 
     def delete_alert_config(self, alert_name, project=""):

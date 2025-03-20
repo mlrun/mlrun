@@ -121,7 +121,7 @@ class Alerts(
                 )
 
         framework.utils.singletons.db.get_db().enrich_alert(
-            session, new_alert, state=existing_alert_state
+            session=session, alert=new_alert, state=existing_alert_state
         )
 
         logger.debug("Stored alert", alert=new_alert)
@@ -133,10 +133,16 @@ class Alerts(
         session: sqlalchemy.orm.Session,
         project: typing.Optional[typing.Union[str, list[str]]] = None,
         exclude_updated: bool = False,
+        limit: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         project = project or mlrun.mlconf.default_project
         return framework.utils.singletons.db.get_db().list_alerts(
-            session, project, exclude_updated
+            session=session,
+            project=project,
+            exclude_updated=exclude_updated,
+            limit=limit,
+            offset=offset,
         )
 
     def get_alert(
@@ -147,7 +153,7 @@ class Alerts(
         exclude_updated: bool = False,
     ):
         alert, state = framework.utils.singletons.db.get_db().get_alert(
-            session, project, name, with_state=True
+            session=session, project=project, name=name, with_state=True
         )
         if alert is None:
             raise mlrun.errors.MLRunNotFoundError(
@@ -177,7 +183,11 @@ class Alerts(
                 project, kind, alert.id, alert.entities.ids[0]
             )
 
-        framework.utils.singletons.db.get_db().delete_alert(session, project, name)
+        framework.utils.singletons.db.get_db().delete_alert(
+            session=session,
+            project=project,
+            name=name,
+        )
         self._clear_alert_states(alert.id)
         self._clear_caches(alert.id)
 
@@ -191,7 +201,7 @@ class Alerts(
         services.alerts.crud.Events().delete_project_alert_events(project)
 
         alert_ids = framework.utils.singletons.db.get_db().delete_project_alerts(
-            session, project
+            session=session, project=project
         )
         if not alert_ids:
             return

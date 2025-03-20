@@ -2620,18 +2620,42 @@ class TestArtifacts(TestDatabaseBase):
         assert uid1 != uid2 != uid3 != uid4
 
         # Create a model endpoint that references to the first artifact
-        self._create_model_endpoint(
-            project=project,
-            endpoint_name="model-endpoint",
-            model_id=1,
+        model_endpoint = mlrun.common.schemas.ModelEndpoint(
+            metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                project=project,
+                name="model-endpoint",
+            ),
+            spec=mlrun.common.schemas.ModelEndpointSpec(
+                model_class="model_class",
+                _model_id=1,
+            ),
+            status=mlrun.common.schemas.ModelEndpointStatus(state="ready"),
         )
 
-        # Create a model endpoint that references to the third artifact
-        self._create_model_endpoint(
-            project=project,
-            endpoint_name="model-endpoint-2",
-            model_id=3,
+        mep_uid = self._db.store_model_endpoint(
+            self._db_session,
+            model_endpoint,
         )
+        assert mep_uid != ""
+
+        # Create a model endpoint that references to the third artifact
+        model_endpoint = mlrun.common.schemas.ModelEndpoint(
+            metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                project=project,
+                name="model-endpoint-2",
+            ),
+            spec=mlrun.common.schemas.ModelEndpointSpec(
+                model_class="model_class",
+                _model_id=3,
+            ),
+            status=mlrun.common.schemas.ModelEndpointStatus(state="ready"),
+        )
+
+        mep_uid = self._db.store_model_endpoint(
+            self._db_session,
+            model_endpoint,
+        )
+        assert mep_uid != ""
 
         artifacts = self._db.list_artifacts(
             self._db_session,
@@ -2758,22 +2782,3 @@ class TestArtifacts(TestDatabaseBase):
             services.api.initial_data._migrate_artifacts_table_v2(
                 self._db, self._db_session
             )
-
-    def _create_model_endpoint(self, project, endpoint_name, model_id):
-        model_endpoint = mlrun.common.schemas.ModelEndpoint(
-            metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                project=project,
-                name=endpoint_name,
-            ),
-            spec=mlrun.common.schemas.ModelEndpointSpec(
-                model_class="model_class",
-                _model_id=model_id,
-            ),
-            status=mlrun.common.schemas.ModelEndpointStatus(state="ready"),
-        )
-
-        mep_uid = self._db.store_model_endpoint(
-            self._db_session,
-            model_endpoint,
-        )
-        assert mep_uid != ""

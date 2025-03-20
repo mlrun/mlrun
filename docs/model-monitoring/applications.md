@@ -117,8 +117,8 @@ See a full example in [Realtime monitoring and drift detection](../tutorials/05-
 
 The model monitoring application can be scaled to handle increased workloads through two key dimensions:
 
-1. **Workers**: Individual processes within each Kubernetes pod
-2. **Replicas**: The number of Kubernetes pods deployed
+- **Workers**: Individual processes within each Kubernetes pod
+- **Replicas**: The number of Kubernetes pods deployed
 
 These parameters are configured in the `config.py` file under the `application_stream_args` section:
 
@@ -147,7 +147,7 @@ These parameters are configured in the `config.py` file under the `application_s
 
 The fundamental scaling rule to maintain is:
 
-**Shards/Partitions ≥ Replicas × Workers**
+**Shards/Partitions = Replicas × Workers**
 
-In other words, the number of shards (V3IO) or partitions (Kafka) must be at least equal to the total number of worker processes across all pods.
+In other words, the number of shards (V3IO) or partitions (Kafka) must equal to the total number of worker processes across all pods.
 

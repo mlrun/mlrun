@@ -1,5 +1,5 @@
 (install-on-kubernetes)=
-# Install MLRun on Kubernetes
+# Install MLRun CE on Kubernetes
 
 ```{admonition} Note
 These instructions install the community edition, which currently includes MLRun {{ ceversion }}. 

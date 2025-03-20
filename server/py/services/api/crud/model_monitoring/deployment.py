@@ -421,11 +421,6 @@ class MonitoringDeployment:
             != mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
             else mlrun.mlconf.get_v3io_access_key()
         )
-        kwargs = {
-            "access_key": access_key,
-            "worker_allocation_mode": "static",
-            "max_workers": stream_args.v3io.num_workers,
-        }
         services.api.api.endpoints.nuclio.create_model_monitoring_stream(
             project=self.project,
             stream_path=stream_path,
@@ -433,11 +428,16 @@ class MonitoringDeployment:
             retention_period_hours=stream_args.v3io.retention_period_hours,
             access_key=access_key,
         )
+
         # Generate V3IO stream trigger
         function.add_v3io_stream_trigger(
             stream_path=stream_path,
             name=f"monitoring_{function_name}_trigger",
-            **kwargs,
+            worker_allocation_mode="static",
+            max_workers=stream_args.v3io.num_workers,
+            # ML-9443: Not passing the access_key automatically sets it to
+            # mlrun.model.Credentials.generate_access_key, causing Nuclio to replace the key with its V3IO_ACCESS_KEY
+            # environment variable. This change prevents the access key from being displayed in the ML function YAML.
         )
         function.spec.min_replicas = stream_args.v3io.min_replicas
         function.spec.max_replicas = stream_args.v3io.max_replicas

@@ -2187,8 +2187,10 @@ class MlrunProject(ModelObj):
             events_format=mm_constants.GetEventsFormat.SEPARATION,
         )
         print(f"results_by_endpoint: {results_by_endpoint}")
-        print(f"list of endpoints: {self.list_model_endpoints().endpoints}, "
-              f"size:{len(self.list_model_endpoints().endpoints)}")
+        print(
+            f"list of endpoints: {self.list_model_endpoints().endpoints}, "
+            f"size:{len(self.list_model_endpoints().endpoints)}"
+        )
         for endpoint_uid, results in results_by_endpoint.items():
             results_fqn_by_endpoint = [
                 get_result_instance_fqn(

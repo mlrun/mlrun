@@ -18,7 +18,7 @@ import typing
 import mlrun_pipelines.common.models
 import mlrun_pipelines.helpers
 import mlrun_pipelines.imports
-from mlrun_pipelines.client import ExtendedKfpClient
+from client import Client
 
 
 def compile_pipeline(
@@ -44,7 +44,7 @@ def compile_pipeline(
 
 def get_client(
     url: typing.Optional[str] = None, namespace: typing.Optional[str] = None
-) -> ExtendedKfpClient:
+) -> Client:
     if url or namespace:
-        return ExtendedKfpClient(host=url, namespace=namespace)
-    return ExtendedKfpClient()
+        return Client(host=url, namespace=namespace)
+    return Client()

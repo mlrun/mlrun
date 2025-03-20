@@ -77,52 +77,6 @@ class DummyCompiler:
             logger.debug("[NoOp] _create_workflow called.")
 
 
-class DummyRunPipelineResult:
-    def get_output_file(self, op_name: str, output: Optional[str] = None) -> str:
-        return ""
-
-    def success(self) -> bool:
-        return True
-
-
-class V1ListRunsResponse:
-    def __init__(self, *args, **kwargs) -> None:
-        pass
-
-    @property
-    def runs(self):
-        return []
-
-    @property
-    def next_page_token(self):
-        return ""
-
-
-class DummyClient:
-    def __init__(self, *args, **kwargs) -> None:
-        pass
-
-    def create_run_from_pipeline_func(
-        self,
-        pipeline_func: Callable[..., Any],
-        arguments: Optional[dict[str, Any]] = None,
-        run_name: Optional[str] = None,
-        experiment_name: Optional[str] = None,
-        **kwargs: Any,
-    ) -> "DummyRunPipelineResult":
-        logger.debug("[NoOp] create_run_from_pipeline_func called but does nothing.")
-        return DummyRunPipelineResult()
-
-    def list_runs(
-        self,
-        page_token: str = "",
-        page_size: int = 100,
-        sort_by: Optional[str] = None,
-        filter: Optional[str] = None,
-    ) -> list[Any]:
-        logger.debug("[NoOp] list_runs called")
-        return V1ListRunsResponse()
-
 
 # Assign dummy implementations to kfp modules
 compiler = ModuleType("compiler")
@@ -135,14 +89,11 @@ dsl.PipelineConf = DummyPipelineConf
 kfp = ModuleType("kfp")
 kfp.compiler = compiler
 kfp.dsl = dsl
-kfp.Client = DummyClient
-Client = DummyClient
 PipelineParam = DummyPipelineParam
 PipelineConf = DummyPipelineConf
 
 
 __all__ = [
-    "Client",
     "Compiler",
     "PipelineConf",
     "PipelineParam",

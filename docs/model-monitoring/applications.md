@@ -49,22 +49,25 @@ To register and deploy the application see {ref}`register-model-monitoring-app`.
 
 ## Testing your application before deploying it
 
-You can evaluate a model using the MLRun model monitoring tool during development, without deploying the actual model. This reduces   
-the time required to refine your model before deploying. You run and debug your application by running it on a mock server as a job 
-with data, but without a model endpoint or datastore profiles. 
+You run and debug your application as a job with data, but without a model endpoint or datastore profiles. This reduces   
+the time required to refine your model before deploying. 
 The monitoring creates metrics that assist you in understanding and refining the model behavior. 
-You can use this flow for both local and remote.
+You can use this flow for both local and remote jobsß.
+
 Use {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.evaluate` to test your code. 
-When you are satisfied with the application, just use {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.to_job` to run it as a job. 
+When you are satisfied with the application, deploy it with `.deploy`.
 
 
-For example, run the application:
+For example, import the source file:
 ```py
 %%writefile Myapp.py
 import mlrun
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,ModelMonitoringApplicationMetric,ModelMonitoringApplicationResult
 )
+```
+And then import the class and run `evaluate`.
+```py
 class MyApp(ModelMonitoringApplicationBase):
     """User code"""
 
@@ -85,7 +88,7 @@ MyApp.evaluate(
 ```
 After you have fine-tuned the model, deploy it:
 ```python
-app_fn = MyApp.to_job(
+app_fn = MyApp.deploy(
     func_path="Myapp.py", func_name="run-me-in-wf",
     image="docker.io/mlrun/mlrun:1.8.0",
 )

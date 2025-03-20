@@ -44,12 +44,6 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
         # Does `self._schedules` hold the content of `self._item`?
         self._open_schedules = False
 
-    @classmethod
-    def from_model_endpoint(
-        cls, model_endpoint: ModelEndpoint
-    ) -> "ModelMonitoringSchedulesFileBase":
-        pass
-
     def create(self) -> None:
         """Create a schedules file with initial content - an empty dictionary"""
         logger.debug("Creating model monitoring schedules file", path=self._item.url)

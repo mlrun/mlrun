@@ -21,16 +21,9 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"regexp"
 	"strings"
 
 	nuclio "github.com/nuclio/nuclio-sdk-go"
-)
-
-var (
-	ansiEscape    = regexp.MustCompile(`\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])`)
-	controlChars  = regexp.MustCompile(`[\x00-\x1F\x7F-\x9F]`)
-	malformedAnsi = regexp.MustCompile(`\[\d{1,2};\d{1,2}m`)
 )
 
 func Handler(context *nuclio.Context, event nuclio.Event) (interface{}, error) {
@@ -58,11 +51,9 @@ func Handler(context *nuclio.Context, event nuclio.Event) (interface{}, error) {
 	reverseProxy.ServeHTTP(recorder, httpRequest)
 
 	// send request to sidecar
-	sanitizedQuery := sanitizeQuery(httpRequest.URL.Query())
 	context.Logger.DebugWith("Forwarding request to sidecar",
 		"sidecarUrl", sidecarUrl,
-		"method", event.GetMethod(),
-		"query", sanitizedQuery)
+		"method", event.GetMethod())
 	response := recorder.Result()
 
 	headers := make(map[string]interface{})
@@ -103,36 +94,4 @@ func InitContext(context *nuclio.Context) error {
 		"reverseProxy": reverseProxy,
 	}
 	return nil
-}
-
-// sanitizeQuery sanitizes the query params to prevent log injection
-func sanitizeQuery(query url.Values) url.Values {
-	sanitizedQuery := url.Values{}
-	for k, v := range query {
-		sanitizedValues := make([]string, len(v))
-		for i, value := range v {
-			sanitizedValue := sanitizeQueryParam(value)
-			sanitizedValues[i] = sanitizedValue
-		}
-		sanitizedQuery[k] = sanitizedValues
-	}
-	return sanitizedQuery
-}
-
-// sanitizeQueryParam sanitizes a single query parameter value by removing control characters and ANSI escape sequences
-func sanitizeQueryParam(value string) string {
-	// Replace newlines with spaces
-	value = strings.ReplaceAll(value, "\n", " ")
-	value = strings.ReplaceAll(value, "\r", " ")
-
-	// Remove ANSI escape sequences (full support for various patterns)
-	value = ansiEscape.ReplaceAllString(value, "")
-
-	// Remove all ASCII control characters (0-31, 127-159)
-	value = controlChars.ReplaceAllString(value, "")
-
-	// Remove malformed ANSI-like sequences (e.g., "value5[0;31m")
-	value = malformedAnsi.ReplaceAllString(value, "")
-
-	return value
 }

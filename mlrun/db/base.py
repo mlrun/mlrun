@@ -889,7 +889,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_alerts_configs(self, project=""):
+    def list_alerts_configs(
+        self, project="", limit: Optional[int] = None, offset: Optional[int] = None
+    ):
         pass
 
     @abstractmethod

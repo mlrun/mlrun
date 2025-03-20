@@ -121,7 +121,7 @@ During the development phase it may be desired to retrieve the code in runtime, 
 image every time the code changes. To enable this, use {py:func}`~mlrun.projects.MlrunProject.set_source()` which
 gets a path to the source (can be a git repository or a tar or zip file) and set `pull_at_runtime=True`.
 
-If you are using a `zip` source file, verify that you installed `unzip` on your running image. It's recommended to use a tar.gz for the srchive file: with tar.gz you don't need to install any additional packages. See also [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images).
+If you are using a `zip` source file, verify that you installed `unzip` on your running image. It's recommended to use a tar.gz for the archive file. See also [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images).
 
 ### Using a private Docker registry
 By default, images are pushed to the registry configured during MLRun deployment, using the configured registry 

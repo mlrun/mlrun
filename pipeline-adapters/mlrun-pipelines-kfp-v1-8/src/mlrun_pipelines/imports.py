@@ -121,12 +121,12 @@ class DummyContainerOp:
         self.file_outputs[key] = value
         return self
 
+from client import Client
 
 try:
     import kfp as real_kfp
     import kfp.compiler as real_compiler
     import kfp.dsl as real_dsl
-    from kfp import Client as real_Client
     from kfp.dsl import ContainerOp as real_ContainerOp
     from kfp.dsl import PipelineConf as real_PipelineConf
     from kfp.dsl import PipelineParam as real_PipelineParam
@@ -137,7 +137,6 @@ try:
     compiler = real_compiler
     Compiler = real_compiler.Compiler
     ContainerOp = real_ContainerOp
-    Client = real_Client
     PipelineParam = real_PipelineParam
     PipelineConf = real_PipelineConf
 
@@ -146,7 +145,6 @@ try:
 
 except ImportError:
     from mlrun_pipelines.common.imports import (
-        Client,
         Compiler,
         PipelineConf,
         PipelineParam,

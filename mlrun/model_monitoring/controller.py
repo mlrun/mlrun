@@ -290,9 +290,17 @@ class MonitoringApplicationController:
             2.  min_last_analyzed stands in the condition for sending NOP event and this the first time regular event
             is sent with the current last_request per endpoint.
         """
-        last_timestamp_sent = schedules_file.get_endpoint_time(endpoint.metadata.uid)
-        logger.info(
-            f"last_timestamp_sent={last_timestamp_sent}, uid={endpoint.metadata.uid}"
+        last_timestamp_sent = schedules_file.get_endpoint_last_request(
+            endpoint.metadata.uid
+        )
+        last_analyzed_sent = schedules_file.get_endpoint_last_analyzed(
+            endpoint.metadata.uid
+        )
+        logger.debug(
+            "Chief Should monitor:",
+            last_timestamp_sent=last_timestamp_sent,
+            last_analyzed_sent=last_analyzed_sent,
+            uid=endpoint.metadata.uid,
         )
         if (
             # Is the model endpoint monitored?
@@ -308,7 +316,6 @@ class MonitoringApplicationController:
                 project=endpoint.metadata.project,
                 endpoint_id=endpoint.metadata.uid,
             ) as batch_window_generator:
-                base_period_seconds = base_period_minutes * _SECONDS_IN_MINUTE
                 current_time = mlrun.utils.datetime_now()
                 if (
                     # Different application names, or last analyzed never updated
@@ -321,12 +328,20 @@ class MonitoringApplicationController:
                     self._should_send_nop_event(
                         base_period_minutes, batch_window_generator, current_time
                     )
-                    and int(endpoint.status.last_request.timestamp())
-                    != last_timestamp_sent
+                    and (
+                        int(endpoint.status.last_request.timestamp())
+                        != last_timestamp_sent
+                        or batch_window_generator.get_min_last_analyzed()
+                        != last_analyzed_sent
+                    )
                 ):
-                    schedules_file.update_endpoint_time(
+                    schedules_file.update_endpoint_last_request(
                         endpoint_uid=endpoint.metadata.uid,
                         timestamp=int(endpoint.status.last_request.timestamp()),
+                    )
+                    schedules_file.update_endpoint_last_analyzed(
+                        endpoint_uid=endpoint.metadata.uid,
+                        timestamp=batch_window_generator.get_min_last_analyzed(),
                     )
                     return True
                 else:

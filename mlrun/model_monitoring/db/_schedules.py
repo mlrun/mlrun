@@ -20,9 +20,10 @@ from typing import Final, Optional
 
 import botocore.exceptions
 
-import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model_monitoring.helpers
+from mlrun.common.schemas import ModelEndpoint
+from mlrun.common.schemas.model_monitoring.constants import FileTargetKind
 from mlrun.utils import logger
 
 
@@ -45,7 +46,7 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
 
     @classmethod
     def from_model_endpoint(
-        cls, model_endpoint: mlrun.common.schemas.ModelEndpoint
+        cls, model_endpoint: ModelEndpoint
     ) -> "ModelMonitoringSchedulesFileBase":
         pass
 
@@ -143,7 +144,7 @@ class ModelMonitoringSchedulesFileEndpoint(ModelMonitoringSchedulesFileBase):
 
     @classmethod
     def from_model_endpoint(
-        cls, model_endpoint: mlrun.common.schemas.ModelEndpoint
+        cls, model_endpoint: ModelEndpoint
     ) -> "ModelMonitoringSchedulesFileEndpoint":
         return cls(
             project=model_endpoint.metadata.project,
@@ -183,21 +184,51 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
         )
         self._post_init()
 
-    def get_endpoint_time(self, endpoint_uid: str) -> Optional[int]:
-        self._check_open_schedules()
-        return self._schedules.get(endpoint_uid)
+    def _post_init(self):
+        self._path = self._item.url
+        self._fs = self._item.store.filesystem
+        # `self._schedules` is an in-memory copy of the DB for all the applications for
+        # the same model endpoint.
+        self._schedules: dict[str, dict[str, int]] = {}
+        # Does `self._schedules` hold the content of `self._item`?
+        self._open_schedules = False
 
-    def update_endpoint_time(self, endpoint_uid: str, timestamp: int) -> None:
+    def get_endpoint_last_request(self, endpoint_uid: str) -> Optional[int]:
         self._check_open_schedules()
-        self._schedules[endpoint_uid] = timestamp
+        if endpoint_uid in self._schedules:
+            return self._schedules[endpoint_uid].get(FileTargetKind.LAST_REQUEST)
+        else:
+            return None
+
+    def update_endpoint_last_request(self, endpoint_uid: str, timestamp: int) -> None:
+        self._check_open_schedules()
+        if endpoint_uid in self._schedules:
+            self._schedules[endpoint_uid][FileTargetKind.LAST_REQUEST] = timestamp
+        else:
+            self._schedules[endpoint_uid] = {
+                FileTargetKind.LAST_ANALYZED: None,
+                FileTargetKind.LAST_REQUEST: timestamp,
+            }
+
+    def update_endpoint_last_analyzed(self, endpoint_uid: str, timestamp: int) -> None:
+        self._check_open_schedules()
+        if endpoint_uid in self._schedules:
+            self._schedules[endpoint_uid][FileTargetKind.LAST_ANALYZED] = timestamp
+        else:
+            self._schedules[endpoint_uid] = {
+                FileTargetKind.LAST_ANALYZED: timestamp,
+                FileTargetKind.LAST_REQUEST: None,
+            }
+
+    def get_endpoint_last_analyzed(self, endpoint_uid: str) -> Optional[int]:
+        if endpoint_uid in self._schedules:
+            return self._schedules[endpoint_uid].get(FileTargetKind.LAST_ANALYZED)
+        else:
+            return None
 
     def get_endpoint_list(self) -> set[str]:
         self._check_open_schedules()
         return set(self._schedules.keys())
-
-    def get_min_timestamp(self) -> Optional[int]:
-        self._check_open_schedules()
-        return min(self._schedules.values(), default=None)
 
     def get_or_create(self) -> None:
         try:

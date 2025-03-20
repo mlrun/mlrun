@@ -54,7 +54,7 @@ def get_or_create_model_endpoint(
     model_path: str = "",
     endpoint_id: str = "",
     function_name: str = "",
-    function_tag: str = "" or "latest",
+    function_tag: str = "latest",
     context: typing.Optional["mlrun.MLClientCtx"] = None,
     sample_set_statistics: typing.Optional[dict[str, typing.Any]] = None,
     monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.enabled,

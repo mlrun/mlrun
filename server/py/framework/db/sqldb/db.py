@@ -826,7 +826,6 @@ class SQLDB(DBInterface):
         partition_order: typing.Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
-        with_model_endpoints: typing.Optional[bool] = False,
     ) -> typing.Union[list, ArtifactList]:
         project = project or config.default_project
 
@@ -858,7 +857,6 @@ class SQLDB(DBInterface):
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
-            with_model_endpoints=with_model_endpoints,
         )
         if as_records:
             return artifact_records
@@ -1081,7 +1079,7 @@ class SQLDB(DBInterface):
         # the query returns a list of tuples, we need to extract the tag from each tuple
         return [tag for (tag,) in query]
 
-    def validate_artifacts_removal_preconditions(
+    def validate_artifact_removal_preconditions(
         self,
         session,
         key: str,
@@ -1090,41 +1088,52 @@ class SQLDB(DBInterface):
         project: str = "",
         producer_id: Optional[str] = None,
         uid: Optional[str] = None,
-    ) -> None:
+    ) -> Optional[dict[str, Any]]:
         """
-        Validate whether an artifacts can be safely removed from the system.
+        Validate whether an artifact can be safely removed from the system.
 
-        This method checks if the specified artifacts are currently in use by other resources,
-        such as model endpoints. If they are, the deletion will be blocked, and an appropriate
+        This method checks if the specified artifact is currently in use by other resources,
+        such as model endpoints. If it is, the deletion will be blocked, and an appropriate
         exception should be raised (MLRunConflictError).
 
         :param session:     Active SQLAlchemy DB session for querying.
-        :param key:         Artifact key (can be a specific artifact or a pattern for multiple artifacts).
-        :param tag:         Specific tag for the artifact(s).
-        :param iter:        Artifact(s) iteration number, if applicable.
-        :param project:     Project to which the artifact(s) belong.
+        :param key:         Artifact key.
+        :param tag:         Specific tag for the artifact.
+        :param iter:        Artifact iteration number, if applicable.
+        :param project:     Project to which the artifact belongs.
         :param producer_id: Identifier of the artifact's producer.
         :param uid:         UID of the artifact object.
 
-        :raises MLRunConflictError: If any of the artifacts are in use and cannot be deleted.
+        :return: An artifact dictionary.
+        :raises MLRunConflictError: If the artifact is in use and cannot be deleted.
         """
-        artifacts_with_dependent_endpoints = self.list_artifacts(
-            session=session,
-            name=key,
-            tag=tag,
-            iter=iter,
-            project=project,
-            producer_id=producer_id,
-            uid=uid,
-            as_records=True,
-            with_model_endpoints=True,
-        )
-        if artifacts_with_dependent_endpoints:
-            raise mlrun.errors.MLRunConflictError(
-                f"Cannot delete the artifact(s) key:'{key}' in project:'{project}' tag:'{tag}', iteration:'{iter}'. "
-                f"These artifact(s) are currently in use by {len(artifacts_with_dependent_endpoints)} model endpoint(s). "
-                "To proceed with deletion, you must remove or update the associated model endpoints first."
+        try:
+            db_artifact = self.read_artifact(
+                session=session,
+                key=key,
+                tag=tag,
+                iter=iter,
+                project=project,
+                producer_id=producer_id,
+                uid=uid,
+                as_record=True,
             )
+        except mlrun.errors.MLRunNotFoundError:
+            return None
+        dependent_endpoints_count = (
+            session.query(ModelEndpoint)
+            .filter(ModelEndpoint.model_id == db_artifact.id)
+            .count()
+        )
+        if dependent_endpoints_count:
+            raise mlrun.errors.MLRunConflictError(
+                f"Failed deleting artifact {key} in project {project}, tag {tag}"
+                f", iteration {iter} and {db_artifact.uid} uid. "
+                f"The artifact is used by {dependent_endpoints_count} endpoints"
+            )
+        return mlrun.common.formatters.ArtifactFormat.format_obj(
+            db_artifact.full_object, mlrun.common.formatters.ArtifactFormat.minimal
+        )
 
     @retry_on_conflict
     def overwrite_artifacts_with_tag(
@@ -1549,7 +1558,6 @@ class SQLDB(DBInterface):
         partition_order: typing.Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
-        with_model_endpoints: typing.Optional[bool] = False,
     ) -> typing.Union[list[Any],]:
         """
         Find artifacts by the given filters.
@@ -1583,7 +1591,6 @@ class SQLDB(DBInterface):
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         :param offset: SQL query offset.
         :param limit: SQL query limit.
-        :param with_model_endpoints: If True, the query will include artifacts that are associated with model endpoints.
 
         :return: May return:
             1. a list of tuples of (ArtifactV2, tag_name)
@@ -1628,7 +1635,6 @@ class SQLDB(DBInterface):
             rows_per_partition,
             partition_sort_by,
             partition_order,
-            with_model_endpoints,
         ):
             query = query.with_hint(ArtifactV2, "USE INDEX idx_project_bi_updated")
 
@@ -1694,9 +1700,6 @@ class SQLDB(DBInterface):
                 partition_order,
                 with_tagged=True,
             )
-
-        if with_model_endpoints:
-            query = query.join(ModelEndpoint, ModelEndpoint.model_id == ArtifactV2.id)
 
         if limit:
             # Order the results before applying the limit to ensure that the limit is applied to the correctly
@@ -1769,7 +1772,6 @@ class SQLDB(DBInterface):
         partition_order: typing.Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
-        with_model_endpoints: typing.Optional[bool] = False,
     ) -> bool:
         parameters = inspect.signature(self._find_artifacts).parameters
         default_list_params = {
@@ -1807,7 +1809,6 @@ class SQLDB(DBInterface):
             "rows_per_partition": rows_per_partition,
             "partition_sort_by": partition_sort_by,
             "partition_order": partition_order,
-            "with_model_endpoints": with_model_endpoints,
         }
 
         # Check if all current parameters match their default values

@@ -288,7 +288,7 @@ class DBInterface(ABC):
     ):
         return []
 
-    def validate_artifacts_removal_preconditions(
+    def validate_artifact_removal_preconditions(
         self,
         session,
         key: str,
@@ -297,23 +297,24 @@ class DBInterface(ABC):
         project: str = "",
         producer_id: Optional[str] = None,
         uid: Optional[str] = None,
-    ) -> None:
+    ) -> Optional[dict[str, Any]]:
         """
-        Validate whether an artifacts can be safely removed from the system.
+        Validate whether an artifact can be safely removed from the system.
 
-        This method checks if the specified artifacts are currently in use by other resources,
-        such as model endpoints. If they are, the deletion will be blocked, and an appropriate
+        This method checks if the specified artifact is currently in use by other resources,
+        such as model endpoints. If it is, the deletion will be blocked, and an appropriate
         exception should be raised (MLRunConflictError).
 
         :param session:     Active SQLAlchemy DB session for querying.
-        :param key:         Artifact key (can be a specific artifact or a pattern for multiple artifacts).
-        :param tag:         Specific tag for the artifact(s).
-        :param iter:        Artifact(s) iteration number, if applicable.
-        :param project:     Project to which the artifact(s) belong.
+        :param key:         Artifact key.
+        :param tag:         Specific tag for the artifact.
+        :param iter:        Artifact iteration number, if applicable.
+        :param project:     Project to which the artifact belongs.
         :param producer_id: Identifier of the artifact's producer.
         :param uid:         UID of the artifact object.
 
-        :raises MLRunConflictError: If any of the artifacts are in use and cannot be deleted.
+        :return: An artifact dictionary.
+        :raises MLRunConflictError: If the artifact is in use and cannot be deleted.
         """
         pass
 

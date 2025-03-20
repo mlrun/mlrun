@@ -2148,8 +2148,7 @@ class MlrunProject(ModelObj):
         explicitly or using regex patterns.
 
                 :param name:                   The name of the AlertConfig template. It will be combined with
-                                               mep_id, app-name
-                                               and result name to generate a unique name.
+                                               mep id, app name and result name to generate a unique name.
                 :param summary:                Summary of the alert, will be sent in the generated notifications
                 :param endpoints:              The endpoints from which metrics will be retrieved to configure
                                                the alerts.

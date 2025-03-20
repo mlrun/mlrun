@@ -372,11 +372,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         )
         monitoring_context.logger.debug("Computing average per metric")
         metrics = self._get_metrics(metrics_per_feature)
-        result = self._get_general_drift_result(
-            metrics=metrics,
-            monitoring_context=monitoring_context,
-            metrics_per_feature=metrics_per_feature,
-        )
+        result = self._get_general_drift_result(metrics=metrics)
         stats = self._get_stats(
             metrics=metrics,
             monitoring_context=monitoring_context,

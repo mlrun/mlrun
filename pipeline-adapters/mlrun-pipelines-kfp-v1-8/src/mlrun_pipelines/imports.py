@@ -121,7 +121,6 @@ class DummyContainerOp:
         self.file_outputs[key] = value
         return self
 
-from client import Client
 
 try:
     import kfp as real_kfp
@@ -156,7 +155,6 @@ except ImportError:
     ContainerOp = DummyContainerOp
 
 __all__ = [
-    "Client",
     "Compiler",
     "ContainerOp",
     "PipelineConf",

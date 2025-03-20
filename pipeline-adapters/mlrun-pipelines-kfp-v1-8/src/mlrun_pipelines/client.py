@@ -28,10 +28,10 @@ import kfp_server_api
 import kubernetes as k8s
 import orjson
 import yaml
-from mlrun_pipelines.common.client import AbstractClient
-from mlrun_pipelines.common.models import RunStatuses
 
 import mlrun.utils
+import mlrun_pipelines.common.client
+import mlrun_pipelines.common.models
 
 IN_CLUSTER_DNS_NAME = "ml-pipeline.{}.svc.cluster.local:8888"
 KUBE_PROXY_PATH = "api/v1/namespaces/{}/services/ml-pipeline:http/proxy/"
@@ -102,7 +102,7 @@ def sanitize_k8s_name(
     return cleaned_name.lstrip("-").rstrip("-")
 
 
-class Client(AbstractClient):
+class Client(mlrun_pipelines.common.client.AbstractClient):
     def __init__(
         self,
         host: str = None,
@@ -399,7 +399,7 @@ class Client(AbstractClient):
             timeout = timeout.total_seconds()
         get_run_response = None
 
-        while status not in RunStatuses.stable_statuses():
+        while status not in mlrun_pipelines.common.modelsRunStatuses.stable_statuses():
             try:
                 get_run_response = self._run_api.get_run(
                     run_id=run_id,

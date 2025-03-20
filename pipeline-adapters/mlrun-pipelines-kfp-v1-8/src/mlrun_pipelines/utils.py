@@ -15,10 +15,10 @@
 import tempfile
 import typing
 
+import mlrun_pipelines.client
 import mlrun_pipelines.common.models
 import mlrun_pipelines.helpers
 import mlrun_pipelines.imports
-from client import Client
 
 
 def compile_pipeline(
@@ -44,7 +44,7 @@ def compile_pipeline(
 
 def get_client(
     url: typing.Optional[str] = None, namespace: typing.Optional[str] = None
-) -> Client:
+) -> mlrun_pipelines.client.Client:
     if url or namespace:
-        return Client(host=url, namespace=namespace)
-    return Client()
+        return mlrun_pipelines.client.Client(host=url, namespace=namespace)
+    return mlrun_pipelines.client.Client()

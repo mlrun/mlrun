@@ -133,19 +133,6 @@ class AbstractClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_recurring_run(self, job_id: str) -> kfp_server_api.ApiJob:
-        """
-        Get details of a recurring run.
-
-        Args:
-            job_id: Job ID.
-
-        Returns:
-            An ApiJob object.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
     def get_run(self, run_id: str) -> kfp_server_api.ApiRun:
         """
         Get details of a pipeline run.

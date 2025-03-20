@@ -366,7 +366,12 @@ class Pipelines(
 
     @staticmethod
     def initialize_kfp_client(namespace: typing.Optional[str] = None):
-        return mlrun_pipelines.utils.get_client(mlrun.mlconf.kfp_url, namespace)
+        if namespace is None:
+            namespace = mlrun.mlconf.namespace
+        return mlrun_pipelines.utils.get_client(
+            url=mlrun.mlconf.kfp_url,
+            namespace=namespace,
+        )
 
     def _paginate_runs(
         self,

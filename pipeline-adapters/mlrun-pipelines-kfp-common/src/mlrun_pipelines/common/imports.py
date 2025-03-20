@@ -77,7 +77,6 @@ class DummyCompiler:
             logger.debug("[NoOp] _create_workflow called.")
 
 
-
 # Assign dummy implementations to kfp modules
 compiler = ModuleType("compiler")
 Compiler = DummyCompiler.Compiler()

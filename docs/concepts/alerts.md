@@ -8,7 +8,7 @@ Alerts are a mechanism for informing you about possible problem situations.
 - [SDK](#sdk)
 - [Predefined events](#predefined-events-eventkind)
 - [Creating an alert](#creating-an-alert)
-- [Modifying alerts](#modifying alertsß)
+- [Modifying alerts](#modifying-alerts)
 - [Alert reset policy](#alert-reset-policy)
 - [Alert templates](#alert-templates)
 - [Creating an alert with a template](#creating-an-alert-with-a-template)

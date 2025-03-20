@@ -882,7 +882,7 @@ class TDEngineConnector(TSDBConnector):
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
         run_in_threadpool: Callable,
-        metrics: Optional[list[str]] = None,
+        metrics: Optional[str] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Add basic metrics to the model endpoint object.
@@ -891,24 +891,27 @@ class TDEngineConnector(TSDBConnector):
                                         be filled with the relevant basic metrics.
         :param project:                The name of the project.
         :param run_in_threadpool:      A function that runs another function in a thread pool.
-        :param metrics:                A list of metrics to add. Defaults to all metrics.
+        :param metrics:                Comma separated list of metric names to add. Defaults to all available metrics.
+                                       To disable, set to "false".
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
 
         uids = [mep.metadata.uid for mep in model_endpoint_objects]
 
-        metric_name_to_function = {
-            "error_count": self.get_error_count,
-            "last_request": self.get_last_request,
-            "avg_latency": self.get_avg_latency,
-            "result_status": self.get_drift_status,
-        }
-
-        if metrics is not None:
-            for metric_name in list(metric_name_to_function):
-                if metric_name not in metrics:
-                    del metric_name_to_function[metric_name]
+        if metrics == "false":
+            metric_name_to_function = {}
+        else:
+            metric_name_to_function = {
+                "error_count": self.get_error_count,
+                "last_request": self.get_last_request,
+                "avg_latency": self.get_avg_latency,
+                "result_status": self.get_drift_status,
+            }
+            if metrics is not None:
+                for metric_name in list(metric_name_to_function):
+                    if metric_name not in metrics.split(","):
+                        del metric_name_to_function[metric_name]
 
         metric_name_to_df = {
             metric_name: function(endpoint_ids=uids)

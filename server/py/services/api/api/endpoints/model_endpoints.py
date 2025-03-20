@@ -229,10 +229,9 @@ async def list_model_endpoints(
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     top_level: bool = Query(False, alias="top-level"),
-    tsdb_metrics: bool = True,
+    tsdb_metrics: Optional[str] = None,
     uids: list[str] = Query(None, alias="uid"),
     latest_only: bool = False,
-    metrics: Optional[list[str]] = None,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ) -> schemas.ModelEndpointList:
@@ -240,18 +239,18 @@ async def list_model_endpoints(
     List model endpoints.
 
     :param project:         The name of the project.
-    :param names:            The model endpoints names.
+    :param names:           The model endpoints names.
     :param model_name:      The model name.
     :param function_name:   The function name.
     :param function_tag:    The function tag.
     :param labels:          The labels of the model endpoint.
     :param start:           The start time to filter by.Corresponding to the `created` field.
     :param end:             The end time to filter by. Corresponding to the `created` field.
-    :param tsdb_metrics:    Whether to include metrics from the time series DB.
+    :param tsdb_metrics:    Comma separated list of metric names to add. Defaults to all available metrics. To disable,
+                            set to "false".
     :param top_level:       Whether to return only top level model endpoints.
     :param uids:            A list of unique ids to filter by.
     :param latest_only:     Whether to return only the latest model endpoint for each name.
-    :param metrics:         A list of metrics to add. Defaults to all metrics.
     :param auth_info:       The auth info of the request.
     :param db_session:      A session that manages the current dialog with the database.
     :return:                A list of model endpoints.
@@ -460,7 +459,7 @@ async def get_model_endpoint(
     function_name: Optional[str] = None,
     function_tag: Optional[str] = None,
     endpoint_id: Optional[EndpointIDAnnotation] = None,
-    tsdb_metrics: bool = True,
+    tsdb_metrics: Optional[str] = None,
     feature_analysis: bool = False,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -473,7 +472,8 @@ async def get_model_endpoint(
     :param function_name:       The name of the function.
     :param function_tag:        The tag of the function.
     :param endpoint_id:         The unique id of the model endpoint.
-    :param tsdb_metrics:        Whether to include metrics from the time series DB.
+    :param tsdb_metrics:        Comma separated list of metric names to add. Defaults to all available metrics. To
+                                disable, set to "false".
     :param feature_analysis:    Whether to include feature analysis.
     :param auth_info:           The auth info of the request.
     :param db_session:          A session that manages the current dialog with the database.

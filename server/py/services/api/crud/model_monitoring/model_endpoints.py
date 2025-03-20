@@ -976,10 +976,9 @@ class ModelEndpoints:
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
         top_level: typing.Optional[bool] = None,
-        tsdb_metrics: typing.Optional[bool] = None,
+        tsdb_metrics: Optional[str] = None,
         uids: typing.Optional[list[str]] = None,
         latest_only: typing.Optional[bool] = None,
-        metrics: Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         List model endpoints based on the provided filters.
@@ -1358,7 +1357,7 @@ class ModelEndpoints:
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
-        metrics: Optional[list[str]] = None,
+        metrics: Optional[str] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Add basic metrics to the model endpoint object.
@@ -1367,7 +1366,8 @@ class ModelEndpoints:
                                         be filled with the relevant basic metrics.
         :param project:                The name of the project.
 
-        :param metrics:                A list of metrics to add. Defaults to all metrics.
+        :param metrics:                Comma separated list of metric names to add. Defaults to all available metrics.
+                                       To disable, set to "false".
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """

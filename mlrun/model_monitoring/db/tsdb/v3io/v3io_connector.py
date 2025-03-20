@@ -1017,7 +1017,7 @@ class V3IOTSDBConnector(TSDBConnector):
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
         run_in_threadpool: Callable,
-        metrics: Optional[list[str]] = None,
+        metrics: Optional[str] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Fetch basic metrics from V3IO TSDB and add them to MEP objects.
@@ -1026,7 +1026,8 @@ class V3IOTSDBConnector(TSDBConnector):
                                         be filled with the relevant basic metrics.
         :param project:                The name of the project.
         :param run_in_threadpool:      Has no effect.
-        :param metrics:                A list of metrics to add. Defaults to all metrics.
+        :param metrics:                Comma separated list of metric names to add. Defaults to all available metrics.
+                                       To disable, set to "false".
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
@@ -1038,17 +1039,19 @@ class V3IOTSDBConnector(TSDBConnector):
             uids.append(uid)
             model_endpoint_objects_by_uid[uid] = model_endpoint_object
 
-        metric_name_to_function_and_column_name = {
-            "error_count": (self.get_error_count, "count(error_count)"),
-            "last_request": (self.get_last_request, "last(last_request_timestamp)"),
-            "avg_latency": (self.get_avg_latency, "avg(latency)"),
-            "result_status": (self.get_drift_status, "max(result_status)"),
-        }
-
-        if metrics is not None:
-            for metric_name in list(metric_name_to_function_and_column_name):
-                if metric_name not in metrics:
-                    del metric_name_to_function_and_column_name[metric_name]
+        if metrics == "false":
+            metric_name_to_function_and_column_name = {}
+        else:
+            metric_name_to_function_and_column_name = {
+                "error_count": (self.get_error_count, "count(error_count)"),
+                "last_request": (self.get_last_request, "last(last_request_timestamp)"),
+                "avg_latency": (self.get_avg_latency, "avg(latency)"),
+                "result_status": (self.get_drift_status, "max(result_status)"),
+            }
+            if metrics is not None:
+                for metric_name in list(metric_name_to_function_and_column_name):
+                    if metric_name not in metrics.split(","):
+                        del metric_name_to_function_and_column_name[metric_name]
 
         metric_name_to_result = {}
 

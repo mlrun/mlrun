@@ -189,7 +189,7 @@ class TestAlerts(TestMLRunSystem):
             model_endpoint_name="test-endpoint",
             context=mlrun.get_or_create_ctx("demo"),
         )
-
+        print(f"generated endpoint uid: {model_endpoint.metadata.uid}")
         # waits for the writer function to be deployed
         writer = self.project.get_function(
             key=mm_constants.MonitoringFunctionNames.WRITER
@@ -212,7 +212,7 @@ class TestAlerts(TestMLRunSystem):
             )
         )
 
-        time.sleep(5)
+        time.sleep(10)
         # generate alerts for the different result kind and return text from the expected notifications that will be
         # used later to validate that the notifications were sent as expected
         expected_notifications = self._generate_alerts(

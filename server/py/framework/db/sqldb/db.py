@@ -5618,9 +5618,7 @@ class SQLDB(DBInterface):
                     ModelEndpoint.function_id == Function.id,
                     isouter=True,  # LEFT JOIN to Function
                 )
-                query = query.filter(
-                    Function.name.isnot(None),
-                )
+
         else:
             query = query.outerjoin(
                 ModelEndpoint.Tag, ModelEndpoint.id == ModelEndpoint.Tag.obj_id

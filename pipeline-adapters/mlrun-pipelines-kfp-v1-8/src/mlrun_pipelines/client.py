@@ -64,11 +64,8 @@ class ServiceAccountTokenVolumeCredentials:
             with open(self._token_path) as f:
                 token = f.read().strip()
             return token
-        except OSError as e:
-            logging.error(
-                "Failed to read a token from file '%s' (%s).", self._token_path, str(e)
-            )
-            raise
+        except OSError:
+            return None
 
     def refresh_api_key_hook(
         self,
@@ -86,7 +83,9 @@ class ServiceAccountTokenVolumeCredentials:
                 The Configuration object of the kubernetes client's is the same
                 with kfp_server_api.configuration.Configuration.
         """
-        config.api_key["authorization"] = self._get_token()
+        token = self._get_token()
+        if token is not None:
+            config.api_key["authorization"] = self._get_token()
 
 
 invalid_characters_regex = re.compile(r"[^-0-9a-z]+")
@@ -339,7 +338,6 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
             name=job_name,
             service_account=service_account,
         )
-
         response = self._run_api.create_run(
             body=run_body,
         )
@@ -591,7 +589,7 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
                     enable_caching,
                 )
 
-            pipeline_orjson_string = orjson.dumps(pipeline_obj)
+            pipeline_orjson_string = orjson.dumps(pipeline_obj).decode()
         api_params = [
             kfp_server_api.ApiParameter(
                 name=sanitize_k8s_name(name=k),

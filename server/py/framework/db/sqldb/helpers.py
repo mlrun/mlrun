@@ -177,7 +177,7 @@ def ensure_max_length(string: str):
 
 def validate_label_length(label_type: str, label_name: str, validate_element: str):
     """Validates the length of a label name or value and raises an error if it exceeds max_length."""
-    if len(validate_element) > max_str_length:
+    if len(str(validate_element)) > max_str_length:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"{label_type} of `{label_name}` label is too long. Maximum allowed length is {max_str_length} characters."
         )

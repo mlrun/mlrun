@@ -60,7 +60,6 @@ class MonitoringApplicationContext:
         sample_df: Optional[pd.DataFrame] = None,
         feature_stats: Optional[FeatureStats] = None,
         feature_sets_dict: Optional[dict[str, FeatureSet]] = None,
-        ml_ctx_generated: bool = False,
     ) -> None:
         """
         The :code:`MonitoringApplicationContext` object holds all the relevant information for the
@@ -129,8 +128,6 @@ class MonitoringApplicationContext:
             feature_sets_dict.get(self.endpoint_id) if feature_sets_dict else None
         )
 
-        self._ml_ctx_generated = ml_ctx_generated
-
     @classmethod
     def _from_ml_ctx(
         cls,
@@ -160,7 +157,6 @@ class MonitoringApplicationContext:
             artifacts_logger=artifacts_logger,
             sample_df=sample_df,
             feature_stats=feature_stats,
-            ml_ctx_generated=True,
         )
 
     @classmethod
@@ -211,11 +207,11 @@ class MonitoringApplicationContext:
     @property
     def sample_df(self) -> pd.DataFrame:
         if self._sample_df is None:
-            if self._ml_ctx_generated and not (
-                self.endpoint_name
-                and self.endpoint_id
-                and self.start_infer_time
-                and self.end_infer_time
+            if (
+                self.endpoint_name is None
+                or self.endpoint_id is None
+                or pd.isnull(self.start_infer_time)
+                or pd.isnull(self.end_infer_time)
             ):
                 raise mlrun.errors.MLRunValueError(
                     "You have tried to access `monitoring_context.sample_df`, but have not provided it directly "

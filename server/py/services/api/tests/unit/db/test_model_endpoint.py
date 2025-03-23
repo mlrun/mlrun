@@ -439,7 +439,7 @@ class TestModelEndpoint(TestDatabaseBase):
         self._store_function(function_name="function-1")
         self._store_function(function_name="function-2", tag="v2")
         model_endpoint = mlrun.common.schemas.ModelEndpoint(
-            metadata={"name": "model-endpoint-1", "project": "project-1"},
+            metadata={"name": "model-endpoint-1", "project": "project-1", "uid": "111"},
             spec={
                 "function_name": "function-1",
                 "function_tag": "latest",
@@ -447,6 +447,7 @@ class TestModelEndpoint(TestDatabaseBase):
             },
             status={"monitoring_mode": "enabled"},
         )
+
         batch_model_endpoint = mlrun.common.schemas.ModelEndpoint(
             metadata={
                 "name": "model-endpoint-2",
@@ -479,28 +480,33 @@ class TestModelEndpoint(TestDatabaseBase):
 
         # expecting two model endpoints that are the latest
         assert len(list_mep) == 2
+        assert list_mep[0].metadata.uid == "111"
 
-        self._db.delete_function(
-            self._db_session, name="function-1", project="project-1"
+        # store another model endpoint with the same name but different uid
+        model_endpoint.metadata.uid = "222"
+        self._db.store_model_endpoint(
+            self._db_session,
+            model_endpoint,
         )
 
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            project=model_endpoint.metadata.project,
+        ).endpoints
+
+        # expecting 3 model endpoints because we don't filter by latest
+        assert len(list_mep) == 3
+
+        # expecting 2 model endpoints that are the latest
         list_mep = self._db.list_model_endpoints(
             self._db_session,
             latest_only=True,
             project=model_endpoint.metadata.project,
         ).endpoints
 
-        # expecting a single model endpoint because we deleted the function associated with the other model endpoint
-        # and therefore it is no longer defined as the latest
-        assert len(list_mep) == 1
-
-        list_mep = self._db.list_model_endpoints(
-            self._db_session,
-            project=model_endpoint.metadata.project,
-        ).endpoints
-
-        # expecting 2 model endpoints because we don't filter by latest
+        # expecting two model endpoints that are the latest
         assert len(list_mep) == 2
+        assert list_mep[0].metadata.uid == "222"
 
         list_mep = self._db.list_model_endpoints(
             self._db_session,

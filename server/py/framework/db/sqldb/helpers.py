@@ -63,7 +63,7 @@ def run_state(run):
     )
 
 
-def update_labels(obj, labels: dict):
+def update_labels(obj, labels: dict[str, str]):
     old = {label.name: label for label in obj.labels}
     obj.labels.clear()
     for name, value in labels.items():

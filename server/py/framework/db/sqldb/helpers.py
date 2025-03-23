@@ -67,11 +67,11 @@ def update_labels(obj, labels: dict):
     old = {label.name: label for label in obj.labels}
     obj.labels.clear()
     for name, value in labels.items():
+        error_msg = f" of `{name}` label is too long. Maximum allowed length is {max_str_length} characters."
+        if len(str(name)) > max_str_length:
+            raise mlrun.errors.MLRunInvalidArgumentError("Name" + error_msg)
         if len(str(value)) > max_str_length:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Value of `{name}` label is too long. "
-                f"Maximum allowed length is {max_str_length} characters."
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("Value" + error_msg)
         if name in old:
             old[name].value = value
             obj.labels.append(old[name])

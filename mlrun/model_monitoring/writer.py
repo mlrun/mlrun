@@ -180,7 +180,7 @@ class ModelMonitoringWriter(StepToDict):
                 data, timestamp
             )
         logger.info(
-            "Updating the model endpoint statistics",
+            "Updated the model endpoint statistics",
             endpoint_id=endpoint_id,
             stats_kind=stat_kind,
         )

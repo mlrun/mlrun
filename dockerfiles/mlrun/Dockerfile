@@ -58,14 +58,16 @@ RUN conda install -y -c conda-forge openmpi-mpicc=${OMPI_VERSION} && \
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
+# need to be redeclared since used in the from
+ARG MLRUN_PYTHON_VERSION=3.12
+ARG MLRUN_PIP_VERSION=25.0
+
 # Install Python
 # use /usr/local/bin/python to ensure system pip is also upgraded
-ARG MLRUN_PIP_VERSION=25.0
-RUN /usr/local/bin/python -m pip install --upgrade setuptools pip~=${MLRUN_PIP_VERSION} --python-version ${MLRUN_PYTHON_VERSION} && \
+RUN /usr/local/bin/python -m pip install --upgrade setuptools pip~=${MLRUN_PIP_VERSION} && \
     conda config --add channels conda-forge && \
     conda install -y python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
     conda clean -aqy
-
 
 # Install MLRun:
 # no-deps to ignore existing dependencies, just add the locked requirements

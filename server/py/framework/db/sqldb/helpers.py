@@ -67,11 +67,10 @@ def update_labels(obj, labels: dict):
     old = {label.name: label for label in obj.labels}
     obj.labels.clear()
     for name, value in labels.items():
-        error_msg = f" of `{name}` label is too long. Maximum allowed length is {max_str_length} characters."
-        if len(str(name)) > max_str_length:
-            raise mlrun.errors.MLRunInvalidArgumentError("Name" + error_msg)
-        if len(str(value)) > max_str_length:
-            raise mlrun.errors.MLRunInvalidArgumentError("Value" + error_msg)
+        validate_label_length(label_type="Name", label_name=name, validate_element=name)
+        validate_label_length(
+            label_type="Value", label_name=name, validate_element=value
+        )
         if name in old:
             old[name].value = value
             obj.labels.append(old[name])
@@ -174,6 +173,14 @@ def ensure_max_length(string: str):
     if string and len(string) > max_str_length:
         string = string[:max_str_length]
     return string
+
+
+def validate_label_length(label_type: str, label_name: str, validate_element: str):
+    """Validates the length of a label name or value and raises an error if it exceeds max_length."""
+    if len(validate_element) > max_str_length:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"{label_type} of `{label_name}` label is too long. Maximum allowed length is {max_str_length} characters."
+        )
 
 
 class MemoizationCache:

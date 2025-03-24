@@ -318,9 +318,13 @@ class MonitoringApplicationController:
                     batch_window_generator.get_min_last_analyzed()
                 )
                 if (
-                    # Different application names, or last analyzed never updated
-                    application_names != batch_window_generator.get_application_list()
-                    or not current_min_last_analyzed
+                    # Different application names, or last analyzed never updated while there are application to monitor
+                    application_names
+                    and (
+                        application_names
+                        != batch_window_generator.get_application_list()
+                        or not current_min_last_analyzed
+                    )
                 ):
                     return True
                 elif (

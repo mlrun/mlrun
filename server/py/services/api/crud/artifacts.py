@@ -258,13 +258,9 @@ class Artifacts(
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force,
         ]:
             self._delete_artifact_data(
-                db_session=db_session,
                 key=key,
                 tag=tag,
                 project=project,
-                object_uid=object_uid,
-                producer_id=producer_id,
-                iteration=iteration,
                 deletion_strategy=deletion_strategy,
                 secrets=secrets,
                 auth_info=auth_info,
@@ -323,13 +319,9 @@ class Artifacts(
 
     def _delete_artifact_data(
         self,
-        db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
         project: typing.Optional[str] = None,
-        object_uid: typing.Optional[str] = None,
-        producer_id: typing.Optional[str] = None,
-        iteration: typing.Optional[int] = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
@@ -340,16 +332,6 @@ class Artifacts(
         logger.debug("Deleting artifact data", project=project, key=key, tag=tag)
 
         try:
-            artifact = artifact or self.get_artifact(
-                db_session,
-                key,
-                tag,
-                project=project,
-                producer_id=producer_id,
-                object_uid=object_uid,
-                iter=iteration,
-            )
-
             path = artifact["spec"]["target_path"]
 
             # Data artifacts that are ModelArtifact, DirArtifact must not be removed because we do not yet

@@ -227,7 +227,8 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         project_name = "project-1"
         mlrun.new_project(project_name)
         # Create 5 runs with different states
-        # Runs 1, 2, 3 are completed and end in that order
+        # Run 1, is completed, runs 2 and 3 start as running and move to completed
+        updated_to_completed_uids = []
         statuses = [
             {
                 "state": mlrun.common.runtimes.constants.RunStates.completed,
@@ -237,22 +238,19 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
                 - datetime.timedelta(hours=5),
             },
             {
-                "state": mlrun.common.runtimes.constants.RunStates.completed,
+                "state": mlrun.common.runtimes.constants.RunStates.running,
                 "start_time": datetime.datetime.now(datetime.timezone.utc)
                 - datetime.timedelta(hours=5),
-                "end_time": datetime.datetime.now(datetime.timezone.utc)
-                - datetime.timedelta(hours=1),
-            },
-            {
-                "state": mlrun.common.runtimes.constants.RunStates.completed,
-                "start_time": datetime.datetime.now(datetime.timezone.utc)
-                - datetime.timedelta(days=1),
-                "end_time": datetime.datetime.now(datetime.timezone.utc),
             },
             {
                 "state": mlrun.common.runtimes.constants.RunStates.running,
                 "start_time": datetime.datetime.now(datetime.timezone.utc)
                 - datetime.timedelta(days=1),
+            },
+            {
+                "state": mlrun.common.runtimes.constants.RunStates.running,
+                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(hours=5),
             },
             {
                 "state": mlrun.common.runtimes.constants.RunStates.pending,
@@ -268,7 +266,22 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
                 },
                 "status": status,
             }
+            self._logger.debug("Storing run", run=run)
             mlrun.get_run_db().store_run(run, run["metadata"]["uid"], project_name)
+
+        # Move 2nd and 3rd run to completed
+        updates = {
+            "status.state": mlrun.common.runtimes.constants.RunStates.completed,
+        }
+        for i in range(1, 3):
+            uid = f"run-name-{i}-uid"
+            self._logger.debug("Updating run to completed", uid=uid)
+            mlrun.get_run_db().update_run(
+                updates=updates,
+                uid=uid,
+                project=project_name,
+            )
+            updated_to_completed_uids.append(uid)
 
         run_1_start_time = statuses[0]["start_time"]
         run_2_start_time = statuses[1]["start_time"]
@@ -288,18 +301,13 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         stored_run = runs[0]
         assert stored_run["status"]["end_time"] > stored_run["status"]["start_time"]
         assert stored_run["status"]["end_time"].endswith("+00:00")
-        # Assert fsp 6
-        assert any(
-            datetime.datetime.fromisoformat(run["status"]["end_time"]).microsecond
-            for run in runs[:3]
-        )
+
         # 2nd run is 1st in order because it started last
+        self._logger.debug("Checking order of runs", runs=runs)
         assert runs[0]["metadata"]["name"] == "run-name-1"
-        assert runs[0]["status"]["end_time"] == statuses[1]["end_time"].isoformat()
         assert runs[1]["metadata"]["name"] == "run-name-0"
         assert runs[1]["status"]["end_time"] == statuses[0]["end_time"].isoformat()
         assert runs[2]["metadata"]["name"] == "run-name-2"
-        assert runs[2]["status"]["end_time"] == statuses[2]["end_time"].isoformat()
 
         _list_and_assert_objects(
             expected_number_of_runs=1,
@@ -315,6 +323,31 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
         assert runs[0]["metadata"]["name"] == "run-name-1"
         assert runs[1]["metadata"]["name"] == "run-name-2"
+
+        updates = {
+            "status.state": mlrun.common.runtimes.constants.RunStates.completed,
+        }
+        uid = "run-name-4-uid"
+        self._logger.debug("Updating run to completed", uid=uid)
+        mlrun.get_run_db().update_run(
+            updates=updates,
+            uid=uid,
+            project=project_name,
+        )
+        updated_to_completed_uids.append(uid)
+
+        # Assert fsp 6 for updated runs (uses `NOW()` in DB for end_time)
+        runs = _list_and_assert_objects(
+            expected_number_of_runs=5,
+            project=project_name,
+        )
+        # Assert with any for the slight chance that some may have been saved at a round second
+        assert any(
+            datetime.datetime.fromisoformat(run["status"]["end_time"]).microsecond
+            if run["metadata"]["uid"] in updated_to_completed_uids
+            else False
+            for run in runs
+        )
 
 
 def _list_and_assert_objects(expected_number_of_runs: int, **kwargs):

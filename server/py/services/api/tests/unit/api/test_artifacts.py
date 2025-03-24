@@ -422,6 +422,45 @@ def test_deleting_dataset_artifact_data_includes_one_file(
     assert resp.status_code == HTTPStatus.NO_CONTENT.value
 
 
+def test_delete_artifact_includes_multiple_results(
+    db: Session, unversioned_client: TestClient
+):
+    _create_project(unversioned_client)
+
+    # Create the first artifact (tree1)
+    artifact_data = _generate_artifact_body(tree="tree1")
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_response = resp.json()
+    artifact1_uid = artifact_response["metadata"]["uid"]
+
+    # Create the second artifact (tree2)
+    artifact_data = _generate_artifact_body(tree="tree2")
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_response = resp.json()
+    artifact2_uid = artifact_response["metadata"]["uid"]
+
+    assert artifact1_uid != artifact2_uid
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+    resp = unversioned_client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # Attempt to delete the artifact
+    response = unversioned_client.delete(
+        DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+    )
+    assert response.status_code == HTTPStatus.BAD_REQUEST.value
+    assert "Failed to delete artifact, multiple artifacts matching" in response.text
+
+
 def test_list_artifacts(db: Session, client: TestClient) -> None:
     _create_project(client)
 

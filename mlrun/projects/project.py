@@ -2451,7 +2451,22 @@ class MlrunProject(ModelObj):
         :param image:                             The image of the model monitoring controller, writer, monitoring
                                                   stream & histogram data drift functions, which are real time nuclio
                                                   functions. By default, the image is mlrun/mlrun.
-        :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
+        :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application:
+            :py:class:`~mlrun.model_monitoring.applications.histogram_data_drift.HistogramDataDriftApplication`.
+            If false, and you want to deploy the histogram data drift application
+            afterwards, you may use the
+            :py:func:`~set_model_monitoring_function` method::
+
+                import mlrun.model_monitoring.applications.histogram_data_drift as histogram_data_drift
+
+                hist_app = project.set_model_monitoring_function(
+                    name=histogram_data_drift.HistogramDataDriftApplicationConstants.NAME,  # keep the default name
+                    func=histogram_data_drift.__file__,
+                    application_class=histogram_data_drift.HistogramDataDriftApplication.__name__,
+                )
+
+                project.deploy_function(hist_app)
+
         :param wait_for_deployment:               If true, return only after the deployment is done on the backend.
                                                   Otherwise, deploy the model monitoring infrastructure on the
                                                   background, including the histogram data drift app if selected.
@@ -2487,30 +2502,6 @@ class MlrunProject(ModelObj):
                     mm_constants.HistogramDataDriftApplicationConstants.NAME
                 )
             self._wait_for_functions_deployment(deployment_functions)
-
-    def deploy_histogram_data_drift_app(
-        self,
-        *,
-        image: str = "mlrun/mlrun",
-        db: Optional[mlrun.db.RunDBInterface] = None,
-        wait_for_deployment: bool = False,
-    ) -> None:
-        """
-        Deploy the histogram data drift application.
-
-        :param image:               The image on which the application will run.
-        :param db:                  An optional DB object.
-        :param wait_for_deployment: If true, return only after the deployment is done on the backend.
-                                    Otherwise, deploy the application on the background.
-        """
-        if db is None:
-            db = mlrun.db.get_run_db(secrets=self._secrets)
-        db.deploy_histogram_data_drift_app(project=self.name, image=image)
-
-        if wait_for_deployment:
-            self._wait_for_functions_deployment(
-                [mm_constants.HistogramDataDriftApplicationConstants.NAME]
-            )
 
     def update_model_monitoring_controller(
         self,
@@ -5034,14 +5025,20 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.get_alert_config(alert_name, self.metadata.name)
 
-    def list_alerts_configs(self) -> list[AlertConfig]:
+    def list_alerts_configs(
+        self, limit: Optional[int] = None, offset: Optional[int] = None
+    ) -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
+
+        :param limit: The maximum number of alerts to return.
+            Defaults to `mlconf.alerts.default_list_alert_configs_limit` if not provided.
+        :param offset: The number of alerts to skip before starting to collect alerts.
 
         :return: All the alerts objects of the project.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        return db.list_alerts_configs(self.metadata.name)
+        return db.list_alerts_configs(self.metadata.name, limit=limit, offset=offset)
 
     def delete_alert_config(
         self, alert_data: AlertConfig = None, alert_name: Optional[str] = None

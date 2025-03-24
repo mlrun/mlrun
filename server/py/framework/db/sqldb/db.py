@@ -602,7 +602,8 @@ class SQLDB(DBInterface):
             and not run.end_time
         ):
             if end_time is None:
-                end_time = func.now()
+                # Ensures fsp 6 for MySQL NOW() to includes microseconds
+                end_time = func.now(6)
             run.end_time = end_time
         elif (
             run.state not in mlrun.common.runtimes.constants.RunStates.terminal_states()
@@ -1120,6 +1121,25 @@ class SQLDB(DBInterface):
             )
         except mlrun.errors.MLRunNotFoundError:
             return None
+        except sqlalchemy.exc.MultipleResultsFound as exc:
+            logger.error(
+                "Failed to delete artifact because multiple artifacts were found",
+                key=key,
+                project=project,
+                tag=tag,
+                iter=iter,
+                producer_id=producer_id,
+                uid=uid,
+                err=err_to_str(exc),
+            )
+
+            error_message = (
+                "Failed to delete artifact, multiple artifacts matching the search criteria were found. "
+                "Refine your request to specify a single artifact or use another endpoint to delete "
+                "multiple artifacts instead."
+            )
+            raise mlrun.errors.MLRunBadRequestError(error_message) from exc
+
         dependent_endpoints_count = (
             session.query(ModelEndpoint)
             .filter(ModelEndpoint.model_id == db_artifact.id)
@@ -1127,8 +1147,8 @@ class SQLDB(DBInterface):
         )
         if dependent_endpoints_count:
             raise mlrun.errors.MLRunConflictError(
-                f"Failed deleting artifact {key} in project {project}, tag {tag}"
-                f", iteration {iter} and {db_artifact.uid} uid. "
+                f"Failed deleting artifact {db_artifact.key} in project {db_artifact.project}, iteration "
+                f"{db_artifact.iteration}, producer_id {db_artifact.producer_id} and {db_artifact.uid} uid. "
                 f"The artifact is used by {dependent_endpoints_count} endpoints"
             )
         return mlrun.common.formatters.ArtifactFormat.format_obj(
@@ -6254,6 +6274,8 @@ class SQLDB(DBInterface):
         session,
         project: typing.Optional[typing.Union[str, list[str]]] = None,
         exclude_updated: bool = False,
+        limit: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         query = self._query(session, AlertConfig)
 
@@ -6263,6 +6285,9 @@ class SQLDB(DBInterface):
         ).add_entity(AlertState)
 
         query = self._filter_query_by_resource_project(query, AlertConfig, project)
+        query = query.order_by(AlertConfig.id.asc())
+        query = self._paginate_query(query, offset, limit)
+
         results = query.all()
 
         # Process each result, transforming and enriching the AlertConfig objects

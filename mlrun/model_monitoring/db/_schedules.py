@@ -206,18 +206,10 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
         self, endpoint_uid: str, last_request: int, last_analyzed: int
     ) -> None:
         self._check_open_schedules()
-        if endpoint_uid in self._schedules:
-            self._schedules[endpoint_uid][
-                schemas.model_monitoring.constants.ScheduleChiefFields.LAST_REQUEST
-            ] = last_request
-            self._schedules[endpoint_uid][
-                schemas.model_monitoring.constants.ScheduleChiefFields.LAST_ANALYZED
-            ] = last_analyzed
-        else:
-            self._schedules[endpoint_uid] = {
-                schemas.model_monitoring.constants.ScheduleChiefFields.LAST_REQUEST: last_request,
-                schemas.model_monitoring.constants.ScheduleChiefFields.LAST_ANALYZED: last_analyzed,
-            }
+        self._schedules[endpoint_uid] = {
+            schemas.model_monitoring.constants.ScheduleChiefFields.LAST_REQUEST: last_request,
+            schemas.model_monitoring.constants.ScheduleChiefFields.LAST_ANALYZED: last_analyzed,
+        }
 
     def get_endpoint_last_analyzed(self, endpoint_uid: str) -> Optional[int]:
         self._check_open_schedules()

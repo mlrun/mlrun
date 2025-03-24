@@ -795,6 +795,10 @@ lint-check: ## Check the code (using ruff)
 lint-go:
 	$(MAKE) -C server/go lint
 
+.PHONY: security-go
+security-go:
+	$(MAKE) -C server/go security
+
 .PHONY: fmt-go
 fmt-go:
 	$(MAKE) -C server/go fmt

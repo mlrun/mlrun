@@ -13,6 +13,7 @@
 # limitations under the License.
 import datetime
 import http
+import typing
 from typing import Optional, Union
 
 import fastapi
@@ -43,7 +44,6 @@ import framework.utils.time_window_tracker
 import services.alerts.crud
 import services.alerts.initial_data
 import services.api.crud
-from framework.db.session import close_session, create_session
 from framework.routers import (
     alert_activations,
     alert_template,
@@ -146,9 +146,11 @@ class Service(framework.service.Service):
         self,
         request: fastapi.Request,
         project: str,
+        page_size: typing.Optional[int],
+        offset: typing.Optional[int],
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
-    ) -> list[mlrun.common.schemas.AlertConfig]:
+    ) -> dict[str, list[mlrun.common.schemas.AlertConfig]]:
         if project != "*":
             # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
             #  not access it directly (ML-8565)
@@ -165,11 +167,18 @@ class Service(framework.service.Service):
         )
 
         exclude_updated = self._should_exclude_updated(request)
+
+        # TODO: Remove this when implementing pagination for alert configs
+        #  page_size is used for the limit in the query, but we don't have pagination yet
+        limit = page_size or mlconf.alerts.default_list_alert_configs_limit
+
         alerts = await run_in_threadpool(
             services.alerts.crud.Alerts().list_alerts,
             db_session,
             project=allowed_project_names,
             exclude_updated=exclude_updated,
+            offset=offset,
+            limit=limit,
         )
 
         alerts = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
@@ -182,7 +191,9 @@ class Service(framework.service.Service):
             auth_info,
         )
 
-        return alerts
+        return {
+            "alerts": alerts,
+        }
 
     async def delete_alert(
         self,
@@ -604,10 +615,8 @@ class Service(framework.service.Service):
             )
 
     async def _generate_events(self):
-        db_session = await fastapi.concurrency.run_in_threadpool(create_session)
         try:
             await framework.utils.time_window_tracker.run_with_time_window_tracker(
-                db_session=db_session,
                 key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.events_generation,
                 max_window_size_seconds=int(
                     # TODO: This needs to be aligned with chief
@@ -621,8 +630,6 @@ class Service(framework.service.Service):
                 "Failed generating events. Ignoring",
                 exc=mlrun.errors.err_to_str(exc),
             )
-        finally:
-            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
     @staticmethod
     def _get_authorization_resource_for_alert_template():

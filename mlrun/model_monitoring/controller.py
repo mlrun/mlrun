@@ -32,6 +32,7 @@ import mlrun.model_monitoring.helpers
 from mlrun.common.schemas import EndpointType
 from mlrun.common.schemas.model_monitoring.constants import (
     ControllerEvent,
+    ControllerEventEndpointPolicy,
     ControllerEventKind,
 )
 from mlrun.errors import err_to_str
@@ -40,6 +41,7 @@ from mlrun.model_monitoring.helpers import batch_dict2timedelta
 from mlrun.utils import datetime_now, logger
 
 _SECONDS_IN_DAY = int(datetime.timedelta(days=1).total_seconds())
+_SECONDS_IN_MINUTE = 60
 
 
 class _Interval(NamedTuple):
@@ -241,6 +243,8 @@ class MonitoringApplicationController:
     Note that the MonitoringApplicationController object requires access keys along with valid project configurations.
     """
 
+    _MAX_OPEN_WINDOWS_ALLOWED = 5
+
     def __init__(self) -> None:
         """Initialize Monitoring Application Controller"""
         self.project = cast(str, mlrun.mlconf.default_project)
@@ -264,10 +268,24 @@ class MonitoringApplicationController:
             access_key = mlrun.mlconf.get_v3io_access_key()
         return access_key
 
-    @staticmethod
     def _should_monitor_endpoint(
-        endpoint: mlrun.common.schemas.ModelEndpoint, application_names: set
+        self,
+        endpoint: mlrun.common.schemas.ModelEndpoint,
+        application_names: set,
+        base_period_minutes: int,
     ) -> bool:
+        """
+        checks if there is a need to monitor the given endpoint, we should monitor endpoint if it stands in the
+        next conditions:
+            1.  monitoring_mode is enabled
+            2.  first request exists
+            3.  last request exists
+            4.  endpoint_type is not ROUTER
+        if the four above conditions apply we require one of the three conditions to monitor:
+            1.  never monitored the one of the endpoint applications meaning min_last_analyzed is None
+            2.  last request has a higher timestamp than the min_last_analyzed timestamp
+            3.  We didn't analyze one of the application for over than _MAX_OPEN_WINDOWS_ALLOWED windows
+        """
         if (
             # Is the model endpoint monitored?
             endpoint.status.monitoring_mode == mm_constants.ModelMonitoringMode.enabled
@@ -282,12 +300,16 @@ class MonitoringApplicationController:
                 project=endpoint.metadata.project,
                 endpoint_id=endpoint.metadata.uid,
             ) as batch_window_generator:
+                base_period_seconds = base_period_minutes * _SECONDS_IN_MINUTE
                 if application_names != batch_window_generator.get_application_list():
                     return True
                 elif (
                     not batch_window_generator.get_min_last_analyzed()
                     or batch_window_generator.get_min_last_analyzed()
                     <= int(endpoint.status.last_request.timestamp())
+                    or mlrun.utils.datetime_now().timestamp()
+                    - batch_window_generator.get_min_last_analyzed()
+                    >= self._MAX_OPEN_WINDOWS_ALLOWED * base_period_seconds
                 ):
                     return True
                 else:
@@ -351,7 +373,7 @@ class MonitoringApplicationController:
             endpoint_id = event[ControllerEvent.ENDPOINT_ID]
             endpoint_name = event[ControllerEvent.ENDPOINT_NAME]
             applications_names = event[ControllerEvent.ENDPOINT_POLICY][
-                "monitoring_applications"
+                ControllerEventEndpointPolicy.MONITORING_APPLICATIONS
             ]
 
             not_batch_endpoint = (
@@ -410,8 +432,13 @@ class MonitoringApplicationController:
                                 project=project_name,
                                 applications_names=[application],
                                 model_monitoring_access_key=self.model_monitoring_access_key,
+                                endpoint_updated=event[ControllerEvent.ENDPOINT_POLICY][
+                                    ControllerEventEndpointPolicy.ENDPOINT_UPDATED
+                                ],
                             )
-                base_period = event[ControllerEvent.ENDPOINT_POLICY]["base_period"]
+                base_period = event[ControllerEvent.ENDPOINT_POLICY][
+                    ControllerEventEndpointPolicy.BASE_PERIOD
+                ]
                 current_time = mlrun.utils.datetime_now()
                 if (
                     current_time.timestamp()
@@ -463,6 +490,7 @@ class MonitoringApplicationController:
         project: str,
         applications_names: list[str],
         model_monitoring_access_key: str,
+        endpoint_updated: str,
     ):
         """
         Pushes data to multiple stream applications.
@@ -473,7 +501,7 @@ class MonitoringApplicationController:
         :param project: mlrun               Project name.
         :param applications_names:          List of application names to which data will be pushed.
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
-
+        :param endpoint_updated:            str isoformet for the timestamp the model endpoint was updated
         """
         data = {
             mm_constants.ApplicationEvent.START_INFER_TIME: start_infer_time.isoformat(
@@ -484,6 +512,7 @@ class MonitoringApplicationController:
             ),
             mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
             mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
+            mm_constants.ApplicationEvent.ENDPOINT_UPDATED: endpoint_updated,
         }
         for app_name in applications_names:
             data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})
@@ -536,8 +565,8 @@ class MonitoringApplicationController:
             logger.info("No monitoring functions found", project=self.project)
             return
         policy = {
-            "monitoring_applications": applications_names,
-            "base_period": int(
+            ControllerEventEndpointPolicy.MONITORING_APPLICATIONS: applications_names,
+            ControllerEventEndpointPolicy.BASE_PERIOD: int(
                 batch_dict2timedelta(
                     json.loads(
                         cast(
@@ -546,7 +575,7 @@ class MonitoringApplicationController:
                         )
                     )
                 ).total_seconds()
-                // 60
+                // _SECONDS_IN_MINUTE
             ),
         }
         with concurrent.futures.ThreadPoolExecutor(
@@ -554,7 +583,7 @@ class MonitoringApplicationController:
         ) as pool:
             futures = {
                 pool.submit(
-                    MonitoringApplicationController.endpoint_to_regular_event,
+                    self.endpoint_to_regular_event,
                     endpoint,
                     policy,
                     set(applications_names),
@@ -577,15 +606,17 @@ class MonitoringApplicationController:
                     logger.error(error)
         logger.info("Finishing monitoring controller chief")
 
-    @staticmethod
     def endpoint_to_regular_event(
+        self,
         endpoint: mlrun.common.schemas.ModelEndpoint,
         policy: dict,
         applications_names: set,
         v3io_access_key: str,
     ) -> None:
-        if MonitoringApplicationController._should_monitor_endpoint(
-            endpoint, set(applications_names)
+        if self._should_monitor_endpoint(
+            endpoint,
+            set(applications_names),
+            policy.get(ControllerEventEndpointPolicy.BASE_PERIOD, 10),
         ):
             logger.info(
                 "Regular event is being pushed to controller stream for model endpoint",
@@ -600,6 +631,9 @@ class MonitoringApplicationController:
                 endpoint_type=endpoint.metadata.endpoint_type,
                 feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
                 endpoint_policy=json.dumps(policy),
+            )
+            policy[ControllerEventEndpointPolicy.ENDPOINT_UPDATED] = (
+                endpoint.metadata.updated.isoformat()
             )
             MonitoringApplicationController.push_to_controller_stream(
                 kind=mm_constants.ControllerEventKind.REGULAR_EVENT,

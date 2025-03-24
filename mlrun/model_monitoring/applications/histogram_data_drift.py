@@ -107,16 +107,14 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     * JSON with the general drift value per feature, produced by default.
     * Plotly table with the various metrics and histograms per feature (disabled by default due to performance issues).
 
-    This application is deployed by default when calling:
-
-    .. code-block:: python
-
-        project.enable_model_monitoring()
-
+    This application is deployed by default when calling
+    :py:func:`~mlrun.projects.MlrunProject.enable_model_monitoring`.
     To avoid it, pass :code:`deploy_histogram_data_drift_app=False`.
 
     If you want to change the application defaults, such as the classifier or which artifacts to produce, you
     need to inherit from this class and deploy it as any other model monitoring application.
+    Please make sure to keep the default application name. This ensures that the full functionality of the application,
+    including the statistics view in the UI, is available.
     """
 
     NAME: Final[str] = HistogramDataDriftApplicationConstants.NAME
@@ -140,8 +138,8 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         produce_plotly_artifact: bool = False,
     ) -> None:
         """
-        :param value_classifier: Classifier object that adheres to the `ValueClassifier` protocol.
-                                 If not provided, the default `DataDriftClassifier()` is used.
+        :param value_classifier: Classifier object that adheres to the :py:class:`~ValueClassifier` protocol.
+                                 If not provided, the default :py:class:`~DataDriftClassifier` is used.
         """
         self._value_classifier = value_classifier or DataDriftClassifier()
         assert self._REQUIRED_METRICS <= set(
@@ -181,10 +179,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         return metrics_per_feature
 
     def _get_general_drift_result(
-        self,
-        metrics: list[mm_results.ModelMonitoringApplicationMetric],
-        monitoring_context: mm_context.MonitoringApplicationContext,
-        metrics_per_feature: DataFrame,
+        self, metrics: list[mm_results.ModelMonitoringApplicationMetric]
     ) -> mm_results.ModelMonitoringApplicationResult:
         """Get the general drift result from the metrics list"""
         value = cast(
@@ -237,7 +232,8 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         monitoring_context: mm_context.MonitoringApplicationContext,
     ) -> list[mm_results._ModelMonitoringApplicationStats]:
         """
-        list the application calculated stats
+        Return a list of the statistics.
+
         :param metrics: the calculated metrics
         :param metrics_per_feature: metric calculated per feature
         :param monitoring_context:  context object for current monitoring application
@@ -376,11 +372,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         )
         monitoring_context.logger.debug("Computing average per metric")
         metrics = self._get_metrics(metrics_per_feature)
-        result = self._get_general_drift_result(
-            metrics=metrics,
-            monitoring_context=monitoring_context,
-            metrics_per_feature=metrics_per_feature,
-        )
+        result = self._get_general_drift_result(metrics=metrics)
         stats = self._get_stats(
             metrics=metrics,
             monitoring_context=monitoring_context,

@@ -60,10 +60,12 @@ When you are satisfied with the application, deploy it with `.deploy`.
 
 For example, import the source file:
 ```py
-%%writefile Myapp.py
+# Myapp.py
 import mlrun
 from mlrun.model_monitoring.applications import (
-    ModelMonitoringApplicationBase,ModelMonitoringApplicationMetric,ModelMonitoringApplicationResult
+    ModelMonitoringApplicationBase,
+    ModelMonitoringApplicationMetric,
+    ModelMonitoringApplicationResult,
 )
 ```
 And then import the class and run `evaluate`.
@@ -71,25 +73,34 @@ And then import the class and run `evaluate`.
 class MyApp(ModelMonitoringApplicationBase):
     """User code"""
 
-    def do_tracking(self, monitoring_context): 
-            print(monitoring_context.__dict__)
-            results = [ModelMonitoringApplicationMetric(name="test_metric",value=0.1),
-                    ModelMonitoringApplicationResult(name="test_result",value=0.2,
-                                         kind=mlrun.common.schemas.model_monitoring.constants.ResultKindApp.system_performance,
-                                        status=mlrun.common.schemas.model_monitoring.constants.ResultStatusApp.no_detection)]
-            return results
+    def do_tracking(self, monitoring_context):
+        print(monitoring_context.__dict__)
+        results = [
+            ModelMonitoringApplicationMetric(name="test_metric", value=0.1),
+            ModelMonitoringApplicationResult(
+                name="test_result",
+                value=0.2,
+                kind=mlrun.common.schemas.model_monitoring.constants.ResultKindApp.system_performance,
+                status=mlrun.common.schemas.model_monitoring.constants.ResultStatusApp.no_detection,
+            ),
+        ]
+        return results
+
 
 from Myapp import MyApp
 
 
 MyApp.evaluate(
-    func_path="Myapp.py",run_local=False,sample_data=pd.DataFrame({"col":[1,2,3,4]}),
+    func_path="Myapp.py",
+    run_local=False,
+    sample_data=pd.DataFrame({"col": [1, 2, 3, 4]}),
 )
 ```
 After you have fine-tuned the model, deploy it:
 ```python
 app_fn = MyApp.deploy(
-    func_path="Myapp.py", func_name="run-me-in-wf",
+    func_path="Myapp.py",
+    func_name="run-me-in-wf",
     image="docker.io/mlrun/mlrun:1.8.0",
 )
 ```

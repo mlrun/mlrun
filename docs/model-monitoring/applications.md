@@ -98,7 +98,7 @@ MyApp.evaluate(
 ```
 After you have fine-tuned the model monitoring application, deploy it with:
 ```python
-app_fn = MyApp.deploy(
+MyApp.deploy(
     func_path="Myapp.py",
     func_name="run-me-in-wf",
 )

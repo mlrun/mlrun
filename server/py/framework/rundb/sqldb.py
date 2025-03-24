@@ -1267,11 +1267,6 @@ class SQLRunDB(RunDBInterface):
     ) -> bool:
         raise NotImplementedError
 
-    def deploy_histogram_data_drift_app(
-        self, project: str, image: str = "mlrun/mlrun"
-    ) -> None:
-        raise NotImplementedError
-
     def set_model_monitoring_credentials(
         self,
         project: str,

@@ -16,7 +16,6 @@
 import typing
 
 from mlrun.config import config
-
 from mlrun_pipelines.imports import PipelineConf
 
 

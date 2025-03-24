@@ -2156,10 +2156,7 @@ class Workflow:
     def _get_workflow_manifest(
         workflow_id: str,
     ) -> typing.Optional[mlrun_pipelines.models.PipelineManifest]:
-        kfp_client = mlrun_pipelines.utils.get_client(
-            url=mlrun.mlconf.kfp_url,
-            namespace=mlrun.mlconf.namespace,
-        )
+        kfp_client = mlrun_pipelines.utils.get_client(mlrun.mlconf.kfp_url)
 
         # arbitrary timeout of 5 seconds, the workflow should be done by now
         kfp_run = kfp_client.wait_for_run_completion(workflow_id, 5)

@@ -35,7 +35,6 @@ import mlrun.launcher.factory
 import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.singleton
-import mlrun_pipelines.client
 import mlrun_pipelines.utils
 
 import framework.utils.clients.iguazio
@@ -179,7 +178,7 @@ def kfp_client_mock(monkeypatch):
 
     monkeypatch.setattr(kfp_server_api.api_client.ApiClient, "call_api", mock.Mock())
 
-    kfp_client = mlrun_pipelines.client.ExtendedKfpClient()
+    kfp_client = mlrun_pipelines.utils.ExtendedKfpClient()
 
     mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
 
@@ -187,7 +186,7 @@ def kfp_client_mock(monkeypatch):
     kfp_client.get_run = mock.Mock()
 
     monkeypatch.setattr(
-        mlrun_pipelines.client.ExtendedKfpClient,
+        mlrun_pipelines.utils.ExtendedKfpClient,
         "__new__",
         lambda cls, *args, **kwargs: kfp_client,
     )

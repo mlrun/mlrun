@@ -18,7 +18,6 @@ import typing
 import mlrun
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
-
 from mlrun_pipelines.imports import dsl, kfp
 
 

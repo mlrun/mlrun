@@ -67,6 +67,8 @@ from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationMetric,
     ModelMonitoringApplicationResult,
 )
+
+
 class MyApp(ModelMonitoringApplicationBase):
     """User code"""
 
@@ -82,7 +84,6 @@ class MyApp(ModelMonitoringApplicationBase):
             ),
         ]
         return results
-
 ```
 Then, import the class and run `evaluate`.
 ```py

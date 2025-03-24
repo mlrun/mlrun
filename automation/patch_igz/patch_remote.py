@@ -46,7 +46,7 @@ class Constants:
     log_collector = "log-collector"
     targets_to_image_name = {
         api: api_container,
-        mlrun: f"quay.io/mlrun/mlrun",
+        mlrun: "quay.io/mlrun/mlrun",
         mlrun_kfp: "quay.io/mlrun/mlrun-kfp",
         log_collector: log_collector,
     }

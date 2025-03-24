@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import copy
 import datetime
 import logging
@@ -21,17 +22,16 @@ import tarfile
 import tempfile
 import time
 import zipfile
-from enum import IntEnum
-from typing import Optional
+from typing import Any, Optional
 
 import kfp_server_api
 import kubernetes as k8s
 import orjson
 import yaml
 
-import mlrun.utils
 import mlrun_pipelines.common.client
 import mlrun_pipelines.common.models
+import mlrun_pipelines.models
 
 IN_CLUSTER_DNS_NAME = "ml-pipeline.{}.svc.cluster.local:8888"
 KUBE_PROXY_PATH = "api/v1/namespaces/{}/services/ml-pipeline:http/proxy/"
@@ -39,77 +39,92 @@ KF_PIPELINES_SA_TOKEN_ENV = "KF_PIPELINES_SA_TOKEN_PATH"
 KF_PIPELINES_SA_TOKEN_PATH = "/var/run/secrets/kubeflow/pipelines/token"
 ROOT_PARAMETER_NAME = "pipeline-root"
 
-
-class FilterOperations(IntEnum):
-    UNKNOWN = 0
-    EQUALS = 1
-    NOT_EQUALS = 2
-    GREATER_THAN = 3
-    GREATER_THAN_EQUALS = 5
-    LESS_THAN = 6
-    LESS_THAN_EQUALS = 7
+INVALID_CHARACTERS_REGEX = re.compile(r"[^-0-9a-z]+")
+MULTIPLE_DASHES_REGEX = re.compile(r"-+")
 
 
 class ServiceAccountTokenVolumeCredentials:
     def __init__(
         self,
-        path=None,
+        path: Optional[str] = None,
     ):
-        self._token_path = (
+        self._token_path: str = (
             path or os.getenv(KF_PIPELINES_SA_TOKEN_ENV) or KF_PIPELINES_SA_TOKEN_PATH
         )
 
-    def _get_token(self):
+    def _read_token_from_file(
+        self,
+    ) -> Optional[str]:
+        """
+        Retrieve the token from the configured file path.
+
+        :return: The token string if available, otherwise None.
+        """
         try:
             with open(self._token_path) as f:
                 token = f.read().strip()
             return token
-        except OSError:
+        except FileNotFoundError:
             return None
+        except OSError:
+            raise ValueError("Failed to read service account token.")
 
     def refresh_api_key_hook(
         self,
-        config: kfp_server_api.configuration,
-    ):
-        """Refresh the api key.
-
-        This is a helper function for registering token refresh with swagger
-        generated clients.
-
-        Args:
-            config (kubernetes.client.configuration.Configuration):
-                The configuration object that the client uses.
-
-                The Configuration object of the kubernetes client's is the same
-                with kfp_server_api.configuration.Configuration.
+        config: kfp_server_api.configuration.Configuration,
+    ) -> None:
         """
-        token = self._get_token()
+        Refresh the API key in the provided configuration using the service account token.
+
+        :param config: The configuration object used by the KFP client.
+        """
+        token = self._read_token_from_file()
         if token is not None:
-            config.api_key["authorization"] = self._get_token()
+            config.api_key["authorization"] = token
 
 
-invalid_characters_regex = re.compile(r"[^-0-9a-z]+")
-multiple_dashes_regex = re.compile(r"-+")
+class JobConfig:
+    """
+    JobConfig encapsulates the pipeline spec and resource references needed to create or
+    run a Kubeflow Pipelines job.
+    """
+
+    def __init__(
+        self,
+        pipeline_spec: kfp_server_api.models.ApiPipelineSpec,
+        resource_references: list[kfp_server_api.models.ApiResourceReference],
+    ):
+        self.spec = pipeline_spec
+        self.resource_references = resource_references
 
 
 def sanitize_k8s_name(
     name: str,
-):
+) -> str:
+    """
+    Sanitize a Kubernetes resource name.
+
+    This function converts the name to lowercase, replaces invalid characters with dashes,
+    and removes any leading or trailing dashes.
+
+    :param name: The original name to be sanitized.
+    :return: A sanitized Kubernetes resource name.
+    """
     name = name.lower()
-    cleaned_name = invalid_characters_regex.sub("-", name)
-    cleaned_name = multiple_dashes_regex.sub("-", cleaned_name)
+    cleaned_name = INVALID_CHARACTERS_REGEX.sub("-", name)
+    cleaned_name = MULTIPLE_DASHES_REGEX.sub("-", cleaned_name)
     return cleaned_name.lstrip("-").rstrip("-")
 
 
-class Client(mlrun_pipelines.common.client.AbstractClient):
+class Client(
+    mlrun_pipelines.common.client.AbstractClient,
+):
     def __init__(
         self,
-        host: str = None,
+        host: Optional[str] = None,
         namespace: str = "mlrun",
     ):
-        """Create a new instance of kfp client."""
-
-        self._config = self._load_config(
+        self._config: kfp_server_api.configuration.Configuration = self._load_config(
             host=host,
             namespace=namespace,
         )
@@ -139,14 +154,17 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
             api_client=self._api_client,
         )
 
+    @staticmethod
     def _get_config_with_default_credentials(
-        self,
         config: kfp_server_api.configuration.Configuration,
-    ):
-        """Apply default credentials to the configuration object.
+    ) -> kfp_server_api.configuration.Configuration:
+        """
+        Apply default credentials to the KFP configuration.
 
-        This method accepts a Configuration object and extends it with
-        some default credentials interface.
+        This method updates the provided KFP configuration with a service account token if possible.
+
+        :param config: The original KFP configuration.
+        :return: The updated configuration with default credentials.
         """
         credentials = ServiceAccountTokenVolumeCredentials()
         config_copy = copy.deepcopy(config)
@@ -155,7 +173,7 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
             credentials.refresh_api_key_hook(config_copy)
         except Exception:
             logging.warning(
-                "Failed to set up default credentials. Proceeding without credentials..."
+                "Failed to set up credentials. Proceeding without credentials..."
             )
             return config
 
@@ -165,15 +183,25 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
 
     def _load_config(
         self,
-        host: str,
+        host: Optional[str],
         namespace: str,
-    ):
+    ) -> kfp_server_api.configuration.Configuration:
+        """
+        Load and configure Kubernetes settings for the KFP client.
+
+        This method loads in-cluster configuration, applies default credentials,
+        and attempts to load kubeconfig for the given namespace.
+
+        :param host:      An optional host URL for the KFP API.
+        :param namespace: The Kubernetes namespace for pipeline resources.
+        :return: A fully configured kfp_server_api.configuration.Configuration object.
+        """
         config = kfp_server_api.configuration.Configuration()
 
-        # Defaults to 'https' if host does not contain 'http' or 'https' protocol.
+        # If host is provided without http/https, prepend https://
         if host and not host.startswith("http"):
             host = "https://" + host
-        self._host = host or ""
+        self._host: str = host or ""
 
         k8s.config.load_incluster_config()
 
@@ -185,11 +213,11 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
                 client_configuration=config,
             )
         except Exception:
-            logging.error("Failed to load kube config.")
+            logging.info("Failed to load kube config.")
             return config
 
         if config.host:
-            config.host = config.host + "/" + KUBE_PROXY_PATH.format(namespace)
+            config.host += "/" + KUBE_PROXY_PATH.format(namespace)
         return config
 
     def get_kfp_healthz(
@@ -197,25 +225,35 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
         max_attempts: int = 5,
         interval_seconds: int = 5,
     ) -> Optional[kfp_server_api.ApiGetHealthzResponse]:
-        count = 0
-        response = None
+        """
+        Retrieve the healthz status of the KFP API.
+
+        This method retries multiple times until the endpoint responds or a timeout occurs.
+
+        :param max_attempts:     Maximum number of retry attempts.
+        :param interval_seconds: Interval (in seconds) between attempts.
+        :return: A valid ApiGetHealthzResponse if successful, otherwise None.
+        :raises TimeoutError: If the endpoint is not reachable after the specified retries.
+        """
+        count: int = 0
+        response: Optional[kfp_server_api.ApiGetHealthzResponse] = None
         while not response:
             count += 1
             if count > max_attempts:
                 raise TimeoutError(
-                    f"Failed getting healthz endpoint after {max_attempts} attempts."
+                    f"Failed to get healthz endpoint after {max_attempts} attempts."
                 )
-            else:
-                try:
-                    response: kfp_server_api.ApiGetHealthzResponse = (
-                        self._healthz_api.get_healthz()
-                    )
-                    return response
-                except kfp_server_api.ApiException:
-                    logging.exception(
-                        f"Failed to get healthz info attempt {count} of {max_attempts}."
-                    )
-                    time.sleep(interval_seconds)
+            try:
+                response = self._healthz_api.get_healthz()
+                return response
+            except kfp_server_api.ApiException:
+                logging.exception(
+                    "Failed to retrieve KFP healthz info on attempt %d of %d.",
+                    count,
+                    max_attempts,
+                )
+                time.sleep(interval_seconds)
+        return response
 
     def create_experiment(
         self,
@@ -223,18 +261,19 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
         description: Optional[str] = None,
         namespace: Optional[str] = None,
     ) -> kfp_server_api.ApiExperiment:
-        """Create a new experiment.
-
-        Args:
-          name: The name of the experiment.
-          description: Description of the experiment.
-          namespace: Kubernetes namespace where the experiment should be created.
-
-
-        Returns:
-          An Experiment object.
         """
-        experiment = None
+        Create a new experiment if it does not already exist.
+
+        This method searches for an experiment by name (and optional namespace), and creates
+        it if not found. If found, the existing experiment is returned.
+
+        :param name:         The name of the experiment to create or retrieve.
+        :param description:  A description for the experiment.
+        :param namespace:    An optional Kubernetes namespace.
+        :return: An ApiExperiment object representing the experiment.
+        :raises ValueError:  If multiple experiments with the same name are found.
+        """
+        experiment: Optional[kfp_server_api.ApiExperiment] = None
         try:
             experiment = self.get_experiment(
                 experiment_name=name,
@@ -245,9 +284,8 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
                 raise error
 
         if not experiment:
-            logging.info(f"Creating experiment {name}.")
-
-            resource_references = []
+            logging.info("Creating experiment '%s'.", name)
+            resource_references: list[kfp_server_api.models.ApiResourceReference] = []
             if namespace:
                 key = kfp_server_api.models.ApiResourceKey(
                     id=namespace,
@@ -275,35 +313,52 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
         experiment_name: Optional[str] = None,
         namespace: Optional[str] = None,
     ) -> kfp_server_api.ApiExperiment:
+        """
+        Retrieve an experiment by ID or name.
+
+        This method fetches an experiment using its unique ID or by searching for the name
+        (optionally in a specified namespace).
+
+        :param experiment_id:   The ID of the experiment to retrieve.
+        :param experiment_name: The name of the experiment to retrieve.
+        :param namespace:       An optional Kubernetes namespace for filtering by name.
+        :return: An ApiExperiment object representing the experiment.
+        :raises ValueError: If neither experiment_id nor experiment_name is provided, or if
+                            multiple experiments share the same name.
+        """
         if experiment_id is None and experiment_name is None:
             raise ValueError("Either experiment_id or experiment_name is required")
+
         if experiment_id is not None:
             return self._experiment_api.get_experiment(id=experiment_id)
-        experiment_filter = orjson.dumps(
+
+        filter_json = orjson.dumps(
             {
                 "predicates": [
                     {
-                        "op": FilterOperations.EQUALS.value,
+                        "op": mlrun_pipelines.models.FilterOperations.EQUALS.value,
                         "key": "name",
                         "stringValue": experiment_name,
                     }
                 ]
             }
-        )
+        ).decode()
+
         if namespace:
             result = self._experiment_api.list_experiment(
-                filter=experiment_filter,
-                resource_reference_key_type=kfp_server_api.models.api_resource_type.ApiResourceType.NAMESPACE,
+                filter=filter_json,
+                resource_reference_key_type=(
+                    kfp_server_api.models.api_resource_type.ApiResourceType.NAMESPACE
+                ),
                 resource_reference_key_id=namespace,
             )
         else:
-            result = self._experiment_api.list_experiment(filter=experiment_filter)
+            result = self._experiment_api.list_experiment(filter=filter_json)
+
         if not result.experiments:
             raise ValueError(f"No experiment is found with name {experiment_name}.")
         if len(result.experiments) > 1:
-            raise ValueError(
-                f"Multiple experiments is found with name {experiment_name}."
-            )
+            raise ValueError(f"Multiple experiments found with name {experiment_name}.")
         return result.experiments[0]
 
     def run_pipeline(
@@ -311,13 +366,30 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
         experiment_id: str,
         job_name: str,
         pipeline_package_path: Optional[str] = None,
-        params: Optional[dict] = None,
+        params: Optional[dict[str, Any]] = None,
         pipeline_id: Optional[str] = None,
         version_id: Optional[str] = None,
         pipeline_root: Optional[str] = None,
         enable_caching: Optional[bool] = None,
         service_account: Optional[str] = None,
     ) -> kfp_server_api.ApiRun:
+        """
+        Run a pipeline within a specified experiment.
+
+        This method submits a pipeline run using various optional arguments like a pipeline
+        package path, pipeline ID, parameters, and caching settings.
+
+        :param experiment_id:         The ID of the experiment to run the pipeline in.
+        :param job_name:              The name to assign to this pipeline run.
+        :param pipeline_package_path: An optional path to the pipeline package file (tar.gz, zip, yaml).
+        :param params:                An optional dictionary of pipeline parameters.
+        :param pipeline_id:           An optional pipeline ID. If provided, the client uses the existing pipeline.
+        :param version_id:            An optional pipeline version ID.
+        :param pipeline_root:         An optional root path for pipeline outputs.
+        :param enable_caching:        A flag to enable or disable pipeline caching.
+        :param service_account:       An optional Kubernetes service account to run the pipeline.
+        :return: An ApiRun object representing the created pipeline run.
+        """
         if params is None:
             params = {}
 
@@ -338,10 +410,7 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
             name=job_name,
             service_account=service_account,
         )
-        response = self._run_api.create_run(
-            body=run_body,
-        )
-
+        response = self._run_api.create_run(body=run_body)
         return response.run
 
     def list_runs(
@@ -351,36 +420,63 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
         sort_by: str = "",
         experiment_id: Optional[str] = None,
         namespace: Optional[str] = None,
-        filter: Optional[str] = None,
+        filter_: Optional[str] = None,
     ) -> kfp_server_api.ApiListRunsResponse:
+        """
+        List pipeline runs with optional filters.
+
+        This method retrieves runs, optionally filtering by experiment ID, namespace, or custom filters.
+        Pagination and sorting are also supported.
+
+        :param page_token:    A token for pagination.
+        :param page_size:     Number of runs to retrieve per request.
+        :param sort_by:       A string specifying how to sort the results.
+        :param experiment_id: An optional experiment ID to filter runs by.
+        :param namespace:     An optional namespace to filter runs by.
+        :param filter_:       A custom filter string (if any).
+        :return: An ApiListRunsResponse object containing the runs.
+        """
         if experiment_id is not None:
             response = self._run_api.list_runs(
                 page_token=page_token,
                 page_size=page_size,
                 sort_by=sort_by,
-                resource_reference_key_type=kfp_server_api.models.api_resource_type.ApiResourceType.EXPERIMENT,
+                resource_reference_key_type=(
+                    kfp_server_api.models.api_resource_type.ApiResourceType.EXPERIMENT
+                ),
                 resource_reference_key_id=experiment_id,
-                filter=filter,
+                filter=filter_,
             )
         elif namespace:
             response = self._run_api.list_runs(
                 page_token=page_token,
                 page_size=page_size,
                 sort_by=sort_by,
-                resource_reference_key_type=kfp_server_api.models.api_resource_type.ApiResourceType.NAMESPACE,
+                resource_reference_key_type=(
+                    kfp_server_api.models.api_resource_type.ApiResourceType.NAMESPACE
+                ),
                 resource_reference_key_id=namespace,
-                filter=filter,
+                filter=filter_,
             )
         else:
             response = self._run_api.list_runs(
                 page_token=page_token,
                 page_size=page_size,
                 sort_by=sort_by,
-                filter=filter,
+                filter=filter_,
             )
         return response
 
-    def get_run(self, run_id: str) -> kfp_server_api.ApiRun:
+    def get_run(
+        self,
+        run_id: str,
+    ) -> kfp_server_api.ApiRunDetail:
+        """
+        Retrieve details of a specific pipeline run.
+
+        :param run_id: The unique ID of the run to retrieve.
+        :return: An ApiRun object with the run details.
+        """
         return self._run_api.get_run(
             run_id=run_id,
         )
@@ -391,24 +487,38 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
         timeout: int,
         check_interval_seconds: int = 5,
     ) -> kfp_server_api.ApiRun:
-        status = "Running:"
-        start_time = datetime.datetime.now()
-        if isinstance(timeout, datetime.timedelta):
-            timeout = timeout.total_seconds()
-        get_run_response = None
+        """
+        Wait for a pipeline run to reach a stable status (e.g., Succeeded or Failed).
 
-        while status not in mlrun_pipelines.common.modelsRunStatuses.stable_statuses():
+        This method polls the run status at a specified interval until it completes
+        or a timeout is reached.
+
+        :param run_id:               The unique ID of the run.
+        :param timeout:              The total time in seconds to wait for completion.
+        :param check_interval_seconds: How often (in seconds) to poll the run status.
+        :return: An ApiRun object describing the run at final status.
+        :raises TimeoutError: If the run does not complete before the timeout.
+        """
+        status: str = "Running:"
+        start_time: datetime.datetime = datetime.datetime.now()
+        if isinstance(timeout, datetime.timedelta):
+            timeout = int(timeout.total_seconds())
+        get_run_response: Optional[kfp_server_api.ApiRun] = None
+
+        while status not in mlrun_pipelines.common.models.RunStatuses.stable_statuses():
             try:
-                get_run_response = self._run_api.get_run(
-                    run_id=run_id,
+                get_run_response: kfp_server_api.ApiRunDetail = self._run_api.get_run(
+                    run_id=run_id
                 )
             except kfp_server_api.ApiException as api_ex:
                 raise api_ex
             status = get_run_response.run.status
-            elapsed_time = (datetime.datetime.now() - start_time).total_seconds()
-            logging.info("Waiting for the job to complete...")
+            elapsed_time: float = (datetime.datetime.now() - start_time).total_seconds()
+            logging.info("Waiting for the job to complete (status: %s)...", status)
             if elapsed_time > timeout:
-                raise TimeoutError("Run timeout")
+                raise TimeoutError(
+                    f"Run {run_id} did not complete within {timeout} seconds."
+                )
             time.sleep(check_interval_seconds)
 
         return get_run_response
@@ -419,6 +529,14 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
         pipeline_name: Optional[str] = None,
         description: Optional[str] = None,
     ) -> kfp_server_api.ApiPipeline:
+        """
+        Upload a pipeline package file to Kubeflow Pipelines.
+
+        :param pipeline_package_path: Path to the pipeline package file (zip, tar.gz, yaml, etc.).
+        :param pipeline_name:         An optional name to assign to the pipeline.
+        :param description:           An optional description for the pipeline.
+        :return: An ApiPipeline object representing the uploaded pipeline.
+        """
         response = self._upload_api.upload_pipeline(
             pipeline_package_path,
             name=pipeline_name,
@@ -431,17 +549,24 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
         original_name: str,
         project: str,
     ) -> str:
-        job_name = original_name.strip()
-        proj_prefix = f"{project}-"
-        retry_prefix = "Retry of "
+        """
+        Normalize a job name for retry attempts.
 
-        proj_prefix_len = len(proj_prefix)
-        retry_prefix_len = len(retry_prefix)
+        This method ensures the new job name references the project and indicates that
+        it is a retry of the original run.
+
+        :param original_name: The original pipeline run name.
+        :param project:       The project name or prefix to include.
+        :return: A standardized retry name (e.g., "myproject-Retry of original_name").
+        """
+        job_name: str = original_name.strip()
+        proj_prefix: str = f"{project}-"
+        retry_prefix: str = "Retry of "
 
         if job_name.startswith(proj_prefix):
-            job_name = job_name[proj_prefix_len:].strip()
+            job_name = job_name[len(proj_prefix) :].strip()
         if job_name.startswith(retry_prefix):
-            job_name = job_name[retry_prefix_len:].strip()
+            job_name = job_name[len(retry_prefix) :].strip()
 
         return f"{project}-Retry of {job_name}"
 
@@ -449,30 +574,25 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
         self,
         run_id: str,
         project: str,
-    ) -> str:
+    ) -> Optional[str]:
         """
-        Retries a given run by its run ID. If the run is not in a valid state for retry,
-        it creates a new run with the same pipeline and parameters.
+        Retry a previous run by ID, or create a new run with the same pipeline and parameters.
 
-        :param run_id: The ID of the run to retry.
-        :type run_id: str
-        :param project: The name of the project for the run.
-        :type project: str
-        :raises ApiException: If the API request fails during the retry or new run creation process.
-        :raises ValueError: If the experiment ID cannot be found for the given run ID, or if
-                            the original run does not contain a valid pipeline specification.
-        :raises FileNotFoundError: If a temporary file for the workflow manifest cannot be created or accessed.
-        :return: The ID of the new or retried run.
-        :rtype: str
+        This method attempts to reuse the pipeline specification and parameters from the
+        original run. If the original run is not in a retryable state (e.g. lacks pipeline
+        spec), it creates a fresh run.
+
+        :param run_id:  The ID of the run to be retried.
+        :param project: The name of the project this run belongs to.
+        :return: The ID of the new or retried run if successful, otherwise None.
+        :raises ValueError: If the experiment ID or pipeline spec cannot be found.
+        :raises kfp_server_api.ApiException: If the creation of the new run fails.
         """
-        # Fetch run details
-        run_details = self.get_run(run_id).run
-
-        # Extract experiment ID from resource_references
-        experiment_id = next(
+        existing_run_details = self.get_run(run_id).run
+        experiment_id: Optional[str] = next(
             (
                 ref.key.id
-                for ref in run_details.resource_references
+                for ref in existing_run_details.resource_references
                 if ref.key.type == "EXPERIMENT"
             ),
             None,
@@ -480,16 +600,15 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
         if not experiment_id:
             raise ValueError(f"Experiment ID not found for run ID: {run_id}")
 
-        # If not retryable, create a new run
-        pipeline_spec = run_details.pipeline_spec
-
+        pipeline_spec = existing_run_details.pipeline_spec
         if not pipeline_spec.pipeline_id and not pipeline_spec.workflow_manifest:
             raise ValueError(
                 "The original run does not contain a valid pipeline specification. "
                 "Please ensure the pipeline has either a pipeline ID or workflow manifest."
             )
 
-        workflow_manifest_path = None
+        # Extract workflow manifest, if no pipeline_id is available
+        workflow_manifest_path: Optional[str] = None
         if not pipeline_spec.pipeline_id:
             with tempfile.NamedTemporaryFile(
                 mode="w",
@@ -499,24 +618,21 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
                 temp_file.write(pipeline_spec.workflow_manifest)
                 workflow_manifest_path = temp_file.name
 
-        # When retrying a KFP pipeline, we fetch the pipeline parameters from the previous run.
-        # Due to an issue with the KFP server API, the pipeline parameters are returned as a list
-        # containing a dictionary instead of a dictionary. We need to extract the dictionary from the list.
-        pipeline_parameters = pipeline_spec.parameters
-        if isinstance(pipeline_parameters, list):
+        # KFP server API may return pipeline parameters as a list containing a single dict
+        pipeline_parameters: Any = pipeline_spec.parameters
+        if isinstance(pipeline_parameters, list) and pipeline_parameters:
             pipeline_parameters = pipeline_parameters[0]
 
-        desired_prefix = f"{project}-Retry of "
-        desired_prefix_lower = desired_prefix.lower()
-        current_name = run_details.name.strip()
-
-        if current_name.lower().startswith(desired_prefix_lower):
-            job_name = current_name
-        else:
+        current_name: str = existing_run_details.name.strip()
+        desired_prefix: str = f"{project}-Retry of "
+        if not current_name.lower().startswith(desired_prefix.lower()):
             job_name = self._normalize_retry_run(
-                current_name,
-                project,
+                original_name=current_name,
+                project=project,
             )
+        else:
+            job_name = current_name
+
         try:
             new_run = self.run_pipeline(
                 experiment_id=experiment_id,
@@ -527,10 +643,10 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
             )
             return new_run.id
         except kfp_server_api.OpenApiException as error:
-            mlrun.utils.logger.error(
-                "Could not trigger new run for run.",
-                run_id=run_id,
-                error=error,
+            logging.error(
+                "Could not trigger new run for run %s, error: %s",
+                run_id,
+                error,
             )
             raise error
         finally:
@@ -540,73 +656,61 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
     def _create_job_config(
         self,
         experiment_id: str,
-        params: Optional[dict],
+        params: Optional[dict[str, Any]],
         pipeline_package_path: Optional[str],
         pipeline_id: Optional[str],
         version_id: Optional[str],
         enable_caching: Optional[bool],
-    ):
-        """Create a JobConfig with spec and resource_references.
-
-        Args:
-          experiment_id: The id of an experiment.
-          pipeline_package_path: Local path of the pipeline package(the filename should end with one of the following .tar.gz, .tgz, .zip, .yaml, .yml).
-          params: A dictionary with key (string) as param name and value (string) as param value.
-          pipeline_id: The id of a pipeline.
-          version_id: The id of a pipeline version.
-            If both pipeline_id and version_id are specified, version_id will take precendence.
-            If only pipeline_id is specified, the default version of this pipeline is used to create the run.
-          enable_caching: Whether or not to enable caching for the run.
-            This setting affects v2 compatible mode and v2 mode only.
-            If not set, defaults to the compile time settings, which are True for all
-            tasks by default, while users may specify different caching options for
-            individual tasks.
-            If set, the setting applies to all tasks in the pipeline -- overrides
-            the compile time settings.
-
-        Returns:
-          A JobConfig object with attributes spec and resource_reference.
+    ) -> JobConfig:
         """
+        Create a JobConfig object holding the pipeline spec and resource references.
 
-        class JobConfig:
-            def __init__(
-                self,
-                spec,
-                resource_references,
-            ):
-                self.spec = spec
-                self.resource_references = resource_references
+        This method handles assembling the pipeline spec from a package (or existing ID)
+        and optionally applies caching overrides.
 
+        :param experiment_id:         The experiment ID to which this run will be associated.
+        :param params:                A dictionary of pipeline parameters.
+        :param pipeline_package_path: An optional path to a pipeline package file.
+        :param pipeline_id:           An optional existing pipeline ID.
+        :param version_id:            An optional pipeline version ID (takes precedence if provided).
+        :param enable_caching:        Optional boolean to enable or disable caching.
+        :return: A fully configured JobConfig instance.
+        """
         params = params or {}
-        pipeline_orjson_string = None
-        if pipeline_package_path:
-            pipeline_obj = self._extract_pipeline_yaml(pipeline_package_path)
+        pipeline_json_string: Optional[str] = None
 
-            # Caching option set at submission time overrides the compile time settings.
+        if pipeline_package_path:
+            pipeline_obj = self._parse_pipeline_obj(
+                package_file=pipeline_package_path,
+            )
             if enable_caching is not None:
                 self._override_caching_options(
-                    pipeline_obj,
-                    enable_caching,
+                    workflow=pipeline_obj,
+                    enable_caching=enable_caching,
                 )
+            pipeline_json_string = orjson.dumps(pipeline_obj).decode()
 
-            pipeline_orjson_string = orjson.dumps(pipeline_obj).decode()
-        api_params = [
+        api_params: list[kfp_server_api.ApiParameter] = [
             kfp_server_api.ApiParameter(
-                name=sanitize_k8s_name(name=k),
-                value=str(v) if type(v) not in (list, dict) else orjson.dumps(v),
+                name=sanitize_k8s_name(key),
+                value=(
+                    str(value)
+                    if not isinstance(value, (list, dict))
+                    else orjson.dumps(value)
+                ),
             )
-            for k, v in params.items()
+            for key, value in params.items()
         ]
-        resource_references = []
-        key = kfp_server_api.models.ApiResourceKey(
-            id=experiment_id,
-            type=kfp_server_api.models.ApiResourceType.EXPERIMENT,
-        )
-        reference = kfp_server_api.models.ApiResourceReference(
-            key=key,
-            relationship=kfp_server_api.models.ApiRelationship.OWNER,
-        )
-        resource_references.append(reference)
+
+        resource_references = [
+            kfp_server_api.models.ApiResourceReference(
+                key=kfp_server_api.models.ApiResourceKey(
+                    id=experiment_id,
+                    type=kfp_server_api.models.ApiResourceType.EXPERIMENT,
+                ),
+                relationship=kfp_server_api.models.ApiRelationship.OWNER,
+            )
+        ]
 
         if version_id:
             key = kfp_server_api.models.ApiResourceKey(
@@ -621,33 +725,48 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
 
         spec = kfp_server_api.models.ApiPipelineSpec(
             pipeline_id=pipeline_id,
-            workflow_manifest=pipeline_orjson_string,
+            workflow_manifest=pipeline_json_string,
             parameters=api_params,
         )
+
         return JobConfig(
-            spec=spec,
+            pipeline_spec=spec,
             resource_references=resource_references,
         )
 
-    def _extract_pipeline_yaml(
-        self,
+    @staticmethod
+    def _parse_pipeline_obj(
         package_file: str,
-    ):
-        def _choose_pipeline_yaml_file(file_list: list[str]) -> str:
-            yaml_files = [file for file in file_list if file.endswith(".yaml")]
-            if len(yaml_files) == 0:
+    ) -> Any:
+        """
+        Extract the pipeline YAML from a package file.
+
+        This method supports the following file formats: .tar.gz, .tgz, .zip, .yaml, .yml.
+        It returns a parsed YAML object representing the pipeline definition.
+
+        :param package_file: Path to the pipeline package file.
+        :return: Parsed YAML content of the pipeline definition.
+        :raises ValueError: If the package is invalid or missing a pipeline.yaml file.
+        """
+
+        def _choose_pipeline_yaml_file(
+            file_list: list[str],
+        ) -> str:
+            pipeline_file_name = "pipeline.yaml"
+            yaml_files: list[str] = [
+                file for file in file_list if file.endswith(".yaml")
+            ]
+            if not yaml_files:
                 raise ValueError(
                     "Invalid package. Missing pipeline yaml file in the package."
                 )
-
-            if "pipeline.yaml" in yaml_files:
-                return "pipeline.yaml"
-            else:
-                if len(yaml_files) == 1:
-                    return yaml_files[0]
-                raise ValueError(
-                    "Invalid package. There is no pipeline.yaml file and there are multiple yaml files."
-                )
+            if pipeline_file_name in yaml_files:
+                return pipeline_file_name
+            if len(yaml_files) == 1:
+                return yaml_files[0]
+            raise ValueError(
+                "Invalid package. Multiple YAML files found without a 'pipeline.yaml'."
+            )
 
         if package_file.endswith(".tar.gz") or package_file.endswith(".tgz"):
             with tarfile.open(package_file, "r:gz") as tar:
@@ -655,24 +774,37 @@ class Client(mlrun_pipelines.common.client.AbstractClient):
                 pipeline_yaml_file = _choose_pipeline_yaml_file(file_names)
                 with tar.extractfile(tar.getmember(pipeline_yaml_file)) as f:
                     return yaml.safe_load(f)
+
         elif package_file.endswith(".zip"):
-            with zipfile.ZipFile(package_file, "r") as zip:
-                pipeline_yaml_file = _choose_pipeline_yaml_file(zip.namelist())
-                with zip.open(pipeline_yaml_file) as f:
+            with zipfile.ZipFile(package_file, "r") as zip_file:
+                pipeline_yaml_file = _choose_pipeline_yaml_file(zip_file.namelist())
+                with zip_file.open(pipeline_yaml_file) as f:
                     return yaml.safe_load(f)
+
         elif package_file.endswith(".yaml") or package_file.endswith(".yml"):
             with open(package_file) as f:
                 return yaml.safe_load(f)
+
         else:
             raise ValueError(
-                f"The package_file {package_file} should end with one of the following formats: [.tar.gz, .tgz, .zip, .yaml, .yml]"
+                f"The package_file '{package_file}' should end with one of "
+                f"the following formats: [.tar.gz, .tgz, .zip, .yaml, .yml]"
             )
 
+    @staticmethod
     def _override_caching_options(
-        self,
-        workflow: dict,
+        workflow: dict[str, Any],
         enable_caching: bool,
-    ):
+    ) -> None:
+        """
+        Override caching behavior in a pipeline workflow manifest.
+
+        This method sets a label on each template in the Argo workflow, controlling
+        whether pipeline steps use caching.
+
+        :param workflow:       A dictionary representing the pipeline's Argo workflow.
+        :param enable_caching: A boolean indicating whether caching should be enabled.
+        """
         templates = workflow["spec"]["templates"]
         for template in templates:
             if (

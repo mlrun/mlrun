@@ -146,7 +146,7 @@ project.store_alert_config(alert_data)
 ## Modifying alerts
 
 When you run `store_alert_config` on an existing alert:
-- The alert is reset if you modify a field that relates to the conditions that trigger the alert. These fields are:
+- The alert is reset if you modify a field that affects the conditions that trigger the alert. These fields are:
    - Entity
    - Trigger
    - Criteria

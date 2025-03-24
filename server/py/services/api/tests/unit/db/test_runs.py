@@ -524,6 +524,22 @@ class TestRuns(TestDatabaseBase):
                 iteration,
             )
 
+        label_key = "a" * 256
+        run["metadata"]["labels"] = {label_key: "b"}
+        # too long name
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=f"Name of `{label_key}` label is too long. "
+            "Maximum allowed length is 255 characters.",
+        ):
+            self._db.update_run(
+                self._db_session,
+                run,
+                uid,
+                project,
+                iteration,
+            )
+
     def test_store_and_update_run_update_name_failure(self):
         project, name, uid, iteration, run = self._create_new_run()
 

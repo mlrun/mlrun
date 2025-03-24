@@ -29,7 +29,6 @@ class TestHelpers(TestDatabaseBase):
             (None),
             ({"a": [{"b": "c"}]}),
             ({1: "a"}),
-            ({"a": 1}),
             ({"a" * 256: "b"}),
             ({"a": "b" * 256}),
         ],

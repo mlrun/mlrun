@@ -370,7 +370,7 @@ class BaseStep(ModelObj):
                             2. Create a new model endpoint entry and set it as `latest`.
 
                             * **inplace** (default):
- 
+
                             1. If model endpoints with the same name exist, update the `latest` entry.
                             2. Otherwise, create a new entry.
 

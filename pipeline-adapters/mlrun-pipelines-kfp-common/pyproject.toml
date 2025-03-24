@@ -33,6 +33,7 @@ package-dir = { "" = "src" }
 where = ["src"]
 include = ["mlrun_pipelines.common"]
 
-[[tool.importlinter.contracts]]
-name = "forbid-mlrun-import"
-forbidden = ["mlrun"]
+# TODO: Uncomment once mlrun is removed as a dependency
+#[[tool.importlinter.contracts]]
+#name = "forbid-mlrun-import"
+#forbidden = ["mlrun"]

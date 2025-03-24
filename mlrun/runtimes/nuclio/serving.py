@@ -337,6 +337,17 @@ class ServingRuntime(RemoteRuntime):
         """
         # Applying model monitoring configurations
         self.spec.track_models = enable_tracking
+        if self._spec and self._spec.function_refs:
+            logger.debug(
+                "Set tracking for children references", enable_tracking=enable_tracking
+            )
+            for name in self._spec.function_refs.keys():
+                self._spec.function_refs[name].track_models = enable_tracking
+                # Check if function_refs _function is filled if so update track_models field:
+                if self._spec.function_refs[name]._function:
+                    self._spec.function_refs[
+                        name
+                    ]._function.spec.track_models = enable_tracking
 
         if not 0 < sampling_percentage <= 100:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -506,7 +517,11 @@ class ServingRuntime(RemoteRuntime):
         :return function object
         """
         function_reference = FunctionReference(
-            url, image, requirements=requirements, kind=kind or "serving"
+            url,
+            image,
+            requirements=requirements,
+            kind=kind or "serving",
+            track_models=self.spec.track_models,
         )
         self._spec.function_refs.update(function_reference, name)
         func = function_reference.to_function(self.kind)

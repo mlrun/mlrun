@@ -166,8 +166,8 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
     def __init__(self, project: str) -> None:
         """
         Initialize applications monitoring schedules chief file object.
-        The JSON file stores a dictionary of registered model endpoints uid as key and point to a dictionary of "last_request"
-        and "last_analyzed" mapped to two Unix timestamp as values.
+        The JSON file stores a dictionary of registered model endpoints uid as key and point to a dictionary of
+        "last_request" and "last_analyzed" mapped to two Unix timestamp as values.
         When working with the schedules data, use this class as a context manager to read and write the data.
 
         :param project:     The project name.

@@ -67,9 +67,6 @@ from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationMetric,
     ModelMonitoringApplicationResult,
 )
-```
-And then import the class and run `evaluate`.
-```py
 class MyApp(ModelMonitoringApplicationBase):
     """User code"""
 
@@ -86,9 +83,10 @@ class MyApp(ModelMonitoringApplicationBase):
         ]
         return results
 
-
+```
+Then, import the class and run `evaluate`.
+```py
 from Myapp import MyApp
-
 
 MyApp.evaluate(
     func_path="Myapp.py",

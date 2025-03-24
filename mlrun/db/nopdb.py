@@ -883,11 +883,6 @@ class NopDB(RunDBInterface):
     ) -> bool:
         pass
 
-    def deploy_histogram_data_drift_app(
-        self, project: str, image: str = "mlrun/mlrun"
-    ) -> None:
-        pass
-
     def set_model_monitoring_credentials(
         self,
         project: str,

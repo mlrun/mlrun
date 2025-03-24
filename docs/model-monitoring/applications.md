@@ -49,7 +49,7 @@ To register and deploy the application see {ref}`register-model-monitoring-app`.
 
 ## Testing your application before deploying it
 
-You run and debug your application as a job with data, but without a model endpoint or datastore profiles. This reduces   
+You can run and debug your application as a job with data, but without a model endpoint or datastore profiles. This reduces
 the time required to refine your model before deploying. 
 The monitoring creates metrics that assist you in understanding and refining the model behavior. 
 You can use this flow for both local and remote jobsß.

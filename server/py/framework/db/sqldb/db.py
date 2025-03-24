@@ -44,7 +44,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
-from sqlalchemy.orm import Session, aliased, joinedload
+from sqlalchemy.orm import Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 import mlrun
@@ -405,8 +405,7 @@ class SQLDB(DBInterface):
             )
 
         run_struct = run.struct
-        if with_notifications:
-            self._fill_run_struct_with_notifications(run.notifications, run_struct)
+        self._enrich_run_struct_from_model(run, run_struct, with_notifications)
         return run_struct
 
     def list_runs(
@@ -488,8 +487,7 @@ class SQLDB(DBInterface):
         runs = RunList()
         for run in query:
             run_struct = run.struct
-            if with_notifications:
-                self._fill_run_struct_with_notifications(run.notifications, run_struct)
+            self._enrich_run_struct_from_model(run, run_struct, with_notifications)
             runs.append(run_struct)
 
         return runs
@@ -523,6 +521,16 @@ class SQLDB(DBInterface):
         for run in query:  # Can not use query.delete with join
             session.delete(run)
         session.commit()
+
+    def _enrich_run_struct_from_model(
+        self, run: Run, run_struct: dict, with_notifications: bool
+    ):
+        if run.end_time:
+            run_struct.setdefault("status", {})["end_time"] = self._add_utc_timezone(
+                run.end_time
+            ).isoformat()
+        if with_notifications:
+            self._fill_run_struct_with_notifications(run.notifications, run_struct)
 
     def _delete_project_runs(self, session: Session, project: str):
         logger.debug("Removing project runs from db", project=project)
@@ -594,9 +602,9 @@ class SQLDB(DBInterface):
             and not run.end_time
         ):
             if end_time is None:
-                end_time = datetime.now(timezone.utc)
+                # Ensures fsp 6 for MySQL NOW() to includes microseconds
+                end_time = func.now(6)
             run.end_time = end_time
-            run_dict.setdefault("status", {})["end_time"] = end_time.isoformat()
         elif (
             run.state not in mlrun.common.runtimes.constants.RunStates.terminal_states()
         ):
@@ -958,14 +966,15 @@ class SQLDB(DBInterface):
                     )
                 return None
 
+        if as_record:
+            return db_artifact
+
         artifact = db_artifact.full_object
 
         # If connected to a tag add it to metadata
         if enrich_tag:
             self._set_tag_in_artifact_struct(artifact, tag)
 
-        if as_record:
-            return db_artifact
         return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 
     def del_artifact(
@@ -1112,6 +1121,25 @@ class SQLDB(DBInterface):
             )
         except mlrun.errors.MLRunNotFoundError:
             return None
+        except sqlalchemy.exc.MultipleResultsFound as exc:
+            logger.error(
+                "Failed to delete artifact because multiple artifacts were found",
+                key=key,
+                project=project,
+                tag=tag,
+                iter=iter,
+                producer_id=producer_id,
+                uid=uid,
+                err=err_to_str(exc),
+            )
+
+            error_message = (
+                "Failed to delete artifact, multiple artifacts matching the search criteria were found. "
+                "Refine your request to specify a single artifact or use another endpoint to delete "
+                "multiple artifacts instead."
+            )
+            raise mlrun.errors.MLRunBadRequestError(error_message) from exc
+
         dependent_endpoints_count = (
             session.query(ModelEndpoint)
             .filter(ModelEndpoint.model_id == db_artifact.id)
@@ -1119,8 +1147,8 @@ class SQLDB(DBInterface):
         )
         if dependent_endpoints_count:
             raise mlrun.errors.MLRunConflictError(
-                f"Failed deleting artifact {key} in project {project}, tag {tag}"
-                f", iteration {iter} and {db_artifact.uid} uid. "
+                f"Failed deleting artifact {db_artifact.key} in project {db_artifact.project}, iteration "
+                f"{db_artifact.iteration}, producer_id {db_artifact.producer_id} and {db_artifact.uid} uid. "
                 f"The artifact is used by {dependent_endpoints_count} endpoints"
             )
         return mlrun.common.formatters.ArtifactFormat.format_obj(
@@ -1696,8 +1724,11 @@ class SQLDB(DBInterface):
         if limit:
             # Order the results before applying the limit to ensure that the limit is applied to the correctly
             # ordered results.
+            # If the updated fields are the same, we need a secondary field to sort by.
             query = self._paginate_query(
-                query.order_by(ArtifactV2.updated.desc()), offset, limit
+                query.order_by(ArtifactV2.updated.desc(), ArtifactV2.id.desc()),
+                offset,
+                limit,
             )
 
         # limit operation loads all the results before performing the actual limiting,
@@ -1711,7 +1742,10 @@ class SQLDB(DBInterface):
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
         # join may lose order, make sure order is applied on outer as well
-        outer_query = outer_query.order_by(ArtifactV2.updated.desc())
+        # If the updated fields are the same, we need a secondary field to sort by.
+        outer_query = outer_query.order_by(
+            ArtifactV2.updated.desc(), ArtifactV2.id.desc()
+        )
 
         if not limit:
             outer_query = self._paginate_query(outer_query, offset, limit=None)
@@ -5180,11 +5214,16 @@ class SQLDB(DBInterface):
         _get_query: bool = False,
     ):
         query = (
-            session.query(cls)
+            session.query(ModelEndpoint)
             .options(
-                joinedload(cls.function),
-                joinedload(cls.model),
-                joinedload(cls.tags),
+                selectinload(ModelEndpoint.function).options(
+                    load_only("name", "state", "project", "uid"),
+                    selectinload(Function.tags),
+                ),
+                selectinload(ModelEndpoint.model).options(
+                    load_only("key", "project", "iteration", "producer_id", "uid")
+                ),
+                selectinload(ModelEndpoint.tags),
             )
             .filter(cls.project == project, cls.name == name)
         )
@@ -5218,11 +5257,16 @@ class SQLDB(DBInterface):
         _get_query=False,
     ) -> typing.Union[sqlalchemy.orm.Query, list[ModelEndpoint]]:
         query = (
-            session.query(cls)
+            session.query(ModelEndpoint)
             .options(
-                joinedload(cls.function),
-                joinedload(cls.model),
-                joinedload(cls.tags),
+                selectinload(ModelEndpoint.function).options(
+                    load_only("name", "state", "project", "uid"),
+                    selectinload(Function.tags),
+                ),
+                selectinload(ModelEndpoint.model).options(
+                    load_only("key", "project", "iteration", "producer_id", "uid")
+                ),
+                selectinload(ModelEndpoint.tags),
             )
             .filter(cls.project == project, cls.name == name)
         )
@@ -5511,12 +5555,21 @@ class SQLDB(DBInterface):
         :param limit: SQL query limit.
         :param order_by: Column name for ordering results.
         """
+        # Query explanation:
+        # - selectinload is used to efficiently load related objects in batches, avoiding unnecessary extra queries.
+        # - load_only restricts the fields retrieved from the related entities to improve performance.
+        # - This query ensures all necessary related data is fetched upfront with minimal database overhead.
         query = (
             session.query(ModelEndpoint)
             .options(
-                joinedload(ModelEndpoint.function),
-                joinedload(ModelEndpoint.model),
-                joinedload(ModelEndpoint.tags),
+                selectinload(ModelEndpoint.function).options(
+                    load_only("name", "state", "project", "uid"),
+                    selectinload(Function.tags),
+                ),
+                selectinload(ModelEndpoint.model).options(
+                    load_only("key", "project", "iteration", "producer_id", "uid")
+                ),
+                selectinload(ModelEndpoint.tags),
             )
             .filter(ModelEndpoint.project == project)
         )
@@ -5777,7 +5830,6 @@ class SQLDB(DBInterface):
                     hash_key=model_endpoint_record.function.uid,
                 )
             )
-
         else:
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_NAME] = ""
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG] = ""
@@ -6222,6 +6274,8 @@ class SQLDB(DBInterface):
         session,
         project: typing.Optional[typing.Union[str, list[str]]] = None,
         exclude_updated: bool = False,
+        limit: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         query = self._query(session, AlertConfig)
 
@@ -6231,6 +6285,9 @@ class SQLDB(DBInterface):
         ).add_entity(AlertState)
 
         query = self._filter_query_by_resource_project(query, AlertConfig, project)
+        query = query.order_by(AlertConfig.id.asc())
+        query = self._paginate_query(query, offset, limit)
+
         results = query.all()
 
         # Process each result, transforming and enriching the AlertConfig objects

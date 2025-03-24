@@ -583,7 +583,7 @@ class MonitoringApplicationController:
         ) as pool:
             futures = {
                 pool.submit(
-                    MonitoringApplicationController.endpoint_to_regular_event,
+                    self.endpoint_to_regular_event,
                     endpoint,
                     policy,
                     set(applications_names),
@@ -606,14 +606,14 @@ class MonitoringApplicationController:
                     logger.error(error)
         logger.info("Finishing monitoring controller chief")
 
-    @staticmethod
     def endpoint_to_regular_event(
+        self,
         endpoint: mlrun.common.schemas.ModelEndpoint,
         policy: dict,
         applications_names: set,
         v3io_access_key: str,
     ) -> None:
-        if MonitoringApplicationController._should_monitor_endpoint(
+        if self._should_monitor_endpoint(
             endpoint,
             set(applications_names),
             policy.get(ControllerEventEndpointPolicy.BASE_PERIOD, 10),

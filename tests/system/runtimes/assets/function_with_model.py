@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,28 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .data_types import (
-    InferOptions,
-    ValueType,
-    pd_schema_to_value_type,
-    python_type_to_value_type,
-)
-from .infer import DFDataInfer
+from mlrun.serving import Model
 
 
-class BaseDataInfer:
-    infer_schema = None
-    get_preview = None
-    get_stats = None
+class DummyModel(Model):
+    execution_mechanism = "naive"
 
-
-def is_spark_dataframe(df) -> bool:
-    return "rdd" in dir(df)
-
-
-def get_infer_interface(df) -> BaseDataInfer:
-    if is_spark_dataframe(df):
-        from .spark import SparkDataInfer
-
-        return SparkDataInfer
-    return DFDataInfer
+    def predict(self, body):
+        body["extra"] = 123
+        return body

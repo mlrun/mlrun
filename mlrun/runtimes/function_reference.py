@@ -36,6 +36,7 @@ class FunctionReference(ModelObj):
         spec=None,
         kind=None,
         name=None,
+        track_models=None,
     ):
         self.url = url
         self.kind = kind
@@ -46,6 +47,7 @@ class FunctionReference(ModelObj):
             spec = spec.to_dict()
         self.spec = spec
         self.code = code
+        self.track_models = track_models
 
         self._function = None
         self._address = None
@@ -130,6 +132,7 @@ class FunctionReference(ModelObj):
         if self.requirements:
             func.with_requirements(self.requirements)
         self._function = func
+        func.spec.track_models = self.track_models
         return func
 
     @property

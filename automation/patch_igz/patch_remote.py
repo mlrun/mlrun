@@ -46,8 +46,8 @@ class Constants:
     log_collector = "log-collector"
     targets_to_image_name = {
         api: api_container,
-        mlrun: "quay.io/mlrun/mlrun",
-        mlrun_kfp: "quay.io/mlrun/mlrun-kfp",
+        mlrun: mlrun,
+        mlrun_kfp: mlrun_kfp,
         log_collector: log_collector,
     }
 
@@ -221,7 +221,6 @@ class MLRunPatcher:
             env = {
                 "MLRUN_VERSION": image_tag,
                 "MLRUN_DOCKER_REPO": mlrun_docker_registry,
-                "MLRUN_IMAGE_NAME_TAGGED": f"{mlrun_docker_registry}/{Constants.targets_to_image_name[Constants.mlrun]}:{image_tag}",
             }
             cmd = ["make"]
             cmd.extend(targets)

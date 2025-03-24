@@ -294,7 +294,7 @@ class MonitoringApplicationController:
             endpoint.metadata.uid
         )
         logger.debug(
-            "Chief Should monitor:",
+            "Chief should monitor endpoint check",
             last_timestamp_sent=last_timestamp_sent,
             last_analyzed_sent=last_analyzed_sent,
             uid=endpoint.metadata.uid,
@@ -338,6 +338,7 @@ class MonitoringApplicationController:
                         or current_min_last_analyzed != last_analyzed_sent
                     )
                 ):
+                    # Write to schedule chief file the last_request, min_last_analyzed we pushed event to stream
                     schedules_file.update_endpoint_timestamps(
                         endpoint_uid=endpoint.metadata.uid,
                         last_request=int(endpoint.status.last_request.timestamp()),
@@ -671,7 +672,7 @@ class MonitoringApplicationController:
             schedule_file,
         ):
             logger.debug(
-                "endpoint data is being prepared for regular event",
+                "Endpoint data is being prepared for regular event",
                 endpoint_id=endpoint.metadata.uid,
                 endpoint_name=endpoint.metadata.name,
                 timestamp=endpoint.status.last_request.isoformat(

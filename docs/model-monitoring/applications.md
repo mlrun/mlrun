@@ -55,7 +55,7 @@ The monitoring creates metrics that assist you in understanding and refining the
 You can use this flow for both local and remote jobs.
 
 Use {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.evaluate` to test your code. 
-When you are satisfied with the application, deploy it with `.deploy`.
+When you are satisfied with the application, deploy it with {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.deploy`.
 
 
 For example, import the source file:

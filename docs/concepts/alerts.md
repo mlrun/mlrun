@@ -143,7 +143,7 @@ alert_data = mlrun.alerts.alert.AlertConfig(
 project.store_alert_config(alert_data)
 ```
 
-## Modifying alerts
+## Modifying an alert
 
 When you run `store_alert_config` on an existing alert:
 - The alert is reset if you modify a field that affects the conditions that trigger the alert. These fields are:

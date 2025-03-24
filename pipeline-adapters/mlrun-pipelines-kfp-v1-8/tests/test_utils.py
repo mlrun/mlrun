@@ -15,13 +15,12 @@ import unittest.mock
 
 import pytest
 
-import mlrun_pipelines.client
 import mlrun_pipelines.utils
 
 
 @pytest.fixture
 def client():
-    client_klass = mlrun_pipelines.client.ExtendedKfpClient
+    client_klass = mlrun_pipelines.utils.ExtendedKfpClient
     client_klass.get_kfp_healthz = unittest.mock.MagicMock()
     return client_klass()
 

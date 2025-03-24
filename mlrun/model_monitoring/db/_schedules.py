@@ -23,7 +23,7 @@ import botocore.exceptions
 import mlrun.errors
 import mlrun.model_monitoring.helpers
 from mlrun.common.schemas import ModelEndpoint
-from mlrun.common.schemas.model_monitoring.constants import FileTargetKind
+from mlrun.common.schemas.model_monitoring.constants import ScheduleChiefFields
 from mlrun.utils import logger
 
 
@@ -165,8 +165,9 @@ class ModelMonitoringSchedulesFileEndpoint(ModelMonitoringSchedulesFileBase):
 class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
     def __init__(self, project: str) -> None:
         """
-        Initialize applications monitoring schedules file object.
-        The JSON file stores a dictionary of registered application name as key and Unix timestamp as value.
+        Initialize applications monitoring schedules chief file object.
+        The JSON file stores a dictionary of registered model endpoints uid as key and point to a dictionary of "last_request"
+        and "last_analyzed" mapped to two Unix timestamp as values.
         When working with the schedules data, use this class as a context manager to read and write the data.
 
         :param project:     The project name.
@@ -190,33 +191,31 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
     def get_endpoint_last_request(self, endpoint_uid: str) -> Optional[int]:
         self._check_open_schedules()
         if endpoint_uid in self._schedules:
-            return self._schedules[endpoint_uid].get(FileTargetKind.LAST_REQUEST)
+            return self._schedules[endpoint_uid].get(ScheduleChiefFields.LAST_REQUEST)
         else:
             return None
 
-    def update_endpoint_last_request(self, endpoint_uid: str, timestamp: int) -> None:
+    def update_endpoint_timestamps(
+        self, endpoint_uid: str, last_request: int, last_analyzed: int
+    ) -> None:
         self._check_open_schedules()
         if endpoint_uid in self._schedules:
-            self._schedules[endpoint_uid][FileTargetKind.LAST_REQUEST] = timestamp
+            self._schedules[endpoint_uid][ScheduleChiefFields.LAST_REQUEST] = (
+                last_request
+            )
+            self._schedules[endpoint_uid][ScheduleChiefFields.LAST_ANALYZED] = (
+                last_analyzed
+            )
         else:
             self._schedules[endpoint_uid] = {
-                FileTargetKind.LAST_ANALYZED: None,
-                FileTargetKind.LAST_REQUEST: timestamp,
-            }
-
-    def update_endpoint_last_analyzed(self, endpoint_uid: str, timestamp: int) -> None:
-        self._check_open_schedules()
-        if endpoint_uid in self._schedules:
-            self._schedules[endpoint_uid][FileTargetKind.LAST_ANALYZED] = timestamp
-        else:
-            self._schedules[endpoint_uid] = {
-                FileTargetKind.LAST_ANALYZED: timestamp,
-                FileTargetKind.LAST_REQUEST: None,
+                ScheduleChiefFields.LAST_REQUEST: last_request,
+                ScheduleChiefFields.LAST_ANALYZED: last_analyzed,
             }
 
     def get_endpoint_last_analyzed(self, endpoint_uid: str) -> Optional[int]:
+        self._check_open_schedules()
         if endpoint_uid in self._schedules:
-            return self._schedules[endpoint_uid].get(FileTargetKind.LAST_ANALYZED)
+            return self._schedules[endpoint_uid].get(ScheduleChiefFields.LAST_ANALYZED)
         else:
             return None
 

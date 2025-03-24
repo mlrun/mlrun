@@ -288,7 +288,7 @@ class MonitoringApplicationController:
         if the four above conditions apply we require one of the two condition monitor:
             1.  never monitored the one of the endpoint applications meaning min_last_analyzed is None
             2.  min_last_analyzed stands in the condition for sending NOP event and this the first time regular event
-            is sent with the current last_request per endpoint.
+            is sent with the combination of  current last_request  & current last_analyzed  per endpoint.
         """
         last_timestamp_sent = schedules_file.get_endpoint_last_request(
             endpoint.metadata.uid
@@ -317,41 +317,38 @@ class MonitoringApplicationController:
                 endpoint_id=endpoint.metadata.uid,
             ) as batch_window_generator:
                 current_time = mlrun.utils.datetime_now()
+                current_min_last_analyzed = (
+                    batch_window_generator.get_min_last_analyzed()
+                )
                 if (
                     # Different application names, or last analyzed never updated
                     application_names != batch_window_generator.get_application_list()
-                    or not batch_window_generator.get_min_last_analyzed()
+                    or not current_min_last_analyzed
                 ):
                     return True
                 elif (
                     # Does nop event will be sent to close the relevant window
                     self._should_send_nop_event(
-                        base_period_minutes, batch_window_generator, current_time
+                        base_period_minutes, current_min_last_analyzed, current_time
                     )
                     and (
                         int(endpoint.status.last_request.timestamp())
                         != last_timestamp_sent
-                        or batch_window_generator.get_min_last_analyzed()
-                        != last_analyzed_sent
+                        or current_min_last_analyzed != last_analyzed_sent
                     )
                 ):
-                    schedules_file.update_endpoint_last_request(
+                    schedules_file.update_endpoint_timestamps(
                         endpoint_uid=endpoint.metadata.uid,
-                        timestamp=int(endpoint.status.last_request.timestamp()),
-                    )
-                    schedules_file.update_endpoint_last_analyzed(
-                        endpoint_uid=endpoint.metadata.uid,
-                        timestamp=batch_window_generator.get_min_last_analyzed(),
+                        last_request=int(endpoint.status.last_request.timestamp()),
+                        last_analyzed=current_min_last_analyzed,
                     )
                     return True
                 else:
                     logger.info(
                         "All the possible intervals were already analyzed, didn't push regular event",
                         endpoint_id=endpoint.metadata.uid,
-                        last_analyzed=datetime.datetime.fromtimestamp(
-                            batch_window_generator.get_min_last_analyzed(),
-                            tz=datetime.timezone.utc,
-                        ),
+                        last_analyzed=current_min_last_analyzed,
+                        tz=datetime.timezone.utc,
                         last_request=endpoint.status.last_request,
                     )
         else:
@@ -369,10 +366,9 @@ class MonitoringApplicationController:
     @staticmethod
     def _should_send_nop_event(
         base_period_minutes: int,
-        batch_window_generator: _BatchWindowGenerator,
+        min_last_analyzed: int,
         current_time: datetime.datetime,
     ):
-        min_last_analyzed = batch_window_generator.get_min_last_analyzed()
         if min_last_analyzed:
             return (
                 current_time.timestamp() - min_last_analyzed
@@ -490,7 +486,9 @@ class MonitoringApplicationController:
                 current_time = mlrun.utils.datetime_now()
                 if (
                     self._should_send_nop_event(
-                        base_period, batch_window_generator, current_time
+                        base_period,
+                        batch_window_generator.get_min_last_analyzed(),
+                        current_time,
                     )
                     and event[ControllerEvent.KIND] != ControllerEventKind.NOP_EVENT
                 ):

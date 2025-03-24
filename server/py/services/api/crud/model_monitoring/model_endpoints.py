@@ -842,8 +842,6 @@ class ModelEndpoints:
                 project=project, endpoint_id=uid
             ).delete()
 
-        ModelMonitoringSchedulesFileChief(project=project).delete()
-
         # delete tsdb records - run the deletion of the TSDB records in the background
         background_task_name = str(uuid.uuid4())
         framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
@@ -1529,6 +1527,7 @@ class ModelMonitoringResourcesDeleter:
                 model_monitoring_applications=self._model_monitoring_applications,
                 model_monitoring_access_key=self._model_monitoring_access_key,
             )
+            ModelMonitoringSchedulesFileChief(project=self._project).delete()
         except Exception as exc:
             logger.warning(
                 "Failed to delete model monitoring resources",

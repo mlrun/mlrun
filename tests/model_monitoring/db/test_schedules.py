@@ -156,42 +156,6 @@ class TestModelMonitoringSchedulesFileChief:
         file.delete()
         assert not file._fs.exists(file._path), "The schedules file wasn't deleted"
 
-    def test_unique_last_analyzed_per_mep(
-        self,
-        schedules_file: ModelMonitoringSchedulesFileChief,
-    ) -> None:
-        mep1_name = "app-A"
-        mep1_last_analyzed = 1716720842
-        mep2_name = "app-B"
-
-        with schedules_file as f:
-            f.update_endpoint_last_analyzed(
-                endpoint_uid=mep1_name, timestamp=mep1_last_analyzed
-            )
-
-            assert f.get_endpoint_last_analyzed(mep1_name) == mep1_last_analyzed
-            assert f.get_endpoint_last_analyzed(mep2_name) is None
-            assert f.get_endpoint_last_request(mep1_name) is None
-            assert f.get_endpoint_last_request(mep2_name) is None
-
-    def test_unique_last_request_per_mep(
-        self,
-        schedules_file: ModelMonitoringSchedulesFileChief,
-    ) -> None:
-        mep1_name = "app-A"
-        mep1_last_request = 1716720842
-        mep2_name = "app-B"
-
-        with schedules_file as f:
-            f.update_endpoint_last_request(
-                endpoint_uid=mep1_name, timestamp=mep1_last_request
-            )
-
-            assert f.get_endpoint_last_request(mep1_name) == mep1_last_request
-            assert f.get_endpoint_last_request(mep2_name) is None
-            assert f.get_endpoint_last_analyzed(mep1_name) is None
-            assert f.get_endpoint_last_analyzed(mep2_name) is None
-
     def test_stored_times(
         self,
         schedules_file: ModelMonitoringSchedulesFileChief,
@@ -201,11 +165,10 @@ class TestModelMonitoringSchedulesFileChief:
         mep1_last_request = 1716720841
 
         with schedules_file as f:
-            f.update_endpoint_last_request(
-                endpoint_uid=mep1_name, timestamp=mep1_last_request
-            )
-            f.update_endpoint_last_analyzed(
-                endpoint_uid=mep1_name, timestamp=mep1_last_analyzed
+            f.update_endpoint_timestamps(
+                endpoint_uid=mep1_name,
+                last_request=mep1_last_request,
+                last_analyzed=mep1_last_analyzed,
             )
 
             assert f.get_endpoint_last_request(mep1_name) == mep1_last_request
@@ -229,18 +192,23 @@ class TestModelMonitoringSchedulesFileChief:
                 pass
 
     def test_get_or_create(self):
+        my_mep_last_request = 1716720841
         my_mep_last_analyzed = 1716720842
 
         ModelMonitoringSchedulesFileChief(project="project-1").get_or_create()
         with ModelMonitoringSchedulesFileChief(project="project-1") as f:
-            f.update_endpoint_last_request(
-                endpoint_uid="my-mep", timestamp=my_mep_last_analyzed
+            f.update_endpoint_timestamps(
+                endpoint_uid="my-mep",
+                last_request=my_mep_last_request,
+                last_analyzed=my_mep_last_analyzed,
             )
 
         ModelMonitoringSchedulesFileChief(project="project-1").get_or_create()
         with ModelMonitoringSchedulesFileChief(project="project-1") as f1:
             assert (
                 f1.get_endpoint_last_request(endpoint_uid="my-mep")
+                == my_mep_last_request
+                and f1.get_endpoint_last_analyzed(endpoint_uid="my-mep")
                 == my_mep_last_analyzed
             )
             f1.delete()

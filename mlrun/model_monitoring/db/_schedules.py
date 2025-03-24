@@ -13,17 +13,16 @@
 # limitations under the License.
 
 import json
-from abc import ABC
+from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
 from types import TracebackType
 from typing import Final, Optional
 
 import botocore.exceptions
 
+import mlrun.common.schemas as schemas
 import mlrun.errors
 import mlrun.model_monitoring.helpers
-from mlrun.common.schemas import ModelEndpoint
-from mlrun.common.schemas.model_monitoring.constants import ScheduleChiefFields
 from mlrun.utils import logger
 
 
@@ -33,16 +32,19 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
     ENCODING = "utf-8"
 
     def __init__(self):
-        self._item = None
+        self._item = self.get_data_item_object()
+        if self._item:
+            self._path = self._item.url
+            self._fs = self._item.store.filesystem
+            # `self._schedules` is an in-memory copy of the DB for all the applications for
+            # the same model endpoint.
+            self._schedules: dict[str, int] = self.DEFAULT_SCHEDULES.copy()
+            # Does `self._schedules` hold the content of `self._item`?
+            self._open_schedules = False
 
-    def _post_init(self):
-        self._path = self._item.url
-        self._fs = self._item.store.filesystem
-        # `self._schedules` is an in-memory copy of the DB for all the applications for
-        # the same model endpoint.
-        self._schedules: dict[str, int] = self.DEFAULT_SCHEDULES.copy()
-        # Does `self._schedules` hold the content of `self._item`?
-        self._open_schedules = False
+    @abstractmethod
+    def get_data_item_object(self) -> mlrun.DataItem:
+        pass
 
     def create(self) -> None:
         """Create a schedules file with initial content - an empty dictionary"""
@@ -128,17 +130,18 @@ class ModelMonitoringSchedulesFileEndpoint(ModelMonitoringSchedulesFileBase):
         :param endpoint_id: The endpoint ID.
         """
         # `self._item` is the persistent version of the monitoring schedules.
+        self._project = project
+        self._endpoint_id = endpoint_id
         super().__init__()
-        self._item = (
-            mlrun.model_monitoring.helpers.get_monitoring_schedules_endpoint_data(
-                project=project, endpoint_id=endpoint_id
-            )
+
+    def get_data_item_object(self) -> mlrun.DataItem:
+        return mlrun.model_monitoring.helpers.get_monitoring_schedules_endpoint_data(
+            project=self._project, endpoint_id=self._endpoint_id
         )
-        self._post_init()
 
     @classmethod
     def from_model_endpoint(
-        cls, model_endpoint: ModelEndpoint
+        cls, model_endpoint: schemas.ModelEndpoint
     ) -> "ModelMonitoringSchedulesFileEndpoint":
         return cls(
             project=model_endpoint.metadata.project,
@@ -173,11 +176,13 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
         :param project:     The project name.
         """
         # `self._item` is the persistent version of the monitoring schedules.
+        self._project = project
         super().__init__()
-        self._item = mlrun.model_monitoring.helpers.get_monitoring_schedules_chief_data(
-            project=project
+
+    def get_data_item_object(self) -> mlrun.DataItem:
+        return mlrun.model_monitoring.helpers.get_monitoring_schedules_chief_data(
+            project=self._project
         )
-        self._post_init()
 
     def _post_init(self):
         self._path = self._item.url
@@ -191,7 +196,9 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
     def get_endpoint_last_request(self, endpoint_uid: str) -> Optional[int]:
         self._check_open_schedules()
         if endpoint_uid in self._schedules:
-            return self._schedules[endpoint_uid].get(ScheduleChiefFields.LAST_REQUEST)
+            return self._schedules[endpoint_uid].get(
+                schemas.model_monitoring.constants.ScheduleChiefFields.LAST_REQUEST
+            )
         else:
             return None
 
@@ -200,22 +207,24 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
     ) -> None:
         self._check_open_schedules()
         if endpoint_uid in self._schedules:
-            self._schedules[endpoint_uid][ScheduleChiefFields.LAST_REQUEST] = (
-                last_request
-            )
-            self._schedules[endpoint_uid][ScheduleChiefFields.LAST_ANALYZED] = (
-                last_analyzed
-            )
+            self._schedules[endpoint_uid][
+                schemas.model_monitoring.constants.ScheduleChiefFields.LAST_REQUEST
+            ] = last_request
+            self._schedules[endpoint_uid][
+                schemas.model_monitoring.constants.ScheduleChiefFields.LAST_ANALYZED
+            ] = last_analyzed
         else:
             self._schedules[endpoint_uid] = {
-                ScheduleChiefFields.LAST_REQUEST: last_request,
-                ScheduleChiefFields.LAST_ANALYZED: last_analyzed,
+                schemas.model_monitoring.constants.ScheduleChiefFields.LAST_REQUEST: last_request,
+                schemas.model_monitoring.constants.ScheduleChiefFields.LAST_ANALYZED: last_analyzed,
             }
 
     def get_endpoint_last_analyzed(self, endpoint_uid: str) -> Optional[int]:
         self._check_open_schedules()
         if endpoint_uid in self._schedules:
-            return self._schedules[endpoint_uid].get(ScheduleChiefFields.LAST_ANALYZED)
+            return self._schedules[endpoint_uid].get(
+                schemas.model_monitoring.constants.ScheduleChiefFields.LAST_ANALYZED
+            )
         else:
             return None
 

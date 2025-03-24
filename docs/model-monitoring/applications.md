@@ -101,7 +101,6 @@ After you have fine-tuned the model, deploy it:
 app_fn = MyApp.deploy(
     func_path="Myapp.py",
     func_name="run-me-in-wf",
-    image="docker.io/mlrun/mlrun:1.8.0",
 )
 ```
 

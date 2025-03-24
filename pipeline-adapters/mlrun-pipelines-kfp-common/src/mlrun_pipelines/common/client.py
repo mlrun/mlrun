@@ -14,7 +14,7 @@
 #
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import kfp_server_api
 
@@ -87,7 +87,7 @@ class AbstractClient(ABC):
         experiment_id: str,
         job_name: str,
         pipeline_package_path: Optional[str] = None,
-        params: Optional[Dict[str, Any]] = None,
+        params: Optional[dict[str, Any]] = None,
         pipeline_id: Optional[str] = None,
         version_id: Optional[str] = None,
         pipeline_root: Optional[str] = None,

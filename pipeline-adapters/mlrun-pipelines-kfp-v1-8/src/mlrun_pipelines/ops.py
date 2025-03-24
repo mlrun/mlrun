@@ -17,16 +17,16 @@ import os
 import os.path
 
 import inflection
-from kubernetes import client as k8s_client
-
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.utils.helpers
-import mlrun_pipelines.common.constants
-import mlrun_pipelines.common.ops
+from kubernetes import client as k8s_client
 from mlrun.config import config
 from mlrun.utils import get_in
+
+import mlrun_pipelines.common.constants
+import mlrun_pipelines.common.ops
 from mlrun_pipelines.common.helpers import (
     FUNCTION_ANNOTATION,
     PROJECT_ANNOTATION,

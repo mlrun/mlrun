@@ -73,6 +73,7 @@ log_level = "DEBUG"
 [tool.importlinter]
 include_external_packages = true
 
-[[tool.importlinter.contracts]]
-name = "forbid-mlrun-import"
-forbidden = ["mlrun"]
+# TODO: Uncomment once mlrun is removed as a dependency
+#[[tool.importlinter.contracts]]
+#name = "forbid-mlrun-import"
+#forbidden = ["mlrun"]

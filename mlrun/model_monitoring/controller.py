@@ -28,6 +28,7 @@ import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
+import mlrun.model_monitoring.db._schedules as schedules
 import mlrun.model_monitoring.helpers
 from mlrun.common.schemas import EndpointType
 from mlrun.common.schemas.model_monitoring.constants import (
@@ -36,10 +37,6 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ControllerEventKind,
 )
 from mlrun.errors import err_to_str
-from mlrun.model_monitoring.db._schedules import (
-    ModelMonitoringSchedulesFileChief,
-    ModelMonitoringSchedulesFileEndpoint,
-)
 from mlrun.model_monitoring.helpers import batch_dict2timedelta
 from mlrun.utils import datetime_now, logger
 
@@ -56,7 +53,7 @@ class _BatchWindow:
     def __init__(
         self,
         *,
-        schedules_file: ModelMonitoringSchedulesFileEndpoint,
+        schedules_file: schedules.ModelMonitoringSchedulesFileEndpoint,
         application: str,
         timedelta_seconds: int,
         last_updated: int,
@@ -156,7 +153,7 @@ class _BatchWindowGenerator(AbstractContextManager):
         self._project = project
         self._endpoint_id = endpoint_id
         self._timedelta = window_length
-        self._schedules_file = ModelMonitoringSchedulesFileEndpoint(
+        self._schedules_file = schedules.ModelMonitoringSchedulesFileEndpoint(
             project=project, endpoint_id=endpoint_id
         )
 
@@ -276,7 +273,7 @@ class MonitoringApplicationController:
         endpoint: mlrun.common.schemas.ModelEndpoint,
         application_names: set,
         base_period_minutes: int,
-        schedules_file: ModelMonitoringSchedulesFileChief,
+        schedules_file: schedules.ModelMonitoringSchedulesFileChief,
     ) -> bool:
         """
         checks if there is a need to monitor the given endpoint, we should monitor endpoint if it stands in the
@@ -348,7 +345,6 @@ class MonitoringApplicationController:
                         "All the possible intervals were already analyzed, didn't push regular event",
                         endpoint_id=endpoint.metadata.uid,
                         last_analyzed=current_min_last_analyzed,
-                        tz=datetime.timezone.utc,
                         last_request=endpoint.status.last_request,
                     )
         else:
@@ -627,7 +623,9 @@ class MonitoringApplicationController:
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=min(len(endpoints), 10)
         ) as pool:
-            with ModelMonitoringSchedulesFileChief(self.project) as schedule_file:
+            with schedules.ModelMonitoringSchedulesFileChief(
+                self.project
+            ) as schedule_file:
                 futures = {
                     pool.submit(
                         self.endpoint_to_regular_event,
@@ -660,7 +658,7 @@ class MonitoringApplicationController:
         policy: dict,
         applications_names: set,
         v3io_access_key: str,
-        schedule_file: ModelMonitoringSchedulesFileChief,
+        schedule_file: schedules.ModelMonitoringSchedulesFileChief,
     ) -> None:
         if self._should_monitor_endpoint(
             endpoint,

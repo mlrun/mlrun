@@ -38,7 +38,7 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
             self._fs = self._item.store.filesystem
             # `self._schedules` is an in-memory copy of the DB for all the applications for
             # the same model endpoint.
-            self._schedules: dict[str, int] = self.DEFAULT_SCHEDULES.copy()
+            self._schedules = self.DEFAULT_SCHEDULES.copy()
             # Does `self._schedules` hold the content of `self._item`?
             self._open_schedules = False
 
@@ -183,15 +183,6 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
         return mlrun.model_monitoring.helpers.get_monitoring_schedules_chief_data(
             project=self._project
         )
-
-    def _post_init(self):
-        self._path = self._item.url
-        self._fs = self._item.store.filesystem
-        # `self._schedules` is an in-memory copy of the DB for all the applications for
-        # the same model endpoint.
-        self._schedules: dict[str, dict[str, int]] = {}
-        # Does `self._schedules` hold the content of `self._item`?
-        self._open_schedules = False
 
     def get_endpoint_last_request(self, endpoint_uid: str) -> Optional[int]:
         self._check_open_schedules()

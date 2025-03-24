@@ -76,7 +76,6 @@ class MonitoringApplicationContext:
         :param sample_df:               (pd.DataFrame) The new sample DataFrame.
         :param start_infer_time:        (pd.Timestamp) Start time of the monitoring schedule.
         :param end_infer_time:          (pd.Timestamp) End time of the monitoring schedule.
-        :param latest_request:          (pd.Timestamp) Timestamp of the latest request on this endpoint_id.
         :param endpoint_id:             (str) ID of the monitored model endpoint
         :param feature_set:              (FeatureSet) the model endpoint feature set
         :param endpoint_name:           (str) Name of the monitored model endpoint
@@ -208,6 +207,20 @@ class MonitoringApplicationContext:
     @property
     def sample_df(self) -> pd.DataFrame:
         if self._sample_df is None:
+            if (
+                self.endpoint_name is None
+                or self.endpoint_id is None
+                or pd.isnull(self.start_infer_time)
+                or pd.isnull(self.end_infer_time)
+            ):
+                raise mlrun.errors.MLRunValueError(
+                    "You have tried to access `monitoring_context.sample_df`, but have not provided it directly "
+                    "through `sample_data`, nor have you provided the model endpoint's name, ID, and the start and "
+                    f"end times: `endpoint_name`={self.endpoint_name}, `endpoint_uid`={self.endpoint_id}, "
+                    f"`start`={self.start_infer_time}, and `end`={self.end_infer_time}. "
+                    "You can either provide the sample dataframe directly, the model endpoint's details and times, "
+                    "or adapt the application's logic to not access the sample dataframe."
+                )
             feature_set = self.feature_set
             features = [f"{feature_set.metadata.name}.*"]
             vector = fstore.FeatureVector(

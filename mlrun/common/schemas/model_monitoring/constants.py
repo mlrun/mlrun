@@ -289,7 +289,7 @@ class ModelMonitoringMode(StrEnum):
     disabled = "disabled"
 
 
-class ScheduleChiefFields(MonitoringStrEnum):
+class ScheduleChiefFields(StrEnum):
     LAST_REQUEST = "last_request"
     LAST_ANALYZED = "last_analyzed"
 

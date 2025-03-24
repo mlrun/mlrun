@@ -52,7 +52,7 @@ To register and deploy the application see {ref}`register-model-monitoring-app`.
 You can run and debug your application as a job with data, but without a model endpoint or datastore profiles. This reduces
 the time required to refine your model before deploying. 
 The monitoring creates metrics that assist you in understanding and refining the model behavior. 
-You can use this flow for both local and remote jobsß.
+You can use this flow for both local and remote jobs.
 
 Use {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.evaluate` to test your code. 
 When you are satisfied with the application, deploy it with `.deploy`.

@@ -96,7 +96,7 @@ MyApp.evaluate(
     sample_data=pd.DataFrame({"col": [1, 2, 3, 4]}),
 )
 ```
-After you have fine-tuned the model, deploy it:
+After you have fine-tuned the model monitoring application, deploy it with:
 ```python
 app_fn = MyApp.deploy(
     func_path="Myapp.py",

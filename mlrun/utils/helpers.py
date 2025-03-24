@@ -935,10 +935,10 @@ def resolve_image_tag_suffix(
             return "-py39"
         return ""
 
-    # For mlrun 1.9.x and 1.10.x, we support mlrun runtimes images with both python 3.9 and 3.12 images.
-    # While the python 3.12 images will continue to have no suffix, the python 3.9 images will have a '-py39' suffix.
-    # Python 3.10/3.11 images are not supported in mlrun 1.9.0, meaning that if the user has client with python 3.10
-    # and mlrun 1.9.x then the image will be pulled without a suffix (which is the python 3.12 image).
+    # For mlrun 1.9.x and 1.10.x, we support mlrun runtimes images with both python 3.9 and 3.11 images.
+    # While the python 3.11 images will continue to have no suffix, the python 3.9 images will have a '-py39' suffix.
+    # Python 3.10 images are not supported in mlrun 1.9.0, meaning that if the user has client with python 3.10
+    # and mlrun 1.9.x then the image will be pulled without a suffix (which is the python 3.11 image).
     # using semver (x.y.z-X) to include rc versions as well
     if semver.VersionInfo.parse("1.11.0-X") > semver.VersionInfo.parse(
         mlrun_version

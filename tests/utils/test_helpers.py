@@ -719,7 +719,7 @@ def test_validate_v3io_consumer_group(value, expected):
         {
             "image": "mlrun/mlrun",
             "client_version": "1.9.0",
-            "client_python_version": "3.12.13",
+            "client_python_version": "3.11.13",
             "images_tag": None,
             "version": None,
             "expected_output": "mlrun/mlrun:1.9.0",
@@ -761,35 +761,35 @@ def test_enrich_image(case):
     "mlrun_version,python_version,expected",
     [
         ("1.9.0", "3.9.13", "-py39"),
-        ("1.9.0", "3.12.13", ""),
+        ("1.9.0", "3.11.13", ""),
         ("1.9.0", None, ""),
         ("1.9.0", "3.10.13", ""),
-        ("1.9.0", "3.12.0", ""),
+        ("1.9.0", "3.11.0", ""),
         ("1.8.0", "3.9.0", ""),
         ("1.8.0", "3.10.0", ""),
         ("1.9.0-rc12", "3.9.13", "-py39"),
-        ("1.9.0-rc12", "3.12.13", ""),
+        ("1.9.0-rc12", "3.11.13", ""),
         ("1.9.0-rc12", None, ""),
         ("1.9.0-rc12", "3.10.13", ""),
         ("1.9.1", "3.9.13", "-py39"),
-        ("1.9.1", "3.12.13", ""),
+        ("1.9.1", "3.11.13", ""),
         ("1.9.1", None, ""),
         ("1.9.1", "3.10.13", ""),
         ("1.9.1-rc12", "3.9.13", "-py39"),
-        ("1.9.1-rc12", "3.12.13", ""),
+        ("1.9.1-rc12", "3.11.13", ""),
         # an example of a version which contains a suffix of commit hash and not a rc suffix (our CI uses this format)
         ("1.9.0-zwqeiubz", "3.9.13", "-py39"),
-        ("1.9.0-zwqeiubz", "3.12.13", ""),
+        ("1.9.0-zwqeiubz", "3.11.13", ""),
         # an example of a dev version which contains `unstable` and not a rc suffix (When compiling from source without
         # defining a version)
         ("0.0.0-unstable", "3.9.13", "-py39"),
-        ("0.0.0-unstable", "3.12.13", ""),
+        ("0.0.0-unstable", "3.11.13", ""),
         # list of versions which are later than 1.9.0, if we decide to stop supporting python 3.9 in later versions
         # we can remove them
-        ("1.10.0", "3.12.13", ""),
+        ("1.10.0", "3.11.13", ""),
         ("1.10.0", "3.9.13", "-py39"),
         ("1.10.0-rc1", "3.9.13", "-py39"),
-        ("1.10.0-rc1", "3.12.13", ""),
+        ("1.10.0-rc1", "3.11.13", ""),
     ],
 )
 def test_resolve_image_tag_suffix(mlrun_version, python_version, expected):

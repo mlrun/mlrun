@@ -227,7 +227,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         project_name = "project-1"
         mlrun.new_project(project_name)
         # Create 5 runs with different states
-        # Runs 1, is completed, runs 2 and 3 start as running and moves to completed
+        # Run 1, is completed, runs 2 and 3 start as running and move to completed
         updated_to_completed_uids = []
         statuses = [
             {
@@ -266,6 +266,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
                 },
                 "status": status,
             }
+            self._logger.debug("Storing run", run=run)
             mlrun.get_run_db().store_run(run, run["metadata"]["uid"], project_name)
 
         # Move 2nd and 3rd run to completed
@@ -274,6 +275,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         }
         for i in range(1, 3):
             uid = f"run-name-{i}-uid"
+            self._logger.debug("Updating run to completed", uid=uid)
             mlrun.get_run_db().update_run(
                 updates=updates,
                 uid=uid,
@@ -301,6 +303,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert stored_run["status"]["end_time"].endswith("+00:00")
 
         # 2nd run is 1st in order because it started last
+        self._logger.debug("Checking order of runs", runs=runs)
         assert runs[0]["metadata"]["name"] == "run-name-1"
         assert runs[1]["metadata"]["name"] == "run-name-0"
         assert runs[1]["status"]["end_time"] == statuses[0]["end_time"].isoformat()
@@ -325,6 +328,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             "status.state": mlrun.common.runtimes.constants.RunStates.completed,
         }
         uid = "run-name-4-uid"
+        self._logger.debug("Updating run to completed", uid=uid)
         mlrun.get_run_db().update_run(
             updates=updates,
             uid=uid,

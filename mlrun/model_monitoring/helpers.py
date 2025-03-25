@@ -472,6 +472,7 @@ def update_model_endpoint_last_request(
             "Bumping model endpoint last request time (EP without serving)",
             project=project,
             endpoint_id=model_endpoint.metadata.uid,
+            function_name=model_endpoint.spec.function_name,
             last_request=model_endpoint.status.last_request,
             current_request=current_request.isoformat(),
             bumped_last_request=bumped_last_request,
@@ -586,16 +587,43 @@ def _get_monitoring_schedules_folder_path(project: str) -> str:
     )
 
 
-def _get_monitoring_schedules_file_path(*, project: str, endpoint_id: str) -> str:
+def _get_monitoring_schedules_file_endpoint_path(
+    *, project: str, endpoint_id: str
+) -> str:
     return os.path.join(
         _get_monitoring_schedules_folder_path(project), f"{endpoint_id}.json"
     )
 
 
-def get_monitoring_schedules_data(*, project: str, endpoint_id: str) -> "DataItem":
+def get_monitoring_schedules_endpoint_data(
+    *, project: str, endpoint_id: str
+) -> "DataItem":
     """
     Get the model monitoring schedules' data item of the project's model endpoint.
     """
     return mlrun.datastore.store_manager.object(
-        _get_monitoring_schedules_file_path(project=project, endpoint_id=endpoint_id)
+        _get_monitoring_schedules_file_endpoint_path(
+            project=project, endpoint_id=endpoint_id
+        )
+    )
+
+
+def get_monitoring_schedules_chief_data(
+    *,
+    project: str,
+) -> "DataItem":
+    """
+    Get the model monitoring schedules' data item of the project's model endpoint.
+    """
+    return mlrun.datastore.store_manager.object(
+        _get_monitoring_schedules_file_chief_path(project=project)
+    )
+
+
+def _get_monitoring_schedules_file_chief_path(
+    *,
+    project: str,
+) -> str:
+    return os.path.join(
+        _get_monitoring_schedules_folder_path(project), f"{project}.json"
     )

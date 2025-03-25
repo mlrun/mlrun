@@ -28,6 +28,7 @@ import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
+import mlrun.model_monitoring.db._schedules as schedules
 import mlrun.model_monitoring.helpers
 from mlrun.common.schemas import EndpointType
 from mlrun.common.schemas.model_monitoring.constants import (
@@ -36,7 +37,6 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ControllerEventKind,
 )
 from mlrun.errors import err_to_str
-from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFile
 from mlrun.model_monitoring.helpers import batch_dict2timedelta
 from mlrun.utils import datetime_now, logger
 
@@ -53,7 +53,7 @@ class _BatchWindow:
     def __init__(
         self,
         *,
-        schedules_file: ModelMonitoringSchedulesFile,
+        schedules_file: schedules.ModelMonitoringSchedulesFileEndpoint,
         application: str,
         timedelta_seconds: int,
         last_updated: int,
@@ -153,7 +153,7 @@ class _BatchWindowGenerator(AbstractContextManager):
         self._project = project
         self._endpoint_id = endpoint_id
         self._timedelta = window_length
-        self._schedules_file = ModelMonitoringSchedulesFile(
+        self._schedules_file = schedules.ModelMonitoringSchedulesFileEndpoint(
             project=project, endpoint_id=endpoint_id
         )
 
@@ -273,6 +273,7 @@ class MonitoringApplicationController:
         endpoint: mlrun.common.schemas.ModelEndpoint,
         application_names: set,
         base_period_minutes: int,
+        schedules_file: schedules.ModelMonitoringSchedulesFileChief,
     ) -> bool:
         """
         checks if there is a need to monitor the given endpoint, we should monitor endpoint if it stands in the
@@ -281,11 +282,23 @@ class MonitoringApplicationController:
             2.  first request exists
             3.  last request exists
             4.  endpoint_type is not ROUTER
-        if the four above conditions apply we require one of the three conditions to monitor:
+        if the four above conditions apply we require one of the two condition monitor:
             1.  never monitored the one of the endpoint applications meaning min_last_analyzed is None
-            2.  last request has a higher timestamp than the min_last_analyzed timestamp
-            3.  We didn't analyze one of the application for over than _MAX_OPEN_WINDOWS_ALLOWED windows
+            2.  min_last_analyzed stands in the condition for sending NOP event and this the first time regular event
+            is sent with the combination of  current last_request  & current last_analyzed  per endpoint.
         """
+        last_timestamp_sent = schedules_file.get_endpoint_last_request(
+            endpoint.metadata.uid
+        )
+        last_analyzed_sent = schedules_file.get_endpoint_last_analyzed(
+            endpoint.metadata.uid
+        )
+        logger.debug(
+            "Chief should monitor endpoint check",
+            last_timestamp_sent=last_timestamp_sent,
+            last_analyzed_sent=last_analyzed_sent,
+            uid=endpoint.metadata.uid,
+        )
         if (
             # Is the model endpoint monitored?
             endpoint.status.monitoring_mode == mm_constants.ModelMonitoringMode.enabled
@@ -300,26 +313,43 @@ class MonitoringApplicationController:
                 project=endpoint.metadata.project,
                 endpoint_id=endpoint.metadata.uid,
             ) as batch_window_generator:
-                base_period_seconds = base_period_minutes * _SECONDS_IN_MINUTE
-                if application_names != batch_window_generator.get_application_list():
+                current_time = mlrun.utils.datetime_now()
+                current_min_last_analyzed = (
+                    batch_window_generator.get_min_last_analyzed()
+                )
+                if (
+                    # Different application names, or last analyzed never updated while there are application to monitor
+                    application_names
+                    and (
+                        application_names
+                        != batch_window_generator.get_application_list()
+                        or not current_min_last_analyzed
+                    )
+                ):
                     return True
                 elif (
-                    not batch_window_generator.get_min_last_analyzed()
-                    or batch_window_generator.get_min_last_analyzed()
-                    <= int(endpoint.status.last_request.timestamp())
-                    or mlrun.utils.datetime_now().timestamp()
-                    - batch_window_generator.get_min_last_analyzed()
-                    >= self._MAX_OPEN_WINDOWS_ALLOWED * base_period_seconds
+                    # Does nop event will be sent to close the relevant window
+                    self._should_send_nop_event(
+                        base_period_minutes, current_min_last_analyzed, current_time
+                    )
+                    and (
+                        int(endpoint.status.last_request.timestamp())
+                        != last_timestamp_sent
+                        or current_min_last_analyzed != last_analyzed_sent
+                    )
                 ):
+                    # Write to schedule chief file the last_request, min_last_analyzed we pushed event to stream
+                    schedules_file.update_endpoint_timestamps(
+                        endpoint_uid=endpoint.metadata.uid,
+                        last_request=int(endpoint.status.last_request.timestamp()),
+                        last_analyzed=current_min_last_analyzed,
+                    )
                     return True
                 else:
                     logger.info(
                         "All the possible intervals were already analyzed, didn't push regular event",
                         endpoint_id=endpoint.metadata.uid,
-                        last_analyzed=datetime.datetime.fromtimestamp(
-                            batch_window_generator.get_min_last_analyzed(),
-                            tz=datetime.timezone.utc,
-                        ),
+                        last_analyzed=current_min_last_analyzed,
                         last_request=endpoint.status.last_request,
                     )
         else:
@@ -333,6 +363,21 @@ class MonitoringApplicationController:
                 feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
             )
         return False
+
+    @staticmethod
+    def _should_send_nop_event(
+        base_period_minutes: int,
+        min_last_analyzed: int,
+        current_time: datetime.datetime,
+    ):
+        if min_last_analyzed:
+            return (
+                current_time.timestamp() - min_last_analyzed
+                >= datetime.timedelta(minutes=base_period_minutes).total_seconds()
+                + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            )
+        else:
+            return True
 
     def run(self, event: nuclio_sdk.Event) -> None:
         """
@@ -441,9 +486,11 @@ class MonitoringApplicationController:
                 ]
                 current_time = mlrun.utils.datetime_now()
                 if (
-                    current_time.timestamp()
-                    - batch_window_generator.get_min_last_analyzed()
-                    >= datetime.timedelta(minutes=base_period).total_seconds()
+                    self._should_send_nop_event(
+                        base_period,
+                        batch_window_generator.get_min_last_analyzed(),
+                        current_time,
+                    )
                     and event[ControllerEvent.KIND] != ControllerEventKind.NOP_EVENT
                 ):
                     event = {
@@ -581,29 +628,33 @@ class MonitoringApplicationController:
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=min(len(endpoints), 10)
         ) as pool:
-            futures = {
-                pool.submit(
-                    self.endpoint_to_regular_event,
-                    endpoint,
-                    policy,
-                    set(applications_names),
-                    self.v3io_access_key,
-                ): endpoint
-                for endpoint in endpoints
-            }
-            for future in concurrent.futures.as_completed(futures):
-                if future.exception():
-                    exception = future.exception()
-                    error = (
-                        f"Failed to push event. Endpoint name: {futures[future].metadata.name}, "
-                        f"endpoint uid: {futures[future].metadata.uid}, traceback:\n"
-                    )
-                    error += "".join(
-                        traceback.format_exception(
-                            None, exception, exception.__traceback__
+            with schedules.ModelMonitoringSchedulesFileChief(
+                self.project
+            ) as schedule_file:
+                futures = {
+                    pool.submit(
+                        self.endpoint_to_regular_event,
+                        endpoint,
+                        policy,
+                        set(applications_names),
+                        self.v3io_access_key,
+                        schedule_file,
+                    ): endpoint
+                    for endpoint in endpoints
+                }
+                for future in concurrent.futures.as_completed(futures):
+                    if future.exception():
+                        exception = future.exception()
+                        error = (
+                            f"Failed to push event. Endpoint name: {futures[future].metadata.name}, "
+                            f"endpoint uid: {futures[future].metadata.uid}, traceback:\n"
                         )
-                    )
-                    logger.error(error)
+                        error += "".join(
+                            traceback.format_exception(
+                                None, exception, exception.__traceback__
+                            )
+                        )
+                        logger.error(error)
         logger.info("Finishing monitoring controller chief")
 
     def endpoint_to_regular_event(
@@ -612,14 +663,16 @@ class MonitoringApplicationController:
         policy: dict,
         applications_names: set,
         v3io_access_key: str,
+        schedule_file: schedules.ModelMonitoringSchedulesFileChief,
     ) -> None:
         if self._should_monitor_endpoint(
             endpoint,
             set(applications_names),
             policy.get(ControllerEventEndpointPolicy.BASE_PERIOD, 10),
+            schedule_file,
         ):
-            logger.info(
-                "Regular event is being pushed to controller stream for model endpoint",
+            logger.debug(
+                "Endpoint data is being prepared for regular event",
                 endpoint_id=endpoint.metadata.uid,
                 endpoint_name=endpoint.metadata.name,
                 timestamp=endpoint.status.last_request.isoformat(

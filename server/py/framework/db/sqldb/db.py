@@ -5618,12 +5618,7 @@ class SQLDB(DBInterface):
                     ModelEndpoint.function_id == Function.id,
                     isouter=True,  # LEFT JOIN to Function
                 )
-                query = query.filter(
-                    or_(
-                        Function.name.isnot(None),
-                        ModelEndpoint.endpoint_type == EndpointType.BATCH_EP,
-                    )
-                )
+
         else:
             query = query.outerjoin(
                 ModelEndpoint.Tag, ModelEndpoint.id == ModelEndpoint.Tag.obj_id
@@ -7621,12 +7616,20 @@ class SQLDB(DBInterface):
                 name=normalized_function_name,
                 project=project,
                 tag=function_tag,
-                hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
-                # model endpoints always points on unversioned function
             )
             return function_record
         except mlrun.errors.MLRunNotFoundError:
-            return None
+            try:
+                function_record, _ = self._get_function_db_object(
+                    session,
+                    name=normalized_function_name,
+                    project=project,
+                    tag=function_tag,
+                    hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
+                )
+                return function_record
+            except mlrun.errors.MLRunNotFoundError:
+                return None
 
     @staticmethod
     def _create_mep_record_to_store(

@@ -33,7 +33,12 @@ _TSDB_BE = "tsdb"
 _TSDB_RATE = "1/s"
 _CONTAINER = "users"
 
-V3IO_MEPS_LIMIT = 200
+V3IO_FRAMESD_MEPS_LIMIT = (
+    200  # Maximum number of model endpoints per single request when using V3IO Frames
+)
+V3IO_CLIENT_MEPS_LIMIT = (
+    150  # Maximum number of model endpoints per single request when using V3IO Client
+)
 
 
 def _is_no_schema_error(exc: v3io_frames.Error) -> bool:
@@ -475,8 +480,8 @@ class V3IOTSDBConnector(TSDBConnector):
         tables = mm_schemas.V3IOTSDBTables.list()
 
         # Split the endpoint ids into chunks to avoid exceeding the v3io-engine filter-expression limit
-        for i in range(0, len(endpoint_ids), V3IO_MEPS_LIMIT):
-            endpoint_id_chunk = endpoint_ids[i : i + V3IO_MEPS_LIMIT]
+        for i in range(0, len(endpoint_ids), V3IO_FRAMESD_MEPS_LIMIT):
+            endpoint_id_chunk = endpoint_ids[i : i + V3IO_FRAMESD_MEPS_LIMIT]
             filter_query = f"endpoint_id IN({str(endpoint_id_chunk)[1:-1]}) "
             for table in tables:
                 try:
@@ -684,11 +689,11 @@ class V3IOTSDBConnector(TSDBConnector):
         if isinstance(endpoint_id, str):
             return f"endpoint_id=='{endpoint_id}'"
         elif isinstance(endpoint_id, list):
-            if len(endpoint_id) > V3IO_MEPS_LIMIT:
+            if len(endpoint_id) > V3IO_FRAMESD_MEPS_LIMIT:
                 logger.info(
                     "The number of endpoint ids exceeds the v3io-engine filter-expression limit, "
                     "retrieving all the model endpoints from the db.",
-                    limit=V3IO_MEPS_LIMIT,
+                    limit=V3IO_FRAMESD_MEPS_LIMIT,
                     amount=len(endpoint_id),
                 )
                 return None
@@ -880,23 +885,41 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> dict[str, float]:
-        if isinstance(endpoint_ids, str):
-            filter_expression = f"__name=='{endpoint_ids}'"
-        else:
-            filter_expression = " OR ".join(
-                [f"__name=='{endpoint_id}'" for endpoint_id in endpoint_ids]
-            )
-
         # Get the last request timestamp for each endpoint from the KV table.
         # The result of the query is a list of dictionaries,
         # each dictionary contains the endpoint id and the last request timestamp.
+        last_request_timestamps = {}
+        if isinstance(endpoint_ids, str):
+            endpoint_ids = [endpoint_ids]
 
         try:
-            res = self.v3io_client.kv.new_cursor(
-                container=self.container,
-                table_path=self.last_request_table,
-                filter_expression=filter_expression,
-            ).all()
+            if len(endpoint_ids) > V3IO_CLIENT_MEPS_LIMIT:
+                logger.warning(
+                    "The number of endpoint ids exceeds the v3io-engine filter-expression limit, "
+                    "retrieving last request for all the model endpoints from the KV table.",
+                    limit=V3IO_CLIENT_MEPS_LIMIT,
+                    amount=len(endpoint_ids),
+                )
+
+                res = self.v3io_client.kv.new_cursor(
+                    container=self.container,
+                    table_path=self.last_request_table,
+                ).all()
+                last_request_timestamps.update(
+                    {d["__name"]: d["last_request_timestamp"] for d in res}
+                )
+            else:
+                filter_expression = " OR ".join(
+                    [f"__name=='{endpoint_id}'" for endpoint_id in endpoint_ids]
+                )
+                res = self.v3io_client.kv.new_cursor(
+                    container=self.container,
+                    table_path=self.last_request_table,
+                    filter_expression=filter_expression,
+                ).all()
+                last_request_timestamps.update(
+                    {d["__name"]: d["last_request_timestamp"] for d in res}
+                )
         except Exception as e:
             logger.warning(
                 "Failed to get last request timestamp from V3IO KV table.",
@@ -904,9 +927,8 @@ class V3IOTSDBConnector(TSDBConnector):
                 project=self.project,
                 table=self.last_request_table,
             )
-            return {}
 
-        return {d["__name"]: d["last_request_timestamp"] for d in res}
+        return last_request_timestamps
 
     def get_drift_status(
         self,
@@ -1131,4 +1153,8 @@ class V3IOTSDBConnector(TSDBConnector):
             endpoint_ids=list(model_endpoint_objects_by_uid.keys())
         )
         for uid, mep in model_endpoint_objects_by_uid.items():
-            mep.status.last_request = last_request_dictionary.get(uid)
+            # Set the last request timestamp to the MEP object. If not found, keep the existing value from the
+            # DB (relevant for batch EP).
+            mep.status.last_request = last_request_dictionary.get(
+                uid, mep.status.last_request
+            )

@@ -454,7 +454,8 @@ class SQLDB(DBInterface):
         if end_time_to is not None:
             query = query.filter(Run.end_time <= end_time_to)
         if sort:
-            query = query.order_by(Run.start_time.desc())
+            # If the start_time fields are the same, we need a secondary field to sort by.
+            query = query.order_by(Run.start_time.desc(), Run.id.desc())
         if not iter:
             query = query.filter(Run.iteration == 0)
         if requested_logs is not None:
@@ -525,10 +526,17 @@ class SQLDB(DBInterface):
     def _enrich_run_struct_from_model(
         self, run: Run, run_struct: dict, with_notifications: bool
     ):
+        status = run_struct.setdefault("status", {})
+
+        # These fields are saved in struct as timestamps with fsp=6, while the corresponding columns
+        # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
+        # the column (not from the struct) to ensure the ordering is correct.
+        # In SQLite, the start_time and updated columns return timestamps with fsp=6.
+        status["start_time"] = mlrun.utils.format_datetime(run.start_time)
+        status["updated"] = mlrun.utils.format_datetime(run.updated)
+
         if run.end_time:
-            run_struct.setdefault("status", {})["end_time"] = self._add_utc_timezone(
-                run.end_time
-            ).isoformat()
+            status["end_time"] = self._add_utc_timezone(run.end_time).isoformat()
         if with_notifications:
             self._fill_run_struct_with_notifications(run.notifications, run_struct)
 
@@ -2368,6 +2376,15 @@ class SQLDB(DBInterface):
             limit=limit,
         ):
             function_dict = function.struct
+
+            # updated field is saved in struct as timestamps with fsp=6, while the corresponding column
+            # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
+            # the column (not from the struct) to ensure the ordering is correct.
+            # In SQLite, the updated column return timestamps with fsp=6.
+            function_dict["metadata"]["updated"] = mlrun.utils.format_datetime(
+                function.updated
+            )
+
             function_dict["kind"] = function.kind
             if not function_tag:
                 # function status should be added only to tagged functions
@@ -5512,7 +5529,10 @@ class SQLDB(DBInterface):
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)
-        query = query.order_by(Function.updated.desc())
+
+        # If the updated fields are the same, we need a secondary field to sort by.
+        query = query.order_by(Function.updated.desc(), Function.id.desc())
+
         query = self._paginate_query(query, offset, limit)
         return query
 
@@ -6878,7 +6898,10 @@ class SQLDB(DBInterface):
         if entity_kind:
             query = query.filter(AlertActivation.entity_kind == entity_kind)
 
-        query = query.order_by(AlertActivation.activation_time.desc())
+        # If the activation_time fields are the same, we need a secondary field to sort by.
+        query = query.order_by(
+            AlertActivation.activation_time.desc(), AlertActivation.id.desc()
+        )
         query = self._paginate_query(query, offset, limit)
         return [
             self._transform_alert_activation_record_to_scheme(record)

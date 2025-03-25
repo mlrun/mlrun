@@ -5266,7 +5266,7 @@ class MlrunProject(ModelObj):
             )
 
         # if engine is remote then skip the local file validation
-        if engine and not engine.startswith("remote"):
+        if engine and engine.startswith("remote"):
             return
 
         code_path = self.spec.get_code_path()

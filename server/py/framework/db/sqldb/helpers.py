@@ -63,15 +63,14 @@ def run_state(run):
     )
 
 
-def update_labels(obj, labels: dict):
+def update_labels(obj, labels: dict[str, typing.Union[str, int]]):
+    if not isinstance(labels, dict):
+        raise mlrun.errors.MLRunInvalidArgumentError("Labels must be a dictionary.")
+
     old = {label.name: label for label in obj.labels}
     obj.labels.clear()
     for name, value in labels.items():
-        if len(str(value)) > max_str_length:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Value of `{name}` label is too long. "
-                f"Maximum allowed length is {max_str_length} characters."
-            )
+        _validate_label(name, value)
         if name in old:
             old[name].value = value
             obj.labels.append(old[name])
@@ -174,6 +173,31 @@ def ensure_max_length(string: str):
     if string and len(string) > max_str_length:
         string = string[:max_str_length]
     return string
+
+
+def _validate_label(name: str, value: typing.Union[str, int]):
+    if not isinstance(name, str):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "The name in the label must be a string."
+        )
+
+    if not isinstance(value, (str, int)):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "The value in the label must be a string or an integer."
+        )
+
+    value = str(value)
+
+    _validate_label_length(label_type="Name", label_name=name, validate_element=name)
+    _validate_label_length(label_type="Value", label_name=name, validate_element=value)
+
+
+def _validate_label_length(label_type: str, label_name: str, validate_element: str):
+    """Validates the length of a label name or value and raises an error if it exceeds max_length."""
+    if len(validate_element) > max_str_length:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"{label_type} of `{label_name}` label is too long. Maximum allowed length is {max_str_length} characters."
+        )
 
 
 class MemoizationCache:

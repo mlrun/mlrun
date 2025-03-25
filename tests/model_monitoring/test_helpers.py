@@ -46,7 +46,7 @@ from mlrun.model_monitoring.controller import (
     _BatchWindowGenerator,
     _Interval,
 )
-from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFile
+from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFileEndpoint
 from mlrun.model_monitoring.helpers import (
     _BatchDict,
     _get_monitoring_time_window_from_controller_run,
@@ -242,8 +242,10 @@ class TestBatchInterval:
 
     @staticmethod
     @pytest.fixture
-    def schedules_file() -> Iterator[ModelMonitoringSchedulesFile]:
-        file = ModelMonitoringSchedulesFile(project="test-intervals", endpoint_id="ep")
+    def schedules_file() -> Iterator[ModelMonitoringSchedulesFileEndpoint]:
+        file = ModelMonitoringSchedulesFileEndpoint(
+            project="test-intervals", endpoint_id="ep"
+        )
         file.create()
         yield file
         file.delete()
@@ -251,7 +253,7 @@ class TestBatchInterval:
     @staticmethod
     @pytest.fixture
     def intervals(
-        schedules_file: ModelMonitoringSchedulesFile,
+        schedules_file: ModelMonitoringSchedulesFileEndpoint,
         timedelta_seconds: int,
         first_request: int,
         last_updated: int,
@@ -333,7 +335,7 @@ class TestBatchInterval:
         last_updated: int,
         first_request: int,
         expected_last_analyzed: int,
-        schedules_file: ModelMonitoringSchedulesFile,
+        schedules_file: ModelMonitoringSchedulesFileEndpoint,
     ) -> None:
         with schedules_file as f:
             assert (

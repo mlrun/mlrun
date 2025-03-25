@@ -2144,29 +2144,34 @@ class MlrunProject(ModelObj):
         reset_policy: mlrun.common.schemas.alert.ResetPolicy = mlrun.common.schemas.alert.ResetPolicy.AUTO,
     ) -> list[mlrun.alerts.alert.AlertConfig]:
         """
-        :param name:                   The name of the AlertConfig template. It will be combined with mep_id, app-name
-                                       and result name to generate a unique name.
-        :param summary:                Summary of the alert, will be sent in the generated notifications
-        :param endpoints:              The endpoints from which metrics will be retrieved to configure the alerts.
-                                       This `ModelEndpointList` object obtained via the `list_model_endpoints`
-                                       method or created manually using `ModelEndpoint` objects.
-        :param events:                 AlertTrigger event types (EventKind).
-        :param notifications:          List of notifications to invoke once the alert is triggered
-        :param result_names:           Optional. Filters the result names used to create the alert configuration,
-                                       constructed from the app and result_name regex.
+        Generate alert configurations based on specified model endpoints and result names, which can be defined
+        explicitly or using regex patterns.
 
-                                       For example:
-                                       [`app1.result-*`, `*.result1`]
-                                       will match "mep_uid1.app1.result.result-1" and "mep_uid1.app2.result.result1".
-                                       A specific result_name (not a wildcard) will always create a new alert
-                                       config, regardless of whether the result name exists.
-        :param severity:               Severity of the alert.
-        :param criteria:               When the alert will be triggered based on the
-                                       specified number of events within the defined time period.
-        :param reset_policy:           When to clear the alert. May be "manual" for manual reset of the alert,
-                                       or "auto" if the criteria contains a time period.
-        :returns:                       List of AlertConfig according to endpoints results,
-                                       filtered by result_names.
+                :param name:                   The name of the AlertConfig template. It will be combined with
+                                               mep id, app name and result name to generate a unique name.
+                :param summary:                Summary of the alert, will be sent in the generated notifications
+                :param endpoints:              The endpoints from which metrics will be retrieved to configure
+                                               the alerts.
+                                               The ModelEndpointList object is obtained via the `list_model_endpoints`
+                                               method or created manually using `ModelEndpoint` objects.
+                :param events:                 AlertTrigger event types (EventKind).
+                :param notifications:          List of notifications to invoke once the alert is triggered
+                :param result_names:           Optional. Filters the result names used to create the alert
+                                               configuration, constructed from the app and result_name regex.
+
+                                               For example:
+                                               [`app1.result-*`, `*.result1`]
+                                               will match "mep_uid1.app1.result.result-1" and
+                                               "mep_uid1.app2.result.result1".
+                                               A specific result_name (not a wildcard) will always create a new alert
+                                               config, regardless of whether the result name exists.
+                :param severity:               Severity of the alert.
+                :param criteria:               The threshold for triggering the alert based on the
+                                               specified number of events within the defined time period.
+                :param reset_policy:           When to clear the alert. Either "manual" for manual reset of the alert,
+                                               or "auto" if the criteria contains a time period.
+                :returns:                      List of AlertConfig according to endpoints results,
+                                               filtered by result_names.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         matching_results = []

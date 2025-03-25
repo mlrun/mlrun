@@ -14,7 +14,6 @@
 
 import json
 import posixpath
-import traceback
 import uuid
 import warnings
 from abc import ABC
@@ -105,19 +104,21 @@ class EvidentlyModelMonitoringApplicationBase(
             print(f"evidently json issue, working on path: {full_path}")
             try:
                 with location.open(metadata_path) as f:
-                    return json.load(f)
+                    content = json.load(f)
+                    print(
+                        f"evidently json issue, successful load path: {full_path}, content: {content}"
+                    )
             except FileNotFoundError:
                 print(f"evidently json issue, path not found: {full_path}")
+                continue
             except json.decoder.JSONDecodeError as json_error:
                 print(
-                    f"evidently json issue, path got json error, path:{full_path}, error:"
-                )
-                traceback.print_exception(
-                    type(json_error), json_error, json_error.__traceback__
+                    f"evidently json issue, path got json error, path:{full_path}, error: {json_error}"
                 )
                 print("evidently json issue, file content:")
                 with location.open(metadata_path) as f:
                     print(f.read())
+                continue
 
     @staticmethod
     def log_evidently_object(

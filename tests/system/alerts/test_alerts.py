@@ -402,6 +402,7 @@ class TestAlerts(TestMLRunSystem):
         notifications,
         criteria=None,
     ):
+        print(f"endpoint list: {model_endpoint}, size:{len(model_endpoint)}")
         alert_data = self.project.create_model_monitoring_alert_configs(
             name=name,
             summary=summary,

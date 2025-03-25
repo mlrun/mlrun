@@ -2168,7 +2168,6 @@ class MlrunProject(ModelObj):
         :returns:                       List of AlertConfig according to endpoints results,
                                        filtered by result_names.
         """
-        print(f"endpoint list: {endpoints.endpoints}, size:{len(endpoints.endpoints)}")
         db = mlrun.db.get_run_db(secrets=self._secrets)
         matching_results = []
         specific_result_names = [
@@ -2186,8 +2185,8 @@ class MlrunProject(ModelObj):
             type="results",
             events_format=mm_constants.GetEventsFormat.SEPARATION,
         )
-        print(f"results_by_endpoint: {results_by_endpoint}")
-        print(
+        logger.debug(f"results_by_endpoint: {results_by_endpoint}")
+        logger.debug(
             f"list of endpoints: {self.list_model_endpoints().endpoints}, "
             f"size:{len(self.list_model_endpoints().endpoints)}"
         )

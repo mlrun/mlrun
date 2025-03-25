@@ -262,13 +262,13 @@ class MonitoringApplicationController:
             mlrun.mlconf.artifact_path
         )
         self.storage_options = store.get_storage_options()
-        self.controller_stream: Optional[
+        self._controller_stream: Optional[
             Union[
                 mlrun.platforms.iguazio.OutputStream,
                 mlrun.platforms.iguazio.KafkaOutputStream,
             ]
         ] = None
-        self.model_monitoring_stream: Optional[
+        self._model_monitoring_stream: Optional[
             Union[
                 mlrun.platforms.iguazio.OutputStream,
                 mlrun.platforms.iguazio.KafkaOutputStream,
@@ -284,6 +284,28 @@ class MonitoringApplicationController:
         self.feature_sets: OrderedDict[str, mlrun.common.schemas.FeatureSet] = (
             collections.OrderedDict()
         )
+
+    @property
+    def controller_stream(self):
+        if self._controller_stream is None:
+            self._controller_stream = mlrun.model_monitoring.helpers.get_output_stream(
+                project=self.project,
+                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+                v3io_access_key=self.v3io_access_key,
+            )
+        return self._controller_stream
+
+    @property
+    def model_monitoring_stream(self):
+        if self._model_monitoring_stream is None:
+            self._model_monitoring_stream = (
+                mlrun.model_monitoring.helpers.get_output_stream(
+                    project=self.project,
+                    function_name=mm_constants.MonitoringFunctionNames.STREAM,
+                    v3io_access_key=self.model_monitoring_access_key,
+                )
+            )
+        return self._model_monitoring_stream
 
     @staticmethod
     def _get_model_monitoring_access_key() -> Optional[str]:
@@ -776,14 +798,6 @@ class MonitoringApplicationController:
             ControllerEvent.FEATURE_SET_URI.value: feature_set_uri,
             ControllerEvent.ENDPOINT_POLICY.value: endpoint_policy,
         }
-        self.controller_stream = (
-            self.controller_stream
-            or mlrun.model_monitoring.helpers.get_output_stream(
-                project=project,
-                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-                v3io_access_key=stream_access_key,
-            )
-        )
         logger.info(
             "Pushing data to controller stream",
             event=event,
@@ -798,14 +812,6 @@ class MonitoringApplicationController:
         :param event: event dictionary to push to stream
         :param endpoint_id: endpoint id string
         """
-        self.model_monitoring_stream = (
-            self.model_monitoring_stream
-            or mlrun.model_monitoring.helpers.get_output_stream(
-                project=event.get(ControllerEvent.PROJECT),
-                function_name=mm_constants.MonitoringFunctionNames.STREAM,
-                v3io_access_key=self.model_monitoring_access_key,
-            )
-        )
         logger.info(
             "Pushing data to main stream, NOP event is been generated",
             event=json.dumps(event),

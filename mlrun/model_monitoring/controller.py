@@ -757,7 +757,6 @@ class MonitoringApplicationController:
                 project=endpoint.metadata.project,
                 endpoint_id=endpoint.metadata.uid,
                 endpoint_name=endpoint.metadata.name,
-                stream_access_key=v3io_access_key,
                 timestamp=endpoint.status.last_request.isoformat(
                     sep=" ", timespec="microseconds"
                 ),
@@ -775,7 +774,6 @@ class MonitoringApplicationController:
         project: str,
         endpoint_id: str,
         endpoint_name: str,
-        stream_access_key: str,
         timestamp: str,
         first_request: str,
         endpoint_type: int,
@@ -793,7 +791,6 @@ class MonitoringApplicationController:
         :param endpoint_name: the endpoint name string
         :param endpoint_type: Enum of the endpoint type
         :param feature_set_uri: the feature set uri string
-        :param stream_access_key: access key to apply the model monitoring process.
         """
         event = {
             ControllerEvent.KIND.value: kind,

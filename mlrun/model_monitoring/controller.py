@@ -286,7 +286,12 @@ class MonitoringApplicationController:
         )
 
     @property
-    def controller_stream(self):
+    def controller_stream(
+        self,
+    ) -> Union[
+        mlrun.platforms.iguazio.OutputStream,
+        mlrun.platforms.iguazio.KafkaOutputStream,
+    ]:
         if self._controller_stream is None:
             self._controller_stream = mlrun.model_monitoring.helpers.get_output_stream(
                 project=self.project,
@@ -296,7 +301,12 @@ class MonitoringApplicationController:
         return self._controller_stream
 
     @property
-    def model_monitoring_stream(self):
+    def model_monitoring_stream(
+        self,
+    ) -> Union[
+        mlrun.platforms.iguazio.OutputStream,
+        mlrun.platforms.iguazio.KafkaOutputStream,
+    ]:
         if self._model_monitoring_stream is None:
             self._model_monitoring_stream = mlrun.model_monitoring.helpers.get_output_stream(
                 project=self.project,

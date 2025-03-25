@@ -450,7 +450,9 @@ class MonitoringApplicationController:
                 event[ControllerEvent.ENDPOINT_POLICY] != EndpointType.BATCH_EP
             )
             if endpoint_id not in self.feature_sets:
-                self.feature_sets[endpoint_id] = fstore.get_feature_set(event[ControllerEvent.FEATURE_SET_URI])
+                self.feature_sets[endpoint_id] = fstore.get_feature_set(
+                    event[ControllerEvent.FEATURE_SET_URI]
+                )
             self.feature_sets.move_to_end(endpoint_id, last=False)
             if len(self.feature_sets) > self._MAX_FEATURE_SET_PER_WORKER:
                 self.feature_sets.popitem(last=True)
@@ -774,10 +776,13 @@ class MonitoringApplicationController:
             ControllerEvent.FEATURE_SET_URI.value: feature_set_uri,
             ControllerEvent.ENDPOINT_POLICY.value: endpoint_policy,
         }
-        self.controller_stream = self.controller_stream or mlrun.model_monitoring.helpers.get_output_stream(
-            project=project,
-            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-            v3io_access_key=stream_access_key,
+        self.controller_stream = (
+            self.controller_stream
+            or mlrun.model_monitoring.helpers.get_output_stream(
+                project=project,
+                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+                v3io_access_key=stream_access_key,
+            )
         )
         logger.info(
             "Pushing data to controller stream",
@@ -793,10 +798,13 @@ class MonitoringApplicationController:
         :param event: event dictionary to push to stream
         :param endpoint_id: endpoint id string
         """
-        self.model_monitoring_stream = self.model_monitoring_stream or mlrun.model_monitoring.helpers.get_output_stream(
-            project=event.get(ControllerEvent.PROJECT),
-            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-            v3io_access_key=self.v3io_access_key,
+        self.model_monitoring_stream = (
+            self.model_monitoring_stream
+            or mlrun.model_monitoring.helpers.get_output_stream(
+                project=event.get(ControllerEvent.PROJECT),
+                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+                v3io_access_key=self.v3io_access_key,
+            )
         )
         logger.info(
             "Pushing data to main stream, NOP event is been generated",

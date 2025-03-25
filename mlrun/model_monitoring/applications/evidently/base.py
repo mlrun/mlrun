@@ -102,17 +102,18 @@ class EvidentlyModelMonitoringApplicationBase(
         for path in paths:
             metadata_path = posixpath.join(path, METADATA_PATH)
             full_path = posixpath.join(location.path, metadata_path)
+            print(f"evidently json issue, working on path: {full_path}")
             try:
                 with location.open(metadata_path) as f:
                     return json.load(f)
             except FileNotFoundError:
-                print(f"path not found: {full_path}")
+                print(f"evidently json issue, path not found: {full_path}")
             except json.decoder.JSONDecodeError as json_error:
-                print(f"path got json error, path:{full_path}, error:")
+                print(f"evidently json issue, path got json error, path:{full_path}, error:")
                 traceback.print_exception(
                     type(json_error), json_error, json_error.__traceback__
                 )
-                print("file content:")
+                print("evidently json issue, file content:")
                 with location.open(metadata_path) as f:
                     print(f.read())
 

@@ -472,6 +472,7 @@ def update_model_endpoint_last_request(
             "Bumping model endpoint last request time (EP without serving)",
             project=project,
             endpoint_id=model_endpoint.metadata.uid,
+            function_name=model_endpoint.spec.function_name,
             last_request=model_endpoint.status.last_request,
             current_request=current_request.isoformat(),
             bumped_last_request=bumped_last_request,

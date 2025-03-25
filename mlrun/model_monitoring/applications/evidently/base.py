@@ -94,9 +94,9 @@ class EvidentlyModelMonitoringApplicationBase(
 
     @staticmethod
     def _log_location(evidently_workspace_path):
+        # TODO remove function + usage after solving issue ML-9530
         location = FSLocation(base_path=evidently_workspace_path)
         location.invalidate_cache("")
-        # projects = [load_project(location, p) for p in location.listdir("") if location.isdir(p)]
         paths = [p for p in location.listdir("") if location.isdir(p)]
 
         for path in paths:

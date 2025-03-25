@@ -298,12 +298,10 @@ class MonitoringApplicationController:
     @property
     def model_monitoring_stream(self):
         if self._model_monitoring_stream is None:
-            self._model_monitoring_stream = (
-                mlrun.model_monitoring.helpers.get_output_stream(
-                    project=self.project,
-                    function_name=mm_constants.MonitoringFunctionNames.STREAM,
-                    v3io_access_key=self.model_monitoring_access_key,
-                )
+            self._model_monitoring_stream = mlrun.model_monitoring.helpers.get_output_stream(
+                project=self.project,
+                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+                v3io_access_key=self.v3io_access_key,
             )
         return self._model_monitoring_stream
 

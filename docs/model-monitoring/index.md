@@ -131,10 +131,17 @@ And you can use {ref}`notifications` to notify about the status of runs and pipe
 (upgrade-from-17)=
 ## How to upgrade from v1.7.x
 
-1. Before upgrade:
-  1. Redeploy all monitored serving functions with set_tracking(False).
-     If you didn't redeploy the functions with set_tracking(False) before the upgrade, you will have to update the base image of those functions before redeploying them (after the upgrade).
-  2. Run `project.disable_model_monitoring(delete_stream_function=True, delete_user_applications=True)`. This will remove all MM applications, infra pods, and the streams.
-2. After upgrade, start using model monitoring as usual.
-  * Model monitoring is disabled on your project after the upgrade: all the functions deploy without tracking and all the previous model monitoring applications were deleted.
-  * YOU must use the v1.8.0 client to utilize model monitoring on the v1.8.0 server.
+### Before upgrade:
+1. Redeploy all monitored serving functions with set_tracking(False).
+     If you didn't redeploy the functions with `set_tracking(False)` before the upgrade, you will have to update the base image of those functions before redeploying them (after the upgrade).
+2. Run `project.disable_model_monitoring(delete_stream_function=True, delete_user_applications=True)`. This will remove all MM applications, infra pods, and the streams.
+
+### After upgrade:
+1. Run `enable_model_monitoring`
+2. Redeploy all monitored serving functions with set_tracking(True).
+
+
+```{admonition} Notes
+* All the previous model monitoring applications were deleted.
+* You must use the v1.8.0 client to utilize model monitoring on the v1.8.0 server.
+``` 

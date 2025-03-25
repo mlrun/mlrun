@@ -119,6 +119,11 @@ class EvidentlyModelMonitoringApplicationBase(
                 with location.open(metadata_path) as f:
                     print(f.read())
                 continue
+            except Exception as error:
+                print(
+                    f"evidently json issue, path got general error, path:{full_path}, error: {error}"
+                )
+                continue
 
     @staticmethod
     def log_evidently_object(

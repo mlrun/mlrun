@@ -13,6 +13,7 @@ To enable, add an environment variable to the override-env configmap: `MLRUN_ALE
 - [SDK](#sdk)
 - [Predefined events](#predefined-events-eventkind)
 - [Creating an alert](#creating-an-alert)
+- [Creating a model monitoring alert](#creating-a-model-monitoring-alert)
 - [Alert reset policy](#alert-reset-policy)
 - [Alert templates](#alert-templates)
 - [Creating an alert with a template](#creating-an-alert-with-a-template)
@@ -148,6 +149,30 @@ alert_data = mlrun.alerts.alert.AlertConfig(
 )
 project.store_alert_config(alert_data)
 ```
+## Creating a model monitoring alert
+
+You can create an alert configuration based on specific model endpoints and result names. See full details in {py:func}`~mlrun.projects.MlrunProject.create_model_monitoring_alert_configs`.
+```py
+alert_configs = myproject.create_model_monitoring_alert_configs(
+    # name of the AlertConfig template
+    name = 'alert-name',
+    summary = 'user_template_summary_EventKind.DATA_DRIFT_DETECTED',
+    
+    # Retrieve metrics from these endpointd to configure the alert
+    endpoints = myproject.list_model_endpoints(),
+    
+    # AlertTrigger event type
+    events = [EventKind.DATA_DRIFT_DETECTED],
+    notifications = [alert_constants.AlertNotification(notification=webhook_notification_ovDRF)],
+
+    result_names = [],  # can use wildcards
+  
+    severity = alert_constants.AlertSeverity.LOW,
+    criteria = None,
+    reset_policy = mlrun.common.schemas.alert.ResetPolicy.MANUAL
+)
+```
+
 
 ## Alert reset policy
 

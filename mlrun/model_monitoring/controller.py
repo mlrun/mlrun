@@ -774,12 +774,11 @@ class MonitoringApplicationController:
             ControllerEvent.FEATURE_SET_URI.value: feature_set_uri,
             ControllerEvent.ENDPOINT_POLICY.value: endpoint_policy,
         }
-        if self.controller_stream is None:
-            self.controller_stream = mlrun.model_monitoring.helpers.get_output_stream(
-                project=project,
-                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-                v3io_access_key=stream_access_key,
-            )
+        self.controller_stream = self.controller_stream or mlrun.model_monitoring.helpers.get_output_stream(
+            project=project,
+            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            v3io_access_key=stream_access_key,
+        )
         logger.info(
             "Pushing data to controller stream",
             event=event,
@@ -794,12 +793,11 @@ class MonitoringApplicationController:
         :param event: event dictionary to push to stream
         :param endpoint_id: endpoint id string
         """
-        if self.model_monitoring_stream is None:
-            self.model_monitoring_stream = mlrun.model_monitoring.helpers.get_output_stream(
-                project=event.get(ControllerEvent.PROJECT),
-                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-                v3io_access_key=self.v3io_access_key,
-            )
+        self.model_monitoring_stream = self.model_monitoring_stream or mlrun.model_monitoring.helpers.get_output_stream(
+            project=event.get(ControllerEvent.PROJECT),
+            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            v3io_access_key=self.v3io_access_key,
+        )
         logger.info(
             "Pushing data to main stream, NOP event is been generated",
             event=json.dumps(event),

@@ -32,7 +32,7 @@ You can also be deploy the MLRun Service using local Docker for demo and test pu
 You can work with your favorite IDE (e.g. PyCharm, VSCode, Jupyter, Colab, etc.). Read how to configure your client against the deployed
 MLRun server in {ref}`install-remote`.
 
-Once you have installed and configured MLRun, follow the [Quick Start tutorial](https://docs.mlrun.org/en/latest/tutorials/01-mlrun-basics.html) and additional {ref}`Tutorials and Examples<tutorial>` to learn how to use MLRun to develop and deploy machine learning applications to production.
+Once you have installed and configured MLRun, follow the [Quick Start tutorial](./tutorials/01-mlrun-basics.ipynb) and additional {ref}`Tutorials and Examples<tutorial>` to learn how to use MLRun to develop and deploy machine learning applications to production.
 
 
 <a id="MLRun-client-backward-compatibility"></a>
@@ -40,7 +40,10 @@ Once you have installed and configured MLRun, follow the [Quick Start tutorial](
 
 Starting from MLRun v1.3.0, the MLRun server is compatible with the client and images of the previous two minor MLRun releases. When you upgrade to v1.3.0, for example, you can continue to use your v1.1- and v1.2-based images, but v1.0-based images are not compatible.
 
-After you update the client, you must update the images used by the same project to the same MLRun release.
+After you update the MLRun package client version by running `pip install mlrun==<"new-client-version">`, you must update the images to use the same client version you installed.
+For example, when running this command `pip install mlrun==1.8.0` you must update your images to use MLRun v1.8.0 by either of:
+- Add `mlrun==<"new-client-version">` as a function requirement. See [mlrun.set_environment](https://docs.mlrun.org/en/stable/api/mlrun.html#mlrun.set_environment).
+- Use `mlrun/mlrun` image as the new base image after you upgrade the client version
 
 ```{admonition} Important
 - Images from 0.9.0 are not compatible with 0.10.0. Backward compatibility starts from 0.10.0. 

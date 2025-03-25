@@ -109,7 +109,9 @@ class EvidentlyModelMonitoringApplicationBase(
             except FileNotFoundError:
                 print(f"evidently json issue, path not found: {full_path}")
             except json.decoder.JSONDecodeError as json_error:
-                print(f"evidently json issue, path got json error, path:{full_path}, error:")
+                print(
+                    f"evidently json issue, path got json error, path:{full_path}, error:"
+                )
                 traceback.print_exception(
                     type(json_error), json_error, json_error.__traceback__
                 )

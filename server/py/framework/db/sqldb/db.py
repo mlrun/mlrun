@@ -2582,6 +2582,12 @@ class SQLDB(DBInterface):
             function["kind"] = obj.kind
             function.setdefault("status", {})
             function["status"]["state"] = obj.state
+
+            # updated field is saved in struct as timestamps with fsp=6, while the corresponding column
+            # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
+            # the column (not from the struct) to ensure the ordering is correct.
+            # In SQLite, the updated column return timestamps with fsp=6.
+            function["metadata"]["updated"] = mlrun.utils.format_datetime(obj.updated)
             return mlrun.common.formatters.FunctionFormat.format_obj(function, format_)
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)

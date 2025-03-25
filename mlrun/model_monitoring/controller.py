@@ -802,8 +802,8 @@ class MonitoringApplicationController:
             self.model_monitoring_stream
             or mlrun.model_monitoring.helpers.get_output_stream(
                 project=event.get(ControllerEvent.PROJECT),
-                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-                v3io_access_key=self.v3io_access_key,
+                function_name=mm_constants.MonitoringFunctionNames.STREAM,
+                v3io_access_key=self.model_monitoring_access_key,
             )
         )
         logger.info(

@@ -405,8 +405,7 @@ class SQLDB(DBInterface):
             )
 
         run_struct = run.struct
-        if with_notifications:
-            self._fill_run_struct_with_notifications(run.notifications, run_struct)
+        self._enrich_run_struct_from_model(run, run_struct, with_notifications)
         return run_struct
 
     def list_runs(
@@ -488,8 +487,7 @@ class SQLDB(DBInterface):
         runs = RunList()
         for run in query:
             run_struct = run.struct
-            if with_notifications:
-                self._fill_run_struct_with_notifications(run.notifications, run_struct)
+            self._enrich_run_struct_from_model(run, run_struct, with_notifications)
             runs.append(run_struct)
 
         return runs
@@ -523,6 +521,16 @@ class SQLDB(DBInterface):
         for run in query:  # Can not use query.delete with join
             session.delete(run)
         session.commit()
+
+    def _enrich_run_struct_from_model(
+        self, run: Run, run_struct: dict, with_notifications: bool
+    ):
+        if run.end_time:
+            run_struct.setdefault("status", {})["end_time"] = self._add_utc_timezone(
+                run.end_time
+            ).isoformat()
+        if with_notifications:
+            self._fill_run_struct_with_notifications(run.notifications, run_struct)
 
     def _delete_project_runs(self, session: Session, project: str):
         logger.debug("Removing project runs from db", project=project)
@@ -594,9 +602,9 @@ class SQLDB(DBInterface):
             and not run.end_time
         ):
             if end_time is None:
-                end_time = datetime.now(timezone.utc)
+                # Ensures fsp 6 for MySQL NOW() to includes microseconds
+                end_time = func.now(6)
             run.end_time = end_time
-            run_dict.setdefault("status", {})["end_time"] = end_time.isoformat()
         elif (
             run.state not in mlrun.common.runtimes.constants.RunStates.terminal_states()
         ):
@@ -1113,6 +1121,25 @@ class SQLDB(DBInterface):
             )
         except mlrun.errors.MLRunNotFoundError:
             return None
+        except sqlalchemy.exc.MultipleResultsFound as exc:
+            logger.error(
+                "Failed to delete artifact because multiple artifacts were found",
+                key=key,
+                project=project,
+                tag=tag,
+                iter=iter,
+                producer_id=producer_id,
+                uid=uid,
+                err=err_to_str(exc),
+            )
+
+            error_message = (
+                "Failed to delete artifact, multiple artifacts matching the search criteria were found. "
+                "Refine your request to specify a single artifact or use another endpoint to delete "
+                "multiple artifacts instead."
+            )
+            raise mlrun.errors.MLRunBadRequestError(error_message) from exc
+
         dependent_endpoints_count = (
             session.query(ModelEndpoint)
             .filter(ModelEndpoint.model_id == db_artifact.id)
@@ -1120,8 +1147,8 @@ class SQLDB(DBInterface):
         )
         if dependent_endpoints_count:
             raise mlrun.errors.MLRunConflictError(
-                f"Failed deleting artifact {key} in project {project}, tag {tag}"
-                f", iteration {iter} and {db_artifact.uid} uid. "
+                f"Failed deleting artifact {db_artifact.key} in project {db_artifact.project}, iteration "
+                f"{db_artifact.iteration}, producer_id {db_artifact.producer_id} and {db_artifact.uid} uid. "
                 f"The artifact is used by {dependent_endpoints_count} endpoints"
             )
         return mlrun.common.formatters.ArtifactFormat.format_obj(
@@ -5591,12 +5618,7 @@ class SQLDB(DBInterface):
                     ModelEndpoint.function_id == Function.id,
                     isouter=True,  # LEFT JOIN to Function
                 )
-                query = query.filter(
-                    or_(
-                        Function.name.isnot(None),
-                        ModelEndpoint.endpoint_type == EndpointType.BATCH_EP,
-                    )
-                )
+
         else:
             query = query.outerjoin(
                 ModelEndpoint.Tag, ModelEndpoint.id == ModelEndpoint.Tag.obj_id
@@ -6247,6 +6269,8 @@ class SQLDB(DBInterface):
         session,
         project: typing.Optional[typing.Union[str, list[str]]] = None,
         exclude_updated: bool = False,
+        limit: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         query = self._query(session, AlertConfig)
 
@@ -6256,6 +6280,9 @@ class SQLDB(DBInterface):
         ).add_entity(AlertState)
 
         query = self._filter_query_by_resource_project(query, AlertConfig, project)
+        query = query.order_by(AlertConfig.id.asc())
+        query = self._paginate_query(query, offset, limit)
+
         results = query.all()
 
         # Process each result, transforming and enriching the AlertConfig objects
@@ -7589,12 +7616,20 @@ class SQLDB(DBInterface):
                 name=normalized_function_name,
                 project=project,
                 tag=function_tag,
-                hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
-                # model endpoints always points on unversioned function
             )
             return function_record
         except mlrun.errors.MLRunNotFoundError:
-            return None
+            try:
+                function_record, _ = self._get_function_db_object(
+                    session,
+                    name=normalized_function_name,
+                    project=project,
+                    tag=function_tag,
+                    hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
+                )
+                return function_record
+            except mlrun.errors.MLRunNotFoundError:
+                return None
 
     @staticmethod
     def _create_mep_record_to_store(

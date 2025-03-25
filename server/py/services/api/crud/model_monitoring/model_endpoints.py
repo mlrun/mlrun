@@ -36,7 +36,8 @@ import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
 from mlrun.model_monitoring.db._schedules import (
-    ModelMonitoringSchedulesFile,
+    ModelMonitoringSchedulesFileChief,
+    ModelMonitoringSchedulesFileEndpoint,
     delete_model_monitoring_schedules_folder,
 )
 from mlrun.model_monitoring.db._stats import (
@@ -570,7 +571,7 @@ class ModelEndpoints:
             "Creating model endpoint json files",
             model_endpoint_uid=model_endpoint.metadata.uid,
         )
-        ModelMonitoringSchedulesFile.from_model_endpoint(
+        ModelMonitoringSchedulesFileEndpoint.from_model_endpoint(
             model_endpoint=model_endpoint
         ).create()
         ModelMonitoringCurrentStatsFile.from_model_endpoint(
@@ -837,7 +838,9 @@ class ModelEndpoints:
         for uid in uids:
             ModelMonitoringCurrentStatsFile(project=project, endpoint_id=uid).delete()
             ModelMonitoringDriftMeasuresFile(project=project, endpoint_id=uid).delete()
-            ModelMonitoringSchedulesFile(project=project, endpoint_id=uid).delete()
+            ModelMonitoringSchedulesFileEndpoint(
+                project=project, endpoint_id=uid
+            ).delete()
 
         # delete tsdb records - run the deletion of the TSDB records in the background
         background_task_name = str(uuid.uuid4())
@@ -1524,6 +1527,7 @@ class ModelMonitoringResourcesDeleter:
                 model_monitoring_applications=self._model_monitoring_applications,
                 model_monitoring_access_key=self._model_monitoring_access_key,
             )
+            ModelMonitoringSchedulesFileChief(project=self._project).delete()
         except Exception as exc:
             logger.warning(
                 "Failed to delete model monitoring resources",

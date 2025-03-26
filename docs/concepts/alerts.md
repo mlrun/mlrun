@@ -155,21 +155,19 @@ You can create an alert configuration based on specific model endpoints and resu
 ```py
 alert_configs = myproject.create_model_monitoring_alert_configs(
     # name of the AlertConfig template
-    name = 'alert-name',
-    summary = 'user_template_summary_EventKind.DATA_DRIFT_DETECTED',
-    
+    name="alert-name",
+    summary="user_template_summary_EventKind.DATA_DRIFT_DETECTED",
     # Retrieve metrics from these endpointd to configure the alert
-    endpoints = myproject.list_model_endpoints(),
-    
+    endpoints=myproject.list_model_endpoints(),
     # AlertTrigger event type
-    events = [EventKind.DATA_DRIFT_DETECTED],
-    notifications = [alert_constants.AlertNotification(notification=webhook_notification_ovDRF)],
-
-    result_names = [],  # can use wildcards
-  
-    severity = alert_constants.AlertSeverity.LOW,
-    criteria = None,
-    reset_policy = mlrun.common.schemas.alert.ResetPolicy.MANUAL
+    events=[EventKind.DATA_DRIFT_DETECTED],
+    notifications=[
+        alert_constants.AlertNotification(notification=webhook_notification_ovDRF)
+    ],
+    result_names=[],  # can use wildcards
+    severity=alert_constants.AlertSeverity.LOW,
+    criteria=None,
+    reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
 )
 ```
 

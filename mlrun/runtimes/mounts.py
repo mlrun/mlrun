@@ -357,7 +357,7 @@ def auto_mount(
     - k8s PVC volume when env var is set: MLRUN_PVC_MOUNT=<pvc-name>:<mount-path>
     - k8s PVC volume if it's configured as the auto mount type
     - iguazio v3io volume when V3IO_ACCESS_KEY and V3IO_USERNAME env vars are set
-    
+
     """
     if pvc_name and volume_mount_path:
         return mount_pvc(

@@ -85,7 +85,6 @@ def test_record_result_updates_last_request(
     datetime_mock = datetime.datetime(
         2011, 11, 4, 0, 5, 23, 283000, tzinfo=datetime.timezone.utc
     )
-    timedelta_mock = datetime.timedelta(seconds=60)
     df_mock = pd.DataFrame(
         {
             "feature_1": [-500, -500],
@@ -96,29 +95,22 @@ def test_record_result_updates_last_request(
         }
     )
     with patch("mlrun.model_monitoring.api.datetime_now", return_value=datetime_mock):
-        with patch(
-            "mlrun.model_monitoring.helpers._get_monitoring_time_window_from_controller_run",
-            return_value=timedelta_mock,
-        ):
+        with patch("mlrun.model_monitoring.api.mlrun.get_run_db", return_value=db_mock):
             with patch(
-                "mlrun.model_monitoring.api.mlrun.get_run_db", return_value=db_mock
+                "mlrun.model_monitoring.api.get_or_create_model_endpoint",
+                return_value=batch_model_endpoint,
             ):
-                with patch(
-                    "mlrun.model_monitoring.api.get_or_create_model_endpoint",
-                    return_value=batch_model_endpoint,
-                ):
-                    mlrun.model_monitoring.api.record_results(
-                        project=batch_model_endpoint.metadata.project,
-                        model_path=batch_model_endpoint.spec.model_path,
-                        model_endpoint_name=batch_model_endpoint.metadata.name,
-                        infer_results_df=df_mock,
-                    )
+                mlrun.model_monitoring.api.record_results(
+                    project=batch_model_endpoint.metadata.project,
+                    model_path=batch_model_endpoint.spec.model_path,
+                    model_endpoint_name=batch_model_endpoint.metadata.name,
+                    infer_results_df=df_mock,
+                )
 
     db_mock.patch_model_endpoint.assert_called_once()
-    assert db_mock.patch_model_endpoint.call_args.kwargs["attributes"][
-        "last_request"
-    ] == datetime_mock + timedelta_mock + datetime.timedelta(
-        seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+    assert (
+        db_mock.patch_model_endpoint.call_args.kwargs["attributes"]["last_request"]
+        == datetime_mock
     ), "last_request attribute of the model endpoint was not updated as expected"
 
 

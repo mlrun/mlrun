@@ -84,7 +84,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
             launcher_pod_template, worker_pod_template
         )
 
-        # update the replicas only for workers
+        # update the mpi job parameters
         self._update_job_parameters(job, runtime, execution, meta)
 
         return job

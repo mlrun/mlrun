@@ -2381,9 +2381,9 @@ class SQLDB(DBInterface):
             # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
             # the column (not from the struct) to ensure the ordering is correct.
             # In SQLite, the updated column return timestamps with fsp=6.
-            function_dict["metadata"]["updated"] = mlrun.utils.format_datetime(
-                function.updated
-            )
+            # TODO: The function currently returns the field as a datetime. It should return it as a string
+            #  to align with other resources.
+            function_dict["metadata"]["updated"] = function.updated
 
             function_dict["kind"] = function.kind
             if not function_tag:
@@ -2587,7 +2587,9 @@ class SQLDB(DBInterface):
             # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
             # the column (not from the struct) to ensure the ordering is correct.
             # In SQLite, the updated column return timestamps with fsp=6.
-            function["metadata"]["updated"] = mlrun.utils.format_datetime(obj.updated)
+            # TODO: The function currently returns the field as a datetime. It should return it as a string
+            #  to align with other resources.
+            function["metadata"]["updated"] = obj.updated
             return mlrun.common.formatters.FunctionFormat.format_obj(function, format_)
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)

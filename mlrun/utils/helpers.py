@@ -1372,6 +1372,9 @@ def has_timezone(timestamp):
 
 
 def format_datetime(dt: datetime) -> str:
+    if dt is None:
+        return ""
+
     # If the datetime is naive
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)

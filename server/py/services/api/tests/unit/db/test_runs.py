@@ -595,7 +595,7 @@ class TestRuns(TestDatabaseBase):
         assert len(runs) == 4
 
     def test_list_runs_orders_by_id_when_start_time_is_identical(self):
-        # this test is verified that when start_time date is identical, runs should be ordered by run id
+        # this test verifies that when start_time date is identical, runs should be ordered by run id
         project_name = "my-project"
         t1 = datetime.now()
 

@@ -36,9 +36,9 @@ The images are:
 When using the `mlrun` or `mlrun-gpu` image, use PyTorch versions up to and including than 2.0.1, but not higher. 
 You can build your own images with newer CUDA for later releases of PyTorch.
 ```
-### Install with or without KFP?
+### When to use an image with KFP
 
-MLRun uses KFP 1.8. If you want to use packages whose dependencies conflict with KFP 1.8, such as pydantic 2, then use any image except `mlrun/mlrun-kfp`. You can then install the package in your environment and your images without affecting the MLRun functionality.  
+MLRun supports KFP SDK 1.8. In general, if your workflow will be compiled locally,  meaning you are not working with a remote source, then you need to use the image `mlrun/mlrun-kfp`. If your workflow will be compiled remotely, or directly in KFP, then you can use any of `mlrun/mlrun`.
 
 Generally speaking, all MLRun code works without KFP except, of course, for creating and running pipelines.
 

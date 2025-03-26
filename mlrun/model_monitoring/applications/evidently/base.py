@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import posixpath
 import uuid
 import warnings
 from abc import ABC
 
 import pandas as pd
 import semver
+from evidently.ui.storage.local.base import METADATA_PATH, FSLocation
 
 import mlrun.model_monitoring.applications.base as mm_base
 import mlrun.model_monitoring.applications.context as mm_context
@@ -81,11 +84,46 @@ class EvidentlyModelMonitoringApplicationBase(
         # TODO : more then one project (mep -> project)
         if not _HAS_EVIDENTLY:
             raise ModuleNotFoundError("Evidently is not installed - the app cannot run")
+        self._log_location(evidently_workspace_path)
         self.evidently_workspace = Workspace.create(evidently_workspace_path)
         self.evidently_project_id = evidently_project_id
         self.evidently_project = self.evidently_workspace.get_project(
             evidently_project_id
         )
+
+    @staticmethod
+    def _log_location(evidently_workspace_path):
+        # TODO remove function + usage after solving issue ML-9530
+        location = FSLocation(base_path=evidently_workspace_path)
+        location.invalidate_cache("")
+        paths = [p for p in location.listdir("") if location.isdir(p)]
+
+        for path in paths:
+            metadata_path = posixpath.join(path, METADATA_PATH)
+            full_path = posixpath.join(location.path, metadata_path)
+            print(f"evidently json issue, working on path: {full_path}")
+            try:
+                with location.open(metadata_path) as f:
+                    content = json.load(f)
+                    print(
+                        f"evidently json issue, successful load path: {full_path}, content: {content}"
+                    )
+            except FileNotFoundError:
+                print(f"evidently json issue, path not found: {full_path}")
+                continue
+            except json.decoder.JSONDecodeError as json_error:
+                print(
+                    f"evidently json issue, path got json error, path:{full_path}, error: {json_error}"
+                )
+                print("evidently json issue, file content:")
+                with location.open(metadata_path) as f:
+                    print(f.read())
+                continue
+            except Exception as error:
+                print(
+                    f"evidently json issue, path got general error, path:{full_path}, error: {error}"
+                )
+                continue
 
     @staticmethod
     def log_evidently_object(

@@ -13,52 +13,38 @@
 # limitations under the License.
 
 import json
+from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
 from types import TracebackType
 from typing import Final, Optional
 
 import botocore.exceptions
 
-import mlrun.common.schemas
+import mlrun.common.schemas as schemas
 import mlrun.errors
 import mlrun.model_monitoring.helpers
 from mlrun.utils import logger
 
 
-class ModelMonitoringSchedulesFile(AbstractContextManager):
+class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
     DEFAULT_SCHEDULES: Final = {}
     INITIAL_CONTENT = json.dumps(DEFAULT_SCHEDULES)
     ENCODING = "utf-8"
 
-    def __init__(self, project: str, endpoint_id: str) -> None:
-        """
-        Initialize applications monitoring schedules file object.
-        The JSON file stores a dictionary of registered application name as key and Unix timestamp as value.
-        When working with the schedules data, use this class as a context manager to read and write the data.
+    def __init__(self):
+        self._item = self.get_data_item_object()
+        if self._item:
+            self._path = self._item.url
+            self._fs = self._item.store.filesystem
+            # `self._schedules` is an in-memory copy of the DB for all the applications for
+            # the same model endpoint.
+            self._schedules = self.DEFAULT_SCHEDULES.copy()
+            # Does `self._schedules` hold the content of `self._item`?
+            self._open_schedules = False
 
-        :param project:     The project name.
-        :param endpoint_id: The endpoint ID.
-        """
-        # `self._item` is the persistent version of the monitoring schedules.
-        self._item = mlrun.model_monitoring.helpers.get_monitoring_schedules_data(
-            project=project, endpoint_id=endpoint_id
-        )
-        self._path = self._item.url
-        self._fs = self._item.store.filesystem
-        # `self._schedules` is an in-memory copy of the DB for all the applications for
-        # the same model endpoint.
-        self._schedules: dict[str, int] = self.DEFAULT_SCHEDULES.copy()
-        # Does `self._schedules` hold the content of `self._item`?
-        self._open_schedules = False
-
-    @classmethod
-    def from_model_endpoint(
-        cls, model_endpoint: mlrun.common.schemas.ModelEndpoint
-    ) -> "ModelMonitoringSchedulesFile":
-        return cls(
-            project=model_endpoint.metadata.project,
-            endpoint_id=model_endpoint.metadata.uid,
-        )
+    @abstractmethod
+    def get_data_item_object(self) -> mlrun.DataItem:
+        pass
 
     def create(self) -> None:
         """Create a schedules file with initial content - an empty dictionary"""
@@ -114,7 +100,7 @@ class ModelMonitoringSchedulesFile(AbstractContextManager):
         self._schedules = self.DEFAULT_SCHEDULES
         self._open_schedules = False
 
-    def __enter__(self) -> "ModelMonitoringSchedulesFile":
+    def __enter__(self) -> "ModelMonitoringSchedulesFileBase":
         self._open()
         return super().__enter__()
 
@@ -132,6 +118,36 @@ class ModelMonitoringSchedulesFile(AbstractContextManager):
                 "Open the schedules file as a context manager first"
             )
 
+
+class ModelMonitoringSchedulesFileEndpoint(ModelMonitoringSchedulesFileBase):
+    def __init__(self, project: str, endpoint_id: str) -> None:
+        """
+        Initialize applications monitoring schedules file object.
+        The JSON file stores a dictionary of registered application name as key and Unix timestamp as value.
+        When working with the schedules data, use this class as a context manager to read and write the data.
+
+        :param project:     The project name.
+        :param endpoint_id: The endpoint ID.
+        """
+        # `self._item` is the persistent version of the monitoring schedules.
+        self._project = project
+        self._endpoint_id = endpoint_id
+        super().__init__()
+
+    def get_data_item_object(self) -> mlrun.DataItem:
+        return mlrun.model_monitoring.helpers.get_monitoring_schedules_endpoint_data(
+            project=self._project, endpoint_id=self._endpoint_id
+        )
+
+    @classmethod
+    def from_model_endpoint(
+        cls, model_endpoint: schemas.ModelEndpoint
+    ) -> "ModelMonitoringSchedulesFileEndpoint":
+        return cls(
+            project=model_endpoint.metadata.project,
+            endpoint_id=model_endpoint.metadata.uid,
+        )
+
     def get_application_time(self, application: str) -> Optional[int]:
         self._check_open_schedules()
         return self._schedules.get(application)
@@ -147,6 +163,68 @@ class ModelMonitoringSchedulesFile(AbstractContextManager):
     def get_min_timestamp(self) -> Optional[int]:
         self._check_open_schedules()
         return min(self._schedules.values(), default=None)
+
+
+class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
+    def __init__(self, project: str) -> None:
+        """
+        Initialize applications monitoring schedules chief file object.
+        The JSON file stores a dictionary of registered model endpoints uid as key and point to a dictionary of
+        "last_request" and "last_analyzed" mapped to two Unix timestamps as values.
+        When working with the schedules data, use this class as a context manager to read and write the data.
+
+        :param project:     The project name.
+        """
+        # `self._item` is the persistent version of the monitoring schedules.
+        self._project = project
+        super().__init__()
+
+    def get_data_item_object(self) -> mlrun.DataItem:
+        return mlrun.model_monitoring.helpers.get_monitoring_schedules_chief_data(
+            project=self._project
+        )
+
+    def get_endpoint_last_request(self, endpoint_uid: str) -> Optional[int]:
+        self._check_open_schedules()
+        if endpoint_uid in self._schedules:
+            return self._schedules[endpoint_uid].get(
+                schemas.model_monitoring.constants.ScheduleChiefFields.LAST_REQUEST
+            )
+        else:
+            return None
+
+    def update_endpoint_timestamps(
+        self, endpoint_uid: str, last_request: int, last_analyzed: int
+    ) -> None:
+        self._check_open_schedules()
+        self._schedules[endpoint_uid] = {
+            schemas.model_monitoring.constants.ScheduleChiefFields.LAST_REQUEST: last_request,
+            schemas.model_monitoring.constants.ScheduleChiefFields.LAST_ANALYZED: last_analyzed,
+        }
+
+    def get_endpoint_last_analyzed(self, endpoint_uid: str) -> Optional[int]:
+        self._check_open_schedules()
+        if endpoint_uid in self._schedules:
+            return self._schedules[endpoint_uid].get(
+                schemas.model_monitoring.constants.ScheduleChiefFields.LAST_ANALYZED
+            )
+        else:
+            return None
+
+    def get_endpoint_list(self) -> set[str]:
+        self._check_open_schedules()
+        return set(self._schedules.keys())
+
+    def get_or_create(self) -> None:
+        try:
+            self._open()
+        except (
+            mlrun.errors.MLRunNotFoundError,
+            # Different errors are raised for S3 or local storage, see ML-8042
+            botocore.exceptions.ClientError,
+            FileNotFoundError,
+        ):
+            self.create()
 
 
 def delete_model_monitoring_schedules_folder(project: str) -> None:

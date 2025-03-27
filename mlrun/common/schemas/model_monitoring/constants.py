@@ -289,6 +289,11 @@ class ModelMonitoringMode(StrEnum):
     disabled = "disabled"
 
 
+class ScheduleChiefFields(StrEnum):
+    LAST_REQUEST = "last_request"
+    LAST_ANALYZED = "last_analyzed"
+
+
 class EndpointType(IntEnum):
     NODE_EP = 1  # end point that is not a child of a router
     ROUTER = 2  # endpoint that is router

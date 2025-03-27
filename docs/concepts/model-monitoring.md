@@ -20,13 +20,9 @@ out-of-the-box analysis of:
 - **User-provided applications**: On top of the out-of-the-box analyses, you can easily create model-monitoring applications 
 of your own to detect drifts and anomalies in a customized way.
 
-You can set up alerts and notifications on various channels once an issue is detected. For example, notification
+You can set up {ref}`alerts and notifications<alerts-notifications>` on various channels once an issue is detected, including on specified model endpoints. For example, notification
 to your IT via email and Slack when operational performance metrics pass a threshold. You can also set-up automated actions, for example,
 call a CI/CD pipeline when data drift is detected and allow a data scientist to review the model with the revised data.
-
-```{admonition} Note
-Model monitoring is currently in Tech Preview status. Migrating from 1.7.0 to later versions will not maintain backwards compatibility.
-```
 
 **In this section**
 

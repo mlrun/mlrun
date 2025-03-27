@@ -87,7 +87,7 @@ def generate_target_run_id():
 
 def write_spark_dataframe_with_options(spark_options, df, mode, write_format=None):
     # TODO: Replace with just df.sparkSession when Spark 3.2 support is dropped
-    spark_session = getattr(df, "sparkSession") or df.sql_ctx.sparkSession
+    spark_session = getattr(df, "sparkSession", None) or df.sql_ctx.sparkSession
     non_hadoop_spark_options = spark_session_update_hadoop_options(
         spark_session, spark_options
     )

@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
 import concurrent.futures
 import datetime
 import json
 import os
 import traceback
+from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from types import TracebackType
-from typing import Any, NamedTuple, Optional, cast
+from typing import Any, NamedTuple, Optional, Union, cast
 
 import nuclio_sdk
 
@@ -30,6 +32,7 @@ import mlrun.feature_store as fstore
 import mlrun.model_monitoring
 import mlrun.model_monitoring.db._schedules as schedules
 import mlrun.model_monitoring.helpers
+import mlrun.platforms.iguazio
 from mlrun.common.schemas import EndpointType
 from mlrun.common.schemas.model_monitoring.constants import (
     ControllerEvent,
@@ -243,7 +246,7 @@ class MonitoringApplicationController:
     Note that the MonitoringApplicationController object requires access keys along with valid project configurations.
     """
 
-    _MAX_OPEN_WINDOWS_ALLOWED = 5
+    _MAX_FEATURE_SET_PER_WORKER = 1000
 
     def __init__(self) -> None:
         """Initialize Monitoring Application Controller"""
@@ -259,6 +262,58 @@ class MonitoringApplicationController:
             mlrun.mlconf.artifact_path
         )
         self.storage_options = store.get_storage_options()
+        self._controller_stream: Optional[
+            Union[
+                mlrun.platforms.iguazio.OutputStream,
+                mlrun.platforms.iguazio.KafkaOutputStream,
+            ]
+        ] = None
+        self._model_monitoring_stream: Optional[
+            Union[
+                mlrun.platforms.iguazio.OutputStream,
+                mlrun.platforms.iguazio.KafkaOutputStream,
+            ]
+        ] = None
+        self.applications_streams: dict[
+            str,
+            Union[
+                mlrun.platforms.iguazio.OutputStream,
+                mlrun.platforms.iguazio.KafkaOutputStream,
+            ],
+        ] = {}
+        self.feature_sets: OrderedDict[str, mlrun.common.schemas.FeatureSet] = (
+            collections.OrderedDict()
+        )
+
+    @property
+    def controller_stream(
+        self,
+    ) -> Union[
+        mlrun.platforms.iguazio.OutputStream,
+        mlrun.platforms.iguazio.KafkaOutputStream,
+    ]:
+        if self._controller_stream is None:
+            self._controller_stream = mlrun.model_monitoring.helpers.get_output_stream(
+                project=self.project,
+                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+                v3io_access_key=self.v3io_access_key,
+            )
+        return self._controller_stream
+
+    @property
+    def model_monitoring_stream(
+        self,
+    ) -> Union[
+        mlrun.platforms.iguazio.OutputStream,
+        mlrun.platforms.iguazio.KafkaOutputStream,
+    ]:
+        if self._model_monitoring_stream is None:
+            self._model_monitoring_stream = mlrun.model_monitoring.helpers.get_output_stream(
+                project=self.project,
+                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+                v3io_access_key=self.v3io_access_key,
+            )
+        return self._model_monitoring_stream
 
     @staticmethod
     def _get_model_monitoring_access_key() -> Optional[str]:
@@ -424,7 +479,14 @@ class MonitoringApplicationController:
             not_batch_endpoint = (
                 event[ControllerEvent.ENDPOINT_POLICY] != EndpointType.BATCH_EP
             )
-            m_fs = fstore.get_feature_set(event[ControllerEvent.FEATURE_SET_URI])
+            if endpoint_id not in self.feature_sets:
+                self.feature_sets[endpoint_id] = fstore.get_feature_set(
+                    event[ControllerEvent.FEATURE_SET_URI]
+                )
+            self.feature_sets.move_to_end(endpoint_id, last=False)
+            if len(self.feature_sets) > self._MAX_FEATURE_SET_PER_WORKER:
+                self.feature_sets.popitem(last=True)
+            m_fs = self.feature_sets.get(endpoint_id)
             logger.info(
                 "Starting analyzing for", timestamp=event[ControllerEvent.TIMESTAMP]
             )
@@ -528,8 +590,8 @@ class MonitoringApplicationController:
                 endpoint_id=event[ControllerEvent.ENDPOINT_ID],
             )
 
-    @staticmethod
     def _push_to_applications(
+        self,
         start_infer_time: datetime.datetime,
         end_infer_time: datetime.datetime,
         endpoint_id: str,
@@ -563,12 +625,15 @@ class MonitoringApplicationController:
         }
         for app_name in applications_names:
             data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})
-
-            app_stream = mlrun.model_monitoring.helpers.get_output_stream(
-                project=project,
-                function_name=app_name,
-                v3io_access_key=model_monitoring_access_key,
-            )
+            if app_name not in self.applications_streams:
+                self.applications_streams[app_name] = (
+                    mlrun.model_monitoring.helpers.get_output_stream(
+                        project=project,
+                        function_name=app_name,
+                        v3io_access_key=model_monitoring_access_key,
+                    )
+                )
+            app_stream = self.applications_streams.get(app_name)
 
             logger.info(
                 "Pushing data to application stream",
@@ -581,7 +646,6 @@ class MonitoringApplicationController:
     def push_regular_event_to_controller_stream(self) -> None:
         """
         pushes a regular event to the controller stream.
-        :param event: the nuclio trigger event
         """
         logger.info("Starting monitoring controller chief")
         applications_names = []
@@ -688,12 +752,11 @@ class MonitoringApplicationController:
             policy[ControllerEventEndpointPolicy.ENDPOINT_UPDATED] = (
                 endpoint.metadata.updated.isoformat()
             )
-            MonitoringApplicationController.push_to_controller_stream(
+            self.push_to_controller_stream(
                 kind=mm_constants.ControllerEventKind.REGULAR_EVENT,
                 project=endpoint.metadata.project,
                 endpoint_id=endpoint.metadata.uid,
                 endpoint_name=endpoint.metadata.name,
-                stream_access_key=v3io_access_key,
                 timestamp=endpoint.status.last_request.isoformat(
                     sep=" ", timespec="microseconds"
                 ),
@@ -705,13 +768,12 @@ class MonitoringApplicationController:
                 endpoint_policy=policy,
             )
 
-    @staticmethod
     def push_to_controller_stream(
+        self,
         kind: str,
         project: str,
         endpoint_id: str,
         endpoint_name: str,
-        stream_access_key: str,
         timestamp: str,
         first_request: str,
         endpoint_type: int,
@@ -729,7 +791,6 @@ class MonitoringApplicationController:
         :param endpoint_name: the endpoint name string
         :param endpoint_type: Enum of the endpoint type
         :param feature_set_uri: the feature set uri string
-        :param stream_access_key: access key to apply the model monitoring process.
         """
         event = {
             ControllerEvent.KIND.value: kind,
@@ -742,18 +803,13 @@ class MonitoringApplicationController:
             ControllerEvent.FEATURE_SET_URI.value: feature_set_uri,
             ControllerEvent.ENDPOINT_POLICY.value: endpoint_policy,
         }
-        controller_stream = mlrun.model_monitoring.helpers.get_output_stream(
-            project=project,
-            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-            v3io_access_key=stream_access_key,
-        )
         logger.info(
             "Pushing data to controller stream",
             event=event,
             endpoint_id=endpoint_id,
-            controller_stream_type=str(type(controller_stream)),
+            controller_stream_type=str(type(self.controller_stream)),
         )
-        controller_stream.push([event], partition_key=endpoint_id)
+        self.controller_stream.push([event], partition_key=endpoint_id)
 
     def _push_to_main_stream(self, event: dict, endpoint_id: str) -> None:
         """
@@ -761,18 +817,13 @@ class MonitoringApplicationController:
         :param event: event dictionary to push to stream
         :param endpoint_id: endpoint id string
         """
-        mm_stream = mlrun.model_monitoring.helpers.get_output_stream(
-            project=event.get(ControllerEvent.PROJECT),
-            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-            v3io_access_key=self.v3io_access_key,
-        )
         logger.info(
             "Pushing data to main stream, NOP event is been generated",
             event=json.dumps(event),
             endpoint_id=endpoint_id,
-            mm_stream_type=str(type(mm_stream)),
+            mm_stream_type=str(type(self.model_monitoring_stream)),
         )
-        mm_stream.push([event], partition_key=endpoint_id)
+        self.model_monitoring_stream.push([event], partition_key=endpoint_id)
 
 
 def handler(context: nuclio_sdk.Context, event: nuclio_sdk.Event) -> None:

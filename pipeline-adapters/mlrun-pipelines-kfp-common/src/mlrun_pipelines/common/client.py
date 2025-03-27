@@ -16,8 +16,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
-import kfp_server_api
-
 
 class AbstractClient(ABC):
     """

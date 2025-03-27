@@ -345,8 +345,8 @@ class Client:
         if not experiment_id:
             raise ValueError("Cannot find experiment ID to retry run.")
 
-        pipeline_spec = existing_run['pipeline_spec']
-        if not (pipeline_spec['pipeline_id'] or pipeline_spec['workflow_manifest']):
+        pipeline_spec = existing_run["pipeline_spec"]
+        if not (pipeline_spec["pipeline_id"] or pipeline_spec["workflow_manifest"]):
             raise ValueError(
                 "The original run does not have a pipeline_id or workflow_manifest."
             )
@@ -389,7 +389,7 @@ class Client:
 
     @staticmethod
     def _create_job_config(
-            params: Optional[dict[str, Any]],
+        params: Optional[dict[str, Any]],
         pipeline_package_path: Optional[str],
         pipeline_id: Optional[str],
         version_id: Optional[str],
@@ -436,6 +436,7 @@ class Client:
             pipeline_version_reference=pipeline_version_reference,
             runtime_config=runtime_config,
         )
+
 
 def _extract_pipeline_yaml(package_file: str) -> mlrun_pipelines.models.PipelineDoc:
     def _choose_pipeline_file(file_list: list[str]) -> str:

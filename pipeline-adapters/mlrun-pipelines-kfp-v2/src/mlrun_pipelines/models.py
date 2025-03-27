@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import dataclasses
 import enum
-from typing import Optional, Any, Generator
+from collections.abc import Generator
+from typing import Any, Optional
 
 import orjson
 from kfp_server_api import V2beta1PipelineVersionReference, V2beta1RuntimeConfig
@@ -153,7 +154,6 @@ class PipelineExperiment(FlexibleMapper):
         return self._external_data["experiment_id"]
 
 
-
 @dataclasses.dataclass
 class Status:
     code: int = 0
@@ -167,12 +167,12 @@ class Duration:
     nanos: int = 0
 
 
-
 @dataclasses.dataclass
 class ValueOrRuntimeParameter:
     constant_value: Optional[dict[str, Any]] = None
     runtime_parameter: Optional[str] = None
     constant: Optional[dict[str, Any]] = None
+
 
 @dataclasses.dataclass
 class Value:
@@ -180,11 +180,13 @@ class Value:
     double_value: Optional[float] = None
     string_value: Optional[str] = None
 
+
 class PrimitiveTypeEnum(enum.IntEnum):
     PRIMITIVE_TYPE_UNSPECIFIED = 0
     INT = 1
     DOUBLE = 2
     STRING = 3
+
 
 class ParameterTypeEnum(enum.IntEnum):
     PARAMETER_TYPE_ENUM_UNSPECIFIED = 0
@@ -196,11 +198,13 @@ class ParameterTypeEnum(enum.IntEnum):
     STRUCT = 6
     TASK_FINAL_STATUS = 7
 
+
 class PrimitiveType(enum.IntEnum):
     PRIMITIVE_TYPE_UNSPECIFIED = 0
     INT = 1
     DOUBLE = 2
     STRING = 3
+
 
 class ParameterType(enum.IntEnum):
     PARAMETER_TYPE_ENUM_UNSPECIFIED = 0
@@ -219,6 +223,7 @@ class Value:
     double_value: Optional[float] = None
     string_value: Optional[str] = None
 
+
 @dataclasses.dataclass
 class ValueOrRuntimeParameter:
     constant_value: Optional[Value] = None
@@ -226,9 +231,15 @@ class ValueOrRuntimeParameter:
     constant: Optional[Value] = None
 
     def __post_init__(self):
-        fields_set = sum(x is not None for x in (self.constant_value, self.runtime_parameter, self.constant))
+        fields_set = sum(
+            x is not None
+            for x in (self.constant_value, self.runtime_parameter, self.constant)
+        )
         if fields_set > 1:
-            raise ValueError("Only one of constant_value, runtime_parameter, or constant can be set")
+            raise ValueError(
+                "Only one of constant_value, runtime_parameter, or constant can be set"
+            )
+
 
 @dataclasses.dataclass
 class PipelineInfo:
@@ -236,10 +247,12 @@ class PipelineInfo:
     display_name: str = ""
     description: str = ""
 
+
 @dataclasses.dataclass
 class RuntimeParameter:
     type: PrimitiveTypeEnum = PrimitiveTypeEnum.PRIMITIVE_TYPE_UNSPECIFIED
     default_value: Optional[Value] = None
+
 
 @dataclasses.dataclass
 class PipelineSpec:
@@ -251,6 +264,7 @@ class PipelineSpec:
     root: Optional[ComponentSpec] = None
     default_pipeline_root: str = ""
 
+
 @dataclasses.dataclass
 class ArtifactSpec:
     artifact_type: Optional[ArtifactTypeSchema] = None
@@ -258,34 +272,52 @@ class ArtifactSpec:
     is_optional: bool = False
     description: str = ""
 
+
 @dataclasses.dataclass
 class ParameterSpec:
-    parameter_type: ParameterTypeEnum = ParameterTypeEnum.PARAMETER_TYPE_ENUM_UNSPECIFIED
+    parameter_type: ParameterTypeEnum = (
+        ParameterTypeEnum.PARAMETER_TYPE_ENUM_UNSPECIFIED
+    )
     default_value: Optional[Value] = None
     is_optional: bool = False
     description: str = ""
+
 
 @dataclasses.dataclass
 class ComponentInputsSpec:
     artifacts: dict[str, ArtifactSpec] = dataclasses.field(default_factory=dict)
     parameters: dict[str, ParameterSpec] = dataclasses.field(default_factory=dict)
 
+
 @dataclasses.dataclass
 class ComponentOutputsSpec:
     @dataclasses.dataclass
     class ArtifactSpec:
         artifact_type: Optional[ArtifactTypeSchema] = None
-        properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(default_factory=dict)
-        custom_properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(default_factory=dict)
+        properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(
+            default_factory=dict
+        )
+        custom_properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(
+            default_factory=dict
+        )
         metadata: Optional[dict[str, object]] = None
         is_artifact_list: bool = False
         description: str = ""
+
     @dataclasses.dataclass
     class ParameterSpec:
-        parameter_type: ParameterTypeEnum = ParameterTypeEnum.PARAMETER_TYPE_ENUM_UNSPECIFIED
+        parameter_type: ParameterTypeEnum = (
+            ParameterTypeEnum.PARAMETER_TYPE_ENUM_UNSPECIFIED
+        )
         description: str = ""
-    artifacts: dict[str, ComponentOutputsSpec.ArtifactSpec] = dataclasses.field(default_factory=dict)
-    parameters: dict[str, ComponentOutputsSpec.ParameterSpec] = dataclasses.field(default_factory=dict)
+
+    artifacts: dict[str, ComponentOutputsSpec.ArtifactSpec] = dataclasses.field(
+        default_factory=dict
+    )
+    parameters: dict[str, ComponentOutputsSpec.ParameterSpec] = dataclasses.field(
+        default_factory=dict
+    )
+
 
 @dataclasses.dataclass
 class ComponentSpec:
@@ -293,33 +325,47 @@ class ComponentSpec:
     output_definitions: ComponentOutputsSpec = ComponentOutputsSpec()
     dag: Optional[DagSpec] = None
     executor_label: Optional[str] = None
-    single_platform_specs: list[SinglePlatformSpec] = dataclasses.field(default_factory=list)
+    single_platform_specs: list[SinglePlatformSpec] = dataclasses.field(
+        default_factory=list
+    )
 
     def __post_init__(self):
         if self.dag is not None and self.executor_label is not None:
             raise ValueError("Only one of dag or executor_label can be set")
+
 
 @dataclasses.dataclass
 class ArtifactSelectorSpec:
     producer_subtask: str = ""
     output_artifact_key: str = ""
 
+
 @dataclasses.dataclass
 class DagOutputArtifactSpec:
-    artifact_selectors: list[ArtifactSelectorSpec] = dataclasses.field(default_factory=list)
+    artifact_selectors: list[ArtifactSelectorSpec] = dataclasses.field(
+        default_factory=list
+    )
+
 
 @dataclasses.dataclass
 class ParameterSelectorSpec:
     producer_subtask: str = ""
     output_parameter_key: str = ""
 
+
 @dataclasses.dataclass
 class ParameterSelectorsSpec:
-    parameter_selectors: list[ParameterSelectorSpec] = dataclasses.field(default_factory=list)
+    parameter_selectors: list[ParameterSelectorSpec] = dataclasses.field(
+        default_factory=list
+    )
+
 
 @dataclasses.dataclass
 class MapParameterSelectorsSpec:
-    mapped_parameters: dict[str, ParameterSelectorSpec] = dataclasses.field(default_factory=dict)
+    mapped_parameters: dict[str, ParameterSelectorSpec] = dataclasses.field(
+        default_factory=dict
+    )
+
 
 @dataclasses.dataclass
 class DagOutputParameterSpec:
@@ -328,35 +374,48 @@ class DagOutputParameterSpec:
 
     def __post_init__(self):
         if self.value_from_parameter is not None and self.value_from_oneof is not None:
-            raise ValueError("Only one of value_from_parameter or value_from_oneof can be set")
+            raise ValueError(
+                "Only one of value_from_parameter or value_from_oneof can be set"
+            )
+
 
 @dataclasses.dataclass
 class DagSpec:
     tasks: dict[str, PipelineTaskSpec] = dataclasses.field(default_factory=dict)
     outputs: Optional[DagOutputsSpec] = None
 
+
 @dataclasses.dataclass
 class DagOutputsSpec:
-    artifacts: dict[str, DagOutputArtifactSpec] = dataclasses.field(default_factory=dict)
-    parameters: dict[str, DagOutputParameterSpec] = dataclasses.field(default_factory=dict)
+    artifacts: dict[str, DagOutputArtifactSpec] = dataclasses.field(
+        default_factory=dict
+    )
+    parameters: dict[str, DagOutputParameterSpec] = dataclasses.field(
+        default_factory=dict
+    )
+
 
 @dataclasses.dataclass
 class TaskOutputArtifactSpec:
     producer_task: str = ""
     output_artifact_key: str = ""
 
+
 class InputArtifactSpec:
     task_output_artifact: Optional[TaskOutputArtifactSpec] = None
     component_input_artifact: Optional[str] = None
+
 
 @dataclasses.dataclass
 class TaskOutputParameterSpec:
     producer_task: str = ""
     output_parameter_key: str = ""
 
+
 @dataclasses.dataclass
 class TaskFinalStatus:
     producer_task: str = ""
+
 
 @dataclasses.dataclass
 class InputParameterSpec:
@@ -374,41 +433,55 @@ class InputParameterSpec:
             self.task_final_status,
         ]
         if sum(field is not None for field in oneof_fields) > 1:
-            raise ValueError("Only one of task_output_parameter, runtime_value, component_input_parameter, or task_final_status can be set")
+            raise ValueError(
+                "Only one of task_output_parameter, runtime_value, component_input_parameter, or task_final_status can be set"
+            )
+
 
 @dataclasses.dataclass
 class TaskInputsSpec:
     parameters: dict[str, InputParameterSpec] = dataclasses.field(default_factory=dict)
     artifacts: dict[str, InputArtifactSpec] = dataclasses.field(default_factory=dict)
 
+
 @dataclasses.dataclass
 class OutputArtifactSpec:
     artifact_type: Optional[ArtifactTypeSchema] = None
-    properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(default_factory=dict)
-    custom_properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(default_factory=dict)
+    properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(
+        default_factory=dict
+    )
+    custom_properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(
+        default_factory=dict
+    )
     metadata: Optional[dict[str, object]] = None
+
 
 @dataclasses.dataclass
 class OutputParameterSpec:
     type: PrimitiveTypeEnum = PrimitiveTypeEnum.PRIMITIVE_TYPE_UNSPECIFIED
+
 
 @dataclasses.dataclass
 class TaskOutputsSpec:
     parameters: dict[str, OutputParameterSpec] = dataclasses.field(default_factory=dict)
     artifacts: dict[str, OutputArtifactSpec] = dataclasses.field(default_factory=dict)
 
+
 @dataclasses.dataclass
 class PipelineTaskInfo:
     name: str = ""
+
 
 @dataclasses.dataclass
 class ComponentRef:
     name: str = ""
 
+
 class TriggerStrategy(enum.IntEnum):
     TRIGGER_STRATEGY_UNSPECIFIED = 0
     ALL_UPSTREAM_TASKS_SUCCEEDED = 1
     ALL_UPSTREAM_TASKS_COMPLETED = 2
+
 
 @dataclasses.dataclass
 class PipelineTaskSpec:
@@ -425,7 +498,9 @@ class PipelineTaskSpec:
 
     def __post_init__(self):
         if self.artifact_iterator is not None and self.parameter_iterator is not None:
-            raise ValueError("Only one of artifact_iterator or parameter_iterator can be set")
+            raise ValueError(
+                "Only one of artifact_iterator or parameter_iterator can be set"
+            )
 
     @dataclasses.dataclass
     class CachingOptions:
@@ -448,14 +523,17 @@ class PipelineTaskSpec:
     class IteratorPolicy:
         parallelism_limit: int = 0
 
+
 @dataclasses.dataclass
 class ItemsSpec:
     input_artifact: str = ""
+
 
 @dataclasses.dataclass
 class ArtifactIteratorSpec:
     items: ItemsSpec = dataclasses.field(default_factory=ItemsSpec)
     item_input: str = ""
+
 
 @dataclasses.dataclass
 class ParameterIteratorSpec:
@@ -467,8 +545,12 @@ class ParameterIteratorSpec:
         def __post_init__(self):
             if self.raw is not None and self.input_parameter is not None:
                 raise ValueError("Only one of raw or input_parameter can be set")
-    items: ParameterIteratorSpec.ItemsSpec = dataclasses.field(default_factory=lambda: ParameterIteratorSpec.ItemsSpec())
+
+    items: ParameterIteratorSpec.ItemsSpec = dataclasses.field(
+        default_factory=lambda: ParameterIteratorSpec.ItemsSpec()
+    )
     item_input: str = ""
+
 
 @dataclasses.dataclass
 class ArtifactTypeSchema:
@@ -477,19 +559,23 @@ class ArtifactTypeSchema:
     instance_schema: Optional[str] = None
     schema_version: str = ""
 
+
 @dataclasses.dataclass
 class EnvVar:
     name: str = ""
     value: str = ""
+
 
 @dataclasses.dataclass
 class Exec:
     command: list[str] = dataclasses.field(default_factory=list)
     args: list[str] = dataclasses.field(default_factory=list)
 
+
 @dataclasses.dataclass
 class Lifecycle:
     pre_cache_check: Optional[Exec] = None
+
 
 @dataclasses.dataclass
 class PipelineContainerSpec:
@@ -497,12 +583,14 @@ class PipelineContainerSpec:
     command: list[str] = dataclasses.field(default_factory=list)
     args: list[str] = dataclasses.field(default_factory=list)
 
+
 @dataclasses.dataclass
 class AcceleratorConfig:
     type: Optional[str] = None
     count: Optional[int] = None
     resource_type: str = ""
     resource_count: str = ""
+
 
 @dataclasses.dataclass
 class ResourceSpec:
@@ -516,14 +604,20 @@ class ResourceSpec:
     resource_memory_request: str = ""
     accelerator: Optional[AcceleratorConfig] = None
 
+
 @dataclasses.dataclass
 class ImporterSpec:
     artifact_uri: Optional[ValueOrRuntimeParameter] = None
     type_schema: Optional[ArtifactTypeSchema] = None
-    properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(default_factory=dict)
-    custom_properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(default_factory=dict)
+    properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(
+        default_factory=dict
+    )
+    custom_properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(
+        default_factory=dict
+    )
     metadata: Optional[dict[str, object]] = None
     reimport: bool = False
+
 
 @dataclasses.dataclass
 class PipelineDeploymentConfig:
@@ -531,19 +625,25 @@ class PipelineDeploymentConfig:
     resources: Optional[ResourceSpec] = None
     env: list[EnvVar] = dataclasses.field(default_factory=list)
 
+
 @dataclasses.dataclass
 class ArtifactQuerySpec:
     filter: str = ""
     limit: int = 1
 
+
 @dataclasses.dataclass
 class ResolverSpec:
-    output_artifact_queries: dict[str, ArtifactQuerySpec] = dataclasses.field(default_factory=dict)
+    output_artifact_queries: dict[str, ArtifactQuerySpec] = dataclasses.field(
+        default_factory=dict
+    )
+
 
 @dataclasses.dataclass
 class AIPlatformCustomJobSpec:
     custom_job: Optional[dict[str, object]] = None
     executors: dict[str, ExecutorSpec] = dataclasses.field(default_factory=dict)
+
 
 @dataclasses.dataclass
 class ExecutorSpec:
@@ -551,6 +651,7 @@ class ExecutorSpec:
     importer: Optional[ImporterSpec] = None
     resolver: Optional[ResolverSpec] = None
     custom_job: Optional[AIPlatformCustomJobSpec] = None
+
 
 @dataclasses.dataclass
 class RuntimeArtifact:
@@ -561,9 +662,11 @@ class RuntimeArtifact:
     custom_properties: dict[str, Value] = dataclasses.field(default_factory=dict)
     metadata: Optional[dict[str, object]] = None
 
+
 @dataclasses.dataclass
 class Artifactlist:
     artifacts: list[RuntimeArtifact] = dataclasses.field(default_factory=list)
+
 
 @dataclasses.dataclass
 class Inputs:
@@ -571,9 +674,11 @@ class Inputs:
     artifacts: dict[str, Artifactlist] = dataclasses.field(default_factory=dict)
     parameter_values: dict[str, Value] = dataclasses.field(default_factory=dict)
 
+
 @dataclasses.dataclass
 class OutputParameter:
     output_file: str = ""
+
 
 @dataclasses.dataclass
 class Outputs:
@@ -581,16 +686,19 @@ class Outputs:
     artifacts: dict[str, Artifactlist] = dataclasses.field(default_factory=dict)
     output_file: str = ""
 
+
 @dataclasses.dataclass
 class ExecutorInput:
     inputs: Optional[Inputs] = None
     outputs: Optional[Outputs] = None
+
 
 @dataclasses.dataclass
 class ExecutorOutput:
     parameters: dict[str, Value] = dataclasses.field(default_factory=dict)
     artifacts: dict[str, Artifactlist] = dataclasses.field(default_factory=dict)
     parameter_values: dict[str, Value] = dataclasses.field(default_factory=dict)
+
 
 @dataclasses.dataclass
 class PipelineTaskFinalStatus:
@@ -600,6 +708,7 @@ class PipelineTaskFinalStatus:
     pipeline_job_name: str = ""
     pipeline_job_resource_name: str = ""
     pipeline_task_name: str = ""
+
 
 class PipelineTaskState(enum.IntEnum):
     TASK_STATE_UNSPECIFIED = 0
@@ -617,9 +726,11 @@ class PipelineTaskState(enum.IntEnum):
     NOT_TRIGGERED = 12
     UNSCHEDULABLE = 13
 
+
 @dataclasses.dataclass
 class PlatformSpec:
     platforms: dict[str, SinglePlatformSpec] = dataclasses.field(default_factory=dict)
+
 
 @dataclasses.dataclass
 class PipelineDoc:
@@ -628,9 +739,14 @@ class PipelineDoc:
 
     def to_dict(self) -> dict:
         return {
-            "pipeline_spec": orjson.dumps(dataclasses.asdict(self.pipeline_spec)).decode("utf-8"),
-            "platform_spec": orjson.dumps(dataclasses.asdict(self.platform_spec)).decode("utf-8"),
+            "pipeline_spec": orjson.dumps(
+                dataclasses.asdict(self.pipeline_spec)
+            ).decode("utf-8"),
+            "platform_spec": orjson.dumps(
+                dataclasses.asdict(self.platform_spec)
+            ).decode("utf-8"),
         }
+
 
 @dataclasses.dataclass
 class SinglePlatformSpec:
@@ -638,6 +754,7 @@ class SinglePlatformSpec:
     platform: str = ""
     config: Optional[dict[str, object]] = None
     pipelineConfig: Optional[PipelineConfig] = None
+
 
 @dataclasses.dataclass
 class PlatformDeploymentConfig:
@@ -649,9 +766,9 @@ class PipelineConfig:
     semaphore_key: str = ""
     mutex_name: str = ""
 
+
 @dataclasses.dataclass
 class JobConfig:
     pipeline_spec: dict
     pipeline_version_reference: V2beta1PipelineVersionReference
     runtime_config: V2beta1RuntimeConfig
-

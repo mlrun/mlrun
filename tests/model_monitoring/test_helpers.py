@@ -56,7 +56,6 @@ from mlrun.model_monitoring.helpers import (
     get_output_stream,
     update_model_endpoint_last_request,
 )
-from mlrun.utils import datetime_now
 
 
 class _HistLen(NamedTuple):
@@ -462,30 +461,7 @@ class TestBumpModelEndpointLastRequest:
         patch_patch_model_endpoint.assert_called_once()
         assert patch_patch_model_endpoint.call_args.kwargs["attributes"][
             EventFieldType.LAST_REQUEST
-        ] == datetime.datetime.fromisoformat(last_request) + datetime.timedelta(
-            minutes=1
-        ) + datetime.timedelta(
-            seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
-        ), "The patched last request time should be bumped by the given delta"
-
-    @staticmethod
-    def test_no_bump(
-        project: str,
-        model_endpoint: ModelEndpoint,
-        db: NopDB,
-    ) -> None:
-        with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
-            with patch.object(
-                db, "get_function", side_effect=mlrun.errors.MLRunNotFoundError
-            ):
-                model_endpoint.metadata.endpoint_type = EndpointType.BATCH_EP
-                update_model_endpoint_last_request(
-                    project=project,
-                    model_endpoint=model_endpoint,
-                    current_request=datetime_now(),
-                    db=db,
-                )
-        patch_patch_model_endpoint.assert_not_called()
+        ] == datetime.datetime.fromisoformat(last_request)
 
     @staticmethod
     def test_get_monitoring_time_window_from_controller_run(

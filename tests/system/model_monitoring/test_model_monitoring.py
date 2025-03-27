@@ -1133,14 +1133,14 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
 
     def test_batch_drift(self):
         # Main validations:
-        # 1 - Generate new model endpoint record through get_or_create_model_endpoint() within MLRun SDK
+        # 1 - Generate new batch model endpoint record through get_or_create_model_endpoint() within MLRun SDK
         # 2 - Write monitoring parquet result to the relevant context
         # 3 - Register and trigger monitoring batch drift job
         # 4 - Log monitoring artifacts
+        # 5 - Ensure that `record_results` is not applied to non-batch model endpoints
 
         # Generate project and context (context will be used for logging the artifacts)
         project = self.project
-        context = mlrun.get_or_create_ctx(name="batch-drift-context")
 
         # Log a model artifact
         iris = load_iris()
@@ -1191,40 +1191,91 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
             mlrun.utils.datetime_now()
         )
 
+        model_path = project.get_artifact_uri(
+            key=model_name, category="model", tag="latest"
+        )
+
         # Record results and trigger the monitoring batch job
-        model_endpoint = mlrun.model_monitoring.api.record_results(
+        model_endpoint_batch = mlrun.model_monitoring.api.record_results(
             project=project.metadata.name,
-            model_path=project.get_artifact_uri(
-                key=model_name, category="model", tag="latest"
-            ),
+            model_path=model_path,
             model_endpoint_name="batch-drift-test",
             function_name="batch-drift-function",
-            context=context,
             infer_results_df=infer_results_df,
         )
 
-        # Wait for the controller, app and writer to complete
-        sleep(130)
+        # Verify that the model endpoint is created with the batch node type
+        assert (
+            model_endpoint_batch.metadata.endpoint_type
+            == mlrun.common.schemas.model_monitoring.EndpointType.BATCH_EP
+        )
 
-        model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
+        # Generate a mock non-batch mep
+        model_endpoint_non_batch = mock_random_endpoint(
+            project.metadata.name,
+            "non-batch-mep",
+            model_path=model_path,
+        )
+
+        db = mlrun.get_run_db()
+        model_endpoint_non_batch = db.create_model_endpoint(model_endpoint_non_batch)
+
+        model_endpoint_non_batch = mlrun.model_monitoring.api.record_results(
+            project=project.metadata.name,
+            model_endpoint_name="non-batch-mep",
+            endpoint_id=model_endpoint_non_batch.metadata.uid,
+            model_path=model_path,
+            infer_results_df=infer_results_df,
+        )
+
+        # by default, the model endpoint is created with the node type
+        assert (
+            model_endpoint_non_batch.metadata.endpoint_type
+            == mlrun.common.schemas.model_monitoring.EndpointType.NODE_EP
+        )
+
+        # Wait for the controller, app and writer to complete
+        sleep(180)
+
+        model_endpoint_batch = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=project.name,
-            endpoint_id=model_endpoint.metadata.uid,
+            endpoint_id=model_endpoint_batch.metadata.uid,
             model_endpoint_name="batch-drift-test",
             function_name="batch-drift-function",
+            feature_analysis=True,
         )
         # Validate that model_uri is based on models prefix
-        _validate_model_uri(model_obj=model, model_endpoint=model_endpoint)
+        _validate_model_uri(model_obj=model, model_endpoint=model_endpoint_batch)
 
         # Validate that the artifacts were logged in the project
         artifacts = project.list_artifacts(
             labels={
                 "mlrun/producer-type": "model-monitoring-app",
                 "mlrun/app-name": "histogram-data-drift",
-                "mlrun/endpoint-id": model_endpoint.metadata.uid,
+                "mlrun/endpoint-id": model_endpoint_batch.metadata.uid,
             }
         )
+
+        assert model_endpoint_batch.status.result_status == 2  # drift detected
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["key"] == "features_drift_results"
+
+        model_endpoint_non_batch = (
+            mlrun.model_monitoring.api.get_or_create_model_endpoint(
+                project=project.name,
+                endpoint_id=model_endpoint_non_batch.metadata.uid,
+                model_endpoint_name="non-batch-mep",
+                feature_analysis=True,
+            )
+        )
+        assert model_endpoint_non_batch.status.result_status == -1  # irrelevant status
+
+        artifacts = project.list_artifacts(
+            labels={
+                "mlrun/endpoint-id": model_endpoint_non_batch.metadata.uid,
+            }
+        )
+        assert len(artifacts) == 0
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured

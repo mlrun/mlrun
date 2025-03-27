@@ -432,58 +432,23 @@ def update_model_endpoint_last_request(
     :param current_request: current request time
     :param db:              DB interface.
     """
-    is_batch_endpoint = (
-        model_endpoint.metadata.endpoint_type == mm_constants.EndpointType.BATCH_EP
-    )
-    if not is_batch_endpoint:
-        logger.info(
-            "Update model endpoint last request time (EP with serving)",
-            project=project,
-            endpoint_id=model_endpoint.metadata.uid,
-            name=model_endpoint.metadata.name,
-            function_name=model_endpoint.spec.function_name,
-            last_request=model_endpoint.status.last_request,
-            current_request=current_request,
-        )
-        db.patch_model_endpoint(
-            project=project,
-            endpoint_id=model_endpoint.metadata.uid,
-            name=model_endpoint.metadata.name,
-            attributes={mm_constants.EventFieldType.LAST_REQUEST: current_request},
-        )
-    else:  # model endpoint without any serving function - close the window "manually"
-        try:
-            time_window = _get_monitoring_time_window_from_controller_run(project, db)
-        except mlrun.errors.MLRunNotFoundError:
-            logger.warn(
-                "Not bumping model endpoint last request time - the monitoring controller isn't deployed yet.\n"
-                "Call `project.enable_model_monitoring()` first."
-            )
-            return
 
-        bumped_last_request = (
-            current_request
-            + time_window
-            + datetime.timedelta(
-                seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
-            )
-        )
-        logger.info(
-            "Bumping model endpoint last request time (EP without serving)",
-            project=project,
-            endpoint_id=model_endpoint.metadata.uid,
-            function_name=model_endpoint.spec.function_name,
-            last_request=model_endpoint.status.last_request,
-            current_request=current_request.isoformat(),
-            bumped_last_request=bumped_last_request,
-        )
-        db.patch_model_endpoint(
-            project=project,
-            endpoint_id=model_endpoint.metadata.uid,
-            name=model_endpoint.metadata.name,
-            function_name=model_endpoint.spec.function_name,
-            attributes={mm_constants.EventFieldType.LAST_REQUEST: bumped_last_request},
-        )
+    logger.info(
+        "Update model endpoint last request time (EP with serving)",
+        project=project,
+        endpoint_id=model_endpoint.metadata.uid,
+        name=model_endpoint.metadata.name,
+        function_name=model_endpoint.spec.function_name,
+        last_request=model_endpoint.status.last_request,
+        current_request=current_request,
+    )
+    db.patch_model_endpoint(
+        project=project,
+        endpoint_id=model_endpoint.metadata.uid,
+        name=model_endpoint.metadata.name,
+        function_name=model_endpoint.spec.function_name,
+        attributes={mm_constants.EventFieldType.LAST_REQUEST: current_request},
+    )
 
 
 def calculate_inputs_statistics(

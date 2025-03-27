@@ -454,7 +454,8 @@ class SQLDB(DBInterface):
         if end_time_to is not None:
             query = query.filter(Run.end_time <= end_time_to)
         if sort:
-            query = query.order_by(Run.start_time.desc())
+            # If the start_time fields are the same, we need a secondary field to sort by.
+            query = query.order_by(Run.start_time.desc(), Run.id.desc())
         if not iter:
             query = query.filter(Run.iteration == 0)
         if requested_logs is not None:
@@ -525,10 +526,20 @@ class SQLDB(DBInterface):
     def _enrich_run_struct_from_model(
         self, run: Run, run_struct: dict, with_notifications: bool
     ):
-        if run.end_time:
-            run_struct.setdefault("status", {})["end_time"] = self._add_utc_timezone(
-                run.end_time
-            ).isoformat()
+        status = run_struct.setdefault("status", {})
+
+        # These fields are saved in struct as timestamps with fsp=6, while the corresponding columns
+        # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
+        # the column (not from the struct) to ensure the ordering is correct.
+        # In SQLite, the start_time and updated columns return timestamps with fsp=6.
+        for status_field, struct_field in [
+            ("end_time", "end_time"),
+            ("start_time", "start_time"),
+            ("last_update", "updated"),
+        ]:
+            if field_value := getattr(run, struct_field, None):
+                status[status_field] = self._add_utc_timezone(field_value).isoformat()
+
         if with_notifications:
             self._fill_run_struct_with_notifications(run.notifications, run_struct)
 
@@ -2368,7 +2379,8 @@ class SQLDB(DBInterface):
             limit=limit,
         ):
             function_dict = function.struct
-            function_dict["kind"] = function.kind
+            self._enrich_function_struct_from_model(function, function_dict)
+
             if not function_tag:
                 # function status should be added only to tagged functions
                 # TODO: remove explicit cleaning; we also
@@ -2558,13 +2570,15 @@ class SQLDB(DBInterface):
         tag_function_uid = None if not tag and hash_key else uid
         if obj:
             function = obj.struct
+            self._enrich_function_struct_from_model(obj, function)
+
             # If connected to a tag add it to metadata
             if tag_function_uid:
                 function["metadata"]["tag"] = computed_tag
                 function["metadata"]["uid"] = tag_function_uid
-            function["kind"] = obj.kind
             function.setdefault("status", {})
             function["status"]["state"] = obj.state
+
             return mlrun.common.formatters.FunctionFormat.format_obj(function, format_)
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
@@ -2615,6 +2629,20 @@ class SQLDB(DBInterface):
         else:
             computed_tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         return tag, computed_tag
+
+    def _enrich_function_struct_from_model(
+        self, function: Function, function_struct: dict
+    ):
+        function_struct["kind"] = function.kind
+
+        # updated field is saved in struct as timestamps with fsp=6, while the corresponding column
+        # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
+        # the column (not from the struct) to ensure the ordering is correct.
+        # In SQLite, the updated column return timestamps with fsp=6.
+        if field_value := getattr(function, "updated", None):
+            function_struct["metadata"]["updated"] = self._add_utc_timezone(
+                field_value
+            ).isoformat()
 
     def _delete_project_functions(self, session: Session, project: str):
         logger.debug("Removing project functions from db", project=project)
@@ -5512,7 +5540,10 @@ class SQLDB(DBInterface):
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)
-        query = query.order_by(Function.updated.desc())
+
+        # If the updated fields are the same, we need a secondary field to sort by.
+        query = query.order_by(Function.updated.desc(), Function.id.desc())
+
         query = self._paginate_query(query, offset, limit)
         return query
 
@@ -6873,7 +6904,10 @@ class SQLDB(DBInterface):
         if entity_kind:
             query = query.filter(AlertActivation.entity_kind == entity_kind)
 
-        query = query.order_by(AlertActivation.activation_time.desc())
+        # If the activation_time fields are the same, we need a secondary field to sort by.
+        query = query.order_by(
+            AlertActivation.activation_time.desc(), AlertActivation.id.desc()
+        )
         query = self._paginate_query(query, offset, limit)
         return [
             self._transform_alert_activation_record_to_scheme(record)

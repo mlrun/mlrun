@@ -14,8 +14,6 @@
 
 import os
 
-import pytest
-
 import mlrun.datastore
 from tests.system.base import TestMLRunSystem
 

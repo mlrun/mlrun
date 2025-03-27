@@ -1062,11 +1062,15 @@ class SQLDB(DBInterface):
                 failed_deletions_count += 1
                 continue
 
-        if failed_deletions_count:
+        if failed_deletions_count or failed_deletions_count_integrity:
+            if failed_deletions_count_integrity:
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"Failed to delete {failed_deletions_count + failed_deletions_count_integrity} artifacts, "
+                    f"while {failed_deletions_count_integrity} of them failed due to existing model endpoints that "
+                    f"reference them. Check the logs for more information."
+                )
             raise mlrun.errors.MLRunInternalServerError(
-                f"Failed to delete {failed_deletions_count + failed_deletions_count_integrity} artifacts, "
-                f"while {failed_deletions_count_integrity} of them failed due to existing model endpoints that "
-                f"reference them. Check the logs for more information."
+                f"Failed to delete {failed_deletions_count} artifacts. Check the logs for more information."
             )
         logger.info("Successfully deleted artifacts", total_artifacts=total_artifacts)
 

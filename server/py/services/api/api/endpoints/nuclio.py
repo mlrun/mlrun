@@ -517,9 +517,16 @@ def _deploy_function(
         launcher.enrich_runtime(runtime=fn, full=True)
 
         fn.pre_deploy_validation()
+        # before saving function to DB, we need to mask some nuclio-specific fields
+        # which later in Nuclio will be masked and saved to secrets
+        raw_config = fn.mask_sensitive_data_in_config()
+
+        # save the function to DB
         fn.save(versioned=False)
         fn.spec.model_endpoint_creation_task_name = model_endpoint_creation_task_name
 
+        # after saving function to DB, we need to restore the original config so that the sensitive data won't be stored
+        fn.spec.config = raw_config
         fn = _deploy_nuclio_runtime(
             auth_info,
             builder_env,
@@ -528,6 +535,8 @@ def _deploy_function(
             db_session,
             fn,
         )
+        # after deploying the function, we need to re-mask the sensitive data again and save to the db
+        fn.mask_sensitive_data_in_config()
         fn.save(versioned=False)
         logger.info("Resolved function", fn=fn.to_yaml())
     except Exception as err:
@@ -705,6 +714,7 @@ def _handle_nuclio_deploy_status(
             tag,
             versioned=versioned,
         )
+        logger.info("Updating function status", function=fn)
 
     return Response(
         content=text,

@@ -129,6 +129,7 @@ try:
     from kfp.dsl import ContainerOp as real_ContainerOp
     from kfp.dsl import PipelineConf as real_PipelineConf
     from kfp.dsl import PipelineParam as real_PipelineParam
+    from kfp.dsl import PipelineTask as real_PipelineTask
 
     # Assign real KFP components
     kfp = real_kfp
@@ -138,6 +139,7 @@ try:
     ContainerOp = real_ContainerOp
     PipelineParam = real_PipelineParam
     PipelineConf = real_PipelineConf
+    PipelineTask = real_PipelineTask
 
     if hasattr(ContainerOp, "_DISABLE_REUSABLE_COMPONENT_WARNING"):
         ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
@@ -159,6 +161,7 @@ __all__ = [
     "ContainerOp",
     "PipelineConf",
     "PipelineParam",
+    "PipelineTask",
     "compiler",
     "dsl",
     "kfp",

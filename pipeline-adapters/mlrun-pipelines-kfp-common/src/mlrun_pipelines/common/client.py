@@ -27,7 +27,7 @@ class AbstractClient(ABC):
     """
 
     @abstractmethod
-    def get_kfp_healthz(self) -> kfp_server_api.ApiGetHealthzResponse:
+    def get_kfp_healthz(self):
         """
         Retrieve the healthz status of the KFP API.
 
@@ -44,7 +44,7 @@ class AbstractClient(ABC):
         name: str,
         description: Optional[str] = None,
         namespace: Optional[str] = None,
-    ) -> kfp_server_api.ApiExperiment:
+    ):
         """
         Create a new experiment if it does not already exist.
 
@@ -65,7 +65,7 @@ class AbstractClient(ABC):
         experiment_id: Optional[str] = None,
         experiment_name: Optional[str] = None,
         namespace: Optional[str] = None,
-    ) -> kfp_server_api.ApiExperiment:
+    ):
         """
         Retrieve an experiment by ID or name.
 
@@ -93,7 +93,7 @@ class AbstractClient(ABC):
         pipeline_root: Optional[str] = None,
         enable_caching: Optional[bool] = None,
         service_account: Optional[str] = None,
-    ) -> kfp_server_api.ApiRun:
+    ):
         """
         Run a pipeline within a specified experiment.
 
@@ -122,7 +122,7 @@ class AbstractClient(ABC):
         experiment_id: Optional[str] = None,
         namespace: Optional[str] = None,
         filter_: Optional[str] = None,
-    ) -> kfp_server_api.ApiListRunsResponse:
+    ):
         """
         List pipeline runs with optional filters.
 
@@ -140,7 +140,7 @@ class AbstractClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_run(self, run_id: str) -> kfp_server_api.ApiRunDetail:
+    def get_run(self, run_id: str):
         """
         Retrieve details of a specific pipeline run.
 
@@ -155,7 +155,7 @@ class AbstractClient(ABC):
         run_id: str,
         timeout: int,
         check_interval_seconds: int = 5,
-    ) -> kfp_server_api.ApiRun:
+    ):
         """
         Wait for a pipeline run to reach a stable status (e.g., Succeeded or Failed).
 
@@ -176,7 +176,7 @@ class AbstractClient(ABC):
         pipeline_package_path: str,
         pipeline_name: Optional[str] = None,
         description: Optional[str] = None,
-    ) -> kfp_server_api.ApiPipeline:
+    ):
         """
         Upload a pipeline package file to Kubeflow Pipelines.
 

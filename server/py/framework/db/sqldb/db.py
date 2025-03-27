@@ -528,9 +528,8 @@ class SQLDB(DBInterface):
     ):
         status = run_struct.setdefault("status", {})
 
-        # These fields are saved in struct as timestamps with fsp=6, while the corresponding columns
-        # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
-        # the column (not from the struct) to ensure the ordering is correct.
+        # Return the value from the column to ensure the ordering is correct since the sort is done on the table
+        # columns and timestamps are being saved with fsp=3 while struct fields are fsp=6.
         # In SQLite, the start_time and updated columns return timestamps with fsp=6.
         for status_field, struct_field in [
             ("end_time", "end_time"),

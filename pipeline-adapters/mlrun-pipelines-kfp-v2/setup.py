@@ -40,10 +40,10 @@ setup(
     ],
     python_requires=">=3.9",
     install_requires=[
-        "kfp_server_api>=2.4.0",
+        "kfp_server_api>=2.3.0",
     ],
     extras_require={
-        "kfp": "kfp[kubernetes]>=2.12.1",
+        "kfp": "kfp[kubernetes]>=2.11.0",
     },
     long_description="MLRun Pipelines package for providing KFP 2.* compatibility",
     long_description_content_type="text/markdown",

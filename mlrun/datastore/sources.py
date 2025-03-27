@@ -51,6 +51,7 @@ def load_spark_dataframe_with_options(session, spark_options, format=None):
     non_hadoop_spark_options = spark_session_update_hadoop_options(
         session, spark_options
     )
+    print(f"111 format={format}, non_hadoop_spark_options={non_hadoop_spark_options}")
     if format:
         df = session.read.format(format).load(**non_hadoop_spark_options)
     else:
@@ -732,6 +733,7 @@ class BigQuerySource(BaseSourceDriver):
             options["path"] = table
 
         df = load_spark_dataframe_with_options(session, options, "bigquery")
+        # return df here – got NPE
         if named_view:
             df.createOrReplaceTempView(self.name)
         return self._filter_spark_df(df, time_field, columns)

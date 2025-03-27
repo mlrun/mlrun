@@ -92,6 +92,7 @@ def write_spark_dataframe_with_options(spark_options, df, mode, write_format=Non
         spark_session, spark_options
     )
     if write_format:
+        df.show()
         df.write.format(write_format).mode(mode).save(**non_hadoop_spark_options)
     else:
         df.write.mode(mode).save(**non_hadoop_spark_options)

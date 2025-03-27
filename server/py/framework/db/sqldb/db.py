@@ -533,7 +533,8 @@ class SQLDB(DBInterface):
         # the column (not from the struct) to ensure the ordering is correct.
         # In SQLite, the start_time and updated columns return timestamps with fsp=6.
         status["start_time"] = self._add_utc_timezone(run.start_time).isoformat()
-        status["updated"] = self._add_utc_timezone(run.updated).isoformat()
+        status["last_update"] = self._add_utc_timezone(run.updated).isoformat()
+
         if run.end_time:
             status["end_time"] = self._add_utc_timezone(run.end_time).isoformat()
         if with_notifications:

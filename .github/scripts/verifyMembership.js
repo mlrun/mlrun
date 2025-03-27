@@ -25,10 +25,10 @@ async function run() {
                 console.log("🤖 Skipping verification for dependabot PRs.");
                 return;
             case orgName:
-                console.log("🤖 Skipping verification for matching username.");
+                console.log(`🔍 Skipping verification for PRs created by ${orgName}.`);
                 return;
             default:
-                console.log(`🔍 Checking membership of user: ${prAuthor} in org: ${orgName}`);
+                console.log(`🔍 Verifying membership for user ${prAuthor} in org ${orgName}.`);
                 try {
                     const response = await octokit.rest.orgs.getMembershipForUser({
                         org: orgName,

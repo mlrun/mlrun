@@ -24,6 +24,7 @@
 |ML-7731|Model monitoring can now be run on a larger scale, using MLRun's additional replicas/workers. To benefit from the scale-out: After upgrading to v1.8.0, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
 |ML-8281|MLRun now supports experiment tracking for document-based models, integrating management of LangChain documents using the new artifact type "Document". Additionally, it provides a mechanism for provisioning third-party configuration keys and settings. The UI has a new Projects > Documents page supporting this feature. See <link to tutorial>.
 |ML-8537|You can now run and evaluate models before deploying them, saving time and resources. See <link>.|
+|ML-7688|You can now give model endpoints a name of your choice.|
 
 ### Upgrading the MLRun server if model monitoring is deployed in v1.7.x
 
@@ -101,6 +102,7 @@ To upgrade the MLRun server:
 |ML-9201|Running `project.run` with `dirty=True` skips the git check for dirty.|
 |ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.|
 |ML-9257|Model monitoring: A mismatch between the serving function response and the MEP expected output is saved correctly (and does not cause the application to fail).|
+|ML-9341|Increased the limit of alert configurations on the system up to 20k (from 10k).|
 |ML-9432|Notifications no longer get stuck in "Pending" in the DB.|
 
 

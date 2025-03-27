@@ -531,13 +531,13 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 
 .PHONY: test
 test: clean ## Run mlrun tests
-	# TODO: Remove ignored tests for Python 3.11 compatibility with KFP 2
 	if [ "$(UNIT_TEST_IGNORE_PATH)" != "" ]; then \
   		IGNORE_ADDITION="--ignore=$(UNIT_TEST_IGNORE_PATH)"; \
 	else \
 		IGNORE_ADDITION=""; \
 	fi; \
 	set -e ;\
+	# TODO: Remove ignored tests for Python 3.11 compatibility with KFP 2
 	COMMON_IGNORE_TEST_FLAGS=$$(echo "\
 		--ignore=tests/integration \
 		--ignore=tests/system \

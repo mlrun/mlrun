@@ -42,7 +42,7 @@ from sqlalchemy import (
     select,
     text,
 )
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
 from sqlalchemy.orm import Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
@@ -1041,7 +1041,7 @@ class SQLDB(DBInterface):
                 # Check if the error is related to ModelEndpoint table
                 if "model_endpoints" in str(exc).lower():
                     logger.error(
-                        "Failed to delete model artifact due to existing model endpoints that reference it.",
+                        "Failed to delete model artifact due to existing model endpoints that reference it",
                         project=project,
                         key=key,
                         uid=uid,

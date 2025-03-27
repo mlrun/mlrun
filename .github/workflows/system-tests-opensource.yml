@@ -57,8 +57,7 @@ env:
 jobs:
   prepare-inputs:
     name: Prepare inputs
-    runs-on:
-      group: mlrun-ce
+    runs-on: ubuntu-latest
     outputs:
       mlrun_docker_repo: ${{ steps.computed_params.outputs.mlrun_docker_repo }}
       mlrun_docker_tag: ${{ steps.computed_params.outputs.mlrun_docker_tag }}

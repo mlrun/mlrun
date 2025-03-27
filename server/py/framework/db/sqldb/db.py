@@ -42,7 +42,7 @@ from sqlalchemy import (
     select,
     text,
 )
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
 from sqlalchemy.orm import Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
@@ -1025,6 +1025,7 @@ class SQLDB(DBInterface):
         logger.info("Deleting artifacts", total_artifacts=total_artifacts)
 
         failed_deletions_count = 0
+        failed_deletions_count_integrity = 0
 
         for key, uid in distinct_keys_and_uids:
             try:
@@ -1036,6 +1037,20 @@ class SQLDB(DBInterface):
                     key=key,
                     producer_id=producer_id,
                 )
+            except IntegrityError as exc:
+                # Check if the error is related to ModelEndpoint table
+                if "model_endpoints" in str(exc).lower():
+                    logger.error(
+                        "Failed to delete model artifact due to existing model endpoints that reference it.",
+                        project=project,
+                        key=key,
+                        uid=uid,
+                        err=err_to_str(exc),
+                    )
+                    failed_deletions_count_integrity += 1
+                else:
+                    # Re-raise the exception if it's not related to ModelEndpoint
+                    raise
             except Exception as exc:
                 logger.error(
                     "Failed to delete artifact",
@@ -1049,7 +1064,9 @@ class SQLDB(DBInterface):
 
         if failed_deletions_count:
             raise mlrun.errors.MLRunInternalServerError(
-                f"Failed to delete {failed_deletions_count} artifacts"
+                f"Failed to delete {failed_deletions_count + failed_deletions_count_integrity} artifacts, "
+                f"while {failed_deletions_count_integrity} of them failed due to existing model endpoints that "
+                f"reference them. Check the logs for more information."
             )
         logger.info("Successfully deleted artifacts", total_artifacts=total_artifacts)
 

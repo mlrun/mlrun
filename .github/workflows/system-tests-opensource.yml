@@ -19,18 +19,17 @@ on:
     branches:
       - '.+-os-system-tests'
 
-# disabled until we have a proper schedule definition
-#  schedule:
-#
-#    # * is a special character in YAML so you have to quote this string
-#    # Run the system tests every 3 hours
-#    - cron:  '0 */3 * * *'
+  pull_request:
+    branches:
+      - development
+      - '[0-9]+.[0-9]+.x'
+      - 'feature/**'
 
   workflow_dispatch:
     inputs:
       pr_number:
-        description: 'PR number to run the system tests against (default: run on the latest commit in the development branch)'
-        required: false
+        description: 'PR number to run the system tests against'
+        required: true
         default: ''
       pytest_markers:
         description: 'Pytest markers to run'
@@ -44,14 +43,11 @@ on:
         options:
           - 'true'
           - 'false'
-      debug_enabled:
-        description: 'Allow SSH debugging'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
+
+concurrency:
+  group:
+    ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
 
 env:
   NAMESPACE: mlrun
@@ -59,9 +55,29 @@ env:
   MLRUN_PYTHON_PACKAGE_INSTALLER: uv
 
 jobs:
-  prepare-inputs:
-    name: Prepare Open Source inputs
+  verify-membership:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+
+      - name: Install dependencies
+        run: npm install @actions/core @actions/github
+
+      - name: Validate PR author org membership
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ORG_NAME: ${{ github.repository_owner }}
+        run: node -e "$(cat .github/scripts/verifyMembership.js)"
+
+  prepare-inputs:
+    name: Prepare inputs
+    needs: verify-membership
+    runs-on:
+      group: mlrun-ce
     outputs:
       mlrun_docker_repo: ${{ steps.computed_params.outputs.mlrun_docker_repo }}
       mlrun_docker_tag: ${{ steps.computed_params.outputs.mlrun_docker_tag }}
@@ -100,7 +116,7 @@ jobs:
               rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
           echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
         env:
-          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+          PR_NUMBER: ${{ github.event.number || github.event.inputs.pr_number }}
 
       - name: Set computed versions params
         id: computed_params
@@ -128,10 +144,10 @@ jobs:
             echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
         env:
           INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
-          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+          PR_NUMBER: ${{ github.event.number || github.event.inputs.pr_number }}
 
   build-mlrun:
-    if : github.event.inputs.pr_number != ''
+    if : github.event.number != '' || github.event.inputs.pr_number != ''
     name: Build MLRun
     uses: ./.github/workflows/build-internal.yaml
     needs: prepare-inputs
@@ -150,15 +166,11 @@ jobs:
 
   run-system-tests-opensource-ci:
     name: Run System Tests Open Source
-    runs-on: ubuntu-latest
+    runs-on:
+      group: mlrun-ce
     needs: [prepare-inputs, build-mlrun]
     steps:
     - uses: actions/checkout@v4
-
-    # since github-actions gives us 14G only, and fills it up with some garbage
-    - name: Freeing up disk space
-      run: |
-        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
     - name: Install uv
       uses: astral-sh/setup-uv@v5
@@ -171,7 +183,7 @@ jobs:
 
     - name: Install automation scripts dependencies
       run: |
-        sudo apt-get install curl jq
+        sudo apt-get install curl jq make
         uv venv venv --seed
         source venv/bin/activate
         make install-requirements install-complete-requirements
@@ -181,19 +193,9 @@ jobs:
       name: "Start a local k8s cluster"
       with:
         # - k3s versions at https://github.com/k3s-io/k3s/tags
-        k3s-version: v1.32.1+k3s1
+        k3s-version: v1.32.3+k3s1
         # - helm versions at https://github.com/helm/helm/tags
-        helm-version: v3.17.1
-
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
-      if: ${{ github.event.inputs.debug_enabled == 'true' }}
-      with:
-
-        # run in detach mode to allow the workflow to continue running while session is active
-        # this will wait up to 10 minutes AFTER the entire job is done. Once user connects to the session,
-        # it will wait until the user disconnects before finishing up the job.
-        detached: true
+        helm-version: v3.17.2
 
     - name: Setup Local Docker Registry
       run: |

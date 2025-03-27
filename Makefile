@@ -98,8 +98,8 @@ endif
 
 # Change to `--upgrade-package <package-name>` to upgrade only a specific package
 MLRUN_UV_UPGRADE_FLAG ?= --upgrade
-UNIT_TEST_PATH?=./
-UNIT_TEST_IGNORE_PATH?=
+UNIT_TESTS_PATH ?= ./
+UNIT_TESTS_IGNORE_PATH ?=
 
 .PHONY: help
 help: ## Display available commands

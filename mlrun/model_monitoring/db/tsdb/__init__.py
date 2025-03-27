@@ -92,7 +92,7 @@ def get_tsdb_connector(
     if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.V3IO_TSDB
     elif isinstance(
-        profile, mlrun.datastore.datastore_profile.TDEngineDatastoreProfile
+        profile, mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
     ):
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.TDEngine
     else:

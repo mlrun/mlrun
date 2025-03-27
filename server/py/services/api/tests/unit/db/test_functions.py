@@ -15,6 +15,7 @@
 import datetime
 import time
 
+import deepdiff
 import pytest
 
 import mlrun.common.schemas
@@ -214,6 +215,51 @@ class TestFunctions(TestDatabaseBase):
                 function_1.metadata.name,
                 hash_key="inexistent_hash_key",
             )
+
+    def test_get_and_list_functions_columns_enrichment(self):
+        function_1 = self._generate_function()
+        # Enrich status to ensure it is retained
+        function_1.status.state = "test"
+        function_1.status.build_pod = "test-build-pod"
+        self._db.store_function(
+            self._db_session,
+            function_1.to_dict(),
+            function_1.metadata.name,
+            versioned=True,
+        )
+        function_queried = self._db.get_function(
+            self._db_session, function_1.metadata.name
+        )
+        assert (
+            deepdiff.DeepDiff(
+                function_1.to_dict(),
+                function_queried,
+                exclude_paths=[
+                    # Exclude serverside generated fields
+                    "root['metadata']['updated']",
+                    "root['metadata']['created']",
+                    "root['metadata']['uid']",
+                    "root['metadata']['hash']",
+                ],
+            )
+            == {}
+        )
+
+        functions = self._db.list_functions(self._db_session, function_1.metadata.name)
+        assert len(functions) == 1
+        function_queried = functions[0]
+        assert (
+            deepdiff.DeepDiff(
+                function_1.to_dict(),
+                function_queried,
+                exclude_paths=[
+                    "root['metadata']['updated']",
+                    "root['metadata']['created']",
+                    "root['metadata']['hash']",
+                ],
+            )
+            == {}
+        )
 
     def test_list_functions_no_tags(self):
         function_1 = {"bla": "blabla", "status": {"bla": "blabla"}}
@@ -476,7 +522,7 @@ class TestFunctions(TestDatabaseBase):
 
         # extract the updated time of the functions
         function_times = [
-            function["metadata"]["updated"]
+            datetime.datetime.fromisoformat(function["metadata"]["updated"])
             for function in sorted(
                 all_functions, key=lambda x: x["metadata"]["updated"]
             )
@@ -660,6 +706,47 @@ class TestFunctions(TestDatabaseBase):
                 function_name == expected_name
             ), f"Expected {expected_name}, got {function_name}"
 
+    def test_list_functions_orders_by_id_when_updated_is_identical(self):
+        # this test is verified that when updated date is identical, functions should be ordered by function id
+        number_of_functions = 10
+        t1 = datetime.datetime.now()
+        for counter in range(number_of_functions):
+            function_name = f"function-{counter}"
+            function = self._generate_function(function_name)
+            tag = "some_tag"
+            self._db.store_function(
+                self._db_session,
+                function.to_dict(),
+                function.metadata.name,
+                versioned=False,
+                tag=tag,
+            )
+
+            # Set the same `updated` timestamp for all functions
+            db_artifact = self._db._query(
+                self._db_session, Function, name=function_name
+            ).one_or_none()
+            db_artifact.updated = t1
+            self._db_session.add(db_artifact)
+            self._db._commit(self._db_session, db_artifact)
+            self._db_session.flush()
+
+        functions = self._db.list_functions(self._db_session)
+
+        assert (
+            len(functions) == number_of_functions
+        ), f"Expected {number_of_functions} results, got {len(functions)}"
+
+        expected_names = [
+            f"function-{i}" for i in range(number_of_functions - 1, -1, -1)
+        ]
+
+        for function, expected_name in zip(functions, expected_names):
+            function_name = function["metadata"]["name"]
+            assert (
+                function_name == expected_name
+            ), f"Expected {expected_name}, got {function_name}"
+
     def test_delete_functions(self):
         names = ["some_name", "some_name2", "some_name3"]
         labels = {
@@ -746,4 +833,11 @@ class TestFunctions(TestDatabaseBase):
             name=function_name,
             project=project,
             tag=tag,
+            kind="job",
+            command="training.py -x {x}",
+            image="test/test",
+            args=["test"],
+            handler="test",
+            source="git://github.com/mlrun/something.git",
+            requirements=["test"],
         )

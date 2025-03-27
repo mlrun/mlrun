@@ -110,9 +110,6 @@ class Runs(
             data["status.artifact_uris"] = artifact_uris
         data.pop("status.artifacts", None)
 
-        # Note: Abort run moved to a separated endpoint
-        # TODO: Remove below function for 1.8.0 (once 1.5.x clients are not supported)
-        self._update_aborted_run(db_session, project, uid, iter, data)
         framework.utils.singletons.db.get_db().update_run(
             db_session, data, uid, project, iter
         )

@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import time
 import unittest.mock
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pytest
 
@@ -23,6 +24,7 @@ import mlrun.model
 from tests.conftest import new_run
 
 import framework.db.sqldb.helpers
+import framework.db.sqldb.models
 import services.api.initial_data
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
@@ -425,6 +427,69 @@ class TestRuns(TestDatabaseBase):
             assert run["status"]["end_time"] is not None
             assert update_labels_mock.call_count == 0
 
+    def test_store_and_update_run_from_terminal_state_to_non_terminal_state(self):
+        project, name, uid, iteration, run = self._create_new_run(
+            state=mlrun.common.runtimes.constants.RunStates.completed
+        )
+        run = self._db.read_run(self._db_session, uid, project, iteration)
+
+        # Store completed expected to fill end time
+        initial_end_time = run["status"]["end_time"]
+        assert initial_end_time is not None
+
+        # Update the run using `store` to running state to test the store flow as well
+        self._create_new_run(state=mlrun.common.runtimes.constants.RunStates.running)
+        run = self._db.read_run(self._db_session, uid, project, iteration)
+
+        # Store running expected to remove end time
+        assert "end_time" not in run["status"]
+
+        # Sleep 1 second to allow next end time to be different
+        time.sleep(1)
+        self._db.update_run(
+            self._db_session,
+            {"status.state": mlrun.common.runtimes.constants.RunStates.completed},
+            uid,
+            project,
+            iteration,
+        )
+        run = self._db.read_run(self._db_session, uid, project, iteration)
+
+        # Update completed expected to fill end time
+        assert run["status"]["end_time"] > initial_end_time
+
+        self._db.update_run(
+            self._db_session,
+            {"status.state": mlrun.common.runtimes.constants.RunStates.running},
+            uid,
+            project,
+            iteration,
+        )
+        run = self._db.read_run(self._db_session, uid, project, iteration)
+
+        # Update running expected to remove end time
+        assert "end_time" not in run["status"]
+
+    def test_consecutive_completed_update_requests(self):
+        project, name, uid, iteration, run = self._create_new_run(
+            state=mlrun.common.runtimes.constants.RunStates.completed
+        )
+        run = self._db.read_run(self._db_session, uid, project, iteration)
+
+        # Store completed expected to fill end time
+        initial_end_time = run["status"]["end_time"]
+        assert initial_end_time is not None
+
+        self._db.update_run(
+            self._db_session,
+            {"status.state": mlrun.common.runtimes.constants.RunStates.completed},
+            uid,
+            project,
+            iteration,
+        )
+        run = self._db.read_run(self._db_session, uid, project, iteration)
+        assert run["status"]["end_time"] == initial_end_time
+
     def test_run_iter(self):
         uid, prj = "uid39", "lemon"
         run = new_run("s1", {"l1": "v1", "l2": "v2"}, x=1)
@@ -450,6 +515,22 @@ class TestRuns(TestDatabaseBase):
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
             match="Value of `a` label is too long. "
+            "Maximum allowed length is 255 characters.",
+        ):
+            self._db.update_run(
+                self._db_session,
+                run,
+                uid,
+                project,
+                iteration,
+            )
+
+        label_key = "a" * 256
+        run["metadata"]["labels"] = {label_key: "b"}
+        # too long name
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=f"Name of `{label_key}` label is too long. "
             "Maximum allowed length is 255 characters.",
         ):
             self._db.update_run(
@@ -513,36 +594,43 @@ class TestRuns(TestDatabaseBase):
         )
         assert len(runs) == 4
 
-    def test_list_runs_with_end_time(self):
-        project, name, run_uid, iteration, run = self._create_new_run()
+    def test_list_runs_orders_by_id_when_start_time_is_identical(self):
+        # this test verifies that when start_time date is identical, runs should be ordered by run id
+        project_name = "my-project"
+        t1 = datetime.now()
 
-        assert not run["status"].get("end_time")
+        # Create runs
+        number_of_runs = 10
+        for counter in range(number_of_runs):
+            run_name = f"run-{counter}"
+            self._create_new_run(
+                project=project_name, name=run_name, uid=f"uid-{counter}"
+            )
 
-        # update the run's end_time
-        end_time = datetime.now(timezone.utc)
-        end_time_iso = end_time.isoformat()
-        updates = {
-            "status.state": "completed",
-            "status.end_time": end_time_iso,
-        }
-        self._db.update_run(self._db_session, updates, run_uid, project)
+            # Set the same `start_time` timestamp for all runs
+            db_run = self._db._query(
+                self._db_session, framework.db.sqldb.models.Run, name=run_name
+            ).one_or_none()
+            db_run.start_time = t1
+            self._db_session.add(db_run)
+            self._db._commit(self._db_session, db_run)
+            self._db_session.flush()
 
-        # fetch the run and verify the end_time
-        run = self._db.read_run(self._db_session, run_uid, project, iteration)
-        assert run["status"].get("end_time")
-        assert run["status"]["end_time"] == end_time_iso
-
-        # list runs with end_time filter
         runs = self._db.list_runs(
             self._db_session,
-            project=project,
-            end_time_from=end_time - timedelta(milliseconds=100),
+            project=project_name,
         )
-        assert len(runs) == 1
-        stored_run = runs[0]
-        assert stored_run["metadata"]["uid"] == run_uid
-        assert stored_run["status"]["end_time"] == end_time_iso
-        assert stored_run["status"]["end_time"] > stored_run["status"]["start_time"]
+        assert (
+            len(runs) == number_of_runs
+        ), f"Expected {number_of_runs} results, got {len(runs)}"
+
+        expected_names = [f"run-{i}" for i in range(number_of_runs - 1, -1, -1)]
+
+        for run, expected_name in zip(runs, expected_names):
+            run_name = run["metadata"]["name"]
+            assert (
+                run_name == expected_name
+            ), f"Expected {expected_name}, got {run_name}"
 
     @staticmethod
     def _change_run_record_to_before_align_runs_migration(run, time_before_creation):

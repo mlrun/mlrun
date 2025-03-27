@@ -145,7 +145,14 @@ class _V3IORecordsChecker:
         if last_request:
             cls._logger.debug("Checking the MEP last_request")
             lr_tsdb = cls._tsdb_storage.get_last_request(endpoint_ids=ep_id)
-            cls._check_valid_tsdb_result(lr_tsdb, ep_id, "last_request", last_request)
+            if isinstance(lr_tsdb, pd.DataFrame):
+                cls._check_valid_tsdb_result(
+                    lr_tsdb, ep_id, "last_request", last_request
+                )
+            else:
+                cls._check_last_request_dict(
+                    lr_tsdb, ep_id, "last_request", last_request
+                )
 
         if error_count:
             cls._logger.debug("Checking the MEP error_count")
@@ -173,6 +180,22 @@ class _V3IORecordsChecker:
             assert (
                 df[df["endpoint_id"] == ep_id][result_name].item() == result_value
             ), f"The {result_name} is different than expected for {ep_id}"
+
+    @classmethod
+    def _check_last_request_dict(
+        cls,
+        data: dict[str, float],
+        ep_id: str,
+        result_name: str,
+        result_value: datetime,
+    ):
+        assert data, "No last request data"
+        assert (
+            list(data.keys())[0] == ep_id
+        ), "The endpoint IDs are different than expected"
+        assert (
+            data[ep_id] == result_value.timestamp()
+        ), f"The {result_name} is different than expected for {ep_id}"
 
     @classmethod
     def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:
@@ -789,8 +812,8 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
         )
         self.project.deploy_function(fn)
 
-    def _record_results(self) -> None:
-        mlrun.model_monitoring.api.record_results(
+    def _record_results(self) -> str:
+        model_endpoint = mlrun.model_monitoring.api.record_results(
             project=self.project_name,
             model_path=self.project.get_artifact_uri(  # pyright: ignore[reportOptionalMemberAccess]
                 key=self.model_name, category="model", tag="latest"
@@ -800,6 +823,8 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
         )
+
+        return model_endpoint.metadata.uid
 
     def _deploy_monitoring_infra(self) -> None:
         self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
@@ -814,15 +839,14 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             executor.submit(self._deploy_monitoring_app)
             executor.submit(self._deploy_monitoring_infra)
 
-        self._record_results()
+        endpoint_id = self._record_results()
 
         time.sleep(2.4 * self.app_interval_seconds)
 
         mep = mlrun.db.get_run_db().get_model_endpoint(
             name=f"{self.name_prefix}-test",
             project=self.project.name,
-            function_name=self.function_name,
-            function_tag="latest",
+            endpoint_id=endpoint_id,
             feature_analysis=True,
             tsdb_metrics=True,
         )
@@ -872,7 +896,7 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             controller.spec.config["spec.triggers.cron_interval"]["attributes"][
                 "interval"
             ]
-            == "10m"
+            == "3m"
         )
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",

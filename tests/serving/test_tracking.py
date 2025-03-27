@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import pathlib
 from collections.abc import Iterator
 from typing import cast
 from unittest.mock import patch
@@ -32,6 +33,7 @@ from mlrun.platforms.iguazio import KafkaOutputStream
 from mlrun.runtimes import ServingRuntime
 from tests.serving.test_serving import _log_model
 
+assets_path = str(pathlib.Path(__file__).parent / "assets")
 testdata = '{"inputs": [[5, 6]]}'
 
 
@@ -54,7 +56,11 @@ class ModelTestingCustomTrack(ModelTestingClass):
 def test_tracking(rundb_mock):
     # test that predict() was tracked properly in the stream
     fn = mlrun.new_function("tests", kind="serving")
-    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=2))
+    fn.add_model(
+        "my",
+        ".",
+        class_name=ModelTestingClass(multiplier=2, model_endpoint_uid="my-uid"),
+    )
     fn.set_tracking("v3io://fake", stream_args={"mock": True, "access_key": "x"})
 
     server = fn.to_mock_server()
@@ -68,7 +74,11 @@ def test_tracking(rundb_mock):
 def test_custom_tracking(rundb_mock):
     # test custom values tracking (using the logged_results() hook)
     fn = mlrun.new_function("tests", kind="serving")
-    fn.add_model("my", ".", class_name=ModelTestingCustomTrack(multiplier=2))
+    fn.add_model(
+        "my",
+        ".",
+        class_name=ModelTestingCustomTrack(multiplier=2, model_endpoint_uid="my-uid"),
+    )
     fn.set_tracking("v3io://fake", stream_args={"mock": True, "access_key": "x"})
 
     server = fn.to_mock_server()
@@ -82,9 +92,22 @@ def test_custom_tracking(rundb_mock):
 def test_ensemble_tracking(rundb_mock):
     # test proper tracking of an ensemble (router + models are logged)
     fn = mlrun.new_function("tests", kind="serving")
-    fn.set_topology("router", mlrun.serving.VotingEnsemble(vote_type="regression"))
-    fn.add_model("1", ".", class_name=ModelTestingClass(multiplier=2))
-    fn.add_model("2", ".", class_name=ModelTestingClass(multiplier=3))
+    fn.set_topology(
+        "router",
+        mlrun.serving.VotingEnsemble(
+            vote_type="regression", model_endpoint_uid="VotingEnsemble-uid"
+        ),
+    )
+    fn.add_model(
+        "1",
+        ".",
+        class_name=ModelTestingClass(multiplier=2, model_endpoint_uid="my-uid-1"),
+    )
+    fn.add_model(
+        "2",
+        ".",
+        class_name=ModelTestingClass(multiplier=3, model_endpoint_uid="my-uid-2"),
+    )
     fn.set_tracking("v3io://fake", stream_args={"mock": True, "access_key": "x"})
 
     server = fn.to_mock_server()
@@ -116,6 +139,7 @@ def test_tracked_function(rundb_mock, enable_tracking):
             model_uri,
             "ModelTestingClass",
             multiplier=5,
+            model_endpoint_uid="my-uid",
             creation_strategy=ModelEndpointCreationStrategy.ARCHIVE,
         )
         fn.set_tracking("dummy://", enable_tracking=enable_tracking)
@@ -123,12 +147,38 @@ def test_tracked_function(rundb_mock, enable_tracking):
         server.test("/v2/models/m1/infer", testdata)
         dummy_stream = server.context.stream.output_stream
         if enable_tracking:
-            rundb_mock.assert_called_get_model_endpoint_once()
             assert (
                 len(dummy_stream.event_list) == 1
             ), "expected stream to get one message"
         else:
             assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
+
+
+@pytest.mark.parametrize(
+    "track_before_creating_child, enable_tracking",
+    [(True, True), (False, False), (True, False), (False, True)],
+)
+def test_child_function_tracking(
+    rundb_mock, track_before_creating_child, enable_tracking
+):
+    with patch("mlrun.get_run_db", return_value=rundb_mock):
+        project = mlrun.new_project("test-child", save=False)
+        fn = mlrun.new_function("test-fn", kind="serving", project=project.name)
+        if track_before_creating_child:
+            fn.set_tracking("dummy://", enable_tracking=enable_tracking)
+            fn.add_child_function(
+                "child", f"{assets_path}/child_function.py", r"mlrun\mlrun"
+            )
+        else:
+            fn.add_child_function(
+                "child", f"{assets_path}/child_function.py", r"mlrun\mlrun"
+            )
+            fn.set_tracking("dummy://", enable_tracking=enable_tracking)
+        for name, ref in fn.spec.function_refs.items():
+            assert ref._function.spec.track_models == enable_tracking, (
+                f"{name} wrong track models value for child function expected to be "
+                f"equal to {enable_tracking}"
+            )
 
 
 def rec_to_data(rec):
@@ -168,7 +218,11 @@ def test_tracking_datastore_profile(project: mlrun.MlrunProject) -> None:
             name="test-tracking-from-profile", kind=ServingRuntime.kind
         ),
     )
-    fn.add_model("model1", ".", class_name=ModelTestingClass(multiplier=7))
+    fn.add_model(
+        "model1",
+        ".",
+        class_name=ModelTestingClass(multiplier=7, model_endpoint_uid="model1-uid"),
+    )
     fn.set_tracking(stream_args={"mock": True})
 
     server = fn.to_mock_server()

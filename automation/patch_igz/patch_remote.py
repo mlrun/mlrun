@@ -293,6 +293,7 @@ class MLRunPatcher:
                     future.result()
                 except Exception as exc:
                     logger.error(f"Error pushing image {image}: {exc}")
+                    raise
 
     def _patch_deployment_from_file(self):
         for deployment in self._deployments:

@@ -40,7 +40,7 @@ from mlrun.utils.helpers import to_parquet
 from mlrun.utils.v3io_clients import get_frames_client
 
 from .. import errors
-from ..data_types import ValueType
+from ..data_types import ValueType, is_spark_dataframe
 from ..platforms.iguazio import parse_path, split_path
 from .datastore_profile import datastore_profile_read
 from .spark_utils import spark_session_update_hadoop_options
@@ -86,8 +86,10 @@ def generate_target_run_id():
 
 
 def write_spark_dataframe_with_options(spark_options, df, mode, write_format=None):
+    # TODO: Replace with just df.sparkSession when Spark 3.2 support is dropped
+    spark_session = getattr(df, "sparkSession", None) or df.sql_ctx.sparkSession
     non_hadoop_spark_options = spark_session_update_hadoop_options(
-        df.sql_ctx.sparkSession, spark_options
+        spark_session, spark_options
     )
     if write_format:
         df.write.format(write_format).mode(mode).save(**non_hadoop_spark_options)
@@ -510,7 +512,7 @@ class BaseStoreTarget(DataTargetBase):
         chunk_id=0,
         **kwargs,
     ) -> Optional[int]:
-        if hasattr(df, "rdd"):
+        if is_spark_dataframe(df):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df, key_column, timestamp_key, options)
@@ -1376,7 +1378,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
-        if hasattr(df, "rdd"):
+        if is_spark_dataframe(df):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df)
@@ -1708,6 +1710,11 @@ class KafkaTarget(BaseStoreTarget):
         if not path:
             raise mlrun.errors.MLRunInvalidArgumentError("KafkaTarget requires a path")
 
+        # Filter attributes to keep only Kafka-related parameters
+        # This removes any non-Kafka parameters inherited from BaseStoreTarget
+        attributes = mlrun.datastore.utils.KafkaParameters().valid_entries_only(
+            self.attributes
+        )
         graph.add_step(
             name=self.name or "KafkaTarget",
             after=after,
@@ -1715,7 +1722,7 @@ class KafkaTarget(BaseStoreTarget):
             class_name="mlrun.datastore.storeytargets.KafkaStoreyTarget",
             columns=column_list,
             path=path,
-            attributes=self.attributes,
+            attributes=attributes,
         )
 
     def purge(self):
@@ -2103,7 +2110,7 @@ class SQLTarget(BaseStoreTarget):
 
         self._create_sql_table()
 
-        if hasattr(df, "rdd"):
+        if is_spark_dataframe(df):
             raise ValueError("Spark is not supported")
         else:
             (

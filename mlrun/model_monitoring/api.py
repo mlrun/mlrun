@@ -50,8 +50,8 @@ DatasetType = typing.Union[
 
 def get_or_create_model_endpoint(
     project: str,
+    model_endpoint_name: str,
     model_path: str = "",
-    model_endpoint_name: str = "",
     endpoint_id: str = "",
     function_name: str = "",
     function_tag: str = "latest",
@@ -59,6 +59,7 @@ def get_or_create_model_endpoint(
     sample_set_statistics: typing.Optional[dict[str, typing.Any]] = None,
     monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.enabled,
     db_session=None,
+    feature_analysis: bool = False,
 ) -> ModelEndpoint:
     """
     Get a single model endpoint object. If not exist, generate a new model endpoint with the provided parameters. Note
@@ -66,9 +67,9 @@ def get_or_create_model_endpoint(
     features, set `monitoring_mode=enabled`.
 
     :param project:                  Project name.
-    :param model_path:               The model store path (applicable only to new endpoint_id).
     :param model_endpoint_name:      If a new model endpoint is created, the model endpoint name will be presented
                                      under this endpoint (applicable only to new endpoint_id).
+    :param model_path:               The model store path (applicable only to new endpoint_id).
     :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
                                      on the provided `endpoint_id`.
     :param function_name:            If a new model endpoint is created, use this function name.
@@ -80,6 +81,7 @@ def get_or_create_model_endpoint(
     :param monitoring_mode:          If enabled, apply model monitoring features on the provided endpoint id
                                      (applicable only to new endpoint_id).
     :param db_session:               A runtime session that manages the current dialog with the database.
+    :param feature_analysis:         If True, the model endpoint will be retrieved with the feature analysis mode.
 
     :return: A ModelEndpoint object
     """
@@ -99,6 +101,7 @@ def get_or_create_model_endpoint(
             endpoint_id=endpoint_id,
             function_name=function_name,
             function_tag=function_tag or "latest",
+            feature_analysis=feature_analysis,
         )
         # If other fields provided, validate that they are correspond to the existing model endpoint data
         _model_endpoint_validations(
@@ -118,8 +121,6 @@ def get_or_create_model_endpoint(
             model_endpoint_name=model_endpoint_name,
             function_name=function_name,
             function_tag=function_tag,
-            context=context,
-            sample_set_statistics=sample_set_statistics,
             monitoring_mode=monitoring_mode,
         )
     return model_endpoint
@@ -159,7 +160,8 @@ def record_results(
     :param context:                  MLRun context. Note that the context is required generating the model endpoint.
     :param infer_results_df:         DataFrame that will be stored under the model endpoint parquet target. Will be
                                      used for doing the drift analysis. Please make sure that the dataframe includes
-                                     both feature names and label columns.
+                                     both feature names and label columns. If you are recording results for existing
+                                     model endpoint, the endpoint should be a batch endpoint.
     :param sample_set_statistics:    Dictionary of sample set statistics that will be used as a reference data for
                                      the current model endpoint.
     :param monitoring_mode:          If enabled, apply model monitoring features on the provided endpoint id. Enabled
@@ -220,23 +222,32 @@ def record_results(
     )
     logger.debug("Model endpoint", endpoint=model_endpoint)
 
-    timestamp = datetime_now()
     if infer_results_df is not None:
-        # Write the monitoring parquet to the relevant model endpoint context
-        write_monitoring_df(
-            feature_set_uri=model_endpoint.spec.monitoring_feature_set_uri,
-            infer_datetime=timestamp,
-            endpoint_id=model_endpoint.metadata.uid,
-            infer_results_df=infer_results_df,
-        )
+        if (
+            model_endpoint.metadata.endpoint_type
+            != mlrun.common.schemas.model_monitoring.EndpointType.BATCH_EP
+        ):
+            logger.warning(
+                "Inference results can be recorded only for batch endpoints. "
+                "Therefore the current results won't be monitored."
+            )
+        else:
+            timestamp = datetime_now()
+            # Write the monitoring parquet to the relevant model endpoint context
+            write_monitoring_df(
+                feature_set_uri=model_endpoint.spec.monitoring_feature_set_uri,
+                infer_datetime=timestamp,
+                endpoint_id=model_endpoint.metadata.uid,
+                infer_results_df=infer_results_df,
+            )
 
-    # Update the last request time
-    update_model_endpoint_last_request(
-        project=project,
-        model_endpoint=model_endpoint,
-        current_request=timestamp,
-        db=db,
-    )
+            # Update the last request time
+            update_model_endpoint_last_request(
+                project=project,
+                model_endpoint=model_endpoint,
+                current_request=timestamp,
+                db=db,
+            )
 
     return model_endpoint
 
@@ -344,8 +355,6 @@ def _generate_model_endpoint(
     model_endpoint_name: str,
     function_name: str,
     function_tag: str,
-    context: "mlrun.MLClientCtx",
-    sample_set_statistics: dict[str, typing.Any],
     monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.enabled,
 ) -> ModelEndpoint:
     """
@@ -358,21 +367,10 @@ def _generate_model_endpoint(
     :param model_endpoint_name:      Model endpoint name will be presented under the new model endpoint.
     :param function_name:            If a new model endpoint is created, use this function name.
     :param function_tag:             If a new model endpoint is created, use this function tag.
-    :param context:                  MLRun context. If function_name not provided, use the context to generate the
-                                     full function hash.
-    :param sample_set_statistics:    Dictionary of sample set statistics that will be used as a reference data for
-                                     the current model endpoint. Will be stored under
-                                     `model_endpoint.status.feature_stats`.
+    :param monitoring_mode:          Monitoring mode of the new model endpoint.
 
     :return `mlrun.common.schemas.ModelEndpoint` object.
     """
-    model_obj = None
-    if model_path:
-        model_obj: mlrun.artifacts.ModelArtifact = (
-            mlrun.datastore.store_resources.get_store_resource(
-                model_path, db=db_session
-            )
-        )
     current_time = datetime_now()
     model_endpoint = mlrun.common.schemas.ModelEndpoint(
         metadata=mlrun.common.schemas.ModelEndpointMetadata(
@@ -383,10 +381,7 @@ def _generate_model_endpoint(
         spec=mlrun.common.schemas.ModelEndpointSpec(
             function_name=function_name or "function",
             function_tag=function_tag or "latest",
-            model_name=model_obj.metadata.key if model_obj else None,
-            model_uid=model_obj.metadata.uid if model_obj else None,
-            model_tag=model_obj.metadata.tag if model_obj else None,
-            model_db_key=model_obj.spec.db_key if model_obj else None,
+            model_path=model_path,
             model_class="drift-analysis",
         ),
         status=mlrun.common.schemas.ModelEndpointStatus(

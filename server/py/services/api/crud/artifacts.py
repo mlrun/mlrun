@@ -15,6 +15,7 @@
 import datetime
 import typing
 
+import sqlalchemy.exc
 import sqlalchemy.orm
 
 import mlrun.artifacts.base
@@ -62,7 +63,7 @@ class Artifacts(
         # calculate the size of the artifact
         self._resolve_artifact_size(artifact, auth_info)
 
-        # TODO: remove this in 1.8.0
+        # TODO: Remove once data migration v5 is obsolete
         if mlrun.utils.helpers.is_legacy_artifact(artifact):
             artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
                 artifact
@@ -240,23 +241,30 @@ class Artifacts(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         project = project or mlrun.mlconf.default_project
-
+        artifact = framework.utils.singletons.db.get_db().validate_artifact_removal_preconditions(
+            session=db_session,
+            key=key,
+            tag=tag,
+            iter=iteration,
+            project=project,
+            producer_id=producer_id,
+            uid=object_uid,
+        )
+        if not artifact:
+            return None
         # delete artifacts data by deletion strategy
         if deletion_strategy in [
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_optional,
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force,
         ]:
             self._delete_artifact_data(
-                db_session=db_session,
                 key=key,
                 tag=tag,
                 project=project,
-                object_uid=object_uid,
-                producer_id=producer_id,
-                iteration=iteration,
                 deletion_strategy=deletion_strategy,
                 secrets=secrets,
                 auth_info=auth_info,
+                artifact=artifact,
             )
 
         return framework.utils.singletons.db.get_db().del_artifact(
@@ -279,6 +287,10 @@ class Artifacts(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         producer_id: typing.Optional[str] = None,
     ):
+        # TODO : If, in the future, this API is extended to delete the artifact data as well,
+        #  we should include the validation we added in validate_artifact_removal_preconditions
+        #  before attempting the data deletion. Currently, deleting artifacts linked to model
+        #  endpoints will fail with IntegrityError.
         project = project or mlrun.mlconf.default_project
         framework.utils.singletons.db.get_db().del_artifacts(
             db_session, name, project, tag, labels, producer_id=producer_id
@@ -307,32 +319,19 @@ class Artifacts(
 
     def _delete_artifact_data(
         self,
-        db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
         project: typing.Optional[str] = None,
-        object_uid: typing.Optional[str] = None,
-        producer_id: typing.Optional[str] = None,
-        iteration: typing.Optional[int] = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
         secrets: typing.Optional[dict] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        artifact: typing.Optional[dict] = None,
     ):
         logger.debug("Deleting artifact data", project=project, key=key, tag=tag)
 
         try:
-            artifact = self.get_artifact(
-                db_session,
-                key,
-                tag,
-                project=project,
-                producer_id=producer_id,
-                object_uid=object_uid,
-                iter=iteration,
-            )
-
             path = artifact["spec"]["target_path"]
 
             # Data artifacts that are ModelArtifact, DirArtifact must not be removed because we do not yet

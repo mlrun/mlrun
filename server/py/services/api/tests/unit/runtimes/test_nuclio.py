@@ -1827,8 +1827,15 @@ class TestNuclioRuntime(TestRuntimeBase):
                 nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
             )
 
-    def test_multiple_stream_triggers_new_nuclio_explicit_ack(self):
-        mlconf.nuclio_version = "1.13.12"
+    @pytest.mark.parametrize(
+        "nuclio_version",
+        [
+            "1.13.12",
+            "unstable",
+        ],
+    )
+    def test_multiple_stream_triggers_new_nuclio_explicit_ack(self, nuclio_version):
+        mlconf.nuclio_version = nuclio_version
         function = self._generate_runtime(self.runtime_kind)
         function.add_trigger(
             "stream1",

@@ -232,6 +232,7 @@ default_config = {
                 "delete_project": "900",
                 "delete_function": "900",
                 "model_endpoint_creation": "600",
+                "model_endpoint_tsdb_leftovers": "900",
             },
             "runtimes": {"dask": "600"},
             "push_notifications": "60",
@@ -548,6 +549,10 @@ default_config = {
         },
     },
     "model_endpoint_monitoring": {
+        # Scaling Rule
+        # The fundamental scaling rule to maintain is: Shards/Partitions = Replicas * Workers
+        # In other words, the number of shards (V3IO) or partitions (Kafka) must be equal to the
+        # total number of worker processes across all pods.
         "serving_stream": {
             "v3io": {
                 "shard_count": 2,
@@ -566,16 +571,16 @@ default_config = {
         },
         "application_stream_args": {
             "v3io": {
-                "shard_count": 1,
+                "shard_count": 4,
                 "retention_period_hours": 24,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
             "kafka": {
-                "partition_count": 1,
+                "partition_count": 4,
                 "replication_factor": 1,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
@@ -626,6 +631,8 @@ default_config = {
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         "tdengine": {
+            "run_directly": True,
+            # timeout and retry are ignored when run_directly is set to True
             "timeout": 10,
             "retries": 1,
         },
@@ -821,6 +828,8 @@ default_config = {
         # maximum allowed alert config cache size in alert's CRUD
         # for the best performance, it is recommended to set this value to the maximum number of alerts
         "max_allowed_cache_size": 20000,
+        # default limit for listing alert configs
+        "default_list_alert_configs_limit": 2000,
     },
     "auth_with_client_id": {
         "enabled": False,

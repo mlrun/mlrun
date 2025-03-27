@@ -160,7 +160,8 @@ def record_results(
     :param context:                  MLRun context. Note that the context is required generating the model endpoint.
     :param infer_results_df:         DataFrame that will be stored under the model endpoint parquet target. Will be
                                      used for doing the drift analysis. Please make sure that the dataframe includes
-                                     both feature names and label columns.
+                                     both feature names and label columns. If you are recording results for existing
+                                     model endpoint, the endpoint should be a batch endpoint.
     :param sample_set_statistics:    Dictionary of sample set statistics that will be used as a reference data for
                                      the current model endpoint.
     :param monitoring_mode:          If enabled, apply model monitoring features on the provided endpoint id. Enabled
@@ -221,23 +222,32 @@ def record_results(
     )
     logger.debug("Model endpoint", endpoint=model_endpoint)
 
-    timestamp = datetime_now()
     if infer_results_df is not None:
-        # Write the monitoring parquet to the relevant model endpoint context
-        write_monitoring_df(
-            feature_set_uri=model_endpoint.spec.monitoring_feature_set_uri,
-            infer_datetime=timestamp,
-            endpoint_id=model_endpoint.metadata.uid,
-            infer_results_df=infer_results_df,
-        )
+        if (
+            model_endpoint.metadata.endpoint_type
+            != mlrun.common.schemas.model_monitoring.EndpointType.BATCH_EP
+        ):
+            logger.warning(
+                "Inference results can be recorded only for batch endpoints. "
+                "Therefore the current results won't be monitored."
+            )
+        else:
+            timestamp = datetime_now()
+            # Write the monitoring parquet to the relevant model endpoint context
+            write_monitoring_df(
+                feature_set_uri=model_endpoint.spec.monitoring_feature_set_uri,
+                infer_datetime=timestamp,
+                endpoint_id=model_endpoint.metadata.uid,
+                infer_results_df=infer_results_df,
+            )
 
-    # Update the last request time
-    update_model_endpoint_last_request(
-        project=project,
-        model_endpoint=model_endpoint,
-        current_request=timestamp,
-        db=db,
-    )
+            # Update the last request time
+            update_model_endpoint_last_request(
+                project=project,
+                model_endpoint=model_endpoint,
+                current_request=timestamp,
+                db=db,
+            )
 
     return model_endpoint
 

@@ -55,6 +55,9 @@ class TDEngineConnector(TSDBConnector):
 
         self._init_super_tables()
 
+        self._run_directly = (
+            mlrun.mlconf.model_endpoint_monitoring.tdengine.run_directly
+        )
         self._timeout = mlrun.mlconf.model_endpoint_monitoring.tdengine.timeout
         self._retries = mlrun.mlconf.model_endpoint_monitoring.tdengine.retries
 
@@ -74,7 +77,9 @@ class TDEngineConnector(TSDBConnector):
     def _create_connection(self) -> TDEngineConnection:
         """Establish a connection to the TSDB server."""
         logger.debug("Creating a new connection to TDEngine", project=self.project)
-        conn = TDEngineConnection(self._tdengine_connection_profile.dsn())
+        conn = TDEngineConnection(
+            self._tdengine_connection_profile.dsn(), run_directly=self._run_directly
+        )
         conn.prefix_statements = [f"USE {self.database}"]
 
         return conn
@@ -668,7 +673,6 @@ class TDEngineConnector(TSDBConnector):
         endpoint_ids: Union[str, list[str]],
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        get_raw: bool = False,
     ) -> pd.DataFrame:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start, end = self._get_start_end(start, end)

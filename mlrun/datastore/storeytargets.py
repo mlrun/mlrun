@@ -23,7 +23,7 @@ from mlrun.datastore.base import DataStore
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaSource,
     DatastoreProfileKafkaTarget,
-    TDEngineDatastoreProfile,
+    DatastoreProfileTDEngine,
     datastore_profile_read,
 )
 
@@ -53,10 +53,10 @@ class TDEngineStoreyTarget(storey.TDEngineTarget):
     def __init__(self, *args, url: str, **kwargs):
         if url.startswith("ds://"):
             datastore_profile = datastore_profile_read(url)
-            if not isinstance(datastore_profile, TDEngineDatastoreProfile):
+            if not isinstance(datastore_profile, DatastoreProfileTDEngine):
                 raise ValueError(
                     f"Unexpected datastore profile type:{datastore_profile.type}."
-                    "Only TDEngineDatastoreProfile is supported"
+                    "Only DatastoreProfileTDEngine is supported"
                 )
             url = datastore_profile.dsn()
         super().__init__(*args, url=url, **kwargs)

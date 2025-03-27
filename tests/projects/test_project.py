@@ -1565,9 +1565,9 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
             None,
         ),
         # relative path with engine="remote", should not raise an error since the file does not need to exist locally
-        ("./workflow.py", does_not_raise(), "remote"),
-        ("./workflow.py", does_not_raise(), "remote:local"),
-        ("./workflow.py", does_not_raise(), "remote:kfp"),
+        ("./remote_workflow.py", does_not_raise(), "remote"),
+        ("./remote_workflow.py", does_not_raise(), "remote:local"),
+        ("./remote_workflow.py", does_not_raise(), "remote:kfp"),
     ],
 )
 def test_set_workflow_path_validation(

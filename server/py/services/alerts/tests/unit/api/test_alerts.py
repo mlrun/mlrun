@@ -16,6 +16,7 @@ import datetime
 import unittest
 from http import HTTPStatus
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -29,6 +30,30 @@ import services.api.tests.unit.api.utils
 
 ALERTS_PATH = "projects/{project}/alerts"
 STORE_ALERTS_PATH = "projects/{project}/alerts/{name}"
+
+
+@pytest.fixture
+def setup_alerts(db: Session, client: TestClient, k8s_secrets_mock):
+    project = "test-alerts"
+    num_alerts = 10
+    TestAlerts._create_project(db, project)
+
+    for i in range(num_alerts):
+        alert_name = f"alert-name-{i}"
+        alert_config = services.alerts.tests.unit.crud.utils.generate_alert_data(
+            project=project,
+            name=alert_name,
+            entity=services.alerts.tests.unit.crud.utils.generate_alert_entity(
+                project=project
+            ),
+        )
+        resp = client.put(
+            STORE_ALERTS_PATH.format(project=project, name=alert_name),
+            json=alert_config.dict(),
+        )
+        assert resp.status_code == HTTPStatus.OK.value
+
+    yield project
 
 
 class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
@@ -53,7 +78,7 @@ class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
             ALERTS_PATH.format(project=project),
         )
         assert resp.status_code == HTTPStatus.OK.value
-        alerts = resp.json()
+        alerts = resp.json().get("alerts", [])
         assert len(alerts) == 1
         assert alerts[0]["name"] == alert_name
 
@@ -82,7 +107,7 @@ class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
             ALERTS_PATH.format(project="*"),
         )
         assert resp.status_code == HTTPStatus.OK.value
-        alerts = resp.json()
+        alerts = resp.json().get("alerts", [])
         assert len(alerts) == 2
 
         # list alerts for a specific project
@@ -90,7 +115,7 @@ class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
             ALERTS_PATH.format(project="test-alerts-0"),
         )
         assert resp.status_code == HTTPStatus.OK.value
-        alerts = resp.json()
+        alerts = resp.json().get("alerts", [])
         assert len(alerts) == 1
 
         # list alerts for a non-existing project
@@ -197,6 +222,35 @@ class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
 
         result = client.delete(f"projects/{project_name}/alerts")
         assert result.status_code == 204
+
+    @pytest.mark.parametrize(
+        "params, expected_length",
+        [
+            # limit to 5
+            ({"page-size": 5}, 5),
+            # limit to 5, offset 2
+            ({"page-size": 5, "offset": 2}, 5),
+            # limit to 5, offset 8 - not enough alerts
+            ({"page-size": 5, "offset": 8}, 2),
+            # no explicit limit, should return default limit (8)
+            ({}, 8),
+            # only offset
+            ({"offset": 3}, 7),
+        ],
+    )
+    def test_list_alert_configs_with_limits(
+        self, setup_alerts, client: TestClient, params, expected_length
+    ):
+        # for the sake of the test, set the limit to 8
+        mlrun.mlconf.alerts.default_list_alert_configs_limit = 8
+
+        project = setup_alerts
+        resp = client.get(ALERTS_PATH.format(project=project), params=params)
+        assert resp.status_code == HTTPStatus.OK.value
+        alerts = resp.json().get("alerts", [])
+        assert (
+            len(alerts) == expected_length
+        ), f"Unexpected number of alerts for params: {params}"
 
     # TODO: Move to test utils framework
     @staticmethod

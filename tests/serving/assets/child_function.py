@@ -11,29 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
-from .data_types import (
-    InferOptions,
-    ValueType,
-    pd_schema_to_value_type,
-    python_type_to_value_type,
-)
-from .infer import DFDataInfer
+from mlrun.serving import V2ModelServer
 
 
-class BaseDataInfer:
-    infer_schema = None
-    get_preview = None
-    get_stats = None
+class OneToMany(V2ModelServer):
+    def load(self):
+        pass
 
-
-def is_spark_dataframe(df) -> bool:
-    return "rdd" in dir(df)
-
-
-def get_infer_interface(df) -> BaseDataInfer:
-    if is_spark_dataframe(df):
-        from .spark import SparkDataInfer
-
-        return SparkDataInfer
-    return DFDataInfer
+    def predict(self, event: dict) -> list:
+        inputs = event.get("inputs")
+        print("[PREDICT]: inputs:", inputs)
+        return inputs

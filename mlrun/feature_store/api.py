@@ -383,8 +383,6 @@ def _ingest(
     if isinstance(source, str):
         source = mlrun.store_manager.object(url=source).as_df()
 
-    # return here got NPE
-
     schema_options = InferOptions.get_common_options(
         infer_options, InferOptions.schema()
     )
@@ -622,19 +620,12 @@ def _ingest_with_spark(
             created_spark_context = True
 
         timestamp_key = featureset.spec.timestamp_key
-
-        # return here – NO NPE
-
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)
         elif isinstance(source, pyspark.sql.DataFrame):
             df = source
         else:
             df = source.to_spark_df(spark, time_field=timestamp_key)
-            # return here got NPE
-
-        # return here got NPE
-
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
 
@@ -642,8 +633,6 @@ def _ingest_with_spark(
             raise mlrun.errors.err_for_status_code(
                 df.status_code, df.body.split(": ")[1]
             )
-
-        # return here got NPE
 
         df.persist()
 

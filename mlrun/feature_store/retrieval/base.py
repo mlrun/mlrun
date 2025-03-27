@@ -268,9 +268,6 @@ class BaseMerger(abc.ABC):
                 time_column,
                 additional_filters,
             )
-            print("df")
-            print(df)
-            df.show()
 
             fs_entities_and_timestamp = list(feature_set.spec.entities.keys())
             column_names += fs_entities_and_timestamp
@@ -296,8 +293,6 @@ class BaseMerger(abc.ABC):
                 df = df_temp
                 del df_temp
 
-            print(df)
-            df.show()
             dfs.append(df)
             del df
 
@@ -342,20 +337,17 @@ class BaseMerger(abc.ABC):
         )
         if df_temp is not None:
             self._result_df = df_temp
-            self._result_df.show()
             del df_temp
 
         df_temp = self._drop_columns_from_result()
         if df_temp is not None:
             self._result_df = df_temp
-            self._result_df.show()
             del df_temp
 
         if self.vector.status.label_column:
             self._result_df = self._result_df.dropna(
                 subset=[self.vector.status.label_column]
             )
-            self._result_df.show()
         # filter joined data frame by the query param
         if query:
             self._filter(query)
@@ -477,7 +469,6 @@ class BaseMerger(abc.ABC):
             del featureset_df
 
         self._result_df = merged_df
-        self._result_df.show()
         return entity_timestamp_column
 
     def _asof_join(

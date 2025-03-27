@@ -319,6 +319,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         stored_run = runs[0]
         assert stored_run["status"]["end_time"] > stored_run["status"]["start_time"]
         assert stored_run["status"]["end_time"].endswith("+00:00")
+        assert stored_run["status"]["start_time"].endswith("+00:00")
 
         # 2nd run is 1st in order because it started last
         self._logger.debug("Checking order of runs", runs=runs)

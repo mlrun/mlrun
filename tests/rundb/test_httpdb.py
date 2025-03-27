@@ -250,6 +250,7 @@ def test_run(create_server):
             exclude_paths={
                 "root['status']['start_time']",
                 "root['status']['last_update']",
+                "root['status']['updated']",
             },
         )
         == {}

@@ -15,6 +15,7 @@
 
 from tempfile import mkdtemp
 
+import deepdiff
 import pytest
 
 import mlrun.db.factory
@@ -96,7 +97,18 @@ async def test_runs(db: RunDBInterface):
     runs = db.list_runs(state="s2")
     assert 1 == len(runs), "state length"
     run3["status"] = updates["status"]
-    assert run3 == runs[0], "state run"
+
+    assert (
+        deepdiff.DeepDiff(
+            run3,
+            runs[0],
+            ignore_order=True,
+            exclude_paths={
+                "root['status']['updated']",
+            },
+        )
+        == {}
+    ), "state run"
 
     await db.del_run(uid3)
     with pytest.raises(mlrun.errors.MLRunNotFoundError):

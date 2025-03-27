@@ -535,7 +535,7 @@ class SQLDB(DBInterface):
         for status_field, struct_field in [
             ("end_time", "end_time"),
             ("start_time", "start_time"),
-            ("last_update", "update"),
+            ("last_update", "updated"),
         ]:
             if field_value := getattr(run, struct_field, None):
                 status[status_field] = self._add_utc_timezone(field_value).isoformat()

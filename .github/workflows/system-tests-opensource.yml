@@ -17,7 +17,7 @@ name: System Tests Open Source
 on:
   push:
     branches:
-      - '.+-os-system-tests'
+    - 'ci-system-tests/**'
 
   pull_request:
     branches:

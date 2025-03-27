@@ -522,7 +522,7 @@ class TestFunctions(TestDatabaseBase):
 
         # extract the updated time of the functions
         function_times = [
-            function["metadata"]["updated"]
+            datetime.datetime.fromisoformat(function["metadata"]["updated"])
             for function in sorted(
                 all_functions, key=lambda x: x["metadata"]["updated"]
             )

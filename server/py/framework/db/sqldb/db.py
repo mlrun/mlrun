@@ -532,11 +532,14 @@ class SQLDB(DBInterface):
         # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
         # the column (not from the struct) to ensure the ordering is correct.
         # In SQLite, the start_time and updated columns return timestamps with fsp=6.
-        status["start_time"] = self._add_utc_timezone(run.start_time).isoformat()
-        status["last_update"] = self._add_utc_timezone(run.updated).isoformat()
+        for status_field, struct_field in [
+            ("end_time", "end_time"),
+            ("start_time", "start_time"),
+            ("last_update", "update"),
+        ]:
+            if field_value := getattr(run, struct_field, None):
+                status[status_field] = self._add_utc_timezone(field_value).isoformat()
 
-        if run.end_time:
-            status["end_time"] = self._add_utc_timezone(run.end_time).isoformat()
         if with_notifications:
             self._fill_run_struct_with_notifications(run.notifications, run_struct)
 
@@ -2376,16 +2379,8 @@ class SQLDB(DBInterface):
             limit=limit,
         ):
             function_dict = function.struct
+            self._enrich_function_struct_from_model(function, function_dict)
 
-            # updated field is saved in struct as timestamps with fsp=6, while the corresponding column
-            # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
-            # the column (not from the struct) to ensure the ordering is correct.
-            # In SQLite, the updated column return timestamps with fsp=6.
-            # TODO: The function currently returns the field as a datetime. It should return it as a string
-            #  to align with other resources.
-            function_dict["metadata"]["updated"] = function.updated
-
-            function_dict["kind"] = function.kind
             if not function_tag:
                 # function status should be added only to tagged functions
                 # TODO: remove explicit cleaning; we also
@@ -2575,21 +2570,15 @@ class SQLDB(DBInterface):
         tag_function_uid = None if not tag and hash_key else uid
         if obj:
             function = obj.struct
+            self._enrich_function_struct_from_model(obj, function)
+
             # If connected to a tag add it to metadata
             if tag_function_uid:
                 function["metadata"]["tag"] = computed_tag
                 function["metadata"]["uid"] = tag_function_uid
-            function["kind"] = obj.kind
             function.setdefault("status", {})
             function["status"]["state"] = obj.state
 
-            # updated field is saved in struct as timestamps with fsp=6, while the corresponding column
-            # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
-            # the column (not from the struct) to ensure the ordering is correct.
-            # In SQLite, the updated column return timestamps with fsp=6.
-            # TODO: The function currently returns the field as a datetime. It should return it as a string
-            #  to align with other resources.
-            function["metadata"]["updated"] = obj.updated
             return mlrun.common.formatters.FunctionFormat.format_obj(function, format_)
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
@@ -2640,6 +2629,20 @@ class SQLDB(DBInterface):
         else:
             computed_tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         return tag, computed_tag
+
+    def _enrich_function_struct_from_model(
+        self, function: Function, function_struct: dict
+    ):
+        function_struct["kind"] = function.kind
+
+        # updated field is saved in struct as timestamps with fsp=6, while the corresponding column
+        # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
+        # the column (not from the struct) to ensure the ordering is correct.
+        # In SQLite, the updated column return timestamps with fsp=6.
+        if field_value := getattr(function, "updated", None):
+            function_struct["metadata"]["updated"] = self._add_utc_timezone(
+                field_value
+            ).isoformat()
 
     def _delete_project_functions(self, session: Session, project: str):
         logger.debug("Removing project functions from db", project=project)

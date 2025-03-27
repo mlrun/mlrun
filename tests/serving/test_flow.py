@@ -13,11 +13,12 @@
 # limitations under the License.
 #
 import pathlib
+from typing import Any, Union
 
 import pytest
 
 import mlrun
-from mlrun.serving import GraphContext, V2ModelServer  # noqa
+from mlrun.serving import GraphContext, QueueStep, V2ModelServer  # noqa
 from mlrun.serving.states import TaskStep
 
 from .demo_states import *  # noqa
@@ -429,3 +430,36 @@ def test_set_flow():
     server = fn.to_mock_server()
     resp = server.test(body=5)
     assert resp == "15"
+
+
+@pytest.mark.parametrize(
+    "steps",
+    [
+        [
+            dict(name="r1", handler="(event + 10)"),
+            dict(name="r2", handler="json.dumps"),
+        ],
+        [
+            TaskStep(name="r1", handler="(event + 10)"),
+            TaskStep(name="r2", handler="json.dumps"),
+        ],
+        [
+            QueueStep(name="r1", handler="(event + 10)"),
+        ],
+    ],
+)
+def test_set_flow_names(
+    steps: list[Union[TaskStep, QueueStep, dict[str, Any]]],
+):
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("flow", engine="sync")
+    graph.set_flow(steps=steps, force=True)
+    if isinstance(steps[0], dict):
+        assert list(graph.to_dict()["steps"].keys()) == [step["name"] for step in steps]
+    else:
+        assert list(graph.to_dict()["steps"].keys()) == [step.name for step in steps]
+
+    server = fn.to_mock_server()
+    resp = server.test(body=5)
+    if not isinstance(steps[0], QueueStep):
+        assert str(resp) == "15"

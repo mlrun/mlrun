@@ -187,9 +187,9 @@ jobs:
     - name: Set suite
       run: |
           if [[ "${{ matrix.test-suite }}" == "server" ]]; then
-            echo "SUITE=UNIT_TEST_PATH=tests/feature-store/test_common.py::test_parse_feature_string_with_dot_in_feature_set_name" >> $GITHUB_ENV
+            echo "SUITE=\"UNIT_TEST_PATH=tests/feature-store/test_common.py::test_parse_feature_string_with_dot_in_feature_set_name\"" >> $GITHUB_ENV
           else
-            echo "SUITE=UNIT_TEST_PATH=tests/feature-store/test_common.py::test_parse_feature_string_with_alias" >> $GITHUB_ENV
+            echo "SUITE=\"UNIT_TEST_PATH=tests/feature-store/test_common.py::test_parse_feature_string_with_alias\"" >> $GITHUB_ENV
           fi
 
     - name: Run Dockerized tests

@@ -74,7 +74,8 @@ def build_function(
             # save without sensitive data
             fn.save(versioned=False)
 
-            # after saving function to DB, we need to restore the original config so that the sensitive data won't be stored
+            # after saving function to DB, we need to restore the original config
+            # so that the sensitive data won't be stored
             fn.spec.config = raw_config
 
             fn.pre_deploy_validation()

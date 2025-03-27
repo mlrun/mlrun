@@ -24,6 +24,7 @@ import mlrun.model
 from tests.conftest import new_run
 
 import framework.db.sqldb.helpers
+import framework.db.sqldb.models
 import services.api.initial_data
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
@@ -592,6 +593,44 @@ class TestRuns(TestDatabaseBase):
             partition_by=mlrun.common.schemas.RunPartitionByField.project_and_name,
         )
         assert len(runs) == 4
+
+    def test_list_runs_orders_by_id_when_start_time_is_identical(self):
+        # this test verifies that when start_time date is identical, runs should be ordered by run id
+        project_name = "my-project"
+        t1 = datetime.now()
+
+        # Create runs
+        number_of_runs = 10
+        for counter in range(number_of_runs):
+            run_name = f"run-{counter}"
+            self._create_new_run(
+                project=project_name, name=run_name, uid=f"uid-{counter}"
+            )
+
+            # Set the same `start_time` timestamp for all runs
+            db_run = self._db._query(
+                self._db_session, framework.db.sqldb.models.Run, name=run_name
+            ).one_or_none()
+            db_run.start_time = t1
+            self._db_session.add(db_run)
+            self._db._commit(self._db_session, db_run)
+            self._db_session.flush()
+
+        runs = self._db.list_runs(
+            self._db_session,
+            project=project_name,
+        )
+        assert (
+            len(runs) == number_of_runs
+        ), f"Expected {number_of_runs} results, got {len(runs)}"
+
+        expected_names = [f"run-{i}" for i in range(number_of_runs - 1, -1, -1)]
+
+        for run, expected_name in zip(runs, expected_names):
+            run_name = run["metadata"]["name"]
+            assert (
+                run_name == expected_name
+            ), f"Expected {expected_name}, got {run_name}"
 
     @staticmethod
     def _change_run_record_to_before_align_runs_migration(run, time_before_creation):

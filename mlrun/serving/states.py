@@ -1812,7 +1812,7 @@ def params_to_step(
     class_args = class_args or {}
 
     if isinstance(class_name, QueueStep):
-        if not name or class_name.name:
+        if not (name or class_name.name):
             raise MLRunInvalidArgumentError("queue name must be specified")
 
         step = class_name

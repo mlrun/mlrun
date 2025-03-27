@@ -631,6 +631,8 @@ default_config = {
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         "tdengine": {
+            "run_directly": True,
+            # timeout and retry are ignored when run_directly is set to True
             "timeout": 10,
             "retries": 1,
         },

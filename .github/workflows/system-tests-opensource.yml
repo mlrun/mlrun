@@ -143,6 +143,8 @@ jobs:
       # and use --override-mlrun-jupyter-image when patching mlrun ce
       skip_images: test,mlrun-gpu,base,jupyter
     secrets: inherit
+    permissions:
+      packages: write
 
   run-system-tests-opensource-ci:
     name: Run System Tests Open Source

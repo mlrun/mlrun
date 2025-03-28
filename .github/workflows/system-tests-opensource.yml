@@ -117,7 +117,7 @@ jobs:
           echo "mlrun_version_specifier=$mlrun_version_specifier" >> $GITHUB_OUTPUT
           
           echo "mlrun_docker_registry=ghcr.io/" >> $GITHUB_OUTPUT
-          echo "mlrun_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          echo "mlrun_docker_repo=$(echo ${{ github.actor }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
           
           echo "mlrun_system_tests_clean_resources=$( \
             input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \

@@ -132,8 +132,7 @@ jobs:
     uses: ./.github/workflows/build-internal.yaml
     needs: prepare-inputs
     with:
-      build_on_runners:
-        group: mlrun-ce
+      build_on_runners: "{\"group\": \"mlrun-ce\"}"
       docker_registries: ${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}
       docker_repo: ${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}
       version: ${{ needs.prepare-inputs.outputs.mlrun_version }}

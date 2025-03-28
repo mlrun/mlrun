@@ -35,7 +35,7 @@ on:
         type: string
       build_on_runners:
         description: 'Runners to build images on, e.g: `ubuntu-latest`, `group: mlrun-ce`'
-        default: 'ubuntu-latest'
+        default: '["ubuntu-latest"]'
         type: string
       docker_repo:
         description: 'Docker repo to push images to (default: lowercase github repository owner name)'
@@ -77,7 +77,7 @@ jobs:
 
   build-images:
     name: Build and push image - ${{ matrix.image-name }} (Python ${{ matrix.python-version }})
-    runs-on: ${{ inputs.build_on_runners }}
+    runs-on: ${{ fromJson(inputs.build_on_runners) }}
     needs: matrix_prep
     strategy:
       fail-fast: false

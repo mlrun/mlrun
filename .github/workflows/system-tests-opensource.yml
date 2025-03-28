@@ -116,7 +116,7 @@ jobs:
           fi
           echo "mlrun_version_specifier=$mlrun_version_specifier" >> $GITHUB_OUTPUT
           
-          echo "mlrun_docker_registry=ghcr.io/" >> $GITHUB_OUTPUT
+          echo "mlrun_docker_registry=artifactory.iguazeng.com:10557/" >> $GITHUB_OUTPUT
           echo "mlrun_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
           
           echo "mlrun_system_tests_clean_resources=$( \
@@ -132,6 +132,7 @@ jobs:
     uses: ./.github/workflows/build-internal.yaml
     needs: prepare-inputs
     with:
+      build_on_runners: "group: mlrun-ce"
       docker_registries: ${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}
       docker_repo: ${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}
       version: ${{ needs.prepare-inputs.outputs.mlrun_version }}

@@ -33,6 +33,10 @@ on:
         description: 'Comma separated list of docker registries to push images to (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
         default: 'ghcr.io/'
         type: string
+      build_on_runners:
+        description: 'Runners to build images on, e.g: `ubuntu-latest`, `group: mlrun-ce`'
+        default: 'ubuntu-latest'
+        type: string
       docker_repo:
         description: 'Docker repo to push images to (default: lowercase github repository owner name)'
         default: ''
@@ -73,7 +77,7 @@ jobs:
 
   build-images:
     name: Build and push image - ${{ matrix.image-name }} (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.build_on_runners }}
     needs: matrix_prep
     strategy:
       fail-fast: false
@@ -130,13 +134,24 @@ jobs:
           input_docker_registries=$INPUT_DOCKER_REGISTRIES && \
           echo ${input_docker_registries:-ghcr.io/})" >> $GITHUB_OUTPUT
         echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT
+        artifactory_login=$(echo $INPUT_DOCKER_REGISTRIES | grep --only-matching "artifactory.iguazeng" || true)
+        echo "artifactory_login=${artifactory_login:-false}" >> $GITHUB_OUTPUT
       env:
         INPUT_VERSION: ${{ inputs.version }}
         INPUT_DOCKER_VERSION: ${{ inputs.docker_repo }}
         INPUT_DOCKER_REGISTRIES: ${{ inputs.docker_registries }}
 
+    - name: Docker login (artifactory)
+      uses: docker/login-action@v3
+      if: steps.computed_params.outputs.artifactory_login != 'false'
+      with:
+        registry: ${{ steps.computed_params.outputs.artifactory_login }}
+        username: ${{ secrets.ARTIFACTORY_USERNAME }}
+        password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
     - name: Docker login (ghcr)
       uses: docker/login-action@v3
+      if: steps.computed_params.outputs.artifactory_login == 'false'
       with:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
@@ -144,7 +159,7 @@ jobs:
 
     - name: Docker login (quay.io)
       continue-on-error: true
-      if: github.event.inputs.pr_number == ''
+      if: steps.computed_params.outputs.artifactory_login == 'false'
       uses: docker/login-action@v3
       with:
         registry: quay.io
@@ -152,7 +167,7 @@ jobs:
         password: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
 
     - name: Docker login (docker.com)
-      if: github.event.inputs.pr_number == ''
+      if: steps.computed_params.outputs.artifactory_login == 'false'
       continue-on-error: true
       uses: docker/login-action@v3
       with:

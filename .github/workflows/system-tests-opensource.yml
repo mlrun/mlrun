@@ -132,6 +132,7 @@ jobs:
     uses: ./.github/workflows/build-internal.yaml
     needs: prepare-inputs
     with:
+      ghcr_docker_username: ${{ github.actor }}
       docker_registries: ${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}
       docker_repo: ${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}
       version: ${{ needs.prepare-inputs.outputs.mlrun_version }}

@@ -58,6 +58,10 @@ on:
         description: 'The suffix to add to the cache tag'
         default: ''
         type: string
+      ghcr_docker_username:
+        description: 'The username to use for ghcr.io'
+        default: ''
+        type: string
 
 jobs:
   matrix_prep:
@@ -139,7 +143,7 @@ jobs:
       uses: docker/login-action@v3
       with:
         registry: ghcr.io
-        username: ${{ github.repository_owner }}
+        username: ${{ inputs.ghcr_docker_username || github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Docker login (quay.io)

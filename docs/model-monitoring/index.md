@@ -141,7 +141,8 @@ And you can use {ref}`notifications` to notify about the status of runs and pipe
 2. Run `project.disable_model_monitoring(delete_stream_function=True, delete_user_applications=True)`. **This deletes all MM applications, infra pods, and the streams.**
 
 ### After upgrade:
-1. Run `enable_model_monitoring`
+1. Set model monitoring credentials (stream & tsdb) by using  `project.set_model_monitoring_credentials()`
+2. Run `enable_model_monitoring`
 2. Redeploy all monitored serving functions with `set_tracking(True)`.
 
 ```{admonition} Note

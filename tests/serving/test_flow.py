@@ -454,7 +454,9 @@ def test_set_flow_names(
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", engine="sync")
     graph.set_flow(steps=steps, force=True)
-    if isinstance(steps[0], dict):
-        assert list(graph.to_dict()["steps"].keys()) == [step["name"] for step in steps]
-    else:
-        assert list(graph.to_dict()["steps"].keys()) == [step.name for step in steps]
+    expected = (
+        [step["name"] for step in steps]
+        if isinstance(steps[0], dict)
+        else [step.name for step in steps]
+    )
+    assert list(graph.to_dict()["steps"].keys()) == expected

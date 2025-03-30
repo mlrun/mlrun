@@ -137,15 +137,13 @@ And you can use {ref}`notifications` to notify about the status of runs and pipe
 
 ### Before upgrade:
 1. Redeploy all monitored serving functions with set_tracking(False).
-     If you didn't redeploy the functions with `set_tracking(False)` before the upgrade, you will have to update the base image of those functions before redeploying them (after the upgrade).
-2. Run `project.disable_model_monitoring(delete_stream_function=True, delete_user_applications=True)`. This will remove all MM applications, infra pods, and the streams.
+     If you didn't redeploy the functions with `set_tracking(False)` before the upgrade, you will have to update the base image of those functions after the upgrade, before redeploying them.
+2. Run `project.disable_model_monitoring(delete_stream_function=True, delete_user_applications=True)`. **This deletes all MM applications, infra pods, and the streams.**
 
 ### After upgrade:
 1. Run `enable_model_monitoring`
-2. Redeploy all monitored serving functions with set_tracking(True).
+2. Redeploy all monitored serving functions with `set_tracking(True)`.
 
-
-```{admonition} Notes
-* All the previous model monitoring applications were deleted.
+```{admonition} Note
 * You must use the v1.8.0 client to utilize model monitoring on the v1.8.0 server.
 ``` 

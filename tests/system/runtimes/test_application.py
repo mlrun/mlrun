@@ -56,6 +56,16 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             == f".mlrun/func-{self.project.metadata.name}-{function.metadata.name}:latest"
         )
 
+        # Assert get state does not create a new function since the state hasn't changed
+        db_functions = self._run_db.list_functions(name="vizro-app")
+        current_functions_in_db = len(db_functions)
+
+        # Run get state multiple times to make sure it doesn't create a new function
+        for i in range(5):
+            function._get_state()
+        db_functions = self._run_db.list_functions(name="vizro-app")
+        assert len(db_functions) == current_functions_in_db
+
         self._logger.debug("Redeploying the same application with capturing stdout")
         output = self._deploy_application_with_stdout_capture(function)
 

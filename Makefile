@@ -98,8 +98,6 @@ endif
 
 # Change to `--upgrade-package <package-name>` to upgrade only a specific package
 MLRUN_UV_UPGRADE_FLAG ?= --upgrade
-UNIT_TESTS_PATH ?= ./
-UNIT_TESTS_IGNORE_PATH ?=
 
 .PHONY: help
 help: ## Display available commands
@@ -531,13 +529,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 
 .PHONY: test
 test: clean ## Run mlrun tests
-	if [ "$(UNIT_TESTS_IGNORE_PATH)" != "" ]; then \
-  		IGNORE_ADDITION="--ignore=$(UNIT_TESTS_IGNORE_PATH)"; \
-	else \
-		IGNORE_ADDITION=""; \
-	fi; \
-	set -e ;\
-	# TODO: Remove ignored tests for Python 3.11 compatibility with KFP 2
+#   TODO: Remove ignored tests for Python 3.11 compatibility with KFP 2
 	COMMON_IGNORE_TEST_FLAGS=$$(echo "\
 		--ignore=tests/integration \
 		--ignore=tests/system \
@@ -552,6 +544,12 @@ test: clean ## Run mlrun tests
 		--ignore=tests/projects/test_remote_pipeline.py \
 		--ignore=pipeline-adapters/mlrun-pipelines-kfp-v1-8/tests \
 		"),);\
+	if [ "$(UNIT_TESTS_IGNORE_PATH)" != "" ]; then \
+  		IGNORE_ADDITION="--ignore=$(UNIT_TESTS_IGNORE_PATH)"; \
+	else \
+		IGNORE_ADDITION=""; \
+	fi; \
+	set -e ;\
 	python \
 		-X faulthandler \
 		-m pytest -v \

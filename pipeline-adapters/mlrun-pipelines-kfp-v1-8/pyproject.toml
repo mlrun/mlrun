@@ -1,7 +1,7 @@
 [project]
 name = "mlrun-pipelines-kfp-v1-8"
 version = "0.3.10"
-description = "MLRun Pipelines package for providing KFP 1.8 compatibility"
+description = "MLRun Pipelines adapter package for providing KFP 1.8 compatibility"
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [
@@ -30,49 +30,6 @@ package-dir = { "" = "src" }
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["mlrun_pipelines"]
-
-[tool.ruff]
-target-version = "py39"
-required-version = ">=0.8.0"
-
-[tool.ruff.lint]
-extend-select = [
-    "F",   # pyflakes
-    "W",   # pycodestyle
-    "E",   # pycodestyle
-    "I",   # isort
-    "N",   # pep8-naming
-    "UP",  # pyupgrade
-    "CPY", # flake8-copyright
-    "B006",# mutable default arguments
-    "RUF013",  # forbid implicit `Optional` type hints
-]
-explicit-preview-rules = true
-
-[tool.ruff.lint.pycodestyle]
-max-line-length = 120
-
-[tool.ruff.lint.extend-per-file-ignores]
-"__init__.py" = ["F401"]
-
-[tool.ruff.lint.flake8-copyright]
-author = "Iguazio"
-
-[tool.ruff.format]
-docstring-code-format = true
-
-[tool.pytest.ini_options]
-addopts = "-v -rf --disable-warnings"
-pythonpath = "./server/py"  # Run server tests from the project root
-python_files = [
-    "tests/*/test_*.py",
-    "tests/test_*.py",
-]
-log_cli = true
-log_level = "DEBUG"
-
-[tool.importlinter]
-include_external_packages = true
 
 # TODO: Uncomment once mlrun is removed as a dependency
 #[[tool.importlinter.contracts]]

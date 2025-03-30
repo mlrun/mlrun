@@ -40,13 +40,17 @@ The model monitoring APIs are configured per project. The APIs are:
 - {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring` &mdash; Brings up the controller, writer and stream realtime functions, and schedules the controller according to the `base_period`. 
 You can also deploy the default histogram-based data drift application when you enable model monitoring.
 - {py:meth}`~mlrun.projects.MlrunProject.create_model_monitoring_function` &mdash; Creates a monitoring function object without setting it to the project, used for user-apps and troubleshooting.
-- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function` &mdash; Updates or sets a monitoring function to the project. (Monitoring does not start until the function is deployed.) 
+- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function` &mdash; Updates or adds a monitoring function to the project. (Monitoring does not start until the function is deployed.) 
 - {py:meth}`~mlrun.projects.MlrunProject.list_model_monitoring_functions` &mdash; Retrieves a list of all the model monitoring functions.
 - {py:meth}`~mlrun.projects.MlrunProject.remove_model_monitoring_function` &mdash; Removes the specified model-monitoring-app function from the project and from the DB.
-- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials` &mdash; Set the credentials that are used by the project's model monitoring infrastructure functions. 
-- {py:meth}`~mlrun.projects.MlrunProject.disable_model_monitoring` &mdash; Disables the controller. 
+- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials` &mdash; Set the credentials that are used by the project's model monitoring infrastructure functions. You must set the credentials before deploying any model monitoring application or a monitored serving function.
+- {py:meth}`~mlrun.projects.MlrunProject.disable_model_monitoring` &mdash; Disables the model monitoring application controller, writer, stream, histogram data drift application and the user's applications functions, according to the given parameters. 
 - {py:meth}`~mlrun.projects.MlrunProject.update_model_monitoring_controller`  &mdash; Redeploys the model monitoring application controller functions.
 - {py:meth}`~mlrun.config.Config.get_model_monitoring_file_target_path` &mdash; Gets the full path from the configuration based on the provided project and kind.
+
+And for configuring alerts on model monitoring:
+- {py:meth}`~mlrun.projects.MlrunProject.create_model_monitoring_alert_configs` &mdash; Creates an alert for the specified model monitoring endpoint
+- {py:meth}`~mlrun.projects.MlrunProject.delete_model_monitoring_function` &mdash; Deletes the specified model-monitoring-app function/s
 
 
 ## Model and model monitoring endpoints

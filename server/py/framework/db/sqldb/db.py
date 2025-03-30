@@ -42,7 +42,7 @@ from sqlalchemy import (
     select,
     text,
 )
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
 from sqlalchemy.orm import Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
@@ -528,9 +528,8 @@ class SQLDB(DBInterface):
     ):
         status = run_struct.setdefault("status", {})
 
-        # These fields are saved in struct as timestamps with fsp=6, while the corresponding columns
-        # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
-        # the column (not from the struct) to ensure the ordering is correct.
+        # Return the value from the column to ensure the ordering is correct since the sort is done on the table
+        # columns and timestamps are being saved with fsp=3 while struct fields are fsp=6.
         # In SQLite, the start_time and updated columns return timestamps with fsp=6.
         for status_field, struct_field in [
             ("end_time", "end_time"),
@@ -1036,6 +1035,7 @@ class SQLDB(DBInterface):
         logger.info("Deleting artifacts", total_artifacts=total_artifacts)
 
         failed_deletions_count = 0
+        failed_deletions_count_integrity = 0
 
         for key, uid in distinct_keys_and_uids:
             try:
@@ -1047,6 +1047,20 @@ class SQLDB(DBInterface):
                     key=key,
                     producer_id=producer_id,
                 )
+            except IntegrityError as exc:
+                # Check if the error is related to ModelEndpoint table
+                if "model_endpoints" in str(exc).lower():
+                    logger.error(
+                        "Failed to delete model artifact due to existing model endpoints that reference it",
+                        project=project,
+                        key=key,
+                        uid=uid,
+                        err=err_to_str(exc),
+                    )
+                    failed_deletions_count_integrity += 1
+                else:
+                    # Re-raise the exception if it's not related to ModelEndpoint
+                    raise
             except Exception as exc:
                 logger.error(
                     "Failed to delete artifact",
@@ -1058,9 +1072,15 @@ class SQLDB(DBInterface):
                 failed_deletions_count += 1
                 continue
 
-        if failed_deletions_count:
+        if failed_deletions_count or failed_deletions_count_integrity:
+            if failed_deletions_count_integrity:
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"Failed to delete {failed_deletions_count + failed_deletions_count_integrity} artifacts, "
+                    f"while {failed_deletions_count_integrity} of them failed due to existing model endpoints that "
+                    f"reference them."
+                )
             raise mlrun.errors.MLRunInternalServerError(
-                f"Failed to delete {failed_deletions_count} artifacts"
+                f"Failed to delete {failed_deletions_count} artifacts."
             )
         logger.info("Successfully deleted artifacts", total_artifacts=total_artifacts)
 

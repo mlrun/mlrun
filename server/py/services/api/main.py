@@ -768,7 +768,7 @@ class Service(framework.service.Service):
         # Calculation of end_time_from creates an overlap between the current and the previous window to make sure we
         # don't miss any runs that ended just before the current window (ML-9572)
         end_time_from = last_update_time - datetime.timedelta(
-            seconds=int(mlconf.monitoring.runs.interval) // 2
+            seconds=min(int(mlconf.monitoring.runs.interval) // 2, 5)
         )
         self._logger.debug(
             "Checking notifications since last end time",

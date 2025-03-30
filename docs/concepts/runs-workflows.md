@@ -20,7 +20,7 @@ See the examples listed below and the **{ref}`tutorial`** for more details.
 
 ```{toctree}
 :maxdepth: 1
-
+local-remote
 mlrun-execution-context
 decorators-and-auto-logging
 submitting-tasks-jobs-to-functions

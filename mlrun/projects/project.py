@@ -3873,6 +3873,7 @@ class MlrunProject(ModelObj):
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         builder_env: Optional[dict] = None,
         reset_on_run: Optional[bool] = None,
+        output_path: Optional[str] = None,
     ) -> typing.Union[mlrun.model.RunObject, PipelineNodeWrapper]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -3903,7 +3904,7 @@ class MlrunProject(ModelObj):
                                 parsed during runtime from `mlrun.DataItem` to the given type hint. The type hint can be
                                 given in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
         :param outputs:         list of outputs which can pass in the workflow
-        :param workdir:         default input artifacts path
+        :param workdir:         working directory of the executed job and the default path for artifact inputs
         :param labels:          labels to tag the job/run with ({key:val, ..})
         :param base_task:       task object to use as base
         :param watch:           watch/follow run log, True by default
@@ -3915,7 +3916,8 @@ class MlrunProject(ModelObj):
                                 (which will be converted to the class using its `from_crontab` constructor),
                                 see this link for help:
                                 https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-        :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+        :param artifact_path:   (deprecated) path to store artifacts, when running in a workflow this will be set
+                                automatically
         :param notifications:   list of notifications to push when the run is completed
         :param returns:         List of log hints - configurations for how to log the returning values from the
                                 handler's run (as artifacts or results). The list's length must be equal to the amount
@@ -3933,34 +3935,47 @@ class MlrunProject(ModelObj):
         :param reset_on_run:    When True, function python modules would reload prior to code execution.
                                 This ensures latest code changes are executed. This argument must be used in
                                 conjunction with the local=True argument.
+        :param output_path:     path to store artifacts, when running in a workflow this will be set automatically
 
         :return: MLRun RunObject or PipelineNodeWrapper
         """
-        return run_function(
-            function,
-            handler=handler,
-            name=name,
-            params=params,
-            hyperparams=hyperparams,
-            hyper_param_options=hyper_param_options,
-            inputs=inputs,
-            outputs=outputs,
-            workdir=workdir,
-            labels=labels,
-            base_task=base_task,
-            watch=watch,
-            local=local,
-            verbose=verbose,
-            selector=selector,
-            project_object=self,
-            auto_build=auto_build,
-            schedule=schedule,
-            artifact_path=artifact_path,
-            notifications=notifications,
-            returns=returns,
-            builder_env=builder_env,
-            reset_on_run=reset_on_run,
-        )
+        if artifact_path:
+            warnings.warn(
+                "'artifact_path' parameter is deprecated in 1.10.0 and will be removed in 1.12.0, "
+                "use 'output_path' instead.",
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
+            )
+        output_path = output_path or artifact_path
+
+        # remove this filter once the artifact_path parameter is deprecated in 1.12.0
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)
+            return run_function(
+                function,
+                handler=handler,
+                name=name,
+                params=params,
+                hyperparams=hyperparams,
+                hyper_param_options=hyper_param_options,
+                inputs=inputs,
+                outputs=outputs,
+                workdir=workdir,
+                labels=labels,
+                base_task=base_task,
+                watch=watch,
+                local=local,
+                verbose=verbose,
+                selector=selector,
+                project_object=self,
+                auto_build=auto_build,
+                schedule=schedule,
+                output_path=output_path,
+                notifications=notifications,
+                returns=returns,
+                builder_env=builder_env,
+                reset_on_run=reset_on_run,
+            )
 
     def build_function(
         self,

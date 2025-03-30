@@ -116,9 +116,9 @@ jobs:
     - name: Set test suite
       run: |
           if [[ "${{ matrix.test-suite }}" == "server" ]]; then
-            echo "UNIT_TEST_PATH=\"server/\"" >> $GITHUB_ENV
+            echo "UNIT_TESTS_PATH=\"server/\"" >> $GITHUB_ENV
           else
-            echo "UNIT_TEST_IGNORE_PATH=\"server/\"" >> $GITHUB_ENV
+            echo "UNIT_TESTS_IGNORE_PATH=\"server/\"" >> $GITHUB_ENV
           fi
 
     - name: Run Dockerized tests
@@ -126,8 +126,8 @@ jobs:
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-        UNIT_TEST_PATH=$UNIT_TEST_PATH \
-        UNIT_TEST_IGNORE_PATH=$UNIT_TEST_IGNORE_PATH \
+        UNIT_TESTS_PATH=$UNIT_TESTS_PATH \
+        UNIT_TESTS_IGNORE_PATH=$UNIT_TESTS_IGNORE_PATH \
         make test-dockerized 
     
 

@@ -526,13 +526,13 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-e MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test  UNIT_TEST_IGNORE_PATH="$(UNIT_TEST_IGNORE_PATH)" \
-		UNIT_TEST_PATH="$(UNIT_TEST_PATH)"
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test  UNIT_TESTS_IGNORE_PATH="$(UNIT_TESTS_IGNORE_PATH)" \
+		UNIT_TESTS_PATH="$(UNIT_TESTS_PATH)"
 
 .PHONY: test
 test: clean ## Run mlrun tests
-	if [ "$(UNIT_TEST_IGNORE_PATH)" != "" ]; then \
-  		IGNORE_ADDITION="--ignore=$(UNIT_TEST_IGNORE_PATH)"; \
+	if [ "$(UNIT_TESTS_IGNORE_PATH)" != "" ]; then \
+  		IGNORE_ADDITION="--ignore=$(UNIT_TESTS_IGNORE_PATH)"; \
 	else \
 		IGNORE_ADDITION=""; \
 	fi; \
@@ -563,7 +563,7 @@ test: clean ## Run mlrun tests
 		$$IGNORE_ADDITION \
 		--forked \
 		-rf \
-		$$UNIT_TEST_PATH
+		$$UNIT_TESTS_PATH
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test ## Run mlrun integration tests in docker container

@@ -29,8 +29,8 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: 'PR number to run the system tests against'
-        required: true
+        description: 'PR number to run the system tests against (default: run on the latest commit in the development branch)'
+        required: false
         default: ''
       pytest_markers:
         description: 'Pytest markers to run'

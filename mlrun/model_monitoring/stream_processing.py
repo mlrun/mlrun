@@ -264,6 +264,9 @@ class EventStreamProcessor:
                 path=stream_uri,
                 sharding_func=ControllerEvent.ENDPOINT_ID,
                 after="ForwardNOP",
+                # Force using the pipeline key instead of the one in the profile in case of v3io profile.
+                # In case of Kafka, this parameter will be ignored.
+                alternative_v3io_access_key="V3IO_ACCESS_KEY",
             )
 
         apply_push_controller_stream(controller_stream_uri)

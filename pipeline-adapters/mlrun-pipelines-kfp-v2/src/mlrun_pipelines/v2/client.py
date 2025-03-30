@@ -181,9 +181,9 @@ class Client:
             {
                 "predicates": [
                     {
-                        "op": "EQUALS",
+                        "operation": "EQUALS",
                         "key": "name",
-                        "stringValue": experiment_name,
+                        "string_value": experiment_name,
                     }
                 ]
             }
@@ -303,8 +303,13 @@ class Client:
                 filter=filter,
             )
 
-    def get_run(self, run_id: str) -> kfp_server_api.models.V2beta1Run:
-        return self._run_api.run_service_get_run(run_id=run_id)
+    def get_run(
+        self,
+        run_id: str,
+    ) -> kfp_server_api.models.V2beta1Run:
+        return self._run_api.run_service_get_run(
+            run_id=run_id,
+        )
 
     def wait_for_run_completion(
         self,
@@ -382,7 +387,7 @@ class Client:
                 pipeline_package_path=workflow_manifest_path,
                 params=parameters,
             )
-            return new_run.id
+            return new_run.run_id
         finally:
             if workflow_manifest_path and os.path.exists(workflow_manifest_path):
                 os.remove(workflow_manifest_path)
@@ -411,34 +416,35 @@ class Client:
         if params is None:
             params = {}
 
-        pipeline_spec = None
         if pipeline_package_path:
-            pipeline_doc = _extract_pipeline_yaml(pipeline_package_path)
-
+            pipeline_doc = extract_pipeline_yaml(pipeline_package_path)
             if enable_caching is not None:
                 _override_caching_options(
                     pipeline_doc.pipeline_spec, enable_caching, cache_key
                 )
-            pipeline_spec = pipeline_doc.to_dict()
+            pipeline_spec = pipeline_doc
+        else:
+            pipeline_spec = None
 
         pipeline_version_reference = None
         if pipeline_id is not None and version_id is not None:
             pipeline_version_reference = kfp_server_api.V2beta1PipelineVersionReference(
-                pipeline_id=pipeline_id, pipeline_version_id=version_id
+                pipeline_id=pipeline_id,
+                pipeline_version_id=version_id,
             )
 
         runtime_config = kfp_server_api.V2beta1RuntimeConfig(
             pipeline_root=pipeline_root,
             parameters=params,
         )
-        return mlrun_pipelines.models._JobConfig(
+        return mlrun_pipelines.models.JobConfig(
             pipeline_spec=pipeline_spec,
             pipeline_version_reference=pipeline_version_reference,
             runtime_config=runtime_config,
         )
 
 
-def _extract_pipeline_yaml(package_file: str) -> mlrun_pipelines.models.PipelineDoc:
+def extract_pipeline_yaml(package_file: str) -> dict:
     def _choose_pipeline_file(file_list: list[str]) -> str:
         pipeline_files = [file for file in file_list if file.endswith(".yaml")]
         if not pipeline_files:
@@ -456,7 +462,7 @@ def _extract_pipeline_yaml(package_file: str) -> mlrun_pipelines.models.Pipeline
                 "are multiple yaml files."
             )
 
-    def _safe_load_yaml(stream: TextIO) -> mlrun_pipelines.models.PipelineDoc:
+    def _safe_load_yaml(stream: TextIO) -> dict:
         docs = yaml.safe_load_all(stream)
         pipeline_spec_dict = None
         platform_spec_dict = {}
@@ -465,11 +471,7 @@ def _extract_pipeline_yaml(package_file: str) -> mlrun_pipelines.models.Pipeline
                 pipeline_spec_dict = doc
             else:
                 platform_spec_dict.update(doc)
-
-        return mlrun_pipelines.models.PipelineDoc(
-            pipeline_spec=mlrun_pipelines.models.PipelineSpec(**pipeline_spec_dict),
-            platform_spec=mlrun_pipelines.models.PlatformSpec(**platform_spec_dict),
-        )
+        return platform_spec_dict
 
     if package_file.endswith(".tar.gz") or package_file.endswith(".tgz"):
         with tarfile.open(package_file, "r:gz") as tar:
@@ -478,9 +480,9 @@ def _extract_pipeline_yaml(package_file: str) -> mlrun_pipelines.models.Pipeline
             with tar.extractfile(tar.getmember(pipeline_file)) as f:
                 return _safe_load_yaml(f)
     elif package_file.endswith(".zip"):
-        with zipfile.ZipFile(package_file, "r") as zip:
-            pipeline_file = _choose_pipeline_file(zip.namelist())
-            with zip.open(pipeline_file) as f:
+        with zipfile.ZipFile(package_file, "r") as zip_file:
+            pipeline_file = _choose_pipeline_file(zip_file.namelist())
+            with zip_file.open(pipeline_file) as f:
                 return _safe_load_yaml(f)
     elif package_file.endswith(".yaml") or package_file.endswith(".yml"):
         with open(package_file) as f:

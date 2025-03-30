@@ -577,7 +577,7 @@ class Projects(
 
         except Exception as exc:
             # If list pipelines failed, set counters to None (unknown) to indicate that we failed to get the information
-            logger.warning(
+            logger.exception(
                 "Failed to list pipelines. Pipelines counters will be set to None",
                 exc=mlrun.errors.err_to_str(exc),
             )

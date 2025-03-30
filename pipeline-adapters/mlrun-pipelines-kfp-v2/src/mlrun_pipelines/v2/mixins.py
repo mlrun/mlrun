@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import json
+
+import kfp_server_api
 
 import mlrun
 from mlrun_pipelines.common.helpers import PROJECT_ANNOTATION
@@ -81,15 +82,27 @@ class PipelineProviderMixin:
         return mlrun.mlconf.default_project
 
     @staticmethod
-    def resolve_error_from_pipeline(pipeline):
-        # TODO: need to ensure that it actually the way to do it with kfp v2
-        if pipeline.run.status in [RunStatuses.error, RunStatuses.failed]:
-            # status might not be available just yet
-            workflow_status = json.loads(
-                pipeline.pipeline_runtime.workflow_manifest
-            ).get("status", {})
-            for node in workflow_status.get("nodes", {}).values():
-                # The "DAG" node is the parent node of the pipeline so we skip it for getting the detailed error
-                if node["type"] != "DAG":
-                    if message := node.get("message"):
-                        return message
+    def resolve_error_from_pipeline(pipeline: kfp_server_api.V2beta1Run):
+        if pipeline.state in [RunStatuses.error, RunStatuses.failed]:
+            run_details = pipeline.to_dict().get("run_details", {})
+            for task in run_details.get("task_details", []):
+                # Skip tasks that are "SKIPPED"
+                if task.get("state") == "SKIPPED":
+                    continue
+
+                # Skip the pipeline DAG node itself (in KFP v2)
+                display_name = task.get("display_name", "")
+                if "pipeline" in display_name.lower():
+                    continue
+
+                # If there's an explicit 'error' field, return that
+                if error := task.get("error"):
+                    return error
+
+                # Or if there's an 'error' in the state history, return that
+                for state_entry in task.get("state_history", []):
+                    if msg := state_entry.get("error"):
+                        return msg
+
+        # No error found or pipeline not in error/failed state
+        return None

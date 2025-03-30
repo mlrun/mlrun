@@ -341,14 +341,15 @@ class Pipelines(
         )
 
         try:
-            kfp_client = self.initialize_kfp_client()
-            experiment = mlrun_pipelines.models.PipelineExperiment(
-                kfp_client.create_experiment(name=experiment_name)
+            kfp_client = mlrun_pipelines.utils.get_relevant_client_for_kfp_spec(
+                pipeline_package_path=pipeline_file.name,
+                host=mlrun.mlconf.kfp_url,
+                namespace=mlrun.mlconf.namespace,
             )
-            run = mlrun_pipelines.models.PipelineRun(
-                kfp_client.run_pipeline(
-                    experiment.id, run_name, pipeline_file.name, params=arguments
-                )
+            experiment = kfp_client.create_experiment(name=experiment_name)
+
+            run = kfp_client.run_pipeline(
+                experiment.id, run_name, pipeline_file.name, params=arguments,
             )
         except Exception as exc:
             mlrun.utils.logger.warning(
@@ -375,7 +376,7 @@ class Pipelines(
 
     def _paginate_runs(
         self,
-        kfp_client: mlrun_pipelines.imports.kfp.Client,
+        kfp_client: mlrun_pipelines.client.Client,
         page_token: typing.Optional[str] = None,
         page_size: typing.Optional[int] = None,
         sort_by: typing.Optional[str] = None,
@@ -411,7 +412,7 @@ class Pipelines(
 
     def _list_runs_from_kfp(
         self,
-        kfp_client: mlrun_pipelines.imports.kfp.Client,
+        kfp_client: mlrun_pipelines.client.Client,
         page_token: typing.Optional[str] = None,
         page_size: typing.Optional[int] = None,
         sort_by: typing.Optional[str] = None,
@@ -442,7 +443,7 @@ class Pipelines(
         self,
         runs: list[dict],
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: mlrun_pipelines.imports.kfp.Client = None,
+        kfp_client: mlrun_pipelines.client.Client = None,
     ) -> list[dict]:
         formatted_runs = []
         for run in runs:
@@ -453,7 +454,7 @@ class Pipelines(
         self,
         run: mlrun_pipelines.models.PipelineRun,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: mlrun_pipelines.imports.kfp.Client = None,
+        kfp_client: mlrun_pipelines.client.Client = None,
     ) -> dict:
         run.project = self.resolve_project_from_pipeline(run)
         if kfp_client:

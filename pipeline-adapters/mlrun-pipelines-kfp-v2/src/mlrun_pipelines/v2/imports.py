@@ -62,23 +62,20 @@ try:
     import kfp as real_kfp
     import kfp.compiler as real_compiler
     import kfp.dsl as real_dsl
-    from kfp import Client as real_Client
     from kfp.dsl import PipelineTask as real_PipelineTask
 
     # Assign real KFP components
     kfp = real_kfp
     dsl = real_dsl
     compiler = real_compiler
-    Compiler = real_compiler.Compiler
+    Compiler = real_compiler.Compilerc
     PipelineTask = real_PipelineTask
-    Client = real_Client
 
 except ImportError:
     logger.warning(
         "Kubeflow Pipelines (KFP) is not installed. Using noop implementations."
     )
     from mlrun_pipelines.common.imports import (
-        Client,
         Compiler,
         compiler,
         dsl,
@@ -89,7 +86,6 @@ except ImportError:
     dsl.PipelineTask = DummyPipelineTask
 
 __all__ = [
-    "Client",
     "Compiler",
     "PipelineTask",
     "compiler",

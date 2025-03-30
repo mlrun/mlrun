@@ -28,7 +28,6 @@ from mergedeep import merge
 
 import mlrun
 import mlrun.utils.helpers
-from mlrun.config import config
 from mlrun.datastore.snowflake_utils import (
     get_snowflake_password,
     get_snowflake_spark_options,
@@ -37,8 +36,8 @@ from mlrun.datastore.utils import transform_list_filters_to_tuple
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import logger, now_date
 from mlrun.utils.helpers import to_parquet
-from mlrun.utils.v3io_clients import get_frames_client
 
+# from mlrun.utils.v3io_clients import get_frames_client
 from .. import errors
 from ..data_types import ValueType, is_spark_dataframe
 from ..platforms.iguazio import parse_path, split_path
@@ -1051,33 +1050,33 @@ class ParquetTarget(BaseStoreTarget):
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         # If partitioning by time, add the necessary columns
-        if (
-            timestamp_key
-            and isinstance(spark_options, dict)
-            and "partitionBy" in spark_options
-        ):
-            from pyspark.sql.functions import (
-                dayofmonth,
-                hour,
-                minute,
-                month,
-                second,
-                year,
-            )
-
-            time_unit_to_op = {
-                "year": year,
-                "month": month,
-                "day": dayofmonth,
-                "hour": hour,
-                "minute": minute,
-                "second": second,
-            }
-            timestamp_col = df[timestamp_key]
-            for partition in spark_options["partitionBy"]:
-                if partition not in df.columns and partition in time_unit_to_op:
-                    op = time_unit_to_op[partition]
-                    df = df.withColumn(partition, op(timestamp_col))
+        # if (
+        #     timestamp_key
+        #     and isinstance(spark_options, dict)
+        #     and "partitionBy" in spark_options
+        # ):
+        # from pyspark.sql.functions import (
+        #     dayofmonth,
+        #     hour,
+        #     minute,
+        #     month,
+        #     second,
+        #     year,
+        # )
+        #
+        # time_unit_to_op = {
+        #     "year": year,
+        #     "month": month,
+        #     "day": dayofmonth,
+        #     "hour": hour,
+        #     "minute": minute,
+        #     "second": second,
+        # }
+        # timestamp_col = df[timestamp_key]
+        # for partition in spark_options["partitionBy"]:
+        #     if partition not in df.columns and partition in time_unit_to_op:
+        #         op = time_unit_to_op[partition]
+        #         df = df.withColumn(partition, op(timestamp_col))
         return df
 
 
@@ -1135,16 +1134,16 @@ class CSVTarget(BaseStoreTarget):
         return spark_options
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
-        import pyspark.sql.functions as funcs
-
-        for col_name, col_type in df.dtypes:
-            # covers TimestampType and TimestampNTZType, which was added in PySpark 3.4.0
-            if col_type.startswith("timestamp"):
-                # df.write.csv saves timestamps with millisecond precision, but we want microsecond precision
-                # for compatibility with storey.
-                df = df.withColumn(
-                    col_name, funcs.date_format(col_name, "yyyy-MM-dd HH:mm:ss.SSSSSS")
-                )
+        # import pyspark.sql.functions as funcs
+        #
+        # for col_name, col_type in df.dtypes:
+        #     # covers TimestampType and TimestampNTZType, which was added in PySpark 3.4.0
+        #     if col_type.startswith("timestamp"):
+        #         # df.write.csv saves timestamps with millisecond precision, but we want microsecond precision
+        #         # for compatibility with storey.
+        #         df = df.withColumn(
+        #             col_name, funcs.date_format(col_name, "yyyy-MM-dd HH:mm:ss.SSSSSS")
+        #         )
         return df
 
     def as_df(
@@ -1402,11 +1401,11 @@ class NoSqlBaseTarget(BaseStoreTarget):
             _, path_with_container = parse_path(target_path)
             container, path = split_path(path_with_container)
 
-            frames_client = get_frames_client(
-                token=access_key, address=config.v3io_framesd, container=container
-            )
-
-            frames_client.write("kv", path, df, index_cols=key_column, **kwargs)
+            # frames_client = get_frames_client(
+            #     token=access_key, address=config.v3io_framesd, container=container
+            # )
+            #
+            # frames_client.write("kv", path, df, index_cols=key_column, **kwargs)
 
 
 class NoSqlTarget(NoSqlBaseTarget):
@@ -1457,7 +1456,7 @@ class NoSqlTarget(NoSqlBaseTarget):
         return spark_options
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
-        from pyspark.sql.functions import col
+        # from pyspark.sql.functions import col
 
         spark_udf_directory = os.path.dirname(os.path.abspath(__file__))
         sys.path.append(spark_udf_directory)
@@ -1466,17 +1465,17 @@ class NoSqlTarget(NoSqlBaseTarget):
 
             df.rdd.context.addFile(spark_udf.__file__)
 
-            for col_name, col_type in df.dtypes:
-                if col_type.startswith("decimal("):
-                    # V3IO does not support this level of precision
-                    df = df.withColumn(col_name, col(col_name).cast("double"))
-            if len(key_columns) > 2:
-                return df.withColumn(
-                    "_spark_object_name",
-                    spark_udf.hash_and_concat_v3io_udf(
-                        *[col(c) for c in key_columns[1:]]
-                    ),
-                )
+            # for col_name, col_type in df.dtypes:
+            #     if col_type.startswith("decimal("):
+            #         # V3IO does not support this level of precision
+            #         df = df.withColumn(col_name, col(col_name).cast("double"))
+            # if len(key_columns) > 2:
+            #     return df.withColumn(
+            #         "_spark_object_name",
+            #         spark_udf.hash_and_concat_v3io_udf(
+            #             *[col(c) for c in key_columns[1:]]
+            #         ),
+            #     )
         finally:
             sys.path.remove(spark_udf_directory)
         return df
@@ -1555,21 +1554,21 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         }
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
-        from pyspark.sql.functions import col
+        # from pyspark.sql.functions import col
 
-        spark_udf_directory = os.path.dirname(os.path.abspath(__file__))
-        sys.path.append(spark_udf_directory)
-        try:
-            import spark_udf
-
-            df.rdd.context.addFile(spark_udf.__file__)
-
-            df = df.withColumn(
-                "_spark_object_name",
-                spark_udf.hash_and_concat_redis_udf(*[col(c) for c in key_columns]),
-            )
-        finally:
-            sys.path.remove(spark_udf_directory)
+        # spark_udf_directory = os.path.dirname(os.path.abspath(__file__))
+        # sys.path.append(spark_udf_directory)
+        # try:
+        #     import spark_udf
+        #
+        #     df.rdd.context.addFile(spark_udf.__file__)
+        #
+        #     df = df.withColumn(
+        #         "_spark_object_name",
+        #         spark_udf.hash_and_concat_redis_udf(*[col(c) for c in key_columns]),
+        #     )
+        # finally:
+        #     sys.path.remove(spark_udf_directory)
 
         return df
 
@@ -1789,15 +1788,15 @@ class TSDBTarget(BaseStoreTarget):
         _, path_with_container = parse_path(target_path)
         container, path = split_path(path_with_container)
 
-        frames_client = get_frames_client(
-            token=access_key,
-            address=config.v3io_framesd,
-            container=container,
-        )
-
-        frames_client.write(
-            "tsdb", path, df, index_cols=new_index if new_index else None, **kwargs
-        )
+        # frames_client = get_frames_client(
+        #     token=access_key,
+        #     address=config.v3io_framesd,
+        #     container=container,
+        # )
+        #
+        # frames_client.write(
+        #     "tsdb", path, df, index_cols=new_index if new_index else None, **kwargs
+        # )
 
 
 class CustomTarget(BaseStoreTarget):

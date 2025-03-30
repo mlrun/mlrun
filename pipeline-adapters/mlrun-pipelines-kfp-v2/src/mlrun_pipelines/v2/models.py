@@ -20,7 +20,11 @@ from collections.abc import Generator
 from typing import Any, Optional
 
 import orjson
-from kfp_server_api import V2beta1PipelineVersionReference, V2beta1RuntimeConfig
+from kfp_server_api import (
+    V2beta1PipelineVersionReference,
+    V2beta1Run,
+    V2beta1RuntimeConfig,
+)
 
 from mlrun_pipelines.common.helpers import FlexibleMapper
 from mlrun_pipelines.imports import PipelineTask
@@ -154,6 +158,18 @@ class PipelineExperiment(FlexibleMapper):
         return self._external_data["experiment_id"]
 
 
+class Run(V2beta1Run):
+    @property
+    def raw_workflow_spec(self):
+        return self.pipeline_spec["metadata"]["annotions"][
+            "pipelines.kubeflow.org/pipeline_spec"
+        ]
+
+    @property
+    def workflow_spec(self):
+        return orjson.loads(self.raw_workflow_spec)
+
+
 @dataclasses.dataclass
 class Status:
     code: int = 0
@@ -256,7 +272,7 @@ class RuntimeParameter:
 
 @dataclasses.dataclass
 class PipelineSpec:
-    pipeline_info: PipelineInfo = PipelineInfo()
+    pipeline_info: PipelineInfo = dataclasses.field(default_factory=PipelineInfo)
     deployment_spec: Optional[dict[str, Any]] = None
     sdk_version: str = ""
     schema_version: str = ""
@@ -290,39 +306,41 @@ class ComponentInputsSpec:
 
 
 @dataclasses.dataclass
+class ArtifactSpec:
+    artifact_type: Optional[ArtifactTypeSchema] = None
+    properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(
+        default_factory=dict
+    )
+    custom_properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(
+        default_factory=dict
+    )
+    metadata: Optional[dict[str, object]] = None
+    is_artifact_list: bool = False
+    description: str = ""
+
+
+@dataclasses.dataclass
+class ParameterSpec:
+    parameter_type: ParameterTypeEnum = (
+        ParameterTypeEnum.PARAMETER_TYPE_ENUM_UNSPECIFIED
+    )
+    description: str = ""
+
+
+@dataclasses.dataclass
 class ComponentOutputsSpec:
-    @dataclasses.dataclass
-    class ArtifactSpec:
-        artifact_type: Optional[ArtifactTypeSchema] = None
-        properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(
-            default_factory=dict
-        )
-        custom_properties: dict[str, ValueOrRuntimeParameter] = dataclasses.field(
-            default_factory=dict
-        )
-        metadata: Optional[dict[str, object]] = None
-        is_artifact_list: bool = False
-        description: str = ""
-
-    @dataclasses.dataclass
-    class ParameterSpec:
-        parameter_type: ParameterTypeEnum = (
-            ParameterTypeEnum.PARAMETER_TYPE_ENUM_UNSPECIFIED
-        )
-        description: str = ""
-
-    artifacts: dict[str, ComponentOutputsSpec.ArtifactSpec] = dataclasses.field(
-        default_factory=dict
-    )
-    parameters: dict[str, ComponentOutputsSpec.ParameterSpec] = dataclasses.field(
-        default_factory=dict
-    )
+    artifacts: dict[str, ArtifactSpec] = dataclasses.field(default_factory=dict)
+    parameters: dict[str, ParameterSpec] = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
 class ComponentSpec:
-    input_definitions: ComponentInputsSpec = ComponentInputsSpec()
-    output_definitions: ComponentOutputsSpec = ComponentOutputsSpec()
+    input_definitions: ComponentInputsSpec = dataclasses.field(
+        default_factory=ComponentInputsSpec
+    )
+    output_definitions: ComponentOutputsSpec = dataclasses.field(
+        default_factory=ComponentOutputsSpec
+    )
     dag: Optional[DagSpec] = None
     executor_label: Optional[str] = None
     single_platform_specs: list[SinglePlatformSpec] = dataclasses.field(
@@ -484,9 +502,34 @@ class TriggerStrategy(enum.IntEnum):
 
 
 @dataclasses.dataclass
+class CachingOptions:
+    enable_cache: bool = False
+    cache_key: str = ""
+
+
+@dataclasses.dataclass
+class TriggerPolicy:
+    condition: str = ""
+    strategy: TriggerStrategy = TriggerStrategy.TRIGGER_STRATEGY_UNSPECIFIED
+
+
+@dataclasses.dataclass
+class RetryPolicy:
+    max_retry_count: int = 0
+    backoff_duration: Optional[Duration] = None
+    backoff_factor: float = 2.0
+    backoff_max_duration: Optional[Duration] = None
+
+
+@dataclasses.dataclass
+class IteratorPolicy:
+    parallelism_limit: int = 0
+
+
+@dataclasses.dataclass
 class PipelineTaskSpec:
-    task_info: PipelineTaskInfo = PipelineTaskInfo()
-    inputs: TaskInputsSpec = TaskInputsSpec()
+    task_info: PipelineTaskInfo = dataclasses.field(default_factory=PipelineTaskInfo)
+    inputs: TaskInputsSpec = dataclasses.field(default_factory=TaskInputsSpec)
     dependent_tasks: list[str] = dataclasses.field(default_factory=list)
     artifact_iterator: Optional[ArtifactIteratorSpec] = None
     parameter_iterator: Optional[ParameterIteratorSpec] = None
@@ -502,27 +545,6 @@ class PipelineTaskSpec:
                 "Only one of artifact_iterator or parameter_iterator can be set"
             )
 
-    @dataclasses.dataclass
-    class CachingOptions:
-        enable_cache: bool = False
-        cache_key: str = ""
-
-    @dataclasses.dataclass
-    class TriggerPolicy:
-        condition: str = ""
-        strategy: TriggerStrategy = TriggerStrategy.TRIGGER_STRATEGY_UNSPECIFIED
-
-    @dataclasses.dataclass
-    class RetryPolicy:
-        max_retry_count: int = 0
-        backoff_duration: Optional[Duration] = None
-        backoff_factor: float = 2.0
-        backoff_max_duration: Optional[Duration] = None
-
-    @dataclasses.dataclass
-    class IteratorPolicy:
-        parallelism_limit: int = 0
-
 
 @dataclasses.dataclass
 class ItemsSpec:
@@ -536,19 +558,18 @@ class ArtifactIteratorSpec:
 
 
 @dataclasses.dataclass
+class ItemsSpec:
+    raw: Optional[str] = None
+    input_parameter: Optional[str] = None
+
+    def __post_init__(self):
+        if self.raw is not None and self.input_parameter is not None:
+            raise ValueError("Only one of raw or input_parameter can be set")
+
+
+@dataclasses.dataclass
 class ParameterIteratorSpec:
-    @dataclasses.dataclass
-    class ItemsSpec:
-        raw: Optional[str] = None
-        input_parameter: Optional[str] = None
-
-        def __post_init__(self):
-            if self.raw is not None and self.input_parameter is not None:
-                raise ValueError("Only one of raw or input_parameter can be set")
-
-    items: ParameterIteratorSpec.ItemsSpec = dataclasses.field(
-        default_factory=lambda: ParameterIteratorSpec.ItemsSpec()
-    )
+    items: ItemsSpec = dataclasses.field(default_factory=ItemsSpec)
     item_input: str = ""
 
 

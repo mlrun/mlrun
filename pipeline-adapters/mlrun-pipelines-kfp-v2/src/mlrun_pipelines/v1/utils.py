@@ -12,25 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 import tempfile
 import typing
 
-from mlrun_pipelines.imports import Compiler, kfp
+import mlrun_pipelines.client
+import mlrun_pipelines.common.models
+import mlrun_pipelines.helpers
+import mlrun_pipelines.imports
 
 
 def compile_pipeline(
-    pipeline, pipe_file: typing.Optional[str] = None, type_check: bool = False, **kwargs
+    artifact_path,
+    cleanup_ttl,
+    ops,
+    pipeline,
+    pipe_file: typing.Optional[str] = None,
+    type_check: bool = False,
 ):
     if not pipe_file:
         pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
-    Compiler().compile(pipeline, pipe_file, type_check=type_check)
+    conf = mlrun_pipelines.helpers.new_pipe_metadata(
+        artifact_path=artifact_path,
+        cleanup_ttl=cleanup_ttl,
+        op_transformers=ops,
+    )
+    mlrun_pipelines.imports.compiler.Compiler().compile(
+        pipeline, pipe_file, type_check=type_check, pipeline_conf=conf
+    )
     return pipe_file
 
 
 def get_client(
     url: typing.Optional[str] = None, namespace: typing.Optional[str] = None
-) -> kfp.Client:
+) -> mlrun_pipelines.client.Client:
     if url or namespace:
-        return kfp.Client(host=url, namespace=namespace)
-    return kfp.Client()
+        return mlrun_pipelines.client.Client(host=url, namespace=namespace)
+    return mlrun_pipelines.client.Client()

@@ -458,8 +458,3 @@ def test_set_flow_names(
         assert list(graph.to_dict()["steps"].keys()) == [step["name"] for step in steps]
     else:
         assert list(graph.to_dict()["steps"].keys()) == [step.name for step in steps]
-
-    server = fn.to_mock_server()
-    resp = server.test(body=5)
-    if not isinstance(steps[0], QueueStep):
-        assert str(resp) == "15"

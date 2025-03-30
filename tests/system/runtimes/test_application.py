@@ -60,7 +60,9 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         db_functions = self._run_db.list_functions(name="vizro-app")
         current_functions_in_db = len(db_functions)
 
-        function._get_state()
+        # Run get state multiple times to make sure it doesn't create a new function
+        for i in range(5):
+            function._get_state()
         db_functions = self._run_db.list_functions(name="vizro-app")
         assert len(db_functions) == current_functions_in_db
 

@@ -109,7 +109,7 @@ MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it
 **Note:** Only relevant if your remote service is on an instance of the Iguazio AI Platform (**not MLRun CE**). <br>
 Run this command in MLRun CLI:
  ```
- mlrun config set -a https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com -u joe -k mykey -e 
+ mlrun config set -a https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com -u joe -k mykey
  ```
 
 It creates the following environment file:

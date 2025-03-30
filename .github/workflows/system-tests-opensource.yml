@@ -59,9 +59,41 @@ env:
   MLRUN_PYTHON_PACKAGE_INSTALLER: uv
 
 jobs:
+
+# Uncomment this job and make all other jobs depending on it
+# to restrict usage of self-hosted runners for org members only
+# This requires adding a secret with permissions to read org members
+
+#  verify-caller:
+#    runs-on: [ self-hosted ]
+#    steps:
+#      - name: Check if actor is member of org
+#        continue-on-error: false
+#        env:
+#          GH_ACTOR: ${{ github.actor }}
+#          GH_ORG: ${{ github.repository_owner }}
+#          ML_ORG_READ_TOKEN: ${{ secrets.ML_ORG_READ_TOKEN }}  # or a personal token if needed
+#        run: |
+#          echo "Caller = $GH_ACTOR"
+#          echo "ORG = $GH_ORG"
+#          response=$(curl -s -L -o /dev/null -w "%{http_code}" \
+#            -H "Authorization: token $ML_ORG_READ_TOKEN" \
+#            https://api.github.com/orgs/$GH_ORG/members/$GH_ACTOR)
+#          echo "Response = $response"
+#
+#          if [ "$response" != "204" ]; then
+#            echo "User $GH_ACTOR is not a member of $GH_ORG"
+#            exit 1
+#          else
+#            echo "User $GH_ACTOR is a verified member"
+#          fi
+
   prepare-inputs:
     name: Prepare Open Source inputs
-    runs-on: ubuntu-latest
+# Uncomment if veify-caller job is used
+#    needs: verify-caller
+    runs-on:
+      group: mlrun-ce
     outputs:
       mlrun_docker_repo: ${{ steps.computed_params.outputs.mlrun_docker_repo }}
       mlrun_docker_tag: ${{ steps.computed_params.outputs.mlrun_docker_tag }}
@@ -150,7 +182,8 @@ jobs:
 
   run-system-tests-opensource-ci:
     name: Run System Tests Open Source
-    runs-on: ubuntu-latest
+    runs-on:
+      group: mlrun-ce
     needs: [prepare-inputs, build-mlrun]
     steps:
     - uses: actions/checkout@v4
@@ -171,7 +204,7 @@ jobs:
 
     - name: Install automation scripts dependencies
       run: |
-        sudo apt-get install curl jq
+        sudo apt-get install curl jq make
         uv venv venv --seed
         source venv/bin/activate
         make install-requirements install-complete-requirements

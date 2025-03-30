@@ -25,7 +25,7 @@ The deployment options are:
 - [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
   Note that Iguazio provides a 14 day free trial.
 
-You can also be deploy the MLRun Service using local Docker for demo and test purposes.
+You can also deploy the MLRun Service using local Docker for demo and test purposes.
 
 ## Set up your client
 

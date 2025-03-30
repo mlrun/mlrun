@@ -57,93 +57,24 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         pod_labels = copy.deepcopy(meta.labels)
         pod_labels[mlrun_constants.MLRunInternalLabels.job] = meta.name
 
-        # Populate mpijob object
-
-        # start by populating pod templates
+        # create base pod templates
         launcher_pod_template = copy.deepcopy(self._mpijob_pod_template)
         worker_pod_template = copy.deepcopy(self._mpijob_pod_template)
         command, args, extra_env = self._get_cmd_args(runtime, run)
 
-        # configuration for both launcher and workers
-        for pod_template in [launcher_pod_template, worker_pod_template]:
-            if runtime.spec.image:
-                self._update_container(
-                    pod_template,
-                    "image",
-                    runtime.full_image_path(
-                        client_version=run.metadata.labels.get(
-                            mlrun_constants.MLRunInternalLabels.client_version
-                        ),
-                        client_python_version=run.metadata.labels.get(
-                            mlrun_constants.MLRunInternalLabels.client_python_version
-                        ),
-                    ),
-                )
-            self._update_container(
-                pod_template, "volumeMounts", runtime.spec.volume_mounts
-            )
-            self._update_container(pod_template, "env", extra_env + runtime.spec.env)
-            if runtime.spec.image_pull_policy:
-                self._update_container(
-                    pod_template,
-                    "imagePullPolicy",
-                    runtime.spec.image_pull_policy,
-                )
-            if runtime.spec.workdir:
-                self._update_container(pod_template, "workingDir", runtime.spec.workdir)
-            if runtime.spec.image_pull_secret:
-                update_in(
-                    pod_template,
-                    "spec.imagePullSecrets",
-                    [{"name": runtime.spec.image_pull_secret}],
-                )
-            if runtime.spec.security_context:
-                update_in(
-                    pod_template,
-                    "spec.securityContext",
-                    mlrun.runtimes.pod.get_sanitized_attribute(
-                        runtime.spec, "security_context"
-                    ),
-                )
-            update_in(pod_template, "metadata.labels", pod_labels)
-            update_in(pod_template, "spec.volumes", runtime.spec.volumes)
-            update_in(pod_template, "spec.nodeName", runtime.spec.node_name)
-            update_in(
-                pod_template,
-                "spec.nodeSelector",
-                mlrun.utils.helpers.to_non_empty_values_dict(run.spec.node_selector),
-            )
-            update_in(
-                pod_template,
-                "spec.affinity",
-                mlrun.runtimes.pod.get_sanitized_attribute(runtime.spec, "affinity"),
-            )
-            update_in(
-                pod_template,
-                "spec.tolerations",
-                mlrun.runtimes.pod.get_sanitized_attribute(runtime.spec, "tolerations"),
-            )
-            if runtime.spec.priority_class_name and len(
-                mlconf.get_valid_function_priority_class_names()
-            ):
-                update_in(
-                    pod_template,
-                    "spec.priorityClassName",
-                    runtime.spec.priority_class_name,
-                )
-            if runtime.spec.service_account:
-                update_in(
-                    pod_template,
-                    "spec.serviceAccountName",
-                    runtime.spec.service_account,
-                )
+        # configure pod templates for both launcher and worker
+        self._configure_pod_template(
+            runtime, run, launcher_pod_template, pod_labels, extra_env
+        )
+        self._configure_pod_template(
+            runtime, run, worker_pod_template, pod_labels, extra_env
+        )
 
-        # configuration for workers only
-        # update resources only for workers because the launcher
-        # doesn't require special resources (like GPUs, Memory, etc..)
+        # apply resource configurations (e.g., GPUs, memory) for worker pods only, as the launcher pod doesn't require
+        # these special resources.
         self._enrich_worker_configurations(runtime, worker_pod_template)
 
-        # configuration for launcher only
+        # apply launcher specific configurations
         self._enrich_launcher_configurations(
             runtime, launcher_pod_template, [command] + args
         )
@@ -153,29 +84,84 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
             launcher_pod_template, worker_pod_template
         )
 
-        # update the replicas only for workers
-        update_in(
-            job,
-            "spec.mpiReplicaSpecs.Worker.replicas",
-            runtime.spec.replicas or 1,
-        )
-
-        update_in(
-            job,
-            "spec.cleanPodPolicy",
-            runtime.spec.clean_pod_policy,
-        )
-
-        if execution.get_param("slots_per_worker"):
-            update_in(
-                job,
-                "spec.slotsPerWorker",
-                execution.get_param("slots_per_worker"),
-            )
-
-        update_in(job, "metadata", meta.to_dict())
+        # update the mpi job parameters
+        self._update_job_parameters(job, runtime, execution, meta)
 
         return job
+
+    def _configure_pod_template(
+        self, runtime, run, pod_template, pod_labels, extra_env
+    ):
+        if runtime.spec.image:
+            self._update_container(
+                pod_template,
+                "image",
+                runtime.full_image_path(
+                    client_version=run.metadata.labels.get(
+                        mlrun_constants.MLRunInternalLabels.client_version
+                    ),
+                    client_python_version=run.metadata.labels.get(
+                        mlrun_constants.MLRunInternalLabels.client_python_version
+                    ),
+                ),
+            )
+        self._update_container(pod_template, "volumeMounts", runtime.spec.volume_mounts)
+        self._update_container(pod_template, "env", extra_env + runtime.spec.env)
+        if runtime.spec.image_pull_policy:
+            self._update_container(
+                pod_template,
+                "imagePullPolicy",
+                runtime.spec.image_pull_policy,
+            )
+        if runtime.spec.workdir:
+            self._update_container(pod_template, "workingDir", runtime.spec.workdir)
+
+        pod_updates = {
+            "metadata.labels": pod_labels,
+            "spec.volumes": runtime.spec.volumes,
+            "spec.nodeName": runtime.spec.node_name,
+            "spec.nodeSelector": mlrun.utils.helpers.to_non_empty_values_dict(
+                run.spec.node_selector
+            ),
+            "spec.affinity": mlrun.runtimes.pod.get_sanitized_attribute(
+                runtime.spec, "affinity"
+            ),
+            "spec.tolerations": mlrun.runtimes.pod.get_sanitized_attribute(
+                runtime.spec, "tolerations"
+            ),
+            "spec.securityContext": mlrun.runtimes.pod.get_sanitized_attribute(
+                runtime.spec, "security_context"
+            )
+            if runtime.spec.security_context
+            else None,
+            "spec.imagePullSecrets": [{"name": runtime.spec.image_pull_secret}]
+            if runtime.spec.image_pull_secret
+            else None,
+            "spec.priorityClassName": runtime.spec.priority_class_name
+            if runtime.spec.priority_class_name
+            and len(mlconf.get_valid_function_priority_class_names())
+            else None,
+            "spec.serviceAccountName": runtime.spec.service_account
+            if runtime.spec.service_account
+            else None,
+        }
+        for key, value in pod_updates.items():
+            if value:
+                update_in(pod_template, key, value)
+
+    def _update_job_parameters(self, job, runtime, execution, meta):
+        slots_per_worker = execution.get_param("slots_per_worker")
+        updates = {
+            "spec.mpiReplicaSpecs.Worker.replicas": runtime.spec.replicas or 1,
+            "spec.cleanPodPolicy": runtime.spec.clean_pod_policy,
+            "metadata": meta.to_dict(),
+        }
+
+        if slots_per_worker:
+            updates["spec.slotsPerWorker"] = slots_per_worker
+
+        for key, value in updates.items():
+            update_in(job, key, value)
 
     def _get_job_launcher_status(self, resp: list) -> str:
         launcher_status = mlrun.utils.get_in(resp, "status.replicaStatuses.Launcher")
@@ -197,9 +183,10 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         return selector
 
     def _generate_mpi_job_template(self, launcher_pod_template, worker_pod_template):
-        # https://github.com/kubeflow/mpi-operator/blob/master/pkg/apis/kubeflow/v1/types.go#L25
-        # MPI job consists of Launcher and Worker which both are of type ReplicaSet
-        # https://github.com/kubeflow/common/blob/master/pkg/apis/common/v1/types.go#L74
+        # reference for MPIJob definition:
+        # https://github.com/kubeflow/mpi-operator/blob/v0.3.0/pkg/apis/kubeflow/v1/types.go#L25
+        # MPI job consists of Launcher and Worker which both are of type ReplicaSpec, reference for ReplicaSpec:
+        # https://github.com/kubeflow/common/blob/master/pkg/apis/common/v1/types.go#L78
         return {
             "apiVersion": "kubeflow.org/v1",
             "kind": "MPIJob",
@@ -246,7 +233,9 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         self, crd_object: dict
     ) -> tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
         """
+        reference for MPIJob Status:
         https://github.com/kubeflow/mpi-operator/blob/v0.3.0/pkg/apis/kubeflow/v1/types.go#L29
+        reference for ReplicaStatus:
         https://github.com/kubeflow/common/blob/master/pkg/apis/common/v1/types.go#L55
         """
         launcher_status = (

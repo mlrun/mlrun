@@ -3,16 +3,12 @@
 
 Alerts are a mechanism for informing you about possible problem situations. 
 
-```{admonition} Note
-Alets are in Tech Preview state and disabled by default.
-To enable, add an environment variable to the override-env configmap: `MLRUN_ALERTS__MODE: "enabled"`.
-```
-
 **In this section**
 - [System configuration](#system-configuration)
 - [SDK](#sdk)
 - [Predefined events](#predefined-events-eventkind)
 - [Creating an alert](#creating-an-alert)
+- [Modifying an alert](#modifying-an-alert)
 - [Alert reset policy](#alert-reset-policy)
 - [Alert templates](#alert-templates)
 - [Creating an alert with a template](#creating-an-alert-with-a-template)
@@ -59,8 +55,6 @@ You can optionally specify the frequency of the alert through the criteria field
 If not specified, it uses the default.
 See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`. 
 You can configure Git, Slack, and webhook notifications for the alert. 
-
-When you run `store_alert_config`, the alert is automatically reset.
 
 This example illustrates creating an alert with a Slack notification for drift detection on a model endpoint:
 
@@ -149,6 +143,21 @@ alert_data = mlrun.alerts.alert.AlertConfig(
 project.store_alert_config(alert_data)
 ```
 
+## Modifying an alert
+
+When you run `store_alert_config` on an existing alert:
+- The alert is reset if you modify a field that affects the conditions that trigger the alert. These fields are:
+   - Entity
+   - Trigger
+   - Criteria
+ - The alert is not reset if you modify a field that affects the notifications that are sent or the result of the alert being activated. These fields are:
+   - Description
+   - Summary
+   - Severity
+   - Notifications
+   
+You can use the `force_reset` option when running `store_alert_config` to force a reset for fields that, by default, do not reset the alert.  By default, `force_reset` is set to false. 
+
 ## Alert reset policy
 
 The {py:class}`mlrun.common.schemas.alert.ResetPolicy` specifies when to clear the alert and change the alert's status from active to inactive. When an alert 
@@ -157,8 +166,8 @@ The `ResetPolicy` options are:
 - manual &mdash; for manual reset of the alert
 - auto &mdash; if the criteria contains a time period such that the alert is reset once there are no more invocations in the relevant time window.
 
-**Note:** If an alert is in an active state and its reset policy is changed from manual to auto, the alert is immediately reset. 
-This ensures that the behavior aligns with the new reset policy and avoids leaving the alert in an inconsistent state.
+**Note:** If an alert is in an active state and its `reset-policy` is changed from manual to auto, the alert is immediately reset. 
+This ensures that the behavior aligns with the `auto-reset` behavior.
 
 ## Alert templates
 Alert templates simplify the creation of alerts by providing a predefined set of configurations. The system comes with several 

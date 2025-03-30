@@ -33,8 +33,8 @@ The images are:
 - `mlrun/mlrun-ui`: The server's frontend image
 
 ```{admonition} Notes
-When using the `mlrun` or `mlrun-gpu` image, use PyTorch versions up to and including than 2.0.1, but not higher. 
-You can build your own images with newer CUDA for later releases of PyTorch.
+- When using the `mlrun` or `mlrun-gpu` image, use PyTorch versions up to and including than 2.0.1, but not higher. You can build your own images with newer CUDA for later releases of PyTorch.
+-  If you are using a zipped source, use `mlrun/mlrun` images or install `unzip` in the provided function base image. 
 ```
 ### When to use an image with KFP
 

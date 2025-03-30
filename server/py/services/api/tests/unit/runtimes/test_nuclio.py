@@ -1846,6 +1846,34 @@ class TestNuclioRuntime(TestRuntimeBase):
             nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
         )
 
+    def test_masking_sensitive_fields(self):
+        function = self._generate_runtime(self.runtime_kind)
+
+        raw_password = "raw_password"
+        function.add_v3io_stream_trigger(
+            stream_path="test",
+            access_key=raw_password,
+            extra_attributes={"password": raw_password},
+        )
+        raw_config = function.mask_sensitive_data_in_config()
+
+        assert (
+            function.spec.config.get("spec.triggers.stream").get("password")
+            == "$ref:/spec/triggers/stream/password"
+        )
+        assert raw_config.get("spec.triggers.stream").get("password") == raw_password
+
+        assert (
+            function.spec.config.get("spec.triggers.stream")
+            .get("attributes", {})
+            .get("password")
+            == "$ref:/spec/triggers/stream/attributes/password"
+        )
+        assert (
+            raw_config.get("spec.triggers.stream").get("attributes", {}).get("password")
+            == raw_password
+        )
+
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well
 class TestNuclioMLRunRuntime(TestNuclioRuntime):

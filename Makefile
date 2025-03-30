@@ -526,7 +526,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-e MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test  UNIT_TEST_IGNORE_PATH=$(UNIT_TEST_IGNORE_PATH) \
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test  UNIT_TEST_IGNORE_PATH="$(UNIT_TEST_IGNORE_PATH)" \
 		UNIT_TEST_PATH="$(UNIT_TEST_PATH)"
 
 .PHONY: test

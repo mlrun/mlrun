@@ -29,8 +29,8 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: 'PR number to run the system tests against (default: run on the latest commit in the development branch)'
-        required: false
+        description: 'PR number to run the system tests against'
+        required: true
         default: ''
       pytest_markers:
         description: 'Pytest markers to run'
@@ -89,7 +89,7 @@ jobs:
 #          fi
 
   prepare-inputs:
-    name: Prepare Open Source inputs
+    name: Prepare inputs
 # Uncomment if veify-caller job is used
 #    needs: verify-caller
     runs-on:
@@ -214,9 +214,9 @@ jobs:
       name: "Start a local k8s cluster"
       with:
         # - k3s versions at https://github.com/k3s-io/k3s/tags
-        k3s-version: v1.32.1+k3s1
+        k3s-version: v1.32.3+k3s1
         # - helm versions at https://github.com/helm/helm/tags
-        helm-version: v3.17.1
+        helm-version: v3.17.2
 
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3

@@ -1950,7 +1950,7 @@ class TestFeatureStore(TestMLRunSystem):
             feature_vector_update=update_dict,
             project=self.project_name,
         )
-
+        vector.reload()
         svc = vector.get_online_feature_service()
         try:
             resp = svc.get(entity_rows=[{"ticker": "GOOG"}])

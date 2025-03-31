@@ -281,8 +281,11 @@ class MonitoringApplicationController:
                 mlrun.platforms.iguazio.KafkaOutputStream,
             ],
         ] = {}
-        self.feature_sets: OrderedDict[str, mlrun.common.schemas.FeatureSet] = (
+        self.feature_sets: OrderedDict[str, mlrun.feature_store.FeatureSet] = (
             collections.OrderedDict()
+        )
+        self.tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project
         )
 
     @property
@@ -477,16 +480,9 @@ class MonitoringApplicationController:
             ]
 
             not_batch_endpoint = (
-                event[ControllerEvent.ENDPOINT_POLICY] != EndpointType.BATCH_EP
+                event[ControllerEvent.ENDPOINT_TYPE] != EndpointType.BATCH_EP
             )
-            if endpoint_id not in self.feature_sets:
-                self.feature_sets[endpoint_id] = fstore.get_feature_set(
-                    event[ControllerEvent.FEATURE_SET_URI]
-                )
-            self.feature_sets.move_to_end(endpoint_id, last=False)
-            if len(self.feature_sets) > self._MAX_FEATURE_SET_PER_WORKER:
-                self.feature_sets.popitem(last=True)
-            m_fs = self.feature_sets.get(endpoint_id)
+
             logger.info(
                 "Starting analyzing for", timestamp=event[ControllerEvent.TIMESTAMP]
             )
@@ -511,13 +507,39 @@ class MonitoringApplicationController:
                         first_request=first_request,
                         last_request=last_stream_timestamp,
                     ):
-                        df = m_fs.to_dataframe(
-                            start_time=start_infer_time,
-                            end_time=end_infer_time,
-                            time_column=mm_constants.EventFieldType.TIMESTAMP,
-                            storage_options=self.storage_options,
-                        )
-                        if len(df) == 0:
+                        data_in_window = False
+                        if not_batch_endpoint:
+                            # Serving endpoint - get the relevant window data from the TSDB
+                            prediction_metric = self.tsdb_connector.read_predictions(
+                                start=start_infer_time,
+                                end=end_infer_time,
+                                endpoint_id=endpoint_id,
+                            )
+                            if prediction_metric.data:
+                                data_in_window = True
+                        else:
+                            if endpoint_id not in self.feature_sets:
+                                self.feature_sets[endpoint_id] = fstore.get_feature_set(
+                                    event[ControllerEvent.FEATURE_SET_URI]
+                                )
+                            self.feature_sets.move_to_end(endpoint_id, last=False)
+                            if (
+                                len(self.feature_sets)
+                                > self._MAX_FEATURE_SET_PER_WORKER
+                            ):
+                                self.feature_sets.popitem(last=True)
+                            m_fs = self.feature_sets.get(endpoint_id)
+
+                            # Batch endpoint - get the relevant window data from the parquet target
+                            df = m_fs.to_dataframe(
+                                start_time=start_infer_time,
+                                end_time=end_infer_time,
+                                time_column=mm_constants.EventFieldType.TIMESTAMP,
+                                storage_options=self.storage_options,
+                            )
+                            if len(df) > 0:
+                                data_in_window = True
+                        if not data_in_window:
                             logger.info(
                                 "No data found for the given interval",
                                 start=start_infer_time,
@@ -701,7 +723,6 @@ class MonitoringApplicationController:
                         endpoint,
                         policy,
                         set(applications_names),
-                        self.v3io_access_key,
                         schedule_file,
                     ): endpoint
                     for endpoint in endpoints
@@ -726,7 +747,6 @@ class MonitoringApplicationController:
         endpoint: mlrun.common.schemas.ModelEndpoint,
         policy: dict,
         applications_names: set,
-        v3io_access_key: str,
         schedule_file: schedules.ModelMonitoringSchedulesFileChief,
     ) -> None:
         if self._should_monitor_endpoint(

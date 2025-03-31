@@ -1531,7 +1531,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
     def custom_setup(self) -> None:
         mlrun.runtimes.utils.global_context.set(None)
 
-    def _log_model(self) -> mlrun.artifacts.ModelArtifact:
+    def _log_model(self) -> str:
         model = self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]
             self.model_name,
             model_dir=os.path.relpath(self.assets_path),
@@ -1539,7 +1539,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
             training_set=self.train_set,
             artifact_path=f"v3io:///projects/{self.project_name}",
         )
-        return model
+        return model.uri
 
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
@@ -1574,15 +1574,12 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
             wait_for_deployment=True,
         )
 
-        model = self._log_model()
-        model_uri = model.uri
-        model_endpoint_uid = model.uid
+        model_uri = self._log_model()
 
         mlrun.model_monitoring.api.record_results(
             project=self.project_name,
             infer_results_df=self.infer_results_df,
             model_path=model_uri,
-            endpoint_id=model_endpoint_uid,
             model_endpoint_name=f"{self.name_prefix}-test",
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             # TODO: activate ad-hoc mode when ML-5792 is done

@@ -200,6 +200,7 @@ class TDEngineConnector(TSDBConnector):
             columns=columns,
             subtable=table_name,
             values=event,
+            timestamp_precision=self._timestamp_precision,
         )
 
         self.connection.run(

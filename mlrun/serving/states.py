@@ -412,7 +412,7 @@ class BaseStep(ModelObj):
 
     def set_flow(
         self,
-        steps: list[Union[str, dict[str, Any], StepToDict]],
+        steps: list[Union[str, StepToDict, dict[str, Any]]],
         force: bool = False,
     ):
         """set list of steps as downstream from this step, in the order specified. This will overwrite any existing
@@ -1646,7 +1646,7 @@ class FlowStep(BaseStep):
 
     def set_flow(
         self,
-        steps: list[Union[str, dict[str, Any], StepToDict]],
+        steps: list[Union[str, StepToDict, dict[str, Any]]],
         force: bool = False,
     ):
         if not force and self.steps:

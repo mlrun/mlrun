@@ -1661,9 +1661,7 @@ class FlowStep(BaseStep):
             if isinstance(next_step, dict):
                 step = step.to(**next_step)
             else:
-                step = step.to(
-                    next_step, name=next_step.to_dict().get("name", next_step.name)
-                )
+                step = step.to(next_step, name=next_step.to_dict(["name"]).get("name"))
 
         return step
 

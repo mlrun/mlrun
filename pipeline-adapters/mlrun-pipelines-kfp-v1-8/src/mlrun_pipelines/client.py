@@ -110,10 +110,17 @@ def sanitize_k8s_name(
     :param name: The original name to be sanitized.
     :return: A sanitized Kubernetes resource name.
     """
+    MAX_K8S_NAME_LENGTH = 63
     name = name.lower()
     cleaned_name = INVALID_CHARACTERS_REGEX.sub("-", name)
     cleaned_name = MULTIPLE_DASHES_REGEX.sub("-", cleaned_name)
-    return cleaned_name.lstrip("-").rstrip("-")
+    cleaned_name = cleaned_name.lstrip("-").rstrip("-")
+    if len(cleaned_name) > MAX_K8S_NAME_LENGTH:
+        raise ValueError(
+            f"Kubernetes resource name '{cleaned_name}' is too long. "
+            f"Max length is {MAX_K8S_NAME_LENGTH} characters."
+        )
+    return cleaned_name
 
 
 class Client(
@@ -235,25 +242,19 @@ class Client(
         :return: A valid ApiGetHealthzResponse if successful, otherwise None.
         :raises TimeoutError: If the endpoint is not reachable after the specified retries.
         """
-        count: int = 0
-        response: Optional[kfp_server_api.ApiGetHealthzResponse] = None
-        while not response:
-            count += 1
-            if count > max_attempts:
-                raise TimeoutError(
-                    f"Failed to get healthz endpoint after {max_attempts} attempts."
-                )
+        for attempt in range(1, max_attempts + 1):
             try:
-                response = self._healthz_api.get_healthz()
-                return response
+                return self._healthz_api.get_healthz()
             except kfp_server_api.ApiException:
                 logging.exception(
                     "Failed to retrieve KFP healthz info on attempt %d of %d.",
-                    count,
+                    attempt,
                     max_attempts,
                 )
                 time.sleep(interval_seconds)
-        return response
+        raise TimeoutError(
+            f"Failed to get healthz endpoint after {max_attempts} attempts."
+        )
 
     def create_experiment(
         self,
@@ -477,6 +478,7 @@ class Client(
         :param run_id: The unique ID of the run to retrieve.
         :return: An ApiRun object with the run details.
         """
+        logging.info("Getting run details for run ID: %s", run_id)
         return self._run_api.get_run(
             run_id=run_id,
         )

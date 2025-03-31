@@ -89,7 +89,7 @@ class AbstractClient(ABC):
         pipeline_id: Optional[str] = None,
         version_id: Optional[str] = None,
         pipeline_root: Optional[str] = None,
-        enable_caching: Optional[bool] = None,
+        should_enable_caching: Optional[bool] = None,
         service_account: Optional[str] = None,
     ):
         """
@@ -105,7 +105,7 @@ class AbstractClient(ABC):
         :param pipeline_id:           An optional pipeline ID. If provided, the client uses the existing pipeline.
         :param version_id:            An optional pipeline version ID.
         :param pipeline_root:         An optional root path for pipeline outputs.
-        :param enable_caching:        A flag to enable or disable pipeline caching.
+        :param should_enable_caching:        A flag to enable or disable pipeline caching.
         :param service_account:       An optional Kubernetes service account to run the pipeline.
         :return: An ApiRun object representing the created pipeline run.
         """

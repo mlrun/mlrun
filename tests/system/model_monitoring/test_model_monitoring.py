@@ -429,7 +429,9 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             "testing",
             model_path=f"store://models/{self.project_name}/{model_obj.key}:latest",
         )
-        created_model_endpoint = db.create_model_endpoint(model_endpoint, creation_strategy)
+        created_model_endpoint = db.create_model_endpoint(
+            model_endpoint, creation_strategy
+        )
         model_endpoint = mock_random_endpoint(
             self.project_name,
             "testing",
@@ -1529,7 +1531,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
     def custom_setup(self) -> None:
         mlrun.runtimes.utils.global_context.set(None)
 
-    def _log_model(self) -> str:
+    def _log_model(self) -> mlrun.artifacts.ModelArtifact:
         model = self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]
             self.model_name,
             model_dir=os.path.relpath(self.assets_path),
@@ -1537,7 +1539,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
             training_set=self.train_set,
             artifact_path=f"v3io:///projects/{self.project_name}",
         )
-        return model.uri
+        return model
 
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
@@ -1572,18 +1574,21 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
             wait_for_deployment=True,
         )
 
-        model_uri = self._log_model()
+        model = self._log_model()
+        model_uri = model.uri
+        model_endpoint_uid = model.uid
 
         mlrun.model_monitoring.api.record_results(
             project=self.project_name,
             infer_results_df=self.infer_results_df,
             model_path=model_uri,
+            endpoint_id=model_endpoint_uid,
             model_endpoint_name=f"{self.name_prefix}-test",
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             # TODO: activate ad-hoc mode when ML-5792 is done
         )
 
-        sleep(130)
+        sleep(180)
 
         self._test_v3io_tsdb_record()
 
@@ -1620,11 +1625,22 @@ class TestModelEndpointWithManyFeatures(TestMLRunSystemModelMonitoring):
         )
 
         # Generate a model endpoint
-        model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
+        out_model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=project.name,
             model_path=model_obj.uri,
+            endpoint_id=model_obj.metadata.uid,
             function_name="dummy_func",
             model_endpoint_name="dummy_ep",
+            feature_analysis=True,
+        )
+        db = mlrun.get_run_db()
+        model_endpoint = db.get_model_endpoint(
+            name=out_model_endpoint.metadata.name,
+            project=out_model_endpoint.metadata.project,
+            function_name=out_model_endpoint.spec.function_name,
+            function_tag=out_model_endpoint.spec.function_tag,
+            endpoint_id=out_model_endpoint.metadata.uid,
+            feature_analysis=True,
         )
 
         assert len(model_endpoint.spec.feature_stats) == 501

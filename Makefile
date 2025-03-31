@@ -870,7 +870,9 @@ upgrade-mlrun-api-deps-lock: verify-uv-version ## Upgrade mlrun-api locked requi
 		extras-requirements.txt \
 		dockerfiles/mlrun-api/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
-		--output-file dockerfiles/mlrun-api/locked-requirements.txt
+		--output-file dockerfiles/mlrun-api/locked-requirements.txt \
+		--python-platform linux \
+		--python-version 3.9
 
 .PHONY: upgrade-mlrun-mlrun-deps-lock
 upgrade-mlrun-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-mlrun locked requirements file

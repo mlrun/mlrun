@@ -2144,29 +2144,34 @@ class MlrunProject(ModelObj):
         reset_policy: mlrun.common.schemas.alert.ResetPolicy = mlrun.common.schemas.alert.ResetPolicy.AUTO,
     ) -> list[mlrun.alerts.alert.AlertConfig]:
         """
-        :param name:                   The name of the AlertConfig template. It will be combined with mep_id, app-name
-                                       and result name to generate a unique name.
-        :param summary:                Summary of the alert, will be sent in the generated notifications
-        :param endpoints:              The endpoints from which metrics will be retrieved to configure the alerts.
-                                       This `ModelEndpointList` object obtained via the `list_model_endpoints`
-                                       method or created manually using `ModelEndpoint` objects.
-        :param events:                 AlertTrigger event types (EventKind).
-        :param notifications:          List of notifications to invoke once the alert is triggered
-        :param result_names:           Optional. Filters the result names used to create the alert configuration,
-                                       constructed from the app and result_name regex.
+        Generate alert configurations based on specified model endpoints and result names, which can be defined
+        explicitly or using regex patterns.
 
-                                       For example:
-                                       [`app1.result-*`, `*.result1`]
-                                       will match "mep_uid1.app1.result.result-1" and "mep_uid1.app2.result.result1".
-                                       A specific result_name (not a wildcard) will always create a new alert
-                                       config, regardless of whether the result name exists.
-        :param severity:               Severity of the alert.
-        :param criteria:               When the alert will be triggered based on the
-                                       specified number of events within the defined time period.
-        :param reset_policy:           When to clear the alert. May be "manual" for manual reset of the alert,
-                                       or "auto" if the criteria contains a time period.
-        :returns:                       List of AlertConfig according to endpoints results,
-                                       filtered by result_names.
+                :param name:                   The name of the AlertConfig template. It will be combined with
+                                               mep id, app name and result name to generate a unique name.
+                :param summary:                Summary of the alert, will be sent in the generated notifications
+                :param endpoints:              The endpoints from which metrics will be retrieved to configure
+                                               the alerts.
+                                               The ModelEndpointList object is obtained via the `list_model_endpoints`
+                                               method or created manually using `ModelEndpoint` objects.
+                :param events:                 AlertTrigger event types (EventKind).
+                :param notifications:          List of notifications to invoke once the alert is triggered
+                :param result_names:           Optional. Filters the result names used to create the alert
+                                               configuration, constructed from the app and result_name regex.
+
+                                               For example:
+                                               [`app1.result-*`, `*.result1`]
+                                               will match "mep_uid1.app1.result.result-1" and
+                                               "mep_uid1.app2.result.result1".
+                                               A specific result_name (not a wildcard) will always create a new alert
+                                               config, regardless of whether the result name exists.
+                :param severity:               Severity of the alert.
+                :param criteria:               The threshold for triggering the alert based on the
+                                               specified number of events within the defined time period.
+                :param reset_policy:           When to clear the alert. Either "manual" for manual reset of the alert,
+                                               or "auto" if the criteria contains a time period.
+                :returns:                      List of AlertConfig according to endpoints results,
+                                               filtered by result_names.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         matching_results = []
@@ -2451,7 +2456,22 @@ class MlrunProject(ModelObj):
         :param image:                             The image of the model monitoring controller, writer, monitoring
                                                   stream & histogram data drift functions, which are real time nuclio
                                                   functions. By default, the image is mlrun/mlrun.
-        :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
+        :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application:
+            :py:class:`~mlrun.model_monitoring.applications.histogram_data_drift.HistogramDataDriftApplication`.
+            If false, and you want to deploy the histogram data drift application
+            afterwards, you may use the
+            :py:func:`~set_model_monitoring_function` method::
+
+                import mlrun.model_monitoring.applications.histogram_data_drift as histogram_data_drift
+
+                hist_app = project.set_model_monitoring_function(
+                    name=histogram_data_drift.HistogramDataDriftApplicationConstants.NAME,  # keep the default name
+                    func=histogram_data_drift.__file__,
+                    application_class=histogram_data_drift.HistogramDataDriftApplication.__name__,
+                )
+
+                project.deploy_function(hist_app)
+
         :param wait_for_deployment:               If true, return only after the deployment is done on the backend.
                                                   Otherwise, deploy the model monitoring infrastructure on the
                                                   background, including the histogram data drift app if selected.
@@ -2487,30 +2507,6 @@ class MlrunProject(ModelObj):
                     mm_constants.HistogramDataDriftApplicationConstants.NAME
                 )
             self._wait_for_functions_deployment(deployment_functions)
-
-    def deploy_histogram_data_drift_app(
-        self,
-        *,
-        image: str = "mlrun/mlrun",
-        db: Optional[mlrun.db.RunDBInterface] = None,
-        wait_for_deployment: bool = False,
-    ) -> None:
-        """
-        Deploy the histogram data drift application.
-
-        :param image:               The image on which the application will run.
-        :param db:                  An optional DB object.
-        :param wait_for_deployment: If true, return only after the deployment is done on the backend.
-                                    Otherwise, deploy the application on the background.
-        """
-        if db is None:
-            db = mlrun.db.get_run_db(secrets=self._secrets)
-        db.deploy_histogram_data_drift_app(project=self.name, image=image)
-
-        if wait_for_deployment:
-            self._wait_for_functions_deployment(
-                [mm_constants.HistogramDataDriftApplicationConstants.NAME]
-            )
 
     def update_model_monitoring_controller(
         self,
@@ -3878,6 +3874,7 @@ class MlrunProject(ModelObj):
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         builder_env: Optional[dict] = None,
         reset_on_run: Optional[bool] = None,
+        output_path: Optional[str] = None,
     ) -> typing.Union[mlrun.model.RunObject, PipelineNodeWrapper]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -3908,7 +3905,7 @@ class MlrunProject(ModelObj):
                                 parsed during runtime from `mlrun.DataItem` to the given type hint. The type hint can be
                                 given in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
         :param outputs:         list of outputs which can pass in the workflow
-        :param workdir:         default input artifacts path
+        :param workdir:         working directory of the executed job and the default path for artifact inputs
         :param labels:          labels to tag the job/run with ({key:val, ..})
         :param base_task:       task object to use as base
         :param watch:           watch/follow run log, True by default
@@ -3920,7 +3917,8 @@ class MlrunProject(ModelObj):
                                 (which will be converted to the class using its `from_crontab` constructor),
                                 see this link for help:
                                 https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-        :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+        :param artifact_path:   (deprecated) path to store artifacts, when running in a workflow this will be set
+                                automatically
         :param notifications:   list of notifications to push when the run is completed
         :param returns:         List of log hints - configurations for how to log the returning values from the
                                 handler's run (as artifacts or results). The list's length must be equal to the amount
@@ -3938,34 +3936,47 @@ class MlrunProject(ModelObj):
         :param reset_on_run:    When True, function python modules would reload prior to code execution.
                                 This ensures latest code changes are executed. This argument must be used in
                                 conjunction with the local=True argument.
+        :param output_path:     path to store artifacts, when running in a workflow this will be set automatically
 
         :return: MLRun RunObject or PipelineNodeWrapper
         """
-        return run_function(
-            function,
-            handler=handler,
-            name=name,
-            params=params,
-            hyperparams=hyperparams,
-            hyper_param_options=hyper_param_options,
-            inputs=inputs,
-            outputs=outputs,
-            workdir=workdir,
-            labels=labels,
-            base_task=base_task,
-            watch=watch,
-            local=local,
-            verbose=verbose,
-            selector=selector,
-            project_object=self,
-            auto_build=auto_build,
-            schedule=schedule,
-            artifact_path=artifact_path,
-            notifications=notifications,
-            returns=returns,
-            builder_env=builder_env,
-            reset_on_run=reset_on_run,
-        )
+        if artifact_path:
+            warnings.warn(
+                "'artifact_path' parameter is deprecated in 1.10.0 and will be removed in 1.12.0, "
+                "use 'output_path' instead.",
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
+            )
+        output_path = output_path or artifact_path
+
+        # remove this filter once the artifact_path parameter is deprecated in 1.12.0
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)
+            return run_function(
+                function,
+                handler=handler,
+                name=name,
+                params=params,
+                hyperparams=hyperparams,
+                hyper_param_options=hyper_param_options,
+                inputs=inputs,
+                outputs=outputs,
+                workdir=workdir,
+                labels=labels,
+                base_task=base_task,
+                watch=watch,
+                local=local,
+                verbose=verbose,
+                selector=selector,
+                project_object=self,
+                auto_build=auto_build,
+                schedule=schedule,
+                output_path=output_path,
+                notifications=notifications,
+                returns=returns,
+                builder_env=builder_env,
+                reset_on_run=reset_on_run,
+            )
 
     def build_function(
         self,
@@ -5035,14 +5046,20 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.get_alert_config(alert_name, self.metadata.name)
 
-    def list_alerts_configs(self) -> list[AlertConfig]:
+    def list_alerts_configs(
+        self, limit: Optional[int] = None, offset: Optional[int] = None
+    ) -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
+
+        :param limit: The maximum number of alerts to return.
+            Defaults to `mlconf.alerts.default_list_alert_configs_limit` if not provided.
+        :param offset: The number of alerts to skip before starting to collect alerts.
 
         :return: All the alerts objects of the project.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        return db.list_alerts_configs(self.metadata.name)
+        return db.list_alerts_configs(self.metadata.name, limit=limit, offset=offset)
 
     def delete_alert_config(
         self, alert_data: AlertConfig = None, alert_name: Optional[str] = None
@@ -5270,7 +5287,7 @@ class MlrunProject(ModelObj):
             )
 
         # if engine is remote then skip the local file validation
-        if engine and not engine.startswith("remote"):
+        if engine and engine.startswith("remote"):
             return
 
         code_path = self.spec.get_code_path()

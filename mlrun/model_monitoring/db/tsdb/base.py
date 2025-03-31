@@ -210,8 +210,7 @@ class TSDBConnector(ABC):
         endpoint_ids: Union[str, list[str]],
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        get_raw: bool = False,
-    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
+    ) -> Union[pd.DataFrame, dict[str, float]]:
         """
         Fetches data from the predictions TSDB table and returns the most recent request
         timestamp for each specified endpoint.
@@ -219,11 +218,11 @@ class TSDBConnector(ABC):
         :param endpoint_ids:    A list of model endpoint identifiers.
         :param start:           The start time for the query.
         :param end:             The end time for the query.
-        :param get_raw:         Whether to return the request as raw frames rather than a pandas dataframe. Defaults
-          to False. This can greatly improve performance when a dataframe isn't needed.
 
-        :return: A pd.DataFrame containing the columns [endpoint_id, last_request, last_latency].
-        If an endpoint has not been invoked within the specified time range, it will not appear in the result.
+        :return: A pd.DataFrame containing the columns [endpoint_id, last_request, last_latency] or a dictionary
+        containing the endpoint_id as the key and the last request timestamp as the value.
+        if an endpoint has not been invoked within the specified time range, it will not appear in the result (relevant
+        only to non-v3io connector).
         """
 
     @abstractmethod

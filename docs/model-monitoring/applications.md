@@ -4,6 +4,7 @@
 **In this section**
 - [Basics](#basics)
 - [Using the application context](#using-the-application-context)
+- [Testing your application  before deploying it](#testing-your-application-before-deploying-it)
 - [Evidently-based application](#evidently-based-application)
 
 ## Basics
@@ -45,6 +46,63 @@ The result may be just one result, as in the example above, or a list of results
 The application class may implement a custom `__init__` constructor with arguments.
 
 To register and deploy the application see {ref}`register-model-monitoring-app`.
+
+## Testing your application before deploying it
+
+You can run and debug your application as a job with data, but without a model endpoint or datastore profiles. This reduces
+the time required to refine your model before deploying. 
+The monitoring creates metrics that assist you in understanding and refining the model behavior. 
+You can use this flow for both local and remote jobs.
+
+Use {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.evaluate` to test your code. 
+When you are satisfied with the application, deploy it with {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.deploy`.
+
+
+For example, import the source file:
+```py
+# Myapp.py
+import mlrun
+from mlrun.model_monitoring.applications import (
+    ModelMonitoringApplicationBase,
+    ModelMonitoringApplicationMetric,
+    ModelMonitoringApplicationResult,
+)
+
+
+class MyApp(ModelMonitoringApplicationBase):
+    """User code"""
+
+    def do_tracking(self, monitoring_context):
+        print(monitoring_context.__dict__)
+        results = [
+            ModelMonitoringApplicationMetric(name="test_metric", value=0.1),
+            ModelMonitoringApplicationResult(
+                name="test_result",
+                value=0.2,
+                kind=mlrun.common.schemas.model_monitoring.constants.ResultKindApp.system_performance,
+                status=mlrun.common.schemas.model_monitoring.constants.ResultStatusApp.no_detection,
+            ),
+        ]
+        return results
+```
+Then, import the class and run `evaluate`.
+```py
+from Myapp import MyApp
+
+MyApp.evaluate(
+    func_path="Myapp.py",
+    run_local=False,
+    sample_data=pd.DataFrame({"col": [1, 2, 3, 4]}),
+)
+```
+After you have fine-tuned the model monitoring application, deploy it with:
+```python
+MyApp.deploy(
+    func_path="Myapp.py",
+    func_name="run-me-in-wf",
+)
+```
+
 
 ## Using the application context
 
@@ -112,3 +170,42 @@ It is recommended to specify the exact version of the `evidently` package for re
 ```
 
 See a full example in [Realtime monitoring and drift detection](../tutorials/05-model-monitoring.ipynb#evidently-app).
+
+## Scaling
+
+The model monitoring application can be scaled to handle increased workloads through two key dimensions:
+
+- **Workers**: Individual processes within each Kubernetes pod
+- **Replicas**: The number of Kubernetes pods deployed
+
+These parameters are configured in the `config.py` file under the `application_stream_args` section:
+
+```py
+{
+    "application_stream_args": {
+        "v3io": {
+            "shard_count": 4,  # Number of V3IO shards
+            "retention_period_hours": 24,  # Data retention period
+            "num_workers": 4,  # Processes per pod
+            "min_replicas": 1,  # Minimum number of pods
+            "max_replicas": 1,  # Maximum number of pods
+        },
+        "kafka": {
+            "partition_count": 4,  # Number of Kafka partitions
+            "replication_factor": 1,  # Kafka replication factor
+            "num_workers": 4,  # Processes per pod
+            "min_replicas": 1,  # Minimum number of pods
+            "max_replicas": 1,  # Maximum number of pods
+        },
+    }
+}
+```
+
+### Scaling Rule
+
+The fundamental scaling rule to maintain is:
+
+**Shards/Partitions = Replicas × Workers**
+
+In other words, the number of shards (V3IO) or partitions (Kafka) must equal to the total number of worker processes across all pods.
+

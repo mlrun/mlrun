@@ -64,7 +64,7 @@ default_config = {
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
     "nuclio_version": "",
-    "default_nuclio_runtime": "python:3.9",
+    "default_nuclio_runtime": "python:3.11",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
@@ -549,6 +549,10 @@ default_config = {
         },
     },
     "model_endpoint_monitoring": {
+        # Scaling Rule
+        # The fundamental scaling rule to maintain is: Shards/Partitions = Replicas * Workers
+        # In other words, the number of shards (V3IO) or partitions (Kafka) must be equal to the
+        # total number of worker processes across all pods.
         "serving_stream": {
             "v3io": {
                 "shard_count": 2,
@@ -627,6 +631,8 @@ default_config = {
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         "tdengine": {
+            "run_directly": True,
+            # timeout and retry are ignored when run_directly is set to True
             "timeout": 10,
             "retries": 1,
         },
@@ -822,6 +828,8 @@ default_config = {
         # maximum allowed alert config cache size in alert's CRUD
         # for the best performance, it is recommended to set this value to the maximum number of alerts
         "max_allowed_cache_size": 20000,
+        # default limit for listing alert configs
+        "default_list_alert_configs_limit": 2000,
     },
     "auth_with_client_id": {
         "enabled": False,

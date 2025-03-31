@@ -1661,7 +1661,7 @@ class FlowStep(BaseStep):
             if isinstance(next_step, dict):
                 step = step.to(**next_step)
             else:
-                step = step.to(next_step, name=next_step.to_dict(["name"]).get("name"))
+                step = step.to(next_step)  # )
 
         return step
 
@@ -1854,7 +1854,11 @@ def params_to_step(
     elif class_name and hasattr(class_name, "to_dict"):
         struct = class_name.to_dict()
         kind = struct.get("kind", StepKinds.task)
-        name = name or struct.get("name", struct.get("class_name"))
+        name = (
+            name
+            or struct.get("name", struct.get("class_name"))
+            or class_name.to_dict(["name"]).get("name")
+        )
         cls = classes_map.get(kind, RootFlowStep)
         step = cls.from_dict(struct)
         step.function = function

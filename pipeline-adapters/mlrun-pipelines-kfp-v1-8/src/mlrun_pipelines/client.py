@@ -110,15 +110,15 @@ def sanitize_k8s_name(
     :param name: The original name to be sanitized.
     :return: A sanitized Kubernetes resource name.
     """
-    MAX_K8S_NAME_LENGTH = 63
+    max_k8s_name_length = 63
     name = name.lower()
     cleaned_name = INVALID_CHARACTERS_REGEX.sub("-", name)
     cleaned_name = MULTIPLE_DASHES_REGEX.sub("-", cleaned_name)
     cleaned_name = cleaned_name.lstrip("-").rstrip("-")
-    if len(cleaned_name) > MAX_K8S_NAME_LENGTH:
+    if len(cleaned_name) > max_k8s_name_length:
         raise ValueError(
             f"Kubernetes resource name '{cleaned_name}' is too long. "
-            f"Max length is {MAX_K8S_NAME_LENGTH} characters."
+            f"Max length is {max_k8s_name_length} characters."
         )
     return cleaned_name
 

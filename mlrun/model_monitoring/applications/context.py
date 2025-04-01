@@ -336,7 +336,7 @@ class MonitoringApplicationContext:
         """
         Log an artifact.
         See :func:`~mlrun.projects.MlrunProject.log_artifact` for the documentation.
-        :param unique_per_endpoint: by default True, we will log different artifact for each model endpoint,
+        :param unique_per_endpoint: by default True, we will log different artifact for each model endpoint
                                     set to False without changing item key will cause artifact override
         """
         labels = self._add_default_labels(labels)

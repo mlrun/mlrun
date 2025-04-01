@@ -281,7 +281,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
                 body=drift_per_feature_values.to_json(),
                 format="json",
                 key="features_drift_results",
-            ),
+            )
         )
         monitoring_context.logger.debug("Logged JSON artifact successfully")
 

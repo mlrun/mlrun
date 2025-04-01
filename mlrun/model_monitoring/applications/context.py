@@ -375,13 +375,21 @@ class MonitoringApplicationContext:
         target_path="",
         extra_data=None,
         label_column: Optional[str] = None,
+        unique_per_endpoint: bool = True,
         **kwargs,
     ) -> DatasetArtifact:
         """
         Log a dataset artifact.
         See :func:`~mlrun.projects.MlrunProject.log_dataset` for the documentation.
+        :param unique_per_endpoint: by default True, we will log different dataset for each model endpoint,
+        set to False without changing item key will cause dataset override
         """
         labels = self._add_default_labels(labels)
+        # By default, we want to log different artifact for each model endpoint
+        endpoint_id = labels.get(mlrun_constants.MLRunInternalLabels.endpoint_id, "")
+        if unique_per_endpoint and isinstance(key, str):
+            key = f"{key}-{endpoint_id}" if endpoint_id else key
+
         return self._artifacts_logger.log_dataset(
             key,
             df,

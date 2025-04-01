@@ -367,13 +367,13 @@ jobs:
       - name: Download server unit tests coverage report
         uses: actions/download-artifact@v4
         with:
-          name: coverage_unit_tests_report-${{ matrix.python-version }}-${{ github.run_id }}.coverage
+          name: coverage_unit_tests_report-${{ matrix.python-version }}-${{ github.run_id }}_server.coverage
           # Where to download. file downloaded by name.
           path: tests/coverage_reports/
       - name: Download client unit tests coverage report
         uses: actions/download-artifact@v4
         with:
-          name: coverage_unit_tests_report-${{ matrix.python-version }}-${{ github.run_id }}.coverage
+          name: coverage_unit_tests_report-${{ matrix.python-version }}-${{ github.run_id }}_client.coverage
           # Where to download. file downloaded by name.
           path: tests/coverage_reports/
       - name: Download integration coverage report

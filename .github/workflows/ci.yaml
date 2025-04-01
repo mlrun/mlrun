@@ -136,13 +136,14 @@ jobs:
         UNIT_TESTS_IGNORE_PATH=$UNIT_TESTS_IGNORE_PATH \
         COVERAGE=$COVERAGE \
         COVERAGE_DIR_SUFFIX="_${{ matrix.test-suite }}" \
+        COVERAGE_FILE="tests/coverage_reports/unit_tests_${{ matrix.test-suite }}.coverage"
         make test-dockerized
     - name: Upload coverage report
       if: env.COVERAGE == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: coverage_unit_tests_report-${{ matrix.python-version }}-${{ github.run_id }}-${{ matrix.test-suite }}.coverage
-        path: /tmp/coverage_reports/unit_tests/unit_tests_${{ matrix.test-suite }}.coverage
+        path: /tmp/coverage_reports/unit_tests_${{ matrix.test-suite }}/unit_tests_${{ matrix.test-suite }}.coverage
         retention-days: 90
 
 
@@ -342,48 +343,55 @@ jobs:
 #    - name: Install All Requirements ${{ matrix.python-version }}
 #      run: make install-all-requirements
 #
-#  coverage:
-#    name: Full coverage
-#    runs-on: ubuntu-latest
-#    strategy:
-#      matrix:
-#        python-version: [ "3.9"]  # coverage running on 3.9 only
-#    needs: [tests, integration-tests, migrations-tests]
-#    steps:
-#      - uses: actions/checkout@v4
-#        with:
-#          fetch-depth: 0
-#      - name: Set up Python
-#        uses: actions/setup-python@v4
-#        with:
-#          python-version: ${{ matrix.python-version }}
-#          cache: pip
-#      - name: Install dependencies
-#        # To save time, install only pytest and coverage-related packages, without mlrun and its dependencies.
-#        run: make install-dev-requirements
-#      # File name is not effected by the artifact name (=identifier only)
-#      - name: Download unit tests coverage report
-#        uses: actions/download-artifact@v4
-#        with:
-#          name: coverage_unit_tests_report-${{ matrix.python-version }}-${{ github.run_id }}.coverage
-#          # Where to download. file downloaded by name.
-#          path: tests/coverage_reports/
-#      - name: Download integration coverage report
-#        uses: actions/download-artifact@v4
-#        with:
-#          name: coverage_integration_tests_report-${{ matrix.python-version }}-${{ github.run_id }}.coverage
-#          # Where to download. file downloaded by name.
-#          path: tests/coverage_reports/
-#
-#      - name: Download migration coverage report
-#        uses: actions/download-artifact@v4
-#        with:
-#          name: coverage_migration_tests_report-${{ github.run_id }}.coverage
-#          # Where to download. file downloaded by name.
-#          path: tests/coverage_reports/
-#
-#      - name: Combine coverage
-#        run: make coverage-combine
+  coverage:
+    name: Full coverage
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ "3.9"]  # coverage running on 3.9 only
+    needs: [tests, integration-tests, migrations-tests]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install dependencies
+        # To save time, install only pytest and coverage-related packages, without mlrun and its dependencies.
+        run: make install-dev-requirements
+      # File name is not effected by the artifact name (=identifier only)
+      - name: Download server unit tests coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage_unit_tests_report-${{ matrix.python-version }}-${{ github.run_id }}.coverage
+          # Where to download. file downloaded by name.
+          path: tests/coverage_reports/
+      - name: Download client unit tests coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage_unit_tests_report-${{ matrix.python-version }}-${{ github.run_id }}.coverage
+          # Where to download. file downloaded by name.
+          path: tests/coverage_reports/
+      - name: Download integration coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage_integration_tests_report-${{ matrix.python-version }}-${{ github.run_id }}.coverage
+          # Where to download. file downloaded by name.
+          path: tests/coverage_reports/
+
+      - name: Download migration coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage_migration_tests_report-${{ github.run_id }}.coverage
+          # Where to download. file downloaded by name.
+          path: tests/coverage_reports/
+
+      - name: Combine coverage
+        run: make coverage-combine UNIT_TEST_COVERAGE_PATHS="tests/coverage_reports/unit_tests_client.coverage \
+          tests/coverage_reports/unit_tests_server.coverage"
 #
 #      # In order to be able to download it from the github run:
 #      - name: Upload coverage combined report

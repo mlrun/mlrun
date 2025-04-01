@@ -531,7 +531,7 @@ clean: ## Clean python package build artifacts
 .PHONY: test-dockerized
 test-dockerized: build-test ## Run mlrun tests in docker container
 	if [ "$(COVERAGE)" = "true" ]; then \
-		rm -rf /tmp/coverage_reports/unit_tests && mkdir -p /tmp/coverage_reports/unit_tests; \
+		rm -rf /tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX) && mkdir -p /tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX); \
 	fi; \
 	docker run \
 		-t \
@@ -539,10 +539,10 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		--network='host' \
 		-e MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		-v /tmp:/tmp \
-		-v /tmp/coverage_reports/unit_tests:/mlrun/tests/coverage_reports \
+		-v /tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX):/mlrun/tests/coverage_reports \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test  UNIT_TESTS_IGNORE_PATH="$(UNIT_TESTS_IGNORE_PATH)" \
-		UNIT_TESTS_PATH="$(UNIT_TESTS_PATH)" COVERAGE=$(COVERAGE)
+		UNIT_TESTS_PATH="$(UNIT_TESTS_PATH)" COVERAGE=$(COVERAGE) COVERAGE_FILE=$(COVERAGE_FILE)
 
 .PHONY: test
 test: clean ## Run mlrun tests
@@ -568,9 +568,10 @@ test: clean ## Run mlrun tests
 		IGNORE_ADDITION=""; \
 	fi; \
 	if [ "$(COVERAGE)" = "true" ]; then \
-		rm -f tests/coverage_reports/unit_tests.coverage; \
-		export COVERAGE_FILE=tests/coverage_reports/unit_tests.coverage; \
-		COVERAGE_ADDITION="-m coverage run --rcfile=tests/tests.coveragerc"; \
+		COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/unit_tests.coverage"}; \
+		rm -f $$COVERAGE_FILE; \
+		echo "coverage: $$COVERAGE_FILE" ;\
+		COVERAGE_ADDITION="-m coverage run --rcfile=tests/tests.coveragerc --data-file=$$COVERAGE_FILE"; \
 	else \
 		COVERAGE_ADDITION=""; \
 	fi; \
@@ -586,11 +587,13 @@ test: clean ## Run mlrun tests
 		$$IGNORE_ADDITION \
 		--forked \
 		-rf \
-		$$UNIT_TESTS_PATH
+		$$UNIT_TESTS_PATH ;\
 	if [ "$(COVERAGE)" = "true" ]; then \
 		echo "Unit test coverage report:"; \
-		COVERAGE_FILE=tests/coverage_reports/unit_tests.coverage coverage report --rcfile=tests/tests.coveragerc; \
+		COVERAGE_FILE=$$COVERAGE_FILE coverage report --rcfile=tests/tests.coveragerc; \
 	fi;
+
+
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test ## Run mlrun integration tests in docker container

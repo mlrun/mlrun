@@ -541,8 +541,8 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-v /tmp:/tmp \
 		-v /tmp/coverage_reports/unit_tests:/mlrun/tests/coverage_reports \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test COVERAGE=$(COVERAGE)
-
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test  UNIT_TESTS_IGNORE_PATH="$(UNIT_TESTS_IGNORE_PATH)" \
+		UNIT_TESTS_PATH="$(UNIT_TESTS_PATH)" COVERAGE=$(COVERAGE)
 
 .PHONY: test
 test: clean ## Run mlrun tests
@@ -554,7 +554,7 @@ test: clean ## Run mlrun tests
 	--ignore=tests/rundb/test_httpdb.py \
 	--ignore=server/py/services/api/migrations \
 	");\
-	PER_PYTHON_VERSION_IGNORE_TEST_FLAGS=$(if $(filter $(MLRUN_PYTHON_VERSION),3.12),$$(echo "\
+	PER_PYTHON_VERSION_IGNORE_TEST_FLAGS=$(if $(filter $(MLRUN_PYTHON_VERSION),3.11),$$(echo "\
 		--ignore=server/py/services/api/tests/unit/api/test_pipelines.py \
 		--ignore=tests/projects/test_kfp.py \
 		--ignore=server/py/services/api/tests/unit/crud/test_pipelines.py \
@@ -562,6 +562,11 @@ test: clean ## Run mlrun tests
 		--ignore=tests/projects/test_remote_pipeline.py \
 		--ignore=pipeline-adapters/mlrun-pipelines-kfp-v1-8/tests \
 		"),);\
+	if [ "$(UNIT_TESTS_IGNORE_PATH)" != "" ]; then \
+  		IGNORE_ADDITION="--ignore=$(UNIT_TESTS_IGNORE_PATH)"; \
+	else \
+		IGNORE_ADDITION=""; \
+	fi; \
 	if [ "$(COVERAGE)" = "true" ]; then \
 		rm -f tests/coverage_reports/unit_tests.coverage; \
 		export COVERAGE_FILE=tests/coverage_reports/unit_tests.coverage; \
@@ -578,8 +583,10 @@ test: clean ## Run mlrun tests
 		--durations=100 \
 		$$COMMON_IGNORE_TEST_FLAGS \
 		$$PER_PYTHON_VERSION_IGNORE_TEST_FLAGS \
+		$$IGNORE_ADDITION \
 		--forked \
-		-rf
+		-rf \
+		$$UNIT_TESTS_PATH
 	if [ "$(COVERAGE)" = "true" ]; then \
 		echo "Unit test coverage report:"; \
 		COVERAGE_FILE=tests/coverage_reports/unit_tests.coverage coverage report --rcfile=tests/tests.coveragerc; \

@@ -81,6 +81,7 @@ def run_function(
     returns: Optional[list[Union[str, dict[str, str]]]] = None,
     builder_env: Optional[list] = None,
     reset_on_run: Optional[bool] = None,
+    output_path: Optional[str] = None,
 ) -> Union[mlrun.model.RunObject, mlrun_pipelines.models.PipelineNodeWrapper]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -144,7 +145,7 @@ def run_function(
                             during runtime from `mlrun.DataItem` to the given type hint. The type hint can be given
                             in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
     :param outputs:         list of outputs which can pass in the workflow
-    :param workdir:         default input artifacts path
+    :param workdir:         working directory of the executed job and the default path for artifact inputs
     :param labels:          labels to tag the job/run with ({key:val, ..})
     :param base_task:       task object to use as base
     :param watch:           watch/follow run log, True by default
@@ -157,7 +158,8 @@ def run_function(
                             (which will be converted to the class using its `from_crontab` constructor),
                             see this link for help:
                             https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-    :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+    :param artifact_path:   (deprecated) path to store artifacts, when running in a workflow this will be set
+                            automatically
     :param notifications:   list of notifications to push when the run is completed
     :param returns:         List of log hints - configurations for how to log the returning values from the handler's
                             run (as artifacts or results). The list's length must be equal to the amount of returning
@@ -174,8 +176,17 @@ def run_function(
     :param reset_on_run:    When True, function python modules would reload prior to code execution.
                             This ensures latest code changes are executed. This argument must be used in
                             conjunction with the local=True argument.
+    :param output_path:     path to store artifacts, when running in a workflow this will be set automatically
     :return: MLRun RunObject or PipelineNodeWrapper
     """
+    if artifact_path:
+        warnings.warn(
+            "'artifact_path' parameter is deprecated in 1.10.0 and will be removed in 1.12.0, "
+            "use 'output_path' instead.",
+            # TODO: Remove this in 1.12.0
+            FutureWarning,
+        )
+    output_path = output_path or artifact_path
     engine, function = _get_engine_and_function(function, project_object)
     task = mlrun.new_task(
         handler=handler,
@@ -210,24 +221,28 @@ def run_function(
             function.spec.command = command
         if local and project and function.spec.build.source:
             workdir = workdir or project.spec.get_code_path()
-        run_result = function.run(
-            name=name,
-            runspec=task,
-            workdir=workdir,
-            verbose=verbose,
-            watch=watch,
-            local=local,
-            artifact_path=artifact_path
-            # workflow artifact_path has precedence over the project artifact_path equivalent to
-            # passing artifact_path to function.run() has precedence over the project.artifact_path and the default one
-            or pipeline_context.workflow_artifact_path
-            or (project.artifact_path if project else None),
-            auto_build=auto_build,
-            schedule=schedule,
-            notifications=notifications,
-            builder_env=builder_env,
-            reset_on_run=reset_on_run,
-        )
+
+        # remove this filter once the artifact_path parameter is deprecated in 1.12.0
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)
+            run_result = function.run(
+                name=name,
+                runspec=task,
+                workdir=workdir,
+                verbose=verbose,
+                watch=watch,
+                local=local,
+                output_path=output_path
+                # workflow output_path has precedence over the project artifact_path equivalent to passing
+                # output_path to function.run() has precedence over the project.artifact_path and the default one
+                or pipeline_context.workflow_artifact_path
+                or (project.artifact_path if project else None),
+                auto_build=auto_build,
+                schedule=schedule,
+                notifications=notifications,
+                builder_env=builder_env,
+                reset_on_run=reset_on_run,
+            )
         if run_result:
             run_result._notified = False
             pipeline_context.runs_map[run_result.uid()] = run_result

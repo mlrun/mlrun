@@ -66,7 +66,7 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
             state = self._crd_state_to_run_state(status)
             launcher, _ = self._get_launcher(meta.name, meta.namespace)
             execution.set_hostname(launcher)
-            txt = f"MpiJob {meta.name} launcher pod {launcher} state {state}"
+            txt = f"MpiJob {meta.name} launcher pod {launcher} is in state {state}"
             logger.info(txt)
         else:
             # no state yet, assume pending

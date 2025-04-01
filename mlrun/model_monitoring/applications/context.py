@@ -192,19 +192,18 @@ class MonitoringApplicationContext:
         )
 
     def _get_default_labels(self) -> dict[str, str]:
-        return {
+        labels = {
             mlrun_constants.MLRunInternalLabels.runner_pod: socket.gethostname(),
             mlrun_constants.MLRunInternalLabels.producer_type: "model-monitoring-app",
             mlrun_constants.MLRunInternalLabels.app_name: self.application_name,
             mlrun_constants.MLRunInternalLabels.endpoint_id: self.endpoint_id,
             mlrun_constants.MLRunInternalLabels.endpoint_name: self.endpoint_name,
         }
+        return {key: value for key, value in labels.items() if value}
 
     def _add_default_labels(self, labels: Optional[dict[str, str]]) -> dict[str, str]:
         """Add the default labels to logged artifacts labels"""
-        return (labels or {}) | {
-            key: value for key, value in self._default_labels.items() if value
-        }
+        return (labels or {}) | self._default_labels
 
     @property
     def sample_df(self) -> pd.DataFrame:
@@ -337,6 +336,8 @@ class MonitoringApplicationContext:
         """
         Log an artifact.
         See :func:`~mlrun.projects.MlrunProject.log_artifact` for the documentation.
+        @param unique_per_endpoint: by default True, we will log different artifact for each model endpoint,
+                                    set to False without changing item key will cause artifact override
         """
         labels = self._add_default_labels(labels)
         # By default, we want to log different artifact for each model endpoint

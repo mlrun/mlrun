@@ -340,9 +340,9 @@ class MonitoringApplicationContext:
         """
         labels = self._add_default_labels(labels)
         # By default, we want to log different artifact for each model endpoint
-        endpoint_id = labels.get(mlrun_constants.MLRunInternalLabels.endpoint_id, '')
+        endpoint_id = labels.get(mlrun_constants.MLRunInternalLabels.endpoint_id, "")
         if unique_per_endpoint and isinstance(item, str):
-            item = f"{item}-{endpoint_id}"  if endpoint_id else item
+            item = f"{item}-{endpoint_id}" if endpoint_id else item
         elif unique_per_endpoint:  # isinstance(item, str) is false
             item.key = f"{item.key}-{endpoint_id}" if endpoint_id else item.key
 

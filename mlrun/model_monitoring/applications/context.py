@@ -199,7 +199,7 @@ class MonitoringApplicationContext:
             mlrun_constants.MLRunInternalLabels.endpoint_id: self.endpoint_id,
             mlrun_constants.MLRunInternalLabels.endpoint_name: self.endpoint_name,
         }
-        return {key: value for key, value in labels.items() if value}
+        return {key: value for key, value in labels.items() if value is not None}
 
     def _add_default_labels(self, labels: Optional[dict[str, str]]) -> dict[str, str]:
         """Add the default labels to logged artifacts labels"""

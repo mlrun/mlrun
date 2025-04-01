@@ -349,7 +349,8 @@ jobs:
     strategy:
       matrix:
         python-version: [ "3.9"]  # coverage running on 3.9 only
-    needs: [tests, integration-tests, migrations-tests]
+    #needs: [tests, integration-tests, migrations-tests]
+    needs: [tests]
     steps:
       - uses: actions/checkout@v4
         with:

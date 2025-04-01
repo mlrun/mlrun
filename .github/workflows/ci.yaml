@@ -135,7 +135,7 @@ jobs:
         UNIT_TESTS_PATH=$UNIT_TESTS_PATH \
         UNIT_TESTS_IGNORE_PATH=$UNIT_TESTS_IGNORE_PATH \
         COVERAGE=$COVERAGE \
-        COVERAGE_DIR_SUFFIX="_${{ matrix.test-suite }}"\
+        COVERAGE_DIR_SUFFIX="_${{ matrix.test-suite }}" \
         make test-dockerized
     - name: Upload coverage report
       if: env.COVERAGE == 'true'

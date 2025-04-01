@@ -278,6 +278,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         endpoint = mock_random_endpoint(
             self.project_name, endpoint_name, add_labels=False
         )
+        endpoint.metadata.uid = out_endpoint.metadata.uid
         db.create_model_endpoint(
             endpoint,
             creation_strategy=mm_constants.ModelEndpointCreationStrategy.INPLACE,
@@ -428,12 +429,16 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             "testing",
             model_path=f"store://models/{self.project_name}/{model_obj.key}:latest",
         )
-        db.create_model_endpoint(model_endpoint, creation_strategy)
+        created_model_endpoint = db.create_model_endpoint(
+            model_endpoint, creation_strategy
+        )
         model_endpoint = mock_random_endpoint(
             self.project_name,
             "testing",
             model_path=f"store://models/{self.project_name}/{model_obj_2.key}:latest",
         )
+        if creation_strategy == "inplace":
+            model_endpoint.metadata.uid = created_model_endpoint.metadata.uid
         db.create_model_endpoint(model_endpoint, creation_strategy)
 
         endpoints_out = self.project.list_model_endpoints().endpoints
@@ -538,6 +543,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             "testing",
             model_path=f"store://models/{self.project_name}/{model_obj_2.key}:latest",
         )
+        model_endpoint_2.metadata.uid = mep.metadata.uid
 
         db.create_model_endpoint(model_endpoint_2)  # in-place update
         mep_2 = db.get_model_endpoint(
@@ -549,8 +555,13 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         assert mep_2.spec.feature_names == ["f1"]
         assert mep_2.spec.label_names == ["l1"]
 
+        model_endpoint_3 = mock_random_endpoint(
+            self.project_name,
+            "testing",
+            model_path=f"store://models/{self.project_name}/{model_obj_2.key}:latest",
+        )
         db.create_model_endpoint(
-            model_endpoint_2,
+            model_endpoint_3,
             creation_strategy=mm_constants.ModelEndpointCreationStrategy.OVERWRITE,
         )  # overwrite
         mep_3 = db.get_model_endpoint(
@@ -1574,7 +1585,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
             # TODO: activate ad-hoc mode when ML-5792 is done
         )
 
-        sleep(130)
+        sleep(180)
 
         self._test_v3io_tsdb_record()
 
@@ -1611,11 +1622,22 @@ class TestModelEndpointWithManyFeatures(TestMLRunSystemModelMonitoring):
         )
 
         # Generate a model endpoint
-        model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
+        out_model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=project.name,
             model_path=model_obj.uri,
+            endpoint_id=model_obj.metadata.uid,
             function_name="dummy_func",
             model_endpoint_name="dummy_ep",
+            feature_analysis=True,
+        )
+        db = mlrun.get_run_db()
+        model_endpoint = db.get_model_endpoint(
+            name=out_model_endpoint.metadata.name,
+            project=out_model_endpoint.metadata.project,
+            function_name=out_model_endpoint.spec.function_name,
+            function_tag=out_model_endpoint.spec.function_tag,
+            endpoint_id=out_model_endpoint.metadata.uid,
+            feature_analysis=True,
         )
 
         assert len(model_endpoint.spec.feature_stats) == 501

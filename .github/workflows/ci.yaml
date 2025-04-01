@@ -89,10 +89,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.11"]
+        python-version: [ "3.9", "3.11"]
+        test-suite: ["server", "client"]
     steps:
     - uses: actions/checkout@v4
-
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
@@ -113,13 +113,23 @@ jobs:
 
     - name: Install automation scripts dependencies
       run: pip install -r automation/requirements.txt
+    - name: Set test suite
+      run: |
+          if [[ "${{ matrix.test-suite }}" == "server" ]]; then
+            echo "UNIT_TESTS_PATH=\"server/\"" >> $GITHUB_ENV
+          else
+            echo "UNIT_TESTS_IGNORE_PATH=\"server/\"" >> $GITHUB_ENV
+          fi
 
     - name: Run Dockerized tests
       run: |
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-        make test-dockerized
+        UNIT_TESTS_PATH=$UNIT_TESTS_PATH \
+        UNIT_TESTS_IGNORE_PATH=$UNIT_TESTS_IGNORE_PATH \
+        make test-dockerized 
+    
 
   integration-tests:
     name: Run Dockerized Integration Tests

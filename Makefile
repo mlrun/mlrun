@@ -542,7 +542,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-v /tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX):/mlrun/tests/coverage_reports \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test  UNIT_TESTS_IGNORE_PATH="$(UNIT_TESTS_IGNORE_PATH)" \
-		UNIT_TESTS_PATH="$(UNIT_TESTS_PATH)" COVERAGE=$(COVERAGE) COVERAGE_FILE=$(COVERAGE_FILE)
+		UNIT_TESTS_PATH="$(UNIT_TESTS_PATH)" COVERAGE=$(COVERAGE) COVERAGE_FILE="$(COVERAGE_FILE)"
 
 .PHONY: test
 test: clean ## Run mlrun tests

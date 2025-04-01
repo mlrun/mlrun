@@ -142,7 +142,7 @@ jobs:
       if: env.COVERAGE == 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: coverage_unit_tests_report-${{ matrix.python-version }}-${{ github.run_id }}-${{ matrix.test-suite }}.coverage
+        name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_${{ matrix.test-suite }}.coverage
         path: /tmp/coverage_reports/unit_tests_${{ matrix.test-suite }}/unit_tests_${{ matrix.test-suite }}.coverage
         retention-days: 90
 
@@ -205,7 +205,7 @@ jobs:
 #      uses: actions/upload-artifact@v4
 #      if: env.COVERAGE == 'true'
 #      with:
-#         name: coverage_integration_tests_report-${{ matrix.python-version }}-${{ github.run_id }}.coverage
+#         name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
 #         path: /tmp/coverage_reports/integration_tests/integration_tests.coverage
 #         retention-days: 90
 #
@@ -367,19 +367,19 @@ jobs:
       - name: Download server unit tests coverage report
         uses: actions/download-artifact@v4
         with:
-          name: coverage_unit_tests_report-${{ matrix.python-version }}-${{ github.run_id }}_server.coverage
+          name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_server.coverage
           # Where to download. file downloaded by name.
           path: tests/coverage_reports/
       - name: Download client unit tests coverage report
         uses: actions/download-artifact@v4
         with:
-          name: coverage_unit_tests_report-${{ matrix.python-version }}-${{ github.run_id }}_client.coverage
+          name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_client.coverage
           # Where to download. file downloaded by name.
           path: tests/coverage_reports/
       - name: Download integration coverage report
         uses: actions/download-artifact@v4
         with:
-          name: coverage_integration_tests_report-${{ matrix.python-version }}-${{ github.run_id }}.coverage
+          name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
           # Where to download. file downloaded by name.
           path: tests/coverage_reports/
 
@@ -412,6 +412,6 @@ jobs:
 #      - name: Upload coverage diff report
 #        uses: actions/upload-artifact@v4
 #        with:
-#          name: coverage_combined_diff_report-${{ matrix.python-version }}-${{ github.run_id }}.html
+#          name: coverage_combined_diff_report_${{ matrix.python-version }}_${{ github.run_id }}.html
 #          path: tests/coverage_reports/combined_diff.html
 #          retention-days: 90

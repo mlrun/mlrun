@@ -339,6 +339,7 @@ class MonitoringApplicationContext:
         See :func:`~mlrun.projects.MlrunProject.log_artifact` for the documentation.
         """
         labels = self._add_default_labels(labels)
+        # By default, we want to log different artifact for each model endpoint
         if unique_per_endpoint and isinstance(item, str):
             item = f"{item}-{labels.get(mlrun_constants.MLRunInternalLabels.endpoint_id, '')}"
         elif unique_per_endpoint:  # isinstance(item, str) is false

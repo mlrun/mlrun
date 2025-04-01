@@ -143,7 +143,6 @@ class EvidentlyModelMonitoringApplicationBase(
             artifact_name,
             body=evidently_object_html.encode("utf-8"),
             format="html",
-            unique_per_endpoint=True,
         )
 
     def log_project_dashboard(
@@ -176,5 +175,4 @@ class EvidentlyModelMonitoringApplicationBase(
             artifact_name,
             body=dashboard_html.encode("utf-8"),
             format="html",
-            unique_per_endpoint=True,
         )

@@ -281,7 +281,8 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
                 body=drift_per_feature_values.to_json(),
                 format="json",
                 key="features_drift_results",
-            )
+            ),
+            unique_per_endpoint=True,
         )
         monitoring_context.logger.debug("Logged JSON artifact successfully")
 
@@ -313,7 +314,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             drift_results=drift_results,
         )
         monitoring_context.logger.debug("Logging plotly artifact")
-        monitoring_context.log_artifact(artifact)
+        monitoring_context.log_artifact(artifact, unique_per_endpoint=True)
         monitoring_context.logger.debug("Logged plotly artifact successfully")
 
     def _log_drift_artifacts(

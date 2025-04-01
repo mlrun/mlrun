@@ -140,7 +140,10 @@ class EvidentlyModelMonitoringApplicationBase(
         """
         evidently_object_html = evidently_object.get_html()
         monitoring_context.log_artifact(
-            artifact_name, body=evidently_object_html.encode("utf-8"), format="html"
+            artifact_name,
+            body=evidently_object_html.encode("utf-8"),
+            format="html",
+            unique_per_endpoint=True,
         )
 
     def log_project_dashboard(
@@ -170,5 +173,8 @@ class EvidentlyModelMonitoringApplicationBase(
 
         dashboard_html = file_html_template(params=template_params)
         monitoring_context.log_artifact(
-            artifact_name, body=dashboard_html.encode("utf-8"), format="html"
+            artifact_name,
+            body=dashboard_html.encode("utf-8"),
+            format="html",
+            unique_per_endpoint=True,
         )

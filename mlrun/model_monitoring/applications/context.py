@@ -202,7 +202,9 @@ class MonitoringApplicationContext:
 
     def _add_default_labels(self, labels: Optional[dict[str, str]]) -> dict[str, str]:
         """Add the default labels to logged artifacts labels"""
-        return (labels or {}) | self._default_labels
+        return (labels or {}) | {
+            key: value for key, value in self._default_labels.items() if value
+        }
 
     @property
     def sample_df(self) -> pd.DataFrame:
@@ -329,6 +331,7 @@ class MonitoringApplicationContext:
         upload: Optional[bool] = None,
         labels: Optional[dict[str, str]] = None,
         target_path: Optional[str] = None,
+        unique_per_endpoint: bool = True,
         **kwargs,
     ) -> Artifact:
         """
@@ -336,6 +339,11 @@ class MonitoringApplicationContext:
         See :func:`~mlrun.projects.MlrunProject.log_artifact` for the documentation.
         """
         labels = self._add_default_labels(labels)
+        if unique_per_endpoint and isinstance(item, str):
+            item = f"{item}-{labels.get(mlrun_constants.MLRunInternalLabels.endpoint_id, '')}"
+        elif unique_per_endpoint:  # isinstance(item, str) is false
+            item.key = f"{item.key}-{labels.get(mlrun_constants.MLRunInternalLabels.endpoint_id, '')}"
+
         return self._artifacts_logger.log_artifact(
             item,
             body=body,

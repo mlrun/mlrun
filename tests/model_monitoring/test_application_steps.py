@@ -150,7 +150,7 @@ class TestEventPreparation:
                     "mlrun/endpoint-name": cls.ENDPOINT_NAME,
                 }.items() <= dataset.labels.items()
                 assert (
-                        dataset.key == f"my-app-df-{cls.ENDPOINT_ID}"
+                    dataset.key == f"my-app-df-{cls.ENDPOINT_ID}"
                 ), "By default monitoring context concat endpoint id to dataset key"
                 server.wait_for_completion()
                 monitoring_context.logger.debug("I'm done")

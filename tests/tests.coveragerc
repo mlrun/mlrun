@@ -5,8 +5,11 @@ source=
     ./server/py
     ./pipeline-adapters
 
+relative_files = True
+
 [report]
 omit =
     test_*.py
-
-relative_files = True
+    **/tests/**
+    **/__init__.py
+    **/conftest.py

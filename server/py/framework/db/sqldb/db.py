@@ -537,7 +537,10 @@ class SQLDB(DBInterface):
             ("last_update", "updated"),
         ]:
             if field_value := getattr(run, struct_field, None):
-                status[status_field] = self._add_utc_timezone(field_value).isoformat(timespec="microseconds")
+                # To handle cases where there are no milliseconds in the timestamp
+                status[status_field] = self._add_utc_timezone(field_value).isoformat(
+                    timespec="milliseconds"
+                )
 
         if with_notifications:
             self._fill_run_struct_with_notifications(run.notifications, run_struct)
@@ -2660,9 +2663,10 @@ class SQLDB(DBInterface):
         # the column (not from the struct) to ensure the ordering is correct.
         # In SQLite, the updated column return timestamps with fsp=6.
         if field_value := getattr(function, "updated", None):
+            # To handle cases where there are no milliseconds in the timestamp
             function_struct["metadata"]["updated"] = self._add_utc_timezone(
                 field_value
-            ).isoformat(timespec="microseconds")
+            ).isoformat(timespec="milliseconds")
 
     def _delete_project_functions(self, session: Session, project: str):
         logger.debug("Removing project functions from db", project=project)

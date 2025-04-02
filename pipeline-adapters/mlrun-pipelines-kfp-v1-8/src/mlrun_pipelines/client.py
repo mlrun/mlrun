@@ -421,7 +421,7 @@ class Client(
         sort_by: str = "",
         experiment_id: Optional[str] = None,
         namespace: Optional[str] = None,
-        filter_: Optional[str] = None,
+        filter: Optional[str] = None,
     ) -> kfp_server_api.ApiListRunsResponse:
         """
         List pipeline runs with optional filters.
@@ -434,7 +434,7 @@ class Client(
         :param sort_by:       A string specifying how to sort the results.
         :param experiment_id: An optional experiment ID to filter runs by.
         :param namespace:     An optional namespace to filter runs by.
-        :param filter_:       A custom filter string (if any).
+        :param filter:       A custom filter string (if any).
         :return: An ApiListRunsResponse object containing the runs.
         """
         if experiment_id is not None:
@@ -446,7 +446,7 @@ class Client(
                     kfp_server_api.models.api_resource_type.ApiResourceType.EXPERIMENT
                 ),
                 resource_reference_key_id=experiment_id,
-                filter=filter_,
+                filter=filter,
             )
         elif namespace:
             response = self._run_api.list_runs(
@@ -457,14 +457,14 @@ class Client(
                     kfp_server_api.models.api_resource_type.ApiResourceType.NAMESPACE
                 ),
                 resource_reference_key_id=namespace,
-                filter=filter_,
+                filter=filter,
             )
         else:
             response = self._run_api.list_runs(
                 page_token=page_token,
                 page_size=page_size,
                 sort_by=sort_by,
-                filter=filter_,
+                filter=filter,
             )
         return response
 

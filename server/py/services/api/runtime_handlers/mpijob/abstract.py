@@ -17,6 +17,7 @@ from typing import Optional
 from kubernetes import client
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.k8s_utils
 import mlrun.utils.helpers
 from mlrun.runtimes.base import RuntimeClassMode
@@ -34,9 +35,6 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
         RuntimeClassMode.run: "mpijob",
     }
 
-    def __init__(self):
-        self._meta = None
-
     def run(
         self,
         runtime: AbstractMPIJobRuntime,
@@ -47,7 +45,6 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
             runtime.store_run(run)
 
         meta = self._get_meta(runtime, run, True)
-        self._meta = meta
 
         self.add_secrets_to_spec_before_running(
             runtime, project_name=run.metadata.project
@@ -198,10 +195,16 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
         )
 
         execution = mlrun.execution.MLClientCtx.from_dict(run, store_run=False)
+        pod_name = (
+            run["metadata"]
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.job, "")
+        )
 
         # ensure hostname is set if not already assigned
-        if self._meta and not execution.host:
-            launcher, _ = self._get_launcher(self._meta.name, self._meta.namespace)
+        if pod_name and not execution.host:
+            namespace = mlrun.mlconf.namespace
+            launcher, _ = self._get_launcher(pod_name, namespace)
             execution.set_hostname(launcher)
 
             # persist the hostname change in the DB

@@ -175,7 +175,11 @@ def ensure_max_length(string: str):
     return string
 
 
-def _validate_label(name: str, value: typing.Union[str, int]):
+def _validate_label(name: str, value: typing.Optional[typing.Union[str, int]]):
+    # a backwards compatibility check for `None` key
+    if value is None:
+        return
+
     if not isinstance(name, str):
         raise mlrun.errors.MLRunInvalidArgumentError(
             "The name in the label must be a string."

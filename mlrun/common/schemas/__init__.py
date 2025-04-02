@@ -17,6 +17,7 @@ from .alert import (
     AlertActivations,
     AlertActiveState,
     AlertConfig,
+    AlertCriteria,
     AlertNotification,
     AlertTemplate,
     Event,

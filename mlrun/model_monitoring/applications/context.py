@@ -41,7 +41,6 @@ class _ArtifactsLogger(Protocol):
 
     def log_artifact(self, *args, **kwargs) -> Artifact: ...
     def log_dataset(self, *args, **kwargs) -> DatasetArtifact: ...
-    def log_model(self, *args, **kwargs) -> ModelArtifact: ...
 
 
 class MonitoringApplicationContext:
@@ -192,13 +191,14 @@ class MonitoringApplicationContext:
         )
 
     def _get_default_labels(self) -> dict[str, str]:
-        return {
+        labels = {
             mlrun_constants.MLRunInternalLabels.runner_pod: socket.gethostname(),
             mlrun_constants.MLRunInternalLabels.producer_type: "model-monitoring-app",
             mlrun_constants.MLRunInternalLabels.app_name: self.application_name,
             mlrun_constants.MLRunInternalLabels.endpoint_id: self.endpoint_id,
             mlrun_constants.MLRunInternalLabels.endpoint_name: self.endpoint_name,
         }
+        return {key: value for key, value in labels.items() if value is not None}
 
     def _add_default_labels(self, labels: Optional[dict[str, str]]) -> dict[str, str]:
         """Add the default labels to logged artifacts labels"""
@@ -329,13 +329,23 @@ class MonitoringApplicationContext:
         upload: Optional[bool] = None,
         labels: Optional[dict[str, str]] = None,
         target_path: Optional[str] = None,
+        unique_per_endpoint: bool = True,
         **kwargs,
     ) -> Artifact:
         """
         Log an artifact.
         See :func:`~mlrun.projects.MlrunProject.log_artifact` for the documentation.
+        :param unique_per_endpoint: by default True, we will log different artifact for each model endpoint,
+        set to False without changing item key will cause artifact override
         """
         labels = self._add_default_labels(labels)
+        # By default, we want to log different artifact for each model endpoint
+        endpoint_id = labels.get(mlrun_constants.MLRunInternalLabels.endpoint_id, "")
+        if unique_per_endpoint and isinstance(item, str):
+            item = f"{item}-{endpoint_id}" if endpoint_id else item
+        elif unique_per_endpoint:  # isinstance(item, Artifact) is True
+            item.key = f"{item.key}-{endpoint_id}" if endpoint_id else item.key
+
         return self._artifacts_logger.log_artifact(
             item,
             body=body,
@@ -364,13 +374,21 @@ class MonitoringApplicationContext:
         target_path="",
         extra_data=None,
         label_column: Optional[str] = None,
+        unique_per_endpoint: bool = True,
         **kwargs,
     ) -> DatasetArtifact:
         """
         Log a dataset artifact.
         See :func:`~mlrun.projects.MlrunProject.log_dataset` for the documentation.
+        :param unique_per_endpoint: by default True, we will log different dataset for each model endpoint,
+        set to False without changing item key will cause dataset override
         """
         labels = self._add_default_labels(labels)
+        # By default, we want to log different artifact for each model endpoint
+        endpoint_id = labels.get(mlrun_constants.MLRunInternalLabels.endpoint_id, "")
+        if unique_per_endpoint and isinstance(key, str):
+            key = f"{key}-{endpoint_id}" if endpoint_id else key
+
         return self._artifacts_logger.log_dataset(
             key,
             df,
@@ -385,56 +403,5 @@ class MonitoringApplicationContext:
             target_path=target_path,
             extra_data=extra_data,
             label_column=label_column,
-            **kwargs,
-        )
-
-    def log_model(
-        self,
-        key,
-        body=None,
-        framework="",
-        tag="",
-        model_dir=None,
-        model_file=None,
-        algorithm=None,
-        metrics=None,
-        parameters=None,
-        artifact_path=None,
-        upload=None,
-        labels=None,
-        inputs: Optional[list[mlrun.features.Feature]] = None,
-        outputs: Optional[list[mlrun.features.Feature]] = None,
-        feature_vector: Optional[str] = None,
-        feature_weights: Optional[list] = None,
-        training_set=None,
-        label_column=None,
-        extra_data=None,
-        **kwargs,
-    ) -> ModelArtifact:
-        """
-        Log a model artifact.
-        See :func:`~mlrun.projects.MlrunProject.log_model` for the documentation.
-        """
-        labels = self._add_default_labels(labels)
-        return self._artifacts_logger.log_model(
-            key,
-            body=body,
-            framework=framework,
-            tag=tag,
-            model_dir=model_dir,
-            model_file=model_file,
-            algorithm=algorithm,
-            metrics=metrics,
-            parameters=parameters,
-            artifact_path=artifact_path,
-            upload=upload,
-            labels=labels,
-            inputs=inputs,
-            outputs=outputs,
-            feature_vector=feature_vector,
-            feature_weights=feature_weights,
-            training_set=training_set,
-            label_column=label_column,
-            extra_data=extra_data,
             **kwargs,
         )

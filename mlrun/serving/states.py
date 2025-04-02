@@ -1833,7 +1833,7 @@ def params_to_step(
     class_args = class_args or {}
 
     if isinstance(class_name, QueueStep):
-        if not name or class_name.name:
+        if not (name or class_name.name):
             raise MLRunInvalidArgumentError("queue name must be specified")
 
         step = class_name
@@ -1854,7 +1854,11 @@ def params_to_step(
     elif class_name and hasattr(class_name, "to_dict"):
         struct = class_name.to_dict()
         kind = struct.get("kind", StepKinds.task)
-        name = name or struct.get("name", struct.get("class_name"))
+        name = (
+            name
+            or struct.get("name", struct.get("class_name"))
+            or class_name.to_dict(["name"]).get("name")
+        )
         cls = classes_map.get(kind, RootFlowStep)
         step = cls.from_dict(struct)
         step.function = function

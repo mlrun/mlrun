@@ -524,7 +524,8 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-e MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test  UNIT_TESTS_IGNORE_PATH="$(UNIT_TESTS_IGNORE_PATH)" \
+		UNIT_TESTS_PATH="$(UNIT_TESTS_PATH)"
 
 .PHONY: test
 test: clean ## Run mlrun tests
@@ -544,6 +545,11 @@ test: clean ## Run mlrun tests
 		--ignore=tests/projects/test_remote_pipeline.py \
 		--ignore=pipeline-adapters/mlrun-pipelines-kfp-v1-8/tests \
 		"),);\
+	if [ "$(UNIT_TESTS_IGNORE_PATH)" != "" ]; then \
+  		IGNORE_ADDITION="--ignore=$(UNIT_TESTS_IGNORE_PATH)"; \
+	else \
+		IGNORE_ADDITION=""; \
+	fi; \
 	python \
 		-X faulthandler \
 		-m pytest -v \
@@ -552,8 +558,10 @@ test: clean ## Run mlrun tests
 		--durations=100 \
 		$$COMMON_IGNORE_TEST_FLAGS \
 		$$PER_PYTHON_VERSION_IGNORE_TEST_FLAGS \
+		$$IGNORE_ADDITION \
 		--forked \
-		-rf
+		-rf \
+		$$UNIT_TESTS_PATH
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test ## Run mlrun integration tests in docker container

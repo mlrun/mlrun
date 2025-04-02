@@ -89,7 +89,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [ "3.9"]
+        python-version: [ "3.9", "3.11"]
         test-suite: ["server", "client"]
     steps:
     - uses: actions/checkout@v4

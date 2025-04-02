@@ -107,12 +107,12 @@ project.build_function("trainer", with_mlrun=True, mlrun_version_specifier="1.0.
 ```
 
 ### Working with code repository
-As the code matures and evolves, the code will usually be stored in a git code repository.
+As the code matures and evolves, the code is usually stored in a git code repository. It can be stored in an archive file, such as tar.gz or zip.
 When the MLRun project is associated with a git repo (see {ref}`create-projects` for details), functions can be added
 by calling {py:func}`~mlrun.projects.MlrunProject.set_function()` and setting `with_repo=True`. This indicates that the 
 code of the function should be retrieved from the project code repository.
 
-In this case, the entire code repository will be retrieved from git as part of the image-building process, and cloned
+In this case, the entire code repository is retrieved from git as part of the image-building process, and cloned
 into the built image. This is recommended when the function relies on code spread across multiple files and also is 
 usually preferred for production code, since it means that the code of the function is stable, and further modifications 
 to the code will not cause instability in deployed images.
@@ -121,12 +121,14 @@ During the development phase it may be desired to retrieve the code in runtime, 
 image every time the code changes. To enable this, use {py:func}`~mlrun.projects.MlrunProject.set_source()` which
 gets a path to the source (can be a git repository or a tar or zip file) and set `pull_at_runtime=True`.
 
+If you are using a `zip` source file, verify that you installed `unzip` on your running image. It's recommended to use a tar.gz for the archive file. See also [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images).
+
 ### Using a private Docker registry
 By default, images are pushed to the registry configured during MLRun deployment, using the configured registry 
 credentials.
 
 To push resulting images to a different registry, specify the registry URL in the `image` parameter. If
-the registry requires credentials, create a k8s secret containing these credentials, and pass its name in the 
+the registry requires credentials, create a Kubernetes secret containing these credentials, and pass its name in the 
 `secret_name` parameter.
 
 #### Using ECR as a registry

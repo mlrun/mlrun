@@ -55,58 +55,7 @@ When creating an alert you can select an event type for a specific model, for ex
 You can optionally specify the frequency of the alert through the criteria field in the configuration (how many times in what time window, etc.). 
 If not specified, it uses the default.
 See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`. 
-You can configure Git, Slack, and webhook notifications for the alert. 
-
-This example illustrates creating an alert with a Slack notification for drift detection on a model endpoint:
-
-```python
-# Define the slack notification object
-notification = mlrun.model.Notification(
-    kind="slack",
-    name="slack_notification",
-    secret_params={
-        "webhook": "https://hooks.slack.com/",
-    },
-).to_dict()
-
-endpoints = mlrun.get_run_db().list_model_endpoints(project=project_name)
-# or project.list_model_endpoints()
-endpoint_id = endpoints[0].metadata.uid
-
-# Generate a unique ID for the EventEntity
-result_endpoint = get_result_instance_fqn(endpoint_id, "myappv2", "data_drift_test")
-
-# Construct a list of notifications to be included in the alert config
-notifications = [alert_objects.AlertNotification(notification=notification)]
-
-alert_name = "drift-alert"
-
-# The summary you will see in the notification once it is invoked
-alert_summary = "A drift was detected"
-
-# Choose the MODEL_ENDPOINT_RESULT for the model monitoring alert
-entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
-
-# The event that will trigger the alert
-event_name = alert_objects.EventKind.DATA_DRIFT_DETECTED
-
-# Create the alert data to be passed to the store_alert_config function
-alert_data = mlrun.alerts.alert.AlertConfig(
-    project=project_name,
-    name=alert_name,
-    summary=alert_summary,
-    severity=alert_objects.AlertSeverity.LOW,
-    entities=alert_objects.EventEntities(
-        kind=entity_kind, project=project_name, ids=[result_endpoint]
-    ),
-    trigger=alert_objects.AlertTrigger(events=[event_name]),
-    notifications=notifications,
-)
-
-# And finally store the alert config in the project
-project.store_alert_config(alert_data)
-```
-
+You can configure Git, Slack, and webhook notifications for the alert. For alerts on model endpoints, see [Creating a model monitoring alert](#creating-a-model-monitoring-alert).
 
 This example illustrates creating an alert with a Slack notification for a job failure with defined criteria.
 This alert gets triggered if the job fails 3 times in a 10 minute period.
@@ -141,17 +90,25 @@ alert_data = mlrun.alerts.alert.AlertConfig(
     criteria=alert_objects.AlertCriteria(period="10m", count=3),
     notifications=notifications,
 )
+
+# Save (and activate) the alert config:
 project.store_alert_config(alert_data)
 ```
 ## Creating a model monitoring alert
 
-You can create an alert configuration based on specific model endpoints and result names. See full details in {py:func}`~mlrun.projects.MlrunProject.create_model_monitoring_alert_configs`.
+Model monitoring alerts notify you when  measured statistic/result returns unexpected results, the same as other alerts. The diffference is that the configuration of a model monitoring alert is based on specific model endpoints and optionally result names, including wildcards. See the full parameter details in {py:func}`~mlrun.projects.MlrunProject.create_model_monitoring_alert_configs`. 
+(You could also use `mlrun.alerts.alert.AlertConfig` to configure MEP alerts, but `create_model_monitoring_alert_configs` is much easier to configure.)
+
+```{admonition} Important
+Create model monitoring alerts after your serving function is deployed. Otherwise, you cannot use wildcards for `results`.
+```
+This example illustrates creating a model monitoring alert to detect data drift, with a webhook notification for the alert.
 ```py
 alert_configs = myproject.create_model_monitoring_alert_configs(
     # name of the AlertConfig template
     name="alert-name",
     summary="user_template_summary_EventKind.DATA_DRIFT_DETECTED",
-    # Retrieve metrics from these endpointd to configure the alert
+    # Retrieve metrics from these endpoints to configure the alert
     endpoints=myproject.list_model_endpoints(),
     # AlertTrigger event type
     events=[EventKind.DATA_DRIFT_DETECTED],
@@ -163,8 +120,9 @@ alert_configs = myproject.create_model_monitoring_alert_configs(
     criteria=None,
     reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
 )
+# Save (and activate) the alert config:
+my_project.store_alert_config(alert-name)
 ```
-
 
 ## Modifying an alert
 

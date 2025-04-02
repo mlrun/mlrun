@@ -1,5 +1,6 @@
 [run]
 
+# TODO Files in 'pipeline-adapters' are excluded from coverage unless imported directly. See issue ML-9729.
 source=
     ./mlrun
     ./server/py
@@ -10,6 +11,8 @@ relative_files = True
 [report]
 omit =
     test_*.py
-    **/tests/**
+    **/tests/*
     **/__init__.py
     **/conftest.py
+
+skip_empty = False

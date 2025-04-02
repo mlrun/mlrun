@@ -17,6 +17,7 @@ import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
 import pytest
+import sqlalchemy.orm
 from fastapi.testclient import TestClient
 
 import mlrun.common.runtimes.constants
@@ -141,10 +142,15 @@ def test_validate_state_thresholds_failure(state_thresholds, expected_error):
     assert expected_error in str(exc.value)
 
 
-def test_new_function_args_with_default_image_pull_secret(rundb_mock):
+def test_new_function_args_with_default_image_pull_secret(
+    db: sqlalchemy.orm.Session, client: TestClient
+):
     assets_path = pathlib.Path(__file__).parent / "assets"
     func_path = assets_path / "sample_function.py"
     handler = "hello_word"
+    services.api.tests.unit.api.utils.create_project(
+        client, mlrun.mlconf.default_project
+    )
 
     mlrun.mlconf.function.spec.image_pull_secret = Config(
         {"default": "adam-docker-registry-auth"}
@@ -160,10 +166,14 @@ def test_new_function_args_with_default_image_pull_secret(rundb_mock):
         image="mlrun/mlrun",
     )
     uid = "123"
-    run = mlrun.run.RunObject(
-        metadata=mlrun.model.RunMetadata(uid=uid),
-    )
-    rundb_mock.store_run(run, uid)
+    run = {
+        "metadata": {
+            "uid": uid,
+            "name": "test",
+        },
+    }
+    rundb = mlrun.get_run_db()
+    rundb.store_run(run, uid)
     run = launcher._create_run_object(run)
 
     run = launcher._enrich_run(

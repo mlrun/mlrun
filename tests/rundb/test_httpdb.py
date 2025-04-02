@@ -305,8 +305,9 @@ def test_runs(create_server):
     runs = db.list_runs(project=prj, states=["created", "completed"])
     assert len(runs) == 7, "bad number of runs"
 
-    #  To verify that it works in cases where the timestamp has no milliseconds
+    # Verify that it works in both cases, where the timestamp has milliseconds and where it does not
     runs[0]["status"]["start_time"] = "2025-04-01T03:25:25+00:00"
+    runs[0]["status"]["start_time"] = "2025-04-02T12:35:49.401500+00:00"
     runs.to_df()
 
     # delete runs in created state

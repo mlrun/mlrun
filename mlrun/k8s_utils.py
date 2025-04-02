@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import re
+import typing
 import warnings
 
 import kubernetes.client
@@ -228,3 +230,332 @@ def validate_node_selectors(
             handle_invalid(str(err))
             return False
     return True
+
+
+def enrich_preemption_mode(
+    preemption_mode: typing.Optional[str],
+    node_selector: dict[str, str],
+    tolerations: list[kubernetes.client.V1Toleration],
+    affinity: typing.Optional[kubernetes.client.V1Affinity],
+) -> tuple[
+    dict[str, str],
+    list[kubernetes.client.V1Toleration],
+    typing.Optional[kubernetes.client.V1Affinity],
+]:
+    """
+    Enriches a pod spec's scheduling configuration (node selector, tolerations, affinity)
+    based on the provided preemption mode.
+
+    If no preemptible node configuration is defined in the system, or the mode is `none`,
+    the original values are returned unchanged.
+
+    Modes:
+        - allow: Adds tolerations, removes preemption constraints.
+        - constrain: Requires preemptible node affinity and adds tolerations.
+        - prevent: Enforces scheduling on non-preemptible nodes using taints or anti-affinity.
+        - none: No enrichment is applied.
+    """
+    # nothing to do here, configuration is not populated
+    if (
+        not mlconfig.is_preemption_nodes_configured()
+        or preemption_mode == mlrun.common.schemas.PreemptionModes.none.value
+    ):
+        return node_selector, tolerations, affinity
+
+    if not preemption_mode:
+        preemption_mode = mlconfig.function_defaults.preemption_mode
+        mlrun.utils.logger.debug(
+            "No preemption mode provided, using default",
+            default_preemption_mode=preemption_mode,
+        )
+
+    enriched_node_selector = copy.deepcopy(node_selector or {})
+    enriched_tolerations = copy.deepcopy(tolerations or [])
+    enriched_affinity = copy.deepcopy(affinity)
+
+    preemptible_tolerations = generate_preemptible_tolerations()
+
+    def _prune_tolerations(to_remove: list[kubernetes.client.V1Toleration]):
+        return [t for t in enriched_tolerations if t not in to_remove]
+
+    def _merge_tolerations(tolerations_to_merge: list[kubernetes.client.V1Toleration]):
+        for toleration in tolerations_to_merge:
+            if not any(existing == toleration for existing in enriched_tolerations):
+                enriched_tolerations.append(toleration)
+
+    # remove preemptible tolerations and remove preemption related configuration
+    # and enrich with anti-affinity if preemptible tolerations configuration haven't been provided
+    if preemption_mode == mlrun.common.schemas.PreemptionModes.prevent.value:
+        # ensure no preemptible node tolerations
+        enriched_tolerations = _prune_tolerations(
+            preemptible_tolerations,
+        )
+
+        # purge affinity preemption related configuration
+        enriched_affinity = _prune_affinity_node_selector_requirement(
+            generate_preemptible_node_selector_requirements(
+                mlrun.common.schemas.NodeSelectorOperator.node_selector_op_in.value
+            ),
+            enriched_affinity,
+        )
+        # remove preemptible nodes constrain
+        enriched_node_selector = _prune_node_selector(
+            mlconfig.get_preemptible_node_selector(),
+            enriched_node_selector,
+        )
+
+        # if tolerations are configured, simply pruning tolerations is sufficient because functions
+        # cannot be scheduled without tolerations on tainted nodes.
+        # however, if preemptible tolerations are not configured, we must use anti-affinity on preemptible nodes
+        # to ensure that the function is not scheduled on the nodes.
+        if not preemptible_tolerations:
+            # using a single term with potentially multiple expressions to ensure anti-affinity
+            enriched_affinity = _override_required_during_scheduling_ignored_during_execution(
+                kubernetes.client.V1NodeSelector(
+                    node_selector_terms=generate_preemptible_nodes_anti_affinity_terms()
+                ),
+                enriched_affinity,
+            )
+    # enrich tolerations and override all node selector terms with preemptible node selector terms
+    elif preemption_mode == mlrun.common.schemas.PreemptionModes.constrain.value:
+        # enrich with tolerations
+        _merge_tolerations(
+            preemptible_tolerations,
+        )
+
+        # setting required_during_scheduling_ignored_during_execution
+        # overriding other terms that have been set, and only setting terms for preemptible nodes
+        # when having multiple terms, pod scheduling is succeeded if at least one term is satisfied
+        enriched_affinity = (
+            _override_required_during_scheduling_ignored_during_execution(
+                kubernetes.client.V1NodeSelector(
+                    node_selector_terms=generate_preemptible_nodes_affinity_terms()
+                ),
+                affinity=enriched_affinity,
+            )
+        )
+    # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
+    elif preemption_mode == mlrun.common.schemas.PreemptionModes.allow.value:
+        # remove preemptible anti-affinity
+        enriched_affinity = _prune_affinity_node_selector_requirement(
+            generate_preemptible_node_selector_requirements(
+                mlrun.common.schemas.NodeSelectorOperator.node_selector_op_not_in.value
+            ),
+            affinity=enriched_affinity,
+        )
+        # remove preemptible affinity
+        enriched_affinity = _prune_affinity_node_selector_requirement(
+            generate_preemptible_node_selector_requirements(
+                mlrun.common.schemas.NodeSelectorOperator.node_selector_op_in.value
+            ),
+            affinity=enriched_affinity,
+        )
+
+        # remove preemptible nodes constrain
+        enriched_node_selector = _prune_node_selector(
+            mlconfig.get_preemptible_node_selector(),
+            enriched_node_selector=enriched_node_selector,
+        )
+
+        # enrich with tolerations
+        _merge_tolerations(
+            preemptible_tolerations,
+        )
+
+    return (
+        enriched_node_selector,
+        enriched_tolerations,
+        _clear_affinity_if_initialized_but_empty(enriched_affinity),
+    )
+
+
+def _prune_node_selector(
+    node_selector: dict[str, str],
+    enriched_node_selector: dict[str, str],
+):
+    """
+    Prunes given node_selector key from function spec if their key and value are matching
+    :param node_selector: node selectors to prune
+    """
+    # both needs to exists to prune required node_selector from the spec node selector
+    if not node_selector or not enriched_node_selector:
+        return
+
+    mlrun.utils.logger.debug("Pruning node selectors", node_selector=node_selector)
+    for key, value in node_selector.items():
+        if value:
+            spec_value = enriched_node_selector.get(key)
+            if spec_value and spec_value == value:
+                enriched_node_selector.pop(key)
+
+    return enriched_node_selector
+
+
+def _prune_affinity_node_selector_requirement(
+    node_selector_requirements: list[kubernetes.client.V1NodeSelectorRequirement],
+    affinity: typing.Optional[kubernetes.client.V1Affinity],
+):
+    """
+    Prunes given node selector requirements from affinity.
+    We are only editing required_during_scheduling_ignored_during_execution because the scheduler can't schedule
+    the pod unless the rule is met.
+    :param node_selector_requirements:
+    :return:
+    """
+    # both needs to exist to prune required affinity from spec affinity
+    if not affinity or not node_selector_requirements:
+        return
+    if affinity.node_affinity:
+        node_affinity: kubernetes.client.V1NodeAffinity = affinity.node_affinity
+
+        new_required_during_scheduling_ignored_during_execution = None
+        if node_affinity.required_during_scheduling_ignored_during_execution:
+            node_selector: kubernetes.client.V1NodeSelector = (
+                node_affinity.required_during_scheduling_ignored_during_execution
+            )
+            new_node_selector_terms = (
+                _prune_node_selector_requirements_from_node_selector_terms(
+                    node_selector_terms=node_selector.node_selector_terms,
+                    node_selector_requirements_to_prune=node_selector_requirements,
+                )
+            )
+            # check whether there are node selector terms to add to the new list of required terms
+            if len(new_node_selector_terms) > 0:
+                new_required_during_scheduling_ignored_during_execution = (
+                    kubernetes.client.V1NodeSelector(
+                        node_selector_terms=new_node_selector_terms
+                    )
+                )
+        # if both preferred and new required are empty, clean node_affinity
+        if (
+            not node_affinity.preferred_during_scheduling_ignored_during_execution
+            and not new_required_during_scheduling_ignored_during_execution
+        ):
+            setattr(affinity, "node_affinity", None)
+            # self.affinity.node_affinity = None
+            return
+
+        _initialize_affinity(affinity=affinity)
+        _initialize_node_affinity(affinity=affinity)
+
+        # fmt: off
+        affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
+            new_required_during_scheduling_ignored_during_execution
+        )
+        # fmt: on
+        return affinity
+
+
+def _prune_node_selector_requirements_from_node_selector_terms(
+    node_selector_terms: list[kubernetes.client.V1NodeSelectorTerm],
+    node_selector_requirements_to_prune: list[
+        kubernetes.client.V1NodeSelectorRequirement
+    ],
+) -> list[kubernetes.client.V1NodeSelectorTerm]:
+    """
+    Goes over each expression in all the terms provided and removes the expressions if it matches
+    one of the requirements provided to remove
+
+    :return: New list of terms without the provided node selector requirements
+    """
+    new_node_selector_terms: list[kubernetes.client.V1NodeSelectorTerm] = []
+    for term in node_selector_terms:
+        new_node_selector_requirements: list[
+            kubernetes.client.V1NodeSelectorRequirement
+        ] = []
+        for node_selector_requirement in term.match_expressions:
+            to_prune = False
+            # go over each requirement and check if matches the current expression
+            for (
+                node_selector_requirement_to_prune
+            ) in node_selector_requirements_to_prune:
+                if node_selector_requirement == node_selector_requirement_to_prune:
+                    to_prune = True
+                    # no need to keep going over the list provided for the current expression
+                    break
+            if not to_prune:
+                new_node_selector_requirements.append(node_selector_requirement)
+
+        # check if there is something to add
+        if len(new_node_selector_requirements) > 0 or term.match_fields:
+            # Add new node selector terms without the matching expressions to prune
+            new_node_selector_terms.append(
+                kubernetes.client.V1NodeSelectorTerm(
+                    match_expressions=new_node_selector_requirements,
+                    match_fields=term.match_fields,
+                )
+            )
+    return new_node_selector_terms
+
+
+def _override_required_during_scheduling_ignored_during_execution(
+    node_selector: kubernetes.client.V1NodeSelector,
+    affinity: typing.Optional[kubernetes.client.V1Affinity],
+):
+    affinity = _initialize_affinity(affinity)
+    affinity = _initialize_node_affinity(affinity)
+    affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
+        node_selector
+    )
+    return affinity
+
+
+def _initialize_affinity(
+    affinity: typing.Optional[kubernetes.client.V1Affinity],
+) -> kubernetes.client.V1Affinity:
+    return affinity or kubernetes.client.V1Affinity()
+
+
+def _initialize_node_affinity(
+    affinity: typing.Optional[kubernetes.client.V1Affinity],
+) -> kubernetes.client.V1Affinity:
+    affinity = affinity or kubernetes.client.V1Affinity()
+    affinity.node_affinity = (
+        affinity.node_affinity or kubernetes.client.V1NodeAffinity()
+    )
+    return affinity
+
+
+# def _clear_affinity_if_initialized_but_empty(
+#     affinity: typing.Optional[kubernetes.client.V1Affinity],
+# ) -> typing.Optional[kubernetes.client.V1Affinity]:
+#     if not affinity:
+#         return None
+#     if (
+#         not affinity.node_affinity
+#         and not affinity.pod_affinity
+#         and not affinity.pod_anti_affinity
+#     ):
+#         return None
+#     return affinity
+
+
+def _clear_affinity_if_initialized_but_empty(
+    affinity: typing.Optional[kubernetes.client.V1Affinity],
+) -> typing.Optional[kubernetes.client.V1Affinity]:
+    if not affinity:
+        return None
+
+    node_affinity = affinity.node_affinity
+    pod_affinity = affinity.pod_affinity
+    pod_anti_affinity = affinity.pod_anti_affinity
+
+    # If any pod affinity exists, keep the object
+    if pod_affinity or pod_anti_affinity:
+        return affinity
+
+    # If node affinity exists, check if it has any meaningful content
+    if node_affinity:
+        required = node_affinity.required_during_scheduling_ignored_during_execution
+        preferred = node_affinity.preferred_during_scheduling_ignored_during_execution
+
+        if preferred:
+            return affinity
+
+        if required and required.node_selector_terms:
+            for term in required.node_selector_terms:
+                if term.match_expressions or term.match_fields:
+                    return affinity  # at least one term has meaningful constraints
+
+    # If we got here, everything is empty or unset → clear
+    return None

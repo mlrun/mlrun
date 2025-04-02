@@ -116,12 +116,12 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
             update_in(
                 pod_template,
                 "spec.affinity",
-                mlrun.runtimes.pod.get_sanitized_attribute(runtime.spec, "affinity"),
+                mlrun.runtimes.pod.get_sanitized_attribute(run.spec, "affinity"),
             )
             update_in(
                 pod_template,
                 "spec.tolerations",
-                mlrun.runtimes.pod.get_sanitized_attribute(runtime.spec, "tolerations"),
+                mlrun.runtimes.pod.get_sanitized_attribute(run.spec, "tolerations"),
             )
             if runtime.spec.priority_class_name and len(
                 mlconf.get_valid_function_priority_class_names()

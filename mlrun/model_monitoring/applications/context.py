@@ -23,12 +23,13 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
 import mlrun.feature_store as fstore
+import mlrun.feature_store.feature_set as fs
 import mlrun.features
 import mlrun.serving
 import mlrun.utils
 from mlrun.artifacts import Artifact, DatasetArtifact, ModelArtifact, get_model
 from mlrun.common.model_monitoring.helpers import FeatureStats
-from mlrun.common.schemas import FeatureSet, ModelEndpoint
+from mlrun.common.schemas import ModelEndpoint
 from mlrun.model_monitoring.helpers import (
     calculate_inputs_statistics,
 )
@@ -58,7 +59,7 @@ class MonitoringApplicationContext:
         model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
         sample_df: Optional[pd.DataFrame] = None,
         feature_stats: Optional[FeatureStats] = None,
-        feature_sets_dict: Optional[dict[str, FeatureSet]] = None,
+        feature_sets_dict: Optional[dict[str, fs.FeatureSet]] = None,
     ) -> None:
         """
         The :code:`MonitoringApplicationContext` object holds all the relevant information for the
@@ -123,9 +124,13 @@ class MonitoringApplicationContext:
         self._model_endpoint: Optional[ModelEndpoint] = (
             model_endpoint_dict.get(self.endpoint_id) if model_endpoint_dict else None
         )
-        self._feature_set: Optional[FeatureSet] = (
+        self._feature_set: Optional[fs.FeatureSet] = (
             feature_sets_dict.get(self.endpoint_id) if feature_sets_dict else None
         )
+        store, _, _ = mlrun.store_manager.get_or_create_store(
+            mlrun.mlconf.artifact_path
+        )
+        self.storage_options = store.get_storage_options()
 
     @classmethod
     def _from_ml_ctx(
@@ -168,7 +173,7 @@ class MonitoringApplicationContext:
         model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
         sample_df: Optional[pd.DataFrame] = None,
         feature_stats: Optional[FeatureStats] = None,
-        feature_sets_dict: Optional[dict[str, FeatureSet]] = None,
+        feature_sets_dict: Optional[dict[str, fs.FeatureSet]] = None,
     ) -> "MonitoringApplicationContext":
         nuclio_logger = graph_context.logger
         artifacts_logger = graph_context.project_obj
@@ -221,22 +226,13 @@ class MonitoringApplicationContext:
                     "You can either provide the sample dataframe directly, the model endpoint's details and times, "
                     "or adapt the application's logic to not access the sample dataframe."
                 )
-            feature_set = self.feature_set
-            features = [f"{feature_set.metadata.name}.*"]
-            vector = fstore.FeatureVector(
-                name=f"{self.endpoint_id}_vector",
-                features=features,
-                with_indexes=True,
-            )
-            vector.metadata.tag = self.application_name
-            vector.feature_set_objects = {feature_set.metadata.name: feature_set}
-
-            offline_response = vector.get_offline_features(
+            df = self.feature_set.to_dataframe(
                 start_time=self.start_infer_time,
                 end_time=self.end_infer_time,
-                timestamp_for_filtering=mm_constants.FeatureSetFeatures.time_stamp(),
+                time_column=mm_constants.EventFieldType.TIMESTAMP,
+                storage_options=self.storage_options,
             )
-            self._sample_df = offline_response.to_dataframe().reset_index(drop=True)
+            self._sample_df = df.reset_index(drop=True)
         return self._sample_df
 
     @property
@@ -259,7 +255,7 @@ class MonitoringApplicationContext:
         return self._model_endpoint
 
     @property
-    def feature_set(self) -> FeatureSet:
+    def feature_set(self) -> fs.FeatureSet:
         if not self._feature_set and self.model_endpoint:
             self._feature_set = fstore.get_feature_set(
                 self.model_endpoint.spec.monitoring_feature_set_uri

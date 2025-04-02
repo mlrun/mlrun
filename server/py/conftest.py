@@ -15,5 +15,4 @@
 
 from tests.common_fixtures import (  # noqa: F401  # Linter incorrectly flags this as unused
     config_test_base,
-    rundb_mock,
 )

@@ -1505,8 +1505,8 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
     def _setup_resources(self) -> None:
         self.set_mm_credentials()
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(self._deploy_model_serving)
             executor.submit(self._set_infra)
+            executor.submit(self._deploy_model_serving)
 
     @pytest.mark.parametrize("run_local", [False, True])
     def test_count_app(self, run_local: bool) -> None:

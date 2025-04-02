@@ -185,14 +185,19 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
         search_run: bool = True,
         runtime_resource: Optional[dict] = None,
     ) -> tuple[bool, str, dict]:
-        # ensure run object is available
-        if not run:
-            run = db.read_run(db_session, uid, project)
-            if not run:
-                logger.warning(f"Run {uid} not found in project {project}")
-                return False, run_state, {}
+        _, run_state, run = super()._ensure_run_state(
+            db,
+            db_session,
+            project,
+            uid,
+            name,
+            run_state,
+            run,
+            search_run,
+            runtime_resource,
+        )
 
-        execution = mlrun.execution.MLClientCtx.from_dict(run)
+        execution = mlrun.execution.MLClientCtx.from_dict(run, store_run=False)
 
         # ensure hostname is set if not already assigned
         if self._meta and not execution.host:
@@ -207,14 +212,4 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
                 uid,
                 project,
             )
-        return super()._ensure_run_state(
-            db,
-            db_session,
-            project,
-            uid,
-            name,
-            run_state,
-            run,
-            search_run,
-            runtime_resource,
-        )
+        return True, run_state, run

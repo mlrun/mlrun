@@ -398,10 +398,6 @@ jobs:
           name: coverage_combined_report-${{ github.run_id }}.coverage
           path: tests/coverage_reports/combined.coverage
           retention-days: 90
-      # Installing only diff-cover optimizes execution time; mlrun is unnecessary for this job.
-      - name: install diff-cover
-        run: |
-          pip install diff-cover==9.2.4
       - name: Run diff-cover to check PR changes
         run: |
           diff-cover tests/coverage_reports/combined.xml --compare-branch origin/development --show-uncovered \

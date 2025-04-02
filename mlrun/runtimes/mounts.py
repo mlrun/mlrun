@@ -352,10 +352,12 @@ def auto_mount(
     """Choose the mount based on env variables and params
 
     Volume will be selected by the following order:
+
     - k8s PVC volume when both pvc_name and volume_mount_path are set
     - k8s PVC volume when env var is set: MLRUN_PVC_MOUNT=<pvc-name>:<mount-path>
     - k8s PVC volume if it's configured as the auto mount type
     - iguazio v3io volume when V3IO_ACCESS_KEY and V3IO_USERNAME env vars are set
+
     """
     if pvc_name and volume_mount_path:
         return mount_pvc(

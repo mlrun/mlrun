@@ -127,6 +127,10 @@ class MonitoringApplicationContext:
         self._feature_set: Optional[fs.FeatureSet] = (
             feature_sets_dict.get(self.endpoint_id) if feature_sets_dict else None
         )
+        store, _, _ = mlrun.store_manager.get_or_create_store(
+            mlrun.mlconf.artifact_path
+        )
+        self.storage_options = store.get_storage_options()
 
     @classmethod
     def _from_ml_ctx(
@@ -222,23 +226,13 @@ class MonitoringApplicationContext:
                     "You can either provide the sample dataframe directly, the model endpoint's details and times, "
                     "or adapt the application's logic to not access the sample dataframe."
                 )
-            feature_set = self.feature_set
-            features = [f"{feature_set.metadata.name}.*"]
-            vector = fstore.FeatureVector(
-                name=f"{self.endpoint_id}_vector",
-                features=features,
-                with_indexes=True,
-            )
-            vector.metadata.tag = self.application_name
-            vector.feature_set_objects = {feature_set.metadata.name: feature_set}
-
-            offline_response = vector.get_offline_features(
+            df = self.feature_set.to_dataframe(
                 start_time=self.start_infer_time,
                 end_time=self.end_infer_time,
-                timestamp_for_filtering=mm_constants.FeatureSetFeatures.time_stamp(),
-                update_stats=False,
+                time_column=mm_constants.EventFieldType.TIMESTAMP,
+                storage_options=self.storage_options,
             )
-            self._sample_df = offline_response.to_dataframe().reset_index(drop=True)
+            self._sample_df = df.reset_index(drop=True)
         return self._sample_df
 
     @property

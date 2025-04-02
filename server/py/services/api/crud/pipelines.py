@@ -379,7 +379,7 @@ class Pipelines(
 
     def _paginate_runs(
         self,
-        kfp_client: mlrun_pipelines.imports.kfp.Client,
+        kfp_client: mlrun_pipelines.client.Client,
         page_token: typing.Optional[str] = None,
         page_size: typing.Optional[int] = None,
         sort_by: typing.Optional[str] = None,
@@ -415,7 +415,7 @@ class Pipelines(
 
     def _list_runs_from_kfp(
         self,
-        kfp_client: mlrun_pipelines.imports.kfp.Client,
+        kfp_client: mlrun_pipelines.client.Client,
         page_token: typing.Optional[str] = None,
         page_size: typing.Optional[int] = None,
         sort_by: typing.Optional[str] = None,
@@ -446,7 +446,7 @@ class Pipelines(
         self,
         runs: list[dict],
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: mlrun_pipelines.imports.kfp.Client = None,
+        kfp_client: mlrun_pipelines.client.Client = None,
     ) -> list[dict]:
         formatted_runs = []
         for run in runs:
@@ -457,7 +457,7 @@ class Pipelines(
         self,
         run: mlrun_pipelines.models.PipelineRun,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: mlrun_pipelines.imports.kfp.Client = None,
+        kfp_client: mlrun_pipelines.client.Client = None,
     ) -> dict:
         run.project = self.resolve_project_from_pipeline(run)
         if kfp_client:

@@ -143,7 +143,7 @@ try:
     if hasattr(ContainerOp, "_DISABLE_REUSABLE_COMPONENT_WARNING"):
         ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
 
-except ImportError as e:
+except ImportError:
     from mlrun_pipelines.common.imports import (
         Compiler,
         PipelineConf,

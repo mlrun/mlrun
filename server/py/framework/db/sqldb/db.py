@@ -8098,3 +8098,23 @@ class SQLDB(DBInterface):
                 as_record=True,
             )
             mep_record.model_id = db_artifact.id
+
+    def update_db_object(self, session, model, filters=None, **fields):
+        """Helper function to update fields of a database object and commit the changes."""
+        query = self._query(session, model)
+
+        # Apply filters if provided
+        if filters:
+            query = query.filter_by(**filters)
+
+        db_object = query.one_or_none()
+
+        if not db_object:
+            raise ValueError(f"No record found for model {model.__name__}")
+
+        for field, value in fields.items():
+            setattr(db_object, field, value)
+
+        session.add(db_object)
+        self._commit(session, db_object)
+        session.flush()

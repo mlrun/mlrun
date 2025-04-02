@@ -23,8 +23,9 @@
 |ML-9305|Model monitoring is now GA. It requires Nuclio>=1.13.12.|
 |ML-7731|Model monitoring can now be run on a larger scale, using MLRun's additional replicas/workers. To benefit from the scale-out: After upgrading to v1.8.0, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
 |ML-8281|MLRun now supports experiment tracking for document-based models, integrating management of LangChain documents using the new artifact type "Document". Additionally, it provides a mechanism for provisioning third-party configuration keys and settings. The UI has a new Projects > Documents page supporting this feature. See <link to tutorial>.
-|ML-8537|You can now run and evaluate models before deploying them, saving time and resources. See <link>.|
+|ML-8537|You can now run and evaluate models before deploying them, saving time and resources. See [Testing your application before deploying it](../model-monitoring/applications.md#testing-your-application-before-deploying-it).|
 |ML-7688|You can now give model endpoints a name of your choice.|
+||The SDK for creating model monitoring alerts is much simpler than previously. See [Creating a model monitoring alert](../concepts/alerts.md#creating-a-model-monitoring-alert).|
 
 ### Upgrading the MLRun server if model monitoring is deployed in v1.7.x
 
@@ -34,7 +35,7 @@ To upgrade the MLRun server:
    2. Run `project.disable_model_monitoring(delete_stream_function=True, delete_user_applications=True)`. This removes all MM applications, infra pods, and the streams.
 2. After upgrading, start using model monitoring as usual.
    - Model Monitoring is disabled on your project after the upgrade;  all the functions deploy without tracking and all the model monitoring application were deleted.
-   - You must use the 1.8.0 client to utilize MM on the 1.8.0 server.
+   - You must use the v1.8.0 client to utilize MM on the v1.8.0 server.
 
 
 
@@ -48,7 +49,7 @@ To upgrade the MLRun server:
 ### Notifications
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-5985|You can now send notifications by email. See <link>|
+|ML-5985|You can now send notifications by email. See [Mail notifications](../concepts/notifications.md#mail-notifications).|
 
 ### Runtimes
 | ID    |Description                                                                 |

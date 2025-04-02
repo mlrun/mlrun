@@ -118,7 +118,7 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.16"},
-        "storey": {"~=1.8.10"},
+        "storey": {"~=1.8.11"},
         "pydantic": {">=1.10.15", ">=1,<2"},
         "nuclio-sdk": {">=0.5"},
         "sphinx-book-theme": {"~=1.0.1"},

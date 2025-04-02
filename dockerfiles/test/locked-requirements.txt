@@ -1820,9 +1820,9 @@ humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
     # via -r dockerfiles/mlrun-api/requirements.txt
-hypothesis==6.130.6 \
-    --hash=sha256:994abd048924e365dbb8c21e3ea44c2ac576e02fa3d34b04288281768ae83b53 \
-    --hash=sha256:fe457a716797dbcc9c3dd77fe4164d65f77296010ce5b931910276242a90ed0e
+hypothesis==6.130.7 \
+    --hash=sha256:5aadc7b661745db0d3e063ae7794c9f14b3647c0f472fb1792006edcba0fe082 \
+    --hash=sha256:c9f665f43b6b8546e5bf77e38b5ab246b182ac2618b9d9b849c49d4d35add817
     # via -r dev-requirements.txt
 idna==3.10 \
     --hash=sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9 \
@@ -4522,9 +4522,9 @@ tenacity==9.0.0 \
     --hash=sha256:807f37ca97d62aa361264d497b0e31e92b8027044942bfa756160d908320d73b \
     --hash=sha256:93de0c98785b27fcf659856aa9f54bfbd399e29969b0621bc7f762bd441b4539
     # via plotly
-termcolor==3.0.0 ; python_full_version < '3.11' \
-    --hash=sha256:0cd855c8716383f152ad02bbb39841d6e4694538ff5d424088e56c8b81fde525 \
-    --hash=sha256:fdfdc9f2bdb71c69fbbbaeb7ceae3afef0461076dd2ee265bf7b7c49ddb05ebb
+termcolor==3.0.1 ; python_full_version < '3.11' \
+    --hash=sha256:a6abd5c6e1284cea2934443ba806e70e5ec8fd2449021be55c280f8a3731b611 \
+    --hash=sha256:da1ed4ec8a5dc5b2e17476d859febdb3cccb612be1c36e64511a6f2485c10c69
     # via fire
 terminado==0.18.1 \
     --hash=sha256:a4468e1b37bb318f8a86514f65814e1afc977cf29b3992a4500d9dd305dcceb0 \

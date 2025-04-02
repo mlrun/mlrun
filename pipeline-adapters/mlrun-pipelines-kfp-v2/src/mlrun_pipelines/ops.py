@@ -20,10 +20,9 @@ import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.utils.helpers
+import mlrun_pipelines.common.ops
 from mlrun.config import config
 from mlrun.utils import get_in, logger
-
-import mlrun_pipelines.common.ops
 from mlrun_pipelines.common.constants import PipelineRunType
 from mlrun_pipelines.common.helpers import (
     FUNCTION_ANNOTATION,

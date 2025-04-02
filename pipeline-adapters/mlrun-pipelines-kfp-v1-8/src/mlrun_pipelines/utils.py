@@ -16,9 +16,9 @@ import os
 import tempfile
 import typing
 
-import mlrun.utils
 from kfp_server_api import OpenApiException
 
+import mlrun.utils
 import mlrun_pipelines.common.models
 import mlrun_pipelines.helpers
 import mlrun_pipelines.imports

@@ -599,7 +599,8 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                         "mlrun/endpoint-id": ep_id,
                     }.items() <= artifact.labels.items()
                     self._logger.debug(
-                        "Test the artifact can be fetched from the store", key=f"{key}-{ep_id}"
+                        "Test the artifact can be fetched from the store",
+                        key=f"{key}-{ep_id}",
                     )
                     artifact.to_dataitem().get()
 

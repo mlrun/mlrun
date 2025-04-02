@@ -181,9 +181,9 @@ def run_function(
     """
     if artifact_path:
         warnings.warn(
-            "'artifact_path' parameter is deprecated in 1.9.0 and will be removed in 1.11.0, "
+            "'artifact_path' parameter is deprecated in 1.10.0 and will be removed in 1.12.0, "
             "use 'output_path' instead.",
-            # TODO: Remove this in 1.11.0
+            # TODO: Remove this in 1.12.0
             FutureWarning,
         )
     output_path = output_path or artifact_path
@@ -222,7 +222,7 @@ def run_function(
         if local and project and function.spec.build.source:
             workdir = workdir or project.spec.get_code_path()
 
-        # remove this filter once the artifact_path parameter is deprecated in 1.11.0
+        # remove this filter once the artifact_path parameter is deprecated in 1.12.0
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=FutureWarning)
             run_result = function.run(

@@ -281,11 +281,17 @@ class FileTargetKind:
     MONITORING_APPLICATION = "monitoring_application"
     ERRORS = "errors"
     STATS = "stats"
+    LAST_REQUEST = "last_request"
 
 
 class ModelMonitoringMode(StrEnum):
     enabled = "enabled"
     disabled = "disabled"
+
+
+class ScheduleChiefFields(StrEnum):
+    LAST_REQUEST = "last_request"
+    LAST_ANALYZED = "last_analyzed"
 
 
 class EndpointType(IntEnum):

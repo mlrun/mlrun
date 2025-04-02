@@ -409,9 +409,9 @@ class BaseRuntime(ModelObj):
         if artifact_path or out_path:
             deprecated_param = "artifact_path" if artifact_path else "out_path"
             warnings.warn(
-                f"'{deprecated_param}' parameter is deprecated in 1.9.0 and will be removed in 1.11.0, "
+                f"'{deprecated_param}' parameter is deprecated in 1.10.0 and will be removed in 1.12.0, "
                 "use 'output_path' instead.",
-                # TODO: Remove this in 1.11.0
+                # TODO: Remove this in 1.12.0
                 FutureWarning,
             )
         output_path = output_path or out_path or artifact_path

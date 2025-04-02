@@ -27,8 +27,12 @@ class BaseDataInfer:
     get_stats = None
 
 
+def is_spark_dataframe(df) -> bool:
+    return "rdd" in dir(df)
+
+
 def get_infer_interface(df) -> BaseDataInfer:
-    if hasattr(df, "rdd"):
+    if is_spark_dataframe(df):
         from .spark import SparkDataInfer
 
         return SparkDataInfer

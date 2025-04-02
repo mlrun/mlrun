@@ -1,5 +1,8 @@
 [run]
 
-source=./mlrun
+source=
+    ./mlrun
+    ./server/py
+    ./pipeline-adapters
 
 relative_files = True

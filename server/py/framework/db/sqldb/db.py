@@ -537,7 +537,7 @@ class SQLDB(DBInterface):
             ("last_update", "updated"),
         ]:
             if field_value := getattr(run, struct_field, None):
-                status[status_field] = self._add_utc_timezone(field_value).isoformat()
+                status[status_field] = self._add_utc_timezone(field_value).isoformat(timespec="microseconds")
 
         if with_notifications:
             self._fill_run_struct_with_notifications(run.notifications, run_struct)
@@ -2662,7 +2662,7 @@ class SQLDB(DBInterface):
         if field_value := getattr(function, "updated", None):
             function_struct["metadata"]["updated"] = self._add_utc_timezone(
                 field_value
-            ).isoformat()
+            ).isoformat(timespec="microseconds")
 
     def _delete_project_functions(self, session: Session, project: str):
         logger.debug("Removing project functions from db", project=project)

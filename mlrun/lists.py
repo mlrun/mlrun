@@ -106,7 +106,8 @@ class RunList(list):
         rows = self.to_rows(extend_iterations=extend_iterations)
         df = pd.DataFrame(rows[1:], columns=rows[0])  # .set_index('iter')
         for time_column in ["start", "end"]:
-            df[time_column] = pd.to_datetime(df[time_column])
+            # Using the format to handle cases where there are no milliseconds in the timestamp
+            df[time_column] = pd.to_datetime(df[time_column], format="ISO8601")
 
         if flat:
             df = flatten(df, "labels")

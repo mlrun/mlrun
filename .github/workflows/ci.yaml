@@ -390,8 +390,7 @@ jobs:
           path: tests/coverage_reports/
 
       - name: Combine coverage
-        run: make coverage-combine UNIT_TEST_COVERAGE_PATHS="tests/coverage_reports/unit_tests_client.coverage \
-          tests/coverage_reports/unit_tests_server.coverage"
+        run: make coverage-combine UNIT_TEST_COVERAGE_PATHS="tests/coverage_reports/unit_tests_client.coverage tests/coverage_reports/unit_tests_server.coverage"
       # save it as an artifact:
       - name: Upload coverage combined report
         uses: actions/upload-artifact@v4

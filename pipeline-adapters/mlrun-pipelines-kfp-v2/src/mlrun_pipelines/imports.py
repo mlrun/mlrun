@@ -74,9 +74,6 @@ try:
     Client = real_Client
 
 except ImportError:
-    logger.warning(
-        "Kubeflow Pipelines (KFP) is not installed. Using noop implementations."
-    )
     from mlrun_pipelines.common.imports import (
         Client,
         Compiler,

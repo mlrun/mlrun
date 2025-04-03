@@ -14,6 +14,6 @@ omit =
     **/tests/*
     **/__init__.py
     **/conftest.py
-    server/py/schemas/proto/*pb2*.py
+    server/py/schemas/proto/*
 
 skip_empty = False

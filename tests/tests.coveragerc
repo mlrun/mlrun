@@ -5,6 +5,7 @@ source=
     ./mlrun
     ./server/py
     ./pipeline-adapters
+omit = server/py/schemas/proto/*
 
 relative_files = True
 
@@ -14,6 +15,6 @@ omit =
     **/tests/*
     **/__init__.py
     **/conftest.py
-    server/py/schemas/proto/*
+
 
 skip_empty = False

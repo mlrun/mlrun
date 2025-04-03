@@ -35,7 +35,7 @@ def handler_chroma(
     # Add data to the collection
     collection = chroma_client.create_collection(name=collection_name)
 
-    # Format and split docunments
+    # Format and split documents
     documents = df.pop("page_content").to_list()
     metadatas = df.to_dict(orient="records")
     

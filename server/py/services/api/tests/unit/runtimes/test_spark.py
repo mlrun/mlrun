@@ -615,6 +615,303 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         ):
             runtime.with_node_selection(node_selector=function_node_selector)
 
+    @pytest.mark.parametrize(
+        "function_node_selector,driver_node_selector,executor_node_selector,"
+        "driver_affinity,executor_affinity,driver_tolerations,executor_tolerations,"
+        "preemption_mode,expected_driver_node_selector,expected_executor_node_selector,"
+        "expect_driver_anti_affinity,expect_executor_anti_affinity,"
+        "expected_driver_tolerations,expected_executor_tolerations",
+        [
+            # Case: prevent mode removes tolerations and adds anti-affinity
+            (
+                {"function-label": "val"},
+                None,
+                None,
+                None,
+                None,
+                [
+                    {
+                        "key": "spot",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }
+                ],
+                [
+                    {
+                        "key": "spot",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }
+                ],
+                "prevent",
+                {
+                    "function-label": "val"
+                },  # remains because it's not a preemptible selector
+                {"function-label": "val"},
+                False,
+                False,
+                [],  # tolerations removed
+                [],
+            ),
+            # Case: constrain mode keeps tolerations and sets required affinity
+            (
+                {"function-label": "val"},
+                None,
+                None,
+                None,
+                None,
+                [
+                    {
+                        "key": "spot",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }
+                ],
+                [
+                    {
+                        "key": "spot",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }
+                ],
+                "constrain",
+                {"function-label": "val"},
+                {"function-label": "val"},
+                False,
+                False,
+                [
+                    {
+                        "key": "spot",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }
+                ],
+                [
+                    {
+                        "key": "spot",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }
+                ],
+            ),
+            # Case: allow mode leaves everything untouched
+            (
+                {"function-label": "val"},
+                None,
+                None,
+                {"some": "affinity"},
+                {"other": "affinity"},
+                [
+                    {
+                        "key": "spot",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }
+                ],
+                [
+                    {
+                        "key": "spot",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }
+                ],
+                "allow",
+                {"function-label": "val"},
+                {"function-label": "val"},
+                False,
+                False,
+                [
+                    {
+                        "key": "spot",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }
+                ],
+                [
+                    {
+                        "key": "spot",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }
+                ],
+            ),
+            # Case: allow mode should clean affinity/selector and add tolerations
+            (
+                {"function-label": "val"},
+                {"label-1": "val1"},
+                {"label-1": "val1"},
+                {
+                    "nodeAffinity": {
+                        "requiredDuringSchedulingIgnoredDuringExecution": {
+                            "nodeSelectorTerms": [
+                                {
+                                    "matchExpressions": [
+                                        {
+                                            "key": "spot",
+                                            "operator": "In",
+                                            "values": ["true"],
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "nodeAffinity": {
+                        "requiredDuringSchedulingIgnoredDuringExecution": {
+                            "nodeSelectorTerms": [
+                                {
+                                    "matchExpressions": [
+                                        {
+                                            "key": "spot",
+                                            "operator": "In",
+                                            "values": ["true"],
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                },
+                None,
+                None,
+                "allow",
+                {},
+                {},
+                False,
+                False,
+                [
+                    {
+                        "key": "spot",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }
+                ],
+                [
+                    {
+                        "key": "spot",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }
+                ],
+            ),
+        ],
+    )
+    def test_preemption_mode_node_selector_enrichment(
+        self,
+        db: sqlalchemy.orm.Session,
+        k8s_secrets_mock,
+        function_node_selector,
+        driver_node_selector,
+        executor_node_selector,
+        driver_affinity,
+        executor_affinity,
+        driver_tolerations,
+        executor_tolerations,
+        preemption_mode,
+        expected_driver_node_selector,
+        expected_executor_node_selector,
+        expect_driver_anti_affinity,
+        expect_executor_anti_affinity,
+        expected_driver_tolerations,
+        expected_executor_tolerations,
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+
+        runtime.with_driver_preemption_mode(preemption_mode)
+        runtime.with_executor_preemption_mode(preemption_mode)
+        runtime.with_node_selection(node_selector=function_node_selector)
+        runtime.with_driver_node_selection(
+            node_selector=driver_node_selector,
+            affinity=driver_affinity,
+            tolerations=driver_tolerations,
+        )
+        runtime.with_executor_node_selection(
+            node_selector=executor_node_selector,
+            affinity=executor_affinity,
+            tolerations=executor_tolerations,
+        )
+
+        # Preemptible config (to match values in tolerations)
+        kubernetes_api_client = kubernetes.client.ApiClient()
+        mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
+            json.dumps(
+                [
+                    {
+                        "key": "spot",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }
+                ],
+            ).encode("utf-8")
+        )
+        mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+            json.dumps({"label-1": "val1"}).encode("utf-8")
+        )
+
+        self.execute_function(runtime)
+        body = self._get_custom_object_creation_body()
+
+        driver = body["spec"]["driver"]
+        executor = body["spec"]["executor"]
+
+        # Assert actual node selectors
+        assert driver["nodeSelector"] == expected_driver_node_selector
+        assert executor["nodeSelector"] == expected_executor_node_selector
+
+        def normalize_tolerations(val):
+            return val if val is not None else []
+
+        # Assert tolerations
+        assert kubernetes_api_client.sanitize_for_serialization(
+            driver.get("tolerations", [])
+        ) == kubernetes_api_client.sanitize_for_serialization(
+            normalize_tolerations(expected_driver_tolerations)
+        )
+
+        assert kubernetes_api_client.sanitize_for_serialization(
+            executor.get("tolerations", [])
+        ) == kubernetes_api_client.sanitize_for_serialization(
+            normalize_tolerations(expected_executor_tolerations)
+        )
+
+        # Assert affinity contents
+        def assert_affinity(spec, expect_anti_affinity: bool):
+            affinity = spec.get("affinity")
+            required = None
+
+            if affinity and affinity.node_affinity:
+                required = affinity.node_affinity.required_during_scheduling_ignored_during_execution
+
+            if expect_anti_affinity:
+                # Required anti-affinity should be present and non-empty
+                assert required is not None
+                assert len(required.node_selector_terms) > 0
+            else:
+                # Either no required affinity or an empty set of terms
+                assert required is None or isinstance(
+                    required.node_selector_terms, list
+                )
+
+        assert_affinity(driver, expect_driver_anti_affinity)
+        assert_affinity(executor, expect_executor_anti_affinity)
+
     def test_run_with_host_path_volume(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):

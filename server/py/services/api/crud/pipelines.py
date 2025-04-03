@@ -30,6 +30,7 @@ import mlrun.errors
 import mlrun.utils
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+import mlrun_pipelines.client
 import mlrun_pipelines.common.models
 import mlrun_pipelines.common.ops
 import mlrun_pipelines.imports

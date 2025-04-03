@@ -1946,9 +1946,9 @@ mlrun-pipelines-kfp-v1-8==0.4.0 ; python_full_version < '3.11' \
     --hash=sha256:1450f4f3956b37e0c546d90a88b479245cafe819d735d40773cd2e6ecf692984 \
     --hash=sha256:3f23e4baee65a8f0a1ef8482a50abd02786a41f7cdcfa9a3b5d8a0f80631044c
     # via -r requirements.txt
-mlrun-pipelines-kfp-v2==0.4.1 ; python_full_version >= '3.11' \
-    --hash=sha256:646ad58bee77e085d1c8be628431a9627bb2758cedde06581888fd0b8176d780 \
-    --hash=sha256:c42e40019a7292fbcf678db0936e66e3870b2f9c1ab51a8bf21f90802bb4c28b
+mlrun-pipelines-kfp-v2==0.4.2 ; python_full_version >= '3.11' \
+    --hash=sha256:ee8b31683dbeb41e4896a462d7f4143ac1c4e0769eab150c848ff58a741bfcbc \
+    --hash=sha256:f4837a2aa4840b94ab538741cf073611f8089f1ab924a4faca7d7a7ee46fa40e
     # via -r requirements.txt
 msal==1.32.0 \
     --hash=sha256:5445fe3af1da6be484991a7ab32eaa82461dc2347de105b76af92c610c3335c2 \

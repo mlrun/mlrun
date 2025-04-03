@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG CUDA_VER=11.8.0-cudnn8-devel-ubuntu22.04
+ARG CUDA_VER=12.8.1-cudnn-devel-ubuntu22.04
 
 # CUDA Based image (including cudnn and cuda-toolkit):
 FROM gcr.io/iguazio/nvidia/cuda:$CUDA_VER
@@ -35,8 +35,8 @@ RUN apt update -qqq --fix-missing \
     && apt clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install MiniConda (Python 3.9):
-ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py39"
+# Install MiniConda:
+ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py311"
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_25.1.1-2-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \
     rm ~/installconda.sh && \
@@ -50,7 +50,7 @@ ENV PATH=/opt/conda/bin:$PATH
 
 # Setup environment variables:
 ENV PIP_NO_CACHE_DIR=1
-ENV LD_LIBRARY_PATH=/usr/local/cuda-11.8/lib64:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
 # Install Open-MPI:
 ARG OMPI_VERSION=4.1.5

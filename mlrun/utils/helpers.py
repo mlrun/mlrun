@@ -1154,7 +1154,7 @@ def get_kfp_list_runs_filter(
         filters["predicates"].append(
             {
                 "key": "created_at",
-                "op": LESS_THAN_OR_EQUAL_OP,  # Operation 7 corresponds to '<=' (less than or equal)
+                "op": LESS_THAN_OR_EQUAL_OP,
                 "string_value": end_date,
             }
         )

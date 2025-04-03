@@ -118,7 +118,7 @@ jobs:
           if [[ "${{ matrix.test-suite }}" == "server" ]]; then
             echo "UNIT_TESTS_PATH=\"server/\"" >> $GITHUB_ENV
           else
-            echo "UNIT_TESTS_PATH=\"server/\"" >> $GITHUB_ENV
+            echo "UNIT_TESTS_IGNORE_PATH=\"server/\"" >> $GITHUB_ENV
           fi
     - name: Set COVERAGE environment variable
       run: |

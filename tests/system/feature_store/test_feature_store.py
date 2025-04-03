@@ -3567,7 +3567,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert (
             response.status_code == 200
         ), f"Failed to patch feature vector: {response}"
-
+        vector.reload()
         service = vector.get_online_feature_service()
         try:
             resp = service.get([{"ticker": "AAPL"}])

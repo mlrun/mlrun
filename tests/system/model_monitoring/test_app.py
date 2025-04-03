@@ -591,15 +591,16 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 self._logger.debug("Checking app artifacts", app_name=app_name)
                 for key in app_data.artifacts:
                     self._logger.debug("Checking artifact existence", key=key)
-                    artifact = self.project.get_artifact(key)
-                    self._logger.debug("Checking artifact labels", key=key)
+                    artifact = self.project.get_artifact(f"{key}-{ep_id}")
+                    self._logger.debug("Checking artifact labels", key=f"{key}-{ep_id}")
                     assert {
                         "mlrun/producer-type": "model-monitoring-app",
                         "mlrun/app-name": app_name,
                         "mlrun/endpoint-id": ep_id,
                     }.items() <= artifact.labels.items()
                     self._logger.debug(
-                        "Test the artifact can be fetched from the store", key=key
+                        "Test the artifact can be fetched from the store",
+                        key=f"{key}-{ep_id}",
                     )
                     artifact.to_dataitem().get()
 

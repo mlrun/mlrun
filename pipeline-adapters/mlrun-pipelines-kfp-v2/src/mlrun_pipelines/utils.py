@@ -16,24 +16,20 @@
 import tempfile
 import typing
 
-import mlrun_pipelines.client
 import mlrun_pipelines.imports
-
 
 def compile_pipeline(
     pipeline, pipe_file: typing.Optional[str] = None, type_check: bool = False, **kwargs
 ):
     if not pipe_file:
         pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
-    mlrun_pipelines.imports.Compiler().compile(
-        pipeline, pipe_file, type_check=type_check
-    )
+    mlrun_pipelines.imports.Compiler().compile(pipeline, pipe_file, type_check=type_check)
     return pipe_file
 
 
 def get_client(
     url: typing.Optional[str] = None, namespace: typing.Optional[str] = None
-) -> mlrun_pipelines.client.Client:
+) -> mlrun_pipelines.imports.kfp.Client:
     if url or namespace:
-        return mlrun_pipelines.client.Client(host=url, namespace=namespace)
-    return mlrun_pipelines.client.Client()
+        return mlrun_pipelines.imports.kfp.Client(host=url, namespace=namespace)
+    return mlrun_pipelines.imports.kfp.Client()

@@ -15,10 +15,12 @@
 import typing
 
 from mlrun_pipelines.common.helpers import FlexibleMapper
-from mlrun_pipelines.imports import PipelineTask
+# TODO: Uncomment the following import when mlrun_pipelines_v2 actually used KFP 2
+# from mlrun_pipelines.imports import PipelineTask
 
 # class pointer for type checking on the main MLRun codebase
-PipelineNodeWrapper = PipelineTask
+# TODO: uncomment for KFP 2.4
+# PipelineNodeWrapper = PipelineTask
 
 
 class PipelineStep(FlexibleMapper):

@@ -271,7 +271,8 @@ class ServingRuntime(RemoteRuntime):
                    can specify special router class and router arguments
 
           flow   - workflow (DAG) with a chain of states
-                   flow support "sync" and "async" engines, branches are not allowed in sync mode
+                   flow supports both "sync" and "async" engines, with "async" being the default.
+                   branches are not allowed in sync mode
                    when using async mode calling state.respond() will mark the state as the
                    one which generates the (REST) call response
 

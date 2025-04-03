@@ -63,17 +63,26 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
             state = self._crd_state_to_run_state(status)
             launcher, _ = self._get_launcher(meta.name, meta.namespace)
             execution.set_hostname(launcher)
-            txt = f"MpiJob {meta.name} launcher pod {launcher} is in state {state}"
-            logger.info(txt)
+            status_text = (
+                f"MpiJob {meta.name} launcher pod {launcher} is in state {state}"
+            )
+            logger.info(
+                "MpiJob launcher pod state update",
+                name=meta.name,
+                launcher=launcher,
+                state=state,
+            )
         else:
             # no state yet, assume pending
             state = mlrun.run.RunStatuses.pending
-            txt = f"MpiJob {meta.name} pending - awaiting launcher pod startup"
-            logger.info(txt)
+            status_text = f"MpiJob {meta.name} pending - awaiting launcher pod startup"
+            logger.info(
+                "Waiting for MpiJob launcher pod to start", name=meta.name, state=state
+            )
 
         # update execution state and run status
         execution.set_state(state)
-        run.status.status_text = txt
+        run.status.status_text = status_text
 
     def get_pods(self, name=None, namespace=None, launcher=False):
         namespace = framework.utils.singletons.k8s.get_k8s_helper().resolve_namespace(

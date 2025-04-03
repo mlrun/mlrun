@@ -100,7 +100,7 @@ Model monitoring alerts notify you when  measured statistic/result returns unexp
 (You could also use `mlrun.alerts.alert.AlertConfig` to configure MEP alerts, but `create_model_monitoring_alert_configs` is much easier to configure.)
 
 ```{admonition} Important
-Create model monitoring alerts after your serving function is deployed. Otherwise, you cannot use wildcards for `results`.
+Create model monitoring alerts after your serving function is deployed. When using a wildcard or when not specifying exact name of app+result (for example when not specifying results at all), the apps in question need to already be running and generating some metrics, so that the `get_model_endpoint_monitoring_metrics` API call is able to extract the details for the specific MEP.
 ```
 This example illustrates creating a model monitoring alert to detect data drift, with a webhook notification for the alert.
 ```py

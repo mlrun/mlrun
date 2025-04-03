@@ -82,11 +82,6 @@ LEGAL_TIME_UNITS = ["year", "month", "day", "hour", "minute", "second"]
 DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
 DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
 
-# KFP filter operation codes
-LESS_THAN_OR_EQUAL_OP = 7  # '<='
-GREATER_THAN_OR_EQUAL_OP = 5  # '>='
-SUBSTRING_OP = 9  # Substring match
-
 
 class OverwriteBuildParamsWarning(FutureWarning):
     pass
@@ -1148,13 +1143,18 @@ def get_kfp_list_runs_filter(
     :return: A JSON-formatted filter string for KFP.
     """
 
+    # KFP filter operation codes
+    kfp_less_than_or_equal_op = 7  # '<='
+    kfp_greater_than_or_equal_op = 5  # '>='
+    kfp_substring_op = 9  # Substring match
+
     filters = {"predicates": []}
 
     if end_date:
         filters["predicates"].append(
             {
                 "key": "created_at",
-                "op": LESS_THAN_OR_EQUAL_OP,
+                "op": kfp_less_than_or_equal_op,
                 "string_value": end_date,
             }
         )
@@ -1163,7 +1163,7 @@ def get_kfp_list_runs_filter(
         filters["predicates"].append(
             {
                 "key": "name",
-                "op": SUBSTRING_OP,
+                "op": kfp_substring_op,
                 "string_value": project_name,
             }
         )
@@ -1171,7 +1171,7 @@ def get_kfp_list_runs_filter(
         filters["predicates"].append(
             {
                 "key": "created_at",
-                "op": GREATER_THAN_OR_EQUAL_OP,
+                "op": kfp_greater_than_or_equal_op,
                 "timestamp_value": start_date,
             }
         )

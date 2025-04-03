@@ -799,7 +799,7 @@ class ServingRuntime(RemoteRuntime):
             serving_fn.add_model(
                 "my-classifier",
                 model_path=model_path,
-                class_name="mlrun.frameworks.sklearn.SklearnModelServer",
+                class_name="mlrun.frameworks.sklearn.SKLearnModelServer",
             )
             serving_fn.plot(rankdir="LR")
 

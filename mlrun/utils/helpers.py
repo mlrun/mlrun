@@ -882,9 +882,12 @@ def enrich_image_url(
     image_url = image_url.strip()
     mlrun_version = config.images_tag or client_version or server_version
     tag = mlrun_version
-    tag += resolve_image_tag_suffix(
-        mlrun_version=mlrun_version, python_version=client_python_version
-    )
+
+    # TODO: Remove condition when mlrun/mlrun-kfp image is also supported
+    if "mlrun-kfp" not in image_url:
+        tag += resolve_image_tag_suffix(
+            mlrun_version=mlrun_version, python_version=client_python_version
+        )
 
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
@@ -916,7 +919,7 @@ def resolve_image_tag_suffix(
     mlrun_version: Optional[str] = None, python_version: Optional[str] = None
 ) -> str:
     """
-    resolves what suffix should be appended to the image tag
+    Resolves what suffix to be appended to the image tag
     :param mlrun_version: the mlrun version
     :param python_version: the requested python version
     :return: the suffix to append to the image tag
@@ -928,19 +931,19 @@ def resolve_image_tag_suffix(
     # mlrun version is higher than 1.3.0, but we can check the python version and if python version was passed it
     # means it 1.3.0-rc or higher, so we can add the suffix of the python version.
     if mlrun_version.startswith("0.0.0-") or "unstable" in mlrun_version:
-        if python_version.startswith("3.7"):
-            return "-py37"
+        if python_version.startswith("3.9"):
+            return "-py39"
         return ""
 
-    # For mlrun 1.3.x and 1.4.x, we support mlrun runtimes images with both python 3.7 and 3.9 images.
-    # While the python 3.9 images will continue to have no suffix, the python 3.7 images will have a '-py37' suffix.
-    # Python 3.8 images will not be supported for mlrun 1.3.0, meaning that if the user has client with python 3.8
-    # and mlrun 1.3.x then the image will be pulled without a suffix (which is the python 3.9 image).
+    # For mlrun 1.9.x and 1.10.x, we support mlrun runtimes images with both python 3.9 and 3.11 images.
+    # While the python 3.11 images will continue to have no suffix, the python 3.9 images will have a '-py39' suffix.
+    # Python 3.10 images are not supported in mlrun 1.9.0, meaning that if the user has client with python 3.10
+    # and mlrun 1.9.x then the image will be pulled without a suffix (which is the python 3.11 image).
     # using semver (x.y.z-X) to include rc versions as well
-    if semver.VersionInfo.parse("1.5.0-X") > semver.VersionInfo.parse(
+    if semver.VersionInfo.parse("1.11.0-X") > semver.VersionInfo.parse(
         mlrun_version
-    ) >= semver.VersionInfo.parse("1.3.0-X") and python_version.startswith("3.7"):
-        return "-py37"
+    ) >= semver.VersionInfo.parse("1.9.0-X") and python_version.startswith("3.9"):
+        return "-py39"
     return ""
 
 

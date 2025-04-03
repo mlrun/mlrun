@@ -109,17 +109,20 @@ class StreamStoreyTarget(storey.StreamTarget):
             raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
 
         _, storage_options = get_url_and_storage_options(uri)
-        endpoint, path = parse_path(uri)
+        _, path = parse_path(uri)
 
         access_key = storage_options.get("v3io_access_key")
-        storage = V3ioDriver(
-            webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key
-        )
+
+        if alt_key_name := kwargs.pop("alternative_v3io_access_key", None):
+            if alt_key := mlrun.get_secret_or_env(alt_key_name):
+                access_key = alt_key
+
+        storage = V3ioDriver(access_key=access_key)
 
         if storage_options:
             kwargs["storage"] = storage
         if args:
-            args[0] = endpoint
+            args[0] = path
         if "stream_path" in kwargs:
             kwargs["stream_path"] = path
 
@@ -128,6 +131,7 @@ class StreamStoreyTarget(storey.StreamTarget):
 
 class KafkaStoreyTarget(storey.KafkaTarget):
     def __init__(self, *args, **kwargs):
+        kwargs.pop("alternative_v3io_access_key", None)
         path = kwargs.pop("path")
         attributes = kwargs.pop("attributes", {})
         if path and path.startswith("ds://"):

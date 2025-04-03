@@ -13,12 +13,17 @@
 # limitations under the License.
 #
 import typing
+
 import mlrun_pipelines.imports
 import mlrun_pipelines.utils
+
 
 class Client:
     """
     A factory class that returns a KFP client instance directly.
     """
-    def __new__(cls, url: typing.Optional[str] = None, namespace: typing.Optional[str] = None):
+
+    def __new__(
+        cls, url: typing.Optional[str] = None, namespace: typing.Optional[str] = None
+    ):
         return mlrun_pipelines.utils.get_client(url=url, namespace=namespace)

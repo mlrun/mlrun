@@ -21,6 +21,7 @@ import pytest
 import mlrun.common.schemas
 import mlrun.errors
 
+import framework.db.sqldb.models
 from framework.db.sqldb.db import unversioned_tagged_object_uid_prefix
 from framework.db.sqldb.models import Function
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
@@ -723,13 +724,12 @@ class TestFunctions(TestDatabaseBase):
             )
 
             # Set the same `updated` timestamp for all functions
-            db_function = self._db._query(
-                self._db_session, Function, name=function_name
-            ).one_or_none()
-            db_function.updated = t1
-            self._db_session.add(db_function)
-            self._db._commit(self._db_session, db_function)
-            self._db_session.flush()
+            self._db.update_db_object(
+                self._db_session,
+                framework.db.sqldb.models.Function,
+                filters={"name": function_name},
+                updated=t1,
+            )
 
         functions = self._db.list_functions(self._db_session)
 
@@ -746,6 +746,30 @@ class TestFunctions(TestDatabaseBase):
             assert (
                 function_name == expected_name
             ), f"Expected {expected_name}, got {function_name}"
+
+    def test_list_functions_with_missing_milliseconds_in_timestamp(self):
+        function = self._generate_function()
+        tag = "some_tag"
+        self._db.store_function(
+            self._db_session,
+            function.to_dict(),
+            function.metadata.name,
+            versioned=False,
+            tag=tag,
+        )
+
+        # Set the `updated` timestamp without microseconds
+        t1 = datetime.datetime.now().replace(microsecond=0)
+        self._db.update_db_object(
+            self._db_session,
+            framework.db.sqldb.models.Function,
+            updated=t1,
+        )
+
+        functions = self._db.list_functions(self._db_session)
+        assert len(functions) == 1
+
+        assert functions[0]["metadata"]["updated"].endswith(".000000+00:00")
 
     def test_delete_functions(self):
         names = ["some_name", "some_name2", "some_name3"]

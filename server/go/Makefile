@@ -143,4 +143,4 @@ ensure-test-files-annotated:
 .PHONY: ensure-golangci
 ensure-golangci:
 	@test -e $(CI_BIN_DIR)/golangci-lint || \
-		(curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(CI_BIN_DIR) v1.63.4)
+		(GOBIN=$(CI_BIN_DIR) go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4)

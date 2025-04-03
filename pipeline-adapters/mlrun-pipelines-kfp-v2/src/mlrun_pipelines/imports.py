@@ -63,16 +63,14 @@ try:
     import kfp.compiler as real_compiler
     import kfp.dsl as real_dsl
     from kfp import Client as real_Client
-    # from kfp.dsl import PipelineTask as real_PipelineTask
-    # TODO: uncomment for KFP 2.4
+    from kfp.dsl import PipelineTask as real_PipelineTask
 
     # Assign real KFP components
     kfp = real_kfp
     dsl = real_dsl
     compiler = real_compiler
     Compiler = real_compiler.Compiler
-    # PipelineTask = real_PipelineTask
-    # TODO: uncomment for KFP 2.4
+    PipelineTask = real_PipelineTask
     Client = real_Client
     kfp.Client = Client
 

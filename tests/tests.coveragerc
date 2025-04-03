@@ -14,6 +14,3 @@ omit =
     server/py/schemas/proto/*
 
 relative_files = True
-
-[report]
-skip_empty = False

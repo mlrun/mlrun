@@ -9,7 +9,7 @@ In MLRun, you can use vector databases to enrich the context of a request before
 
 MLRun does not come with a VectorDB out-of-the-box: you need to install your choice of DB.
 
-See also {ref}`genai-03-vectordb`
+See also {ref}`genai-03-vectordb`.
 
 ## Using vector databases in MLRun
 

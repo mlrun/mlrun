@@ -16,15 +16,18 @@
 import tempfile
 import typing
 
-import mlrun_pipelines.imports
 import mlrun_pipelines.client
+import mlrun_pipelines.imports
+
 
 def compile_pipeline(
     pipeline, pipe_file: typing.Optional[str] = None, type_check: bool = False, **kwargs
 ):
     if not pipe_file:
         pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
-    mlrun_pipelines.imports.Compiler().compile(pipeline, pipe_file, type_check=type_check)
+    mlrun_pipelines.imports.Compiler().compile(
+        pipeline, pipe_file, type_check=type_check
+    )
     return pipe_file
 
 

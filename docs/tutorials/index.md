@@ -21,11 +21,14 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 ```
 ````
 
+Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the download icon <img src="../_static/images/icon-download.png">at the top of each page.
+
 ```{toctree}
 :maxdepth: 1
 :hidden:
 genai_01_basic_tutorial
 genai-02-model-monitor-llm
+genai-03-vector-db
 ml-index
 demos
 /cheat-sheet
@@ -47,7 +50,10 @@ How to copy a dataset into your cluster, deploy an LLM in the cluster, and run y
 :link: ./genai-02-model-monitor-llm.html
 Set up an effective model monitoring system that leverages LLMs to maintain high standards for deployed models.
 ```
-
+```{grid-item-card} Experiment tracking with vector DBs
+:link: ./genai-03-vector-db.html
+How to track experiments for document-based models using the LangChain API to integrate directly with vector databases.
+```
 
 ````
 `````
@@ -55,9 +61,6 @@ Set up an effective model monitoring system that leverages LLMs to maintain high
 
 (other-tutorial)=
 ## Machine learning tutorials
-
-Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the download icon <img src="../_static/images/icon-download.png">at the top of each page.
-
 
 `````{div}
 

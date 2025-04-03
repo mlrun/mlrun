@@ -759,31 +759,35 @@ class Service(framework.service.Service):
         db: framework.db.base.DBInterface,
     ):
         """
-        Get all runs with notification configs which became terminal since the last call to the function
+        Get all runs with notification configs which became terminal since the last call to the function (- grace)
         and push their notifications if they haven't been pushed yet.
+        On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
+        and their notifications haven't been sent yet.
         """
 
-        # When pushing notifications, push notifications only for runs that entered a terminal state
-        # since the last time we pushed notifications.
-        # On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
-        # and their notifications haven't been sent yet.
+        # Calculation of end_time_from creates an overlap between the current and the previous window to make sure we
+        # don't miss any runs that ended just before the current window (ML-9572)
+        end_time_from = last_update_time - datetime.timedelta(
+            seconds=min(int(mlconf.monitoring.runs.interval) // 2, 5)
+        )
         self._logger.debug(
             "Checking notifications since last end time",
             last_update_time=last_update_time,
+            end_time_from=end_time_from,
         )
 
         runs = db.list_runs(
             db_session,
             project="*",
             states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
-            end_time_from=last_update_time,
+            end_time_from=end_time_from,
             with_notifications=True,
         )
 
         if not len(runs):
             self._logger.debug(
                 "No runs ended during the current window",
-                end_time_from=last_update_time,
+                end_time_from=end_time_from,
             )
 
         if not len(runs):

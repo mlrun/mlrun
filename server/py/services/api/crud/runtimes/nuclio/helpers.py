@@ -64,7 +64,7 @@ def resolve_nuclio_runtime_python_image(
     ) and python_version.startswith("3.9"):
         return "python:3.9"
 
-    # if none of the above conditions are met we use the default runtime which is python 3.9
+    # if none of the above conditions are met we use the default runtime which is python 3.11
     return mlrun.mlconf.default_nuclio_runtime
 
 

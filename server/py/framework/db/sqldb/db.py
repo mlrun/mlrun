@@ -42,7 +42,7 @@ from sqlalchemy import (
     select,
     text,
 )
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
 from sqlalchemy.orm import Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
@@ -528,9 +528,8 @@ class SQLDB(DBInterface):
     ):
         status = run_struct.setdefault("status", {})
 
-        # These fields are saved in struct as timestamps with fsp=6, while the corresponding columns
-        # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
-        # the column (not from the struct) to ensure the ordering is correct.
+        # Return the value from the column to ensure the ordering is correct since the sort is done on the table
+        # columns and timestamps are being saved with fsp=3 while struct fields are fsp=6.
         # In SQLite, the start_time and updated columns return timestamps with fsp=6.
         for status_field, struct_field in [
             ("end_time", "end_time"),
@@ -538,7 +537,11 @@ class SQLDB(DBInterface):
             ("last_update", "updated"),
         ]:
             if field_value := getattr(run, struct_field, None):
-                status[status_field] = self._add_utc_timezone(field_value).isoformat()
+                # Handle cases where milliseconds/microseconds are missing in timestamp, because isoformat by default
+                # ignores them if they are zero
+                status[status_field] = self._add_utc_timezone(field_value).isoformat(
+                    timespec="microseconds"
+                )
 
         if with_notifications:
             self._fill_run_struct_with_notifications(run.notifications, run_struct)
@@ -1036,6 +1039,7 @@ class SQLDB(DBInterface):
         logger.info("Deleting artifacts", total_artifacts=total_artifacts)
 
         failed_deletions_count = 0
+        failed_deletions_count_integrity = 0
 
         for key, uid in distinct_keys_and_uids:
             try:
@@ -1047,6 +1051,20 @@ class SQLDB(DBInterface):
                     key=key,
                     producer_id=producer_id,
                 )
+            except IntegrityError as exc:
+                # Check if the error is related to ModelEndpoint table
+                if "model_endpoints" in str(exc).lower():
+                    logger.error(
+                        "Failed to delete model artifact due to existing model endpoints that reference it",
+                        project=project,
+                        key=key,
+                        uid=uid,
+                        err=err_to_str(exc),
+                    )
+                    failed_deletions_count_integrity += 1
+                else:
+                    # Re-raise the exception if it's not related to ModelEndpoint
+                    raise
             except Exception as exc:
                 logger.error(
                     "Failed to delete artifact",
@@ -1058,9 +1076,15 @@ class SQLDB(DBInterface):
                 failed_deletions_count += 1
                 continue
 
-        if failed_deletions_count:
+        if failed_deletions_count or failed_deletions_count_integrity:
+            if failed_deletions_count_integrity:
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"Failed to delete {failed_deletions_count + failed_deletions_count_integrity} artifacts, "
+                    f"while {failed_deletions_count_integrity} of them failed due to existing model endpoints that "
+                    f"reference them."
+                )
             raise mlrun.errors.MLRunInternalServerError(
-                f"Failed to delete {failed_deletions_count} artifacts"
+                f"Failed to delete {failed_deletions_count} artifacts."
             )
         logger.info("Successfully deleted artifacts", total_artifacts=total_artifacts)
 
@@ -2640,9 +2664,11 @@ class SQLDB(DBInterface):
         # the column (not from the struct) to ensure the ordering is correct.
         # In SQLite, the updated column return timestamps with fsp=6.
         if field_value := getattr(function, "updated", None):
+            # Handle cases where milliseconds/microseconds are missing in timestamp, because isoformat by default
+            # ignores them if they are zero
             function_struct["metadata"]["updated"] = self._add_utc_timezone(
                 field_value
-            ).isoformat()
+            ).isoformat(timespec="microseconds")
 
     def _delete_project_functions(self, session: Session, project: str):
         logger.debug("Removing project functions from db", project=project)
@@ -8072,3 +8098,23 @@ class SQLDB(DBInterface):
                 as_record=True,
             )
             mep_record.model_id = db_artifact.id
+
+    def update_db_object(self, session, model, filters=None, **fields):
+        """Helper function to update fields of a database object and commit the changes."""
+        query = self._query(session, model)
+
+        # Apply filters if provided
+        if filters:
+            query = query.filter_by(**filters)
+
+        db_object = query.one_or_none()
+
+        if not db_object:
+            raise ValueError(f"No record found for model {model.__name__}")
+
+        for field, value in fields.items():
+            setattr(db_object, field, value)
+
+        session.add(db_object)
+        self._commit(session, db_object)
+        session.flush()

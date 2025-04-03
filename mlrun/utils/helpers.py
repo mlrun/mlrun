@@ -1155,7 +1155,7 @@ def get_kfp_list_runs_filter(
             {
                 "key": "created_at",
                 "op": kfp_less_than_or_equal_op,
-                "string_value": end_date,
+                "timestamp_value": end_date,
             }
         )
 

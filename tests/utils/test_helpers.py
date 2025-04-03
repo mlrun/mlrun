@@ -1554,7 +1554,7 @@ def test_format_datetime(dt, expected):
     ],
 )
 def test_get_list_runs_filter(project_name, end_date, start_date, expected_filter):
-    generated_filter = mlrun.utils.helpers.get_list_runs_filter(
+    generated_filter = mlrun.utils.helpers.get_kfp_list_runs_filter(
         project_name, end_date, start_date
     )
     assert json.loads(generated_filter) == json.loads(expected_filter)

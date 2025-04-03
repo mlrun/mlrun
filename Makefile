@@ -1035,6 +1035,6 @@ coverage-combine:
 	$$UNIT_TEST_COVERAGE_PATHS \
 	tests/coverage_reports/integration_tests.coverage \
 	tests/coverage_reports/migration_tests.coverage; \
-	python -m coverage xml --data-file=tests/coverage_reports/combined.coverage -o tests/coverage_reports/combined.xml; \
+	python -m coverage xml --ignore-errors --data-file=tests/coverage_reports/combined.coverage -o tests/coverage_reports/combined.xml; \
 	echo "Full coverage report:"; \
 	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage report --rcfile=tests/tests.coveragerc -i

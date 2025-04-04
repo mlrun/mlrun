@@ -2,11 +2,15 @@ import json
 import os
 import re
 
+EXCLUDE_DIRS = {"_build", ".git", "venv"}
 
 def generate_llm_txt(
-    root_dir, prefix="", output_path=None, exclude_dirs={"_build", ".git", "venv"}
+    root_dir, prefix="", output_path=None, exclude_dirs=None
 ):
-    """Generates llms.txt by categorizing .md and .ipynb files with extracted titles and descriptions."""
+    """
+    Generates llms.txt by categorizing .md and .ipynb files with extracted titles and descriptions.
+    """
+    exclude_dirs = exclude_dirs or set()
     markdown_files = find_files_by_extension(
         root_dir, [".md"], exclude_dirs=exclude_dirs
     )
@@ -48,7 +52,9 @@ def generate_llm_txt(
 
 
 def find_files_by_extension(root_dir, extensions, exclude_dirs=None):
-    """Recursively find all files with given extensions, excluding specified directories."""
+    """
+    Recursively find all files with given extensions, excluding specified directories.
+    """
     exclude_dirs = exclude_dirs or set()
     found_files = []
     for dirpath, dirnames, filenames in os.walk(root_dir):
@@ -65,7 +71,9 @@ def find_files_by_extension(root_dir, extensions, exclude_dirs=None):
 def add_files_to_output(
     files, root_dir, parsed_output, section, title_extractor, sentence_extractor
 ):
-    """Helper function to add files to parsed_output with title and description."""
+    """
+    Helper function to add files to parsed_output with title and description.
+    """
     parsed_output.append(section)
     for file in files:
         title = title_extractor(file)
@@ -77,7 +85,9 @@ def add_files_to_output(
 
 
 def extract_md_first_title(md_path):
-    """Extract the first level-1 title (# Title) from a Markdown file."""
+    """
+    Extract the first level-1 title (# Title) from a Markdown file.
+    """
     with open(md_path, encoding="utf-8") as f:
         for line in f:
             match = re.match(r"^#\s+(.+)", line.strip())
@@ -88,7 +98,9 @@ def extract_md_first_title(md_path):
 
 
 def extract_md_first_sentence(md_path):
-    """Extract the first meaningful sentence or paragraph after the title from a Markdown file."""
+    """
+    Extract the first meaningful sentence or paragraph after the title from a Markdown file.
+    """
     with open(md_path, encoding="utf-8") as f:
         lines = f.readlines()
 
@@ -100,7 +112,9 @@ def extract_md_first_sentence(md_path):
 
 
 def extract_ipynb_first_title(nb_path):
-    """Extract the first Markdown cell's first line as the title from a Jupyter Notebook."""
+    """
+    Extract the first Markdown cell's first line as the title from a Jupyter Notebook.
+    """
     if "built-in-training-function" in nb_path:
         print("z")
     with open(nb_path, encoding="utf-8") as file:
@@ -120,7 +134,10 @@ def extract_ipynb_first_title(nb_path):
 
 
 def extract_ipynb_first_sentence(nb_path):
-    """Extracts the first meaningful sentence or paragraph after the title from the first Markdown cell in a Jupyter Notebook."""
+    """
+    Extracts the first meaningful sentence or paragraph after the title
+    from the first Markdown cell in a Jupyter Notebook.
+    """
     with open(nb_path, encoding="utf-8") as file:
         notebook = json.load(file)
 

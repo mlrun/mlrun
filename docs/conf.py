@@ -234,7 +234,8 @@ def setup(app):
 
 # default header for llms.txt file
 default_prefix = """# MLRun
-MLRun is an open source AI orchestration platform for quickly building and managing continuous (gen) AI applications across their lifecycle.
+MLRun is an open source AI orchestration platform for quickly building and managing continuous (gen) AI applications
+across their lifecycle.
 
 """
 

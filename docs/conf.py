@@ -229,7 +229,35 @@ def copy_doc(src, dest, title=""):
 
 
 def setup(app):
-    pass
+    app.connect("build-finished", create_llms_txt)
+
+
+# default header for llms.txt file
+default_prefix = """# MLRun
+MLRun is an open source AI orchestration platform for quickly building and managing continuous (gen) AI applications across their lifecycle.
+
+"""
+
+
+def create_llms_txt(app, exception):
+    """
+    Generate the llms.txt file with a default header and content from the specified source file.
+
+    This function is called after the Sphinx build process is finished. It generates an llms.txt file
+    in the output directory, containing a default header and content extracted from the "contents.rst" file.
+
+    Args:
+        app: The Sphinx application object.
+        exception: The exception object, if any, raised during the build process.
+    """
+    import sys
+
+    # Add the directory containing llms.py to the system path
+    sys.path.insert(0, path.abspath("."))
+    from llms import generate_llm_txt
+
+    output_path = path.join(app.outdir, "llms.txt")
+    generate_llm_txt(".", prefix=default_prefix, output_path=output_path)
 
 
 #   project_root = path.dirname(path.dirname(path.abspath(__file__)))

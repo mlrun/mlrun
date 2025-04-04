@@ -4,9 +4,8 @@ import re
 
 EXCLUDE_DIRS = {"_build", ".git", "venv"}
 
-def generate_llm_txt(
-    root_dir, prefix="", output_path=None, exclude_dirs=None
-):
+
+def generate_llm_txt(root_dir, prefix="", output_path=None, exclude_dirs=None):
     """
     Generates llms.txt by categorizing .md and .ipynb files with extracted titles and descriptions.
     """

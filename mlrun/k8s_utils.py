@@ -365,7 +365,7 @@ def enrich_preemption_mode(
     return (
         enriched_node_selector,
         enriched_tolerations,
-        _clear_affinity_if_initialized_but_empty(enriched_affinity),
+        _prune_empty_affinity(enriched_affinity),
     )
 
 
@@ -432,17 +432,14 @@ def _prune_affinity_node_selector_requirement(
             and not new_required_during_scheduling_ignored_during_execution
         ):
             setattr(affinity, "node_affinity", None)
-            # self.affinity.node_affinity = None
             return
 
         _initialize_affinity(affinity=affinity)
         _initialize_node_affinity(affinity=affinity)
 
-        # fmt: off
         affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
             new_required_during_scheduling_ignored_during_execution
         )
-        # fmt: on
         return affinity
 
 
@@ -516,23 +513,17 @@ def _initialize_node_affinity(
     return affinity
 
 
-# def _clear_affinity_if_initialized_but_empty(
-#     affinity: typing.Optional[kubernetes.client.V1Affinity],
-# ) -> typing.Optional[kubernetes.client.V1Affinity]:
-#     if not affinity:
-#         return None
-#     if (
-#         not affinity.node_affinity
-#         and not affinity.pod_affinity
-#         and not affinity.pod_anti_affinity
-#     ):
-#         return None
-#     return affinity
-
-
-def _clear_affinity_if_initialized_but_empty(
+def _prune_empty_affinity(
     affinity: typing.Optional[kubernetes.client.V1Affinity],
 ) -> typing.Optional[kubernetes.client.V1Affinity]:
+    """
+    Return None if the given affinity object has no meaningful constraints.
+
+    Keeps the affinity object only if it contains:
+    - Any pod affinity or pod anti-affinity
+    - Preferred node affinity
+    - Required node affinity with at least one match expression or match field
+    """
     if not affinity:
         return None
 
@@ -557,5 +548,6 @@ def _clear_affinity_if_initialized_but_empty(
                 if term.match_expressions or term.match_fields:
                     return affinity  # at least one term has meaningful constraints
 
-    # If we got here, everything is empty or unset → clear
+    # At this point, none of the affinity sections contain meaningful constraints,
+    # so the affinity object is effectively empty and can be safely discarded.
     return None

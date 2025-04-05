@@ -159,7 +159,7 @@ def kfp_client_mock(monkeypatch):
         kfp_server_api.api.experiment_service_api,
         "ExperimentServiceApi",
         mock.Mock(return_value=mock_experiment_api),
-    )st
+    )
     monkeypatch.setattr(
         "kubernetes.config.incluster_config.load_incluster_config",
         lambda: None

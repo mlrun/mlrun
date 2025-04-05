@@ -1230,6 +1230,12 @@ class TestProject(TestMLRunSystem):
         function_label_name, function_label_val = "kubernetes.io/os", "linux"
         function_override_label, function_override_val = "kubernetes.io/hostname", ""
 
+        # Same preemptible nodes defined in the system test enviorment
+        function_preemptible_nodes_label, preemptible_val = (
+            "app.iguazuo.com/lifecycle",
+            "preemptible",
+        )
+
         code_path = str(self.assets_path / "mpijob_function.py")
         replicas = 2
 
@@ -1245,7 +1251,12 @@ class TestProject(TestMLRunSystem):
         mpi_func.spec.node_selector = {
             function_label_name: function_label_val,
             function_override_label: function_override_val,
+            function_preemptible_nodes_label: preemptible_val,
         }
+
+        mpi_func.with_preemption_mode("prevent")
+        mpi_func.save()
+
         # We run the function to ensure node selector enrichment, which doesn't occur during function build,
         # but at runtime.
         mpijob_run = mpi_func.run(returns=["reduced_result", "rank_0_result"])
@@ -1257,6 +1268,13 @@ class TestProject(TestMLRunSystem):
             **project.spec.default_function_node_selector,
             function_override_label: function_override_val,
             function_label_name: function_label_val,
+        }
+
+        # assert mpi function remained unchanged
+        assert mpi_func.spec.node_selector == {
+            function_label_name: function_label_val,
+            function_override_label: function_override_val,
+            function_preemptible_nodes_label: preemptible_val,
         }
 
     @pytest.mark.enterprise
@@ -1281,6 +1299,7 @@ class TestProject(TestMLRunSystem):
             project_label_name: project_label_val
         }
         self._create_and_validate_project_function_with_node_selector(project)
+        self._create_and_validate_mpi_function_with_node_selector(project)
 
     def _create_and_validate_spark_function_with_project_node_selectors(self, project):
         function_name = "spark-function"

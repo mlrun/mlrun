@@ -71,10 +71,6 @@ def delete_project_old_pipelines(
     _delete_runs_and_empty_experiments(
         context, kfp_client, runs, experiments_ids, dry_run
     )
-    _delete_runs(context, kfp_client, runs, dry_run)
-
-    # Find and delete empty experiments
-    _delete_empty_experiments(context, kfp_client, experiments_ids)
 
 
 def _validate_and_convert_date(date_input: str) -> str:
@@ -188,7 +184,7 @@ def _list_pipelines_runs(
     batch_size: int = 1000,
 ) -> list[PipelineRun]:
     runs = []
-    while page_token:
+    while page_token is not None:
         # kfp doesn't allow us to pass both a page_token and the `filter` and `sort_by` params.
         # When we have a token from previous call, we will strip out the filter and use the token to continue
         # (the token contains the details of the filter that was used to create it)
@@ -360,9 +356,9 @@ def _perform_deletion(
     :param item_type: The type of items being deleted, used in logging messages (defaults to "run").
 
     :return: A tuple containing:
-             - deleted_items: A list of tuples of successfully deleted items, with each tuple containing (name, ID).
-             - failed_items: A list of tuples for failed deletions, with each tuple containing
-               (name, ID, exception, exception reason).
+         - deleted_items: A list of tuples of successfully deleted items, with each tuple containing (name, ID).
+         - failed_items: A list of tuples for failed deletions, with each tuple containing
+           (name, ID, exception, exception reason).
     """
     deleted_count = 0
     failed_items = []

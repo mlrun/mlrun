@@ -183,10 +183,8 @@ def kfp_client_mock(monkeypatch):
 
     monkeypatch.setattr(kfp_server_api.api_client.ApiClient, "call_api", mock.Mock())
 
-
+    kfp_client = mlrun_pipelines.client.Client()
     mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
-
-
 
     return kfp_client
 

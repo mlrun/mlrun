@@ -159,6 +159,10 @@ def kfp_client_mock(monkeypatch):
         kfp_server_api.api.experiment_service_api,
         "ExperimentServiceApi",
         mock.Mock(return_value=mock_experiment_api),
+    )st
+    monkeypatch.setattr(
+        "kubernetes.config.incluster_config.load_incluster_config",
+        lambda: None
     )
 
     mock_run_api = mock.Mock()
@@ -179,18 +183,10 @@ def kfp_client_mock(monkeypatch):
 
     monkeypatch.setattr(kfp_server_api.api_client.ApiClient, "call_api", mock.Mock())
 
-    kfp_client = mlrun_pipelines.client.Client()
 
     mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
 
-    kfp_client.run_pipeline = mock.Mock()
-    kfp_client.get_run = mock.Mock()
 
-    monkeypatch.setattr(
-        mlrun_pipelines.client.Client,
-        "__new__",
-        lambda cls, *args, **kwargs: kfp_client,
-    )
 
     return kfp_client
 

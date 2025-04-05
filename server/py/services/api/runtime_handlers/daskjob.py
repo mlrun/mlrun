@@ -408,6 +408,8 @@ def enrich_dask_cluster(
     # are irrelevant, so we do not enrich the run object with the project node selector.
     # However, the node selector is still relevant for the Dask cluster's workers and scheduler, which do run
     # remotely on k8s. This ensures that the cluster pods follow the project's specified node selection.
+    # We also enrich the worker and scheduler pods with node selector, affinity, and tolerations
+    # according to the configured preemption mode, which takes precedence over the previously calculated node selector.
     project = function._get_db().get_project(function.metadata.project)
     logger.debug(
         "Enriching Dask Cluster node selector from project and mlrun config",
@@ -420,11 +422,26 @@ def enrich_dask_cluster(
         project.spec.default_function_node_selector,
         function.spec.node_selector,
     )
+    node_selector, tolerations, affinity = mlrun.k8s_utils.enrich_preemption_mode(
+        preemption_mode=function.spec.preemption_mode,
+        node_selector=node_selector,
+        tolerations=function.spec.tolerations,
+        affinity=function.spec.affinity,
+    )
+
     scheduler_pod_spec = framework.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
-        spec, scheduler_container, node_selector=node_selector
+        spec,
+        scheduler_container,
+        node_selector=node_selector,
+        tolerations=tolerations,
+        affinity=affinity,
     )
     worker_pod_spec = framework.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
-        spec, worker_container, node_selector=node_selector
+        spec,
+        worker_container,
+        node_selector=node_selector,
+        tolerations=tolerations,
+        affinity=affinity,
     )
     for pod_spec in [scheduler_pod_spec, worker_pod_spec]:
         if spec.image_pull_secret:

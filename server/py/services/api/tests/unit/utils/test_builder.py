@@ -243,13 +243,36 @@ def test_build_runtime_use_default_node_selector_and_sets_gpu_limits_to_zero(
 ):
     _patch_k8s_helper(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
-    node_selector = {
+
+    # Default and function-level node selectors
+    default_node_selector = {
         "label-1": "val1",
         "label-2": "val2",
     }
+    preemptible_selector = {"spot": "true"}
+
+    func_node_selector = {"label-3": "val3"}
     mlrun.mlconf.default_function_node_selector = base64.b64encode(
-        json.dumps(node_selector).encode("utf-8")
+        json.dumps(default_node_selector).encode("utf-8")
     )
+
+    # Set preemptible nodes configuration
+    preemptible_tolerations = [
+        {
+            "key": "spot",
+            "operator": "Equal",
+            "value": "true",
+            "effect": "NoSchedule",
+        }
+    ]
+    mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+        json.dumps(preemptible_selector).encode("utf-8")
+    )
+    mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
+        json.dumps(preemptible_tolerations).encode("utf-8")
+    )
+
+    # Create function with preemption mode and GPU request
     function = mlrun.new_function(
         "some-function",
         "some-project",
@@ -258,26 +281,32 @@ def test_build_runtime_use_default_node_selector_and_sets_gpu_limits_to_zero(
         kind=RuntimeKinds.job,
         requirements=["some-package"],
     )
-    gpu_type = "nvidia.com/gpu"
-    function.with_limits(gpus=1, gpu_type=gpu_type)
+    function.with_limits(gpus=1, gpu_type="nvidia.com/gpu")
+    function.spec.node_selector = func_node_selector | preemptible_selector
+    function.with_preemption_mode("prevent")
 
-    func_node_selector, func_val = "label-3", "val3"
-    function.spec.node_selector = {func_node_selector: func_val}
-
+    # Run the builder
     services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
+
     kaniko_pod_spec_mock = _create_pod_mock_pod_spec()
-    assert kaniko_pod_spec_mock.containers[0].resources["limits"][gpu_type] == 0
+    pod_node_selector = kaniko_pod_spec_mock.node_selector
+    pod_tolerations = kaniko_pod_spec_mock.tolerations
+
+    # GPU limit should be reset to 0
+    assert kaniko_pod_spec_mock.containers[0].resources["limits"]["nvidia.com/gpu"] == 0
+
+    # Node selector should include both defaults and function-level
+    expected_node_selector = {**default_node_selector, **func_node_selector}
     assert (
-        deepdiff.DeepDiff(
-            kaniko_pod_spec_mock.node_selector,
-            {**node_selector, func_node_selector: func_val},
-            ignore_order=True,
-        )
+        deepdiff.DeepDiff(pod_node_selector, expected_node_selector, ignore_order=True)
         == {}
     )
+
+    # Preemptible tolerations should be removed in 'prevent' mode
+    assert pod_tolerations is None or pod_tolerations == []
 
 
 def test_function_build_with_attributes_from_spec(monkeypatch):
@@ -1260,6 +1289,13 @@ def test_make_kaniko_pod_command_using_build_args(
         "framework.api.utils.resolve_project_default_service_account",
         return_value=(None, None),
     ):
+        function = mlrun.new_function("test", kind="job")
+        function.with_preemption_mode("prevent")
+        function.spec.node_selector = {"some": "selector"}
+        function.spec.tolerations = []
+        function.spec.affinity = None
+
+        # now call make_kaniko_pod with this function
         kpod = services.api.utils.builder.make_kaniko_pod(
             project="test",
             context="/context",
@@ -1267,6 +1303,7 @@ def test_make_kaniko_pod_command_using_build_args(
             dockerfile="./Dockerfile",
             builder_env=builder_env,
             extra_args=extra_args,
+            runtime_spec=function.spec,
         )
 
     expected_env_vars = [f"{env_var.name}={env_var.value}" for env_var in builder_env]

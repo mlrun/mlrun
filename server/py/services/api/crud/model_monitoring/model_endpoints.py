@@ -903,7 +903,7 @@ class ModelEndpoints:
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: Optional[str] = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """Get a single model endpoint object.
@@ -946,7 +946,7 @@ class ModelEndpoints:
         )
 
         # If time metrics were provided, retrieve the results from the time series DB
-        if tsdb_metrics:
+        if tsdb_metrics != "false":
             logger.info("Adding real time metrics to the model endpoint")
             model_endpoint_object = (
                 await self._add_basic_metrics(

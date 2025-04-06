@@ -11,9 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from datetime import datetime, timedelta
 from threading import Lock
-from typing import Callable, Literal, Optional, Union
+from typing import Callable, Final, Literal, Optional, Union
 
 import pandas as pd
 import taosws
@@ -23,6 +24,7 @@ from taoswswrap.tdengine_connection import (
 )
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
+import mlrun.common.types
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
 from mlrun.datastore.datastore_profile import DatastoreProfile
@@ -32,6 +34,19 @@ from mlrun.utils import logger
 
 _connection = None
 _connection_lock = Lock()
+
+
+class TDEngineTimestampPrecision(mlrun.common.types.StrEnum):
+    """
+    The timestamp precision for the TDEngine database.
+    For more information, see:
+    https://docs.tdengine.com/tdengine-reference/sql-manual/data-types/#timestamp
+    https://docs.tdengine.com/tdengine-reference/sql-manual/manage-databases/#create-database
+    """
+
+    MILLISECOND = "ms"  # TDEngine's default
+    MICROSECOND = "us"  # MLRun's default
+    NANOSECOND = "ns"
 
 
 class TDEngineConnector(TSDBConnector):
@@ -46,11 +61,16 @@ class TDEngineConnector(TSDBConnector):
         self,
         project: str,
         profile: DatastoreProfile,
+        timestamp_precision: TDEngineTimestampPrecision = TDEngineTimestampPrecision.MICROSECOND,
         **kwargs,
     ):
         super().__init__(project=project)
 
         self._tdengine_connection_profile = profile
+
+        self._timestamp_precision: Final = (  # cannot be changed after initialization
+            timestamp_precision
+        )
 
         self._init_super_tables()
 
@@ -104,7 +124,7 @@ class TDEngineConnector(TSDBConnector):
         """Create the database if it does not exist."""
         self.connection.prefix_statements = []
         self.connection.run(
-            statements=f"CREATE DATABASE IF NOT EXISTS {self.database}",
+            statements=f"CREATE DATABASE IF NOT EXISTS {self.database} PRECISION '{self._timestamp_precision}'",
             timeout=self._timeout,
             retries=self._retries,
         )
@@ -179,6 +199,7 @@ class TDEngineConnector(TSDBConnector):
             columns=columns,
             subtable=table_name,
             values=event,
+            timestamp_precision=self._timestamp_precision,
         )
 
         self.connection.run(

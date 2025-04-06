@@ -45,6 +45,9 @@ RUN conda create -y -n mlrun python=${MLRUN_PYTHON_VERSION} && \
     ln -sf /opt/conda/envs/mlrun/bin/python /usr/local/bin/python && \
     conda init
 
+# ✅ Ensure uv uses mlrun conda env
+ENV PATH="/opt/conda/envs/mlrun/bin:$PATH"
+
 USER $NB_UID
 
 ## Install it via mamba to overcome installing jupyterlab not being able to install the latest version

@@ -547,6 +547,10 @@ default_config = {
                 "max_size": 10000,
             },
         },
+        "pipelines": {
+            # Number of days back to include when calculating the project pipeline summary.
+            "days_back_for_project_counters": 7,
+        },
     },
     "model_endpoint_monitoring": {
         # Scaling Rule

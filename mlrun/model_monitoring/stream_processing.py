@@ -15,8 +15,6 @@
 import datetime
 import typing
 
-import storey
-
 import mlrun
 import mlrun.common.model_monitoring.helpers
 import mlrun.feature_store as fstore
@@ -345,7 +343,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             logger.debug(
                 "Skipped nop event inside of ProcessEndpointEvent", event=event
             )
-            return storey.Event(body=[event])
+            full_event.body = [event]
+            return full_event
         # Getting model version and function uri from event
         # and use them for retrieving the endpoint_id
         function_uri = full_event.body.get(EventFieldType.FUNCTION_URI)
@@ -478,8 +477,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
         # Create a storey event object with list of events, based on endpoint_id which will be used
         # in the upcoming steps
-        storey_event = storey.Event(body=events, key=endpoint_id)
-        return storey_event
+        full_event.key = endpoint_id
+        full_event.body = events
+        return full_event
 
     def resume_state(self, endpoint_id, endpoint_name):
         # Make sure process is resumable, if process fails for any reason, be able to pick things up close to where we

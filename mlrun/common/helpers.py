@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 def parse_versioned_object_uri(
     uri: str, default_project: str = ""
 ) -> tuple[str, str, str, str]:

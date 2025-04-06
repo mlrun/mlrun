@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 class BaseClass:
     def __init__(self, a: int):
         self.a = a

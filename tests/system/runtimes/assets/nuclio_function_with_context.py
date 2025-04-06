@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 def test(event, context):
     param = context.get_param("Test")
     return param

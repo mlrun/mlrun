@@ -450,7 +450,9 @@ def test_retry(
     mock_api_run_detail = mock_pipeline_run(
         api_run_status=mlrun_pipelines.common.models.RunStatuses.succeeded
     )
-    kfp_client_mock.get_run.return_value = mock_api_run_detail
+    kfp_client_mock.get_run = unittest.mock.Mock(
+        return_value=mock_api_run_detail,
+    )
     services.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
         return_value="adam"
     )
@@ -459,7 +461,7 @@ def test_retry(
     mock_tempfile.return_value.__enter__.return_value = temp_file_mock
 
     new_run_mock = unittest.mock.Mock(id="new-run-id")
-    kfp_client_mock.run_pipeline.return_value = new_run_mock
+    kfp_client_mock.run_pipeline = unittest.mock.Mock(return_value=new_run_mock)
 
     response = client.post(f"/projects/adam/pipelines/{run_id}/retry")
 
@@ -749,7 +751,7 @@ def _mock_list_runs(
             runs, len(runs)
         )
 
-    kfp_client_mock.list_runs = list_runs_mock
+    kfp_client_mock._run_api.list_runs = list_runs_mock
 
 
 def _mock_get_run(

@@ -41,6 +41,7 @@ import inflection
 import numpy as np
 import packaging.version
 import pandas
+import pytz
 import semver
 import yaml
 from dateutil import parser
@@ -1131,21 +1132,83 @@ def get_workflow_url(
     return url
 
 
-def get_kfp_project_filter(project_name: str) -> str:
+def get_kfp_list_runs_filter(
+    project_name: Optional[str] = None,
+    end_date: Optional[str] = None,
+    start_date: Optional[str] = None,
+) -> str:
     """
-    Generates a filter string for KFP runs, using a substring predicate
-    on the run's 'name' field. This is used as a heuristic to retrieve runs that are associated
-    with a specific project. The 'op: 9' operator indicates that the filter checks if the
-    project name appears as a substring in the run's name, ensuring that we can identify
-    runs belonging to the desired project.
+    Generates a filter for listing Kubeflow Pipelines (KFP) runs.
+
+    :param project_name: The name of the project. If "*", it won't filter by project.
+    :param end_date: The latest creation date for filtering runs (ISO 8601 format).
+    :param start_date: The earliest creation date for filtering runs (ISO 8601 format).
+    :return: A JSON-formatted filter string for KFP.
     """
-    is_substring_op = 9
-    project_name_filter = {
-        "predicates": [
-            {"key": "name", "op": is_substring_op, "string_value": project_name}
-        ]
-    }
-    return json.dumps(project_name_filter)
+
+    # KFP filter operation codes
+    kfp_less_than_or_equal_op = 7  # '<='
+    kfp_greater_than_or_equal_op = 5  # '>='
+    kfp_substring_op = 9  # Substring match
+
+    filters = {"predicates": []}
+
+    if end_date:
+        filters["predicates"].append(
+            {
+                "key": "created_at",
+                "op": kfp_less_than_or_equal_op,
+                "timestamp_value": end_date,
+            }
+        )
+
+    if project_name and project_name != "*":
+        filters["predicates"].append(
+            {
+                "key": "name",
+                "op": kfp_substring_op,
+                "string_value": project_name,
+            }
+        )
+    if start_date:
+        filters["predicates"].append(
+            {
+                "key": "created_at",
+                "op": kfp_greater_than_or_equal_op,
+                "timestamp_value": start_date,
+            }
+        )
+    return json.dumps(filters)
+
+
+def validate_and_convert_date(date_input: str) -> str:
+    """
+    Converts any recognizable date string into a standardized RFC 3339 format.
+    :param date_input: A date string in a recognizable format.
+    """
+    try:
+        dt_object = parser.parse(date_input)
+        if dt_object.tzinfo is not None:
+            # Convert to UTC if it's in a different timezone
+            dt_object = dt_object.astimezone(pytz.utc)
+        else:
+            # If no timezone info is present, assume it's in local time
+            local_tz = pytz.timezone("UTC")
+            dt_object = local_tz.localize(dt_object)
+
+        # Convert the datetime object to an RFC 3339-compliant string.
+        # RFC 3339 requires timestamps to be in ISO 8601 format with a 'Z' suffix for UTC time.
+        # The isoformat() method adds a "+00:00" suffix for UTC by default,
+        # so we replace it with "Z" to ensure compliance.
+        formatted_date = dt_object.isoformat().replace("+00:00", "Z")
+        formatted_date = formatted_date.rstrip("Z") + "Z"
+
+        return formatted_date
+    except (ValueError, OverflowError) as e:
+        raise ValueError(
+            f"Invalid date format: {date_input}."
+            f" Date format must adhere to the RFC 3339 standard (e.g., 'YYYY-MM-DDTHH:MM:SSZ' for UTC)."
+        ) from e
 
 
 def are_strings_in_exception_chain_messages(

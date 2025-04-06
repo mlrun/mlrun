@@ -513,9 +513,10 @@ class Projects(
         session,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_token: str = "",
+        filter_: str = "",
     ):
         return services.api.crud.Pipelines().list_pipelines(
-            session, "*", format_=format_, page_token=page_token
+            session, "*", format_=format_, page_token=page_token, filter_=filter_
         )
 
     async def _calculate_pipelines_counters(
@@ -538,6 +539,10 @@ class Projects(
                 project_to_running_pipelines_count,
             )
 
+        # include pipelines created in the past 3 days.
+        start_date = mlrun.utils.validate_and_convert_date(
+            str(datetime.datetime.now() - datetime.timedelta(days=3))
+        )
         try:
             next_page_token = ""
             while True:
@@ -549,6 +554,7 @@ class Projects(
                     framework.db.session.run_function_with_new_db_session,
                     self._list_pipelines,
                     page_token=next_page_token,
+                    filter_=mlrun.utils.get_kfp_list_runs_filter(start_date=start_date),
                 )
 
                 for pipeline in pipelines:

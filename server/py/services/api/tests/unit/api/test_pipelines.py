@@ -262,7 +262,7 @@ def test_list_pipelines_name_contains(
     _mock_list_runs(
         kfp_client_mock,
         runs,
-        expected_filter=mlrun.utils.get_kfp_project_filter(project_name=project_name)
+        expected_filter=mlrun.utils.get_kfp_list_runs_filter(project_name=project_name)
         if project_name != "*"
         else "",
     )

@@ -12,13 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import json
 import typing
 from time import sleep
 
 import pandas as pd
-import pytz
-from dateutil import parser
 from kfp import Client
 
 import mlrun
@@ -53,14 +50,18 @@ def delete_project_old_pipelines(
 
     """
     # Validate and convert dates
-    end_date = _validate_and_convert_date(end_date)
-    start_date = "" if not start_date else _validate_and_convert_date(start_date)
+    end_date = mlrun.utils.validate_and_convert_date(end_date)
+    start_date = (
+        "" if not start_date else mlrun.utils.validate_and_convert_date(start_date)
+    )
 
     # get KFP client
     kfp_client = _get_kfp_client()
 
     # Generate filter and query runs
-    query_filter = _get_list_runs_filter(project_name, end_date, start_date)
+    query_filter = mlrun.utils.get_kfp_list_runs_filter(
+        project_name, end_date, start_date
+    )
 
     # Query and filter runs
     runs, experiments_ids = _query_and_filter_runs(
@@ -77,70 +78,11 @@ def delete_project_old_pipelines(
     _delete_empty_experiments(context, kfp_client, experiments_ids)
 
 
-def _validate_and_convert_date(date_input: str) -> str:
-    """
-    Converts any recognizable date string into a standardized RFC 3339 format.
-    :param date_input: A date string in a recognizable format.
-    """
-    try:
-        dt_object = parser.parse(date_input)
-        if dt_object.tzinfo is not None:
-            # Convert to UTC if it's in a different timezone
-            dt_object = dt_object.astimezone(pytz.utc)
-        else:
-            # If no timezone info is present, assume it's in local time
-            local_tz = pytz.timezone("UTC")
-            dt_object = local_tz.localize(dt_object)
-
-        # Convert the datetime object to an RFC 3339-compliant string.
-        # RFC 3339 requires timestamps to be in ISO 8601 format with a 'Z' suffix for UTC time.
-        # The isoformat() method adds a "+00:00" suffix for UTC by default,
-        # so we replace it with "Z" to ensure compliance.
-        formatted_date = dt_object.isoformat().replace("+00:00", "Z")
-        formatted_date = formatted_date.rstrip("Z") + "Z"
-
-        return formatted_date
-    except (ValueError, OverflowError) as e:
-        raise ValueError(
-            f"Invalid date format: {date_input}."
-            f" Date format must adhere to the RFC 3339 standard (e.g., 'YYYY-MM-DDTHH:MM:SSZ' for UTC)."
-        ) from e
-
-
 def _get_kfp_client(
     kfp_url=mlrun.mlconf.kfp_url, namespace: str = mlrun.mlconf.namespace
 ) -> Client:
     kfp_client = mlrun_pipelines.utils.get_client(kfp_url, namespace)
     return kfp_client
-
-
-def _get_list_runs_filter(project_name: str, end_date: str, start_date: str) -> str:
-    filters = {
-        "predicates": [
-            {
-                "key": "created_at",
-                "op": 7,  # Operation 7 corresponds to '<=' (less than or equal)
-                "timestamp_value": end_date,
-            },
-        ]
-    }
-    if project_name != "*":
-        filters["predicates"].append(
-            {
-                "key": "name",
-                "op": 9,  # Operation 9 corresponds to substring matching
-                "string_value": project_name,
-            }
-        )
-    if start_date:
-        filters["predicates"].append(
-            {
-                "key": "created_at",
-                "op": 5,  # Operation 5 corresponds to '>=' (greater than or equal)
-                "timestamp_value": start_date,
-            }
-        )
-    return json.dumps(filters)
 
 
 def _query_and_filter_runs(

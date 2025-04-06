@@ -272,7 +272,7 @@ class ServingRuntime(RemoteRuntime):
 
           flow   - workflow (DAG) with a chain of states
                    flow supports both "sync" and "async" engines, with "async" being the default.
-                   branches are not allowed in sync mode
+                   Branches are not allowed in sync mode.
                    when using async mode calling state.respond() will mark the state as the
                    one which generates the (REST) call response
 

@@ -974,8 +974,7 @@ class OnlineSource(BaseSourceDriver):
         if (
             function.spec
             and hasattr(function.spec, "graph")
-            and function.spec.graph
-            and function.spec.graph.engine
+            and hasattr(function.spec.graph, "engine")
         ):
             engine = function.spec.graph.engine
         if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":

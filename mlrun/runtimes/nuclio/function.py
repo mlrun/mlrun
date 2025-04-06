@@ -580,8 +580,7 @@ class RemoteRuntime(KubeResource):
         if (
             self.spec
             and hasattr(self.spec, "graph")
-            and self.spec.graph
-            and self.spec.graph.engine
+            and hasattr(self.spec.graph, "engine")
         ):
             engine = self.spec.graph.engine
         if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":

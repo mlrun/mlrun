@@ -486,6 +486,10 @@ default_config = {
             "iguazio_client_job_cache_ttl": "20 minutes",
             "nuclio_project_deletion_verification_timeout": "300 seconds",
             "nuclio_project_deletion_verification_interval": "5 seconds",
+            "summaries": {
+                # Number of days back to include when calculating the project pipeline summary.
+                "list_pipelines_time_period_in_days": 7,
+            },
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",

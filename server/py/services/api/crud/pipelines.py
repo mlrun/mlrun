@@ -346,10 +346,6 @@ class Pipelines(
             experiment = mlrun_pipelines.models.PipelineExperiment(
                 kfp_client.create_experiment(name=experiment_name)
             )
-            mlrun.utils.logger.error("experiment", experiment=experiment)
-            mlrun.utils.logger.error("run_name", run_name=run_name)
-            mlrun.utils.logger.error("pipeline_file", pipeline_file=pipeline_file.name)
-            mlrun.utils.logger.error("arguments", arguments=arguments)
             run = mlrun_pipelines.models.PipelineRun(
                 kfp_client.run_pipeline(
                     experiment.id, run_name, pipeline_file.name, params=arguments

@@ -608,13 +608,12 @@ class TestRuns(TestDatabaseBase):
             )
 
             # Set the same `start_time` timestamp for all runs
-            db_run = self._db._query(
-                self._db_session, framework.db.sqldb.models.Run, name=run_name
-            ).one_or_none()
-            db_run.start_time = t1
-            self._db_session.add(db_run)
-            self._db._commit(self._db_session, db_run)
-            self._db_session.flush()
+            self._db.update_db_object(
+                self._db_session,
+                framework.db.sqldb.models.Run,
+                filters={"name": run_name},
+                start_time=t1,
+            )
 
         runs = self._db.list_runs(
             self._db_session,
@@ -631,6 +630,22 @@ class TestRuns(TestDatabaseBase):
             assert (
                 run_name == expected_name
             ), f"Expected {expected_name}, got {run_name}"
+
+    def test_list_runs_with_missing_milliseconds_in_timestamp(self):
+        self._create_new_run(project="my-project")
+
+        t1 = datetime.now().replace(microsecond=0)
+
+        # Set the `start_time` and `end_time` timestamps without microseconds
+        self._db.update_db_object(
+            self._db_session, framework.db.sqldb.models.Run, start_time=t1, end_time=t1
+        )
+
+        runs = self._db.list_runs(self._db_session, project="my-project")
+        assert len(runs) == 1
+
+        assert runs[0]["status"]["start_time"].endswith(".000000+00:00")
+        assert runs[0]["status"]["end_time"].endswith(".000000+00:00")
 
     @staticmethod
     def _change_run_record_to_before_align_runs_migration(run, time_before_creation):

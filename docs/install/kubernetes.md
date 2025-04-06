@@ -159,12 +159,11 @@ When the installation is complete, the helm command prints the URLs and ports of
 TDengine and Kafka are part of the default CE installations. These are the default TDengine and Kafka installation values:
 
 ```py
-stream_path = "kafka://kafka-stream:9092" 
-tsdb_connection = "taosws://root:taosdata@tdengine-tsdb:6041" 
+stream_path = "kafka://kafka-stream:9092"
+tsdb_connection = "taosws://root:taosdata@tdengine-tsdb:6041"
 project.set_model_monitoring_credentials(
-        tsdb_connection=tsdb_connection,
-        stream_path=stream_path
-    ) 
+    tsdb_connection=tsdb_connection, stream_path=stream_path
+)
 ```
 
 See more details, including additional configuration options, in {py:class}`mlrun.projects.MlrunProject.set_model_monitoring_credentials`.

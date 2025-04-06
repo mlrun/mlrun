@@ -161,8 +161,7 @@ def kfp_client_mock(monkeypatch):
         mock.Mock(return_value=mock_experiment_api),
     )
     monkeypatch.setattr(
-        "kubernetes.config.incluster_config.load_incluster_config",
-        lambda: None
+        "kubernetes.config.incluster_config.load_incluster_config", lambda: None
     )
 
     mock_run_api = mock.Mock()

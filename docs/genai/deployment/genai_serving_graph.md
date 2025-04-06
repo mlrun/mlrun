@@ -5,7 +5,7 @@ During inference, it is common to serve a gen AI model as part of a larger pipel
 
 ## A basic graph
 
-The following code shows how to set up a simple pipeline that includes a single step. This example is taken from the [Interactive bot demo using LLMs and MLRun](https://github.com/mlrun/demo-llm-bot) which calls OpenAI ChatGPT model:
+The following code shows how to set up a simple pipeline that includes a single step. This example calls an OpenAI ChatGPT model:
 
 ```python
 class QueryLLM:

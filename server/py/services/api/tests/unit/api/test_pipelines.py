@@ -689,7 +689,7 @@ def _generate_workflow_manifest(with_status=False):
     return json.dumps(workflow_manifest)
 
 
-def _mock_pipelines_creation(kfp_client_mock: mlrun_pipelines.imports.Client):
+def _mock_pipelines_creation(kfp_client_mock: mlrun_pipelines.client.Client):
     def _mock_create_experiment(name, description=None, namespace=None):
         return kfp_server_api.models.ApiExperiment(
             id="some-exp-id",
@@ -731,7 +731,7 @@ def _mock_list_runs_with_one_run_per_page(
 
 
 def _mock_list_runs(
-    kfp_client_mock: mlrun_pipelines.imports.Client,
+    kfp_client_mock: mlrun_pipelines.client.Client,
     runs,
     expected_page_token="",
     expected_page_size=mlrun.common.schemas.PipelinesPagination.max_page_size,

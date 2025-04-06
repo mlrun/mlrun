@@ -544,7 +544,7 @@ class Projects(
             str(
                 datetime.datetime.now()
                 - datetime.timedelta(
-                    days=mlrun.mlconf.httpdb.pipelines.days_back_for_project_counters
+                    days=mlrun.mlconf.httpdb.projects.summaries.list_pipelines_time_period_in_days
                 )
             )
         )

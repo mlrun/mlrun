@@ -749,7 +749,7 @@ class RunDBInterface(ABC):
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: Optional[str] = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         pass

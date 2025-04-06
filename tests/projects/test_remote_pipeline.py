@@ -124,7 +124,6 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                     elif step.get("name") == "func2-func2":
                         assert step.get("PriorityClassName") == "default-low"
 
-
     # Will be fixed in a follow up PR handling KFP pods
     # def test_kfp_pipeline_enriched_with_affinity_and_tolerations_enriched_by_preemption_mode(
     #     self, rundb_mock, workflow_path

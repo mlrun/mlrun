@@ -275,7 +275,6 @@ async def list_model_endpoints(
         tsdb_metrics=tsdb_metrics,
         uids=uids,
         latest_only=latest_only,
-        metrics=metrics,
         db_session=db_session,
     )
     allowed_endpoints = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(

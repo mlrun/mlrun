@@ -914,8 +914,8 @@ class ModelEndpoints:
         :param function_name:              The name of the function
         :param function_tag:               The tag of the function
         :param endpoint_id:                The unique id of the model endpoint.
-        :param tsdb_metrics:               When True, the time series metrics will be added to the output
-                                           of the resulting.
+        :param tsdb_metrics:               Comma separated list of metric names to add. Defaults to all available
+                                           metrics. To disable, set to "false".
         :param feature_analysis:           When True, the base feature statistics and current feature statistics will
                                            be added to the output of the resulting object.
 
@@ -995,10 +995,10 @@ class ModelEndpoints:
         :param start:               The start time of the model endpoint creation.
         :param end:                 The end time of the model endpoint creation.
         :param top_level:           When True, only top level model endpoints will be returned.
-        :param tsdb_metrics:        When True, the time series metrics will be added to the output of the resulting
+        :param tsdb_metrics:        Comma separated list of metric names to add. Defaults to all available metrics.
+                                    To disable, set to "false".
         :param uids:                A list of unique ids of the model endpoints.
         :param latest_only:         When True, only the latest model endpoint will be returned.
-        :param metrics:             A list of metrics to add. Defaults to all metrics.
         :return:                    A list of `ModelEndpoint` objects.
         """
 
@@ -1021,7 +1021,6 @@ class ModelEndpoints:
             tsdb_metrics=tsdb_metrics,
             uids=uids,
             latest_only=latest_only,
-            metrics=metrics,
         )
 
         # Initialize an empty model endpoints list
@@ -1046,7 +1045,7 @@ class ModelEndpoints:
             endpoint_list.endpoints = await self._add_basic_metrics(
                 model_endpoint_objects=endpoint_list.endpoints,
                 project=project,
-                metrics=metrics,
+                metrics=tsdb_metrics,
             )
 
         return endpoint_list

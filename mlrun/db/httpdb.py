@@ -3784,7 +3784,8 @@ class HTTPRunDB(RunDBInterface):
         :param labels:          A list of labels to filter by. (see mlrun.common.schemas.LabelsModel)
         :param start:           The start time to filter by.Corresponding to the `created` field.
         :param end:             The end time to filter by. Corresponding to the `created` field.
-        :param tsdb_metrics:    A list of metrics to add. Defaults to all metrics.
+        :param tsdb_metrics:    Comma separated list of metric names to add. Defaults to all available metrics. To
+                                disable, set to "false".
         :param top_level:       Whether to return only top level model endpoints.
         :param uids:            A list of unique ids to filter by.
         :param latest_only:     Whether to return only the latest model endpoint version.
@@ -3833,7 +3834,8 @@ class HTTPRunDB(RunDBInterface):
         :param function_name:              The name of the function
         :param function_tag:               The tag of the function
         :param endpoint_id:                The id of the endpoint
-        :param tsdb_metrics:               Whether to include metrics from the time series DB.
+        :param tsdb_metrics:               Comma separated list of metric names to add. Defaults to all available
+                                           metrics. To disable, set to "false".
         :param feature_analysis:           Whether to include feature analysis data (feature_stats,
                                             current_stats & drift_measures).
 

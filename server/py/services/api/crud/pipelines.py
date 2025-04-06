@@ -82,7 +82,9 @@ class Pipelines(
                 "Applying project-based filter for project to match pipelines with project name as a substring",
                 project=project_names[0],
             )
-            filter_ = mlrun.utils.get_kfp_project_filter(project_name=project_names[0])
+            filter_ = mlrun.utils.get_kfp_list_runs_filter(
+                project_name=project_names[0]
+            )
         runs, next_page_token = self._paginate_runs(
             kfp_client, page_token, page_size, sort_by, filter_
         )

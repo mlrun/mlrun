@@ -14,9 +14,7 @@
 
 import subprocess
 
-acceptable_stderr_errors = [
-    "Kubeflow Pipelines (KFP) is not installed. Using noop implementations."
-]
+acceptable_stderr_errors = []
 
 
 def test_import_mlrun():

@@ -13,12 +13,12 @@
 # limitations under the License.
 #
 
-ARG MLRUN_PYTHON_VERSION=3.9
+ARG MLRUN_PYTHON_VERSION=3.11
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
 
-FROM quay.io/mlrun/jupyter-scipy-notebook:python-${MLRUN_PYTHON_VERSION}
+FROM quay.io/jupyter/scipy-notebook:python-${MLRUN_PYTHON_VERSION}
 
 USER root
 RUN apt-get update && \
@@ -37,6 +37,13 @@ RUN apt-get update  \
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/
+
+# ✅ Create 'mlrun' conda env and make it default
+RUN conda create -y -n mlrun python=${MLRUN_PYTHON_VERSION} && \
+    echo "conda activate mlrun" >> /etc/profile.d/mlrun.sh && \
+    echo "conda activate mlrun" >> ~/.bashrc && \
+    ln -sf /opt/conda/envs/mlrun/bin/python /usr/local/bin/python && \
+    conda init
 
 USER $NB_UID
 

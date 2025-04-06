@@ -45,6 +45,11 @@
     "include-suffix":""
   },
   {
+    "image-name":"jupyter",
+    "python-version":"3.11",
+    "include-suffix":""
+  },
+  {
     "image-name":"test",
     "python-version":"3.9",
     "include-suffix":""

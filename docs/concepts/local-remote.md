@@ -25,6 +25,8 @@ There is one pod for each function, and also a batch pod for each function.
 
 Set `engine = remote:kfp` in `function.run()`.
 
+See also [Local and KFP engine pipeline notifications](../concepts/notifications.md#local-and-kfp-engine-pipeline-notifications) and [Setting notifications on scheduled run](../concepts/notifications.md#setting-notifications-on-scheduled-runs).
+
 ## Remote
 
 The spec file is created in MLRun and is compiled in the user environment. Then it is sent to the MLRun API, which sends it to the KFP to run the workflow.
@@ -32,6 +34,8 @@ The spec file is created in MLRun and is compiled in the user environment. Then 
 There is one pod for each function, and also a batch pod for each function.
 
 Remote workflows must be based on the image `mlrun/mlrun-kfp`. (See {ref}`images-usage`.) 
+
+See also [Remote pipeline notifications](../concepts/notifications.md#remote-pipeline-notifications).
 
 ## Local workflows
 
@@ -43,4 +47,7 @@ Running workflows locally uses a completely different environment, for example, 
 
 This option is configured by setting `local=True` in `function.run()`.
 
-Local workflows must be based on the image `mlrun/mlrun-kfp`. (See {ref}`images-usage`.) If you are installing the package in an pre-existing python environment, it's recommended to create a new venv exclusively for installing MLRun.
+Local workflows must be based on the image `mlrun/mlrun-kfp`. (See {ref}`images-usage`.)
+If you are installing the package in an pre-existing python environment, it's recommended to create a new venv exclusively for installing MLRun.
+
+See also [Local and KFP engine pipeline notifications](../concepts/notifications.md#local-and-kfp-engine-pipeline-notifications).

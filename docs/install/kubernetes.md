@@ -154,14 +154,6 @@ When the installation is complete, the helm command prints the URLs and ports of
 - An issue with Prometheus node selector. The workaround for now is to opt out of kube-prometheus-stack by installing the chart with the `--set kube-prometheus-stack.enabled=false`.
 ```
 
-## Configuring the online feature store
-The MLRun Community Edition supports the online feature store. To enable it, you need to first deploy a Redis service that is accessible to your MLRun CE cluster.
-To deploy a Redis service, refer to the [Redis documentation](https://redis.io/learn/howtos/quick-start).
-
-When you have a Redis service deployed, you can configure MLRun CE to use it by adding the following helm value configuration to your helm install command:
-```bash
---set mlrun.api.extraEnvKeyValue.MLRUN_REDIS__URL=<redis-address>
-```
 
 ## Usage
 
@@ -186,6 +178,18 @@ a minute for all services to start.
 You can change the ports by providing values to the helm install command.
 You can add and configure a Kubernetes ingress-controller for better security and control over external access.
 ```
+
+## Configuring the online feature store
+The MLRun Community Edition supports the online feature store. To enable it, you need to first deploy a Redis service that is accessible to your MLRun CE cluster.
+To deploy a Redis service, refer to the [Redis documentation](https://redis.io/learn/howtos/quick-start).
+
+When you have a Redis service deployed, you can configure MLRun CE to use it by adding the following helm value configuration to your helm install command:
+```bash
+--set mlrun.api.extraEnvKeyValue.MLRUN_REDIS__URL=<redis-address>
+```
+
+## Optional additional packages
+To run local Spark jobs on the MLRun CE Jupyter, install PySpark.
 
 ## Start working
     

@@ -43,8 +43,9 @@ ARG MLRUN_PYTHON_VERSION=3.11
 
 # Create 'mlrun' conda env and make it default
 RUN conda create -y -n mlrun python=${MLRUN_PYTHON_VERSION} && \
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> /etc/profile.d/mlrun.sh && \
     echo "conda activate mlrun" >> /etc/profile.d/mlrun.sh && \
-    echo "conda activate mlrun" >> ~/.bashrc && \
+    echo ". /opt/conda/etc/profile.d/conda.sh && conda activate mlrun" >> ~/.bashrc && \
     ln -sf /opt/conda/envs/mlrun/bin/python /usr/local/bin/python && \
     conda init
 

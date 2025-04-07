@@ -38,16 +38,14 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/
 
-# need to be redeclared since used in the from
+# Redeclare python version (used above in FROM)
 ARG MLRUN_PYTHON_VERSION=3.11
 
 # Create 'mlrun' conda env and make it default
 RUN conda create -y -n mlrun python=${MLRUN_PYTHON_VERSION} && \
-    echo ". /opt/conda/etc/profile.d/conda.sh" >> /etc/profile.d/mlrun.sh && \
-    echo "conda activate mlrun" >> /etc/profile.d/mlrun.sh && \
-    echo ". /opt/conda/etc/profile.d/conda.sh && conda activate mlrun" >> ~/.bashrc && \
     ln -sf /opt/conda/envs/mlrun/bin/python /usr/local/bin/python && \
-    conda init
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
+    echo "conda activate mlrun" >> ~/.bashrc
 
 # Ensure uv uses mlrun conda env
 ENV PATH="/opt/conda/envs/mlrun/bin:$PATH"

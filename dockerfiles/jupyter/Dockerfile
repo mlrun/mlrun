@@ -70,6 +70,9 @@ COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlce-start.sh /usr/local/bin/
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 
+# Switch to root user to allow writing into the conda environment directories.
+# This is required because 'uv pip install' installs packages into /opt/conda/envs/mlrun/,
+# which is owned by root and not writable by the default (non-root) user.
 USER root
 
 # no-deps to ignore existing dependencies, just add the locked requirements
@@ -95,6 +98,7 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 # cleanup, source code is not needed anymore
 RUN rm -rf /tmp/mlrun && rm -rf $HOME/.cache
 
+# Revert back to non-root user
 USER $NB_UID
 
 # This will usually cause a cache miss - so keep it in the last layers

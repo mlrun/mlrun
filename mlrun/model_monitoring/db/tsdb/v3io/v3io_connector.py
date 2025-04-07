@@ -1107,6 +1107,8 @@ class V3IOTSDBConnector(TSDBConnector):
             uids.append(uid)
             model_endpoint_objects_by_uid[uid] = model_endpoint_object
 
+        metrics_list = []
+        get_all_metrics = metrics is None
         if metrics == "false":
             metric_name_to_function_and_column_name = {}
         else:
@@ -1115,9 +1117,10 @@ class V3IOTSDBConnector(TSDBConnector):
                 "avg_latency": (self.get_avg_latency, "avg(latency)"),
                 "result_status": (self.get_drift_status, "max(result_status)"),
             }
-            if metrics is not None:
+            if not get_all_metrics:
+                metrics_list = metrics.split(",")
                 for metric_name in list(metric_name_to_function_and_column_name):
-                    if metric_name not in metrics.split(","):
+                    if metric_name not in metrics_list:
                         del metric_name_to_function_and_column_name[metric_name]
 
         metric_name_to_result = {}
@@ -1152,9 +1155,10 @@ class V3IOTSDBConnector(TSDBConnector):
                 metric_name_to_function_and_column_name[metric_name][1],
                 result,
             )
-        self._enrich_mep_with_last_request(
-            model_endpoint_objects_by_uid=model_endpoint_objects_by_uid
-        )
+        if get_all_metrics or "last_request" in metrics_list:
+            self._enrich_mep_with_last_request(
+                model_endpoint_objects_by_uid=model_endpoint_objects_by_uid
+            )
         return list(model_endpoint_objects_by_uid.values())
 
     def _enrich_mep_with_last_request(

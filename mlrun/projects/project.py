@@ -3829,6 +3829,8 @@ class MlrunProject(ModelObj):
         :param end:                       The end time to filter by. Corresponding to the `created` field.
         :param top_level: if true will return only routers and endpoint that are NOT children of any router
         :param uids: if passed will return a list `ModelEndpoint` object with uid in uids
+        :param tsdb_metrics: Comma separated list of metric names to add. Defaults to all available metrics. To
+            disable, set to "false".
 
         :returns: Returns a list of `ModelEndpoint` objects.
         """

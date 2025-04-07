@@ -1365,9 +1365,8 @@ class ModelEndpoints:
         Add basic metrics to the model endpoint object.
 
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
-                                        be filled with the relevant basic metrics.
+                                       be filled with the relevant basic metrics.
         :param project:                The name of the project.
-
         :param metrics:                Comma separated list of metric names to add. Defaults to all available metrics.
                                        To disable, set to "false".
 

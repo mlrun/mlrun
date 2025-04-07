@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 # test_httpdb.py actually holds integration tests (that should be migrated to tests/integration/sdk_api/httpdb)
 # currently we are running it in the integration tests CI step so adding this file for unit tests for the httpdb
 import enum

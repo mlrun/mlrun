@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import copy
 import datetime
 import tempfile
@@ -1612,13 +1612,12 @@ class TestArtifacts(TestDatabaseBase):
             )
 
             # Set the same `updated` timestamp for all artifacts
-            db_artifact = self._db._query(
-                self._db_session, ArtifactV2, key=artifact_key
-            ).one_or_none()
-            db_artifact.updated = t1
-            self._db_session.add(db_artifact)
-            self._db._commit(self._db_session, db_artifact)
-            self._db_session.flush()
+            self._db.update_db_object(
+                self._db_session,
+                framework.db.sqldb.models.ArtifactV2,
+                filters={"key": artifact_key},
+                updated=t1,
+            )
 
         artifacts = self._db.list_artifacts(
             self._db_session, project=project, limit=limit

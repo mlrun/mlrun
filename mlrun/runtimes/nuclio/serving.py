@@ -271,7 +271,8 @@ class ServingRuntime(RemoteRuntime):
                    can specify special router class and router arguments
 
           flow   - workflow (DAG) with a chain of states
-                   flow support "sync" and "async" engines, branches are not allowed in sync mode
+                   flow supports both "sync" and "async" engines, with "async" being the default.
+                   Branches are not allowed in sync mode.
                    when using async mode calling state.respond() will mark the state as the
                    one which generates the (REST) call response
 
@@ -300,7 +301,7 @@ class ServingRuntime(RemoteRuntime):
                 step = RouterStep(class_name=class_name, class_args=class_args)
             self.spec.graph = step
         elif topology == StepKinds.flow:
-            self.spec.graph = RootFlowStep(engine=engine)
+            self.spec.graph = RootFlowStep(engine=engine or "async")
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"unsupported topology {topology}, use 'router' or 'flow'"

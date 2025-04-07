@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import http
 import importlib
@@ -262,7 +262,7 @@ def test_list_pipelines_name_contains(
     _mock_list_runs(
         kfp_client_mock,
         runs,
-        expected_filter=mlrun.utils.get_kfp_project_filter(project_name=project_name)
+        expected_filter=mlrun.utils.get_kfp_list_runs_filter(project_name=project_name)
         if project_name != "*"
         else "",
     )

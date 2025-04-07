@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import time
 
@@ -21,6 +21,7 @@ import pytest
 import mlrun.common.schemas
 import mlrun.errors
 
+import framework.db.sqldb.models
 from framework.db.sqldb.db import unversioned_tagged_object_uid_prefix
 from framework.db.sqldb.models import Function
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
@@ -522,7 +523,7 @@ class TestFunctions(TestDatabaseBase):
 
         # extract the updated time of the functions
         function_times = [
-            function["metadata"]["updated"]
+            datetime.datetime.fromisoformat(function["metadata"]["updated"])
             for function in sorted(
                 all_functions, key=lambda x: x["metadata"]["updated"]
             )
@@ -705,6 +706,70 @@ class TestFunctions(TestDatabaseBase):
             assert (
                 function_name == expected_name
             ), f"Expected {expected_name}, got {function_name}"
+
+    def test_list_functions_orders_by_id_when_updated_is_identical(self):
+        # this test verifies that when updated date is identical, functions should be ordered by function id
+        number_of_functions = 10
+        t1 = datetime.datetime.now()
+        for counter in range(number_of_functions):
+            function_name = f"function-{counter}"
+            function = self._generate_function(function_name)
+            tag = "some_tag"
+            self._db.store_function(
+                self._db_session,
+                function.to_dict(),
+                function.metadata.name,
+                versioned=False,
+                tag=tag,
+            )
+
+            # Set the same `updated` timestamp for all functions
+            self._db.update_db_object(
+                self._db_session,
+                framework.db.sqldb.models.Function,
+                filters={"name": function_name},
+                updated=t1,
+            )
+
+        functions = self._db.list_functions(self._db_session)
+
+        assert (
+            len(functions) == number_of_functions
+        ), f"Expected {number_of_functions} results, got {len(functions)}"
+
+        expected_names = [
+            f"function-{i}" for i in range(number_of_functions - 1, -1, -1)
+        ]
+
+        for function, expected_name in zip(functions, expected_names):
+            function_name = function["metadata"]["name"]
+            assert (
+                function_name == expected_name
+            ), f"Expected {expected_name}, got {function_name}"
+
+    def test_list_functions_with_missing_milliseconds_in_timestamp(self):
+        function = self._generate_function()
+        tag = "some_tag"
+        self._db.store_function(
+            self._db_session,
+            function.to_dict(),
+            function.metadata.name,
+            versioned=False,
+            tag=tag,
+        )
+
+        # Set the `updated` timestamp without microseconds
+        t1 = datetime.datetime.now().replace(microsecond=0)
+        self._db.update_db_object(
+            self._db_session,
+            framework.db.sqldb.models.Function,
+            updated=t1,
+        )
+
+        functions = self._db.list_functions(self._db_session)
+        assert len(functions) == 1
+
+        assert functions[0]["metadata"]["updated"].endswith(".000000+00:00")
 
     def test_delete_functions(self):
         names = ["some_name", "some_name2", "some_name3"]

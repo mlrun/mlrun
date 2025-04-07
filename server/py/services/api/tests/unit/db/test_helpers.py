@@ -24,13 +24,14 @@ class TestHelpers(TestDatabaseBase):
     @pytest.mark.parametrize(
         "labels",
         [
-            ("my-str"),
-            ([]),
-            (None),
-            ({"a": [{"b": "c"}]}),
-            ({1: "a"}),
-            ({"a" * 256: "b"}),
-            ({"a": "b" * 256}),
+            ("my-str",),
+            ([],),
+            (None,),
+            ({"a": [{"b": "c"}]},),
+            ({1: "a"},),
+            ({"a": None},),
+            ({"a" * 256: "b"},),
+            ({"a": "b" * 256},),
         ],
     )
     def test_update_labels_invalid(self, labels):

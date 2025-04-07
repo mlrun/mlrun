@@ -1,4 +1,4 @@
-# Copyright 2024 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-def test(event, context):
-    param = context.get_param("Test")
-    return param
+from tests.common_fixtures import (  # noqa: F401  # Linter incorrectly flags this as unused
+    config_test_base,
+)

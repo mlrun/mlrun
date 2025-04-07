@@ -142,7 +142,7 @@ class EventStreamProcessor:
 
         graph = typing.cast(
             mlrun.serving.states.RootFlowStep,
-            fn.set_topology(mlrun.serving.states.StepKinds.flow),
+            fn.set_topology(mlrun.serving.states.StepKinds.flow, engine="async"),
         )
 
         # split the graph between event with error vs valid event

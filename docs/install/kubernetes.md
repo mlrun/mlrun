@@ -156,7 +156,7 @@ When the installation is complete, the helm command prints the URLs and ports of
 ```
 
 ## Configuring TDengine and Kafka for model monitoring
-TDengine and Kafka are part of the default CE installations. These are the default TDengine and Kafka installation values:
+TDengine and Kafka are part of the default CE installations. These are the default TDengine and Kafka installation values. It's recommended to change the user/password.
 
 ```py
 stream_path = "kafka://kafka-stream:9092"

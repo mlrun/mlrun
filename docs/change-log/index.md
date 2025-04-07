@@ -101,7 +101,6 @@ To upgrade the MLRun server:
 |ML-8949|Only one artifact is tagged as latest, resolving the MultipleResultsFound error.|
 |ML-9155|The improved performance reduces timeouts that cause restart of MLRun workers.|
 |ML-9201|Running `project.run` with `dirty=True` skips the git check for dirty.|
-|ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.|
 |ML-9257|Model monitoring: A mismatch between the serving function response and the MEP expected output is saved correctly (and does not cause the application to fail).|
 |ML-9341|Increased the limit of alert configurations on the system up to 20k (from 10k).|
 |ML-9432|Notifications no longer get stuck in "Pending" in the DB.|
@@ -1239,10 +1238,10 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted. | Abort the job from the SDK instead of from the UI, or upgrade the client to v1.6.0 or higher. | v1.6.0 |
 |ML-8088|
 |ML-8174| A loaded system takes a few minutes (±5) to calculate the statistics in the Projects Monitoring pane.|NA| v1.7.0|
-|ML-8601|Default spot labels node selector is removed. |......| v1.7.0|
+|ML-8601|Default spot labels node selector is removed. || v1.7.0|
 |ML-8699|After upgrade/restart there may be some lost notifications due to restart of the chief.|NA| v1.8.0|
 |ML-8996|Occasionally, deleting projects fails with 'Fail to delete project in MLRun' | Try deleting the project again.| v1.8.0|
-
+|ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.| NA|v1.8.0|
 ## Deprecations and removed code
 
 | In    |ID     |Description                                                                                                                                                                                                                         |

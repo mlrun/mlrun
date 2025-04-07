@@ -539,9 +539,14 @@ class Projects(
                 project_to_running_pipelines_count,
             )
 
-        # include pipelines created in the past 3 days.
+        # include pipelines created in the past x days.
         start_date = mlrun.utils.validate_and_convert_date(
-            str(datetime.datetime.now() - datetime.timedelta(days=3))
+            str(
+                datetime.datetime.now()
+                - datetime.timedelta(
+                    days=mlrun.mlconf.httpdb.projects.summaries.list_pipelines_time_period_in_days
+                )
+            )
         )
         try:
             next_page_token = ""

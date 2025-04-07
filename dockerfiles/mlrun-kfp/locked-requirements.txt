@@ -1581,10 +1581,13 @@ kfp-server-api==1.8.5 ; python_full_version < '3.11' \
     --hash=sha256:482d71765ba57c003164dbb980a8cb1a18d234b578d064dc88dbeb3e4c7ab6de
     # via
     #   kfp
+    #   mlrun-pipelines-kfp-common
     #   mlrun-pipelines-kfp-v1-8
 kfp-server-api==2.4.0 ; python_full_version >= '3.11' \
     --hash=sha256:9d71ce49fc6757af14b052cc47e4cb531cb4e4584c2ea76ec02b9197ee9a674f
-    # via mlrun-pipelines-kfp-v2
+    # via
+    #   mlrun-pipelines-kfp-common
+    #   mlrun-pipelines-kfp-v2
 kiwisolver==1.4.7 ; python_full_version < '3.10' \
     --hash=sha256:073a36c8273647592ea332e816e75ef8da5c303236ec0167196793eb1e34657a \
     --hash=sha256:08471d4d86cbaec61f86b217dd938a83d85e03785f51121e791a6e6689a3be95 \
@@ -1983,19 +1986,19 @@ mlflow-skinny==2.21.3 \
     --hash=sha256:4623144ad0a7441f13e0face059165754af72d4e16e4418abb16f56fcde50131 \
     --hash=sha256:a93d928a5123bfbfdcb8ded749156b99813158e8b16bdf137bebb0883cea353d
     # via mlflow
-mlrun-pipelines-kfp-common==0.3.12 \
-    --hash=sha256:52e0b8b1b7e5302493d8c7425a2c298f63393c5f728e73cf22adf4a13c5cb76c \
-    --hash=sha256:c958ae14c021293b42dcc9bb42c1da4b1574f2bf2edd0489dbde63aa23a5c61f
+mlrun-pipelines-kfp-common==0.4.1 \
+    --hash=sha256:05d51a9589cf2b8d588728ebc215457a04e994cdf42d504107a06974b16c759b \
+    --hash=sha256:6dcf8693b3828c5aa4a42e6e8e7a826c1417c0e3fd97f73ad412b85551c2c3b6
     # via -r requirements.txt
-mlrun-pipelines-kfp-v1-8==0.3.9 ; python_full_version < '3.11' \
-    --hash=sha256:9acfab895137ba3dfe1a24de1265222339e81a83e73b40ef28afd05311e430f5 \
-    --hash=sha256:a88cbfa199269ddb31c8864fbf7596014026f9f36de0af4666e921690e38728e
+mlrun-pipelines-kfp-v1-8==0.4.0 ; python_full_version < '3.11' \
+    --hash=sha256:1450f4f3956b37e0c546d90a88b479245cafe819d735d40773cd2e6ecf692984 \
+    --hash=sha256:3f23e4baee65a8f0a1ef8482a50abd02786a41f7cdcfa9a3b5d8a0f80631044c
     # via
     #   -r dockerfiles/mlrun-kfp/requirements.txt
     #   -r requirements.txt
-mlrun-pipelines-kfp-v2==0.3.8 ; python_full_version >= '3.11' \
-    --hash=sha256:84d729d9276492dad37e8f297fa9f1bdfdb2b065823dd3459762af111c564672 \
-    --hash=sha256:c2fc7d9ba9dc21b69d7c7acf79653b9e6891d3b30a2a2a35f86aeee17ca32510
+mlrun-pipelines-kfp-v2==0.4.2 ; python_full_version >= '3.11' \
+    --hash=sha256:ee8b31683dbeb41e4896a462d7f4143ac1c4e0769eab150c848ff58a741bfcbc \
+    --hash=sha256:f4837a2aa4840b94ab538741cf073611f8089f1ab924a4faca7d7a7ee46fa40e
     # via -r requirements.txt
 msal==1.32.0 \
     --hash=sha256:5445fe3af1da6be484991a7ab32eaa82461dc2347de105b76af92c610c3335c2 \

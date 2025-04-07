@@ -15,6 +15,7 @@
 
 import json
 import typing
+from enum import IntEnum
 from typing import Any, Union
 
 from kfp_server_api.models.api_run_detail import ApiRunDetail
@@ -190,3 +191,13 @@ class PipelineExperiment(FlexibleMapper):
     @property
     def id(self):
         return self._external_data["id"]
+
+
+class FilterOperations(IntEnum):
+    UNKNOWN = 0
+    EQUALS = 1
+    NOT_EQUALS = 2
+    GREATER_THAN = 3
+    GREATER_THAN_EQUALS = 5
+    LESS_THAN = 6
+    LESS_THAN_EQUALS = 7

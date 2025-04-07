@@ -72,10 +72,10 @@ try:
     Compiler = real_compiler.Compiler
     PipelineTask = real_PipelineTask
     Client = real_Client
+    kfp.Client = Client
 
 except ImportError:
     from mlrun_pipelines.common.imports import (
-        Client,
         Compiler,
         compiler,
         dsl,

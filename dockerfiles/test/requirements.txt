@@ -1,3 +1,3 @@
 # This is here because it is yet GAed and therfor do not appear on and of MLRun's
 # requirement files.
-mlrun-pipelines-kfp-v2~=0.3.8; python_version >= "3.11"
+mlrun-pipelines-kfp-v2~=0.4.2; python_version >= "3.11"

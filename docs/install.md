@@ -25,20 +25,23 @@ The deployment options are:
 - [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
   Note that Iguazio provides a 14 day free trial.
 
-You can also be deploy the MLRun Service using local Docker for demo and test purposes.
+You can also deploy the MLRun Service using local Docker for demo and test purposes.
 
 ## Set up your client
 
 You can work with your favorite IDE (e.g. PyCharm, VSCode, Jupyter, Colab, etc.). Read how to configure your client against the deployed
 MLRun server in {ref}`install-remote`.
 
-Once you have installed and configured MLRun, follow the [Quick Start tutorial](https://docs.mlrun.org/en/latest/tutorials/01-mlrun-basics.html) and additional {ref}`Tutorials and Examples<tutorial>` to learn how to use MLRun to develop and deploy machine learning applications to production.
+Once you have installed and configured MLRun, follow the [Quick Start tutorial](./tutorials/01-mlrun-basics.ipynb) and additional {ref}`Tutorials and Examples<tutorial>` to learn how to use MLRun to develop and deploy machine learning applications to production.
 
 
 <a id="MLRun-client-backward-compatibility"></a>
 ### MLRun client backward compatibility  
 
 Starting from MLRun v1.3.0, the MLRun server is compatible with the client and images of the previous two minor MLRun releases. When you upgrade to v1.3.0, for example, you can continue to use your v1.1- and v1.2-based images, but v1.0-based images are not compatible.
+
+After you update the MLRun package client version by running `pip install mlrun==<"new-client-version">`, you must update the images to use the same client version you installed.
+For example, when running this command `pip install mlrun==1.8.0` you must update your images to use MLRun v1.8.0 by adding `mlrun==<"new-client-version">` as a function requirement. See {py:meth}`~mlrun.runtimes.BaseRuntime.with_requirements`.
 
 ```{admonition} Important
 - Images from 0.9.0 are not compatible with 0.10.0. Backward compatibility starts from 0.10.0. 

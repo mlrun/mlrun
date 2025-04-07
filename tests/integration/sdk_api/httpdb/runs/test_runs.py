@@ -269,6 +269,24 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             self._logger.debug("Storing run", run=run)
             mlrun.get_run_db().store_run(run, run["metadata"]["uid"], project_name)
 
+        runs = _list_and_assert_objects(
+            expected_number_of_runs=5,
+            project=project_name,
+        )
+        # The elements are not ordered as they were originally stored because some of the elements
+        # have a start_time from the previous day, which affects their sorting order.
+        expected_names = [
+            "run-name-4",
+            "run-name-3",
+            "run-name-1",
+            "run-name-2",
+            "run-name-0",
+        ]
+        for i, expected_name in enumerate(expected_names):
+            assert (
+                runs[i]["metadata"]["name"] == expected_name
+            ), f"Expected '{expected_name}', but got '{runs[i]['metadata']['name']}' at index {i}"
+
         # Move 2nd and 3rd run to completed
         updates = {
             "status.state": mlrun.common.runtimes.constants.RunStates.completed,
@@ -301,13 +319,14 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         stored_run = runs[0]
         assert stored_run["status"]["end_time"] > stored_run["status"]["start_time"]
         assert stored_run["status"]["end_time"].endswith("+00:00")
+        assert stored_run["status"]["start_time"].endswith("+00:00")
 
         # 2nd run is 1st in order because it started last
         self._logger.debug("Checking order of runs", runs=runs)
         assert runs[0]["metadata"]["name"] == "run-name-1"
-        assert runs[1]["metadata"]["name"] == "run-name-0"
-        assert runs[1]["status"]["end_time"] == statuses[0]["end_time"].isoformat()
-        assert runs[2]["metadata"]["name"] == "run-name-2"
+        assert runs[1]["metadata"]["name"] == "run-name-2"
+        assert runs[2]["metadata"]["name"] == "run-name-0"
+        assert runs[2]["status"]["end_time"] == statuses[0]["end_time"].isoformat()
 
         _list_and_assert_objects(
             expected_number_of_runs=1,

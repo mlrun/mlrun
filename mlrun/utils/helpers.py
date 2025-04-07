@@ -41,6 +41,7 @@ import inflection
 import numpy as np
 import packaging.version
 import pandas
+import pytz
 import semver
 import yaml
 from dateutil import parser
@@ -882,9 +883,12 @@ def enrich_image_url(
     image_url = image_url.strip()
     mlrun_version = config.images_tag or client_version or server_version
     tag = mlrun_version
-    tag += resolve_image_tag_suffix(
-        mlrun_version=mlrun_version, python_version=client_python_version
-    )
+
+    # TODO: Remove condition when mlrun/mlrun-kfp image is also supported
+    if "mlrun-kfp" not in image_url:
+        tag += resolve_image_tag_suffix(
+            mlrun_version=mlrun_version, python_version=client_python_version
+        )
 
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
@@ -916,7 +920,7 @@ def resolve_image_tag_suffix(
     mlrun_version: Optional[str] = None, python_version: Optional[str] = None
 ) -> str:
     """
-    resolves what suffix should be appended to the image tag
+    Resolves what suffix to be appended to the image tag
     :param mlrun_version: the mlrun version
     :param python_version: the requested python version
     :return: the suffix to append to the image tag
@@ -928,19 +932,19 @@ def resolve_image_tag_suffix(
     # mlrun version is higher than 1.3.0, but we can check the python version and if python version was passed it
     # means it 1.3.0-rc or higher, so we can add the suffix of the python version.
     if mlrun_version.startswith("0.0.0-") or "unstable" in mlrun_version:
-        if python_version.startswith("3.7"):
-            return "-py37"
+        if python_version.startswith("3.9"):
+            return "-py39"
         return ""
 
-    # For mlrun 1.3.x and 1.4.x, we support mlrun runtimes images with both python 3.7 and 3.9 images.
-    # While the python 3.9 images will continue to have no suffix, the python 3.7 images will have a '-py37' suffix.
-    # Python 3.8 images will not be supported for mlrun 1.3.0, meaning that if the user has client with python 3.8
-    # and mlrun 1.3.x then the image will be pulled without a suffix (which is the python 3.9 image).
+    # For mlrun 1.9.x and 1.10.x, we support mlrun runtimes images with both python 3.9 and 3.11 images.
+    # While the python 3.11 images will continue to have no suffix, the python 3.9 images will have a '-py39' suffix.
+    # Python 3.10 images are not supported in mlrun 1.9.0, meaning that if the user has client with python 3.10
+    # and mlrun 1.9.x then the image will be pulled without a suffix (which is the python 3.11 image).
     # using semver (x.y.z-X) to include rc versions as well
-    if semver.VersionInfo.parse("1.5.0-X") > semver.VersionInfo.parse(
+    if semver.VersionInfo.parse("1.11.0-X") > semver.VersionInfo.parse(
         mlrun_version
-    ) >= semver.VersionInfo.parse("1.3.0-X") and python_version.startswith("3.7"):
-        return "-py37"
+    ) >= semver.VersionInfo.parse("1.9.0-X") and python_version.startswith("3.9"):
+        return "-py39"
     return ""
 
 
@@ -1128,21 +1132,83 @@ def get_workflow_url(
     return url
 
 
-def get_kfp_project_filter(project_name: str) -> str:
+def get_kfp_list_runs_filter(
+    project_name: Optional[str] = None,
+    end_date: Optional[str] = None,
+    start_date: Optional[str] = None,
+) -> str:
     """
-    Generates a filter string for KFP runs, using a substring predicate
-    on the run's 'name' field. This is used as a heuristic to retrieve runs that are associated
-    with a specific project. The 'op: 9' operator indicates that the filter checks if the
-    project name appears as a substring in the run's name, ensuring that we can identify
-    runs belonging to the desired project.
+    Generates a filter for listing Kubeflow Pipelines (KFP) runs.
+
+    :param project_name: The name of the project. If "*", it won't filter by project.
+    :param end_date: The latest creation date for filtering runs (ISO 8601 format).
+    :param start_date: The earliest creation date for filtering runs (ISO 8601 format).
+    :return: A JSON-formatted filter string for KFP.
     """
-    is_substring_op = 9
-    project_name_filter = {
-        "predicates": [
-            {"key": "name", "op": is_substring_op, "string_value": project_name}
-        ]
-    }
-    return json.dumps(project_name_filter)
+
+    # KFP filter operation codes
+    kfp_less_than_or_equal_op = 7  # '<='
+    kfp_greater_than_or_equal_op = 5  # '>='
+    kfp_substring_op = 9  # Substring match
+
+    filters = {"predicates": []}
+
+    if end_date:
+        filters["predicates"].append(
+            {
+                "key": "created_at",
+                "op": kfp_less_than_or_equal_op,
+                "timestamp_value": end_date,
+            }
+        )
+
+    if project_name and project_name != "*":
+        filters["predicates"].append(
+            {
+                "key": "name",
+                "op": kfp_substring_op,
+                "string_value": project_name,
+            }
+        )
+    if start_date:
+        filters["predicates"].append(
+            {
+                "key": "created_at",
+                "op": kfp_greater_than_or_equal_op,
+                "timestamp_value": start_date,
+            }
+        )
+    return json.dumps(filters)
+
+
+def validate_and_convert_date(date_input: str) -> str:
+    """
+    Converts any recognizable date string into a standardized RFC 3339 format.
+    :param date_input: A date string in a recognizable format.
+    """
+    try:
+        dt_object = parser.parse(date_input)
+        if dt_object.tzinfo is not None:
+            # Convert to UTC if it's in a different timezone
+            dt_object = dt_object.astimezone(pytz.utc)
+        else:
+            # If no timezone info is present, assume it's in local time
+            local_tz = pytz.timezone("UTC")
+            dt_object = local_tz.localize(dt_object)
+
+        # Convert the datetime object to an RFC 3339-compliant string.
+        # RFC 3339 requires timestamps to be in ISO 8601 format with a 'Z' suffix for UTC time.
+        # The isoformat() method adds a "+00:00" suffix for UTC by default,
+        # so we replace it with "Z" to ensure compliance.
+        formatted_date = dt_object.isoformat().replace("+00:00", "Z")
+        formatted_date = formatted_date.rstrip("Z") + "Z"
+
+        return formatted_date
+    except (ValueError, OverflowError) as e:
+        raise ValueError(
+            f"Invalid date format: {date_input}."
+            f" Date format must adhere to the RFC 3339 standard (e.g., 'YYYY-MM-DDTHH:MM:SSZ' for UTC)."
+        ) from e
 
 
 def are_strings_in_exception_chain_messages(
@@ -1371,13 +1437,16 @@ def has_timezone(timestamp):
         return False
 
 
-def format_datetime(dt: datetime) -> str:
+def format_datetime(dt: datetime, fmt: Optional[str] = None) -> str:
+    if dt is None:
+        return ""
+
     # If the datetime is naive
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
 
     # TODO: Once Python 3.12 is the minimal version, use %:z to format the timezone offset with a colon
-    formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S.%f%z")
+    formatted_time = dt.strftime(fmt or "%Y-%m-%d %H:%M:%S.%f%z")
 
     # For versions earlier than Python 3.12, we manually insert the colon in the timezone offset
     return formatted_time[:-2] + ":" + formatted_time[-2:]

@@ -255,7 +255,6 @@ def enrich_preemption_mode(
         - prevent: Enforces scheduling on non-preemptible nodes using taints or anti-affinity.
         - none: No enrichment is applied.
     """
-    # nothing to do here, configuration is not populated
     if (
         not mlconfig.is_preemption_nodes_configured()
         or preemption_mode == mlrun.common.schemas.PreemptionModes.none.value
@@ -272,93 +271,21 @@ def enrich_preemption_mode(
     enriched_node_selector = copy.deepcopy(node_selector or {})
     enriched_tolerations = copy.deepcopy(tolerations or [])
     enriched_affinity = copy.deepcopy(affinity)
-
     preemptible_tolerations = generate_preemptible_tolerations()
 
-    def _prune_tolerations(to_remove: list[kubernetes.client.V1Toleration]):
-        return [t for t in enriched_tolerations if t not in to_remove]
+    # Map preemption modes to handler functions
+    mode_handlers = {
+        mlrun.common.schemas.PreemptionModes.prevent.value: _handle_prevent_mode,
+        mlrun.common.schemas.PreemptionModes.constrain.value: _handle_constrain_mode,
+        mlrun.common.schemas.PreemptionModes.allow.value: _handle_allow_mode,
+    }
 
-    def _merge_tolerations(tolerations_to_merge: list[kubernetes.client.V1Toleration]):
-        for toleration in tolerations_to_merge:
-            if not any(existing == toleration for existing in enriched_tolerations):
-                enriched_tolerations.append(toleration)
-
-    # remove preemptible tolerations and remove preemption related configuration
-    # and enrich with anti-affinity if preemptible tolerations configuration haven't been provided
-    if preemption_mode == mlrun.common.schemas.PreemptionModes.prevent.value:
-        # ensure no preemptible node tolerations
-        enriched_tolerations = _prune_tolerations(
-            preemptible_tolerations,
-        )
-
-        # purge affinity preemption related configuration
-        enriched_affinity = _prune_affinity_node_selector_requirement(
-            generate_preemptible_node_selector_requirements(
-                mlrun.common.schemas.NodeSelectorOperator.node_selector_op_in.value
-            ),
-            enriched_affinity,
-        )
-        # remove preemptible nodes constrain
-        enriched_node_selector = _prune_node_selector(
-            mlconfig.get_preemptible_node_selector(),
+    handler = mode_handlers.get(preemption_mode)
+    if handler:
+        enriched_node_selector, enriched_tolerations, enriched_affinity = handler(
             enriched_node_selector,
-        )
-
-        # if tolerations are configured, simply pruning tolerations is sufficient because functions
-        # cannot be scheduled without tolerations on tainted nodes.
-        # however, if preemptible tolerations are not configured, we must use anti-affinity on preemptible nodes
-        # to ensure that the function is not scheduled on the nodes.
-        if not preemptible_tolerations:
-            # using a single term with potentially multiple expressions to ensure anti-affinity
-            enriched_affinity = _override_required_during_scheduling_ignored_during_execution(
-                kubernetes.client.V1NodeSelector(
-                    node_selector_terms=generate_preemptible_nodes_anti_affinity_terms()
-                ),
-                enriched_affinity,
-            )
-    # enrich tolerations and override all node selector terms with preemptible node selector terms
-    elif preemption_mode == mlrun.common.schemas.PreemptionModes.constrain.value:
-        # enrich with tolerations
-        _merge_tolerations(
-            preemptible_tolerations,
-        )
-
-        # setting required_during_scheduling_ignored_during_execution
-        # overriding other terms that have been set, and only setting terms for preemptible nodes
-        # when having multiple terms, pod scheduling is succeeded if at least one term is satisfied
-        enriched_affinity = (
-            _override_required_during_scheduling_ignored_during_execution(
-                kubernetes.client.V1NodeSelector(
-                    node_selector_terms=generate_preemptible_nodes_affinity_terms()
-                ),
-                affinity=enriched_affinity,
-            )
-        )
-    # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
-    elif preemption_mode == mlrun.common.schemas.PreemptionModes.allow.value:
-        # remove preemptible anti-affinity
-        enriched_affinity = _prune_affinity_node_selector_requirement(
-            generate_preemptible_node_selector_requirements(
-                mlrun.common.schemas.NodeSelectorOperator.node_selector_op_not_in.value
-            ),
-            affinity=enriched_affinity,
-        )
-        # remove preemptible affinity
-        enriched_affinity = _prune_affinity_node_selector_requirement(
-            generate_preemptible_node_selector_requirements(
-                mlrun.common.schemas.NodeSelectorOperator.node_selector_op_in.value
-            ),
-            affinity=enriched_affinity,
-        )
-
-        # remove preemptible nodes constrain
-        enriched_node_selector = _prune_node_selector(
-            mlconfig.get_preemptible_node_selector(),
-            enriched_node_selector=enriched_node_selector,
-        )
-
-        # enrich with tolerations
-        _merge_tolerations(
+            enriched_tolerations,
+            enriched_affinity,
             preemptible_tolerations,
         )
 
@@ -367,6 +294,84 @@ def enrich_preemption_mode(
         enriched_tolerations,
         _prune_empty_affinity(enriched_affinity),
     )
+
+
+def _handle_prevent_mode(node_selector, tolerations, affinity, preemptible_tolerations):
+    def _prune_tolerations(to_remove: list[kubernetes.client.V1Toleration]):
+        return [t for t in tolerations if t not in to_remove]
+
+    # Ensure no preemptible node tolerations
+    tolerations = _prune_tolerations(preemptible_tolerations)
+
+    # Purge affinity preemption-related configuration
+    affinity = _prune_affinity_node_selector_requirement(
+        generate_preemptible_node_selector_requirements(
+            mlrun.common.schemas.NodeSelectorOperator.node_selector_op_in.value
+        ),
+        affinity=affinity,
+    )
+
+    # Remove preemptible nodes constraint
+    node_selector = _prune_node_selector(
+        mlconfig.get_preemptible_node_selector(),
+        enriched_node_selector=node_selector,
+    )
+
+    # Use anti-affinity only if no tolerations configured
+    if not preemptible_tolerations:
+        affinity = _override_required_during_scheduling_ignored_during_execution(
+            kubernetes.client.V1NodeSelector(
+                node_selector_terms=generate_preemptible_nodes_anti_affinity_terms()
+            ),
+            affinity,
+        )
+
+    return node_selector, tolerations, affinity
+
+
+def _handle_constrain_mode(
+    node_selector, tolerations, affinity, preemptible_tolerations
+):
+    tolerations = _merge_tolerations(tolerations, preemptible_tolerations)
+
+    affinity = _override_required_during_scheduling_ignored_during_execution(
+        kubernetes.client.V1NodeSelector(
+            node_selector_terms=generate_preemptible_nodes_affinity_terms()
+        ),
+        affinity=affinity,
+    )
+
+    return node_selector, tolerations, affinity
+
+
+def _handle_allow_mode(node_selector, tolerations, affinity, preemptible_tolerations):
+    for op in [
+        mlrun.common.schemas.NodeSelectorOperator.node_selector_op_not_in.value,
+        mlrun.common.schemas.NodeSelectorOperator.node_selector_op_in.value,
+    ]:
+        affinity = _prune_affinity_node_selector_requirement(
+            generate_preemptible_node_selector_requirements(op),
+            affinity=affinity,
+        )
+
+    node_selector = _prune_node_selector(
+        mlconfig.get_preemptible_node_selector(),
+        enriched_node_selector=node_selector,
+    )
+
+    tolerations = _merge_tolerations(tolerations, preemptible_tolerations)
+    return node_selector, tolerations, affinity
+
+
+def _merge_tolerations(
+    existing: list[kubernetes.client.V1Toleration],
+    to_add: list[kubernetes.client.V1Toleration],
+) -> list[kubernetes.client.V1Toleration]:
+    merged = existing.copy()
+    for toleration in to_add:
+        if toleration not in merged:
+            merged.append(toleration)
+    return merged
 
 
 def _prune_node_selector(
@@ -416,7 +421,7 @@ def _prune_affinity_node_selector_requirement(
             new_node_selector_terms = (
                 _prune_node_selector_requirements_from_node_selector_terms(
                     node_selector_terms=node_selector.node_selector_terms,
-                    node_selector_requirements_to_prune=node_selector_requirements,
+                    requirements_to_prune=node_selector_requirements,
                 )
             )
             # check whether there are node selector terms to add to the new list of required terms
@@ -445,44 +450,37 @@ def _prune_affinity_node_selector_requirement(
 
 def _prune_node_selector_requirements_from_node_selector_terms(
     node_selector_terms: list[kubernetes.client.V1NodeSelectorTerm],
-    node_selector_requirements_to_prune: list[
-        kubernetes.client.V1NodeSelectorRequirement
-    ],
+    requirements_to_prune: list[kubernetes.client.V1NodeSelectorRequirement],
 ) -> list[kubernetes.client.V1NodeSelectorTerm]:
     """
-    Goes over each expression in all the terms provided and removes the expressions if it matches
-    one of the requirements provided to remove
+    Removes matching node selector requirements from the given list of node selector terms.
 
-    :return: New list of terms without the provided node selector requirements
+    Each term may contain multiple match expressions. This function iterates over each expression,
+    and removes any that exactly match one of the requirements provided.
+
+    :param node_selector_terms: List of V1NodeSelectorTerm objects to be processed.
+    :param requirements_to_prune: List of V1NodeSelectorRequirement objects to remove.
+    :return: A new list of V1NodeSelectorTerm objects with the specified requirements pruned.
     """
-    new_node_selector_terms: list[kubernetes.client.V1NodeSelectorTerm] = []
-    for term in node_selector_terms:
-        new_node_selector_requirements: list[
-            kubernetes.client.V1NodeSelectorRequirement
-        ] = []
-        for node_selector_requirement in term.match_expressions:
-            to_prune = False
-            # go over each requirement and check if matches the current expression
-            for (
-                node_selector_requirement_to_prune
-            ) in node_selector_requirements_to_prune:
-                if node_selector_requirement == node_selector_requirement_to_prune:
-                    to_prune = True
-                    # no need to keep going over the list provided for the current expression
-                    break
-            if not to_prune:
-                new_node_selector_requirements.append(node_selector_requirement)
+    pruned_terms = []
 
-        # check if there is something to add
-        if len(new_node_selector_requirements) > 0 or term.match_fields:
-            # Add new node selector terms without the matching expressions to prune
-            new_node_selector_terms.append(
+    for term in node_selector_terms:
+        remaining_requirements = [
+            expr
+            for expr in term.match_expressions or []
+            if not any(expr == r for r in requirements_to_prune)
+        ]
+
+        # Only add term if there are remaining match expressions or match fields
+        if remaining_requirements or term.match_fields:
+            pruned_terms.append(
                 kubernetes.client.V1NodeSelectorTerm(
-                    match_expressions=new_node_selector_requirements,
+                    match_expressions=remaining_requirements,
                     match_fields=term.match_fields,
                 )
             )
-    return new_node_selector_terms
+
+    return pruned_terms
 
 
 def _override_required_during_scheduling_ignored_during_execution(

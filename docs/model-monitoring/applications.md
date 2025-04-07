@@ -50,15 +50,15 @@ To register and deploy the application see {ref}`register-model-monitoring-app`.
 ## Testing your application before deploying it
 
 You can run and debug your application as a job with data, but without a model endpoint or datastore profiles. This reduces
-the time required to refine your model before deploying. 
-The monitoring creates metrics that assist you in understanding and refining the model behavior. 
+the time required to refine your model before deploying.
+The monitoring creates metrics that assist you in understanding and refining the model behavior.
 You can use this flow for both local and remote jobs.
 
-Use {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.evaluate` to test your code. 
-When you are satisfied with the application, deploy it with {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.deploy`.
-
+Use {py:meth}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.evaluate` to test your code.
+When you are satisfied with the application, deploy it with {py:meth}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.deploy`.
 
 For example, import the source file:
+
 ```py
 # Myapp.py
 import mlrun
@@ -85,7 +85,9 @@ class MyApp(ModelMonitoringApplicationBase):
         ]
         return results
 ```
+
 Then, import the class and run `evaluate`.
+
 ```py
 from Myapp import MyApp
 
@@ -95,28 +97,30 @@ MyApp.evaluate(
     sample_data=pd.DataFrame({"col": [1, 2, 3, 4]}),
 )
 ```
+
 After you have fine-tuned the model monitoring application, deploy it with:
-```python
+
+```py
 MyApp.deploy(
     func_path="Myapp.py",
     func_name="run-me-in-wf",
 )
 ```
 
-
 ## Using the application context
 
-The `context` argument is a `MonitoringApplicationContext` object.
-It includes the current window data as a pandas data-frame: `context.sample_df`.
-The reference and current data is also available in raw format as `context.feature_stats`
-and `context.sample_df_stats`, respectively.
+The `monitoring_context` argument is a
+{py:class}`~mlrun.model_monitoring.applications.context.MonitoringApplicationContext` object.
+It includes the current window data as a pandas data-frame: `monitoring_context.sample_df`.
+The reference and current data is also available in raw format as `monitoring_context.feature_stats`
+and `monitoring_context.sample_df_stats`, respectively.
 
-The `context` provides also attributes and methods to log application messages or artifacts.
+The `monitoring_context` provides also attributes and methods to log application messages or artifacts.
 
 Logging a debug message:
 
 ```py
-context.logger.debug(
+monitoring_context.logger.debug(
     "Logging the current data of a specific endpoint",
     sample_df=context.sample_df.to_json(),
     endpoint_id=context.endpoint_id,
@@ -126,10 +130,17 @@ context.logger.debug(
 Logging an artifact:
 
 ```py
-context.log_artifact(
+monitoring_context.log_artifact(
     item=f"num_events_last_monitoring_window_{context.endpoint_id}",
     body=f"Number of events in the window: {len(context.sample_df)}",
 )
+```
+
+```{caution}
+Logging artifacts in every model monitoring window may cause scale issues.
+
+The `log_artifact` and `log_dataset` methods of the `monitoring_context` should be called on special occasions only.
+<!-- ML-9550, ML-7677 -->
 ```
 
 ## Evidently-based application

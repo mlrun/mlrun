@@ -48,6 +48,7 @@ ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 
 WORKDIR /mlrun
 
+ARG MLRUN_PYTHON_VERSION=3.11
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/mlrun-api/locked-requirements.txt,target=locked-requirements.txt \

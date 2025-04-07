@@ -1212,6 +1212,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-8064|When using notifications with `when=running` the user always gets a default notification.|NA| v1.7.0|
 |ML-8419|When the MySQL server is unavailable, a project with non-V3IO model monitoring cannot be deleted.|Run `project.set_model_monitoring_credentials(endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io", replace_creds=True)` before deleting the project.|v1.7.1|
 |ML-8427|Missing FK constraints in DB causes migration to fail after upgrade. | Delete old runs before upgrading. |v1.7.0|
+|ML-8528|In rare circumstances, KF pipelines fail.|Retry the workflow.|v1.6.3|
 |ML-8564|If the size of `extra_data` exceeds 1KB, the value is not recorded in the tsdb app_results table, and extra_data is set to null. A warning is only displayed in the MM app pod.|NA|v1.8.0|
 |ML-8754|The default spot-labels node-selector are removed when configuring the `allow` preemption mode with one of the node selectors defined in `mlconf.get_preemptible_node_selector()`.|Use a non-default label.|v1.7.1|
 |ML-8796|The application runtime has two containers: the nuclio container uses the default resources and the sidecar container uses the function resources. | NA   |v1.7.1|
@@ -1238,7 +1239,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted. | Abort the job from the SDK instead of from the UI, or upgrade the client to v1.6.0 or higher. | v1.6.0 |
 |ML-8088|
 |ML-8174| A loaded system takes a few minutes (±5) to calculate the statistics in the Projects Monitoring pane.|NA| v1.7.0|
-|ML-8528|In rare circumstances, KF pipelines fail.|NA|v1.6.3|
 |ML-8601|Default spot labels node selector is removed. |......| v1.7.0|
 |ML-8699|After upgrade/restart there may be some lost notifications due to restart of the chief.|NA| v1.8.0|
 |ML-8996|Occasionally, deleting projects fails with 'Fail to delete project in MLRun' | Try deleting the project again.| v1.8.0|

@@ -38,14 +38,17 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/
 
-# ✅ Create 'mlrun' conda env and make it default
+# need to be redeclared since used in the from
+ARG MLRUN_PYTHON_VERSION=3.11
+
+# Create 'mlrun' conda env and make it default
 RUN conda create -y -n mlrun python=${MLRUN_PYTHON_VERSION} && \
     echo "conda activate mlrun" >> /etc/profile.d/mlrun.sh && \
     echo "conda activate mlrun" >> ~/.bashrc && \
     ln -sf /opt/conda/envs/mlrun/bin/python /usr/local/bin/python && \
     conda init
 
-# ✅ Ensure uv uses mlrun conda env
+# Ensure uv uses mlrun conda env
 ENV PATH="/opt/conda/envs/mlrun/bin:$PATH"
 
 USER $NB_UID
@@ -67,6 +70,8 @@ COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlrun.env $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlce-start.sh /usr/local/bin/mlce-start.sh
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
+
+USER root
 
 # no-deps to ignore existing dependencies, just add the locked requirements
 # mainly because of how the jupyter image is built with conda
@@ -90,6 +95,8 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 
 # cleanup, source code is not needed anymore
 RUN rm -rf /tmp/mlrun && rm -rf $HOME/.cache
+
+USER $NB_UID
 
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial

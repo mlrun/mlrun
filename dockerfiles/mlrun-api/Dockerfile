@@ -48,6 +48,7 @@ ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 
 WORKDIR /mlrun
 
+# need to be redeclared since used in the from
 ARG MLRUN_PYTHON_VERSION=3.11
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \

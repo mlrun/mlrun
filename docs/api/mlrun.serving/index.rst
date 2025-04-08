@@ -1,7 +1,7 @@
 .. _mlrun.serving:
 
 mlrun.serving
-==============
+===============
 
 .. autoclass:: mlrun.serving.states.BaseStep
    :members: to, error_handler

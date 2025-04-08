@@ -824,16 +824,6 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             **({} if self.image is None else {"image": self.image}),
         )
 
-    @staticmethod
-    def _assert_replicas(fn):
-        """
-        Validate that the 'min_replicas' and 'max_replicas' values in the function's spec are correct after deployment.
-        This check ensures that the replica settings, which are modified on the server side during deployment, are
-        properly reflected on the client side.
-        """
-        assert fn.spec.min_replicas == 1
-        assert fn.spec.max_replicas == 1
-
     def test_inference_feature_set(self) -> None:
         self._log_model()
 
@@ -859,6 +849,16 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             mep.metadata.uid, inputs=set(self.columns), outputs=set(self.y_name)
         )
         self._test_predictions_table(mep.metadata.uid, should_be_empty=True)
+
+    @staticmethod
+    def _assert_replicas(fn):
+        """
+        Validate that the 'min_replicas' and 'max_replicas' values in the function's spec are correct after deployment.
+        This check ensures that the replica settings, which are modified on the server side during deployment, are
+        properly reflected on the client side.
+        """
+        assert fn.spec.min_replicas == 1
+        assert fn.spec.max_replicas == 1
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured

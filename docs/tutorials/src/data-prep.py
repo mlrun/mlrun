@@ -3,7 +3,6 @@ import pandas as pd
 from sklearn.datasets import load_breast_cancer
 
 
-
 def breast_cancer_generator():
     """
     A function which generates the breast cancer dataset

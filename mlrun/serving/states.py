@@ -1548,7 +1548,6 @@ class FlowStep(BaseStep):
                 resp_awaitable = self._controller.emit(
                     event, await_result=self._wait_for_result
                 )
-                logger.info("emit returned resp_awaitable", resp_awaitable=resp_awaitable)
                 if self._wait_for_result:
                     return resp_awaitable
                 return self._await_and_return_id(resp_awaitable, event)

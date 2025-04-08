@@ -384,9 +384,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             # Set time for the first request of the current endpoint
             self.first_request[endpoint_id] = timestamp
 
-        # Set time for the last reqeust of the current endpoint
-        self.last_request[endpoint_id] = timestamp
-
         if not self.is_valid(
             validation_function=is_not_none,
             field=request_id,
@@ -461,9 +458,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                     EventFieldType.FEATURES: feature,
                     EventFieldType.PREDICTION: prediction,
                     EventFieldType.FIRST_REQUEST: self.first_request[endpoint_id],
-                    EventFieldType.LAST_REQUEST: self.last_request[endpoint_id],
+                    EventFieldType.LAST_REQUEST: timestamp,
                     EventFieldType.LAST_REQUEST_TIMESTAMP: mlrun.utils.enrich_datetime_with_tz_info(
-                        self.last_request[endpoint_id]
+                        timestamp
                     ).timestamp(),
                     EventFieldType.LABELS: event.get(EventFieldType.LABELS, {}),
                     EventFieldType.METRICS: event.get(EventFieldType.METRICS, {}),
@@ -492,6 +489,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                     project=self.project,
                     endpoint_id=endpoint_id,
                     name=endpoint_name,
+                    tsdb_metrics=False,
                 )
                 .flat_dict()
             )
@@ -619,6 +617,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     project=self.project,
                     endpoint_id=endpoint_id,
                     name=event[EventFieldType.ENDPOINT_NAME],
+                    tsdb_metrics=False,
                 )
                 .flat_dict()
             )
@@ -692,6 +691,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     project=self.project,
                     endpoint_id=endpoint_id,
                     name=event[EventFieldType.ENDPOINT_NAME],
+                    tsdb_metrics=False,
                 )
                 .flat_dict()
             )

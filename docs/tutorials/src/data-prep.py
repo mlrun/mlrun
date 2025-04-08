@@ -2,7 +2,6 @@
 import pandas as pd
 from sklearn.datasets import load_breast_cancer
 
-import mlrun
 
 
 def breast_cancer_generator():

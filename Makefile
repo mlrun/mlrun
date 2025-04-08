@@ -880,6 +880,7 @@ upgrade-mlrun-api-deps-lock: verify-uv-version ## Upgrade mlrun-api locked requi
 		extras-requirements.txt \
 		dockerfiles/mlrun-api/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
+		--python-version $(MLRUN_PYTHON_VERSION) \
 		--output-file dockerfiles/mlrun-api/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-mlrun-deps-lock
@@ -927,7 +928,6 @@ upgrade-mlrun-test-deps-lock: verify-uv-version ## Upgrade mlrun test locked req
 		extras-requirements.txt \
 		dockerfiles/mlrun-api/requirements.txt \
 		dockerfiles/mlrun-kfp/requirements.txt \
-		dockerfiles/test/requirements.txt \
 		dev-requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/test/locked-requirements.txt
@@ -948,6 +948,7 @@ upgrade-mlrun-kfp-deps-lock: verify-uv-version ## Upgrade mlrun-kfp locked requi
 	uv pip compile \
 		requirements.txt \
 		dockerfiles/mlrun-kfp/requirements.txt \
+		--python-version 3.9 \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/mlrun-kfp/locked-requirements.txt
 

@@ -1547,9 +1547,9 @@ ipython==8.18.1 ; python_full_version < '3.10' \
     #   -r requirements.txt
     #   ipykernel
     #   nuclio-jupyter
-ipython==8.34.0 ; python_full_version >= '3.10' \
-    --hash=sha256:0419883fa46e0baa182c5d50ebb8d6b49df1889fdb70750ad6d8cfe678eda6e3 \
-    --hash=sha256:c31d658e754673ecc6514583e7dda8069e47136eb62458816b7d1e6625948b5a
+ipython==8.35.0 ; python_full_version >= '3.10' \
+    --hash=sha256:d200b7d93c3f5883fc36ab9ce28a18249c7706e51347681f80a0aef9895f2520 \
+    --hash=sha256:e6b7470468ba6f1f0a7b116bb688a3ece2f13e2f94138e508201fad677a788ba
     # via
     #   -r requirements.txt
     #   ipykernel
@@ -1651,16 +1651,11 @@ kafka-python==2.1.5 \
     --hash=sha256:205953e581c0371cada35bebdacc58ac7dee6c3f9e8d95b9a6a0a7bacc054ca0 \
     --hash=sha256:6765c25440046cdadeb9c31469566be259d50802d27d4f8aae86d9ae755b78e2
     # via -r extras-requirements.txt
-kfp-server-api==1.8.5 ; python_full_version < '3.11' \
+kfp-server-api==1.8.5 \
     --hash=sha256:482d71765ba57c003164dbb980a8cb1a18d234b578d064dc88dbeb3e4c7ab6de
     # via
     #   mlrun-pipelines-kfp-common
     #   mlrun-pipelines-kfp-v1-8
-kfp-server-api==2.4.0 ; python_full_version >= '3.11' \
-    --hash=sha256:9d71ce49fc6757af14b052cc47e4cb531cb4e4584c2ea76ec02b9197ee9a674f
-    # via
-    #   mlrun-pipelines-kfp-common
-    #   mlrun-pipelines-kfp-v2
 kiwisolver==1.4.7 ; python_full_version < '3.10' \
     --hash=sha256:073a36c8273647592ea332e816e75ef8da5c303236ec0167196793eb1e34657a \
     --hash=sha256:08471d4d86cbaec61f86b217dd938a83d85e03785f51121e791a6e6689a3be95 \
@@ -2174,13 +2169,9 @@ mlrun-pipelines-kfp-common==0.4.1 \
     --hash=sha256:05d51a9589cf2b8d588728ebc215457a04e994cdf42d504107a06974b16c759b \
     --hash=sha256:6dcf8693b3828c5aa4a42e6e8e7a826c1417c0e3fd97f73ad412b85551c2c3b6
     # via -r requirements.txt
-mlrun-pipelines-kfp-v1-8==0.4.0 ; python_full_version < '3.11' \
+mlrun-pipelines-kfp-v1-8==0.4.0 \
     --hash=sha256:1450f4f3956b37e0c546d90a88b479245cafe819d735d40773cd2e6ecf692984 \
     --hash=sha256:3f23e4baee65a8f0a1ef8482a50abd02786a41f7cdcfa9a3b5d8a0f80631044c
-    # via -r requirements.txt
-mlrun-pipelines-kfp-v2==0.4.2 ; python_full_version >= '3.11' \
-    --hash=sha256:ee8b31683dbeb41e4896a462d7f4143ac1c4e0769eab150c848ff58a741bfcbc \
-    --hash=sha256:f4837a2aa4840b94ab538741cf073611f8089f1ab924a4faca7d7a7ee46fa40e
     # via -r requirements.txt
 mpi4py==3.1.6 \
     --hash=sha256:1de7f6bd22ea6c9b1d6cb42e9d8092217552ffc8267f81df884b61f46aef557c \
@@ -2390,9 +2381,9 @@ multipledispatch==1.0.0 \
     # via
     #   dask-glm
     #   dask-ml
-narwhals==1.33.0 ; python_full_version >= '3.11' \
-    --hash=sha256:6233d2457debf4b5fe4a1da54530c6fe2d84326f4a8e3bca35bbbff580a347cb \
-    --hash=sha256:f653319112fd121a1f1c18a40cf70dada773cdacfd53e62c2aa0afae43c17129
+narwhals==1.34.0 ; python_full_version >= '3.11' \
+    --hash=sha256:9502b9aa5dfe125c090a3a0bbca95becfa1fac2cd67f8b80d12b1dc2ed751865 \
+    --hash=sha256:bdd3fa60bea1f1e8b698e483be18dd43af13290da12dba69ea16dc1f3edbb8f7
     # via bokeh
 nbclient==0.10.2 \
     --hash=sha256:4ffee11e788b4a27fabeb7955547e4318a5298f34342a4bfd01f2e1faaeadc3d \

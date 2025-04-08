@@ -1258,18 +1258,7 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
         # Validate that model_uri is based on models prefix
         _validate_model_uri(model_obj=model, model_endpoint=model_endpoint_batch)
 
-        # Validate that the artifacts were logged in the project
-        artifacts = project.list_artifacts(
-            labels={
-                "mlrun/producer-type": "model-monitoring-app",
-                "mlrun/app-name": "histogram-data-drift",
-                "mlrun/endpoint-id": model_endpoint_batch.metadata.uid,
-            }
-        )
-
         assert model_endpoint_batch.status.result_status == 2  # drift detected
-        assert len(artifacts) == 1
-        assert artifacts[0]["metadata"]["key"] == "features_drift_results"
 
         model_endpoint_non_batch = (
             mlrun.model_monitoring.api.get_or_create_model_endpoint(

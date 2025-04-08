@@ -330,9 +330,17 @@ class MonitoringApplicationContext:
     ) -> Artifact:
         """
         Log an artifact.
-        See :func:`~mlrun.projects.MlrunProject.log_artifact` for the documentation.
-        :param unique_per_endpoint: by default True, we will log different artifact for each model endpoint,
-        set to False without changing item key will cause artifact override
+
+        .. caution::
+
+            Logging artifacts in every model monitoring window may cause scale issues.
+            This method should be called on special occasions only.
+
+        See :func:`~mlrun.projects.MlrunProject.log_artifact` for the full documentation, except for one
+        new argument:
+
+        :param unique_per_endpoint: by default ``True``, we will log different artifact for each model endpoint,
+                                    set to ``False`` without changing item key will cause artifact override.
         """
         labels = self._add_default_labels(labels)
         # By default, we want to log different artifact for each model endpoint
@@ -375,9 +383,17 @@ class MonitoringApplicationContext:
     ) -> DatasetArtifact:
         """
         Log a dataset artifact.
-        See :func:`~mlrun.projects.MlrunProject.log_dataset` for the documentation.
-        :param unique_per_endpoint: by default True, we will log different dataset for each model endpoint,
-        set to False without changing item key will cause dataset override
+
+        .. caution::
+
+            Logging datasets in every model monitoring window may cause scale issues.
+            This method should be called on special occasions only.
+
+        See :func:`~mlrun.projects.MlrunProject.log_dataset` for the full documentation, except for one
+        new argument:
+
+        :param unique_per_endpoint: by default ``True``, we will log different artifact for each model endpoint,
+                                    set to ``False`` without changing item key will cause artifact override.
         """
         labels = self._add_default_labels(labels)
         # By default, we want to log different artifact for each model endpoint

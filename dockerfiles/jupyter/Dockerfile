@@ -89,6 +89,7 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv cache clean
 
+# Switch to root to clean up files that may have been written with root permissions
 USER root
 
 # cleanup, source code is not needed anymore

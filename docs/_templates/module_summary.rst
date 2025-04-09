@@ -19,7 +19,8 @@
 
    {% for item in attributes %}
    .. autoattribute:: {{ item }}
-   {%- endfor %}
+
+   {% endfor %}
 
    {% endif %}
    {% endblock %}

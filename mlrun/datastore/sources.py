@@ -971,13 +971,8 @@ class OnlineSource(BaseSourceDriver):
     def set_explicit_ack_mode(function: Function, **extra_arguments) -> dict[str, Any]:
         extra_arguments = extra_arguments or {}
         engine = "sync"
-        if (
-            function.spec
-            and hasattr(function.spec, "graph")
-            and function.spec.graph
-            and function.spec.graph.engine
-        ):
-            engine = function.spec.graph.engine
+        if function.spec and hasattr(function.spec, "graph"):
+            engine = getattr(function.spec.graph, "engine", None) or engine
         if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
             extra_arguments["explicit_ack_mode"] = extra_arguments.get(
                 "explicit_ack_mode", "explicitOnly"

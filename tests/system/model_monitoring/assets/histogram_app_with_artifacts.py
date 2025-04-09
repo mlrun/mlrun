@@ -1,4 +1,4 @@
-# Copyright 2024 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from mlrun.model_monitoring.applications.histogram_data_drift import (
+    HistogramDataDriftApplication,
+)
 
-def test(event, context):
-    param = context.get_param("Test")
-    return param
+
+class HistogramDataDriftApplicationWithArtifacts(HistogramDataDriftApplication):
+    """The same histogram application but with artifacts"""
+
+    def __init__(self) -> None:
+        super().__init__(produce_json_artifact=True, produce_plotly_artifact=True)

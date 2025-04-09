@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
 import math
 import os
@@ -3567,7 +3567,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert (
             response.status_code == 200
         ), f"Failed to patch feature vector: {response}"
-
+        vector.reload()
         service = vector.get_online_feature_service()
         try:
             resp = service.get([{"ticker": "AAPL"}])

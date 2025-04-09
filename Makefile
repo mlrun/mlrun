@@ -75,6 +75,12 @@ MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\.
 MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
 
 RUN_COVERAGE ?= false
+
+COMMON_BUILD = if [ "$(RUN_COVERAGE)" = "true" ]; then \
+	rm -rf /tmp/coverage_reports/integration_tests && \
+	mkdir -p /tmp/coverage_reports/integration_tests; \
+	echo "done"; \
+	fi; \
 # if MLRUN_SYSTEM_TESTS_COMPONENT isn't set, we'll run all system tests
 # if MLRUN_SYSTEM_TESTS_COMPONENT is set, we'll run only the system tests for the given component
 # if MLRUN_SYSTEM_TESTS_COMPONENT starts with "no_", we'll ignore that component in the system tests
@@ -103,7 +109,7 @@ MLRUN_UV_UPGRADE_FLAG ?= --upgrade
 
 .PHONY: x
 x:
-	echo "x"
+	$(COMMON_BUILD)
 
 .PHONY: help
 help: ## Display available commands

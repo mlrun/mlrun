@@ -270,7 +270,6 @@ mlrun-kfp: update-version-file ## Build mlrun docker image with KFP
 	$(MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/mlrun-kfp/Dockerfile \
-		--platform linux/amd64 \
 		--build-arg MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		--build-arg MLRUN_VERSION=$(MLRUN_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \

@@ -501,10 +501,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                 if first_request:
                     self.first_request[endpoint_id] = first_request
 
-                last_request = endpoint_record.get(EventFieldType.LAST_REQUEST)
-                if last_request:
-                    self.last_request[endpoint_id] = last_request
-
             # add endpoint to endpoints set
             self.endpoints.add(endpoint_id)
 

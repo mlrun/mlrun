@@ -394,7 +394,7 @@ jobs:
           name: coverage_combined_report-${{ github.run_id }}.coverage
           path: tests/coverage_reports/combined.coverage
           retention-days: 30
-      - name: Run diff-cover to check PR changes
+      - name: Create diff coverage report
         run: |
           diff-cover tests/coverage_reports/combined.xml --compare-branch origin/development --show-uncovered \
           --html-report tests/coverage_reports/combined_diff.html

@@ -348,7 +348,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [ "3.9"]  # coverage running on 3.9 only right now
+        python-version: [ "3.9"]  # Coverage runs on Python 3.9 due to skipped unit tests in 3.11.
     needs: [tests, integration-tests, migrations-tests]
     steps:
       - uses: actions/checkout@v4

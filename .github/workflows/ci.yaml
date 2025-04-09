@@ -362,7 +362,6 @@ jobs:
       - name: Install dependencies
         # To save time, install only pytest and coverage-related packages, without mlrun and its dependencies.
         run: make install-dev-requirements
-      # File name is not effected by the artifact name (=identifier only)
       - name: Download server unit tests coverage report
         uses: actions/download-artifact@v4
         with:

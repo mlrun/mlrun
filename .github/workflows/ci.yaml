@@ -120,12 +120,12 @@ jobs:
           else
             echo "UNIT_TESTS_IGNORE_PATH=\"server/\"" >> $GITHUB_ENV
           fi
-    - name: Set COVERAGE environment variable
+    - name: Set RUN_COVERAGE environment variable
       run: |
         if [[ "${{ matrix.python-version }}" == "3.9" ]]; then
-          echo "COVERAGE=true" >> $GITHUB_ENV
+          echo "RUN_COVERAGE=true" >> $GITHUB_ENV
         else
-          echo "COVERAGE=false" >> $GITHUB_ENV
+          echo "RUN_COVERAGE=false" >> $GITHUB_ENV
         fi
     - name: Run Dockerized tests
       run: |
@@ -134,12 +134,12 @@ jobs:
         MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
         UNIT_TESTS_PATH=$UNIT_TESTS_PATH \
         UNIT_TESTS_IGNORE_PATH=$UNIT_TESTS_IGNORE_PATH \
-        COVERAGE=$COVERAGE \
+        RUN_COVERAGE=$RUN_COVERAGE \
         COVERAGE_DIR_SUFFIX="_${{ matrix.test-suite }}" \
         COVERAGE_FILE="tests/coverage_reports/unit_tests_${{ matrix.test-suite }}.coverage" \
         make test-dockerized
     - name: Upload coverage report
-      if: env.COVERAGE == 'true'
+      if: env.RUN_COVERAGE == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_${{ matrix.test-suite }}.coverage
@@ -185,12 +185,12 @@ jobs:
     - name: Install automation scripts dependencies
       run: pip install -r automation/requirements.txt
 
-    - name: Set COVERAGE environment variable
+    - name: Set RUN_COVERAGE environment variable
       run: |
         if [[ "${{ matrix.python-version }}" == "3.9" ]]; then
-          echo "COVERAGE=true" >> $GITHUB_ENV
+          echo "RUN_COVERAGE=true" >> $GITHUB_ENV
         else
-          echo "COVERAGE=false" >> $GITHUB_ENV
+          echo "RUN_COVERAGE=false" >> $GITHUB_ENV
         fi
 
     - name: Run Dockerized tests
@@ -198,13 +198,13 @@ jobs:
           MLRUN_DOCKER_REGISTRY=ghcr.io/ \
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
           MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-          COVERAGE=$COVERAGE \
-          make test-integration-dockerized COVERAGE=$COVERAGE
+          RUN_COVERAGE=$RUN_COVERAGE \
+          make test-integration-dockerized RUN_COVERAGE=$RUN_COVERAGE
       timeout-minutes: 90
 
     - name: Upload coverage report
       uses: actions/upload-artifact@v4
-      if: env.COVERAGE == 'true'
+      if: env.RUN_COVERAGE == 'true'
       with:
          name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
          path: /tmp/coverage_reports/integration_tests/integration_tests.coverage
@@ -227,7 +227,7 @@ jobs:
           export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
           echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
       - name: Run Dockerized DB Migration tests
-        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized COVERAGE=true
+        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized RUN_COVERAGE=true
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:

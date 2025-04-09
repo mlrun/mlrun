@@ -74,6 +74,7 @@ MLRUN_PIPELINES_KFP_VERSION := $(if $(filter 3.9,$(MLRUN_PYTHON_VERSION)),1-8,2)
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
 MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
 
+RUN_COVERAGE ?= false
 # if MLRUN_SYSTEM_TESTS_COMPONENT isn't set, we'll run all system tests
 # if MLRUN_SYSTEM_TESTS_COMPONENT is set, we'll run only the system tests for the given component
 # if MLRUN_SYSTEM_TESTS_COMPONENT starts with "no_", we'll ignore that component in the system tests
@@ -98,7 +99,6 @@ endif
 
 # Change to `--upgrade-package <package-name>` to upgrade only a specific package
 MLRUN_UV_UPGRADE_FLAG ?= --upgrade
-COVERAGE?=false
 
 .PHONY: help
 help: ## Display available commands
@@ -540,7 +540,7 @@ clean: ## Clean python package build artifacts
 
 .PHONY: test-dockerized
 test-dockerized: build-test ## Run mlrun tests in docker container
-	if [ "$(COVERAGE)" = "true" ]; then \
+	if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		rm -rf /tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX) && mkdir -p /tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX); \
 	fi; \
 	docker run \
@@ -552,7 +552,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-v /tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX):/mlrun/tests/coverage_reports \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test  UNIT_TESTS_IGNORE_PATH="$(UNIT_TESTS_IGNORE_PATH)" \
-		UNIT_TESTS_PATH="$(UNIT_TESTS_PATH)" COVERAGE=$(COVERAGE) COVERAGE_FILE="$(COVERAGE_FILE)"
+		UNIT_TESTS_PATH="$(UNIT_TESTS_PATH)" RUN_COVERAGE=$(RUN_COVERAGE) COVERAGE_FILE="$(COVERAGE_FILE)"
 
 .PHONY: test
 test: clean ## Run mlrun tests
@@ -577,7 +577,7 @@ test: clean ## Run mlrun tests
 	else \
 		IGNORE_ADDITION=""; \
 	fi; \
-	if [ "$(COVERAGE)" = "true" ]; then \
+	if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/unit_tests.coverage"}; \
 		rm -f $$COVERAGE_FILE; \
 		echo "coverage: $$COVERAGE_FILE" ;\
@@ -598,7 +598,7 @@ test: clean ## Run mlrun tests
 		--forked \
 		-rf \
 		$$UNIT_TESTS_PATH ;\
-	if [ "$(COVERAGE)" = "true" ]; then \
+	if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		echo "Unit test coverage report:"; \
 		COVERAGE_FILE=$$COVERAGE_FILE coverage report --rcfile=tests/tests.coveragerc; \
 	fi;
@@ -607,7 +607,7 @@ test: clean ## Run mlrun tests
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test ## Run mlrun integration tests in docker container
-	if [ "$(COVERAGE)" = "true" ]; then \
+	if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		rm -rf /tmp/coverage_reports/integration_tests && mkdir -p /tmp/coverage_reports/integration_tests; \
 	fi; \
 	docker run \
@@ -617,12 +617,12 @@ test-integration-dockerized: build-test ## Run mlrun integration tests in docker
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v /tmp/coverage_reports/integration_tests:/mlrun/tests/coverage_reports \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration COVERAGE=$(COVERAGE)
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration RUN_COVERAGE=$(RUN_COVERAGE)
 
 .PHONY: test-integration
 test-integration: clean ## Run mlrun integration tests
 	set -e; \
-	if [ "$(COVERAGE)" = "true" ]; then \
+	if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		rm -f tests/coverage_reports/integration_tests.coverage; \
 		export COVERAGE_FILE=tests/coverage_reports/integration_tests.coverage; \
 		COVERAGE_ADDITION="-m coverage run --rcfile=tests/tests.coveragerc"; \
@@ -638,14 +638,14 @@ test-integration: clean ## Run mlrun integration tests
 		-rf \
 		tests/integration \
 		tests/rundb/test_httpdb.py
-	if [ "$(COVERAGE)" = "true" ]; then \
+	if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		echo "Integration test coverage report:"; \
 		COVERAGE_FILE=tests/coverage_reports/integration_tests.coverage coverage report --rcfile=tests/tests.coveragerc; \
 	fi;
 
 .PHONY: test-migrations-dockerized
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
-	if [ "$(COVERAGE)" = "true" ]; then \
+	if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		rm -rf /tmp/coverage_reports/migration_tests && mkdir -p /tmp/coverage_reports/migration_tests; \
 	fi; \
 	docker run \
@@ -656,11 +656,11 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v /tmp/coverage_reports/migration_tests:/mlrun/tests/coverage_reports \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-migrations COVERAGE=$(COVERAGE)
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-migrations RUN_COVERAGE=$(RUN_COVERAGE)
 
 .PHONY: test-migrations
 test-migrations: clean ## Run mlrun db migrations tests
-	COVERAGE=$(COVERAGE) ./automation/scripts/test_migration_mysql.sh
+	RUN_COVERAGE=$(RUN_COVERAGE) ./automation/scripts/test_migration_mysql.sh
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
@@ -674,7 +674,7 @@ test-system-dockerized: build-test-system ## Run mlrun system tests in docker co
 
 .PHONY: test-system
 test-system: ## Run mlrun system tests
-	if [ "$(COVERAGE)" = "true" ]; then \
+	if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		rm -f tests/coverage_reports/integration_tests.coverage; \
 		export COVERAGE_FILE=tests/coverage_reports/system_tests.coverage; \
 		COVERAGE_ADDITION="-m coverage run --rcfile=tests/tests.coveragerc"; \
@@ -691,7 +691,7 @@ test-system: ## Run mlrun system tests
 		--durations=100 \
 		-rf \
 		 $(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
-	if [ "$(COVERAGE)" = "true" ]; then \
+	if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		echo "Integration test coverage report:"; \
 		COVERAGE_FILE=tests/coverage_reports/system_tests.coverage coverage report --rcfile=tests/tests.coveragerc; \
 	fi;

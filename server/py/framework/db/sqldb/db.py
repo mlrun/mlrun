@@ -1662,7 +1662,9 @@ class SQLDB(DBInterface):
         query = session.query(ArtifactV2).with_entities(
             ArtifactV2.id,
             ArtifactV2.Tag.name,
-            ArtifactV2.Tag.id.label("tag_id"),  # Include tag_id for ordering
+            # Include tag ID (as 'tag_id') to enable sorting by tag creation order DESC.
+            # The alias is required to reference it later in subqueries and outer queries.
+            ArtifactV2.Tag.id.label("tag_id"),
         )
 
         # If the query matches the default UI list artifacts request, we bypass the DB optimizer and use the index
@@ -1766,7 +1768,8 @@ class SQLDB(DBInterface):
                 query.order_by(
                     ArtifactV2.updated.desc(),
                     ArtifactV2.id.desc(),
-                    text("tag_id DESC"),  # Use alias for sorting
+                    # Use alias for sorting
+                    text("tag_id DESC"),
                 ),
                 offset,
                 limit,
@@ -1788,7 +1791,8 @@ class SQLDB(DBInterface):
         outer_query = outer_query.order_by(
             ArtifactV2.updated.desc(),
             ArtifactV2.id.desc(),
-            subquery.c.tag_id.desc(),  # Safe ordering by tag_id alias
+            # Safe ordering by tag_id alias
+            subquery.c.tag_id.desc(),
         )
 
         if not limit:

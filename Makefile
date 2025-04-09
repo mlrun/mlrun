@@ -123,8 +123,7 @@ install-requirements: ## Install all requirements needed for development
 		-r dockerfiles/mlrun-api/requirements.txt
 
 .PHONY: install-dev-requirements
-install-dev-requirements: ## Install only dev-requirements that relevant for pytest and coverage,
- 	## when mlrun is not needed.
+install-dev-requirements: ## Install dev-requirements relevant for pytest and coverage.
 	# relevant for pip package installer only
 	@if [ "$(MLRUN_PYTHON_PACKAGE_INSTALLER)" = "pip" ]; then \
 		$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION); \
@@ -132,7 +131,7 @@ install-dev-requirements: ## Install only dev-requirements that relevant for pyt
 
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) \
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
-		-r dev-requirements.txt \
+		-r dev-requirements.txt
 
 .PHONY: install-docs-requirements
 install-docs-requirements: ## Install all requirements needed for compiling mlrun docs
@@ -541,7 +540,8 @@ clean: ## Clean python package build artifacts
 .PHONY: test-dockerized
 test-dockerized: build-test ## Run mlrun tests in docker container
 	if [ "$(RUN_COVERAGE)" = "true" ]; then \
-		rm -rf /tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX) && mkdir -p /tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX); \
+		rm -rf /tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX) && \
+		mkdir -p /tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX); \
 	fi; \
 	docker run \
 		-t \
@@ -552,7 +552,9 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-v /tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX):/mlrun/tests/coverage_reports \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test  UNIT_TESTS_IGNORE_PATH="$(UNIT_TESTS_IGNORE_PATH)" \
-		UNIT_TESTS_PATH="$(UNIT_TESTS_PATH)" RUN_COVERAGE=$(RUN_COVERAGE) COVERAGE_FILE="$(COVERAGE_FILE)"
+		UNIT_TESTS_PATH="$(UNIT_TESTS_PATH)" \
+		RUN_COVERAGE=$(RUN_COVERAGE) \
+		COVERAGE_FILE="$(COVERAGE_FILE)"
 
 .PHONY: test
 test: clean ## Run mlrun tests
@@ -608,7 +610,8 @@ test: clean ## Run mlrun tests
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test ## Run mlrun integration tests in docker container
 	if [ "$(RUN_COVERAGE)" = "true" ]; then \
-		rm -rf /tmp/coverage_reports/integration_tests && mkdir -p /tmp/coverage_reports/integration_tests; \
+		rm -rf /tmp/coverage_reports/integration_tests && \
+		mkdir -p /tmp/coverage_reports/integration_tests; \
 	fi; \
 	docker run \
 		-t \
@@ -617,7 +620,8 @@ test-integration-dockerized: build-test ## Run mlrun integration tests in docker
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v /tmp/coverage_reports/integration_tests:/mlrun/tests/coverage_reports \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration RUN_COVERAGE=$(RUN_COVERAGE)
+		-e RUN_COVERAGE=$(RUN_COVERAGE) \
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
 
 .PHONY: test-integration
 test-integration: clean ## Run mlrun integration tests
@@ -646,7 +650,8 @@ test-integration: clean ## Run mlrun integration tests
 .PHONY: test-migrations-dockerized
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
 	if [ "$(RUN_COVERAGE)" = "true" ]; then \
-		rm -rf /tmp/coverage_reports/migration_tests && mkdir -p /tmp/coverage_reports/migration_tests; \
+		rm -rf /tmp/coverage_reports/migration_tests && \
+		mkdir -p /tmp/coverage_reports/migration_tests; \
 	fi; \
 	docker run \
 		-t \
@@ -655,8 +660,9 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		-v $(shell pwd):/mlrun \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
+		-e RUN_COVERAGE=$(RUN_COVERAGE) \
 		-v /tmp/coverage_reports/migration_tests:/mlrun/tests/coverage_reports \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-migrations RUN_COVERAGE=$(RUN_COVERAGE)
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-migrations
 
 .PHONY: test-migrations
 test-migrations: clean ## Run mlrun db migrations tests
@@ -674,27 +680,15 @@ test-system-dockerized: build-test-system ## Run mlrun system tests in docker co
 
 .PHONY: test-system
 test-system: ## Run mlrun system tests
-	if [ "$(RUN_COVERAGE)" = "true" ]; then \
-		rm -f tests/coverage_reports/integration_tests.coverage; \
-		export COVERAGE_FILE=tests/coverage_reports/system_tests.coverage; \
-		COVERAGE_ADDITION="-m coverage run --rcfile=tests/tests.coveragerc"; \
-	else \
-		COVERAGE_ADDITION=""; \
-	fi; \
 	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) \
 	MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL=$(MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL) \
 	python  \
-		$$COVERAGE_ADDITION \
 		-m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
 		-rf \
 		 $(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
-	if [ "$(RUN_COVERAGE)" = "true" ]; then \
-		echo "Integration test coverage report:"; \
-		COVERAGE_FILE=tests/coverage_reports/system_tests.coverage coverage report --rcfile=tests/tests.coveragerc; \
-	fi;
 
 .PHONY: test-system-open-source
 test-system-open-source: update-version-file ## Run mlrun system tests with opensource configuration

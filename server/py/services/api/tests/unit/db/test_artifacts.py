@@ -1670,7 +1670,9 @@ class TestArtifacts(TestDatabaseBase):
         expected_count = limit or (number_of_tags + 1)  # one more for latest tag
 
         # Build expected tag order with "latest" first
-        expected_tags = ["latest"] + [f"v{i}" for i in reversed(range(number_of_tags))]
+        expected_tags = [mlrun.common.constants.RESERVED_TAG_NAME_LATEST] + [
+            f"v{i}" for i in reversed(range(number_of_tags))
+        ]
         expected_tags = expected_tags[:expected_count]
 
         actual_tags = [artifact["metadata"]["tag"] for artifact in artifacts]

@@ -1657,6 +1657,8 @@ class SQLDB(DBInterface):
             logger.warning(message, kind=kind, category=category)
             raise ValueError(message)
 
+        tag_id_alias = "tag_id"
+
         # create a sub query that gets only the artifact IDs
         # apply all filters and limits
         query = session.query(ArtifactV2).with_entities(
@@ -1664,7 +1666,7 @@ class SQLDB(DBInterface):
             ArtifactV2.Tag.name,
             # Include tag ID (as 'tag_id') to enable sorting by tag creation order DESC.
             # The alias is required to reference it later in subqueries and outer queries.
-            ArtifactV2.Tag.id.label("tag_id"),
+            ArtifactV2.Tag.id.label(tag_id_alias),
         )
 
         # If the query matches the default UI list artifacts request, we bypass the DB optimizer and use the index
@@ -1774,8 +1776,10 @@ class SQLDB(DBInterface):
                     ArtifactV2.updated.desc(),
                     ArtifactV2.id.desc(),
                     latest_first_case,
-                    # Use alias for sorting
-                    text("tag_id DESC"),
+                    # Use raw SQL text to refer to the "tag_id" alias we defined earlier.
+                    # This is necessary because SQLAlchemy does not allow direct reference
+                    # to aliased columns (like "tag_id") in order_by() using ORM column objects.
+                    text(f"{tag_id_alias} DESC"),
                 ),
                 offset,
                 limit,
@@ -1805,7 +1809,7 @@ class SQLDB(DBInterface):
             ArtifactV2.id.desc(),
             latest_first_case,
             # Safe ordering by tag_id alias
-            subquery.c.tag_id.desc(),
+            subquery.c[tag_id_alias].desc(),
         )
 
         if not limit:

@@ -201,6 +201,7 @@ jobs:
           COVERAGE=$COVERAGE \
           make test-integration-dockerized COVERAGE=$COVERAGE
       timeout-minutes: 90
+
     - name: Upload coverage report
       uses: actions/upload-artifact@v4
       if: env.COVERAGE == 'true'
@@ -366,31 +367,27 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_server.coverage
-          # Where to download. file downloaded by name.
           path: tests/coverage_reports/
       - name: Download client unit tests coverage report
         uses: actions/download-artifact@v4
         with:
           name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_client.coverage
-          # Where to download. file downloaded by name.
           path: tests/coverage_reports/
       - name: Download integration coverage report
         uses: actions/download-artifact@v4
         with:
           name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
-          # Where to download. file downloaded by name.
+          
           path: tests/coverage_reports/
 
       - name: Download migration coverage report
         uses: actions/download-artifact@v4
         with:
           name: coverage_migration_tests_report-${{ github.run_id }}.coverage
-          # Where to download. file downloaded by name.
           path: tests/coverage_reports/
-
       - name: Combine coverage
         run: make coverage-combine UNIT_TEST_COVERAGE_PATHS="tests/coverage_reports/unit_tests_client.coverage tests/coverage_reports/unit_tests_server.coverage"
-      # save it as an artifact:
+        # Save it as an artifact:
       - name: Upload coverage combined report
         uses: actions/upload-artifact@v4
         with:

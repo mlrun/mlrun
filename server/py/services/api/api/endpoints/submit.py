@@ -23,6 +23,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.helpers
 import mlrun.common.schemas
 import mlrun.utils.helpers
+from mlrun.k8s_utils import sanitize_label_value
 from mlrun.utils import logger
 
 import framework.api.utils
@@ -120,20 +121,33 @@ async def submit_job(
             labels.setdefault(mlrun_constants.MLRunInternalLabels.v3io_user, username)
             labels.setdefault(mlrun_constants.MLRunInternalLabels.owner, username)
 
-    client_version = client_version or data["task"]["metadata"].get("labels", {}).get(
+    data["task"]["metadata"].setdefault("labels", {})
+    enrich_client_version_labels(
+        data["task"]["metadata"]["labels"], client_version, client_python_version
+    )
+    return await framework.api.utils.submit_run(db_session, auth_info, data)
+
+
+def enrich_client_version_labels(
+    labels: dict, client_version: Optional[str], client_python_version: Optional[str]
+):
+    """
+    Enriches the labels with the client version and python version if they are not already set.
+    :param labels: The object labels dict will be updated in-place
+    :param client_version: The client mlrun version
+    :param client_python_version: The client python version
+    """
+    client_version = client_version or labels.get(
         mlrun_constants.MLRunInternalLabels.client_version
     )
-    client_python_version = client_python_version or data["task"]["metadata"].get(
-        "labels", {}
-    ).get(mlrun_constants.MLRunInternalLabels.client_python_version)
+    client_python_version = client_python_version or labels.get(
+        mlrun_constants.MLRunInternalLabels.client_python_version
+    )
     if client_version is not None:
-        data["task"]["metadata"].setdefault("labels", {}).update(
-            {mlrun_constants.MLRunInternalLabels.client_version: client_version}
+        labels[mlrun_constants.MLRunInternalLabels.client_version] = (
+            sanitize_label_value(client_version)
         )
     if client_python_version is not None:
-        data["task"]["metadata"].setdefault("labels", {}).update(
-            {
-                mlrun_constants.MLRunInternalLabels.client_python_version: client_python_version
-            }
+        labels[mlrun_constants.MLRunInternalLabels.client_python_version] = (
+            sanitize_label_value(client_python_version)
         )
-    return await framework.api.utils.submit_run(db_session, auth_info, data)

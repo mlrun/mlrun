@@ -106,7 +106,16 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         :return: RunObject with run metadata, results, and status.
         """
         mlrun.runtimes.utils.enrich_run_labels(
-            labels, [mlrun.common.runtimes.constants.RunLabels.owner]
+            labels,
+            [mlrun_constants.MLRunInternalLabels.owner],
+            {
+                mlrun_constants.MLRunInternalLabels.client_version: runner.metadata.labels.get(
+                    mlrun_constants.MLRunInternalLabels.client_version
+                ),
+                mlrun_constants.MLRunInternalLabels.client_python_version: runner.metadata.labels.get(
+                    mlrun_constants.MLRunInternalLabels.client_python_version
+                ),
+            },
         )
 
         run_object = self._prepare_run_object(
@@ -255,7 +264,7 @@ class LoadRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         :return: RunObject with run metadata, results, and status.
         """
         labels = {
-            "project": project.metadata.name,
+            mlrun_constants.MLRunInternalLabels.project: project.metadata.name,
             mlrun_constants.MLRunInternalLabels.job_type: JOB_TYPE_PROJECT_LOADER,
         }
 
@@ -356,6 +365,18 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             mlrun_constants.MLRunInternalLabels.job_type: JOB_TYPE_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: workflow_request.spec.name,
         }
+        mlrun.runtimes.utils.enrich_run_labels(
+            labels,
+            [mlrun_constants.MLRunInternalLabels.owner],
+            {
+                mlrun_constants.MLRunInternalLabels.client_version: runner.metadata.labels.get(
+                    mlrun_constants.MLRunInternalLabels.client_version
+                ),
+                mlrun_constants.MLRunInternalLabels.client_python_version: runner.metadata.labels.get(
+                    mlrun_constants.MLRunInternalLabels.client_python_version
+                ),
+            },
+        )
 
         # Generate unique UID
         meta_uid = uuid.uuid4().hex
@@ -416,7 +437,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         :return: RunObject with run metadata, results, and status.
         """
         labels = {
-            "project": project.metadata.name,
+            mlrun_constants.MLRunInternalLabels.project: project.metadata.name,
             mlrun_constants.MLRunInternalLabels.job_type: JOB_TYPE_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: runner.metadata.name,
         }

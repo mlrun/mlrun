@@ -35,6 +35,7 @@ import framework.api.deps
 import framework.utils.auth.verifier
 import framework.utils.clients.chief
 import framework.utils.singletons.project_member
+import services.api.api.endpoints.submit
 import services.api.crud
 import services.api.utils.helpers
 from framework.api.utils import log_and_raise
@@ -204,14 +205,11 @@ async def submit_workflow(
             ),
         }
     )
-    if client_version is not None:
-        workflow_runner.metadata.labels[
-            mlrun_constants.MLRunInternalLabels.client_version
-        ] = sanitize_label_value(client_version)
-    if client_python_version is not None:
-        workflow_runner.metadata.labels[
-            mlrun_constants.MLRunInternalLabels.client_python_version
-        ] = sanitize_label_value(client_python_version)
+    services.api.api.endpoints.submit.enrich_client_version_labels(
+        workflow_runner.metadata.labels,
+        client_version=client_version,
+        client_python_version=client_python_version,
+    )
     try:
         if workflow_spec.schedule:
             await run_in_threadpool(

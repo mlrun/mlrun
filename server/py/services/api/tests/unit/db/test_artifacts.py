@@ -1678,12 +1678,18 @@ class TestArtifacts(TestDatabaseBase):
         sorted_tags = [f"v{i}" for i in reversed(range(number_of_tags))]
 
         if limit is None:
-            non_latest_tags = [tag for tag in returned_tags if tag != "latest"]
+            non_latest_tags = [
+                tag
+                for tag in returned_tags
+                if tag != mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+            ]
             assert non_latest_tags == sorted_tags
-            assert "latest" in returned_tags
+            assert mlrun.common.constants.RESERVED_TAG_NAME_LATEST in returned_tags
         else:
             # Ensure returned tags are in correct descending order (including "latest" if present)
-            sorted_with_latest = sorted_tags + ["latest"]
+            sorted_with_latest = sorted_tags + [
+                mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+            ]
             assert returned_tags == sorted_with_latest[:limit]
 
         # Verify the case of listing artifacts by a specific tag, which should result in an inner join and

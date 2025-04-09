@@ -410,7 +410,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             return None
 
         # Convert timestamp to a datetime object
-        timestamp = datetime.datetime.fromisoformat(timestamp)
+        timestamp_obj = datetime.datetime.fromisoformat(timestamp)
 
         # Separate each model invocation into sub events that will be stored as dictionary
         # in list of events. This list will be used as the body for the storey event.
@@ -451,7 +451,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                     EventFieldType.FUNCTION_URI: function_uri,
                     EventFieldType.ENDPOINT_NAME: event.get(EventFieldType.MODEL),
                     EventFieldType.MODEL_CLASS: model_class,
-                    EventFieldType.TIMESTAMP: timestamp,
+                    EventFieldType.TIMESTAMP: timestamp_obj,
                     EventFieldType.ENDPOINT_ID: endpoint_id,
                     EventFieldType.REQUEST_ID: request_id,
                     EventFieldType.LATENCY: latency,

@@ -144,7 +144,7 @@ jobs:
       with:
         name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_${{ matrix.test-suite }}.coverage
         path: /tmp/coverage_reports/unit_tests_${{ matrix.test-suite }}/unit_tests_${{ matrix.test-suite }}.coverage
-        retention-days: 90
+        retention-days: 30
 
 
   integration-tests:
@@ -207,7 +207,7 @@ jobs:
       with:
          name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
          path: /tmp/coverage_reports/integration_tests/integration_tests.coverage
-         retention-days: 90
+         retention-days: 30
 
   migrations-tests:
     name: Run Dockerized Migrations Tests
@@ -232,7 +232,7 @@ jobs:
         with:
           name: coverage_migration_tests_report-${{ github.run_id }}.coverage
           path: /tmp/coverage_reports/migration_tests/migration_tests.coverage
-          retention-days: 90
+          retention-days: 30
 
   package-tests:
     name: Run package tests (Python ${{ matrix.python-version }}, Pipelines ${{ matrix.pipeline-adapter }})
@@ -397,7 +397,7 @@ jobs:
         with:
           name: coverage_combined_report-${{ github.run_id }}.coverage
           path: tests/coverage_reports/combined.coverage
-          retention-days: 90
+          retention-days: 30
       - name: Run diff-cover to check PR changes
         run: |
           diff-cover tests/coverage_reports/combined.xml --compare-branch origin/development --show-uncovered \
@@ -407,4 +407,4 @@ jobs:
         with:
           name: coverage_combined_diff_report_${{ matrix.python-version }}_${{ github.run_id }}.html
           path: tests/coverage_reports/combined_diff.html
-          retention-days: 90
+          retention-days: 30

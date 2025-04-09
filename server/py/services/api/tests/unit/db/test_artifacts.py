@@ -737,12 +737,12 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, project=project, name=artifact_key
         )
         assert len(artifacts) == 3
+        assert artifacts[0]["metadata"]["tag"] == "v2"
         assert (
-            artifacts[0]["metadata"]["tag"]
+            artifacts[1]["metadata"]["tag"]
             == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         )
-        assert artifacts[1]["metadata"]["tag"] == "v1"
-        assert artifacts[2]["metadata"]["tag"] == "v2"
+        assert artifacts[2]["metadata"]["tag"] == "v1"
 
         # Step 2: Overwrite artifact with tag "v3"
         identifier = mlrun.common.schemas.ArtifactIdentifier(key=artifact_key)
@@ -755,11 +755,11 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, project=project, name=artifact_key
         )
         assert len(artifacts) == 2
+        assert artifacts[0]["metadata"]["tag"] == "v3"
         assert (
-            artifacts[0]["metadata"]["tag"]
+            artifacts[1]["metadata"]["tag"]
             == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         )
-        assert artifacts[1]["metadata"]["tag"] == "v3"
 
         # Step 3: Append tag "v4"
         self._db.append_tag_to_artifacts(
@@ -771,12 +771,12 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, project=project, name=artifact_key
         )
         assert len(artifacts) == 3
+        assert artifacts[0]["metadata"]["tag"] == "v4"
+        assert artifacts[1]["metadata"]["tag"] == "v3"
         assert (
-            artifacts[0]["metadata"]["tag"]
+            artifacts[2]["metadata"]["tag"]
             == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         )
-        assert artifacts[1]["metadata"]["tag"] == "v3"
-        assert artifacts[2]["metadata"]["tag"] == "v4"
 
         # Step 4: Delete tag "v3"
         self._db.delete_tag_from_artifacts(
@@ -788,11 +788,11 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, project=project, name=artifact_key
         )
         assert len(artifacts) == 2
+        assert artifacts[0]["metadata"]["tag"] == "v4"
         assert (
-            artifacts[0]["metadata"]["tag"]
+            artifacts[1]["metadata"]["tag"]
             == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         )
-        assert artifacts[1]["metadata"]["tag"] == "v4"
 
     def test_delete_artifacts_tag_filter(self):
         artifact_1_key = "artifact_key_1"

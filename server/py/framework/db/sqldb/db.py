@@ -4469,7 +4469,8 @@ class SQLDB(DBInterface):
         # Retrieve only the ID from the subquery to minimize the inner table,
         # in the final step we inner join the inner table with the full table.
         query = query.with_entities(
-            cls.id, cls.Tag.name if with_tagged else None
+            cls.id,
+            *(cls.Tag.name, cls.Tag.id.label("tag_id")) if with_tagged else (),
         ).add_column(row_number_column)
         if max_partitions > 0:
             max_partition_value = (
@@ -4487,7 +4488,10 @@ class SQLDB(DBInterface):
         if max_partitions == 0:
             result_query = session.query(cls)
             if with_tagged:
-                result_query = result_query.add_column(subquery.c.name)
+                result_query = result_query.add_columns(
+                    subquery.c.name,
+                    subquery.c.tag_id,
+                )
             result_query = result_query.join(subquery, cls.id == subquery.c.id).filter(
                 subquery.c.row_number <= rows_per_partition
             )

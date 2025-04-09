@@ -100,6 +100,11 @@ endif
 # Change to `--upgrade-package <package-name>` to upgrade only a specific package
 MLRUN_UV_UPGRADE_FLAG ?= --upgrade
 
+
+.PHONY: x
+x:
+	echo "x"
+
 .PHONY: help
 help: ## Display available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'

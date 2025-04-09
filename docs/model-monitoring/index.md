@@ -131,11 +131,7 @@ And you can use {ref}`notifications` to notify about the status of runs and pipe
 
 ## Scale limitations
 
-When ramping up the scale of your model monitoring, take note of these limitations. Application results refers to both metrics and results.
-- Number of MEP application results within a project = MEP *  sum (MM applications' results within the project)  should be < 50K. For example, this can be 5000 MEPs with 10 results or 1000 MEPs with 50 results.
-- Every project with MM enabled takes at least 3 system pods: stream (might have multiple replicas), controller, writer. And a pod per application (including the histogram app which is deployed by default). Each application pod runs, by default, 4 worker processes (configurable, the configuration applies to all apps).
-- Number of projects and number of MEPs (model endpoints) per project affects
-Soft Limits
-- Max MEP supported: 5K per project
-- Number of model monitoring applications per project: 10
-- Number of results: 20 per app
+When ramping up the scale of your model monitoring, take note of these limitations. Each limit here assumes you have only large, medium, or small projects. When working with a combination, use these limits proportionally to to your projects.
+- Up to 20 large projects (MEPs per project between 1k and 5k)
+- Up to 100 medium projects (100 < MEPs < 1k)
+- Up to 200 small projects (MEPs < 100)

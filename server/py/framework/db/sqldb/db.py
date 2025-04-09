@@ -1662,6 +1662,7 @@ class SQLDB(DBInterface):
         query = session.query(ArtifactV2).with_entities(
             ArtifactV2.id,
             ArtifactV2.Tag.name,
+            ArtifactV2.Tag.id.label("tag_id"),  # Include tag_id for ordering
         )
 
         # If the query matches the default UI list artifacts request, we bypass the DB optimizer and use the index
@@ -1765,7 +1766,7 @@ class SQLDB(DBInterface):
                 query.order_by(
                     ArtifactV2.updated.desc(),
                     ArtifactV2.id.desc(),
-                    ArtifactV2.Tag.id.desc(),
+                    text("tag_id DESC"),  # Use alias for sorting
                 ),
                 offset,
                 limit,
@@ -1785,7 +1786,9 @@ class SQLDB(DBInterface):
         # If the updated fields are the same, we need a secondary field to sort by.
         # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
         outer_query = outer_query.order_by(
-            ArtifactV2.updated.desc(), ArtifactV2.id.desc(), ArtifactV2.Tag.id.desc()
+            ArtifactV2.updated.desc(),
+            ArtifactV2.id.desc(),
+            subquery.c.tag_id.desc(),  # Safe ordering by tag_id alias
         )
 
         if not limit:

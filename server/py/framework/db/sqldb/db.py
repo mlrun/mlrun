@@ -1760,8 +1760,11 @@ class SQLDB(DBInterface):
             # Order the results before applying the limit to ensure that the limit is applied to the correctly
             # ordered results.
             # If the updated fields are the same, we need a secondary field to sort by.
+            # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
             query = self._paginate_query(
-                query.order_by(ArtifactV2.updated.desc(), ArtifactV2.id.desc()),
+                query.order_by(
+                    ArtifactV2.updated.desc(), ArtifactV2.id.desc(), ArtifactV2.Tag.id
+                ),
                 offset,
                 limit,
             )
@@ -1778,8 +1781,9 @@ class SQLDB(DBInterface):
 
         # join may lose order, make sure order is applied on outer as well
         # If the updated fields are the same, we need a secondary field to sort by.
+        # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
         outer_query = outer_query.order_by(
-            ArtifactV2.updated.desc(), ArtifactV2.id.desc()
+            ArtifactV2.updated.desc(), ArtifactV2.id.desc(), ArtifactV2.Tag.id
         )
 
         if not limit:
@@ -5568,7 +5572,10 @@ class SQLDB(DBInterface):
         query = self._add_labels_filter(session, query, Function, labels)
 
         # If the updated fields are the same, we need a secondary field to sort by.
-        query = query.order_by(Function.updated.desc(), Function.id.desc())
+        # Third sort by tag ID to ensure consistent ordering when a function has multiple tags.
+        query = query.order_by(
+            Function.updated.desc(), Function.id.desc(), Function.Tag.id
+        )
 
         query = self._paginate_query(query, offset, limit)
         return query

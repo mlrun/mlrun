@@ -1763,7 +1763,9 @@ class SQLDB(DBInterface):
             # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
             query = self._paginate_query(
                 query.order_by(
-                    ArtifactV2.updated.desc(), ArtifactV2.id.desc(), ArtifactV2.Tag.id
+                    ArtifactV2.updated.desc(),
+                    ArtifactV2.id.desc(),
+                    ArtifactV2.Tag.id.desc(),
                 ),
                 offset,
                 limit,
@@ -1783,7 +1785,7 @@ class SQLDB(DBInterface):
         # If the updated fields are the same, we need a secondary field to sort by.
         # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
         outer_query = outer_query.order_by(
-            ArtifactV2.updated.desc(), ArtifactV2.id.desc(), ArtifactV2.Tag.id
+            ArtifactV2.updated.desc(), ArtifactV2.id.desc(), ArtifactV2.Tag.id.desc()
         )
 
         if not limit:
@@ -5574,7 +5576,7 @@ class SQLDB(DBInterface):
         # If the updated fields are the same, we need a secondary field to sort by.
         # Third sort by tag ID to ensure consistent ordering when a function has multiple tags.
         query = query.order_by(
-            Function.updated.desc(), Function.id.desc(), Function.Tag.id
+            Function.updated.desc(), Function.id.desc(), Function.Tag.id.desc()
         )
 
         query = self._paginate_query(query, offset, limit)

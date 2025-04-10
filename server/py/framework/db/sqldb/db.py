@@ -1766,10 +1766,16 @@ class SQLDB(DBInterface):
             # ordered results.
             # If the updated fields are the same, we need a secondary field to sort by.
             # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
+            # Put "latest" tag first, then others by tag_id desc
+            latest_first_case = case(
+                (ArtifactV2.Tag.name == "latest", 0),
+                else_=1,
+            )
             query = self._paginate_query(
                 query.order_by(
                     ArtifactV2.updated.desc(),
                     ArtifactV2.id.desc(),
+                    latest_first_case,
                     # Use raw SQL text to refer to the "tag_id" alias we defined earlier.
                     # This is necessary because SQLAlchemy does not allow direct reference
                     # to aliased columns (like "tag_id") in order_by() using ORM column objects.
@@ -1789,12 +1795,19 @@ class SQLDB(DBInterface):
 
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
+        # Put "latest" tag first, then others by tag_id desc
+        latest_first_case = case(
+            (subquery.c.name == "latest", 0),
+            else_=1,
+        )
+
         # join may lose order, make sure order is applied on outer as well
         # If the updated fields are the same, we need a secondary field to sort by.
         # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
         outer_query = outer_query.order_by(
             ArtifactV2.updated.desc(),
             ArtifactV2.id.desc(),
+            latest_first_case,
             # Safe ordering by tag_id alias
             subquery.c[tag_id_alias].desc(),
         )

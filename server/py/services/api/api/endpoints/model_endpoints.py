@@ -419,7 +419,10 @@ async def get_metrics_by_multiple_endpoints(
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     type: Literal["results", "metrics", "all"] = "all",
     endpoint_ids: list[EndpointIDAnnotation] = Query([], alias="endpoint-id"),
-    events_format: mm_constants.GetEventsFormat = mm_constants.GetEventsFormat.SEPARATION,
+    events_format_old: Optional[mm_constants.GetEventsFormat] = Query(
+        None, alias="events_format"
+    ),  # TODO: remove in 1.11
+    events_format: mm_constants.GetEventsFormat = Query(None, alias="events-format"),
 ) -> dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]:
     """
     :param project:       The name of the project.
@@ -434,6 +437,9 @@ async def get_metrics_by_multiple_endpoints(
     :returns:             A dictionary of application metrics and/or results for the model endpoints,
                           formatted by events_format.
     """
+    events_format = (
+        events_format or events_format_old or mm_constants.GetEventsFormat.SEPARATION
+    )
     events = {}
     permissions_tasks = []
     is_metrics_supported = type == "metrics" or type == "all"

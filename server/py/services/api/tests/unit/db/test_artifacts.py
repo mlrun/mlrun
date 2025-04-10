@@ -737,12 +737,12 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, project=project, name=artifact_key
         )
         assert len(artifacts) == 3
+        assert artifacts[0]["metadata"]["tag"] == "v2"
         assert (
-            artifacts[0]["metadata"]["tag"]
+            artifacts[1]["metadata"]["tag"]
             == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         )
-        assert artifacts[1]["metadata"]["tag"] == "v1"
-        assert artifacts[2]["metadata"]["tag"] == "v2"
+        assert artifacts[2]["metadata"]["tag"] == "v1"
 
         # Step 2: Overwrite artifact with tag "v3"
         identifier = mlrun.common.schemas.ArtifactIdentifier(key=artifact_key)
@@ -755,11 +755,11 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, project=project, name=artifact_key
         )
         assert len(artifacts) == 2
+        assert artifacts[0]["metadata"]["tag"] == "v3"
         assert (
-            artifacts[0]["metadata"]["tag"]
+            artifacts[1]["metadata"]["tag"]
             == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         )
-        assert artifacts[1]["metadata"]["tag"] == "v3"
 
         # Step 3: Append tag "v4"
         self._db.append_tag_to_artifacts(
@@ -771,12 +771,12 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, project=project, name=artifact_key
         )
         assert len(artifacts) == 3
+        assert artifacts[0]["metadata"]["tag"] == "v4"
+        assert artifacts[1]["metadata"]["tag"] == "v3"
         assert (
-            artifacts[0]["metadata"]["tag"]
+            artifacts[2]["metadata"]["tag"]
             == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         )
-        assert artifacts[1]["metadata"]["tag"] == "v3"
-        assert artifacts[2]["metadata"]["tag"] == "v4"
 
         # Step 4: Delete tag "v3"
         self._db.delete_tag_from_artifacts(
@@ -788,11 +788,11 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, project=project, name=artifact_key
         )
         assert len(artifacts) == 2
+        assert artifacts[0]["metadata"]["tag"] == "v4"
         assert (
-            artifacts[0]["metadata"]["tag"]
+            artifacts[1]["metadata"]["tag"]
             == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         )
-        assert artifacts[1]["metadata"]["tag"] == "v4"
 
     def test_delete_artifacts_tag_filter(self):
         artifact_1_key = "artifact_key_1"
@@ -1639,6 +1639,65 @@ class TestArtifacts(TestDatabaseBase):
             assert (
                 artifact_name == expected_name
             ), f"Expected {expected_name}, got {artifact_name}"
+
+    @pytest.mark.parametrize("limit", [None, 3])
+    def test_list_artifacts_orders_by_tag_id(self, limit):
+        # This test verifies that when an artifact has multiple tags, the returned list is ordered by tag ID descending.
+
+        project = "artifact_project"
+        artifact_key = "dummy-artifact"
+
+        artifact_body = self._generate_artifact(
+            key=artifact_key,
+            project=project,
+        )
+
+        number_of_tags = 5
+        for counter in range(number_of_tags):
+            self._db.store_artifact(
+                self._db_session,
+                artifact_key,
+                artifact_body,
+                project=project,
+                tag=f"v{counter}",
+            )
+
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, limit=limit
+        )
+
+        expected_count = limit or (number_of_tags + 1)  # one more for latest tag
+        assert (
+            len(artifacts) == expected_count
+        ), f"Expected {expected_count} results, got {len(artifacts)}"
+
+        # Extract the tags from returned artifacts
+        returned_tags = [artifact["metadata"]["tag"] for artifact in artifacts]
+
+        # Build the expected sorted tag list (v4 to v0)
+        sorted_tags = [f"v{i}" for i in reversed(range(number_of_tags))]
+
+        if limit is None:
+            non_latest_tags = [
+                tag
+                for tag in returned_tags
+                if tag != mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+            ]
+            assert non_latest_tags == sorted_tags
+            assert mlrun.common.constants.RESERVED_TAG_NAME_LATEST in returned_tags
+        else:
+            # Ensure returned tags are in correct descending order (including "latest" if present)
+            sorted_with_latest = sorted_tags + [
+                mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+            ]
+            assert returned_tags == sorted_with_latest[:limit]
+
+        # Verify the case of listing artifacts by a specific tag, which should result in an inner join and
+        # return only the matching tagged artifact
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, limit=limit, tag="v3"
+        )
+        assert len(artifacts) == 1
 
     def test_list_artifacts_producer_uri(self):
         project = "artifact_project"

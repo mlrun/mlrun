@@ -94,6 +94,7 @@ async def create_model_endpoint(
 
     :return: A Model endpoint object without operative data.
     """
+    _query_param_hyphen_warning(creation_strategy_old, "creation_strategy")
     creation_strategy = creation_strategy or creation_strategy_old
 
     if project != model_endpoint.metadata.project:

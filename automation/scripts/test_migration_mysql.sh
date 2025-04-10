@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-COVERAGE=${COVERAGE:-false}
+RUN_COVERAGE=${RUN_COVERAGE:-false}
 
 set -e
 
@@ -52,7 +52,7 @@ done
 
 export PYTHONPATH=${ROOT}/server/py
 
-if [ "${COVERAGE}" = "true" ]; then \
+if [ "${RUN_COVERAGE}" = "true" ]; then \
 		rm -f tests/coverage_reports/migration_tests.coverage; \
 		export COVERAGE_FILE=tests/coverage_reports/migration_tests.coverage; \
 		COVERAGE_ADDITION="-m coverage run --rcfile=tests/tests.coveragerc"; \
@@ -69,7 +69,7 @@ python ${COVERAGE_ADDITION} \
 		-rf \
 		"${ROOT_DIR}"/server/py/services/api/migrations/tests/*
 
-if [ "${COVERAGE}" = "true" ]; then \
+if [ "${RUN_COVERAGE}" = "true" ]; then \
   echo "Migration test coverage report:"; \
   COVERAGE_FILE=tests/coverage_reports/migration_tests.coverage coverage report --rcfile=tests/tests.coveragerc; \
 fi;

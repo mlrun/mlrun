@@ -55,10 +55,10 @@ async def create_model_endpoint(
     project: ProjectAnnotation,
     delete_background_task: BackgroundTasks,
     creation_strategy_old: Optional[mm_constants.ModelEndpointCreationStrategy] = Query(
-        None, "creation_strategy"
+        None, alias="creation_strategy"
     ),  # TODO: remove in 1.11
     creation_strategy: Optional[mm_constants.ModelEndpointCreationStrategy] = Query(
-        None, "creation-strategy"
+        None, alias="creation-strategy"
     ),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(framework.api.deps.get_db_session),

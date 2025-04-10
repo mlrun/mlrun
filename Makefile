@@ -77,11 +77,10 @@ MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
 RUN_COVERAGE ?= false
 COVERAGE_FILE ?=
 
-
-ifeq ($(RUN_COVERAGE),true)
-    COVERAGE_ADDITION := "-m coverage run --rcfile=tests/tests.coveragerc --data-file=$$COVERAGE_FILE"
+ifeq ("$(RUN_COVERAGE)","true")
+    COVERAGE_ADDITION = -m coverage run --rcfile=tests/tests.coveragerc --data-file=$$COVERAGE_FILE
 else
-    COVERAGE_ADDITION := ""
+    COVERAGE_ADDITION =
 endif
 
 CLEAN_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
@@ -597,17 +596,11 @@ test: clean ## Run mlrun tests
 	else \
 		IGNORE_ADDITION=""; \
 	fi; \
-	if [ "$(RUN_COVERAGE)" = "true" ]; then \
-		COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/unit_tests.coverage"}; \
-		rm -f $$COVERAGE_FILE; \
-		echo "coverage: $$COVERAGE_FILE" ;\
-		COVERAGE_ADDITION="-m coverage run --rcfile=tests/tests.coveragerc --data-file=$$COVERAGE_FILE"; \
-	else \
-		COVERAGE_ADDITION=""; \
-	fi; \
+	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/unit_tests.coverage"}; \
+	$(CLEAN_COVERAGE) \
 	python \
 		-X faulthandler \
-		$$COVERAGE_ADDITION \
+		$(COVERAGE_ADDITION) \
 		-m pytest -v \
 		--capture=no \
 		--disable-warnings \
@@ -618,10 +611,7 @@ test: clean ## Run mlrun tests
 		--forked \
 		-rf \
 		$$UNIT_TESTS_PATH ;\
-	if [ "$(RUN_COVERAGE)" = "true" ]; then \
-		echo "Unit test coverage report:"; \
-		COVERAGE_FILE=$$COVERAGE_FILE coverage report --rcfile=tests/tests.coveragerc; \
-	fi;
+	$(PRINT_COVERAGE_REPORT)
 
 
 
@@ -644,26 +634,17 @@ test-integration-dockerized: build-test ## Run mlrun integration tests in docker
 .PHONY: test-integration
 test-integration: clean ## Run mlrun integration tests
 	set -e; \
-	if [ "$(RUN_COVERAGE)" = "true" ]; then \
-		rm -f tests/coverage_reports/integration_tests.coverage; \
-		export COVERAGE_FILE=tests/coverage_reports/integration_tests.coverage; \
-		COVERAGE_ADDITION="-m coverage run --rcfile=tests/tests.coveragerc"; \
-	else \
-		COVERAGE_ADDITION=""; \
-	fi; \
-	python \
-		$$COVERAGE_ADDITION \
+	COVERAGE_FILE=tests/coverage_reports/integration_tests.coverage; \
+	$(CLEAN_COVERAGE) \
+	python $(COVERAGE_ADDITION) \
 		-m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
 		-rf \
 		tests/integration \
-		tests/rundb/test_httpdb.py
-	if [ "$(RUN_COVERAGE)" = "true" ]; then \
-		echo "Integration test coverage report:"; \
-		COVERAGE_FILE=tests/coverage_reports/integration_tests.coverage coverage report --rcfile=tests/tests.coveragerc; \
-	fi;
+		tests/rundb/test_httpdb.py \
+	$(PRINT_COVERAGE_REPORT)
 
 .PHONY: test-migrations-dockerized
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
@@ -684,7 +665,11 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 
 .PHONY: test-migrations
 test-migrations: clean ## Run mlrun db migrations tests
-	RUN_COVERAGE=$(RUN_COVERAGE) ./automation/scripts/test_migration_mysql.sh
+	COVERAGE_FILE=tests/coverage_reports/migration_tests.coverage; \
+	$(CLEAN_COVERAGE) \
+	COVERAGE_ADDITION="$(COVERAGE_ADDITION)" ./automation/scripts/test_migration_mysql.sh ;\
+	$(PRINT_COVERAGE_REPORT)
+
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-RUN_COVERAGE=${RUN_COVERAGE:-false}
+COVERAGE_ADDITION=${COVERAGE_ADDITION:-}
 
 set -e
 
@@ -52,14 +52,6 @@ done
 
 export PYTHONPATH=${ROOT}/server/py
 
-if [ "${RUN_COVERAGE}" = "true" ]; then \
-		rm -f tests/coverage_reports/migration_tests.coverage; \
-		export COVERAGE_FILE=tests/coverage_reports/migration_tests.coverage; \
-		COVERAGE_ADDITION="-m coverage run --rcfile=tests/tests.coveragerc"; \
-	else \
-		COVERAGE_ADDITION=""; \
-	fi; \
-
 # shellcheck disable=SC2086
 python ${COVERAGE_ADDITION} \
     -m pytest -v \
@@ -69,7 +61,4 @@ python ${COVERAGE_ADDITION} \
 		-rf \
 		"${ROOT_DIR}"/server/py/services/api/migrations/tests/*
 
-if [ "${RUN_COVERAGE}" = "true" ]; then \
-  echo "Migration test coverage report:"; \
-  COVERAGE_FILE=tests/coverage_reports/migration_tests.coverage coverage report --rcfile=tests/tests.coveragerc; \
-fi;
+

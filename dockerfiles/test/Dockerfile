@@ -73,4 +73,4 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 # Install the pipeline adapters development versions since we release them only after merging
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common --python-version ${MLRUN_PYTHON_VERSION} && \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION} \

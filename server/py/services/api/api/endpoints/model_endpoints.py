@@ -293,9 +293,9 @@ async def list_model_endpoints(
     List model endpoints.
 
     :param project:         The name of the project.
-    :param names:            The model endpoints names.
+    :param names:           The model endpoints names.
     :param model_name:      The model name.
-    :param model_name:      The model tag.
+    :param model_tag:       The model tag.
     :param function_name:   The function name.
     :param function_tag:    The function tag.
     :param labels:          The labels of the model endpoint.

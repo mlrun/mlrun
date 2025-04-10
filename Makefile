@@ -643,7 +643,7 @@ test-integration: clean ## Run mlrun integration tests
 		--durations=100 \
 		-rf \
 		tests/integration \
-		tests/rundb/test_httpdb.py \
+		tests/rundb/test_httpdb.py; \
 	$(PRINT_COVERAGE_REPORT)
 
 .PHONY: test-migrations-dockerized

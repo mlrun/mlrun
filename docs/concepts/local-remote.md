@@ -4,7 +4,7 @@
 To run multiple functions, one after the other  (`jobs`), you use a pipeline. There are three types of pipeline engines:
 - [Remote on KFP](#remote-kfp)
 - [Remote](#remote)
-- Local &mdash; Used to run local pipeline with local functions (set local=True in function.run())
+- Local &mdash; Used to run local pipeline with local functions, mainly for testing. Use (set local=True in function.run()).
 
 <img src="../_static/images/pipelines-flow.png" width="800" >
 

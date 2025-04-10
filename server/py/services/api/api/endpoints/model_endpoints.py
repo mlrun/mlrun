@@ -174,9 +174,20 @@ async def delete_model_endpoint(
     project: ProjectAnnotation,
     name: str,
     delete_background_task: BackgroundTasks,
-    function_name: Optional[str] = None,
-    function_tag: Optional[str] = None,
-    endpoint_id: typing.Optional[EndpointIDAnnotation] = "*",
+    function_name_old: Optional[str] = Query(
+        None, alias="function_name"
+    ),  # TODO: remove in 1.11
+    function_name: Optional[str] = Query(None, alias="function-name"),
+    function_tag_old: Optional[str] = Query(
+        None, alias="function_tag"
+    ),  # TODO: remove in 1.11
+    function_tag: Optional[str] = Query(None, alias="function-tag"),
+    endpoint_id_old: typing.Optional[EndpointIDAnnotation] = Query(
+        None, alias="endpoint_id"
+    ),  # TODO: remove in 1.11
+    endpoint_id: typing.Optional[EndpointIDAnnotation] = Query(
+        None, alias="endpoint-id"
+    ),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(framework.api.deps.get_db_session),
 ) -> None:
@@ -191,6 +202,9 @@ async def delete_model_endpoint(
     :param auth_info:              The auth info of the request.
     :param db_session:             A session that manages the current dialog with the database.
     """
+    function_name = function_name or function_name_old
+    function_tag = function_tag or function_tag_old
+    endpoint_id = endpoint_id or endpoint_id_old or "*"
 
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -221,17 +235,33 @@ async def delete_model_endpoint(
 async def list_model_endpoints(
     project: ProjectAnnotation,
     names: Optional[list[str]] = Query(None, alias="name"),
-    model_name: Optional[str] = None,
-    model_tag: Optional[str] = None,
-    function_name: Optional[str] = None,
-    function_tag: Optional[str] = None,
+    model_name_old: Optional[str] = Query(
+        None, alias="model_name"
+    ),  # TODO: remove in 1.11
+    model_name: Optional[str] = Query(None, alias="model-name"),
+    model_tag_old: Optional[str] = Query(
+        None, alias="model_tag"
+    ),  # TODO: remove in 1.11
+    model_tag: Optional[str] = Query(None, alias="model-tag"),
+    function_name_old: Optional[str] = Query(
+        None, alias="function_name"
+    ),  # TODO: remove in 1.11
+    function_name: Optional[str] = Query(None, alias="function-name"),
+    function_tag_old: Optional[str] = Query(
+        None, alias="function_tag"
+    ),  # TODO: remove in 1.11
+    function_tag: Optional[str] = Query(None, alias="function-tag"),
     labels: list[str] = Query([], alias="label"),
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     top_level: bool = Query(False, alias="top-level"),
-    tsdb_metrics: bool = True,
+    tsdb_metrics_old: bool = Query(True, alias="tsdb_metrics"),  # TODO: remove in 1.11
+    tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
     uids: list[str] = Query(None, alias="uid"),
-    latest_only: bool = False,
+    latest_only_old: bool = Query(
+        False, alias="latest_only_old"
+    ),  # TODO: remove in 1.11
+    latest_only: bool = Query(False, alias="latest-only-old"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ) -> schemas.ModelEndpointList:
@@ -254,6 +284,14 @@ async def list_model_endpoints(
     :param db_session:      A session that manages the current dialog with the database.
     :return:                A list of model endpoints.
     """
+
+    model_name = model_name or model_name_old
+    model_tag = model_tag or model_tag_old
+    function_name = function_name or function_name_old
+    function_tag = function_tag or function_tag_old
+    tsdb_metrics = tsdb_metrics and tsdb_metrics_old
+    latest_only = latest_only or latest_only_old
+
     await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=schemas.AuthorizationAction.read,
@@ -381,7 +419,7 @@ async def get_metrics_by_multiple_endpoints(
     project: ProjectAnnotation,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     type: Literal["results", "metrics", "all"] = "all",
-    endpoint_ids: list[EndpointIDAnnotation] = Query(None, alias="endpoint-id"),
+    endpoint_ids: list[EndpointIDAnnotation] = Query([], alias="endpoint-id"),
     events_format: mm_constants.GetEventsFormat = mm_constants.GetEventsFormat.SEPARATION,
 ) -> dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]:
     """
@@ -454,11 +492,24 @@ async def get_metrics_by_multiple_endpoints(
 async def get_model_endpoint(
     name: str,
     project: ProjectAnnotation,
-    function_name: Optional[str] = None,
-    function_tag: Optional[str] = None,
-    endpoint_id: Optional[EndpointIDAnnotation] = None,
-    tsdb_metrics: bool = True,
-    feature_analysis: bool = False,
+    function_name_old: Optional[str] = Query(
+        None, alias="function_name"
+    ),  # TODO: remove in 1.11
+    function_name: Optional[str] = Query(None, alias="function-name"),
+    function_tag_old: Optional[str] = Query(
+        None, alias="function_tag"
+    ),  # TODO: remove in 1.11
+    function_tag: Optional[str] = Query(None, alias="function-tag"),
+    endpoint_id_old: Optional[EndpointIDAnnotation] = Query(
+        None, alias="endpoint_id"
+    ),  # TODO: remove in 1.11
+    endpoint_id: Optional[EndpointIDAnnotation] = Query(None, alias="endpoint-id"),
+    tsdb_metrics_old: bool = Query(True, alias="tsdb_metrics"),  # TODO: remove in 1.11
+    tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
+    feature_analysis_old: bool = Query(
+        False, alias="feature_analysis"
+    ),  # TODO: remove in 1.11
+    feature_analysis: bool = Query(False, alias="feature-analysis"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ) -> schemas.ModelEndpoint:
@@ -476,6 +527,13 @@ async def get_model_endpoint(
     :param db_session:          A session that manages the current dialog with the database.
     :return:                    The model endpoint object.
     """
+
+    function_name = function_name or function_name_old
+    function_tag = function_tag or function_tag_old
+    endpoint_id = endpoint_id or endpoint_id_old
+    tsdb_metrics = tsdb_metrics and tsdb_metrics_old
+    feature_analysis = feature_analysis or feature_analysis_old
+
     await _verify_model_endpoint_read_permission(
         project=project, name_or_uid=name, auth_info=auth_info
     )

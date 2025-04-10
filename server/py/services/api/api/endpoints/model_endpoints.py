@@ -53,8 +53,13 @@ EndpointIDAnnotation = Annotated[
 async def create_model_endpoint(
     model_endpoint: schemas.ModelEndpoint,
     project: ProjectAnnotation,
-    creation_strategy: mm_constants.ModelEndpointCreationStrategy,
     delete_background_task: BackgroundTasks,
+    creation_strategy_old: Optional[mm_constants.ModelEndpointCreationStrategy] = Query(
+        None, "creation_strategy"
+    ),  # TODO: remove in 1.11
+    creation_strategy: Optional[mm_constants.ModelEndpointCreationStrategy] = Query(
+        None, "creation-strategy"
+    ),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(framework.api.deps.get_db_session),
 ) -> schemas.ModelEndpoint:
@@ -78,6 +83,8 @@ async def create_model_endpoint(
 
     :return: A Model endpoint object without operative data.
     """
+    creation_strategy = creation_strategy or creation_strategy_old
+
     if project != model_endpoint.metadata.project:
         raise MLRunInvalidArgumentError(
             f"Project name in the URL '{project}' does not match the project name in the model endpoint metadata "

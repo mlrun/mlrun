@@ -14,6 +14,7 @@
 
 import asyncio
 import typing
+import warnings
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -43,6 +44,16 @@ ProjectAnnotation = Annotated[str, Path(pattern=mm_constants.PROJECT_PATTERN)]
 EndpointIDAnnotation = Annotated[
     str, Path(pattern=mm_constants.MODEL_ENDPOINT_ID_PATTERN)
 ]
+
+
+def _query_param_hyphen_warning(condition: typing.Any, param_name: str):
+    if condition:
+        new_param_name = param_name.replace("_", "-")
+        warnings.warn(
+            f"{param_name} query parameter is deprecated and will be removed in 1.11.0. "
+            f"Use {new_param_name} instead.",
+            DeprecationWarning,
+        )
 
 
 @router.post(
@@ -209,6 +220,11 @@ async def delete_model_endpoint(
     :param auth_info:              The auth info of the request.
     :param db_session:             A session that manages the current dialog with the database.
     """
+    # TODO: remove in 1.11
+    _query_param_hyphen_warning(function_name_old, "function_name")
+    _query_param_hyphen_warning(function_tag_old, "function_tag")
+    _query_param_hyphen_warning(endpoint_id_old, "endpoint_id")
+
     function_name = function_name or function_name_old
     function_tag = function_tag or function_tag_old
     endpoint_id = endpoint_id or endpoint_id_old or "*"
@@ -278,6 +294,7 @@ async def list_model_endpoints(
     :param project:         The name of the project.
     :param names:            The model endpoints names.
     :param model_name:      The model name.
+    :param model_name:      The model tag.
     :param function_name:   The function name.
     :param function_tag:    The function tag.
     :param labels:          The labels of the model endpoint.
@@ -291,6 +308,14 @@ async def list_model_endpoints(
     :param db_session:      A session that manages the current dialog with the database.
     :return:                A list of model endpoints.
     """
+    # TODO: remove in 1.11
+    _query_param_hyphen_warning(model_name_old, "model_name")
+    _query_param_hyphen_warning(model_tag_old, "model_tag")
+    _query_param_hyphen_warning(function_name_old, "function_name")
+    _query_param_hyphen_warning(function_tag_old, "function_tag")
+    _query_param_hyphen_warning(tsdb_metrics_old, "tsdb_metrics")
+    _query_param_hyphen_warning(latest_only_old, "latest_only")
+
     model_name = model_name or model_name_old
     model_tag = model_tag or model_tag_old
     function_name = function_name or function_name_old
@@ -444,6 +469,9 @@ async def get_metrics_by_multiple_endpoints(
     :returns:             A dictionary of application metrics and/or results for the model endpoints,
                           formatted by events_format.
     """
+    _query_param_hyphen_warning(
+        events_format_old, "events_format"
+    )  # TODO: remove in 1.11
     events_format = (
         events_format or events_format_old or mm_constants.GetEventsFormat.SEPARATION
     )
@@ -539,6 +567,13 @@ async def get_model_endpoint(
     :param db_session:          A session that manages the current dialog with the database.
     :return:                    The model endpoint object.
     """
+    # TODO: remove in 1.11
+    _query_param_hyphen_warning(function_name_old, "function_name")
+    _query_param_hyphen_warning(function_tag_old, "function_tag")
+    _query_param_hyphen_warning(endpoint_id_old, "endpoint_id")
+    _query_param_hyphen_warning(tsdb_metrics_old, "tsdb_metrics")
+    _query_param_hyphen_warning(feature_analysis_old, "feature_analysis")
+
     function_name = function_name or function_name_old
     function_tag = function_tag or function_tag_old
     endpoint_id = endpoint_id or endpoint_id_old

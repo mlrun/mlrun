@@ -367,11 +367,10 @@ def _merge_tolerations(
     existing: list[kubernetes.client.V1Toleration],
     to_add: list[kubernetes.client.V1Toleration],
 ) -> list[kubernetes.client.V1Toleration]:
-    merged = existing.copy()
     for toleration in to_add:
-        if toleration not in merged:
-            merged.append(toleration)
-    return merged
+        if toleration not in existing:
+            existing.append(toleration)
+    return existing
 
 
 def _prune_node_selector(
@@ -387,13 +386,11 @@ def _prune_node_selector(
         return
 
     mlrun.utils.logger.debug("Pruning node selectors", node_selector=node_selector)
-    for key, value in node_selector.items():
-        if value:
-            spec_value = enriched_node_selector.get(key)
-            if spec_value and spec_value == value:
-                enriched_node_selector.pop(key)
-
-    return enriched_node_selector
+    return {
+        key: value
+        for key, value in enriched_node_selector.items()
+        if node_selector.get(key) != value
+    }
 
 
 def _prune_affinity_node_selector_requirement(
@@ -425,7 +422,7 @@ def _prune_affinity_node_selector_requirement(
                 )
             )
             # check whether there are node selector terms to add to the new list of required terms
-            if len(new_node_selector_terms) > 0:
+            if new_node_selector_terms:
                 new_required_during_scheduling_ignored_during_execution = (
                     kubernetes.client.V1NodeSelector(
                         node_selector_terms=new_node_selector_terms
@@ -436,7 +433,7 @@ def _prune_affinity_node_selector_requirement(
             not node_affinity.preferred_during_scheduling_ignored_during_execution
             and not new_required_during_scheduling_ignored_during_execution
         ):
-            setattr(affinity, "node_affinity", None)
+            affinity.node_affinity = None
             return
 
         _initialize_affinity(affinity=affinity)
@@ -468,7 +465,7 @@ def _prune_node_selector_requirements_from_node_selector_terms(
         remaining_requirements = [
             expr
             for expr in term.match_expressions or []
-            if not any(expr == r for r in requirements_to_prune)
+            if expr not in requirements_to_prune
         ]
 
         # Only add term if there are remaining match expressions or match fields

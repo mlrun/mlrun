@@ -389,10 +389,7 @@ async def _collect_get_metrics_tasks_results(
 )
 async def get_model_endpoint_monitoring_metrics(
     project: ProjectAnnotation,
-    endpoint_id_old: Optional[EndpointIDAnnotation] = Query(
-        None, alias="endpoint_id"
-    ),  # TODO: remove in 1.11
-    endpoint_id: Optional[EndpointIDAnnotation] = Query(None, alias="endpoint-id"),
+    endpoint_id: EndpointIDAnnotation,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     type: Literal["results", "metrics", "all"] = "all",
 ) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
@@ -405,7 +402,6 @@ async def get_model_endpoint_monitoring_metrics(
 
     :returns:           A list of the application metrics or/and results for this model endpoint.
     """
-    endpoint_id = endpoint_id or endpoint_id_old
     await _verify_model_endpoint_read_permission(
         project=project, name_or_uid=endpoint_id, auth_info=auth_info
     )

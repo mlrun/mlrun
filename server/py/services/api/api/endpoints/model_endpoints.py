@@ -577,14 +577,11 @@ class _MetricsValuesParams:
 
 async def _get_metrics_values_params(
     project: ProjectAnnotation,
+    endpoint_id: EndpointIDAnnotation,
     name: Annotated[
         list[str],
         Query(pattern=mm_constants.FQN_PATTERN),
     ],
-    endpoint_id_old: Optional[EndpointIDAnnotation] = Query(
-        None, alias="endpoint_id"
-    ),  # TODO: remove in 1.11
-    endpoint_id: Optional[EndpointIDAnnotation] = Query(None, alias="endpoint-id"),
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
@@ -601,9 +598,6 @@ async def _get_metrics_values_params(
 
     :return: _MetricsValuesParams object with the validated data.
     """
-    endpoint_id = endpoint_id or endpoint_id_old
-    if not endpoint_id:
-        raise mlrun.errors.MLRunInvalidArgumentTypeError("Endpoint ID is required.")
     await _verify_model_endpoint_read_permission(
         project=project, name_or_uid=endpoint_id, auth_info=auth_info
     )

@@ -284,7 +284,6 @@ async def list_model_endpoints(
     :param db_session:      A session that manages the current dialog with the database.
     :return:                A list of model endpoints.
     """
-
     model_name = model_name or model_name_old
     model_tag = model_tag or model_tag_old
     function_name = function_name or function_name_old
@@ -527,7 +526,6 @@ async def get_model_endpoint(
     :param db_session:          A session that manages the current dialog with the database.
     :return:                    The model endpoint object.
     """
-
     function_name = function_name or function_name_old
     function_tag = function_tag or function_tag_old
     endpoint_id = endpoint_id or endpoint_id_old

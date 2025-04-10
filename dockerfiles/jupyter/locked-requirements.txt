@@ -1386,7 +1386,9 @@ kafka-python==2.1.5 \
     # via -r extras-requirements.txt
 kfp-server-api==1.8.5 \
     --hash=sha256:482d71765ba57c003164dbb980a8cb1a18d234b578d064dc88dbeb3e4c7ab6de
-    # via mlrun-pipelines-kfp-v1-8
+    # via
+    #   mlrun-pipelines-kfp-common
+    #   mlrun-pipelines-kfp-v1-8
 kiwisolver==1.4.8 \
     --hash=sha256:01c3d31902c7db5fb6182832713d3b4122ad9317c2c5877d0539227d96bb2e50 \
     --hash=sha256:034d2c891f76bd3edbdb3ea11140d8510dca675443da7304205a2eaa45d8334c \
@@ -1616,13 +1618,13 @@ mlflow-skinny==2.21.3 \
     --hash=sha256:4623144ad0a7441f13e0face059165754af72d4e16e4418abb16f56fcde50131 \
     --hash=sha256:a93d928a5123bfbfdcb8ded749156b99813158e8b16bdf137bebb0883cea353d
     # via mlflow
-mlrun-pipelines-kfp-common==0.5.0 \
-    --hash=sha256:7a36aa1de5e101852926bf76170ace0df02fcbd4402c801d65e6644e36756c79 \
-    --hash=sha256:8eb03e561ab76bf423e9cd5a281abedddef4a6c9c3e91b86032819d808309782
+mlrun-pipelines-kfp-common==0.5.1 \
+    --hash=sha256:5816fa73dc3edb9d090bca3a8f9bc806e798eb8367b9e782a9cbcd98b6dbcf6e \
+    --hash=sha256:838d60fa905d2d8fca5708c9a0ccfa94a8e544d17d7ef2a02a7cd12355a5f312
     # via -r requirements.txt
-mlrun-pipelines-kfp-v1-8==0.5.0 \
-    --hash=sha256:1158b1d440d7894621fb5035216a3a3df3c6d70ba629a332d456d80359be7d3a \
-    --hash=sha256:9a0e03e49db9ebd06dd5a159ff60abd99d66cafac8f522cf1658550cd825f98f
+mlrun-pipelines-kfp-v1-8==0.5.1 \
+    --hash=sha256:5d95bac3ca3c8bb8deb237df5b50715d2a1d803106747e67168a8f390eecdd43 \
+    --hash=sha256:f2fda60140645a49416c6592f39457c87030e02d8e6890b2776c1fa12d633244
     # via -r requirements.txt
 msal==1.32.0 \
     --hash=sha256:5445fe3af1da6be484991a7ab32eaa82461dc2347de105b76af92c610c3335c2 \

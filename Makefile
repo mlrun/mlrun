@@ -75,12 +75,24 @@ MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\.
 MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
 
 RUN_COVERAGE ?= false
+COVERAGE_FILE ?=
 
-COMMON_BUILD = if [ "$(RUN_COVERAGE)" = "true" ]; then \
-	rm -rf /tmp/coverage_reports/integration_tests && \
-	mkdir -p /tmp/coverage_reports/integration_tests; \
-	echo "done"; \
+
+ifeq ($(RUN_COVERAGE),true)
+    COVERAGE_ADDITION := "-m coverage run --rcfile=tests/tests.coveragerc --data-file=$$COVERAGE_FILE"
+else
+    COVERAGE_ADDITION := ""
+endif
+
+CLEAN_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
+	rm -rf $$COVERAGE_FILE && \
+	mkdir -p $$(dirname $$COVERAGE_FILE) ;\
 	fi; \
+
+PRINT_COVERAGE_REPORT = if [ "$(RUN_COVERAGE)" = "true" ]; then \
+		echo "coverage report $$COVERAGE_FILE :"; \
+		COVERAGE_FILE=$$COVERAGE_FILE coverage report --rcfile=tests/tests.coveragerc; \
+	fi;
 # if MLRUN_SYSTEM_TESTS_COMPONENT isn't set, we'll run all system tests
 # if MLRUN_SYSTEM_TESTS_COMPONENT is set, we'll run only the system tests for the given component
 # if MLRUN_SYSTEM_TESTS_COMPONENT starts with "no_", we'll ignore that component in the system tests
@@ -105,11 +117,6 @@ endif
 
 # Change to `--upgrade-package <package-name>` to upgrade only a specific package
 MLRUN_UV_UPGRADE_FLAG ?= --upgrade
-
-
-.PHONY: x
-x:
-	$(COMMON_BUILD)
 
 .PHONY: help
 help: ## Display available commands

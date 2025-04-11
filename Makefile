@@ -559,7 +559,7 @@ clean: ## Clean python package build artifacts
 .PHONY: test-dockerized
 test-dockerized: build-test ## Run mlrun tests in docker container
 	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX)" ;\
-	$(CLEAN_COVERAGE_MOUNTING)
+	$(CLEAN_COVERAGE_MOUNTING) \
 	docker run \
 		-t \
 		--rm \
@@ -619,7 +619,7 @@ test: clean ## Run mlrun tests
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test ## Run mlrun integration tests in docker container
 	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/integration_tests" ;\
-	$(CLEAN_COVERAGE_MOUNTING)
+	$(CLEAN_COVERAGE_MOUNTING) \
 	docker run \
 		-t \
 		--rm \
@@ -648,7 +648,7 @@ test-integration: clean ## Run mlrun integration tests
 .PHONY: test-migrations-dockerized
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
 	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/migration_tests" ;\
-	$(CLEAN_COVERAGE_MOUNTING)
+	$(CLEAN_COVERAGE_MOUNTING) \
 	docker run \
 		-t \
 		--rm \

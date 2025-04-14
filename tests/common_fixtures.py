@@ -809,13 +809,32 @@ class RemoteBuilderMock(RunDBMock):
         ):
             # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
             # it overrides the mock args - this way the value will remain as it was.
+            image = f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest"
             return {
                 "ready": True,
                 "data": {
                     "spec": {
                         "clone_target_dir": func.spec.clone_target_dir,
                         "build": {
-                            "image": f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest",
+                            "image": image,
+                        },
+                        "env": [
+                            {"name": "SIDECAR_PORT", "value": "8050"},
+                        ],
+                        "config": {
+                            "spec.sidecars": [
+                                {
+                                    "image": image,
+                                    "name": "application-test-sidecar",
+                                    "ports": [
+                                        {
+                                            "containerPort": 8050,
+                                            "name": "application-t-0",
+                                            "protocol": "TCP",
+                                        }
+                                    ],
+                                }
+                            ],
                         },
                     },
                     "status": {

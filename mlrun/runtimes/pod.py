@@ -1645,6 +1645,10 @@ def get_sanitized_attribute(spec, attribute_name: str):
         if _resolve_if_type_sanitized(attribute_name, attribute[0]):
             return attribute
 
+    return sanitize_attribute(attribute)
+
+
+def sanitize_attribute(attribute):
     api = k8s_client.ApiClient()
     return api.sanitize_for_serialization(attribute)
 

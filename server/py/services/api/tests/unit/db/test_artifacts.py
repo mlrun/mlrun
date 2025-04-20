@@ -1687,6 +1687,21 @@ class TestArtifacts(TestDatabaseBase):
         )
         assert len(artifacts) == 1
 
+        # List artifacts partitioned by 'project' and 'name' to verify that the query is working as expected
+        # when using both 'partition_by' and 'order_by'.
+        # The test verifies the query behavior both with and without the 'limit' parameter.
+        artifacts = self._db.list_artifacts(
+            self._db_session,
+            project=project,
+            limit=limit,
+            partition_by=mlrun.common.schemas.ArtifactPartitionByField.project_and_name,
+        )
+        assert len(artifacts) == 1
+        assert (
+            artifacts[0]["metadata"]["tag"]
+            == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
+
     def test_list_artifacts_producer_uri(self):
         project = "artifact_project"
         artifact_key = "dummy-artifact"

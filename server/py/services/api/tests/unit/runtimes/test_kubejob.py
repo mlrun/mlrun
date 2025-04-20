@@ -38,7 +38,9 @@ from services.api.tests.unit.conftest import APIK8sSecretsMock
 from services.api.tests.unit.runtimes.base import TestRuntimeBase
 
 
-def create_node_affinity_with_terms(terms):
+def create_node_affinity_with_terms(
+    terms: list[list[k8s_client.V1NodeSelectorRequirement]],
+) -> k8s_client.V1Affinity:
     """Helper function to create a V1Affinity with specific node selector terms."""
     return k8s_client.V1Affinity(
         node_affinity=k8s_client.V1NodeAffinity(

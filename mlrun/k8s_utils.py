@@ -296,7 +296,16 @@ def _get_mode_handler(mode: str):
     }.get(mode)
 
 
-def _handle_prevent_mode(node_selector, tolerations, affinity, preemptible_tolerations):
+def _handle_prevent_mode(
+    node_selector: dict[str, str],
+    tolerations: list[kubernetes.client.V1Toleration],
+    affinity: typing.Optional[kubernetes.client.V1Affinity],
+    preemptible_tolerations: list[kubernetes.client.V1Toleration],
+) -> tuple[
+    dict[str, str],
+    list[kubernetes.client.V1Toleration],
+    typing.Optional[kubernetes.client.V1Affinity],
+]:
     def _prune_tolerations(to_remove: list[kubernetes.client.V1Toleration]):
         return [t for t in tolerations if t not in to_remove]
 
@@ -330,8 +339,15 @@ def _handle_prevent_mode(node_selector, tolerations, affinity, preemptible_toler
 
 
 def _handle_constrain_mode(
-    node_selector, tolerations, affinity, preemptible_tolerations
-):
+    node_selector: dict[str, str],
+    tolerations: list[kubernetes.client.V1Toleration],
+    affinity: typing.Optional[kubernetes.client.V1Affinity],
+    preemptible_tolerations: list[kubernetes.client.V1Toleration],
+) -> tuple[
+    dict[str, str],
+    list[kubernetes.client.V1Toleration],
+    typing.Optional[kubernetes.client.V1Affinity],
+]:
     tolerations = _merge_tolerations(tolerations, preemptible_tolerations)
 
     affinity = _override_required_during_scheduling_ignored_during_execution(
@@ -344,7 +360,16 @@ def _handle_constrain_mode(
     return node_selector, tolerations, affinity
 
 
-def _handle_allow_mode(node_selector, tolerations, affinity, preemptible_tolerations):
+def _handle_allow_mode(
+    node_selector: dict[str, str],
+    tolerations: list[kubernetes.client.V1Toleration],
+    affinity: typing.Optional[kubernetes.client.V1Affinity],
+    preemptible_tolerations: list[kubernetes.client.V1Toleration],
+) -> tuple[
+    dict[str, str],
+    list[kubernetes.client.V1Toleration],
+    typing.Optional[kubernetes.client.V1Affinity],
+]:
     for op in [
         mlrun.common.schemas.NodeSelectorOperator.node_selector_op_not_in.value,
         mlrun.common.schemas.NodeSelectorOperator.node_selector_op_in.value,
@@ -367,11 +392,10 @@ def _merge_tolerations(
     existing: list[kubernetes.client.V1Toleration],
     to_add: list[kubernetes.client.V1Toleration],
 ) -> list[kubernetes.client.V1Toleration]:
-    existing_set = set(existing)
     for toleration in to_add:
-        if toleration not in existing_set:
+        if toleration not in existing:
             existing.append(toleration)
-            existing_set.add(toleration)
+    return existing
 
 
 def _prune_node_selector(

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import collections
 import functools
@@ -42,7 +42,7 @@ from sqlalchemy import (
     select,
     text,
 )
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
 from sqlalchemy.orm import Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
@@ -454,7 +454,8 @@ class SQLDB(DBInterface):
         if end_time_to is not None:
             query = query.filter(Run.end_time <= end_time_to)
         if sort:
-            query = query.order_by(Run.start_time.desc())
+            # If the start_time fields are the same, we need a secondary field to sort by.
+            query = query.order_by(Run.start_time.desc(), Run.id.desc())
         if not iter:
             query = query.filter(Run.iteration == 0)
         if requested_logs is not None:
@@ -525,10 +526,23 @@ class SQLDB(DBInterface):
     def _enrich_run_struct_from_model(
         self, run: Run, run_struct: dict, with_notifications: bool
     ):
-        if run.end_time:
-            run_struct.setdefault("status", {})["end_time"] = self._add_utc_timezone(
-                run.end_time
-            ).isoformat()
+        status = run_struct.setdefault("status", {})
+
+        # Return the value from the column to ensure the ordering is correct since the sort is done on the table
+        # columns and timestamps are being saved with fsp=3 while struct fields are fsp=6.
+        # In SQLite, the start_time and updated columns return timestamps with fsp=6.
+        for status_field, struct_field in [
+            ("end_time", "end_time"),
+            ("start_time", "start_time"),
+            ("last_update", "updated"),
+        ]:
+            if field_value := getattr(run, struct_field, None):
+                # Handle cases where milliseconds/microseconds are missing in timestamp, because isoformat by default
+                # ignores them if they are zero
+                status[status_field] = self._add_utc_timezone(field_value).isoformat(
+                    timespec="microseconds"
+                )
+
         if with_notifications:
             self._fill_run_struct_with_notifications(run.notifications, run_struct)
 
@@ -602,7 +616,8 @@ class SQLDB(DBInterface):
             and not run.end_time
         ):
             if end_time is None:
-                end_time = func.now()
+                # Ensures fsp 6 for MySQL NOW() to includes microseconds
+                end_time = func.now(6)
             run.end_time = end_time
         elif (
             run.state not in mlrun.common.runtimes.constants.RunStates.terminal_states()
@@ -1024,6 +1039,7 @@ class SQLDB(DBInterface):
         logger.info("Deleting artifacts", total_artifacts=total_artifacts)
 
         failed_deletions_count = 0
+        failed_deletions_count_integrity = 0
 
         for key, uid in distinct_keys_and_uids:
             try:
@@ -1035,6 +1051,20 @@ class SQLDB(DBInterface):
                     key=key,
                     producer_id=producer_id,
                 )
+            except IntegrityError as exc:
+                # Check if the error is related to ModelEndpoint table
+                if "model_endpoints" in str(exc).lower():
+                    logger.error(
+                        "Failed to delete model artifact due to existing model endpoints that reference it",
+                        project=project,
+                        key=key,
+                        uid=uid,
+                        err=err_to_str(exc),
+                    )
+                    failed_deletions_count_integrity += 1
+                else:
+                    # Re-raise the exception if it's not related to ModelEndpoint
+                    raise
             except Exception as exc:
                 logger.error(
                     "Failed to delete artifact",
@@ -1046,9 +1076,15 @@ class SQLDB(DBInterface):
                 failed_deletions_count += 1
                 continue
 
-        if failed_deletions_count:
+        if failed_deletions_count or failed_deletions_count_integrity:
+            if failed_deletions_count_integrity:
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"Failed to delete {failed_deletions_count + failed_deletions_count_integrity} artifacts, "
+                    f"while {failed_deletions_count_integrity} of them failed due to existing model endpoints that "
+                    f"reference them."
+                )
             raise mlrun.errors.MLRunInternalServerError(
-                f"Failed to delete {failed_deletions_count} artifacts"
+                f"Failed to delete {failed_deletions_count} artifacts."
             )
         logger.info("Successfully deleted artifacts", total_artifacts=total_artifacts)
 
@@ -1120,6 +1156,25 @@ class SQLDB(DBInterface):
             )
         except mlrun.errors.MLRunNotFoundError:
             return None
+        except sqlalchemy.exc.MultipleResultsFound as exc:
+            logger.error(
+                "Failed to delete artifact because multiple artifacts were found",
+                key=key,
+                project=project,
+                tag=tag,
+                iter=iter,
+                producer_id=producer_id,
+                uid=uid,
+                err=err_to_str(exc),
+            )
+
+            error_message = (
+                "Failed to delete artifact, multiple artifacts matching the search criteria were found. "
+                "Refine your request to specify a single artifact or use another endpoint to delete "
+                "multiple artifacts instead."
+            )
+            raise mlrun.errors.MLRunBadRequestError(error_message) from exc
+
         dependent_endpoints_count = (
             session.query(ModelEndpoint)
             .filter(ModelEndpoint.model_id == db_artifact.id)
@@ -1127,8 +1182,8 @@ class SQLDB(DBInterface):
         )
         if dependent_endpoints_count:
             raise mlrun.errors.MLRunConflictError(
-                f"Failed deleting artifact {key} in project {project}, tag {tag}"
-                f", iteration {iter} and {db_artifact.uid} uid. "
+                f"Failed deleting artifact {db_artifact.key} in project {db_artifact.project}, iteration "
+                f"{db_artifact.iteration}, producer_id {db_artifact.producer_id} and {db_artifact.uid} uid. "
                 f"The artifact is used by {dependent_endpoints_count} endpoints"
             )
         return mlrun.common.formatters.ArtifactFormat.format_obj(
@@ -1602,11 +1657,16 @@ class SQLDB(DBInterface):
             logger.warning(message, kind=kind, category=category)
             raise ValueError(message)
 
+        tag_id_alias = "tag_id"
+
         # create a sub query that gets only the artifact IDs
         # apply all filters and limits
         query = session.query(ArtifactV2).with_entities(
             ArtifactV2.id,
             ArtifactV2.Tag.name,
+            # Include tag ID (as 'tag_id') to enable sorting by tag creation order DESC.
+            # The alias is required to reference it later in subqueries and outer queries.
+            ArtifactV2.Tag.id.label(tag_id_alias),
         )
 
         # If the query matches the default UI list artifacts request, we bypass the DB optimizer and use the index
@@ -1705,8 +1765,22 @@ class SQLDB(DBInterface):
             # Order the results before applying the limit to ensure that the limit is applied to the correctly
             # ordered results.
             # If the updated fields are the same, we need a secondary field to sort by.
+            # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
+            # Put "latest" tag first, then others by tag_id desc
+            latest_first_case = case(
+                (ArtifactV2.Tag.name == "latest", 0),
+                else_=1,
+            )
             query = self._paginate_query(
-                query.order_by(ArtifactV2.updated.desc(), ArtifactV2.id.desc()),
+                query.order_by(
+                    ArtifactV2.updated.desc(),
+                    ArtifactV2.id.desc(),
+                    latest_first_case,
+                    # Use raw SQL text to refer to the "tag_id" alias we defined earlier.
+                    # This is necessary because SQLAlchemy does not allow direct reference
+                    # to aliased columns (like "tag_id") in order_by() using ORM column objects.
+                    text(f"{tag_id_alias} DESC"),
+                ),
                 offset,
                 limit,
             )
@@ -1721,10 +1795,21 @@ class SQLDB(DBInterface):
 
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
+        # Put "latest" tag first, then others by tag_id desc
+        latest_first_case = case(
+            (subquery.c.name == "latest", 0),
+            else_=1,
+        )
+
         # join may lose order, make sure order is applied on outer as well
         # If the updated fields are the same, we need a secondary field to sort by.
+        # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
         outer_query = outer_query.order_by(
-            ArtifactV2.updated.desc(), ArtifactV2.id.desc()
+            ArtifactV2.updated.desc(),
+            ArtifactV2.id.desc(),
+            latest_first_case,
+            # Safe ordering by tag_id alias
+            subquery.c[tag_id_alias].desc(),
         )
 
         if not limit:
@@ -2348,7 +2433,8 @@ class SQLDB(DBInterface):
             limit=limit,
         ):
             function_dict = function.struct
-            function_dict["kind"] = function.kind
+            self._enrich_function_struct_from_model(function, function_dict)
+
             if not function_tag:
                 # function status should be added only to tagged functions
                 # TODO: remove explicit cleaning; we also
@@ -2538,13 +2624,15 @@ class SQLDB(DBInterface):
         tag_function_uid = None if not tag and hash_key else uid
         if obj:
             function = obj.struct
+            self._enrich_function_struct_from_model(obj, function)
+
             # If connected to a tag add it to metadata
             if tag_function_uid:
                 function["metadata"]["tag"] = computed_tag
                 function["metadata"]["uid"] = tag_function_uid
-            function["kind"] = obj.kind
             function.setdefault("status", {})
             function["status"]["state"] = obj.state
+
             return mlrun.common.formatters.FunctionFormat.format_obj(function, format_)
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
@@ -2595,6 +2683,22 @@ class SQLDB(DBInterface):
         else:
             computed_tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         return tag, computed_tag
+
+    def _enrich_function_struct_from_model(
+        self, function: Function, function_struct: dict
+    ):
+        function_struct["kind"] = function.kind
+
+        # updated field is saved in struct as timestamps with fsp=6, while the corresponding column
+        # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
+        # the column (not from the struct) to ensure the ordering is correct.
+        # In SQLite, the updated column return timestamps with fsp=6.
+        if field_value := getattr(function, "updated", None):
+            # Handle cases where milliseconds/microseconds are missing in timestamp, because isoformat by default
+            # ignores them if they are zero
+            function_struct["metadata"]["updated"] = self._add_utc_timezone(
+                field_value
+            ).isoformat(timespec="microseconds")
 
     def _delete_project_functions(self, session: Session, project: str):
         logger.debug("Removing project functions from db", project=project)
@@ -4382,7 +4486,8 @@ class SQLDB(DBInterface):
         # Retrieve only the ID from the subquery to minimize the inner table,
         # in the final step we inner join the inner table with the full table.
         query = query.with_entities(
-            cls.id, cls.Tag.name if with_tagged else None
+            cls.id,
+            *(cls.Tag.name, cls.Tag.id.label("tag_id")) if with_tagged else (),
         ).add_column(row_number_column)
         if max_partitions > 0:
             max_partition_value = (
@@ -4400,7 +4505,10 @@ class SQLDB(DBInterface):
         if max_partitions == 0:
             result_query = session.query(cls)
             if with_tagged:
-                result_query = result_query.add_column(subquery.c.name)
+                result_query = result_query.add_columns(
+                    subquery.c.name,
+                    subquery.c.tag_id,
+                )
             result_query = result_query.join(subquery, cls.id == subquery.c.id).filter(
                 subquery.c.row_number <= rows_per_partition
             )
@@ -5492,7 +5600,13 @@ class SQLDB(DBInterface):
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)
-        query = query.order_by(Function.updated.desc())
+
+        # If the updated fields are the same, we need a secondary field to sort by.
+        # Third sort by tag ID to ensure consistent ordering when a function has multiple tags.
+        query = query.order_by(
+            Function.updated.desc(), Function.id.desc(), Function.Tag.id.desc()
+        )
+
         query = self._paginate_query(query, offset, limit)
         return query
 
@@ -5598,12 +5712,7 @@ class SQLDB(DBInterface):
                     ModelEndpoint.function_id == Function.id,
                     isouter=True,  # LEFT JOIN to Function
                 )
-                query = query.filter(
-                    or_(
-                        Function.name.isnot(None),
-                        ModelEndpoint.endpoint_type == EndpointType.BATCH_EP,
-                    )
-                )
+
         else:
             query = query.outerjoin(
                 ModelEndpoint.Tag, ModelEndpoint.id == ModelEndpoint.Tag.obj_id
@@ -6254,6 +6363,8 @@ class SQLDB(DBInterface):
         session,
         project: typing.Optional[typing.Union[str, list[str]]] = None,
         exclude_updated: bool = False,
+        limit: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         query = self._query(session, AlertConfig)
 
@@ -6263,6 +6374,9 @@ class SQLDB(DBInterface):
         ).add_entity(AlertState)
 
         query = self._filter_query_by_resource_project(query, AlertConfig, project)
+        query = query.order_by(AlertConfig.id.asc())
+        query = self._paginate_query(query, offset, limit)
+
         results = query.all()
 
         # Process each result, transforming and enriching the AlertConfig objects
@@ -6853,7 +6967,10 @@ class SQLDB(DBInterface):
         if entity_kind:
             query = query.filter(AlertActivation.entity_kind == entity_kind)
 
-        query = query.order_by(AlertActivation.activation_time.desc())
+        # If the activation_time fields are the same, we need a secondary field to sort by.
+        query = query.order_by(
+            AlertActivation.activation_time.desc(), AlertActivation.id.desc()
+        )
         query = self._paginate_query(query, offset, limit)
         return [
             self._transform_alert_activation_record_to_scheme(record)
@@ -7596,12 +7713,20 @@ class SQLDB(DBInterface):
                 name=normalized_function_name,
                 project=project,
                 tag=function_tag,
-                hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
-                # model endpoints always points on unversioned function
             )
             return function_record
         except mlrun.errors.MLRunNotFoundError:
-            return None
+            try:
+                function_record, _ = self._get_function_db_object(
+                    session,
+                    name=normalized_function_name,
+                    project=project,
+                    tag=function_tag,
+                    hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
+                )
+                return function_record
+            except mlrun.errors.MLRunNotFoundError:
+                return None
 
     @staticmethod
     def _create_mep_record_to_store(
@@ -8010,3 +8135,23 @@ class SQLDB(DBInterface):
                 as_record=True,
             )
             mep_record.model_id = db_artifact.id
+
+    def update_db_object(self, session, model, filters=None, **fields):
+        """Helper function to update fields of a database object and commit the changes."""
+        query = self._query(session, model)
+
+        # Apply filters if provided
+        if filters:
+            query = query.filter_by(**filters)
+
+        db_object = query.one_or_none()
+
+        if not db_object:
+            raise ValueError(f"No record found for model {model.__name__}")
+
+        for field, value in fields.items():
+            setattr(db_object, field, value)
+
+        session.add(db_object)
+        self._commit(session, db_object)
+        session.flush()

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import datetime
 from typing import Optional, Union
 
@@ -881,11 +880,6 @@ class NopDB(RunDBInterface):
     def delete_model_monitoring_function(
         self, project: str, functions: list[str]
     ) -> bool:
-        pass
-
-    def deploy_histogram_data_drift_app(
-        self, project: str, image: str = "mlrun/mlrun"
-    ) -> None:
         pass
 
     def set_model_monitoring_credentials(

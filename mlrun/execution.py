@@ -232,6 +232,11 @@ class MLClientCtx:
         """Dictionary with annotations (read-only)"""
         return deepcopy(self._annotations)
 
+    @property
+    def host(self):
+        """Execution host"""
+        return self._host
+
     def get_child_context(self, with_parent_params=False, **params):
         """Get child context (iteration)
 

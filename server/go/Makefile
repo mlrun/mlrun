@@ -140,7 +140,18 @@ ensure-test-files-annotated:
 	@echo "All go test files have //go:build test_X annotation"
 	@exit $(.SHELLSTATUS)
 
+GOLANGCI_LINT_VERSION := v1.64.6
+GOLANGCI_LINT_BIN := $(CI_BIN_DIR)/golangci-lint
+
 .PHONY: ensure-golangci
 ensure-golangci:
-	@test -e $(CI_BIN_DIR)/golangci-lint || \
-		(curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(CI_BIN_DIR) v1.63.4)
+	@if ! command -v $(GOLANGCI_LINT_BIN) >/dev/null 2>&1; then \
+		echo "golangci-lint not found. Installing..."; \
+		GOBIN=$(CI_BIN_DIR) go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
+	else \
+		installed_version=$$($(GOLANGCI_LINT_BIN) version | awk '/version/ {print $$4}'); \
+		if [ "$$installed_version" != "$(GOLANGCI_LINT_VERSION)" ]; then \
+			echo "golangci-lint version mismatch ($$installed_version != $(GOLANGCI_LINT_VERSION)). Reinstalling..."; \
+			GOBIN=$(CI_BIN_DIR) go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
+		fi \
+	fi

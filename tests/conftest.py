@@ -23,6 +23,8 @@ from sys import executable, platform, stderr
 from time import monotonic, sleep
 from urllib.request import URLError, urlopen
 
+import mlrun.utils
+
 tests_root_directory = Path(__file__).absolute().parent
 results = tests_root_directory / "test_results"
 is_ci = "CI" in environ
@@ -37,7 +39,7 @@ root_path = str(Path(tests_root_directory).parent)
 examples_path = Path(tests_root_directory).parent.joinpath("examples")
 pytest_plugins = ["tests.common_fixtures"]
 
-run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
+run_time_fmt = "%Y-%m-%dT%H:%M:%S.%f%z"
 
 
 def check_docker():
@@ -92,7 +94,7 @@ def wait_for_server(url, timeout_sec):
 
 
 def run_now():
-    return datetime.now().strftime(run_time_fmt)
+    return mlrun.utils.format_datetime(datetime.now(), run_time_fmt)
 
 
 def new_run(state, labels, uid=None, **kw):

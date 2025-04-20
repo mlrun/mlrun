@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import base64
 import gzip
@@ -509,10 +509,9 @@ def _resolve_and_set_nuclio_runtime(
 ):
     nuclio_runtime = (
         function.spec.nuclio_runtime
-        # TODO: Uncomment when the function is aligned with the supported python versions
-        # or services.api.crud.runtimes.nuclio.helpers.resolve_nuclio_runtime_python_image(
-        #     mlrun_client_version=client_version, python_version=client_python_version
-        # )
+        or services.api.crud.runtimes.nuclio.helpers.resolve_nuclio_runtime_python_image(
+            mlrun_client_version=client_version, python_version=client_python_version
+        )
         or mlrun.mlconf.default_nuclio_runtime
     )
 

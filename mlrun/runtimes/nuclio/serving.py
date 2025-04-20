@@ -271,7 +271,8 @@ class ServingRuntime(RemoteRuntime):
                    can specify special router class and router arguments
 
           flow   - workflow (DAG) with a chain of states
-                   flow support "sync" and "async" engines, branches are not allowed in sync mode
+                   flow supports both "sync" and "async" engines, with "async" being the default.
+                   Branches are not allowed in sync mode.
                    when using async mode calling state.respond() will mark the state as the
                    one which generates the (REST) call response
 
@@ -300,7 +301,7 @@ class ServingRuntime(RemoteRuntime):
                 step = RouterStep(class_name=class_name, class_args=class_args)
             self.spec.graph = step
         elif topology == StepKinds.flow:
-            self.spec.graph = RootFlowStep(engine=engine)
+            self.spec.graph = RootFlowStep(engine=engine or "async")
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"unsupported topology {topology}, use 'router' or 'flow'"
@@ -337,6 +338,17 @@ class ServingRuntime(RemoteRuntime):
         """
         # Applying model monitoring configurations
         self.spec.track_models = enable_tracking
+        if self._spec and self._spec.function_refs:
+            logger.debug(
+                "Set tracking for children references", enable_tracking=enable_tracking
+            )
+            for name in self._spec.function_refs.keys():
+                self._spec.function_refs[name].track_models = enable_tracking
+                # Check if function_refs _function is filled if so update track_models field:
+                if self._spec.function_refs[name]._function:
+                    self._spec.function_refs[
+                        name
+                    ]._function.spec.track_models = enable_tracking
 
         if not 0 < sampling_percentage <= 100:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -506,7 +518,11 @@ class ServingRuntime(RemoteRuntime):
         :return function object
         """
         function_reference = FunctionReference(
-            url, image, requirements=requirements, kind=kind or "serving"
+            url,
+            image,
+            requirements=requirements,
+            kind=kind or "serving",
+            track_models=self.spec.track_models,
         )
         self._spec.function_refs.update(function_reference, name)
         func = function_reference.to_function(self.kind)
@@ -784,7 +800,7 @@ class ServingRuntime(RemoteRuntime):
             serving_fn.add_model(
                 "my-classifier",
                 model_path=model_path,
-                class_name="mlrun.frameworks.sklearn.SklearnModelServer",
+                class_name="mlrun.frameworks.sklearn.SKLearnModelServer",
             )
             serving_fn.plot(rankdir="LR")
 

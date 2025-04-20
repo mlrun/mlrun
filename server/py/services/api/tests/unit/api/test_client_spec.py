@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import base64
 import http
 import json
@@ -171,16 +171,16 @@ def test_client_spec(
         ("1.8.0", "", "", "mlrun/ml-base:1.8.0"),
         ("1.8.0", "1.2.0", None, "mlrun/ml-base:1.2.0"),
         (
-            "1.8.0",
-            "1.3.0-rc20",
-            "3.7.13",
-            "mlrun/ml-base:1.3.0-rc20-py37",
+            "1.9.0",
+            "1.9.0-rc20",
+            "3.9.13",
+            "mlrun/ml-base:1.9.0-rc20-py39",
         ),
         (
-            "1.8.0",
-            "1.3.0-rc20",
-            "3.9.13",
-            "mlrun/ml-base:1.3.0-rc20",
+            "1.9.0",
+            "1.9.0-rc20",
+            "3.11.13",
+            "mlrun/ml-base:1.9.0-rc20",
         ),
         (
             "1.8.0",

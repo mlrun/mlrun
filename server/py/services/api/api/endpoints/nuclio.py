@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import http
 import traceback
@@ -517,9 +517,16 @@ def _deploy_function(
         launcher.enrich_runtime(runtime=fn, full=True)
 
         fn.pre_deploy_validation()
+        # before saving function to DB, we need to mask some nuclio-specific fields
+        # which later in Nuclio will be masked and saved to secrets
+        raw_config = fn.mask_sensitive_data_in_config()
+
+        # save the function to DB
         fn.save(versioned=False)
         fn.spec.model_endpoint_creation_task_name = model_endpoint_creation_task_name
 
+        # after saving function to DB, we need to restore the original config so that the sensitive data won't be stored
+        fn.spec.config = raw_config
         fn = _deploy_nuclio_runtime(
             auth_info,
             builder_env,
@@ -528,6 +535,8 @@ def _deploy_function(
             db_session,
             fn,
         )
+        # after deploying the function, we need to re-mask the sensitive data again and save to the db
+        fn.mask_sensitive_data_in_config()
         fn.save(versioned=False)
         logger.info("Resolved function", fn=fn.to_yaml())
     except Exception as err:
@@ -663,6 +672,9 @@ def _handle_nuclio_deploy_status(
     # add api gateway's URLs
     if api_gateway_urls:
         external_invocation_urls += api_gateway_urls
+        # add api gateway's URLs to the function status response from nuclio to not
+        # affect _is_nuclio_deploy_status_changed
+        status["externalInvocationUrls"] = external_invocation_urls
 
     # on earlier versions of mlrun, address used to represent the nodePort external invocation url
     # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
@@ -705,6 +717,7 @@ def _handle_nuclio_deploy_status(
             tag,
             versioned=versioned,
         )
+        logger.info("Updating function status", function=fn)
 
     return Response(
         content=text,

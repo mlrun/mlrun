@@ -46,7 +46,7 @@ from mlrun.model_monitoring.controller import (
     _BatchWindowGenerator,
     _Interval,
 )
-from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFile
+from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFileEndpoint
 from mlrun.model_monitoring.helpers import (
     _BatchDict,
     _get_monitoring_time_window_from_controller_run,
@@ -56,7 +56,6 @@ from mlrun.model_monitoring.helpers import (
     get_output_stream,
     update_model_endpoint_last_request,
 )
-from mlrun.utils import datetime_now
 
 
 class _HistLen(NamedTuple):
@@ -242,8 +241,10 @@ class TestBatchInterval:
 
     @staticmethod
     @pytest.fixture
-    def schedules_file() -> Iterator[ModelMonitoringSchedulesFile]:
-        file = ModelMonitoringSchedulesFile(project="test-intervals", endpoint_id="ep")
+    def schedules_file() -> Iterator[ModelMonitoringSchedulesFileEndpoint]:
+        file = ModelMonitoringSchedulesFileEndpoint(
+            project="test-intervals", endpoint_id="ep"
+        )
         file.create()
         yield file
         file.delete()
@@ -251,7 +252,7 @@ class TestBatchInterval:
     @staticmethod
     @pytest.fixture
     def intervals(
-        schedules_file: ModelMonitoringSchedulesFile,
+        schedules_file: ModelMonitoringSchedulesFileEndpoint,
         timedelta_seconds: int,
         first_request: int,
         last_updated: int,
@@ -333,7 +334,7 @@ class TestBatchInterval:
         last_updated: int,
         first_request: int,
         expected_last_analyzed: int,
-        schedules_file: ModelMonitoringSchedulesFile,
+        schedules_file: ModelMonitoringSchedulesFileEndpoint,
     ) -> None:
         with schedules_file as f:
             assert (
@@ -460,30 +461,7 @@ class TestBumpModelEndpointLastRequest:
         patch_patch_model_endpoint.assert_called_once()
         assert patch_patch_model_endpoint.call_args.kwargs["attributes"][
             EventFieldType.LAST_REQUEST
-        ] == datetime.datetime.fromisoformat(last_request) + datetime.timedelta(
-            minutes=1
-        ) + datetime.timedelta(
-            seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
-        ), "The patched last request time should be bumped by the given delta"
-
-    @staticmethod
-    def test_no_bump(
-        project: str,
-        model_endpoint: ModelEndpoint,
-        db: NopDB,
-    ) -> None:
-        with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
-            with patch.object(
-                db, "get_function", side_effect=mlrun.errors.MLRunNotFoundError
-            ):
-                model_endpoint.metadata.endpoint_type = EndpointType.BATCH_EP
-                update_model_endpoint_last_request(
-                    project=project,
-                    model_endpoint=model_endpoint,
-                    current_request=datetime_now(),
-                    db=db,
-                )
-        patch_patch_model_endpoint.assert_not_called()
+        ] == datetime.datetime.fromisoformat(last_request)
 
     @staticmethod
     def test_get_monitoring_time_window_from_controller_run(

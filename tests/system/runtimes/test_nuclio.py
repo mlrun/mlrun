@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
 import os
 import time
@@ -251,6 +251,15 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
 
         self._logger.debug("Deploying nuclio function")
         url = function.deploy()
+
+        db_function = self.project.get_function(function.metadata.name)
+        nuclio_config = db_function.spec.config
+
+        for key, value in nuclio_config.items():
+            if key.startswith("spec.triggers"):
+                assert value.get("password", "").startswith(
+                    mlrun.model.Credentials.secret_reference_prefi
+                )
 
         self._logger.debug("Triggering nuclio function")
         resp = requests.post(url, json={"hello": "world"})

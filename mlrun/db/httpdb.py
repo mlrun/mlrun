@@ -937,7 +937,7 @@ class HTTPRunDB(RunDBInterface):
 
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run, or a list of run UIDs.
-        :param project: Project that the runs belongs to.
+        :param project: Project that the runs belongs to. If not specified, the default project will be used.
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
             or `{"label": None}` to check for key existence.
@@ -3584,7 +3584,7 @@ class HTTPRunDB(RunDBInterface):
         params = {
             "type": type,
             "endpoint-id": endpoint_ids,
-            "events_format": events_format,
+            "events-format": events_format,
         }
         error_message = (
             f"Failed to get model monitoring metrics,"
@@ -3720,7 +3720,7 @@ class HTTPRunDB(RunDBInterface):
             path=path,
             body=model_endpoint.json(),
             params={
-                "creation_strategy": creation_strategy,
+                "creation-strategy": creation_strategy,
             },
         )
         return mlrun.common.schemas.ModelEndpoint(**response.json())
@@ -3750,9 +3750,9 @@ class HTTPRunDB(RunDBInterface):
             method=mlrun.common.types.HTTPMethod.DELETE,
             path=path,
             params={
-                "function_name": function_name,
-                "function_tag": function_tag,
-                "endpoint_id": endpoint_id,
+                "function-name": function_name,
+                "function-tag": function_tag,
+                "endpoint-id": endpoint_id,
             },
         )
 
@@ -3799,17 +3799,17 @@ class HTTPRunDB(RunDBInterface):
             path=path,
             params={
                 "name": names,
-                "model_name": model_name,
-                "model_tag": model_tag,
-                "function_name": function_name,
-                "function_tag": function_tag,
+                "model-name": model_name,
+                "model-tag": model_tag,
+                "function-name": function_name,
+                "function-tag": function_tag,
                 "label": labels,
                 "start": datetime_to_iso(start),
                 "end": datetime_to_iso(end),
-                "tsdb_metrics": tsdb_metrics,
+                "tsdb-metrics": tsdb_metrics,
                 "top-level": top_level,
                 "uid": uids,
-                "latest_only": latest_only,
+                "latest-only": latest_only,
             },
         )
 
@@ -3847,11 +3847,11 @@ class HTTPRunDB(RunDBInterface):
             method=mlrun.common.types.HTTPMethod.GET,
             path=path,
             params={
-                "function_name": function_name,
-                "function_tag": function_tag,
-                "endpoint_id": endpoint_id,
-                "tsdb_metrics": tsdb_metrics,
-                "feature_analysis": feature_analysis,
+                "function-name": function_name,
+                "function-tag": function_tag,
+                "endpoint-id": endpoint_id,
+                "tsdb-metrics": tsdb_metrics,
+                "feature-analysis": feature_analysis,
             },
         )
 
@@ -3879,8 +3879,8 @@ class HTTPRunDB(RunDBInterface):
         attributes_keys = list(attributes.keys())
         attributes["name"] = name
         attributes["project"] = project
-        attributes["function_name"] = function_name or None
-        attributes["function_tag"] = function_tag or None
+        attributes["function-name"] = function_name or None
+        attributes["function-tag"] = function_tag or None
         attributes["uid"] = endpoint_id or None
         model_endpoint = mlrun.common.schemas.ModelEndpoint.from_flat_dict(attributes)
         path = f"projects/{project}/model-endpoints"
@@ -4079,21 +4079,6 @@ class HTTPRunDB(RunDBInterface):
                 ):
                     deletion_failed = True
         return not deletion_failed
-
-    def deploy_histogram_data_drift_app(
-        self, project: str, image: str = "mlrun/mlrun"
-    ) -> None:
-        """
-        Deploy the histogram data drift application.
-
-        :param project: Project name.
-        :param image:   The image on which the application will run.
-        """
-        self.api_call(
-            method=mlrun.common.types.HTTPMethod.PUT,
-            path=f"projects/{project}/model-monitoring/histogram-data-drift-app",
-            params={"image": image},
-        )
 
     def set_model_monitoring_credentials(
         self,
@@ -4818,20 +4803,33 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", endpoint_path, error_message)
         return AlertConfig.from_dict(response.json())
 
-    def list_alerts_configs(self, project="") -> list[AlertConfig]:
+    def list_alerts_configs(
+        self, project="", limit: Optional[int] = None, offset: Optional[int] = None
+    ) -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
 
         :param project: The project name.
+        :param limit: The maximum number of alerts to return.
+            Defaults to `mlconf.alerts.default_list_alert_configs_limit` if not provided.
+        :param offset: The number of alerts to skip.
 
         :returns: All the alerts objects of the project.
         """
         project = project or config.default_project
         endpoint_path = f"projects/{project}/alerts"
         error_message = f"get alerts {project}/alerts"
-        response = self.api_call("GET", endpoint_path, error_message).json()
+        params = {}
+        # TODO: Deprecate limit and offset when pagination is implemented
+        if limit:
+            params["page-size"] = limit
+        if offset:
+            params["offset"] = offset
+        response = self.api_call(
+            "GET", endpoint_path, error_message, params=params
+        ).json()
         results = []
-        for item in response:
+        for item in response.get("alerts", []):
             results.append(AlertConfig(**item))
         return results
 

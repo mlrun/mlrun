@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import http
 import traceback
@@ -672,6 +672,9 @@ def _handle_nuclio_deploy_status(
     # add api gateway's URLs
     if api_gateway_urls:
         external_invocation_urls += api_gateway_urls
+        # add api gateway's URLs to the function status response from nuclio to not
+        # affect _is_nuclio_deploy_status_changed
+        status["externalInvocationUrls"] = external_invocation_urls
 
     # on earlier versions of mlrun, address used to represent the nodePort external invocation url
     # now that functions can be not exposed (using service_type clusterIP) this no longer relevant

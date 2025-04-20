@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG MLRUN_GPU_BASE_IMAGE=quay.io/mlrun/prebaked-cuda:11.8.0-cudnn8-devel-ubuntu22.04
+ARG MLRUN_GPU_BASE_IMAGE=quay.io/mlrun/prebaked-cuda:12.8.1-cudnn-devel-ubuntu22.04
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image

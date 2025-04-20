@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import re
 import typing
 from datetime import datetime
@@ -175,7 +175,11 @@ def ensure_max_length(string: str):
     return string
 
 
-def _validate_label(name: str, value: typing.Union[str, int]):
+def _validate_label(name: str, value: typing.Optional[typing.Union[str, int]]):
+    # a backwards compatibility check for `None` key
+    if value is None:
+        return
+
     if not isinstance(name, str):
         raise mlrun.errors.MLRunInvalidArgumentError(
             "The name in the label must be a string."

@@ -207,10 +207,14 @@ linkcheck_ignore = [
     "http://function.py",
     "http://localhost:30040",
     "https://dev.mysql.com/doc/refman/8.0/en/keywords.html",
-    # Returns 404 thought link is valid
-    "https://docs.databricks.com/aws/en/reference/jobs-2.0-api",
+    "https://www.kaggle.com/code/jsylas/python-version-of-top-ten-rank-r-22-m-2-88/data?select=train.csv",
+    # Returns 404 though link is valid
+    "https://docs.databricks.com/aws/en/reference/jobs-2.0-api"
     # can be removed after v1.8/0 is released:
     "https://docs.mlrun.org/en/stable/api/mlrun.datastore/index.html#mlrun.datastore.datastore_profile.TDEngineDatastoreProfile",
+    # Mckinsey restricted
+    "https://ollama.com/download",
+    "https://ollama.com/library/llama3",
 ]
 
 # -- Autosummary -------------------------------------------------------------

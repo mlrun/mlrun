@@ -3,8 +3,8 @@
 
 To run multiple functions, one after the other  (`jobs`), you use a pipeline. There are three types of pipeline engines:
 - [Remote on KFP](#remote-kfp)
-- [Remote](#remote)
-- Local &mdash; Used to run local pipeline with local functions, mainly for testing. Use (set local=True in function.run()).
+- [KFP](#kfp)
+- Local &mdash; Used to run local pipeline with local functions, mainly for testing. Use (set `local=True in function.run()`).
 
 <img src="../_static/images/pipelines-flow.png" width="800" >
 
@@ -12,28 +12,19 @@ All three types are configured when running the workflow, see {py:class}`mlrun.p
  
 ## Remote-KFP 
 
-Remote workflows are run on the remote server with KFP. They can be run by a project with a remote source or one that is contained on the image. 
-Remote sources are pulled each time the workflow is run, while the local source is loaded from the image.  
-To use a remote source you can either put your code in Git or archive it and then set a source to it (e.g. `git://github.com/mlrun/something.git`, `http://some/url/file.zip`, `s3://some/url/file.tar.gz` etc.). By default, the defined project source is used. Remote workflows are used for [scheduled workflows](./scheduled-jobs.md#scheduling-a-workflow).
-* To set project source use the `project.set_source` method.
-* To set workflow use the `project.set_workflow` method.  
+Remote workflows are run on the remote server with KFP. Remote workflows are used for [scheduled workflows](./scheduled-jobs.md#scheduling-a-workflow).
+The remote workflow supports [sending notifications](./notifications.md#remote-pipeline-notifications) when runs are complete.
+ 
 
-To use a different remote source, specify the source URL when running the workflow with `project.run(source=<source-URL>)` method.  
-You can also use a context path to load the project from a local directory contained in the image used for execution:
-* To set project source use the `project.set_source` method (make sure `pull_at_runtime` is set to `False`).
-* To build the image with the project yaml and code use `project.build_image` method. Optionally specify a `target_dir` for the project content.
-* Create the workflow e.g. `project.set_workflow(name="my-workflow", workflow_path="./src/workflow.py")`.
-* The default workflow image is `project.spec.default_image` which was enriched to and built with `project.build_image` unless specified otherwise.
-* Run the workflow with the context path e.g. `project.run("my-workflow", source="./", engine="remote")`. The `source` can be absolute or relative path with `"."` or `"./"`.
+Remote workflows must be based on the image `mlrun/mlrun-kfp`. See {ref}`images-usage`.  
+Remote workflows can be run by a project with a remote source or one that is contained in the image. See [source files](../runtimes/create-and-use-functions.ipynb#multiple-source-files).  
+To set the workflow, use the method {py:class}`mlrun.projects.MlrunProject.set_workflow` for example: `project.set_workflow(name="my-workflow", workflow_path="./src/workflow.py")`.  
 
-Every schedule or remote workflow triggers a pod named `workflow-runner-<workflow-name>`. You can modify the pod image and the pod node selector with:
-- `project.set_workflow(name="main",workflow_path="workflow.py,image="<runner-imahe>")` &mdash; changing the runner image
+A remote workflow creates a pod for each job, and a pod for the KFP. The job pod is named `workflow-runner-<workflow-name>`. You can modify the pod image and the pod node selector with:
+- `project.set_workflow(name="main",workflow_path="workflow.py,image="<runner-image>")` &mdash; changing the runner image
 - `project.run("main",engine="remote",workflow_runner_node_selector={"key":"value"})` &mdash; changing the node selector image
 
-There is one pod for each function, and also a batch pod for each function.
-The remote workflow supports sending notifications when runs are complete.
-
-Example for a remote GitHub project - https://github.com/mlrun/project-demo
+See an example of a remote GitHub project in https://github.com/mlrun/project-demo.
 ```{admonition} Note
 From MLRun v1.7.1: when running a remote/scheduled workflow, the remote workflow pulls/extracts the remote source content to the running pod but loads the project configuration from the MLRun DB and not from the project.yaml file in the remote source.
 
@@ -67,12 +58,10 @@ project.run("main", source="./", engine="remote", dirty=True)
 
 See also [Local and KFP engine pipeline notifications](../concepts/notifications.md#local-and-kfp-engine-pipeline-notifications) and [Setting notifications on scheduled run](../concepts/notifications.md#setting-notifications-on-scheduled-runs).
 
-## Remote
+## KFP
 
-The spec file is created in MLRun and is compiled and run in the client side. 
-
+The KFP workflow spec file is created in MLRun, and is compiled and run in the client side. 
+For example:
+```
 project.run("main", engine='remote')
-
-Remote workflows must be based on the image `mlrun/mlrun-kfp`. (See {ref}`images-usage`.) 
-
-See also [Remote pipeline notifications](../concepts/notifications.md#remote-pipeline-notifications).
+```

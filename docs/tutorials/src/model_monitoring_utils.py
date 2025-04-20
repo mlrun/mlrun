@@ -16,8 +16,6 @@ def enable_model_monitoring(
     wait_for_deployment: bool = False,
     deploy_histogram_data_drift_app: bool = True,
 ) -> mlrun.projects.MlrunProject:
-    """ """
-
     # Setting model monitoring creds
     tsdb_profile = DatastoreProfileV3io(name=tsdb_profile_name)
     stream_profile = DatastoreProfileV3io(

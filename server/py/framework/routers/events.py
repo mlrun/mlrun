@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Request

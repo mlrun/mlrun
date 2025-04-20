@@ -38,21 +38,30 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
     For example, :code:`MyApp` below is a simplistic custom application::
 
+        from mlrun.common.schemas.model_monitoring.constants import (
+            ResultKindApp,
+            ResultStatusApp,
+        )
+        from mlrun.model_monitoring.applications import (
+            ModelMonitoringApplicationBase,
+            ModelMonitoringApplicationResult,
+            MonitoringApplicationContext,
+        )
+
+
         class MyApp(ModelMonitoringApplicationBase):
             def do_tracking(
-                self,
-                monitoring_context: mm_context.MonitoringApplicationContext,
+                self, monitoring_context: MonitoringApplicationContext
             ) -> ModelMonitoringApplicationResult:
-                monitoring_context.log_artifact(
-                    TableArtifact(
-                        "sample_df_stats", df=self.dict_to_histogram(sample_df_stats)
-                    )
+                monitoring_context.logger.info(
+                    "Running application",
+                    application_name=monitoring_context.application_name,
                 )
                 return ModelMonitoringApplicationResult(
                     name="data_drift_test",
                     value=0.5,
-                    kind=mm_constant.ResultKindApp.data_drift,
-                    status=mm_constant.ResultStatusApp.detected,
+                    kind=ResultKindApp.data_drift,
+                    status=ResultStatusApp.detected,
                 )
     """
 

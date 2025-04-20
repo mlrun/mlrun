@@ -273,15 +273,7 @@ def enrich_preemption_mode(
     enriched_affinity = copy.deepcopy(affinity)
     preemptible_tolerations = generate_preemptible_tolerations()
 
-    # Map preemption modes to handler functions
-    mode_handlers = {
-        mlrun.common.schemas.PreemptionModes.prevent.value: _handle_prevent_mode,
-        mlrun.common.schemas.PreemptionModes.constrain.value: _handle_constrain_mode,
-        mlrun.common.schemas.PreemptionModes.allow.value: _handle_allow_mode,
-    }
-
-    handler = mode_handlers.get(preemption_mode)
-    if handler:
+    if handler := _get_mode_handler(preemption_mode):
         enriched_node_selector, enriched_tolerations, enriched_affinity = handler(
             enriched_node_selector,
             enriched_tolerations,
@@ -294,6 +286,14 @@ def enrich_preemption_mode(
         enriched_tolerations,
         _prune_empty_affinity(enriched_affinity),
     )
+
+
+def _get_mode_handler(mode: str):
+    return {
+        mlrun.common.schemas.PreemptionModes.prevent: _handle_prevent_mode,
+        mlrun.common.schemas.PreemptionModes.constrain: _handle_constrain_mode,
+        mlrun.common.schemas.PreemptionModes.allow: _handle_allow_mode,
+    }.get(mode)
 
 
 def _handle_prevent_mode(node_selector, tolerations, affinity, preemptible_tolerations):
@@ -367,10 +367,11 @@ def _merge_tolerations(
     existing: list[kubernetes.client.V1Toleration],
     to_add: list[kubernetes.client.V1Toleration],
 ) -> list[kubernetes.client.V1Toleration]:
+    existing_set = set(existing)
     for toleration in to_add:
-        if toleration not in existing:
+        if toleration not in existing_set:
             existing.append(toleration)
-    return existing
+            existing_set.add(toleration)
 
 
 def _prune_node_selector(

@@ -802,6 +802,7 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             **self.app_data.kwargs,
         )
         self.project.deploy_function(fn)
+        return fn
 
     def _record_results(self) -> str:
         model_endpoint = mlrun.model_monitoring.api.record_results(
@@ -827,8 +828,11 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
         self._log_model()
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(self._deploy_monitoring_app)
+            monitoring_app = executor.submit(self._deploy_monitoring_app)
             executor.submit(self._deploy_monitoring_infra)
+
+        fn = monitoring_app.result()
+        self._assert_replicas(fn)
 
         endpoint_id = self._record_results()
 
@@ -845,6 +849,16 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             mep.metadata.uid, inputs=set(self.columns), outputs=set(self.y_name)
         )
         self._test_predictions_table(mep.metadata.uid, should_be_empty=True)
+
+    @staticmethod
+    def _assert_replicas(fn):
+        """
+        Validate that the 'min_replicas' and 'max_replicas' values in the function's spec are correct after deployment.
+        This check ensures that the replica settings, which are modified on the server side during deployment, are
+        properly reflected on the client side.
+        """
+        assert fn.spec.min_replicas == 1
+        assert fn.spec.max_replicas == 1
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured

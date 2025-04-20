@@ -12,40 +12,51 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG MLRUN_PYTHON_VERSION=3.9
+ARG MLRUN_PYTHON_VERSION=3.11
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
 
-FROM quay.io/mlrun/jupyter-scipy-notebook:python-${MLRUN_PYTHON_VERSION}
+FROM quay.io/jupyter/scipy-notebook:python-${MLRUN_PYTHON_VERSION}
 
 USER root
+
+# System dependencies
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN apt-get update  \
-    && apt-get install --no-install-recommends -y \
+    apt-get install --no-install-recommends -y \
       graphviz \
       curl \
       apt-transport-https \
-      unzip \
-    && rm -rf /var/lib/apt/lists/*
+      unzip && \
+    rm -rf /var/lib/apt/lists/*
 
 # Download and install kubectl
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/
 
+# Redeclare python version (used above in FROM)
+ARG MLRUN_PYTHON_VERSION=3.11
+
+# Create and activate mlrun conda environment
+RUN conda create -y -n mlrun python=${MLRUN_PYTHON_VERSION} && \
+    echo "source /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
+    echo "conda activate mlrun" >> ~/.bashrc && \
+    chown -R $NB_UID:$NB_GID /opt/conda/envs/mlrun
+
 USER $NB_UID
 
-## Install it via mamba to overcome installing jupyterlab not being able to install the latest version
-## on the current image distribution.
-RUN mamba install --channel conda-forge --yes jupyterlab~=4.3
+# Ensure uv uses mlrun conda env
+ENV PATH="/opt/conda/envs/mlrun/bin:$PATH"
 
 ARG MLRUN_PIP_VERSION=25.0
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION} && \
     conda update --all --yes
+
+# Add Jupyter kernel for mlrun environment
+RUN conda install -n mlrun ipykernel -y && \
+    python -m ipykernel install --user --name=mlrun --display-name "mlrun"
 
 WORKDIR $HOME
 
@@ -55,7 +66,7 @@ COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/README.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlrun.env $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlce-start.sh /usr/local/bin/mlce-start.sh
 
-ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
+ENV UV_LINK_MODE=copy
 
 # no-deps to ignore existing dependencies, just add the locked requirements
 # mainly because of how the jupyter image is built with conda
@@ -63,22 +74,27 @@ ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/jupyter/locked-requirements.txt,target=locked-requirements.txt \
-    uv pip install --no-deps --require-hashes -r locked-requirements.txt
+    CONDA_PREFIX=/opt/conda/envs/mlrun uv pip install --no-deps --require-hashes -r locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
 
 # ensure we have the latest source code to be installed
 COPY --chown=$NB_UID:$NB_GID . /tmp/mlrun
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    cd /tmp/mlrun && uv pip install '.[complete]'
+    cd /tmp/mlrun && CONDA_PREFIX=/opt/conda/envs/mlrun uv pip install '.[complete]' --python-version ${MLRUN_PYTHON_VERSION}
 
 # cleanup uv cache
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv cache clean
 
+# Switch to root to clean up files that may have been written with root permissions
+USER root
+
 # cleanup, source code is not needed anymore
 RUN rm -rf /tmp/mlrun && rm -rf $HOME/.cache
+
+USER $NB_UID
 
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial

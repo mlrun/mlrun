@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import time
 
@@ -746,6 +746,36 @@ class TestFunctions(TestDatabaseBase):
             assert (
                 function_name == expected_name
             ), f"Expected {expected_name}, got {function_name}"
+
+    def test_list_functions_orders_by_tag_id(self):
+        # This test verifies that when a function has multiple tags, the returned list is ordered by tag ID descending.
+
+        number_of_tags = 5
+        function = self._generate_function()
+
+        for counter in range(number_of_tags):
+            tag = f"v{counter}"
+            self._db.store_function(
+                self._db_session,
+                function.to_dict(),
+                function.metadata.name,
+                versioned=False,
+                tag=tag,
+            )
+
+        functions = self._db.list_functions(self._db_session)
+
+        assert (
+            len(functions) == number_of_tags
+        ), f"Expected {number_of_tags} results, got {len(functions)}"
+
+        # Extract the tags from returned functions
+        returned_tags = [function["metadata"]["tag"] for function in functions]
+
+        # Build the expected sorted tag list (v4 to v0)
+        sorted_tags = [f"v{i}" for i in reversed(range(number_of_tags))]
+
+        assert returned_tags == sorted_tags
 
     def test_list_functions_with_missing_milliseconds_in_timestamp(self):
         function = self._generate_function()

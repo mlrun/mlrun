@@ -14,6 +14,7 @@
 
 import asyncio
 import typing
+import warnings
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -45,6 +46,16 @@ EndpointIDAnnotation = Annotated[
 ]
 
 
+def _query_param_hyphen_warning(condition: typing.Any, param_name: str):
+    if condition:
+        new_param_name = param_name.replace("_", "-")
+        warnings.warn(
+            f"{param_name} query parameter is deprecated and will be removed in 1.11.0. "
+            f"Use {new_param_name} instead.",
+            DeprecationWarning,
+        )
+
+
 @router.post(
     "",
     status_code=HTTPStatus.CREATED.value,
@@ -53,8 +64,13 @@ EndpointIDAnnotation = Annotated[
 async def create_model_endpoint(
     model_endpoint: schemas.ModelEndpoint,
     project: ProjectAnnotation,
-    creation_strategy: mm_constants.ModelEndpointCreationStrategy,
     delete_background_task: BackgroundTasks,
+    creation_strategy_old: Optional[mm_constants.ModelEndpointCreationStrategy] = Query(
+        None, alias="creation_strategy"
+    ),  # TODO: remove in 1.11
+    creation_strategy: Optional[mm_constants.ModelEndpointCreationStrategy] = Query(
+        None, alias="creation-strategy"
+    ),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(framework.api.deps.get_db_session),
 ) -> schemas.ModelEndpoint:
@@ -78,6 +94,9 @@ async def create_model_endpoint(
 
     :return: A Model endpoint object without operative data.
     """
+    _query_param_hyphen_warning(creation_strategy_old, "creation_strategy")
+    creation_strategy = creation_strategy or creation_strategy_old
+
     if project != model_endpoint.metadata.project:
         raise MLRunInvalidArgumentError(
             f"Project name in the URL '{project}' does not match the project name in the model endpoint metadata "
@@ -174,9 +193,20 @@ async def delete_model_endpoint(
     project: ProjectAnnotation,
     name: str,
     delete_background_task: BackgroundTasks,
-    function_name: Optional[str] = None,
-    function_tag: Optional[str] = None,
-    endpoint_id: typing.Optional[EndpointIDAnnotation] = "*",
+    function_name_old: Optional[str] = Query(
+        None, alias="function_name"
+    ),  # TODO: remove in 1.11
+    function_name: Optional[str] = Query(None, alias="function-name"),
+    function_tag_old: Optional[str] = Query(
+        None, alias="function_tag"
+    ),  # TODO: remove in 1.11
+    function_tag: Optional[str] = Query(None, alias="function-tag"),
+    endpoint_id_old: typing.Optional[EndpointIDAnnotation] = Query(
+        None, alias="endpoint_id"
+    ),  # TODO: remove in 1.11
+    endpoint_id: typing.Optional[EndpointIDAnnotation] = Query(
+        None, alias="endpoint-id"
+    ),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(framework.api.deps.get_db_session),
 ) -> None:
@@ -191,6 +221,14 @@ async def delete_model_endpoint(
     :param auth_info:              The auth info of the request.
     :param db_session:             A session that manages the current dialog with the database.
     """
+    # TODO: remove in 1.11
+    _query_param_hyphen_warning(function_name_old, "function_name")
+    _query_param_hyphen_warning(function_tag_old, "function_tag")
+    _query_param_hyphen_warning(endpoint_id_old, "endpoint_id")
+
+    function_name = function_name or function_name_old
+    function_tag = function_tag or function_tag_old
+    endpoint_id = endpoint_id or endpoint_id_old or "*"
 
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -221,17 +259,33 @@ async def delete_model_endpoint(
 async def list_model_endpoints(
     project: ProjectAnnotation,
     names: Optional[list[str]] = Query(None, alias="name"),
-    model_name: Optional[str] = None,
-    model_tag: Optional[str] = None,
-    function_name: Optional[str] = None,
-    function_tag: Optional[str] = None,
+    model_name_old: Optional[str] = Query(
+        None, alias="model_name"
+    ),  # TODO: remove in 1.11
+    model_name: Optional[str] = Query(None, alias="model-name"),
+    model_tag_old: Optional[str] = Query(
+        None, alias="model_tag"
+    ),  # TODO: remove in 1.11
+    model_tag: Optional[str] = Query(None, alias="model-tag"),
+    function_name_old: Optional[str] = Query(
+        None, alias="function_name"
+    ),  # TODO: remove in 1.11
+    function_name: Optional[str] = Query(None, alias="function-name"),
+    function_tag_old: Optional[str] = Query(
+        None, alias="function_tag"
+    ),  # TODO: remove in 1.11
+    function_tag: Optional[str] = Query(None, alias="function-tag"),
     labels: list[str] = Query([], alias="label"),
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     top_level: bool = Query(False, alias="top-level"),
-    tsdb_metrics: bool = True,
+    tsdb_metrics_old: bool = Query(True, alias="tsdb_metrics"),  # TODO: remove in 1.11
+    tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
     uids: list[str] = Query(None, alias="uid"),
-    latest_only: bool = False,
+    latest_only_old: bool = Query(
+        False, alias="latest_only_old"
+    ),  # TODO: remove in 1.11
+    latest_only: bool = Query(False, alias="latest-only-old"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ) -> schemas.ModelEndpointList:
@@ -239,8 +293,9 @@ async def list_model_endpoints(
     List model endpoints.
 
     :param project:         The name of the project.
-    :param names:            The model endpoints names.
+    :param names:           The model endpoints names.
     :param model_name:      The model name.
+    :param model_tag:       The model tag.
     :param function_name:   The function name.
     :param function_tag:    The function tag.
     :param labels:          The labels of the model endpoint.
@@ -254,6 +309,21 @@ async def list_model_endpoints(
     :param db_session:      A session that manages the current dialog with the database.
     :return:                A list of model endpoints.
     """
+    # TODO: remove in 1.11
+    _query_param_hyphen_warning(model_name_old, "model_name")
+    _query_param_hyphen_warning(model_tag_old, "model_tag")
+    _query_param_hyphen_warning(function_name_old, "function_name")
+    _query_param_hyphen_warning(function_tag_old, "function_tag")
+    _query_param_hyphen_warning(tsdb_metrics_old, "tsdb_metrics")
+    _query_param_hyphen_warning(latest_only_old, "latest_only")
+
+    model_name = model_name or model_name_old
+    model_tag = model_tag or model_tag_old
+    function_name = function_name or function_name_old
+    function_tag = function_tag or function_tag_old
+    tsdb_metrics = tsdb_metrics and tsdb_metrics_old
+    latest_only = latest_only or latest_only_old
+
     await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=schemas.AuthorizationAction.read,
@@ -381,8 +451,11 @@ async def get_metrics_by_multiple_endpoints(
     project: ProjectAnnotation,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     type: Literal["results", "metrics", "all"] = "all",
-    endpoint_ids: list[EndpointIDAnnotation] = Query(None, alias="endpoint-id"),
-    events_format: mm_constants.GetEventsFormat = mm_constants.GetEventsFormat.SEPARATION,
+    endpoint_ids: list[EndpointIDAnnotation] = Query([], alias="endpoint-id"),
+    events_format_old: Optional[mm_constants.GetEventsFormat] = Query(
+        None, alias="events_format"
+    ),  # TODO: remove in 1.11
+    events_format: mm_constants.GetEventsFormat = Query(None, alias="events-format"),
 ) -> dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]:
     """
     :param project:       The name of the project.
@@ -397,6 +470,12 @@ async def get_metrics_by_multiple_endpoints(
     :returns:             A dictionary of application metrics and/or results for the model endpoints,
                           formatted by events_format.
     """
+    _query_param_hyphen_warning(
+        events_format_old, "events_format"
+    )  # TODO: remove in 1.11
+    events_format = (
+        events_format or events_format_old or mm_constants.GetEventsFormat.SEPARATION
+    )
     events = {}
     permissions_tasks = []
     is_metrics_supported = type == "metrics" or type == "all"
@@ -454,11 +533,24 @@ async def get_metrics_by_multiple_endpoints(
 async def get_model_endpoint(
     name: str,
     project: ProjectAnnotation,
-    function_name: Optional[str] = None,
-    function_tag: Optional[str] = None,
-    endpoint_id: Optional[EndpointIDAnnotation] = None,
-    tsdb_metrics: bool = True,
-    feature_analysis: bool = False,
+    function_name_old: Optional[str] = Query(
+        None, alias="function_name"
+    ),  # TODO: remove in 1.11
+    function_name: Optional[str] = Query(None, alias="function-name"),
+    function_tag_old: Optional[str] = Query(
+        None, alias="function_tag"
+    ),  # TODO: remove in 1.11
+    function_tag: Optional[str] = Query(None, alias="function-tag"),
+    endpoint_id_old: Optional[EndpointIDAnnotation] = Query(
+        None, alias="endpoint_id"
+    ),  # TODO: remove in 1.11
+    endpoint_id: Optional[EndpointIDAnnotation] = Query(None, alias="endpoint-id"),
+    tsdb_metrics_old: bool = Query(True, alias="tsdb_metrics"),  # TODO: remove in 1.11
+    tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
+    feature_analysis_old: bool = Query(
+        False, alias="feature_analysis"
+    ),  # TODO: remove in 1.11
+    feature_analysis: bool = Query(False, alias="feature-analysis"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ) -> schemas.ModelEndpoint:
@@ -476,6 +568,19 @@ async def get_model_endpoint(
     :param db_session:          A session that manages the current dialog with the database.
     :return:                    The model endpoint object.
     """
+    # TODO: remove in 1.11
+    _query_param_hyphen_warning(function_name_old, "function_name")
+    _query_param_hyphen_warning(function_tag_old, "function_tag")
+    _query_param_hyphen_warning(endpoint_id_old, "endpoint_id")
+    _query_param_hyphen_warning(tsdb_metrics_old, "tsdb_metrics")
+    _query_param_hyphen_warning(feature_analysis_old, "feature_analysis")
+
+    function_name = function_name or function_name_old
+    function_tag = function_tag or function_tag_old
+    endpoint_id = endpoint_id or endpoint_id_old
+    tsdb_metrics = tsdb_metrics and tsdb_metrics_old
+    feature_analysis = feature_analysis or feature_analysis_old
+
     await _verify_model_endpoint_read_permission(
         project=project, name_or_uid=name, auth_info=auth_info
     )

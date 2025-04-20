@@ -937,7 +937,7 @@ class HTTPRunDB(RunDBInterface):
 
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run, or a list of run UIDs.
-        :param project: Project that the runs belongs to.
+        :param project: Project that the runs belongs to. If not specified, the default project will be used.
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
             or `{"label": None}` to check for key existence.

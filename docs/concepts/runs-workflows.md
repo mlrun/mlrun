@@ -25,9 +25,9 @@ mlrun-execution-context
 decorators-and-auto-logging
 submitting-tasks-jobs-to-functions
 workflow-overview
+/runtimes/conditional-workflow
 /runtimes/multiple-funcs-exithandler
 /runtimes/multiple-parallel-workflow
-/runtimes/conditional-workflow
 /runtimes/configuring-job-resources
 scheduled-jobs
 ```

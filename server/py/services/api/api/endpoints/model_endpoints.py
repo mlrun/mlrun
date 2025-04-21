@@ -346,6 +346,7 @@ async def list_model_endpoints(
         end=end,
         top_level=top_level,
         tsdb_metrics=tsdb_metrics,
+        metric_list=metric_list,
         uids=uids,
         latest_only=latest_only,
         db_session=db_session,

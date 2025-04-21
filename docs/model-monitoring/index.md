@@ -135,7 +135,7 @@ And you can use {ref}`notifications` to notify about the status of runs and pipe
 
 ## Scale limitations
 
-When ramping up the scale of your model monitoring, take note of these limitations. Each limit here assumes you have only large, medium, or small projects. When working with a combination, use these limits proportionally to to your projects.
+When ramping up the scale of your model monitoring, take note of these limitations. Each limit here assumes you have only large, medium, or small projects. When working with a combination, use these limits proportionally to adjust to your projects.
 - Up to 20 large projects (model endpoints per project between 1k and 5k)
 - Up to 100 medium projects (100 < model endpoints < 1k)
 - Up to 200 small projects (model endpoints < 100)

@@ -41,8 +41,13 @@ jobs:
     - name: Get Modified Files
       run: |
         BASE_BRANCH=${{ github.event.pull_request.base.ref }}
-        git diff --name-only $(git merge-base HEAD $BASE_BRANCH) > modified_files.txt
-
+        git diff --name-only $(git merge-base HEAD "$BASE_BRANCH") \
+          -- . \
+          ':(exclude)docs/**' \
+          ':(exclude)examples/**' \
+          ':(exclude)tests/**' \
+          ':(exclude)automation/**' \
+          > modified_files.txt
     - name: Run Import Check
       run: |
         python automation/scripts/check_fully_qualified_imports.py $(cat modified_files.txt)

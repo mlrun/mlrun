@@ -57,7 +57,7 @@ RUN_COVERAGE ?= false
 COVERAGE_FILE ?=
 COVERAGE_MOUNT_PATH ?=
 ifeq ("$(RUN_COVERAGE)","true")
-    COVERAGE_ADDITION = -m coverage run --rcfile=tests/tests.coveragerc --data-file=$$COVERAGE_FILE
+    COVERAGE_ADDITION = -m coverage run --data-file=$$COVERAGE_FILE
 else
     COVERAGE_ADDITION =
 endif
@@ -69,7 +69,7 @@ SETUP_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
 
 PRINT_COVERAGE_REPORT = if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		echo "coverage report $$COVERAGE_FILE :"; \
-		COVERAGE_FILE=$$COVERAGE_FILE coverage report --rcfile=tests/tests.coveragerc; \
+		COVERAGE_FILE=$$COVERAGE_FILE coverage report; \
 	fi;
 SETUP_COVERAGE_MOUNTING = if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		rm -rf $$COVERAGE_MOUNT_PATH && \
@@ -1043,4 +1043,4 @@ coverage-combine:
 	tests/coverage_reports/migration_tests.coverage; \
 	python -m coverage xml --ignore-errors --data-file=tests/coverage_reports/combined.coverage -o tests/coverage_reports/combined.xml; \
 	echo "Full coverage report:"; \
-	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage report --rcfile=tests/tests.coveragerc -i
+	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage report -i

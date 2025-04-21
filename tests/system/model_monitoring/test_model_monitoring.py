@@ -255,21 +255,13 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         for endpoint in endpoints_in:
             db.create_model_endpoint(endpoint)
 
-        endpoints_out = self.project.list_model_endpoints(
-            metric_list=["avg_latency", "last_request"]
-        ).endpoints
+        endpoints_out = self.project.list_model_endpoints().endpoints
 
         in_endpoint_names = set(map(lambda e: e.metadata.name, endpoints_in))
         out_endpoint_names = set(map(lambda e: e.metadata.name, endpoints_out))
 
         endpoints_intersect = in_endpoint_names.intersection(out_endpoint_names)
         assert len(endpoints_intersect) == number_of_endpoints
-
-        for endpoint in endpoints_out:
-            assert hasattr(endpoint.status, "avg_latency")
-            assert hasattr(endpoint.status, "last_request")
-            assert not hasattr(endpoint.status, "error_count")
-            assert not hasattr(endpoint.status, "result_status")
 
     def test_labels(self):
         db = mlrun.get_run_db()

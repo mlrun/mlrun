@@ -1,28 +1,26 @@
 (local-remote)=
 # Local vs. remote workflows
 
-To run multiple functions, one after the other  (`jobs`), you use a pipeline. There are three types of pipeline engines:
+To run multiple functions, one after the other such as: `jobs`, `serving` and `nuclio`, you can use a kfp pipeline. There are three types of pipeline engines:
 - [Remote on KFP](#remote-kfp)
 - [KFP](#kfp)
 - Local &mdash; Used to run local pipeline with local functions, mainly for testing. Use (set `local=True in function.run()`).
 
 <img src="../_static/images/pipelines-flow.png" width="800" >
 
-All three types are configured when running the workflow, see {py:class}`mlrun.projects.MlrunProject.run`.
+All three types are configured by the `engine` flag, when running the workflow, see {py:class}`mlrun.projects.MlrunProject.run`.
  
 ## Remote-KFP 
 
-Remote workflows are run on the remote server with KFP. Remote workflows are used for [scheduled workflows](./scheduled-jobs.md#scheduling-a-workflow).
-The remote workflow supports [sending notifications](./notifications.md#remote-pipeline-notifications) when runs are complete.
- 
+Remote workflows are run on a pod named `workflow-runner-<workflow-name>`. This pod is responsible for loading the files from the remote source (git, tar.gz or zip) and running the KFP by using the files from the remote source.
+In some cases you might not want to load the files from the remote source, but instead use the files within the running image. See details in [build image](../projects/run-build-deploy.md#build_image),. In this case, you need to build an image that contains the workflow file and then change the workflow runner source to the local path in the image. See the example below.
 
-Remote workflows must be based on the image `mlrun/mlrun-kfp`. See {ref}`images-usage`.  
-Remote workflows can be run by a project with a remote source or one that is contained in the image. See [source files](../runtimes/create-and-use-functions.ipynb#multiple-source-files).  
-To set the workflow, use the method {py:class}`mlrun.projects.MlrunProject.set_workflow` for example: `project.set_workflow(name="my-workflow", workflow_path="./src/workflow.py")`.  
-
-A remote workflow creates a pod for each job, and a pod for the KFP. The job pod is named `workflow-runner-<workflow-name>`. You can modify the pod image and the pod node selector with:
+You can modify the pod image, source, and the pod node selector with:
 - `project.set_workflow(name="main",workflow_path="workflow.py,image="<runner-image>")` &mdash; changing the runner image
-- `project.run("main",engine="remote",workflow_runner_node_selector={"key":"value"})` &mdash; changing the node selector image
+- `project.run("main",engine="remote",workflow_runner_node_selector={"key":"value"})` &mdash; changing the runner node selector 
+- `project.run(source=<source-URL>)` &mdash; changing the runner source
+
+**This pod must be based on the image `mlrun/mlrun-kfp`. See {ref}`images-usage`.**
 
 See an example of a remote GitHub project in https://github.com/mlrun/project-demo.
 ```{admonition} Note
@@ -55,13 +53,15 @@ project.save()
 # Run the workflow, load the project from the target dir on the image
 project.run("main", source="./", engine="remote", dirty=True)
 ```
-
-See also [Local and KFP engine pipeline notifications](../concepts/notifications.md#local-and-kfp-engine-pipeline-notifications) and [Setting notifications on scheduled run](../concepts/notifications.md#setting-notifications-on-scheduled-runs).
+See also: 
+- Remote workflows are used for [scheduled workflows](./scheduled-jobs.md#scheduling-a-workflow).
+- The remote workflow supports [sending notifications](./notifications.md#remote-pipeline-notifications) when runs are complete.
+See also [Local and KFP engine pipeline notifications](../concepts/notifications.md#local-and-kfp-engine-pipeline-notifications).
 
 ## KFP
 
-The KFP workflow spec file is created in MLRun, and is compiled and run in the client side. 
+The KFP workflow spec file is created in MLRun, and is compiled and run in the client side and use the files from your local file system.
 For example:
 ```
-project.run("main", engine='remote')
+project.run("main", engine='kfp')
 ```

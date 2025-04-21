@@ -39,5 +39,5 @@ cryptography~=44.0
 # install to verify it doesn't cause a warning (ML-8951)
 evidently~=0.6.2
 
-coverage~=7.8
+coverage[toml]~=7.8
 diff-cover~=9.2

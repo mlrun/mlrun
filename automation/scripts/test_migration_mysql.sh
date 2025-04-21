@@ -60,5 +60,3 @@ python ${COVERAGE_ADDITION} \
 		--durations=100 \
 		-rf \
 		"${ROOT_DIR}"/server/py/services/api/migrations/tests/*
-
-

@@ -4569,7 +4569,7 @@ tinycss2==1.4.0 \
     --hash=sha256:10c0972f6fc0fbee87c3edb76549357415e94548c1ae10ebccdea16fb404a9b7 \
     --hash=sha256:3a49cf47b7675da0b15d0c6e1df8df4ebd96e9394bb905a5775adb0d884c5289
     # via bleach
-tomli==2.2.1 ; python_full_version < '3.11' \
+tomli==2.2.1 ; python_full_version <= '3.11' \
     --hash=sha256:023aa114dd824ade0100497eb2318602af309e5a55595f76b626d6d9f3b7b0a6 \
     --hash=sha256:02abe224de6ae62c19f090f68da4e27b10af2b93213d36cf44e6e1c5abd19fdd \
     --hash=sha256:286f0ca2ffeeb5b9bd4fcc8d6c330534323ec51b2f52da063b11c502da16f30c \
@@ -4605,6 +4605,7 @@ tomli==2.2.1 ; python_full_version < '3.11' \
     # via
     #   black
     #   build
+    #   coverage
     #   import-linter
     #   pytest
 tomlkit==0.13.2 \

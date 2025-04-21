@@ -306,11 +306,8 @@ def _handle_prevent_mode(
     list[kubernetes.client.V1Toleration],
     typing.Optional[kubernetes.client.V1Affinity],
 ]:
-    def _prune_tolerations(to_remove: list[kubernetes.client.V1Toleration]):
-        return [t for t in tolerations if t not in to_remove]
-
     # Ensure no preemptible node tolerations
-    tolerations = _prune_tolerations(preemptible_tolerations)
+    tolerations = [t for t in tolerations if t not in preemptible_tolerations]
 
     # Purge affinity preemption-related configuration
     affinity = _prune_affinity_node_selector_requirement(

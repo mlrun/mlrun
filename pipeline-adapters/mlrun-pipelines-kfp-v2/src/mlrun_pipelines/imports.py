@@ -72,13 +72,13 @@ try:
     Compiler = real_compiler.Compiler
     PipelineTask = real_PipelineTask
     Client = real_Client
+    kfp.Client = Client
 
 except ImportError:
     logger.warning(
         "Kubeflow Pipelines (KFP) is not installed. Using noop implementations."
     )
     from mlrun_pipelines.common.imports import (
-        Client,
         Compiler,
         compiler,
         dsl,

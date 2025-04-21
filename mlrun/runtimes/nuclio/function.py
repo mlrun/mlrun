@@ -651,6 +651,11 @@ class RemoteRuntime(KubeResource):
         logger.info("Starting remote function deploy")
         data = db.deploy_nuclio_function(func=self, builder_env=builder_env)
         self.status = data["data"].get("status")
+
+        # Extract the spec to avoid overwriting server-side updates during the later save in
+        # _enrich_command_from_status.
+        self.spec = data["data"].get("spec")
+
         self._update_credentials_from_remote_build(data["data"])
 
         # when a function is deployed, we wait for it to be ready by default

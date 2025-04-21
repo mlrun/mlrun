@@ -547,7 +547,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             kind="slack",
             name="slack_drift",
             secret_params={
-                "webhook": "https://hooks.slack.com/services/",
+                "webhook": "https://slack.com/api/api.test",
             },
             condition="oops",
         )
@@ -808,7 +808,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                     "kind": "slack",
                     "name": "slack_jobs",
                     "secret_params": {
-                        "webhook": "https://hooks.slack.com/services/",
+                        "webhook": "https://slack.com/api/api.test",
                     },
                 }
             },
@@ -1096,7 +1096,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                         "kind": "slack",
                         "name": "slack_drift",
                         "secret_params": {
-                            "webhook": "https://hooks.slack.com/services/",
+                            "webhook": "https://slack.com/api/api.test",
                         },
                     }
                 }

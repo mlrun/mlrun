@@ -67,7 +67,7 @@ def extra_requirements() -> dict[str, list[str]]:
         "redis": ["redis~=4.3"],
         "mlflow": ["mlflow~=2.16"],
         "databricks-sdk": ["databricks-sdk~=0.20.0"],
-        "sqlalchemy": ["sqlalchemy~=1.4"],
+        "sqlalchemy": ["sqlalchemy~=2.0"],
         "dask": [
             # dask 2023 does not work on python 3.11
             # dask 2024 requires dependencies that current mlrun with 3.9 cannot support

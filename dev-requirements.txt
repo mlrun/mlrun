@@ -28,7 +28,7 @@ matplotlib~=3.5
 graphviz~=0.20.0
 nuclio-sdk>=0.5
 avro~=1.11
-sqlalchemy-utils~=0.39.0
+sqlalchemy-utils~=0.41.2
 
 # frameworks tests
 scikit-learn~=1.5.1

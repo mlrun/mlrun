@@ -1658,14 +1658,14 @@ class SQLDB(DBInterface):
             raise ValueError(message)
 
         tag_id_alias = "tag_id"
+        tag_name_alias = "name"
 
-        # create a sub query that gets only the artifact IDs
-        # apply all filters and limits
+        # Create a subquery that selects only the artifact IDs along with tag metadata.
+        # The tag name and tag ID are explicitly aliased as 'name' and 'tag_id' so they can be
+        # referenced in window functions, ordering, and outer queries (especially for sorting by tag).
         query = session.query(ArtifactV2).with_entities(
             ArtifactV2.id,
-            ArtifactV2.Tag.name,
-            # Include tag ID (as 'tag_id') to enable sorting by tag creation order DESC.
-            # The alias is required to reference it later in subqueries and outer queries.
+            ArtifactV2.Tag.name.label(tag_name_alias),
             ArtifactV2.Tag.id.label(tag_id_alias),
         )
 
@@ -1768,7 +1768,7 @@ class SQLDB(DBInterface):
             # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
             # Put "latest" tag first, then others by tag_id desc
             latest_first_case = case(
-                (ArtifactV2.Tag.name == "latest", 0),
+                (text(f"{tag_name_alias} = 'latest'"), 0),
                 else_=1,
             )
             query = self._paginate_query(

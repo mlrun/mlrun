@@ -935,6 +935,7 @@ class ModelEndpoints:
             function_tag=function_tag,
             endpoint_id=endpoint_id,
             tsdb_metrics=tsdb_metrics,
+            metric_list=metric_list,
             feature_analysis=feature_analysis,
         )
 
@@ -1027,6 +1028,7 @@ class ModelEndpoints:
             end=end,
             top_level=top_level,
             tsdb_metrics=tsdb_metrics,
+            metric_list=metric_list,
             uids=uids,
             latest_only=latest_only,
         )
@@ -1053,6 +1055,7 @@ class ModelEndpoints:
             endpoint_list.endpoints = await self._add_basic_metrics(
                 model_endpoint_objects=endpoint_list.endpoints,
                 project=project,
+                metric_list=metric_list,
             )
 
         return endpoint_list

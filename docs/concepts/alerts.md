@@ -118,7 +118,6 @@ alert_configs = myproject.create_model_monitoring_alert_configs(
     criteria=None,
     reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
 )
-# Save (and activate) the alert config:
 for alert_config in alert_configs:
     my_project.store_alert_config(alert_config)
 ```

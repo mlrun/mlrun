@@ -665,7 +665,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                     "when": ["now"],
                     "condition": "failed",
                     "secret_params": {
-                        "webhook": "https://hooks.slack.com/services/",
+                        "webhook": "https://slack.com/api/api.test",
                     },
                 },
             }
@@ -680,7 +680,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                     "when": ["now"],
                     "condition": "failed",
                     "secret_params": {
-                        "webhook": "https://hooks.slack.com/services/",
+                        "webhook": "https://slack.com/api/api.test",
                     },
                 },
             },
@@ -692,9 +692,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                     "severity": "warning",
                     "when": ["now"],
                     "condition": "failed",
-                    "secret_params": {
-                        "webhook": "https://hooks.slack.com/services/",
-                    },
                 },
             },
         ]

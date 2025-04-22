@@ -34,6 +34,7 @@ import mlrun.launcher.factory
 import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.singleton
+import mlrun_pipelines.client
 import mlrun_pipelines.utils
 
 import framework.utils.clients.iguazio
@@ -132,17 +133,6 @@ def kfp_client_mock(monkeypatch):
         return_value=True
     )
 
-    def mock_get_healthz(*args, **kwargs):
-        mock_healthz = mock.Mock()
-        mock_healthz.multi_user = True  # Adjust based on your test scenario
-        return mock_healthz
-
-    monkeypatch.setattr(
-        kfp_server_api.api.healthz_service_api.HealthzServiceApi,
-        "get_healthz",
-        mock_get_healthz,
-    )
-
     mock_experiment_api = mock.Mock()
     mock_experiment_api.api_client.call_api = mock.Mock()
     monkeypatch.setattr(
@@ -158,30 +148,12 @@ def kfp_client_mock(monkeypatch):
         "RunServiceApi",
         mock.Mock(return_value=mock_run_api),
     )
-
-    mock_healthz_api = mock.Mock()
-    mock_healthz_api.create_run = mock.Mock()
-    monkeypatch.setattr(
-        kfp_server_api.api.healthz_service_api,
-        "HealthzServiceApi",
-        mock.Mock(return_value=mock_healthz_api),
-    )
-
-    monkeypatch.setattr(kfp_server_api.api_client.ApiClient, "call_api", mock.Mock())
-
-    kfp_client = mlrun_pipelines.utils.ExtendedKfpClient()
-
+    monkeypatch.setattr("kubernetes.config.load_incluster_config", lambda: None)
+    kfp_client = mlrun_pipelines.client.Client()
     mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
-
-    kfp_client.run_pipeline = mock.Mock()
-    kfp_client.get_run = mock.Mock()
-
     monkeypatch.setattr(
-        mlrun_pipelines.utils.ExtendedKfpClient,
-        "__new__",
-        lambda cls, *args, **kwargs: kfp_client,
+        mlrun_pipelines.utils, "get_client", lambda *args, **get_client: kfp_client
     )
-
     return kfp_client
 
 

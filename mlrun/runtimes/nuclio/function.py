@@ -577,13 +577,9 @@ class RemoteRuntime(KubeResource):
             access_key = self._resolve_v3io_access_key()
         engine = "sync"
         explicit_ack_mode = kwargs.pop("explicit_ack_mode", None)
-        if (
-            self.spec
-            and hasattr(self.spec, "graph")
-            and self.spec.graph
-            and self.spec.graph.engine
-        ):
-            engine = self.spec.graph.engine
+        if self.spec and hasattr(self.spec, "graph"):
+            engine = getattr(self.spec.graph, "engine", None) or engine
+
         if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
             explicit_ack_mode = explicit_ack_mode or "explicitOnly"
 
@@ -655,6 +651,11 @@ class RemoteRuntime(KubeResource):
         logger.info("Starting remote function deploy")
         data = db.deploy_nuclio_function(func=self, builder_env=builder_env)
         self.status = data["data"].get("status")
+
+        # Extract the spec to avoid overwriting server-side updates during the later save in
+        # _enrich_command_from_status.
+        self.spec = data["data"].get("spec")
+
         self._update_credentials_from_remote_build(data["data"])
 
         # when a function is deployed, we wait for it to be ready by default

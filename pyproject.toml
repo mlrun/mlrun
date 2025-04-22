@@ -35,7 +35,7 @@ author = "Iguazio"
 docstring-code-format = true
 
 [tool.uv.pip]
-python-version = "3.9"  # the same as MLRUN_PYTHON_VERSION in the Makefile
+python-version = "3.9"  # TODO: change to 3.11 when 3.9 is no longer supported
 generate-hashes = true
 universal = true
 

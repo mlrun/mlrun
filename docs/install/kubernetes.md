@@ -187,6 +187,10 @@ You can change the ports by providing values to the helm install command.
 You can add and configure a Kubernetes ingress-controller for better security and control over external access.
 ```
 
+
+## Optional additional packages
+To run local Spark jobs on the MLRun CE Jupyter, install PySpark.
+
 ## Start working
     
 Open the Jupyter notebook on [**jupyter-notebook UI**](http://localhost:30040) and run the code in the 

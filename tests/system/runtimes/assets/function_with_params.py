@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
+
 def handler(context):
     param1 = context.get_param("param1")
     project_param = context.get_project_param("project_param")

@@ -486,6 +486,10 @@ default_config = {
             "iguazio_client_job_cache_ttl": "20 minutes",
             "nuclio_project_deletion_verification_timeout": "300 seconds",
             "nuclio_project_deletion_verification_interval": "5 seconds",
+            "summaries": {
+                # Number of days back to include when calculating the project pipeline summary.
+                "list_pipelines_time_period_in_days": 7,
+            },
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -508,7 +512,7 @@ default_config = {
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
             "kaniko_image": "gcr.io/kaniko-project/executor:v1.23.2",  # kaniko builder image
-            "kaniko_init_container_image": "alpine:3.18",
+            "kaniko_init_container_image": "alpine:3.20",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.17.16",
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
@@ -1041,12 +1045,9 @@ class Config:
         )
 
     def is_preemption_nodes_configured(self):
-        if (
-            not self.get_preemptible_tolerations()
-            and not self.get_preemptible_node_selector()
-        ):
-            return False
-        return True
+        return (
+            self.get_preemptible_tolerations() or self.get_preemptible_node_selector()
+        )
 
     @staticmethod
     def get_valid_function_priority_class_names():

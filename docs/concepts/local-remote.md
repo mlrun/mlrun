@@ -12,15 +12,17 @@ All three types are configured by the `engine` flag, when running the workflow, 
  
 ## Remote-KFP 
 
-Remote workflows are run on a pod named `workflow-runner-<workflow-name>`. This pod is responsible for loading the files from the remote source (git, tar.gz or zip) and running the KFP by using the files from the remote source.
-In some cases you might not want to load the files from the remote source, but instead use the files within the running image. See details in [build image](../projects/run-build-deploy.md#build_image),. In this case, you need to build an image that contains the workflow file and then change the workflow runner source to the local path in the image. See the example below.
+Remote workflows are run by a pod named `workflow-runner-<workflow-name>`. This pod is responsible for loading the files from the remote source (git, tar.gz or zip) and running the KFP by using the files from the remote source.
+In some cases you might not want to load the files from the remote source, but instead use the files within the running image. See details in [build image](../projects/run-build-deploy.md#build_image). In this case, you need to build an image that contains the workflow file and then change the workflow runner source to point to the project local files in the running image. See the example below.
 
 You can modify the pod image, source, and the pod node selector with:
 - `project.set_workflow(name="main",workflow_path="workflow.py,image="<runner-image>")` &mdash; changing the runner image
 - `project.run("main",engine="remote",workflow_runner_node_selector={"key":"value"})` &mdash; changing the runner node selector 
 - `project.run(source=<source-URL>)` &mdash; changing the runner source
 
-**This pod must be based on the image `mlrun/mlrun-kfp`. See {ref}`images-usage`.**
+```{admonition} Note
+This pod must be based on the image `mlrun/mlrun-kfp`. See {ref}`images-usage`.
+```
 
 See an example of a remote GitHub project in https://github.com/mlrun/project-demo.
 ```{admonition} Note

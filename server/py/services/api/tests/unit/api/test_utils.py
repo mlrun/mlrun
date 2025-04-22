@@ -368,9 +368,12 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
     )
 
 
-def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_tolerations(
+def test_function_object_only_persists_preemption_mode_no_scheduling_fields_on_submit(
     db: Session, client: TestClient
 ):
+    # The function object is expected to hold only the preemption_mode itself.
+    # Scheduling-related fields (node_selector, affinity, tolerations) should not be enriched
+    # on the function spec, only on the run object at execution time.
     k8s_api = kubernetes.client.ApiClient()
     task_name = "task_name"
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
@@ -389,13 +392,7 @@ def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_t
         },
         "function": {"spec": {"preemption_mode": "prevent"}},
     }
-    expected_anti_affinity = kubernetes.client.V1Affinity(
-        node_affinity=kubernetes.client.V1NodeAffinity(
-            required_during_scheduling_ignored_during_execution=kubernetes.client.V1NodeSelector(
-                node_selector_terms=mlrun.k8s_utils.generate_preemptible_nodes_anti_affinity_terms(),
-            ),
-        ),
-    )
+
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
         db, submit_job_body
     )
@@ -403,8 +400,7 @@ def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_t
         parsed_function_object.spec.preemption_mode
         == submit_job_body["function"]["spec"]["preemption_mode"]
     )
-    assert parsed_function_object.spec.affinity == expected_anti_affinity
-    assert parsed_function_object.spec.tolerations is None
+    assert parsed_function_object.spec.affinity is None
 
     preemptible_tolerations = [
         kubernetes.client.V1Toleration(
@@ -428,20 +424,12 @@ def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_t
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
         db, submit_job_body
     )
-    expected_affinity = kubernetes.client.V1Affinity(
-        node_affinity=kubernetes.client.V1NodeAffinity(
-            required_during_scheduling_ignored_during_execution=kubernetes.client.V1NodeSelector(
-                node_selector_terms=mlrun.k8s_utils.generate_preemptible_nodes_affinity_terms(),
-            ),
-        ),
-    )
 
     assert (
         parsed_function_object.spec.preemption_mode
         == submit_job_body["function"]["spec"]["preemption_mode"]
     )
-    assert parsed_function_object.spec.affinity == expected_affinity
-    assert parsed_function_object.spec.tolerations == preemptible_tolerations
+    assert parsed_function_object.spec.tolerations is None
 
 
 def test_generate_function_and_task_from_submit_run_body_keep_resources(

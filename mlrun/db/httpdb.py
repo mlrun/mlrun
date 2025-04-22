@@ -3811,7 +3811,7 @@ class HTTPRunDB(RunDBInterface):
                 "start": datetime_to_iso(start),
                 "end": datetime_to_iso(end),
                 "tsdb-metrics": tsdb_metrics,
-                "metric-list": metric_list,
+                "metric": metric_list,
                 "top-level": top_level,
                 "uid": uids,
                 "latest-only": latest_only,
@@ -3860,7 +3860,7 @@ class HTTPRunDB(RunDBInterface):
                 "function-tag": function_tag,
                 "endpoint-id": endpoint_id,
                 "tsdb-metrics": tsdb_metrics,
-                "metric-list": metric_list,
+                "metric": metric_list,
                 "feature-analysis": feature_analysis,
             },
         )

@@ -281,7 +281,7 @@ async def list_model_endpoints(
     top_level: bool = Query(False, alias="top-level"),
     tsdb_metrics_old: bool = Query(True, alias="tsdb_metrics"),  # TODO: remove in 1.11
     tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
-    metric_list: Optional[list[str]] = Query(None, alias="metric-list"),
+    metric_list: Optional[list[str]] = Query(None, alias="metric"),
     uids: list[str] = Query(None, alias="uid"),
     latest_only_old: bool = Query(
         False, alias="latest_only_old"
@@ -552,7 +552,7 @@ async def get_model_endpoint(
     endpoint_id: Optional[EndpointIDAnnotation] = Query(None, alias="endpoint-id"),
     tsdb_metrics_old: bool = Query(True, alias="tsdb_metrics"),  # TODO: remove in 1.11
     tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
-    metric_list: Optional[list[str]] = Query(None, alias="metric-list"),
+    metric_list: Optional[list[str]] = Query(None, alias="metric"),
     feature_analysis_old: bool = Query(
         False, alias="feature_analysis"
     ),  # TODO: remove in 1.11
@@ -602,6 +602,7 @@ async def get_model_endpoint(
         endpoint_id=endpoint_id,
         feature_analysis=feature_analysis,
         tsdb_metrics=tsdb_metrics,
+        metric_list=metric_list,
         db_session=db_session,
     )
 

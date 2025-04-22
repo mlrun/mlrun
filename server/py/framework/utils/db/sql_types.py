@@ -22,13 +22,22 @@ class DateTime(sqlalchemy.types.TypeDecorator):
     cache_ok = True
     precision = 3
 
-    def load_dialect_impl(self, dialect: sqlalchemy.engine.interfaces.Dialect) -> sqlalchemy.engine.interfaces.Dialect.type_descriptor:
-        if dialect.name == 'mysql':
-            return dialect.type_descriptor(sqlalchemy.dialects.mysql.DATETIME(fsp=self.precision, timezone=True))
-        elif dialect.name == 'postgresql':
-            return dialect.type_descriptor(sqlalchemy.dialects.postgresql.TIMESTAMP(precision=self.precision, timezone=True))
+    def load_dialect_impl(
+        self, dialect: sqlalchemy.engine.interfaces.Dialect
+    ) -> sqlalchemy.engine.interfaces.Dialect.type_descriptor:
+        if dialect.name == "mysql":
+            return dialect.type_descriptor(
+                sqlalchemy.dialects.mysql.DATETIME(fsp=self.precision, timezone=True)
+            )
+        elif dialect.name == "postgresql":
+            return dialect.type_descriptor(
+                sqlalchemy.dialects.postgresql.TIMESTAMP(
+                    precision=self.precision, timezone=True
+                )
+            )
         else:
             return dialect.type_descriptor(sqlalchemy.types.DateTime)
+
 
 class MicroSecondDateTime(DateTime):
     precision = 6
@@ -38,7 +47,9 @@ class Blob(sqlalchemy.types.TypeDecorator):
     impl = sqlalchemy.types.BLOB
     cache_ok = True
 
-    def load_dialect_impl(self, dialect: sqlalchemy.engine.interfaces.Dialect) -> sqlalchemy.engine.interfaces.Dialect.type_descriptor:
+    def load_dialect_impl(
+        self, dialect: sqlalchemy.engine.interfaces.Dialect
+    ) -> sqlalchemy.engine.interfaces.Dialect.type_descriptor:
         if dialect.name == "mysql":
             return dialect.type_descriptor(sqlalchemy.dialects.mysql.MEDIUMBLOB)
         elif dialect.name == "postgresql":

@@ -16,9 +16,6 @@ import datetime
 from abc import ABC, abstractmethod
 from typing import Literal, Optional, Union
 
-import sqlalchemy.dialects.mysql
-import sqlalchemy.dialects.postgresql
-import sqlalchemy.types
 from deprecated import deprecated
 
 import mlrun.alerts

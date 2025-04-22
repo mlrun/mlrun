@@ -165,16 +165,10 @@ def make_notification(table):
         project = Column(String(255))
         name = Column(String(255), nullable=False)
         kind = Column(String(255), nullable=False)
-        message = Column(
-            String(255), nullable=False
-        )
-        severity = Column(
-            String(255), nullable=False
-        )
+        message = Column(String(255), nullable=False)
+        severity = Column(String(255), nullable=False)
         when = Column(String(255), nullable=False)
-        condition = Column(
-            String(255), nullable=False
-        )
+        condition = Column(String(255), nullable=False)
         secret_params = Column("secret_params", JSON)
         params = Column("params", JSON)
         parent_id = Column(Integer, ForeignKey(f"{table}.id"))
@@ -357,9 +351,7 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         uid = Column(String(255))
         project = Column(String(255))
-        name = Column(
-            String(255), default="no-name"
-        )
+        name = Column(String(255), default="no-name")
         iteration = Column(Integer)
         state = Column(String(255))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
@@ -398,9 +390,7 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         name = Column(String(255), nullable=False)
-        project = Column(
-            String(255), nullable=False
-        )
+        project = Column(String(255), nullable=False)
         created = Column(
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
@@ -423,9 +413,7 @@ with warnings.catch_warnings():
         Label = make_label(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        project = Column(
-            String(255), nullable=False
-        )
+        project = Column(String(255), nullable=False)
         name = Column(String(255), nullable=False)
         kind = Column(String(255))
         desired_state = Column(String(255))
@@ -814,9 +802,7 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         name = Column(String(255), nullable=False)
-        project = Column(
-            String(255), nullable=False
-        )
+        project = Column(String(255), nullable=False)
 
         notifications = relationship(Notification, cascade="all, delete-orphan")
         alerts = relationship(AlertState, cascade="all, delete-orphan")
@@ -875,22 +861,12 @@ with warnings.catch_warnings():
         # and prevent unintended precision changes.
         activation_time = Column(SQLTypesUtil.datetime(fsp=3), nullable=False)
         name = Column(String(255), nullable=False)
-        project = Column(
-            String(255), nullable=False
-        )
+        project = Column(String(255), nullable=False)
         data = Column(JSON)
-        entity_id = Column(
-            String(255), nullable=False
-        )
-        entity_kind = Column(
-            String(255), nullable=False
-        )
-        event_kind = Column(
-            String(255), nullable=False
-        )
-        severity = Column(
-            String(255), nullable=False
-        )
+        entity_id = Column(String(255), nullable=False)
+        entity_kind = Column(String(255), nullable=False)
+        event_kind = Column(String(255), nullable=False)
+        severity = Column(String(255), nullable=False)
         number_of_events = Column(Integer, nullable=False)
 
         # Similarly, keep fsp=3 for reset_time to ensure consistency with activation_time
@@ -905,9 +881,7 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("project", name="_project_summaries_uc"),)
 
         id = Column(Integer, primary_key=True)
-        project = Column(
-            String(255), nullable=False
-        )
+        project = Column(String(255), nullable=False)
         updated = Column(SQLTypesUtil.datetime())
         summary = Column(JSON)
 

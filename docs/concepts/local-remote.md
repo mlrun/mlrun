@@ -4,7 +4,7 @@
 To run multiple functions, one after the other, or in parallel, such as: `jobs`, `serving` and `nuclio`, you can use a kfp pipeline. There are three types of pipeline engines:
 - [Remote on KFP](#remote-kfp)
 - [KFP](#kfp)
-- Local &mdash; Used to run local pipeline with local functions, mainly for testing. Use (set `local=True in function.run()`).
+- Local &mdash; Used to simulate a pipeline run without using KFP - it triggers the jobs directly, mainly for testing. Use (set `local=True in function.run()` to run the functions locally or `project.run(local=True)` to apply for all functions).
 
 <img src="../_static/images/pipelines-flow.png" width="800" >
 

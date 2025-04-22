@@ -218,6 +218,7 @@ linkcheck_ignore = [
     "https://docs.mlrun.org/en/stable/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.get_vector_store_collection",
     "https://docs.mlrun.org/en/stable/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.log_document",
     "https://docs.mlrun.org/en/stable/api/mlrun.datastore/index.html#mlrun.datastore.vectorstore.VectorStoreCollection.add_artifacts",
+    "https://docs.mlrun.org/en/stable/api/mlrun.datastore/index.html#mlrun.datastore.datastore_profile.ConfigProfile",
     "https://docs.mlrun.org/en/stable/api/mlrun.artifacts/mlrun.artifacts.document.html#mlrun.artifacts.document.MLRunLoader",
     "https://docs.mlrun.org/en/stable/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.get_config_profile_attributes",
     "https://docs.mlrun.org/en/stable/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.get_config_profile_attributes",

@@ -118,7 +118,7 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.16"},
-        "storey": {"~=1.8.11"},
+        "storey": {"~=1.9.0"},
         "pydantic": {">=1.10.15", ">=1,<2"},
         "nuclio-sdk": {">=0.5"},
         "sphinx-book-theme": {"~=1.0.1"},
@@ -212,6 +212,7 @@ def test_requirement_specifiers_inconsistencies():
             '~=2024.12.1; python_version >= "3.11"',
             '~=2023.12.1; python_version < "3.11"',
         },
+        "mlrun-pipelines-kfp-v1-8": {"~=0.5.1", '~=0.5.1; python_version < "3.11"'},
     }
 
     all_keys_verified = set(ignored_inconsistencies_map.keys())

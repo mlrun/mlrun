@@ -40,7 +40,6 @@ import mlrun
 import mlrun.datastore.utils
 import mlrun.feature_store as fstore
 import mlrun.runtimes.mounts
-import tests.conftest
 from mlrun.config import config
 from mlrun.data_types.data_types import InferOptions, ValueType
 from mlrun.datastore.datastore_profile import (
@@ -2596,13 +2595,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         myset.ingest(quotes)
         source = StreamSource(key_field="ticker")
-        filename = str(
-            pathlib.Path(tests.conftest.tests_root_directory)
-            / "api"
-            / "runtimes"
-            / "assets"
-            / "sample_function.py"
-        )
+        filename = str(pathlib.Path(__file__).parent / "assets" / "sample_function.py")
 
         function = mlrun.code_to_function(
             "ingest_transactions", kind="serving", filename=filename
@@ -2912,13 +2905,7 @@ class TestFeatureStore(TestMLRunSystem):
             entity_columns=["ticker"],
         )
 
-        filename = str(
-            pathlib.Path(tests.conftest.tests_root_directory)
-            / "api"
-            / "runtimes"
-            / "assets"
-            / "sample_function.py"
-        )
+        filename = str(pathlib.Path(__file__).parent / "assets" / "sample_function.py")
 
         function = mlrun.code_to_function(
             "ingest_transactions", kind="serving", filename=filename
@@ -3128,13 +3115,7 @@ class TestFeatureStore(TestMLRunSystem):
             fset.set_targets(feature_set_targets, with_defaults=False)
         fset.ingest(quotes)
         source = StreamSource(key_field="ticker")
-        filename = str(
-            pathlib.Path(tests.conftest.tests_root_directory)
-            / "api"
-            / "runtimes"
-            / "assets"
-            / "sample_function.py"
-        )
+        filename = str(pathlib.Path(__file__).parent / "assets" / "sample_function.py")
 
         function = mlrun.code_to_function(
             "ingest_transactions", kind="serving", filename=filename

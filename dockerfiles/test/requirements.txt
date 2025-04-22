@@ -1,3 +1,2 @@
-# This is here because it is yet GAed and therfor do not appear on and of MLRun's
-# requirement files.
-mlrun-pipelines-kfp-v2~=0.5.0; python_version >= "3.11"
+# Intstall KFP when testing python 3.9 client
+mlrun-pipelines-kfp-v1-8[kfp]~=0.5.1; python_version < "3.11"

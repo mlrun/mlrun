@@ -687,7 +687,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             {
                 "notification": {
                     "kind": "git",
-                    "name": "slack_jobs",
+                    "name": "git_jobs",
                     "message": "Ay ay ay!",
                     "severity": "warning",
                     "when": ["now"],

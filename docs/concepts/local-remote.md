@@ -1,7 +1,7 @@
 (local-remote)=
 # Local vs. remote workflows
 
-To run multiple functions, one after the other such as: `jobs`, `serving` and `nuclio`, you can use a kfp pipeline. There are three types of pipeline engines:
+To run multiple functions, one after the other, or in parallel, such as: `jobs`, `serving` and `nuclio`, you can use a kfp pipeline. There are three types of pipeline engines:
 - [Remote on KFP](#remote-kfp)
 - [KFP](#kfp)
 - Local &mdash; Used to run local pipeline with local functions, mainly for testing. Use (set `local=True in function.run()`).
@@ -11,8 +11,8 @@ To run multiple functions, one after the other such as: `jobs`, `serving` and `n
 All three types are configured by the `engine` flag, when running the workflow, see {py:class}`mlrun.projects.MlrunProject.run`.
  
 ## Remote-KFP 
-
-Remote workflows are run by a pod named `workflow-runner-<workflow-name>`. This pod is responsible for loading the files from the remote source (git, tar.gz or zip) and running the KFP by using the files from the remote source.
+Remote workflows are used for [scheduled workflows](./scheduled-jobs.md#scheduling-a-workflow).  
+Remote workflows are run on the remote server with KFP. They run on the workflow runner pod, which loads and runs the workflow on a pod named `workflow-runner-<workflow-name>`. This pod is responsible for loading the files from the remote source (git, tar.gz or zip) and running the KFP by using the files from the remote source.  
 In some cases you might not want to load the files from the remote source, but instead use the files within the running image. See details in [build image](../projects/run-build-deploy.md#build_image). In this case, you need to build an image that contains the workflow file and then change the workflow runner source to point to the project local files in the running image. See the example below.
 
 You can modify the pod image, source, and the pod node selector with:
@@ -55,14 +55,13 @@ project.save()
 # Run the workflow, load the project from the target dir on the image
 project.run("main", source="./", engine="remote", dirty=True)
 ```
-See also: 
-- Remote workflows are used for [scheduled workflows](./scheduled-jobs.md#scheduling-a-workflow).
-- The remote workflow supports [sending notifications](./notifications.md#remote-pipeline-notifications) when runs are complete.
-See also [Local and KFP engine pipeline notifications](../concepts/notifications.md#local-and-kfp-engine-pipeline-notifications).
+
+See also 
+- [Local and KFP engine pipeline notifications](../concepts/notifications.md#local-and-kfp-engine-pipeline-notifications).
 
 ## KFP
 
-The KFP workflow spec file is created in MLRun, and is compiled and run in the client side and use the files from your local file system.
+The KFP workflow spec file is created in MLRun, and is compiled and run in the client side, using the files from your local file system.
 For example:
 ```
 project.run("main", engine='kfp')

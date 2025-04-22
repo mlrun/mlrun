@@ -97,7 +97,7 @@ project.store_alert_config(alert_data)
 ## Creating a model monitoring alert
 
 Model monitoring alerts notify you when measured input data and/or statistic/result produce unexpected results, the same as other alerts. The difference is that the configuration of a model monitoring alert is based on specific model endpoints and optionally result names, including wildcards. See the full parameter details in {py:func}`~mlrun.projects.MlrunProject.create_model_monitoring_alert_configs`. 
-(You could also use `mlrun.alerts.alert.AlertConfig` to configure MEP alerts, but `create_model_monitoring_alert_configs` is much easier to configure.)
+(You could also use `mlrun.alerts.alert.AlertConfig` to configure ModelEndpoint alerts, but `create_model_monitoring_alert_configs` is much easier to configure).
 
 ```{admonition} Important
 Create model monitoring alerts after your serving function is deployed. When using a wildcard or when not specifying exact name of app+result (for example when not specifying results at all), the apps in question need to already be running and generating some metrics, so that the `get_model_endpoint_monitoring_metrics` API call is able to extract the details for the specific MEP.

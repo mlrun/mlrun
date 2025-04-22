@@ -102,10 +102,10 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     Each metric is calculated over all the features individually and the mean is taken as the metric value.
     The average of Hellinger and total variance distance is taken as the result.
 
-    The application can log two artifacts:
+    The application can log two artifacts (disabled by default due to performance issues):
 
-    * JSON with the general drift value per feature, produced by default.
-    * Plotly table with the various metrics and histograms per feature (disabled by default due to performance issues).
+    * JSON with the general drift value per feature.
+    * Plotly table with the various metrics and histograms per feature.
 
     This application is deployed by default when calling
     :py:func:`~mlrun.projects.MlrunProject.enable_model_monitoring`.
@@ -134,12 +134,14 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     def __init__(
         self,
         value_classifier: Optional[ValueClassifier] = None,
-        produce_json_artifact: bool = True,
+        produce_json_artifact: bool = False,
         produce_plotly_artifact: bool = False,
     ) -> None:
         """
-        :param value_classifier: Classifier object that adheres to the :py:class:`~ValueClassifier` protocol.
-                                 If not provided, the default :py:class:`~DataDriftClassifier` is used.
+        :param value_classifier:        Classifier object that adheres to the :py:class:`~ValueClassifier` protocol.
+                                        If not provided, the default :py:class:`~DataDriftClassifier` is used.
+        :param produce_json_artifact:   Whether to produce the JSON artifact or not, ``False`` by default.
+        :param produce_plotly_artifact: Whether to produce the Plotly artifact or not, ``False`` by default.
         """
         self._value_classifier = value_classifier or DataDriftClassifier()
         assert self._REQUIRED_METRICS <= set(

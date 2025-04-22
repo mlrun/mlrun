@@ -17,7 +17,7 @@ from typing import Union
 
 import numpy as np
 import pytest
-from hypothesis import given
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
 
@@ -144,6 +144,9 @@ def two_distributions_strategy(draw: st.DrawFn) -> tuple[np.ndarray, np.ndarray]
 class TestMetricProperties:
     @staticmethod
     @given(distrib=distribution_strategy())
+    @settings(
+        suppress_health_check=(HealthCheck.too_slow,)
+    )  # for weak GitHub runners, see ML-6653
     def test_same_distrib_gives_zero_distance(
         metric_class: type[HistogramDistanceMetric], distrib: np.ndarray
     ) -> None:
@@ -157,6 +160,9 @@ class TestMetricProperties:
 
     @staticmethod
     @given(two_distributions=two_distributions_strategy())
+    @settings(
+        suppress_health_check=(HealthCheck.too_slow,)
+    )  # for weak GitHub runners, see ML-6653
     def test_symmetric(
         metric_class: type[HistogramDistanceMetric],
         two_distributions: tuple[np.ndarray, np.ndarray],

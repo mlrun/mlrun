@@ -40,7 +40,7 @@ The images are:
 
 MLRun supports KFP SDK 1.8. In general, if your workflow will be compiled locally,  meaning you are not working with a remote source, then you need to use the image `mlrun/mlrun-kfp`. 
 
-If your workflow will be compiled remotely, or directly in KFP, then you can use any of `mlrun/mlrun`. You can specify the image if, for example, you have specific python package requirements.
+If your workflow will be compiled remotely (engine=`remote`), or directly in KFP (engine=`kfp`), then the workflow-runner pod automatically uses the `mlrun/mlrun-kfp` image, unless you specify otherwise, for example, if you have specific python package requirements.
 
 Unless you are using KFP-specific code inside the MLRun job, you do not need to use the `mlrun-kfp image`. Generally speaking, all MLRun code works without KFP except, of course, for creating and running pipelines.
 

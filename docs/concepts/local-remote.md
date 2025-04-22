@@ -12,8 +12,10 @@ All three types are configured by the `engine` flag, when running the workflow, 
  
 ## Remote-KFP 
 Remote workflows are used for [scheduled workflows](./scheduled-jobs.md#scheduling-a-workflow).  
-Remote workflows are run on the remote server with KFP. They run on the workflow runner pod, which loads and runs the workflow on a pod named `workflow-runner-<workflow-name>`. This pod is responsible for loading the files from the remote source (git, tar.gz or zip) and running the KFP by using the files from the remote source.  
+Remote workflows are run on the workflow runner pod that runs and load your workflow on a pod named `workflow-runner-<workflow-name>`. This pod is responsible for loading the files from the remote source (git, tar.gz or zip) and running the KFP by using the files from the remote source.  
 In some cases you might not want to load the files from the remote source, but instead use the files within the running image. See details in [build image](../projects/run-build-deploy.md#build_image). In this case, you need to build an image that contains the workflow file and then change the workflow runner source to point to the project local files in the running image. See the example below.
+
+The remote workflow supports [sending notifications](./notifications.md#remote-pipeline-notifications) when runs are complete.
 
 You can modify the pod image, source, and the pod node selector with:
 - `project.set_workflow(name="main",workflow_path="workflow.py,image="<runner-image>")` &mdash; changing the runner image

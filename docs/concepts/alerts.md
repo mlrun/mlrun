@@ -105,7 +105,7 @@ Create model monitoring alerts after your serving function is deployed. When usi
 This example illustrates creating a model monitoring alert to detect data drift, with a webhook notification for the alert.
 ```py
 alert_configs = myproject.create_model_monitoring_alert_configs(
-    # name of the AlertConfig template
+    # Name of the AlertConfig template
     name="alert-name",
     summary="user_template_summary_EventKind.DATA_DRIFT_DETECTED",
     # Retrieve metrics from these endpoints to configure the alert

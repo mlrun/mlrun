@@ -15,8 +15,6 @@
 import datetime
 import typing
 
-import storey
-
 import mlrun
 import mlrun.common.model_monitoring.helpers
 import mlrun.feature_store as fstore
@@ -144,7 +142,7 @@ class EventStreamProcessor:
 
         graph = typing.cast(
             mlrun.serving.states.RootFlowStep,
-            fn.set_topology(mlrun.serving.states.StepKinds.flow),
+            fn.set_topology(mlrun.serving.states.StepKinds.flow, engine="async"),
         )
 
         # split the graph between event with error vs valid event
@@ -345,7 +343,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             logger.debug(
                 "Skipped nop event inside of ProcessEndpointEvent", event=event
             )
-            return storey.Event(body=[event])
+            full_event.body = [event]
+            return full_event
         # Getting model version and function uri from event
         # and use them for retrieving the endpoint_id
         function_uri = full_event.body.get(EventFieldType.FUNCTION_URI)
@@ -385,9 +384,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             # Set time for the first request of the current endpoint
             self.first_request[endpoint_id] = timestamp
 
-        # Set time for the last reqeust of the current endpoint
-        self.last_request[endpoint_id] = timestamp
-
         if not self.is_valid(
             validation_function=is_not_none,
             field=request_id,
@@ -414,7 +410,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             return None
 
         # Convert timestamp to a datetime object
-        timestamp = datetime.datetime.fromisoformat(timestamp)
+        timestamp_obj = datetime.datetime.fromisoformat(timestamp)
 
         # Separate each model invocation into sub events that will be stored as dictionary
         # in list of events. This list will be used as the body for the storey event.
@@ -455,16 +451,16 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                     EventFieldType.FUNCTION_URI: function_uri,
                     EventFieldType.ENDPOINT_NAME: event.get(EventFieldType.MODEL),
                     EventFieldType.MODEL_CLASS: model_class,
-                    EventFieldType.TIMESTAMP: timestamp,
+                    EventFieldType.TIMESTAMP: timestamp_obj,
                     EventFieldType.ENDPOINT_ID: endpoint_id,
                     EventFieldType.REQUEST_ID: request_id,
                     EventFieldType.LATENCY: latency,
                     EventFieldType.FEATURES: feature,
                     EventFieldType.PREDICTION: prediction,
                     EventFieldType.FIRST_REQUEST: self.first_request[endpoint_id],
-                    EventFieldType.LAST_REQUEST: self.last_request[endpoint_id],
+                    EventFieldType.LAST_REQUEST: timestamp,
                     EventFieldType.LAST_REQUEST_TIMESTAMP: mlrun.utils.enrich_datetime_with_tz_info(
-                        self.last_request[endpoint_id]
+                        timestamp
                     ).timestamp(),
                     EventFieldType.LABELS: event.get(EventFieldType.LABELS, {}),
                     EventFieldType.METRICS: event.get(EventFieldType.METRICS, {}),
@@ -478,8 +474,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
         # Create a storey event object with list of events, based on endpoint_id which will be used
         # in the upcoming steps
-        storey_event = storey.Event(body=events, key=endpoint_id)
-        return storey_event
+        full_event.key = endpoint_id
+        full_event.body = events
+        return full_event
 
     def resume_state(self, endpoint_id, endpoint_name):
         # Make sure process is resumable, if process fails for any reason, be able to pick things up close to where we
@@ -492,6 +489,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                     project=self.project,
                     endpoint_id=endpoint_id,
                     name=endpoint_name,
+                    tsdb_metrics=False,
                 )
                 .flat_dict()
             )
@@ -502,10 +500,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
                 if first_request:
                     self.first_request[endpoint_id] = first_request
-
-                last_request = endpoint_record.get(EventFieldType.LAST_REQUEST)
-                if last_request:
-                    self.last_request[endpoint_id] = last_request
 
             # add endpoint to endpoints set
             self.endpoints.add(endpoint_id)
@@ -619,6 +613,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     project=self.project,
                     endpoint_id=endpoint_id,
                     name=event[EventFieldType.ENDPOINT_NAME],
+                    tsdb_metrics=False,
                 )
                 .flat_dict()
             )
@@ -692,6 +687,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     project=self.project,
                     endpoint_id=endpoint_id,
                     name=event[EventFieldType.ENDPOINT_NAME],
+                    tsdb_metrics=False,
                 )
                 .flat_dict()
             )

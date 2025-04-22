@@ -219,9 +219,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
         )
 
         run = self._pre_run_image_pull_secret_enrichment(run)
-        return self._pre_run_node_selector_enrichement(runtime, run)
+        return self._pre_run_scheduling_constraints_enrichment(runtime, run)
 
-    def _pre_run_node_selector_enrichement(
+    def _pre_run_scheduling_constraints_enrichment(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
         run: mlrun.run.RunObject,
@@ -239,18 +239,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         This ensures the pod will reflect the correct intent based on both user config and system scheduling policies.
         """
-        self._enrich_run_with_project_node_selector(runtime, run)
-        self._enrich_run_with_preemption_mode(runtime, run)
-        return run
-
-    def _enrich_run_with_project_node_selector(
-        self,
-        runtime: "mlrun.runtimes.base.BaseRuntime",
-        run: mlrun.run.RunObject,
-    ):
-        """
-        Enrich the run with node selector from function and project-level settings.
-        """
         # Start with function-level selector
         run.spec.node_selector = deepcopy(getattr(runtime.spec, "node_selector", {}))
 
@@ -264,6 +252,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 )
                 mlrun.k8s_utils.validate_node_selectors(resolved_node_selectors)
                 run.spec.node_selector = resolved_node_selectors
+        self._enrich_run_with_preemption_mode(runtime, run)
+        return run
 
     def _enrich_run_with_preemption_mode(
         self,

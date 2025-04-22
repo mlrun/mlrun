@@ -100,7 +100,7 @@ Model monitoring alerts notify you when measured input data and/or statistic/res
 (You could also use `mlrun.alerts.alert.AlertConfig` to configure ModelEndpoint alerts, but `create_model_monitoring_alert_configs` is much easier to configure).
 
 ```{admonition} Important
-Create model monitoring alerts after your serving function is deployed. When using a wildcard or when not specifying exact name of app+result (for example when not specifying results at all), the apps in question need to already be running and generating some metrics, so that the `get_model_endpoint_monitoring_metrics` API call is able to extract the details for the specific MEP.
+Create model monitoring alerts after your serving function is deployed. When using a wildcard or when not specifying exact name of app+result (for example when not specifying results at all), the apps in question need to already be running and generating some metrics, so that the `get_model_endpoint_monitoring_metrics` API call is able to extract the details for the specific ModelEndpoint.
 ```
 This example illustrates creating a model monitoring alert to detect data drift, with a webhook notification for the alert.
 ```py

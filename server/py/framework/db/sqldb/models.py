@@ -30,6 +30,8 @@ from sqlalchemy import (
     String,
     Table,
     UniqueConstraint,
+    event,
+    text,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -868,7 +870,7 @@ with warnings.catch_warnings():
             ),
         )
 
-        id = Column(Integer, autoincrement=True)
+        id = Column(Integer)
         # Keep fsp=3 for activation_time as it is part of the primary key and partitioning logic,
         # ensuring stable indexing and avoiding potential inconsistencies.
         # This must remain unchanged to maintain compatibility with existing logic
@@ -999,3 +1001,14 @@ def get_partitioned_table_names():
 
 # Must be after all table definitions
 post_table_definitions(base_cls=Base)
+
+
+@event.listens_for(AlertActivation.__table__, "after_create")
+def _add_auto_increment(target, connection, **kw):
+    if connection.dialect.name != "sqlite":
+        connection.execute(
+            text(
+                "ALTER TABLE alert_activation "
+                "MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT"
+            )
+        )

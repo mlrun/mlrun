@@ -13,58 +13,35 @@
 # limitations under the License.
 
 import sqlalchemy.dialects.mysql
+import sqlalchemy.dialects.postgresql
+import sqlalchemy.types
 
-from .mysql import MySQLUtil
+
+class DateTime(sqlalchemy.types.TypeDecorator):
+    impl = sqlalchemy.types.DateTime
+    cache_ok = True
+    precision = 3
+
+    def load_dialect_impl(self, dialect: sqlalchemy.engine.interfaces.Dialect) -> sqlalchemy.engine.interfaces.Dialect.type_descriptor:
+        if dialect.name == 'mysql':
+            return dialect.type_descriptor(sqlalchemy.dialects.mysql.DATETIME(fsp=self.precision, timezone=True))
+        elif dialect.name == 'postgresql':
+            return dialect.type_descriptor(sqlalchemy.dialects.postgresql.TIMESTAMP(precision=self.precision, timezone=True))
+        else:
+            return dialect.type_descriptor(sqlalchemy.types.DateTime)
+
+class MicroSecondDateTime(DateTime):
+    precision = 6
 
 
-class SQLTypesUtil:
-    class _Collations:
-        # with sqlite we use the default collation
-        sqlite = None
-        mysql = "utf8mb3_bin"
+class Blob(sqlalchemy.types.TypeDecorator):
+    impl = sqlalchemy.types.BLOB
+    cache_ok = True
 
-    class _Timestamp:
-        sqlite = sqlalchemy.TIMESTAMP
-        mysql = sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3)
-
-    class _Datetime:
-        sqlite = sqlalchemy.DATETIME(timezone=True)
-
-        @staticmethod
-        def mysql(fsp=6):
-            return sqlalchemy.dialects.mysql.DATETIME(timezone=True, fsp=fsp)
-
-    class _Blob:
-        sqlite = sqlalchemy.BLOB
-        mysql = sqlalchemy.dialects.mysql.MEDIUMBLOB
-
-    @classmethod
-    def collation(cls):
-        return cls._return_type(cls._Collations)
-
-    @classmethod
-    def timestamp(cls):
-        """
-        Use `SQLTypesUtil.datetime()` in new columns.
-        See ML-6921.
-        """
-        return cls._return_type(cls._Timestamp)
-
-    @classmethod
-    def datetime(cls, fsp=6):
-        return cls._return_type(cls._Datetime, fsp=fsp)
-
-    @classmethod
-    def blob(cls):
-        return cls._return_type(cls._Blob)
-
-    @staticmethod
-    def _return_type(type_cls: type, *args, **kwargs):
-        mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
-        if mysql_dsn_data:
-            # If the mysql attribute is callable (as it is for _Datetime), call it with extra arguments.
-            if callable(getattr(type_cls, "mysql", None)):
-                return type_cls.mysql(*args, **kwargs)
-            # Otherwise just return the attribute (as for _Collations or _Timestamp).
-            return type_cls.mysql
-        return type_cls.sqlite
+    def load_dialect_impl(self, dialect: sqlalchemy.engine.interfaces.Dialect) -> sqlalchemy.engine.interfaces.Dialect.type_descriptor:
+        if dialect.name == "mysql":
+            return dialect.type_descriptor(sqlalchemy.dialects.mysql.MEDIUMBLOB)
+        elif dialect.name == "postgresql":
+            return dialect.type_descriptor(sqlalchemy.dialects.postgresql.BYTEA)
+        else:
+            return dialect.type_descriptor(self.impl)

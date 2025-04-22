@@ -41,6 +41,7 @@ from mlrun.utils.v3io_clients import get_frames_client
 
 from .. import errors
 from ..data_types import ValueType, is_spark_dataframe
+from ..db.base import MicroSecondDateTime
 from ..platforms.iguazio import parse_path, split_path
 from .datastore_profile import datastore_profile_read
 from .spark_utils import spark_session_update_hadoop_options
@@ -2169,8 +2170,8 @@ class SQLTarget(BaseStoreTarget):
                 type_to_sql_type = {
                     int: sqlalchemy.Integer,
                     str: sqlalchemy.String(self.attributes.get("varchar_len")),
-                    datetime.datetime: sqlalchemy.dialects.mysql.DATETIME(fsp=6),
-                    pd.Timestamp: sqlalchemy.dialects.mysql.DATETIME(fsp=6),
+                    datetime.datetime: MicroSecondDateTime(),
+                    pd.Timestamp: MicroSecondDateTime(),
                     bool: sqlalchemy.Boolean,
                     float: sqlalchemy.Float,
                     datetime.timedelta: sqlalchemy.Interval,

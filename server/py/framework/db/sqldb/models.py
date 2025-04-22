@@ -78,8 +78,8 @@ def make_label(table):
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        value = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255))
+        value = Column(String(255))
         parent = Column(Integer, ForeignKey(f"{table}.id", ondelete="CASCADE"))
 
         def get_identifier_string(self) -> str:
@@ -96,8 +96,8 @@ def make_tag(table):
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
+        project = Column(String(255))
+        name = Column(String(255))
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
 
     return Tag
@@ -113,10 +113,10 @@ def make_tag_v2(table):
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
+        project = Column(String(255))
+        name = Column(String(255))
         obj_id = Column(Integer, ForeignKey(f"{table}.id", ondelete="CASCADE"))
-        obj_name = Column(String(255, collation=SQLTypesUtil.collation()))
+        obj_name = Column(String(255))
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
@@ -143,10 +143,10 @@ def make_artifact_tag(table):
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
+        project = Column(String(255))
+        name = Column(String(255))
         obj_id = Column(Integer, ForeignKey(f"{table}.id", ondelete="CASCADE"))
-        obj_name = Column(String(255, collation=SQLTypesUtil.collation()))
+        obj_name = Column(String(255))
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
@@ -162,18 +162,18 @@ def make_notification(table):
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-        kind = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        project = Column(String(255))
+        name = Column(String(255), nullable=False)
+        kind = Column(String(255), nullable=False)
         message = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255), nullable=False
         )
         severity = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255), nullable=False
         )
-        when = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        when = Column(String(255), nullable=False)
         condition = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255), nullable=False
         )
         secret_params = Column("secret_params", JSON)
         params = Column("params", JSON)
@@ -188,8 +188,8 @@ def make_notification(table):
             SQLTypesUtil.timestamp(),
             nullable=True,
         )
-        status = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-        reason = Column(String(255, collation=SQLTypesUtil.collation()), nullable=True)
+        status = Column(String(255), nullable=False)
+        reason = Column(String(255), nullable=True)
 
     return Notification
 
@@ -210,9 +210,9 @@ with warnings.catch_warnings():
         Tag = make_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        key = Column(String(255, collation=SQLTypesUtil.collation()))
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        uid = Column(String(255, collation=SQLTypesUtil.collation()))
+        key = Column(String(255))
+        project = Column(String(255))
+        uid = Column(String(255))
         updated = Column(SQLTypesUtil.timestamp())
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(SQLTypesUtil.blob())
@@ -253,14 +253,14 @@ with warnings.catch_warnings():
         Tag = make_artifact_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        key = Column(String(255, collation=SQLTypesUtil.collation()), index=True)
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        kind = Column(String(255, collation=SQLTypesUtil.collation()), index=True)
-        producer_id = Column(String(255, collation=SQLTypesUtil.collation()))
-        producer_uri = Column(String(255, collation=SQLTypesUtil.collation()))
+        key = Column(String(255), index=True)
+        project = Column(String(255))
+        kind = Column(String(255), index=True)
+        producer_id = Column(String(255))
+        producer_uri = Column(String(255))
         iteration = Column(Integer)
         best_iteration = Column(BOOLEAN, default=False, index=True)
-        uid = Column(String(255, collation=SQLTypesUtil.collation()))
+        uid = Column(String(255))
         created = Column(
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
@@ -318,11 +318,11 @@ with warnings.catch_warnings():
         Tag = make_tag_v2(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        uid = Column(String(255, collation=SQLTypesUtil.collation()))
-        kind = Column(String(255, collation=SQLTypesUtil.collation()))
-        state = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255))
+        project = Column(String(255))
+        uid = Column(String(255))
+        kind = Column(String(255))
+        state = Column(String(255))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(SQLTypesUtil.blob())
         updated = Column(SQLTypesUtil.timestamp())
@@ -355,13 +355,13 @@ with warnings.catch_warnings():
         Notification = make_notification(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        uid = Column(String(255, collation=SQLTypesUtil.collation()))
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
+        uid = Column(String(255))
+        project = Column(String(255))
         name = Column(
-            String(255, collation=SQLTypesUtil.collation()), default="no-name"
+            String(255), default="no-name"
         )
         iteration = Column(Integer)
-        state = Column(String(255, collation=SQLTypesUtil.collation()))
+        state = Column(String(255))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(SQLTypesUtil.blob())
         start_time = Column(SQLTypesUtil.timestamp())
@@ -397,9 +397,9 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        name = Column(String(255), nullable=False)
         project = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255), nullable=False
         )
         created = Column(
             SQLTypesUtil.timestamp(),
@@ -409,8 +409,8 @@ with warnings.catch_warnings():
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
         )
-        state = Column(String(255, collation=SQLTypesUtil.collation()))
-        error = Column(String(255, collation=SQLTypesUtil.collation()))
+        state = Column(String(255))
+        error = Column(String(255))
         timeout = Column(Integer)
 
         def get_identifier_string(self) -> str:
@@ -424,15 +424,15 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         project = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255), nullable=False
         )
-        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-        kind = Column(String(255, collation=SQLTypesUtil.collation()))
-        desired_state = Column(String(255, collation=SQLTypesUtil.collation()))
-        state = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255), nullable=False)
+        kind = Column(String(255))
+        desired_state = Column(String(255))
+        state = Column(String(255))
         creation_time = Column(SQLTypesUtil.timestamp())
-        cron_trigger_str = Column(String(255, collation=SQLTypesUtil.collation()))
-        last_run_uri = Column(String(255, collation=SQLTypesUtil.collation()))
+        cron_trigger_str = Column(String(255))
+        last_run_uri = Column(String(255))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         struct = Column(SQLTypesUtil.blob())
         labels = relationship(
@@ -476,7 +476,7 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("name", name="_users_uc"),)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255))
 
         def get_identifier_string(self) -> str:
             return f"{self.name}"
@@ -487,17 +487,17 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("name", name="_projects_uc"),)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        description = Column(String(255, collation=SQLTypesUtil.collation()))
-        owner = Column(String(255, collation=SQLTypesUtil.collation()))
-        source = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255))
+        description = Column(String(255))
+        owner = Column(String(255))
+        source = Column(String(255))
         # the attribute name used to be _spec which is just a wrong naming, the attribute was renamed to _full_object
         # leaving the column as is to prevent redundant migration
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         _full_object = Column("spec", SQLTypesUtil.blob())
         created = Column(SQLTypesUtil.timestamp(), default=datetime.utcnow)
         default_function_node_selector = Column("default_function_node_selector", JSON)
-        state = Column(String(255, collation=SQLTypesUtil.collation()))
+        state = Column(String(255))
         users = relationship(User, secondary=project_users)
 
         Label = make_label(__tablename__)
@@ -528,8 +528,8 @@ with warnings.catch_warnings():
             Integer, ForeignKey("feature_sets.id", ondelete="CASCADE")
         )
 
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        value_type = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255))
+        value_type = Column(String(255))
 
         Label = make_label(__tablename__)
         labels = relationship(
@@ -553,8 +553,8 @@ with warnings.catch_warnings():
             Integer, ForeignKey("feature_sets.id", ondelete="CASCADE")
         )
 
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        value_type = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255))
+        value_type = Column(String(255))
 
         Label = make_label(__tablename__)
         labels = relationship(
@@ -578,8 +578,8 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255))
+        project = Column(String(255))
         created = Column(
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
@@ -588,8 +588,8 @@ with warnings.catch_warnings():
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
         )
-        state = Column(String(255, collation=SQLTypesUtil.collation()))
-        uid = Column(String(255, collation=SQLTypesUtil.collation()))
+        state = Column(String(255))
+        uid = Column(String(255))
 
         _full_object = Column("object", JSON)
 
@@ -642,8 +642,8 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255))
+        project = Column(String(255))
         created = Column(
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
@@ -652,8 +652,8 @@ with warnings.catch_warnings():
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
         )
-        state = Column(String(255, collation=SQLTypesUtil.collation()))
-        uid = Column(String(255, collation=SQLTypesUtil.collation()))
+        state = Column(String(255))
+        uid = Column(String(255))
 
         _full_object = Column("object", JSON)
 
@@ -691,7 +691,7 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("name", name="_hub_sources_uc"),)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255))
         index = Column(Integer)
         created = Column(
             SQLTypesUtil.timestamp(),
@@ -722,7 +722,7 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("version", name="_versions_uc"),)
 
         id = Column(Integer, primary_key=True)
-        version = Column(String(255, collation=SQLTypesUtil.collation()))
+        version = Column(String(255))
         created = Column(
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
@@ -738,9 +738,9 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        type = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255))
+        project = Column(String(255))
+        type = Column(String(255))
         _full_object = Column("object", JSON)
 
         @property
@@ -758,9 +758,9 @@ with warnings.catch_warnings():
     class PaginationCache(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "pagination_cache"
 
-        key = Column(String(255, collation=SQLTypesUtil.collation()), primary_key=True)
-        user = Column(String(255, collation=SQLTypesUtil.collation()))
-        function = Column(String(255, collation=SQLTypesUtil.collation()))
+        key = Column(String(255), primary_key=True)
+        user = Column(String(255))
+        function = Column(String(255))
         current_page = Column(Integer)
         page_size = Column(Integer)
         kwargs = Column(JSON)
@@ -813,9 +813,9 @@ with warnings.catch_warnings():
         Notification = make_notification(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        name = Column(String(255), nullable=False)
         project = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255), nullable=False
         )
 
         notifications = relationship(Notification, cascade="all, delete-orphan")
@@ -840,7 +840,7 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("name", name="_alert_templates_uc"),)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        name = Column(String(255), nullable=False)
 
         _full_object = Column("object", JSON)
 
@@ -874,22 +874,22 @@ with warnings.catch_warnings():
         # This must remain unchanged to maintain compatibility with existing logic
         # and prevent unintended precision changes.
         activation_time = Column(SQLTypesUtil.datetime(fsp=3), nullable=False)
-        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        name = Column(String(255), nullable=False)
         project = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255), nullable=False
         )
         data = Column(JSON)
         entity_id = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255), nullable=False
         )
         entity_kind = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255), nullable=False
         )
         event_kind = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255), nullable=False
         )
         severity = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255), nullable=False
         )
         number_of_events = Column(Integer, nullable=False)
 
@@ -906,7 +906,7 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         project = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255), nullable=False
         )
         updated = Column(SQLTypesUtil.datetime())
         summary = Column(JSON)
@@ -917,7 +917,7 @@ with warnings.catch_warnings():
     class TimeWindowTracker(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "time_window_trackers"
 
-        key = Column(String(255, collation=SQLTypesUtil.collation()), primary_key=True)
+        key = Column(String(255), primary_key=True)
         timestamp = Column(
             SQLTypesUtil.datetime(),
             nullable=False,
@@ -933,9 +933,9 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         uid = Column(String(32), default=lambda: uuid.uuid4().hex, unique=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255))
         endpoint_type = Column(Integer, nullable=False)
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
+        project = Column(String(255))
         body = Column(SQLTypesUtil.blob())
         created = Column(
             SQLTypesUtil.timestamp(),
@@ -983,9 +983,9 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("key", name="_system_metadata_uc"),)
 
         id = Column(Integer, primary_key=True)
-        key = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        key = Column(String(255), nullable=False)
         # This column stores a string value, when extracting or manipulating it, ensure to handle it appropriately
-        value = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        value = Column(String(255), nullable=False)
 
         def get_identifier_string(self) -> str:
             return f"{self.key}"

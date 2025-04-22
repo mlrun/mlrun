@@ -60,6 +60,7 @@ from mlrun.utils.v3io_clients import get_v3io_client
 from tests.system.base import TestMLRunSystem
 
 from . import TestMLRunSystemModelMonitoring
+from .assets import histogram_app_with_artifacts
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     CountApp,
@@ -96,7 +97,6 @@ _DefaultDataDriftAppData = _AppData(
     deploy=False,
     results={"general_drift"},
     metrics={"hellinger_mean", "kld_mean", "tvd_mean"},
-    artifacts={"features_drift_results"},
 )
 
 
@@ -591,15 +591,16 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 self._logger.debug("Checking app artifacts", app_name=app_name)
                 for key in app_data.artifacts:
                     self._logger.debug("Checking artifact existence", key=key)
-                    artifact = self.project.get_artifact(key)
-                    self._logger.debug("Checking artifact labels", key=key)
+                    artifact = self.project.get_artifact(f"{key}-{ep_id}")
+                    self._logger.debug("Checking artifact labels", key=f"{key}-{ep_id}")
                     assert {
                         "mlrun/producer-type": "model-monitoring-app",
                         "mlrun/app-name": app_name,
                         "mlrun/endpoint-id": ep_id,
                     }.items() <= artifact.labels.items()
                     self._logger.debug(
-                        "Test the artifact can be fetched from the store", key=key
+                        "Test the artifact can be fetched from the store",
+                        key=f"{key}-{ep_id}",
                     )
                     artifact.to_dataitem().get()
 
@@ -801,6 +802,7 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             **self.app_data.kwargs,
         )
         self.project.deploy_function(fn)
+        return fn
 
     def _record_results(self) -> str:
         model_endpoint = mlrun.model_monitoring.api.record_results(
@@ -826,8 +828,11 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
         self._log_model()
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(self._deploy_monitoring_app)
+            monitoring_app = executor.submit(self._deploy_monitoring_app)
             executor.submit(self._deploy_monitoring_infra)
+
+        fn = monitoring_app.result()
+        self._assert_replicas(fn)
 
         endpoint_id = self._record_results()
 
@@ -844,6 +849,16 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             mep.metadata.uid, inputs=set(self.columns), outputs=set(self.y_name)
         )
         self._test_predictions_table(mep.metadata.uid, should_be_empty=True)
+
+    @staticmethod
+    def _assert_replicas(fn):
+        """
+        Validate that the 'min_replicas' and 'max_replicas' values in the function's spec are correct after deployment.
+        This check ensures that the replica settings, which are modified on the server side during deployment, are
+        properly reflected on the client side.
+        """
+        assert fn.spec.min_replicas == 1
+        assert fn.spec.max_replicas == 1
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
@@ -1415,8 +1430,8 @@ class TestAppJob(TestMLRunSystem):
         reference_data = pd.DataFrame({"a": [12, 13], "b": [3.12, 4.12]})
 
         # Call `.evaluate(...)`
-        run_result = HistogramDataDriftApplication.evaluate(
-            func_path=mlrun.model_monitoring.applications.histogram_data_drift.__file__,
+        run_result = histogram_app_with_artifacts.HistogramDataDriftApplicationWithArtifacts.evaluate(
+            func_path=histogram_app_with_artifacts.__file__,
             sample_data=sample_data,
             reference_data=reference_data,
             run_local=run_local,
@@ -1451,7 +1466,7 @@ class TestAppJob(TestMLRunSystem):
             2:4
         ], "The returned metrics are different than the expected ones"
         # Test the artifacts
-        for artifact_name in _DefaultDataDriftAppData.artifacts:
+        for artifact_name in {"features_drift_results", "drift_table_plot"}:
             assert run_result.output(
                 artifact_name
             ), f"The artifact '{artifact_name}' is not listed in the run's output"

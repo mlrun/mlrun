@@ -45,6 +45,7 @@ HELM_REPOS = {
     "minio": "https://charts.min.io/",
     "spark-operator": "https://kubeflow.github.io/spark-operator",
     "prometheus-community": "https://prometheus-community.github.io/helm-charts",
+    "bitnami": "https://charts.bitnami.com/bitnami",
 }
 
 REQUIRED_COMMANDS = ["git", "helm", "kubectl"]

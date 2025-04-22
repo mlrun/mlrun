@@ -1153,10 +1153,6 @@ class V3IOTSDBConnector(TSDBConnector):
                 model_endpoint_objects_by_uid=model_endpoint_objects_by_uid
             )
 
-        self._enrich_mep_with_last_request(
-            model_endpoint_objects_by_uid=model_endpoint_objects_by_uid
-        )
-
         return list(model_endpoint_objects_by_uid.values())
 
     def _enrich_mep_with_last_request(

@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import posixpath
 import uuid
 import warnings
 from abc import ABC
 
 import pandas as pd
 import semver
+from evidently.ui.storage.local.base import METADATA_PATH, FSLocation
 
 import mlrun.model_monitoring.applications.base as mm_base
 import mlrun.model_monitoring.applications.context as mm_context
@@ -81,6 +84,7 @@ class EvidentlyModelMonitoringApplicationBase(
         # TODO : more then one project (mep -> project)
         if not _HAS_EVIDENTLY:
             raise ModuleNotFoundError("Evidently is not installed - the app cannot run")
+        self._log_location(evidently_workspace_path)
         self.evidently_workspace = Workspace.create(evidently_workspace_path)
         self.evidently_project_id = evidently_project_id
         self.evidently_project = self.evidently_workspace.get_project(
@@ -88,21 +92,66 @@ class EvidentlyModelMonitoringApplicationBase(
         )
 
     @staticmethod
+    def _log_location(evidently_workspace_path):
+        # TODO remove function + usage after solving issue ML-9530
+        location = FSLocation(base_path=evidently_workspace_path)
+        location.invalidate_cache("")
+        paths = [p for p in location.listdir("") if location.isdir(p)]
+
+        for path in paths:
+            metadata_path = posixpath.join(path, METADATA_PATH)
+            full_path = posixpath.join(location.path, metadata_path)
+            print(f"evidently json issue, working on path: {full_path}")
+            try:
+                with location.open(metadata_path) as f:
+                    content = json.load(f)
+                    print(
+                        f"evidently json issue, successful load path: {full_path}, content: {content}"
+                    )
+            except FileNotFoundError:
+                print(f"evidently json issue, path not found: {full_path}")
+                continue
+            except json.decoder.JSONDecodeError as json_error:
+                print(
+                    f"evidently json issue, path got json error, path:{full_path}, error: {json_error}"
+                )
+                print("evidently json issue, file content:")
+                with location.open(metadata_path) as f:
+                    print(f.read())
+                continue
+            except Exception as error:
+                print(
+                    f"evidently json issue, path got general error, path:{full_path}, error: {error}"
+                )
+                continue
+
+    @staticmethod
     def log_evidently_object(
         monitoring_context: mm_context.MonitoringApplicationContext,
         evidently_object: "Display",
         artifact_name: str,
+        unique_per_endpoint: bool = True,
     ) -> None:
         """
-         Logs an Evidently report or suite as an artifact.
+        Logs an Evidently report or suite as an artifact.
+
+        .. caution::
+
+            Logging Evidently objects in every model monitoring window may cause scale issues.
+            This method should be called on special occasions only.
 
         :param monitoring_context:  (MonitoringApplicationContext) The monitoring context to process.
         :param evidently_object:    (Display) The Evidently display to log, e.g. a report or a test suite object.
         :param artifact_name:       (str) The name for the logged artifact.
+        :param unique_per_endpoint: by default ``True``, we will log different artifact for each model endpoint,
+                                    set to ``False`` without changing item key will cause artifact override.
         """
         evidently_object_html = evidently_object.get_html()
         monitoring_context.log_artifact(
-            artifact_name, body=evidently_object_html.encode("utf-8"), format="html"
+            artifact_name,
+            body=evidently_object_html.encode("utf-8"),
+            format="html",
+            unique_per_endpoint=unique_per_endpoint,
         )
 
     def log_project_dashboard(
@@ -111,14 +160,22 @@ class EvidentlyModelMonitoringApplicationBase(
         timestamp_start: pd.Timestamp,
         timestamp_end: pd.Timestamp,
         artifact_name: str = "dashboard",
+        unique_per_endpoint: bool = True,
     ) -> None:
         """
         Logs an Evidently project dashboard.
+
+        .. caution::
+
+            Logging Evidently dashboards in every model monitoring window may cause scale issues.
+            This method should be called on special occasions only.
 
         :param monitoring_context:  (MonitoringApplicationContext) The monitoring context to process.
         :param timestamp_start:     (pd.Timestamp) The start timestamp for the dashboard data.
         :param timestamp_end:       (pd.Timestamp) The end timestamp for the dashboard data.
         :param artifact_name:       (str) The name for the logged artifact.
+        :param unique_per_endpoint: by default ``True``, we will log different artifact for each model endpoint,
+                                    set to ``False`` without changing item key will cause artifact override.
         """
 
         dashboard_info = self.evidently_project.build_dashboard_info(
@@ -132,5 +189,8 @@ class EvidentlyModelMonitoringApplicationBase(
 
         dashboard_html = file_html_template(params=template_params)
         monitoring_context.log_artifact(
-            artifact_name, body=dashboard_html.encode("utf-8"), format="html"
+            artifact_name,
+            body=dashboard_html.encode("utf-8"),
+            format="html",
+            unique_per_endpoint=unique_per_endpoint,
         )

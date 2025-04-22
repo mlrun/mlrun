@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import urllib.parse
 from typing import Optional
 
@@ -64,7 +64,7 @@ def resolve_nuclio_runtime_python_image(
     ) and python_version.startswith("3.9"):
         return "python:3.9"
 
-    # if none of the above conditions are met we use the default runtime which is python 3.9
+    # if none of the above conditions are met we use the default runtime which is python 3.11
     return mlrun.mlconf.default_nuclio_runtime
 
 

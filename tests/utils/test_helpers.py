@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
+import json
 import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
@@ -691,38 +692,38 @@ def test_validate_v3io_consumer_group(value, expected):
         },
         {
             "image": "mlrun/mlrun",
-            "client_version": "1.3.0",
-            "client_python_version": "3.7.13",
-            "images_tag": None,
-            "version": None,
-            "expected_output": "mlrun/mlrun:1.3.0-py37",
-            "images_to_enrich_registry": "",
-        },
-        {
-            "image": "mlrun/mlrun",
-            "client_version": "1.5.0",
-            "client_python_version": "3.7.13",
-            "images_tag": None,
-            "version": None,
-            "expected_output": "mlrun/mlrun:1.5.0",
-            "images_to_enrich_registry": "",
-        },
-        {
-            "image": "mlrun/mlrun",
-            "client_version": "1.3.0",
-            "client_python_version": None,
-            "images_tag": None,
-            "version": None,
-            "expected_output": "mlrun/mlrun:1.3.0",
-            "images_to_enrich_registry": "",
-        },
-        {
-            "image": "mlrun/mlrun",
-            "client_version": "1.3.0",
+            "client_version": "1.9.0",
             "client_python_version": "3.9.13",
             "images_tag": None,
             "version": None,
-            "expected_output": "mlrun/mlrun:1.3.0",
+            "expected_output": "mlrun/mlrun:1.9.0-py39",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.11.0",
+            "client_python_version": "3.7.13",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.11.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.9.0",
+            "client_python_version": None,
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.9.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.9.0",
+            "client_python_version": "3.11.13",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.9.0",
             "images_to_enrich_registry": "",
         },
         {
@@ -760,36 +761,36 @@ def test_enrich_image(case):
 @pytest.mark.parametrize(
     "mlrun_version,python_version,expected",
     [
-        ("1.3.0", "3.7.13", "-py37"),
-        ("1.3.0", "3.9.13", ""),
-        ("1.3.0", None, ""),
-        ("1.3.0", "3.8.13", ""),
-        ("1.3.0", "3.9.0", ""),
-        ("1.2.0", "3.7.0", ""),
-        ("1.2.0", "3.8.0", ""),
-        ("1.3.0-rc12", "3.7.13", "-py37"),
-        ("1.3.0-rc12", "3.9.13", ""),
-        ("1.3.0-rc12", None, ""),
-        ("1.3.0-rc12", "3.8.13", ""),
-        ("1.3.1", "3.7.13", "-py37"),
-        ("1.3.1", "3.9.13", ""),
-        ("1.3.1", None, ""),
-        ("1.3.1", "3.8.13", ""),
-        ("1.3.1-rc12", "3.7.13", "-py37"),
-        ("1.3.1-rc12", "3.9.13", ""),
+        ("1.9.0", "3.9.13", "-py39"),
+        ("1.9.0", "3.11.13", ""),
+        ("1.9.0", None, ""),
+        ("1.9.0", "3.10.13", ""),
+        ("1.9.0", "3.11.0", ""),
+        ("1.8.0", "3.9.0", ""),
+        ("1.8.0", "3.10.0", ""),
+        ("1.9.0-rc12", "3.9.13", "-py39"),
+        ("1.9.0-rc12", "3.11.13", ""),
+        ("1.9.0-rc12", None, ""),
+        ("1.9.0-rc12", "3.10.13", ""),
+        ("1.9.1", "3.9.13", "-py39"),
+        ("1.9.1", "3.11.13", ""),
+        ("1.9.1", None, ""),
+        ("1.9.1", "3.10.13", ""),
+        ("1.9.1-rc12", "3.9.13", "-py39"),
+        ("1.9.1-rc12", "3.11.13", ""),
         # an example of a version which contains a suffix of commit hash and not a rc suffix (our CI uses this format)
-        ("1.3.0-zwqeiubz", "3.7.13", "-py37"),
-        ("1.3.0-zwqeiubz", "3.9.13", ""),
+        ("1.9.0-zwqeiubz", "3.9.13", "-py39"),
+        ("1.9.0-zwqeiubz", "3.11.13", ""),
         # an example of a dev version which contains `unstable` and not a rc suffix (When compiling from source without
         # defining a version)
-        ("0.0.0-unstable", "3.7.13", "-py37"),
-        ("0.0.0-unstable", "3.9.13", ""),
-        # list of versions which are later than 1.3.0, if we decide to stop supporting python 3.7 in later versions
+        ("0.0.0-unstable", "3.9.13", "-py39"),
+        ("0.0.0-unstable", "3.11.13", ""),
+        # list of versions which are later than 1.9.0, if we decide to stop supporting python 3.9 in later versions
         # we can remove them
-        ("1.4.0", "3.9.13", ""),
-        ("1.4.0", "3.7.13", "-py37"),
-        ("1.4.0-rc1", "3.7.13", "-py37"),
-        ("1.4.0-rc1", "3.9.13", ""),
+        ("1.10.0", "3.11.13", ""),
+        ("1.10.0", "3.9.13", "-py39"),
+        ("1.10.0-rc1", "3.9.13", "-py39"),
+        ("1.10.0-rc1", "3.11.13", ""),
     ],
 )
 def test_resolve_image_tag_suffix(mlrun_version, python_version, expected):
@@ -1465,3 +1466,122 @@ def test_datetime_from_iso(input_time, expected_output):
 )
 def test_format_datetime(dt, expected):
     assert mlrun.utils.helpers.format_datetime(dt) == expected
+
+
+@pytest.mark.parametrize(
+    "project_name, end_date, start_date, expected_filter",
+    [
+        # Specific project, end date only
+        (
+            "test-project",
+            "2024-11-05T15:30:00Z",
+            "",
+            json.dumps(
+                {
+                    "predicates": [
+                        {
+                            "key": "created_at",
+                            "op": 7,
+                            "timestamp_value": "2024-11-05T15:30:00Z",
+                        },
+                        {"key": "name", "op": 9, "string_value": "test-project"},
+                    ]
+                }
+            ),
+        ),
+        # Wildcard project, end date only
+        (
+            "*",
+            "2024-11-05T15:30:00Z",
+            "",
+            json.dumps(
+                {
+                    "predicates": [
+                        {
+                            "key": "created_at",
+                            "op": 7,
+                            "timestamp_value": "2024-11-05T15:30:00Z",
+                        },
+                    ]
+                }
+            ),
+        ),
+        # Specific project with both start and end dates
+        (
+            "test-project",
+            "2024-11-05T15:30:00Z",
+            "2024-10-01T00:00:00Z",
+            json.dumps(
+                {
+                    "predicates": [
+                        {
+                            "key": "created_at",
+                            "op": 7,
+                            "timestamp_value": "2024-11-05T15:30:00Z",
+                        },
+                        {"key": "name", "op": 9, "string_value": "test-project"},
+                        {
+                            "key": "created_at",
+                            "op": 5,
+                            "timestamp_value": "2024-10-01T00:00:00Z",
+                        },
+                    ]
+                }
+            ),
+        ),
+        # Wildcard project with both start and end dates
+        (
+            "*",
+            "2024-11-05T15:30:00Z",
+            "2024-10-01T00:00:00Z",
+            json.dumps(
+                {
+                    "predicates": [
+                        {
+                            "key": "created_at",
+                            "op": 7,
+                            "timestamp_value": "2024-11-05T15:30:00Z",
+                        },
+                        {
+                            "key": "created_at",
+                            "op": 5,
+                            "timestamp_value": "2024-10-01T00:00:00Z",
+                        },
+                    ]
+                }
+            ),
+        ),
+    ],
+)
+def test_get_list_runs_filter(project_name, end_date, start_date, expected_filter):
+    generated_filter = mlrun.utils.helpers.get_kfp_list_runs_filter(
+        project_name, end_date, start_date
+    )
+    assert json.loads(generated_filter) == json.loads(expected_filter)
+
+
+@pytest.mark.parametrize(
+    "date_input, expected_output, expectation",
+    [
+        # Valid date without timezone, assume UTC
+        ("2024-11-05T15:30:00", "2024-11-05T15:30:00Z", does_not_raise()),
+        # Valid date with UTC timezone
+        ("2024-11-05T15:30:00Z", "2024-11-05T15:30:00Z", does_not_raise()),
+        # Valid date with different timezone (convert to UTC)
+        ("2024-11-05T15:30:00+02:00", "2024-11-05T13:30:00Z", does_not_raise()),
+        # Valid date with timezone-aware string
+        ("2024-11-05T15:30:00-05:00", "2024-11-05T20:30:00Z", does_not_raise()),
+        # Date with timezone info but no time
+        ("2024-11-05", "2024-11-05T00:00:00Z", does_not_raise()),
+        ("2024/11/05T09:00", "2024-11-05T09:00:00Z", does_not_raise()),
+        # Invalid date format
+        ("invalid-date", "", pytest.raises(ValueError)),
+        # Overflow date (not a realistic timestamp)
+        ("9999-99-99T99:99:99Z", "", pytest.raises(ValueError)),
+    ],
+)
+def test_validate_and_convert_date(date_input, expected_output, expectation):
+    with expectation:
+        assert (
+            mlrun.utils.helpers.validate_and_convert_date(date_input) == expected_output
+        )

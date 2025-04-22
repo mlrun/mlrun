@@ -113,7 +113,7 @@ alert_configs = myproject.create_model_monitoring_alert_configs(
     # AlertTrigger event type
     events=[EventKind.DATA_DRIFT_DETECTED],
     notifications=[notifications],
-    result_names=[],  # can use wildcards
+    result_names=[],  # Can use wildcards
     severity=alert_constants.AlertSeverity.LOW,
     criteria=None,
     reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,

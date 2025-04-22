@@ -80,6 +80,12 @@ To upgrade the MLRun server:
 |ML-7824|The Jobs and Workflow>Monitor Workflows and Schedule panes now have a pop-up filter, and the Batch Run button is in the same row &mdash; providing more space for the lists in the tables. |
 |ML-7825|The Feature Store panes now have a pop-up filter, and the Create Set/Vector button is in the same row &mdash; providing more space for the lists in the tables. |
 
+### Documentation
+
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-6379|New tutorial: {ref}`genai-03-vectordb`.|
+|NA  |New page: {ref}`local-remote`.|
 
 ### Closed issues
 

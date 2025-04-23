@@ -213,6 +213,7 @@ linkcheck_ignore = [
     # Mckinsey restricted
     "https://ollama.com/download",
     "https://ollama.com/library/llama3",
+    "https://docs.confident-ai.com/docs/*",
 ]
 
 # -- Autosummary -------------------------------------------------------------

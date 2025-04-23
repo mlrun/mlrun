@@ -292,7 +292,6 @@ class KubeResourceSpec(FunctionSpec):
     @preemption_mode.setter
     def preemption_mode(self, mode):
         self._preemption_mode = mode or mlconf.function_defaults.preemption_mode
-        self.enrich_function_preemption_spec()
 
     @property
     def security_context(self) -> k8s_client.V1SecurityContext:
@@ -1646,6 +1645,10 @@ def get_sanitized_attribute(spec, attribute_name: str):
         if _resolve_if_type_sanitized(attribute_name, attribute[0]):
             return attribute
 
+    return sanitize_attribute(attribute)
+
+
+def sanitize_attribute(attribute):
     api = k8s_client.ApiClient()
     return api.sanitize_for_serialization(attribute)
 

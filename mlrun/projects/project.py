@@ -3797,6 +3797,7 @@ class MlrunProject(ModelObj):
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         Returns a list of `ModelEndpoint` objects. Each `ModelEndpoint` object represents the current state of a
@@ -3826,10 +3827,15 @@ class MlrunProject(ModelObj):
             or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
-        :param start:                     The start time to filter by.Corresponding to the `created` field.
-        :param end:                       The end time to filter by. Corresponding to the `created` field.
-        :param top_level: if true will return only routers and endpoint that are NOT children of any router
-        :param uids: if passed will return a list `ModelEndpoint` object with uid in uids
+        :param start:           The start time to filter by.Corresponding to the `created` field.
+        :param end:             The end time to filter by. Corresponding to the `created` field.
+        :param top_level:       If true will return only routers and endpoint that are NOT children of any router.
+        :param uids:            If passed will return a list `ModelEndpoint` object with uid in uids.
+        :param tsdb_metrics:    When True, the time series metrics will be added to the output
+                                of the resulting.
+        :param metric_list:     List of metrics to include from the time series DB. Defaults to all metrics.
+                                If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                will be included.
 
         :returns: Returns a list of `ModelEndpoint` objects.
         """
@@ -3848,6 +3854,7 @@ class MlrunProject(ModelObj):
             uids=uids,
             latest_only=latest_only,
             tsdb_metrics=tsdb_metrics,
+            metric_list=metric_list,
         )
 
     def run_function(

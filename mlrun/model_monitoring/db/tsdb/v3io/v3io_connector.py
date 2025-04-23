@@ -1085,6 +1085,7 @@ class V3IOTSDBConnector(TSDBConnector):
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
         run_in_threadpool: Callable,
+        metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Fetch basic metrics from V3IO TSDB and add them to MEP objects.
@@ -1093,6 +1094,7 @@ class V3IOTSDBConnector(TSDBConnector):
                                        be filled with the relevant basic metrics.
         :param project:                The name of the project.
         :param run_in_threadpool:      A function that runs another function in a thread pool.
+        :param metric_list:            List of metrics to include from the time series DB. Defaults to all metrics.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
@@ -1104,15 +1106,27 @@ class V3IOTSDBConnector(TSDBConnector):
             uids.append(uid)
             model_endpoint_objects_by_uid[uid] = model_endpoint_object
 
-        error_count_res = await run_in_threadpool(
-            self.get_error_count, endpoint_ids=uids, get_raw=True
-        )
-        avg_latency_res = await run_in_threadpool(
-            self.get_avg_latency, endpoint_ids=uids, get_raw=True
-        )
-        drift_status_res = await run_in_threadpool(
-            self.get_drift_status, endpoint_ids=uids, get_raw=True
-        )
+        metric_name_to_function_and_column_name = {
+            "error_count": (self.get_error_count, "count(error_count)"),
+            "avg_latency": (self.get_avg_latency, "avg(latency)"),
+            "result_status": (self.get_drift_status, "max(result_status)"),
+        }
+        if metric_list is not None:
+            for metric_name in list(metric_name_to_function_and_column_name):
+                if metric_name not in metric_list:
+                    del metric_name_to_function_and_column_name[metric_name]
+
+        metric_name_to_result = {}
+
+        for metric_name, (
+            function,
+            _,
+        ) in metric_name_to_function_and_column_name.items():
+            metric_name_to_result[metric_name] = await run_in_threadpool(
+                function,
+                endpoint_ids=uids,
+                get_raw=True,
+            )
 
         def add_metric(
             metric: str,
@@ -1128,26 +1142,16 @@ class V3IOTSDBConnector(TSDBConnector):
                     if mep and value is not None and not math.isnan(value):
                         setattr(mep.status, metric, value)
 
-        add_metric(
-            "error_count",
-            "count(error_count)",
-            error_count_res,
-        )
-
-        add_metric(
-            "avg_latency",
-            "avg(latency)",
-            avg_latency_res,
-        )
-        add_metric(
-            "result_status",
-            "max(result_status)",
-            drift_status_res,
-        )
-
-        self._enrich_mep_with_last_request(
-            model_endpoint_objects_by_uid=model_endpoint_objects_by_uid
-        )
+        for metric_name, result in metric_name_to_result.items():
+            add_metric(
+                metric_name,
+                metric_name_to_function_and_column_name[metric_name][1],
+                result,
+            )
+        if metric_list is None or "last_request" in metric_list:
+            self._enrich_mep_with_last_request(
+                model_endpoint_objects_by_uid=model_endpoint_objects_by_uid
+            )
 
         return list(model_endpoint_objects_by_uid.values())
 

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import datetime
 from typing import Optional, Union
 
@@ -20,6 +19,7 @@ import mlrun.alerts
 import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
 import mlrun.lists
 import mlrun.model_monitoring
@@ -75,6 +75,26 @@ class NopDB(RunDBInterface):
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         pass
 
+    def push_run_notifications(
+        self,
+        uid,
+        project="",
+        timeout=45,
+    ):
+        pass
+
+    def refresh_smtp_configuration(self):
+        pass
+
+    def push_pipeline_notifications(
+        self,
+        pipeline_id,
+        project="",
+        notifications=None,
+        timeout=45,
+    ):
+        pass
+
     def list_runtime_resources(
         self,
         project: Optional[str] = None,
@@ -111,12 +131,13 @@ class NopDB(RunDBInterface):
         ] = None,  # Backward compatibility
         states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
-        last: int = 0,
         iter: bool = False,
         start_time_from: Optional[datetime.datetime] = None,
         start_time_to: Optional[datetime.datetime] = None,
         last_update_time_from: Optional[datetime.datetime] = None,
         last_update_time_to: Optional[datetime.datetime] = None,
+        end_time_from: Optional[datetime.datetime] = None,
+        end_time_to: Optional[datetime.datetime] = None,
         partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
         rows_per_partition: int = 1,
         partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
@@ -152,7 +173,13 @@ class NopDB(RunDBInterface):
         pass
 
     def store_artifact(
-        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+        self,
+        key,
+        artifact,
+        iter=None,
+        tag="",
+        project="",
+        tree=None,
     ):
         pass
 
@@ -246,6 +273,7 @@ class NopDB(RunDBInterface):
         tag: Optional[str] = None,
         kind: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        states: Optional[list[mlrun.common.schemas.FunctionState]] = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
         since: Optional[datetime.datetime] = None,
         until: Optional[datetime.datetime] = None,
@@ -575,6 +603,9 @@ class NopDB(RunDBInterface):
     def create_model_endpoint(
         self,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
+        creation_strategy: Optional[
+            mm_constants.ModelEndpointCreationStrategy
+        ] = mm_constants.ModelEndpointCreationStrategy.INPLACE,
     ) -> mlrun.common.schemas.ModelEndpoint:
         pass
 
@@ -582,21 +613,25 @@ class NopDB(RunDBInterface):
         self,
         name: str,
         project: str,
-        function_name: str,
-        endpoint_id: str,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
     ):
         pass
 
     def list_model_endpoints(
         self,
         project: str,
-        name: Optional[str] = None,
+        names: Optional[Union[str, list[str]]] = None,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         model_name: Optional[str] = None,
+        model_tag: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
@@ -608,8 +643,10 @@ class NopDB(RunDBInterface):
         name: str,
         project: str,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         pass
@@ -620,6 +657,7 @@ class NopDB(RunDBInterface):
         project: str,
         attributes: dict,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         pass
@@ -826,7 +864,6 @@ class NopDB(RunDBInterface):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
-        rebuild_images: bool = False,
         fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         pass
@@ -847,15 +884,10 @@ class NopDB(RunDBInterface):
     ) -> bool:
         pass
 
-    def deploy_histogram_data_drift_app(
-        self, project: str, image: str = "mlrun/mlrun"
-    ) -> None:
-        pass
-
     def set_model_monitoring_credentials(
         self,
         project: str,
-        credentials: dict[str, str],
+        credentials: dict[str, Optional[str]],
         replace_creds: bool,
     ) -> None:
         pass
@@ -917,6 +949,13 @@ class NopDB(RunDBInterface):
         page_token: Optional[str] = None,
         **kwargs,
     ):
+        pass
+
+    def get_alert_activation(
+        self,
+        project,
+        activation_id,
+    ) -> mlrun.common.schemas.AlertActivation:
         pass
 
     def get_project_summary(self, project: str):

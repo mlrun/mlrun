@@ -32,8 +32,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import foreign, relationship
-from sqlalchemy.sql import and_
+from sqlalchemy.orm import relationship
 
 import mlrun.common.schemas
 import mlrun.utils.db
@@ -200,9 +199,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
     # deprecated, use ArtifactV2 instead
-    # TODO: remove in 1.8.0. Note that removing it will require upgrading mlrun in at least 2 steps:
-    #  1. upgrade to 1.6.x which will create the new table
-    #  2. upgrade to 1.7.x which will remove the old table
+    # TODO: Remove once data migration v5 is obsolete and add schema migration to remove this table
     class Artifact(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "artifacts"
         __table_args__ = (
@@ -230,18 +227,26 @@ with warnings.catch_warnings():
         __tablename__ = "artifacts_v2"
         __table_args__ = (
             UniqueConstraint("uid", "project", "key", name="_artifacts_v2_uc"),
+            # Used when enriching workflow status with run artifacts. See https://iguazio.atlassian.net/browse/ML-6770
             Index(
                 "idx_artifacts_producer_id_best_iteration_and_project",
                 "project",
                 "producer_id",
                 "best_iteration",
             ),
+            # Used to speed up querying artifact tags which is frequently done by UI with project and category.
+            # See https://iguazio.atlassian.net/browse/ML-7266
             Index(
                 "idx_project_kind",
                 "project",
                 "kind",
             ),
-            Index("idx_artifacts_name_uid_project", "key", "uid", "project"),
+            # Used for calculating the project counters more efficiently.
+            # See https://iguazio.atlassian.net/browse/ML-8556
+            Index("idx_project_kind_key", "project", "kind", "key"),
+            # Used explicitly in list_artifacts, as most of the queries request best_iteration, and all always sort by
+            # updated. See https://iguazio.atlassian.net/browse/ML-9189
+            Index("idx_project_bi_updated", "project", "best_iteration", "updated"),
         )
 
         Label = make_label(__tablename__)
@@ -258,11 +263,11 @@ with warnings.catch_warnings():
         uid = Column(String(255, collation=SQLTypesUtil.collation()))
         created = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         _full_object = Column("object", SQLTypesUtil.blob())
 
@@ -282,7 +287,19 @@ with warnings.catch_warnings():
         @property
         def full_object(self):
             if self._full_object:
-                return pickle.loads(self._full_object)
+                artifact_struct = pickle.loads(self._full_object)
+
+                # These fields are saved in full_object as timestamps with fsp=6, while the corresponding columns
+                # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from
+                # the column (not from the full_object) to ensure the ordering is correct.
+                # In SQLite, the updated and created columns return timestamps with fsp=6.
+                artifact_struct["metadata"]["updated"] = mlrun.utils.format_datetime(
+                    self.updated
+                )
+                artifact_struct["metadata"]["created"] = mlrun.utils.format_datetime(
+                    self.created
+                )
+                return artifact_struct
 
         @full_object.setter
         def full_object(self, value):
@@ -295,7 +312,6 @@ with warnings.catch_warnings():
         __tablename__ = "functions"
         __table_args__ = (
             UniqueConstraint("name", "project", "uid", name="_functions_uc"),
-            Index("idx_functions_name_uid_project", "name", "uid", "project"),
         )
 
         Label = make_label(__tablename__)
@@ -306,6 +322,7 @@ with warnings.catch_warnings():
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         uid = Column(String(255, collation=SQLTypesUtil.collation()))
         kind = Column(String(255, collation=SQLTypesUtil.collation()))
+        state = Column(String(255, collation=SQLTypesUtil.collation()))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(SQLTypesUtil.blob())
         updated = Column(SQLTypesUtil.timestamp())
@@ -348,6 +365,7 @@ with warnings.catch_warnings():
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(SQLTypesUtil.blob())
         start_time = Column(SQLTypesUtil.timestamp())
+        end_time = Column(SQLTypesUtil.datetime())
         updated = Column(SQLTypesUtil.timestamp(), default=datetime.utcnow)
         # requested logs column indicates whether logs were requested for this run
         # None - old runs prior to the column addition, logs were already collected for them, so no need to collect them
@@ -385,11 +403,11 @@ with warnings.catch_warnings():
         )
         created = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         state = Column(String(255, collation=SQLTypesUtil.collation()))
         error = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -564,11 +582,11 @@ with warnings.catch_warnings():
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         created = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         state = Column(String(255, collation=SQLTypesUtil.collation()))
         uid = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -628,11 +646,11 @@ with warnings.catch_warnings():
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         created = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         state = Column(String(255, collation=SQLTypesUtil.collation()))
         uid = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -677,11 +695,11 @@ with warnings.catch_warnings():
         index = Column(Integer)
         created = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
 
         _full_object = Column("object", JSON)
@@ -707,7 +725,7 @@ with warnings.catch_warnings():
         version = Column(String(255, collation=SQLTypesUtil.collation()))
         created = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
 
         def get_identifier_string(self) -> str:
@@ -748,7 +766,7 @@ with warnings.catch_warnings():
         kwargs = Column(JSON)
         last_accessed = Column(
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
 
         def get_identifier_string(self) -> str:
@@ -756,13 +774,13 @@ with warnings.catch_warnings():
 
     class AlertState(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "alert_states"
-        __table_args__ = (UniqueConstraint("id", "parent_id", name="alert_states_uc"),)
+        __table_args__ = (UniqueConstraint("parent_id", name="_alert_state_parent_uc"),)
 
         id = Column(Integer, primary_key=True)
         count = Column(Integer)
         created = Column(
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         last_updated = Column(
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
@@ -851,7 +869,11 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, autoincrement=True)
-        activation_time = Column(SQLTypesUtil.datetime(), nullable=False)
+        # Keep fsp=3 for activation_time as it is part of the primary key and partitioning logic,
+        # ensuring stable indexing and avoiding potential inconsistencies.
+        # This must remain unchanged to maintain compatibility with existing logic
+        # and prevent unintended precision changes.
+        activation_time = Column(SQLTypesUtil.datetime(fsp=3), nullable=False)
         name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
         project = Column(
             String(255, collation=SQLTypesUtil.collation()), nullable=False
@@ -870,7 +892,10 @@ with warnings.catch_warnings():
             String(255, collation=SQLTypesUtil.collation()), nullable=False
         )
         number_of_events = Column(Integer, nullable=False)
-        reset_time = Column(SQLTypesUtil.datetime(), nullable=True)
+
+        # Similarly, keep fsp=3 for reset_time to ensure consistency with activation_time
+        # and maintain compatibility with the existing system behavior.
+        reset_time = Column(SQLTypesUtil.datetime(fsp=3), nullable=True)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.id}"
@@ -894,7 +919,9 @@ with warnings.catch_warnings():
 
         key = Column(String(255, collation=SQLTypesUtil.collation()), primary_key=True)
         timestamp = Column(
-            SQLTypesUtil.datetime(), nullable=False, default=datetime.now(timezone.utc)
+            SQLTypesUtil.datetime(),
+            nullable=False,
+            default=lambda: datetime.now(timezone.utc),
         )
         max_window_size_seconds = Column(Integer)
 
@@ -903,62 +930,65 @@ with warnings.catch_warnings():
 
     class ModelEndpoint(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "model_endpoints"
-        __table_args__ = (
-            UniqueConstraint(
-                "project", "name", "uid", "function_name", name="_mep_uc_2"
-            ),
-        )
 
         id = Column(Integer, primary_key=True)
         uid = Column(String(32), default=lambda: uuid.uuid4().hex, unique=True)
+        name = Column(String(255, collation=SQLTypesUtil.collation()))
         endpoint_type = Column(Integer, nullable=False)
         project = Column(String(255, collation=SQLTypesUtil.collation()))
-        function_name = Column(String(255, collation=SQLTypesUtil.collation()))
-        function_uid = Column(String(255, collation=SQLTypesUtil.collation()))
-        model_uid = Column(String(255, collation=SQLTypesUtil.collation()))
-        model_name = Column(String(255, collation=SQLTypesUtil.collation()))
         body = Column(SQLTypesUtil.blob())
-
         created = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
             SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
+            default=lambda: datetime.now(timezone.utc),
         )
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        function = relationship(
-            "Function",
-            cascade="save-update",
-            single_parent=True,
-            overlaps="model",
-            primaryjoin=and_(
-                foreign(function_name) == Function.name,
-                foreign(function_uid) == Function.uid,
-                foreign(project) == Function.project,
-            ),
+        function_id = Column(
+            Integer,
+            ForeignKey("functions.id", ondelete="SET NULL"),
+            nullable=True,
         )
-        model = relationship(
-            "ArtifactV2",
-            cascade="save-update",
-            single_parent=True,
-            overlaps="function",
-            primaryjoin=and_(
-                foreign(model_uid) == ArtifactV2.uid,
-                foreign(project) == ArtifactV2.project,
-                foreign(model_name) == ArtifactV2.key,
-            ),
+        function = relationship(Function)
+
+        model_id = Column(
+            Integer,
+            ForeignKey("artifacts_v2.id"),
+            nullable=True,
         )
+        model = relationship(ArtifactV2)
 
         Label = make_label(__tablename__)
         Tag = make_tag_v2(__tablename__)  # for versioning (latest and empty tags only)
 
-        labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
+        labels = relationship(
+            Label,
+            cascade="all, delete-orphan",
+            back_populates="parent_rel",
+            passive_deletes=True,
+        )
+        tags = relationship(
+            Tag,
+            cascade="all, delete-orphan",
+            back_populates="parent_rel",
+            passive_deletes=True,
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.project}_{self.name}_{self.created}"
+
+    class SystemMetadata(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "system_metadata"
+        __table_args__ = (UniqueConstraint("key", name="_system_metadata_uc"),)
+
+        id = Column(Integer, primary_key=True)
+        key = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        # This column stores a string value, when extracting or manipulating it, ensure to handle it appropriately
+        value = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.key}"
 
 
 def get_partitioned_table_names():

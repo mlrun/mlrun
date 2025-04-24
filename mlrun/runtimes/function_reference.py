@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import os
-from base64 import b64encode
 
 from nuclio.build import mlrun_footer
 
 import mlrun
+import mlrun.utils.helpers
 
 from ..model import ModelObj
 from ..utils import generate_object_uri
@@ -36,6 +36,7 @@ class FunctionReference(ModelObj):
         spec=None,
         kind=None,
         name=None,
+        track_models=None,
     ):
         self.url = url
         self.kind = kind
@@ -46,6 +47,7 @@ class FunctionReference(ModelObj):
             spec = spec.to_dict()
         self.spec = spec
         self.code = code
+        self.track_models = track_models
 
         self._function = None
         self._address = None
@@ -116,7 +118,7 @@ class FunctionReference(ModelObj):
             func = mlrun.new_function(
                 self.name, kind=kind, image=self.image or default_image
             )
-            data = b64encode(code.encode("utf-8")).decode("utf-8")
+            data = mlrun.utils.helpers.encode_user_code(code)
             func.spec.build.functionSourceCode = data
             if kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
                 func.spec.default_handler = "handler"
@@ -130,6 +132,7 @@ class FunctionReference(ModelObj):
         if self.requirements:
             func.with_requirements(self.requirements)
         self._function = func
+        func.spec.track_models = self.track_models
         return func
 
     @property

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import typing
 
 import pydantic.v1
@@ -50,6 +50,21 @@ class ArtifactCategories(mlrun.common.types.StrEnum):
                 ],
                 True,
             )
+
+    @classmethod
+    def from_kind(cls, kind: str) -> "ArtifactCategories":
+        if kind in [cls.model.value, cls.dataset.value, cls.document.value]:
+            return cls(kind)
+        return cls.other
+
+    @staticmethod
+    def all():
+        """Return all applicable artifact categories"""
+        return [
+            ArtifactCategories.model,
+            ArtifactCategories.dataset,
+            ArtifactCategories.document,
+        ]
 
 
 class ArtifactIdentifier(pydantic.v1.BaseModel):

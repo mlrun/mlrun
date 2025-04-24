@@ -11,9 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import base64
+import gzip
 import shlex
 import typing
 
@@ -31,6 +32,7 @@ import mlrun.errors
 import mlrun.runtimes.nuclio.function
 import mlrun.runtimes.pod
 import mlrun.utils
+from mlrun.k8s_utils import enrich_preemption_mode
 from mlrun.utils import logger
 
 import framework.utils.clients.async_nuclio
@@ -40,8 +42,8 @@ import services.api.crud.runtimes.nuclio.helpers
 import services.api.runtime_handlers
 import services.api.utils.builder
 
-# Configmap objects on Kubernetes have 1Mb size limit
-SERVING_SPEC_MAX_LENGTH = 1048576
+# Configmap objects on Kubernetes have 10Mb size limit
+SERVING_SPEC_MAX_LENGTH = 10485760
 
 
 def deploy_nuclio_function(
@@ -272,7 +274,6 @@ def _compile_function_config(
 
     :return: function name, project name, nuclio function config
     """
-    _set_function_labels(function)
 
     # resolve env vars before compiling the nuclio spec, as we need to set them in the spec
     env_dict, external_source_env_dict = _resolve_env_vars(function)
@@ -282,62 +283,15 @@ def _compile_function_config(
 
     serving_spec_volume = None
     serving_spec = function._get_serving_spec()
-    if serving_spec is not None:
-        # To keep backward compatability, allow passing service spec
-        # via Config Map only for client version higher then 1.7.0
-        # TODO: remove in 1.9.0.
-        can_pass_via_cm = (
-            not client_version
-            or (
-                semver.Version.parse(client_version)
-                >= semver.Version.parse("1.7.0-rc30")
-            )
-            or "unstable" in client_version
-        )
-        # since environment variables have a limited size,
-        # large serving specs are stored in config maps that are mounted to the pod
-        serving_spec_len = len(serving_spec.encode("utf-8"))
-        if (
-            can_pass_via_cm
-            and serving_spec_len >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff
-        ):
-            if serving_spec_len >= SERVING_SPEC_MAX_LENGTH:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}. "
-                    + "Run `mlrun.runtimes.nuclio.serving.ServingRuntime._get_serving_spec`, delete a large field "
-                    + "in the returned json, and check if the function runs successfully. "
-                    + "Repeat as necessary to get the spec to an allowed size"
-                )
-            function_name = mlrun.runtimes.nuclio.function.get_fullname(
-                function.metadata.name, project, tag
-            )
-            k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
-            confmap_name = k8s_helper.ensure_configmap(
-                mlrun.common.constants.MLRUN_SERVING_CONF,
-                function_name,
-                {mlrun.common.constants.MLRUN_SERVING_SPEC_FILENAME: serving_spec},
-                labels={mlrun_constants.MLRunInternalLabels.created: "true"},
-                project=project,
-            )
-            volume_name = mlrun.common.constants.MLRUN_SERVING_CONF
-            volume_mount = {
-                "name": volume_name,
-                "mountPath": mlrun.common.constants.MLRUN_SERVING_SPEC_MOUNT_PATH,
-                "readOnly": True,
-            }
-
-            serving_spec_volume = {
-                "volume": {"name": volume_name, "configMap": {"name": confmap_name}},
-                "volumeMount": volume_mount,
-            }
-        else:
-            if not can_pass_via_cm:
-                logger.debug(
-                    "Client version does not support passing serving spec via ConfigMap",
-                    client_version=client_version,
-                    serving_spec_length=len(serving_spec),
-                )
-            env_dict["SERVING_SPEC_ENV"] = serving_spec
+    serving_spec_volume = _configure_serving_spec(
+        client_version,
+        env_dict,
+        function,
+        project,
+        serving_spec,
+        serving_spec_volume,
+        tag,
+    )
 
     # resolve sidecars images
     sidecars = function.spec.config.get("spec.sidecars") or []
@@ -356,10 +310,6 @@ def _compile_function_config(
         env=env_dict,
         external_source_env=external_source_env_dict,
         config=function.spec.config,
-    )
-
-    _resolve_and_set_nuclio_runtime(
-        function, nuclio_spec, client_version, client_python_version
     )
 
     handler = function.spec.function_handler
@@ -409,8 +359,11 @@ def _compile_function_config(
     mlrun.utils.update_in(
         config, "spec.volumes", function.spec.generate_nuclio_volumes()
     )
-
+    _set_function_metadata(function, config)
     _resolve_and_set_base_image(function, config, client_version, client_python_version)
+    _resolve_and_set_nuclio_runtime(
+        function, config, client_version, client_python_version
+    )
     _resolve_and_set_build_requirements_and_commands(function, config)
 
     function_name = _set_function_name(function, config, project, tag)
@@ -421,12 +374,111 @@ def _compile_function_config(
     return function_name, project, config
 
 
-def _set_function_labels(function):
+def _set_function_metadata(function, config):
     labels = function.metadata.labels or {}
     labels.update({mlrun_constants.MLRunInternalLabels.mlrun_class: function.kind})
-    for key, value in labels.items():
+    annotations = function.metadata.annotations or {}
+
+    _apply_escaped_config(config, "metadata.labels", labels)
+    _apply_escaped_config(config, "metadata.annotations", annotations)
+
+
+def _apply_escaped_config(config, parent_key, items: dict):
+    for key, value in items.items():
         # Adding escaping to the key to prevent it from being split by dots if it contains any
-        function.set_config(f"metadata.labels.\\{key}\\", value)
+        mlrun.utils.update_in(config, f"{parent_key}.\\{key}\\", value)
+
+
+def _configure_serving_spec(
+    client_version, env_dict, function, project, serving_spec, serving_spec_volume, tag
+):
+    if serving_spec is not None:
+        # To keep backward compatability, allow passing service spec
+        # via Config Map only for client version higher then 1.7.0
+        # TODO: remove in 1.9.0.
+        can_pass_via_cm = (
+            not client_version
+            or (
+                semver.Version.parse(client_version)
+                >= semver.Version.parse("1.7.0-rc30")
+            )
+            or "unstable" in client_version
+        )
+        # since environment variables have a limited size,
+        # large serving specs are stored in config maps that are mounted to the pod
+        serving_spec_len = len(serving_spec.encode("utf-8"))
+        if (
+            can_pass_via_cm
+            and serving_spec_len >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff
+        ):
+            if serving_spec_len >= SERVING_SPEC_MAX_LENGTH:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}. "
+                    + "Run `mlrun.runtimes.nuclio.serving.ServingRuntime._get_serving_spec`, delete a large field "
+                    + "in the returned json, and check if the function runs successfully. "
+                    + "Repeat as necessary to get the spec to an allowed size"
+                )
+            if (
+                not client_version
+                or semver.Version.parse(client_version)
+                >= semver.Version.parse("1.8.0-rc20")
+                or "unstable" in client_version
+            ):
+                # Compress and encode the serving spec
+                compressed_serving_spec = gzip.compress(serving_spec.encode("utf-8"))
+                encoded_serving_spec = base64.b64encode(compressed_serving_spec).decode(
+                    "utf-8"
+                )
+            else:
+                # TODO: remove in 1.10.0.
+                if (
+                    serving_spec_len >= SERVING_SPEC_MAX_LENGTH / 10
+                ):  # 1MB limitation as it were before the zip
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}. "
+                        + "Run `mlrun.runtimes.nuclio.serving.ServingRuntime._get_serving_spec`, delete a large field "
+                        + "in the returned json, and check if the function runs successfully. "
+                        + "Repeat as necessary to get the spec to an allowed size"
+                    )
+                logger.info(
+                    "Client version does not support passing serving spec as zip via ConfigMap",
+                    FutureWarning,
+                )
+                encoded_serving_spec = serving_spec
+
+            function_name = mlrun.runtimes.nuclio.function.get_fullname(
+                function.metadata.name, project, tag
+            )
+            k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
+            confmap_name = k8s_helper.ensure_configmap(
+                mlrun.common.constants.MLRUN_SERVING_CONF,
+                function_name,
+                {
+                    mlrun.common.constants.MLRUN_SERVING_SPEC_FILENAME: encoded_serving_spec
+                },
+                labels={mlrun_constants.MLRunInternalLabels.created: "true"},
+                project=project,
+            )
+            volume_name = mlrun.common.constants.MLRUN_SERVING_CONF
+            volume_mount = {
+                "name": volume_name,
+                "mountPath": mlrun.common.constants.MLRUN_SERVING_SPEC_MOUNT_PATH,
+                "readOnly": True,
+            }
+
+            serving_spec_volume = {
+                "volume": {"name": volume_name, "configMap": {"name": confmap_name}},
+                "volumeMount": volume_mount,
+            }
+        else:
+            if not can_pass_via_cm:
+                logger.debug(
+                    "Client version does not support passing serving spec via ConfigMap",
+                    client_version=client_version,
+                    serving_spec_length=len(serving_spec),
+                )
+            env_dict["SERVING_SPEC_ENV"] = serving_spec
+    return serving_spec_volume
 
 
 def _resolve_env_vars(function):
@@ -454,34 +506,40 @@ def _resolve_env_vars(function):
 
 
 def _resolve_and_set_nuclio_runtime(
-    function, nuclio_spec, client_version, client_python_version
+    function, config, client_version, client_python_version
 ):
     nuclio_runtime = (
         function.spec.nuclio_runtime
         or services.api.crud.runtimes.nuclio.helpers.resolve_nuclio_runtime_python_image(
             mlrun_client_version=client_version, python_version=client_python_version
         )
+        or mlrun.mlconf.default_nuclio_runtime
     )
 
-    # For backwards compatibility, we need to adjust the runtime for old Nuclio versions
-    # TODO: remove in 1.8, default to 3.9
-    if services.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-        "0.0.0", "1.6.0"
+    if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
+        "1.14.1",
     ) and nuclio_runtime in [
+        "python:3.6",
         "python:3.7",
         "python:3.8",
-        "python:3.9",
     ]:
         nuclio_runtime_set_from_spec = nuclio_runtime == function.spec.nuclio_runtime
-        if nuclio_runtime_set_from_spec:
+        if nuclio_runtime_set_from_spec and not mlrun.utils.get_in(
+            config, "spec.build.baseImage"
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Nuclio version does not support the configured runtime: {nuclio_runtime}"
+                f"Nuclio version does not support the configured runtime: {nuclio_runtime}, and no base image was given"
             )
         else:
-            # our default is python:3.9, simply set it to python:3.6 to keep supporting envs with old Nuclio
-            nuclio_runtime = "python:3.6"
+            logger.info(
+                "Nuclio version does not support the configured runtime, using the default runtime",
+                nuclio_runtime=nuclio_runtime,
+                client_version=client_version,
+                default_nuclio_runtime=mlrun.mlconf.default_nuclio_runtime,
+            )
+            nuclio_runtime = mlrun.mlconf.default_nuclio_runtime
 
-    nuclio_spec.set_config("spec.runtime", nuclio_runtime)
+    mlrun.utils.update_in(config, "spec.runtime", nuclio_runtime)
 
 
 @pure_nuclio_deployed_restricted()
@@ -574,7 +632,24 @@ def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=Non
 
 
 def _set_function_scheduling_params(function, nuclio_spec):
-    # don't send node selections if nuclio is not compatible
+    node_selector = _resolve_node_selector(
+        function._get_db(), function.metadata.project, function.spec.node_selector
+    )
+    affinity = function.spec.affinity
+    tolerations = function.spec.tolerations
+    preemption_mode = function.spec.preemption_mode
+
+    # Enrich using preemption mode if defined
+    (
+        enriched_node_selector,
+        enriched_tolerations,
+        enriched_affinity,
+    ) = enrich_preemption_mode(
+        preemption_mode=preemption_mode,
+        node_selector=node_selector,
+        affinity=affinity,
+        tolerations=tolerations,
+    )
 
     if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
         "1.5.20", "1.6.10"
@@ -582,37 +657,30 @@ def _set_function_scheduling_params(function, nuclio_spec):
         # We handle the enrichment of node selectors directly within MLRun, on the nuclio spec config.
         # This approach ensures that node selector settings from both the project and MLRun service levels
         # are incorporated into the Nuclio config.
-        if node_selector := _resolve_node_selector(
-            function._get_db(), function.metadata.project, function.spec.node_selector
-        ):
-            nuclio_spec.set_config(
-                "spec.nodeSelector",
-                node_selector,
-            )
+
+        if enriched_node_selector:
+            nuclio_spec.set_config("spec.nodeSelector", enriched_node_selector)
+
         if function.spec.node_name:
             nuclio_spec.set_config("spec.nodeName", function.spec.node_name)
-        if function.spec.affinity:
+
+        if enriched_affinity:
             nuclio_spec.set_config(
                 "spec.affinity",
-                mlrun.runtimes.pod.get_sanitized_attribute(function.spec, "affinity"),
+                mlrun.runtimes.pod.sanitize_attribute(enriched_affinity),
             )
 
     # don't send tolerations if nuclio is not compatible
     if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility("1.7.5"):
-        if function.spec.tolerations:
+        if enriched_tolerations:
             nuclio_spec.set_config(
                 "spec.tolerations",
-                mlrun.runtimes.pod.get_sanitized_attribute(
-                    function.spec, "tolerations"
-                ),
+                mlrun.runtimes.pod.sanitize_attribute(enriched_tolerations),
             )
-    # don't send preemption_mode if nuclio is not compatible
+
     if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility("1.8.6"):
-        if function.spec.preemption_mode:
-            nuclio_spec.set_config(
-                "spec.PreemptionMode",
-                function.spec.preemption_mode,
-            )
+        if preemption_mode:
+            nuclio_spec.set_config("spec.PreemptionMode", preemption_mode)
 
 
 def _set_function_replicas(function, nuclio_spec):

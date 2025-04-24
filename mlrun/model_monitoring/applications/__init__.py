@@ -11,13 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 from .base import ModelMonitoringApplicationBase
 from .context import MonitoringApplicationContext
-from .evidently_base import (
-    _HAS_EVIDENTLY,
-    SUPPORTED_EVIDENTLY_VERSION,
-    EvidentlyModelMonitoringApplicationBase,
-)
 from .results import ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 from enum import Enum
 
 import mlrun.common.schemas
@@ -24,6 +24,7 @@ MINIMUM_CLIENT_VERSION_FOR_MM = (
 )
 
 internal_abort_task_id = "internal-abort"
+SYSTEM_ID_KEY = "system_id"
 
 
 class LogSources(Enum):

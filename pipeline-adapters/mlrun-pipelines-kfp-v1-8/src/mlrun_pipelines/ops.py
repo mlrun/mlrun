@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import os
 import os.path
@@ -23,6 +22,7 @@ import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.utils.helpers
+import mlrun_pipelines.common.constants
 import mlrun_pipelines.common.ops
 from mlrun.config import config
 from mlrun.utils import get_in
@@ -31,7 +31,7 @@ from mlrun_pipelines.common.helpers import (
     PROJECT_ANNOTATION,
     RUN_ANNOTATION,
 )
-from mlrun_pipelines.common.ops import KFPMETA_DIR, PipelineRunType
+from mlrun_pipelines.common.ops import KFPMETA_DIR
 from mlrun_pipelines.imports import dsl
 
 
@@ -47,10 +47,12 @@ def generate_deployer_pipeline_node(
         command=cmd,
         file_outputs={"endpoint": "/tmp/output", "name": "/tmp/name"},
     )
-    cop = add_default_function_resources(cop)
+    cop = add_default_function_resources(container_op=cop, function=function)
     cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
-    add_annotations(cop, PipelineRunType.deploy, function, func_url)
+    add_annotations(
+        cop, mlrun_pipelines.common.constants.PipelineRunType.deploy, function, func_url
+    )
     add_default_env(k8s_client, cop)
     return cop
 
@@ -85,10 +87,12 @@ def generate_image_builder_pipeline_node(
         command=cmd,
         file_outputs={"state": "/tmp/state", "image": "/tmp/image"},
     )
-    cop = add_default_function_resources(cop)
+    cop = add_default_function_resources(container_op=cop, function=function)
     cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
-    add_annotations(cop, PipelineRunType.build, function, func_url)
+    add_annotations(
+        cop, mlrun_pipelines.common.constants.PipelineRunType.build, function, func_url
+    )
     if config.httpdb.builder.docker_registry:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
@@ -143,10 +147,16 @@ def generate_pipeline_node(
             "mlpipeline-metrics": os.path.join(KFPMETA_DIR, "mlpipeline-metrics.json"),
         },
     )
-    cop = add_default_function_resources(cop)
+    cop = add_default_function_resources(container_op=cop, function=function)
     cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
-    add_annotations(cop, PipelineRunType.run, function, func_url, project_name)
+    add_annotations(
+        cop,
+        mlrun_pipelines.common.constants.PipelineRunType.run,
+        function,
+        func_url,
+        project_name,
+    )
     add_labels(cop, function, scrape_metrics)
     if code_env:
         cop.container.add_env_variable(
@@ -227,7 +237,8 @@ def add_labels(cop, function, scrape_metrics=False):
 
 
 def add_default_function_resources(
-    container_op: dsl.ContainerOp,
+    container_op,
+    function: dsl.ContainerOp,
 ) -> dsl.ContainerOp:
     default_resources = config.get_default_function_pod_resources()
     for resource_name, resource_value in default_resources["requests"].items():
@@ -237,6 +248,7 @@ def add_default_function_resources(
     for resource_name, resource_value in default_resources["limits"].items():
         if resource_value:
             container_op.container.add_resource_limit(resource_name, resource_value)
+    mlrun_pipelines.common.ops._enrich_gpu_limits(function=function, task=container_op)
     return container_op
 
 

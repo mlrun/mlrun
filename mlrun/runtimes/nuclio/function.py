@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import asyncio
+import copy
 import json
 import typing
 import warnings
@@ -49,6 +50,19 @@ from mlrun.runtimes.pod import KubeResource, KubeResourceSpec
 from mlrun.runtimes.utils import get_item_name, log_std
 from mlrun.utils import get_in, logger, update_in
 from mlrun_pipelines.common.ops import deploy_op
+
+SENSITIVE_PATHS_IN_TRIGGER_CONFIG = {
+    "password",
+    "secret",
+    "attributes/password",
+    "attributes/accesskeyid",
+    "attributes/secretaccesskey",
+    "attributes/cacert",
+    "attributes/accesskey",
+    "attributes/accesscertificate",
+    "attributes/sasl/password",
+    "attributes/sasl/oauth/clientsecret",
+}
 
 
 def validate_nuclio_version_compatibility(*min_versions):
@@ -274,6 +288,37 @@ class RemoteRuntime(KubeResource):
         if self.metadata.tag:
             mlrun.utils.validate_tag_name(self.metadata.tag, "function.metadata.tag")
 
+    def mask_sensitive_data_in_config(self):
+        if not self.spec.config:
+            return {}
+
+        raw_config = copy.deepcopy(self.spec.config)
+
+        for key, value in self.spec.config.items():
+            if key.startswith("spec.triggers"):
+                trigger_name = key.split(".")[-1]
+
+                for path in SENSITIVE_PATHS_IN_TRIGGER_CONFIG:
+                    # Handle nested keys
+                    nested_keys = path.split("/")
+                    target = value
+                    for sub_key in nested_keys[:-1]:
+                        target = target.get(sub_key, {})
+
+                    last_key = nested_keys[-1]
+                    if last_key in target:
+                        sensitive_field = target[last_key]
+                        if sensitive_field.startswith(
+                            mlrun.model.Credentials.secret_reference_prefix
+                        ):
+                            # already masked
+                            continue
+                        target[last_key] = (
+                            f"{mlrun.model.Credentials.secret_reference_prefix}/spec/triggers/{trigger_name}/{path}"
+                        )
+
+        return raw_config
+
     def set_config(self, key, value):
         self.spec.config[key] = value
         return self
@@ -306,9 +351,12 @@ class RemoteRuntime(KubeResource):
     def _validate_triggers(self, spec):
         # ML-7763 / NUC-233
         min_nuclio_version = "1.13.12"
-        if mlconf.nuclio_version and semver.VersionInfo.parse(
+        if (
             mlconf.nuclio_version
-        ) < semver.VersionInfo.parse(min_nuclio_version):
+            and mlconf.nuclio_version != "unstable"
+            and semver.VersionInfo.parse(mlconf.nuclio_version)
+            < semver.VersionInfo.parse(min_nuclio_version)
+        ):
             explicit_ack_enabled = False
             num_triggers = 0
             trigger_name = spec.get("name", "UNKNOWN")
@@ -369,8 +417,9 @@ class RemoteRuntime(KubeResource):
                 )
         """
         self.spec.build.source = source
-        # update handler in function_handler
-        self.spec.function_handler = handler
+        # update handler in function_handler if needed
+        if handler:
+            self.spec.function_handler = handler
         if workdir:
             self.spec.workdir = workdir
         if runtime:
@@ -526,6 +575,13 @@ class RemoteRuntime(KubeResource):
         access_key = kwargs.pop("access_key", None)
         if not access_key:
             access_key = self._resolve_v3io_access_key()
+        engine = "sync"
+        explicit_ack_mode = kwargs.pop("explicit_ack_mode", None)
+        if self.spec and hasattr(self.spec, "graph"):
+            engine = getattr(self.spec.graph, "engine", None) or engine
+
+        if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
+            explicit_ack_mode = explicit_ack_mode or "explicitOnly"
 
         self.add_trigger(
             name,
@@ -539,6 +595,7 @@ class RemoteRuntime(KubeResource):
                 extra_attributes=extra_attributes,
                 read_batch_size=256,
                 access_key=access_key,
+                explicit_ack_mode=explicit_ack_mode,
                 **kwargs,
             ),
         )
@@ -594,11 +651,28 @@ class RemoteRuntime(KubeResource):
         logger.info("Starting remote function deploy")
         data = db.deploy_nuclio_function(func=self, builder_env=builder_env)
         self.status = data["data"].get("status")
+
+        # Extract the spec to avoid overwriting server-side updates during the later save in
+        # _enrich_command_from_status.
+        self.spec = data["data"].get("spec")
+
         self._update_credentials_from_remote_build(data["data"])
 
         # when a function is deployed, we wait for it to be ready by default
         # this also means that the function object will be updated with the function status
         self._wait_for_function_deployment(db, verbose=verbose)
+        # check if there are any background tasks related to creating model endpoints
+        model_endpoints_creation_background_tasks = (
+            mlrun.common.schemas.BackgroundTaskList(
+                **data.pop("background_tasks", {"background_tasks": []})
+            ).background_tasks
+        )
+        if model_endpoints_creation_background_tasks:
+            self._check_model_endpoint_task_state(
+                db=db,
+                background_task=model_endpoints_creation_background_tasks[0],
+                wait_for_completion=False,
+            )
 
         return self._enrich_command_from_status()
 
@@ -742,45 +816,10 @@ class RemoteRuntime(KubeResource):
 
     def _get_state(
         self,
-        dashboard="",
         last_log_timestamp=0,
         verbose=False,
         raise_on_exception=True,
-        resolve_address=True,
-        auth_info: AuthInfo = None,
     ) -> tuple[str, str, typing.Optional[float]]:
-        if dashboard:
-            (
-                state,
-                address,
-                name,
-                last_log_timestamp,
-                text,
-                function_status,
-            ) = get_nuclio_deploy_status(
-                self.metadata.name,
-                self.metadata.project,
-                self.metadata.tag,
-                dashboard,
-                last_log_timestamp=last_log_timestamp,
-                verbose=verbose,
-                resolve_address=resolve_address,
-                auth_info=auth_info,
-            )
-            self.status.internal_invocation_urls = function_status.get(
-                "internalInvocationUrls", []
-            )
-            self.status.external_invocation_urls = function_status.get(
-                "externalInvocationUrls", []
-            )
-            self.status.state = state
-            self.status.nuclio_name = name
-            self.status.container_image = function_status.get("containerImage", "")
-            if address:
-                self.status.address = address
-                self.spec.command = f"http://{address}"
-            return state, text, last_log_timestamp
-
         try:
             text, last_log_timestamp = self._get_db().get_nuclio_deploy_status(
                 self, last_log_timestamp=last_log_timestamp, verbose=verbose
@@ -891,7 +930,6 @@ class RemoteRuntime(KubeResource):
         body: typing.Optional[typing.Union[str, bytes, dict]] = None,
         method: typing.Optional[str] = None,
         headers: typing.Optional[dict] = None,
-        dashboard: str = "",
         force_external_address: bool = False,
         auth_info: AuthInfo = None,
         mock: typing.Optional[bool] = None,
@@ -907,7 +945,6 @@ class RemoteRuntime(KubeResource):
         :param body:     request body (str, bytes or a dict for json requests)
         :param method:   HTTP method (GET, PUT, ..)
         :param headers:  key/value dict with http headers
-        :param dashboard: nuclio dashboard address (deprecated)
         :param force_external_address:   use the external ingress URL
         :param auth_info: service AuthInfo
         :param mock:     use mock server vs a real Nuclio function (for local simulations)
@@ -915,14 +952,6 @@ class RemoteRuntime(KubeResource):
                                      see this link for more information:
                                      https://requests.readthedocs.io/en/latest/api/#requests.request
         """
-        if dashboard:
-            # TODO: remove in 1.8.0
-            warnings.warn(
-                "'dashboard' parameter is no longer supported on client side, "
-                "it is being configured through the MLRun API. It will be removed in 1.8.0.",
-                FutureWarning,
-            )
-
         if not method:
             method = "POST" if body else "GET"
 
@@ -952,7 +981,7 @@ class RemoteRuntime(KubeResource):
                         "so function can not be invoked via http. Either enable default http trigger creation or "
                         "create custom http trigger"
                     )
-                state, _, _ = self._get_state(dashboard, auth_info=auth_info)
+                state, _, _ = self._get_state()
                 if state not in ["ready", "scaledToZero"]:
                     logger.warning(f"Function is in the {state} state")
                 if not self.status.address:
@@ -976,7 +1005,7 @@ class RemoteRuntime(KubeResource):
             else:
                 http_client_kwargs["json"] = body
         try:
-            logger.info("Invoking function", method=method, path=path)
+            logger.debug("Invoking function", method=method, path=path)
             if not getattr(self, "_http_session", None):
                 self._http_session = requests.Session()
             resp = self._http_session.request(
@@ -1004,6 +1033,7 @@ class RemoteRuntime(KubeResource):
     ):
         """
         Add a sidecar container to the function pod
+
         :param name:    Sidecar container name.
         :param image:   Sidecar container image.
         :param ports:   Sidecar container ports to expose. Can be a single port or a list of ports.
@@ -1036,9 +1066,10 @@ class RemoteRuntime(KubeResource):
         if args and sidecar.get("command"):
             sidecar["args"] = mlrun.utils.helpers.as_list(args)
 
-        # populate the sidecar resources from the function spec
+        # put the configured resources on the sidecar container instead of the reverse proxy container
         if self.spec.resources:
             sidecar["resources"] = self.spec.resources
+            self.spec.resources = None
 
     def _set_sidecar(self, name: str) -> dict:
         self.spec.config.setdefault("spec.sidecars", [])
@@ -1245,6 +1276,9 @@ class RemoteRuntime(KubeResource):
             if remote_env.get("name") in credentials_env_var_names:
                 new_env.append(remote_env)
 
+        # update nuclio-specific credentials
+        self.mask_sensitive_data_in_config()
+
         self.spec.env = new_env
 
     def _set_as_mock(self, enable):
@@ -1283,6 +1317,33 @@ class RemoteRuntime(KubeResource):
         if validate_nuclio_version_compatibility("1.13.11"):
             return mlrun.model.Credentials.generate_access_key
         return None
+
+    def _check_model_endpoint_task_state(
+        self,
+        db: mlrun.db.RunDBInterface,
+        background_task: mlrun.common.schemas.BackgroundTask,
+        wait_for_completion: bool,
+    ):
+        if wait_for_completion:
+            background_task = db._wait_for_background_task_to_reach_terminal_state(
+                name=background_task.metadata.name, project=self.metadata.project
+            )
+        else:
+            background_task = db.get_project_background_task(
+                project=self.metadata.project, name=background_task.metadata.name
+            )
+        if (
+            background_task.status.state
+            in mlrun.common.schemas.BackgroundTaskState.terminal_states()
+        ):
+            logger.info(
+                f"Model endpoint creation task completed with state {background_task.status.state}"
+            )
+        else:
+            logger.warning(
+                f"Model endpoint creation task is still running with state {background_task.status.state}"
+                f"You can use the serving function, but it won't be monitored for the next few minutes"
+            )
 
 
 def parse_logs(logs):

@@ -23,11 +23,13 @@ import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.artifact
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db.factory
 from mlrun.common.db.sql_session import create_session
 from mlrun.db import RunDBInterface
 
 import framework.db.session
+import services.alerts.crud
 import services.api.crud
 from framework.db.base import DBError
 from framework.db.sqldb.db import SQLDB
@@ -105,6 +107,26 @@ class SQLRunDB(RunDBInterface):
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         raise NotImplementedError()
 
+    def push_run_notifications(
+        self,
+        uid,
+        project="",
+        timeout=45,
+    ):
+        raise NotImplementedError()
+
+    def refresh_smtp_configuration(self):
+        raise NotImplementedError()
+
+    def push_pipeline_notifications(
+        self,
+        pipeline_id,
+        project="",
+        notifications=None,
+        timeout=45,
+    ):
+        raise NotImplementedError()
+
     def read_run(
         self,
         uid: str,
@@ -130,12 +152,13 @@ class SQLRunDB(RunDBInterface):
         state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
         states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
-        last: int = 0,
         iter: bool = False,
         start_time_from: Optional[datetime.datetime] = None,
         start_time_to: Optional[datetime.datetime] = None,
         last_update_time_from: Optional[datetime.datetime] = None,
         last_update_time_to: Optional[datetime.datetime] = None,
+        end_time_from: Optional[datetime.datetime] = None,
+        end_time_to: Optional[datetime.datetime] = None,
         partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
         rows_per_partition: int = 1,
         partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
@@ -156,12 +179,13 @@ class SQLRunDB(RunDBInterface):
             if state is not None
             else states or None,
             sort=sort,
-            last=last,
             iter=iter,
             start_time_from=start_time_from,
             start_time_to=start_time_to,
             last_update_time_from=last_update_time_from,
             last_update_time_to=last_update_time_to,
+            end_time_from=end_time_from,
+            end_time_to=end_time_to,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
@@ -203,18 +227,23 @@ class SQLRunDB(RunDBInterface):
         )
 
     def store_artifact(
-        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+        self,
+        key,
+        artifact,
+        iter=None,
+        tag="",
+        project="",
+        tree=None,
     ):
         return self._transform_db_error(
             services.api.crud.Artifacts().store_artifact,
             self.session,
             key,
             artifact,
-            uid,
-            iter,
-            tag,
-            project,
-            tree,
+            tag=tag,
+            iter=iter,
+            project=project,
+            producer_id=tree,
         )
 
     def read_artifact(
@@ -366,6 +395,7 @@ class SQLRunDB(RunDBInterface):
         tag: Optional[str] = None,
         kind: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        states: Optional[list[mlrun.common.schemas.FunctionState]] = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
         since: Optional[datetime.datetime] = None,
         until: Optional[datetime.datetime] = None,
@@ -378,6 +408,7 @@ class SQLRunDB(RunDBInterface):
             tag=tag,
             kind=kind,
             labels=labels,
+            states=states,
             since=since,
             until=until,
             format_=format_,
@@ -1008,6 +1039,9 @@ class SQLRunDB(RunDBInterface):
     def create_model_endpoint(
         self,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
+        creation_strategy: Optional[
+            mm_constants.ModelEndpointCreationStrategy
+        ] = mm_constants.ModelEndpointCreationStrategy.INPLACE,
     ) -> mlrun.common.schemas.ModelEndpoint:
         raise NotImplementedError()
 
@@ -1015,21 +1049,25 @@ class SQLRunDB(RunDBInterface):
         self,
         name: str,
         project: str,
-        function_name: str,
-        endpoint_id: str,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
     ):
         raise NotImplementedError()
 
     def list_model_endpoints(
         self,
         project: str,
-        name: Optional[str] = None,
+        names: Optional[str] = None,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         model_name: Optional[str] = None,
+        model_tag: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
@@ -1038,11 +1076,13 @@ class SQLRunDB(RunDBInterface):
 
     def get_model_endpoint(
         self,
-        name: str,
+        name: Optional[Union[str, list[str]]],
         project: str,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         raise NotImplementedError()
@@ -1053,6 +1093,7 @@ class SQLRunDB(RunDBInterface):
         project: str,
         attributes: dict,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         raise NotImplementedError()
@@ -1208,7 +1249,6 @@ class SQLRunDB(RunDBInterface):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
-        rebuild_images: bool = False,
         fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         raise NotImplementedError
@@ -1229,15 +1269,10 @@ class SQLRunDB(RunDBInterface):
     ) -> bool:
         raise NotImplementedError
 
-    def deploy_histogram_data_drift_app(
-        self, project: str, image: str = "mlrun/mlrun"
-    ) -> None:
-        raise NotImplementedError
-
     def set_model_monitoring_credentials(
         self,
         project: str,
-        credentials: dict[str, str],
+        credentials: dict[str, Optional[str]],
         replace_creds: bool = False,
     ) -> None:
         raise NotImplementedError
@@ -1272,7 +1307,9 @@ class SQLRunDB(RunDBInterface):
     def get_alert_config(self, alert_name: str, project=""):
         pass
 
-    def list_alerts_configs(self, project=""):
+    def list_alerts_configs(
+        self, project="", limit: Optional[int] = None, offset: Optional[int] = None
+    ):
         pass
 
     def delete_alert_config(self, alert_name, project=""):
@@ -1300,6 +1337,22 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError
 
+    def update_alert_activation(
+        self,
+        activation_id: int,
+        activation_time: datetime.datetime,
+        notifications_states,
+    ):
+        # We run this function with a new session because it may run concurrently.
+        # Older sessions will not be able to see the changes made by this function until they are committed.
+        return self._transform_db_error(
+            framework.db.session.run_function_with_new_db_session,
+            services.alerts.crud.AlertActivation().update_alert_activation,
+            activation_id=activation_id,
+            activation_time=activation_time,
+            notifications_states=notifications_states,
+        )
+
     def paginated_list_alert_activations(
         self,
         *args,
@@ -1307,6 +1360,13 @@ class SQLRunDB(RunDBInterface):
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
         **kwargs,
+    ):
+        raise NotImplementedError
+
+    def get_alert_activation(
+        self,
+        project,
+        activation_id,
     ):
         raise NotImplementedError
 

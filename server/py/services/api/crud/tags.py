@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import sqlalchemy.orm
 
 import mlrun.common.schemas
@@ -46,7 +46,7 @@ class Tags(
         )
         if not overwrite_func:
             raise mlrun.errors.MLRunNotFoundError(
-                f"couldn't find overwrite function for object kind: {tag_objects.kind}"
+                f"Couldn't find overwrite function for object kind: {tag_objects.kind}"
             )
         getattr(framework.utils.singletons.db.get_db(), overwrite_func)(
             session=db_session,
@@ -65,7 +65,7 @@ class Tags(
         append_func = kind_to_function_names.get(tag_objects.kind, {}).get("append")
         if not append_func:
             raise mlrun.errors.MLRunNotFoundError(
-                f"couldn't find append function for object kind: {tag_objects.kind}"
+                f"Couldn't find append function for object kind: {tag_objects.kind}"
             )
         getattr(framework.utils.singletons.db.get_db(), append_func)(
             session=db_session,
@@ -84,7 +84,7 @@ class Tags(
         delete_func = kind_to_function_names.get(tag_objects.kind, {}).get("delete")
         if not delete_func:
             raise mlrun.errors.MLRunNotFoundError(
-                f"couldn't find delete function for object kind: {tag_objects.kind}"
+                f"Couldn't find delete function for object kind: {tag_objects.kind}"
             )
         getattr(framework.utils.singletons.db.get_db(), delete_func)(
             session=db_session,

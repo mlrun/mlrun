@@ -528,7 +528,8 @@ with ctx:
             return
 
         run.setdefault("status", {})["ui_url"] = ui_url
-        db.store_run(db_session, run, uid, project)
+        run_updates = {"status.ui_url": ui_url}
+        db.update_run(db_session, run_updates, uid, project)
 
     @staticmethod
     def are_resources_coupled_to_run_object() -> bool:
@@ -604,9 +605,23 @@ with ctx:
         job: dict,
     ):
         if runtime.spec.priority_class_name:
+            # Spark 3.2
             verify_and_update_in(
                 job,
                 "spec.batchSchedulerOptions.priorityClassName",
+                runtime.spec.priority_class_name,
+                str,
+            )
+            # Spark 3.5
+            verify_and_update_in(
+                job,
+                "spec.driver.priorityClassName",
+                runtime.spec.priority_class_name,
+                str,
+            )
+            verify_and_update_in(
+                job,
+                "spec.executor.priorityClassName",
                 runtime.spec.priority_class_name,
                 str,
             )

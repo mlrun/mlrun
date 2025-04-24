@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-
 
 from typing import Optional, Union
 
@@ -22,9 +20,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 
-import framework.utils.auth.verifier
-import framework.utils.clients.chief
-import framework.utils.singletons.project_member
+import framework.service
 from framework.api import deps
 
 router = APIRouter()
@@ -72,6 +68,37 @@ async def list_alert_activations(
         page=page,
         page_size=page_size,
         page_token=page_token,
+        auth_info=auth_info,
+        db_session=db_session,
+    )
+
+
+@router.get(
+    "/projects/{project}/alerts/{name}/activations/{activation_id}",
+    response_model=mlrun.common.schemas.AlertActivation,
+)
+@router.get(
+    "/projects/{project}/alert-activations/{activation_id}",
+    response_model=mlrun.common.schemas.AlertActivation,
+)
+@inject
+async def get_alert_activation(
+    request: Request,
+    project: str,
+    activation_id: int,
+    name: Optional[str] = None,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
+    service: framework.service.Service = Depends(
+        Provide[framework.service.ServiceContainer.service]
+    ),
+) -> mlrun.common.schemas.AlertActivation:
+    return await service.handle_request(
+        "get_alert_activation",
+        request=request,
+        project=project,
+        name=name,
+        activation_id=activation_id,
         auth_info=auth_info,
         db_session=db_session,
     )

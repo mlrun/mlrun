@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import base64
 import json
 import os
@@ -1109,6 +1109,11 @@ class TestNuclioRuntime(TestRuntimeBase):
             ("0.0.0-unstable", "3.9", "1.11.9", "python:3.9"),
         ],
     )
+    # TODO: Un-skip and align test
+    #  once upgrading to Python 3.12 and resolving the Python version according to client python version
+    @pytest.mark.skip(
+        "Python version is not determined by the client version until python version is bumped to 3.12"
+    )
     def test_deploy_with_runtime(
         self,
         db: Session,
@@ -1147,28 +1152,17 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert decode_event_strings_env_var_name not in deploy_configs[0]["spec"]["env"]
 
         logger.info(
-            "Function runtime is configured to python:3.7, nuclio version <1.6.0 - explode"
+            "Function runtime is configured to python:3.7, nuclio version > 1.14.0 and no base image - explode"
         )
         function = self._generate_runtime(self.runtime_kind)
         function.spec.nuclio_runtime = "python:3.7"
-        mlconf.nuclio_version = "1.5.13"
+        mlconf.nuclio_version = "1.14.1"
+        function.spec.image = None
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
             match=r"(.*)Nuclio version does not support(.*)",
         ):
             self.execute_function(function)
-
-        logger.info(
-            "Function runtime is default to python:3.7, nuclio is <1.6.0 - change to 3.6"
-        )
-        self._reset_mock()
-        function = self._generate_runtime(self.runtime_kind)
-        self.execute_function(function)
-        self._assert_deploy_called_basic_config(
-            expected_class=self.class_name,
-            expected_nuclio_runtime="python:3.6",
-        )
-        assert decode_event_strings_env_var_name not in deploy_configs[0]["spec"]["env"]
 
         logger.info("Function runtime is python, but nuclio is >=1.8.0 - do nothing")
         self._reset_mock()
@@ -1326,9 +1320,10 @@ class TestNuclioRuntime(TestRuntimeBase):
 
     def test_load_function_with_source_archive_git(self):
         fn = self._generate_runtime(self.runtime_kind)
+        handler = "main:handler"
         fn.with_source_archive(
             "git://github.com/org/repo#my-branch",
-            handler="main:handler",
+            handler=handler,
             workdir="path/inside/repo",
         )
         secrets = {"GIT_PASSWORD": "my-access-token"}
@@ -1336,7 +1331,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         get_archive_spec(fn, secrets)
         assert get_archive_spec(fn, secrets) == {
             "spec": {
-                "handler": "main:handler",
+                "handler": handler,
                 "build": {
                     "path": "https://github.com/org/repo",
                     "codeEntryType": "git",
@@ -1353,13 +1348,13 @@ class TestNuclioRuntime(TestRuntimeBase):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "git://github.com/org/repo#refs/heads/my-branch",
-            handler="main:handler",
+            handler=handler,
             workdir="path/inside/repo",
         )
 
         assert get_archive_spec(fn, secrets) == {
             "spec": {
-                "handler": "main:handler",
+                "handler": handler,
                 "build": {
                     "path": "https://github.com/org/repo",
                     "codeEntryType": "git",
@@ -1372,6 +1367,12 @@ class TestNuclioRuntime(TestRuntimeBase):
                 },
             },
         }
+
+        # ensure handler is not overridden if not passed
+        fn.with_source_archive(
+            "git://github.com/org/repo#refs/heads/my-other-branch",
+        )
+        assert fn.spec.function_handler == handler
 
     def test_nuclio_run_without_specifying_resources(
         self, db: Session, client: TestClient
@@ -1826,8 +1827,15 @@ class TestNuclioRuntime(TestRuntimeBase):
                 nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
             )
 
-    def test_multiple_stream_triggers_new_nuclio_explicit_ack(self):
-        mlconf.nuclio_version = "1.13.12"
+    @pytest.mark.parametrize(
+        "nuclio_version",
+        [
+            "1.13.12",
+            "unstable",
+        ],
+    )
+    def test_multiple_stream_triggers_new_nuclio_explicit_ack(self, nuclio_version):
+        mlconf.nuclio_version = nuclio_version
         function = self._generate_runtime(self.runtime_kind)
         function.add_trigger(
             "stream1",
@@ -1836,6 +1844,34 @@ class TestNuclioRuntime(TestRuntimeBase):
         function.add_trigger(
             "stream2",
             nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
+        )
+
+    def test_masking_sensitive_fields(self):
+        function = self._generate_runtime(self.runtime_kind)
+
+        raw_password = "raw_password"
+        function.add_v3io_stream_trigger(
+            stream_path="test",
+            access_key=raw_password,
+            extra_attributes={"password": raw_password},
+        )
+        raw_config = function.mask_sensitive_data_in_config()
+
+        assert (
+            function.spec.config.get("spec.triggers.stream").get("password")
+            == "$ref:/spec/triggers/stream/password"
+        )
+        assert raw_config.get("spec.triggers.stream").get("password") == raw_password
+
+        assert (
+            function.spec.config.get("spec.triggers.stream")
+            .get("attributes", {})
+            .get("password")
+            == "$ref:/spec/triggers/stream/attributes/password"
+        )
+        assert (
+            raw_config.get("spec.triggers.stream").get("attributes", {}).get("password")
+            == raw_password
         )
 
 

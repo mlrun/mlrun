@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import collections
 import datetime
@@ -31,12 +31,13 @@ from mlrun.utils import logger, retry_until_successful
 import framework.db.session
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
+import framework.utils.clients.messaging
 import framework.utils.clients.nuclio
 import framework.utils.projects.remotes.follower as project_follower
 import framework.utils.singletons.db
 import services.alerts.crud
 import services.api.crud
-import services.api.crud.model_monitoring.deployment
+import services.api.crud.model_monitoring
 import services.api.crud.runtimes.nuclio
 import services.api.utils.events.events_factory as events_factory
 import services.api.utils.singletons.scheduler
@@ -203,18 +204,23 @@ class Projects(
             project_name=name,
         )
 
-        # TODO: Forward to alerts service
-        # The messaging client is async, and project deletion is sync.
-        # When deleting a project, we need to use a sync client to send the delete event request to the alerts service,
-        # or to Chief if in Hydra mode. (ML-8390)
-        # Until we implement the sync client, we can allow Chief to delete the project alerts itself, instead of
-        # actually forwarding the request and waiting for a response, since the project deletion flow is handled
-        # by Chief only.
-        services.alerts.crud.Events().delete_project_alert_events(name)
+        # TODO: This should be refactored once we have a proper hydra implementation
+        # Delete alert's service resources
+        # When running in Hydra, alerts is part of the current running service, so we can delete the resources directly
+        # Otherwise, we need to send a message to the alerts service to delete the resources
+        if mlrun.mlconf.services.hydra.services == "*":
+            services.alerts.crud.Alerts().delete_alerts(session=session, project=name)
+        else:
+            messaging_client = framework.utils.clients.messaging.Client()
+            messaging_client.delete(
+                path=f"projects/{name}/alerts",
+                headers=auth_info.request_headers,
+                raise_on_failure=True,
+            )
 
-        # get model monitoring application names, important for deleting model monitoring resources
-        model_monitoring_deployment = (
-            services.api.crud.model_monitoring.deployment.MonitoringDeployment(
+        # Initialize the MM deleter with data from the DB, before the relevant DB data is deleted
+        model_monitoring_deleter = (
+            services.api.crud.model_monitoring.ModelMonitoringResourcesDeleter(
                 project=name,
                 db_session=session,
                 auth_info=auth_info,
@@ -222,21 +228,8 @@ class Projects(
             )
         )
 
-        logger.debug(
-            "Getting monitoring applications to delete",
-            project_name=name,
-        )
-        model_monitoring_applications = (
-            model_monitoring_deployment._get_monitoring_application_to_delete(
-                delete_user_applications=True
-            )
-        )
-
         # delete db resources
-        logger.debug(
-            "Deleting project related resources",
-            project_name=name,
-        )
+        logger.debug("Deleting project related resources", project_name=name)
         framework.utils.singletons.db.get_db().delete_project_related_resources(
             session, name
         )
@@ -248,23 +241,8 @@ class Projects(
         )
         self._wait_for_nuclio_project_deletion(name, session, auth_info)
 
-        try:
-            # delete model monitoring resources
-            logger.debug(
-                "Deleting model endpoints resources",
-                project_name=name,
-            )
-            services.api.crud.ModelEndpoints().delete_model_endpoints_resources(
-                project_name=name,
-                db_session=session,
-                model_monitoring_applications=model_monitoring_applications,
-                model_monitoring_access_key=model_monitoring_access_key,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Failed to delete model monitoring resources", project_name=name
-            )
-            raise exc
+        # Delete MM resources
+        model_monitoring_deleter.delete()
 
         if mlrun.mlconf.is_api_running_on_k8s():
             logger.debug(
@@ -535,9 +513,10 @@ class Projects(
         session,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_token: str = "",
+        filter_: str = "",
     ):
         return services.api.crud.Pipelines().list_pipelines(
-            session, "*", format_=format_, page_token=page_token
+            session, "*", format_=format_, page_token=page_token, filter_=filter_
         )
 
     async def _calculate_pipelines_counters(
@@ -560,6 +539,15 @@ class Projects(
                 project_to_running_pipelines_count,
             )
 
+        # include pipelines created in the past x days.
+        start_date = mlrun.utils.validate_and_convert_date(
+            str(
+                datetime.datetime.now()
+                - datetime.timedelta(
+                    days=mlrun.mlconf.httpdb.projects.summaries.list_pipelines_time_period_in_days
+                )
+            )
+        )
         try:
             next_page_token = ""
             while True:
@@ -571,6 +559,7 @@ class Projects(
                     framework.db.session.run_function_with_new_db_session,
                     self._list_pipelines,
                     page_token=next_page_token,
+                    filter_=mlrun.utils.get_kfp_list_runs_filter(start_date=start_date),
                 )
 
                 for pipeline in pipelines:

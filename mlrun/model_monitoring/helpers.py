@@ -13,36 +13,37 @@
 # limitations under the License.
 
 import datetime
+import functools
 import os
-import typing
+from fnmatch import fnmatchcase
+from typing import TYPE_CHECKING, Callable, Optional, TypedDict, Union, cast
 
 import numpy as np
 import pandas as pd
-
-if typing.TYPE_CHECKING:
-    from mlrun.datastore import DataItem
-    from mlrun.db.base import RunDBInterface
-    from mlrun.projects import MlrunProject
-
-from fnmatch import fnmatchcase
-from typing import Optional
 
 import mlrun
 import mlrun.artifacts
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
+import mlrun.datastore.datastore_profile
 import mlrun.model_monitoring
+import mlrun.platforms.iguazio
 import mlrun.utils.helpers
 from mlrun.common.schemas import ModelEndpoint
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
-    _compose_full_name,
+    compose_full_name,
 )
 from mlrun.utils import logger
 
+if TYPE_CHECKING:
+    from mlrun.datastore import DataItem
+    from mlrun.db.base import RunDBInterface
+    from mlrun.projects import MlrunProject
 
-class _BatchDict(typing.TypedDict):
+
+class _BatchDict(TypedDict):
     minutes: int
     hours: int
     days: int
@@ -109,39 +110,53 @@ def filter_results_by_regex(
             result_name_filters=validated_filters,
         ):
             filtered_metrics_names.append(existing_result_name)
-    return filtered_metrics_names
+    return list(set(filtered_metrics_names))
 
 
 def get_stream_path(
     project: str,
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
-    stream_uri: typing.Optional[str] = None,
+    stream_uri: Optional[str] = None,
+    secret_provider: Optional[Callable[[str], str]] = None,
+    profile: Optional[mlrun.datastore.datastore_profile.DatastoreProfile] = None,
 ) -> str:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
     :param project:             Project name.
     :param function_name:       Application name. Default is model_monitoring_stream.
-    :param stream_uri:          Stream URI. If provided, it will be used instead of the one from the project secret.
-
+    :param stream_uri:          Stream URI. If provided, it will be used instead of the one from the project's secret.
+    :param secret_provider:     Optional secret provider to get the connection string secret.
+                                If not set, the env vars are used.
+    :param profile:             Optional datastore profile of the stream (V3IO/KafkaSource profile).
     :return:                    Monitoring stream path to the relevant application.
     """
 
-    stream_uri = stream_uri or mlrun.get_secret_or_env(
-        mm_constants.ProjectSecretKeys.STREAM_PATH
+    profile = profile or _get_stream_profile(
+        project=project, secret_provider=secret_provider
     )
 
-    if not stream_uri or stream_uri == "v3io":
+    if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
         stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project,
             kind=mm_constants.FileTargetKind.STREAM,
             target="online",
             function_name=function_name,
         )
+        return stream_uri.replace("v3io://", f"ds://{profile.name}")
 
-    return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-        stream_uri=stream_uri, project=project, function_name=function_name
-    )
+    elif isinstance(
+        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+    ):
+        topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
+            project=project, function_name=function_name
+        )
+        return f"ds://{profile.name}/{topic}"
+    else:
+        raise mlrun.errors.MLRunValueError(
+            f"Received an unexpected stream profile type: {type(profile)}\n"
+            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+        )
 
 
 def get_monitoring_parquet_path(
@@ -229,19 +244,135 @@ def get_monitoring_drift_measures_data(project: str, endpoint_id: str) -> "DataI
     )
 
 
-def get_tsdb_connection_string(
-    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
-) -> str:
-    """Get TSDB connection string from the project secret. If wasn't set, take it from the system
-    configurations.
-    :param secret_provider: An optional secret provider to get the connection string secret.
-    :return:                Valid TSDB connection string.
+def _get_profile(
+    project: str,
+    secret_provider: Optional[Callable[[str], str]],
+    profile_name_key: str,
+) -> mlrun.datastore.datastore_profile.DatastoreProfile:
+    """
+    Get the datastore profile from the project name and secret provider, where the profile's name
+    is saved as a secret named `profile_name_key`.
+
+    :param project:          The project name.
+    :param secret_provider:  Secret provider to get the secrets from, or `None` for env vars.
+    :param profile_name_key: The profile name key in the secret store.
+    :return:                 Datastore profile.
+    """
+    profile_name = mlrun.get_secret_or_env(
+        key=profile_name_key, secret_provider=secret_provider
+    )
+    if not profile_name:
+        raise mlrun.errors.MLRunNotFoundError(
+            f"Not found `{profile_name_key}` profile name for project '{project}'"
+        )
+    return mlrun.datastore.datastore_profile.datastore_profile_read(
+        url=f"ds://{profile_name}", project_name=project, secrets=secret_provider
+    )
+
+
+_get_tsdb_profile = functools.partial(
+    _get_profile, profile_name_key=mm_constants.ProjectSecretKeys.TSDB_PROFILE_NAME
+)
+_get_stream_profile = functools.partial(
+    _get_profile, profile_name_key=mm_constants.ProjectSecretKeys.STREAM_PROFILE_NAME
+)
+
+
+def _get_v3io_output_stream(
+    *,
+    v3io_profile: mlrun.datastore.datastore_profile.DatastoreProfileV3io,
+    project: str,
+    function_name: str,
+    v3io_access_key: Optional[str],
+    mock: bool = False,
+) -> mlrun.platforms.iguazio.OutputStream:
+    stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
+        project=project,
+        kind=mm_constants.FileTargetKind.STREAM,
+        target="online",
+        function_name=function_name,
+    )
+    endpoint, stream_path = mlrun.platforms.iguazio.parse_path(stream_uri)
+    return mlrun.platforms.iguazio.OutputStream(
+        stream_path,
+        endpoint=endpoint,
+        access_key=v3io_access_key or v3io_profile.v3io_access_key,
+        mock=mock,
+    )
+
+
+def _get_kafka_output_stream(
+    *,
+    kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+    project: str,
+    function_name: str,
+    mock: bool = False,
+) -> mlrun.platforms.iguazio.KafkaOutputStream:
+    topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
+        project=project, function_name=function_name
+    )
+    attributes = kafka_profile.attributes()
+    producer_options = mlrun.datastore.utils.KafkaParameters(attributes).producer()
+
+    return mlrun.platforms.iguazio.KafkaOutputStream(
+        brokers=kafka_profile.brokers,
+        topic=topic,
+        producer_options=producer_options,
+        mock=mock,
+    )
+
+
+def get_output_stream(
+    project: str,
+    function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
+    secret_provider: Optional[Callable[[str], str]] = None,
+    profile: Optional[mlrun.datastore.datastore_profile.DatastoreProfile] = None,
+    v3io_access_key: Optional[str] = None,
+    mock: bool = False,
+) -> Union[
+    mlrun.platforms.iguazio.OutputStream, mlrun.platforms.iguazio.KafkaOutputStream
+]:
+    """
+    Get stream path from the project secret. If wasn't set, take it from the system configurations
+
+    :param project:             Project name.
+    :param function_name:       Application name. Default is model_monitoring_stream.
+    :param secret_provider:     Optional secret provider to get the connection string secret.
+                                If not set, the env vars are used.
+    :param profile:             Optional datastore profile of the stream (V3IO/KafkaSource profile).
+    :param v3io_access_key:     Optional V3IO access key.
+    :param mock:                Should the output stream be mocked or not.
+    :return:                    Monitoring stream path to the relevant application.
     """
 
-    return mlrun.get_secret_or_env(
-        key=mm_constants.ProjectSecretKeys.TSDB_CONNECTION,
-        secret_provider=secret_provider,
+    profile = profile or _get_stream_profile(
+        project=project, secret_provider=secret_provider
     )
+
+    if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
+        return _get_v3io_output_stream(
+            v3io_profile=profile,
+            project=project,
+            function_name=function_name,
+            v3io_access_key=v3io_access_key,
+            mock=mock,
+        )
+
+    elif isinstance(
+        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+    ):
+        return _get_kafka_output_stream(
+            kafka_profile=profile,
+            project=project,
+            function_name=function_name,
+            mock=mock,
+        )
+
+    else:
+        raise mlrun.errors.MLRunValueError(
+            f"Received an unexpected stream profile type: {type(profile)}\n"
+            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+        )
 
 
 def batch_dict2timedelta(batch_dict: _BatchDict) -> datetime.timedelta:
@@ -301,58 +432,23 @@ def update_model_endpoint_last_request(
     :param current_request: current request time
     :param db:              DB interface.
     """
-    is_batch_endpoint = (
-        model_endpoint.metadata.endpoint_type == mm_constants.EndpointType.BATCH_EP
-    )
-    if not is_batch_endpoint:
-        logger.info(
-            "Update model endpoint last request time (EP with serving)",
-            project=project,
-            endpoint_id=model_endpoint.metadata.uid,
-            name=model_endpoint.metadata.name,
-            function_name=model_endpoint.spec.function_name,
-            last_request=model_endpoint.status.last_request,
-            current_request=current_request,
-        )
-        db.patch_model_endpoint(
-            project=project,
-            endpoint_id=model_endpoint.metadata.uid,
-            name=model_endpoint.metadata.name,
-            function_name=model_endpoint.spec.function_name,
-            attributes={mm_constants.EventFieldType.LAST_REQUEST: current_request},
-        )
-    else:  # model endpoint without any serving function - close the window "manually"
-        try:
-            time_window = _get_monitoring_time_window_from_controller_run(project, db)
-        except mlrun.errors.MLRunNotFoundError:
-            logger.warn(
-                "Not bumping model endpoint last request time - the monitoring controller isn't deployed yet.\n"
-                "Call `project.enable_model_monitoring()` first."
-            )
-            return
 
-        bumped_last_request = (
-            current_request
-            + time_window
-            + datetime.timedelta(
-                seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
-            )
-        )
-        logger.info(
-            "Bumping model endpoint last request time (EP without serving)",
-            project=project,
-            endpoint_id=model_endpoint.metadata.uid,
-            last_request=model_endpoint.status.last_request,
-            current_request=current_request.isoformat(),
-            bumped_last_request=bumped_last_request,
-        )
-        db.patch_model_endpoint(
-            project=project,
-            endpoint_id=model_endpoint.metadata.uid,
-            name=model_endpoint.metadata.name,
-            function_name=model_endpoint.spec.function_name,
-            attributes={mm_constants.EventFieldType.LAST_REQUEST: bumped_last_request},
-        )
+    logger.info(
+        "Update model endpoint last request time (EP with serving)",
+        project=project,
+        endpoint_id=model_endpoint.metadata.uid,
+        name=model_endpoint.metadata.name,
+        function_name=model_endpoint.spec.function_name,
+        last_request=model_endpoint.status.last_request,
+        current_request=current_request,
+    )
+    db.patch_model_endpoint(
+        project=project,
+        endpoint_id=model_endpoint.metadata.uid,
+        name=model_endpoint.metadata.name,
+        function_name=model_endpoint.spec.function_name,
+        attributes={mm_constants.EventFieldType.LAST_REQUEST: current_request},
+    )
 
 
 def calculate_inputs_statistics(
@@ -398,6 +494,22 @@ def get_result_instance_fqn(
     return f"{model_endpoint_id}.{app_name}.result.{result_name}"
 
 
+def get_alert_name_from_result_fqn(result_fqn: str):
+    """
+    :param   result_fqn: current get_result_instance_fqn format: `{model_endpoint_id}.{app_name}.result.{result_name}`
+
+    :return: shorter fqn without forbidden alert characters.
+    """
+    if result_fqn.count(".") != 3 or result_fqn.split(".")[2] != "result":
+        raise mlrun.errors.MLRunValueError(
+            f"result_fqn: {result_fqn} is not in the correct format: {{model_endpoint_id}}.{{app_name}}."
+            f"result.{{result_name}}"
+        )
+    # Name format cannot contain "."
+    # The third component is always `result`, so it is not necessary for checking uniqueness.
+    return "_".join(result_fqn.split(".")[i] for i in [0, 1, 3])
+
+
 def get_default_result_instance_fqn(model_endpoint_id: str) -> str:
     return get_result_instance_fqn(
         model_endpoint_id,
@@ -407,7 +519,7 @@ def get_default_result_instance_fqn(model_endpoint_id: str) -> str:
 
 
 def get_invocations_fqn(project: str) -> str:
-    return _compose_full_name(
+    return compose_full_name(
         project=project,
         app=mm_constants.SpecialApps.MLRUN_INFRA,
         name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
@@ -432,7 +544,7 @@ def get_invocations_metric(project: str) -> ModelEndpointMonitoringMetric:
 
 
 def _get_monitoring_schedules_folder_path(project: str) -> str:
-    return typing.cast(
+    return cast(
         str,
         mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project, kind=mm_constants.FileTargetKind.MONITORING_SCHEDULES
@@ -440,16 +552,43 @@ def _get_monitoring_schedules_folder_path(project: str) -> str:
     )
 
 
-def _get_monitoring_schedules_file_path(*, project: str, endpoint_id: str) -> str:
+def _get_monitoring_schedules_file_endpoint_path(
+    *, project: str, endpoint_id: str
+) -> str:
     return os.path.join(
         _get_monitoring_schedules_folder_path(project), f"{endpoint_id}.json"
     )
 
 
-def get_monitoring_schedules_data(*, project: str, endpoint_id: str) -> "DataItem":
+def get_monitoring_schedules_endpoint_data(
+    *, project: str, endpoint_id: str
+) -> "DataItem":
     """
     Get the model monitoring schedules' data item of the project's model endpoint.
     """
     return mlrun.datastore.store_manager.object(
-        _get_monitoring_schedules_file_path(project=project, endpoint_id=endpoint_id)
+        _get_monitoring_schedules_file_endpoint_path(
+            project=project, endpoint_id=endpoint_id
+        )
+    )
+
+
+def get_monitoring_schedules_chief_data(
+    *,
+    project: str,
+) -> "DataItem":
+    """
+    Get the model monitoring schedules' data item of the project's model endpoint.
+    """
+    return mlrun.datastore.store_manager.object(
+        _get_monitoring_schedules_file_chief_path(project=project)
+    )
+
+
+def _get_monitoring_schedules_file_chief_path(
+    *,
+    project: str,
+) -> str:
+    return os.path.join(
+        _get_monitoring_schedules_folder_path(project), f"{project}.json"
     )

@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, Header, Path, Query
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+from mlrun.utils import logger
 
 import framework.api.utils
 import framework.utils.auth.verifier
@@ -107,7 +108,7 @@ async def _common_parameters(
     )
 
 
-@router.post("/enable-model-monitoring")
+@router.put("/")
 async def enable_model_monitoring(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
@@ -131,11 +132,21 @@ async def enable_model_monitoring(
                                               stream functions, which are real time nuclio functions.
                                               By default, the image is mlrun/mlrun.
     :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
-    :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images
-                                              (controller, writer & stream).
+    :param rebuild_images:                    Deprecated. If true, force rebuild of model monitoring infrastructure
+                                              images (controller, writer & stream).
     :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
 
     """
+
+    if rebuild_images:
+        logger.warn(
+            "The `rebuild_images` is no longer supported. "
+            "If you need to rebuild the images, `please call disable_model_monitoring()`, "
+            "followed by `enable_model_monitoring()` with the new image",
+            # TODO: Remove this in 1.10
+            FutureWarning,
+        )
+
     MonitoringDeployment(
         project=commons.project,
         auth_info=commons.auth_info,
@@ -145,12 +156,11 @@ async def enable_model_monitoring(
         image=image,
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
-        rebuild_images=rebuild_images,
         fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
     )
 
 
-@router.patch("/model-monitoring-controller")
+@router.patch("/controller")
 async def update_model_monitoring_controller(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
@@ -194,27 +204,8 @@ async def update_model_monitoring_controller(
     )
 
 
-@router.post("/deploy-histogram-data-drift-app")
-def deploy_histogram_data_drift_app(
-    commons: Annotated[_CommonParams, Depends(_common_parameters)],
-    image: str = "mlrun/mlrun",
-) -> None:
-    """
-    Deploy the histogram data drift app on the go.
-
-    :param commons: The common parameters of the request.
-    :param image:   The image of the application, defaults to "mlrun/mlrun".
-    """
-    MonitoringDeployment(
-        project=commons.project,
-        auth_info=commons.auth_info,
-        db_session=commons.db_session,
-        model_monitoring_access_key=commons.model_monitoring_access_key,
-    ).deploy_histogram_data_drift_app(image=image)
-
-
 @router.delete(
-    "/disable-model-monitoring",
+    "/",
     responses={
         http.HTTPStatus.ACCEPTED.value: {
             "model": mlrun.common.schemas.BackgroundTaskList
@@ -311,12 +302,11 @@ async def delete_model_monitoring_function(
     return tasks
 
 
-@router.post("/set-model-monitoring-credentials")
+@router.put("/credentials")
 def set_model_monitoring_credentials(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
-    access_key: Optional[str] = None,
-    stream_path: Optional[str] = None,
-    tsdb_connection: Optional[str] = None,
+    tsdb_profile_name: str,
+    stream_profile_name: str,
     replace_creds: bool = False,
 ) -> None:
     """
@@ -324,21 +314,9 @@ def set_model_monitoring_credentials(
     infrastructure functions. Important to note that you have to set the credentials before deploying any
     model monitoring or serving function.
     :param commons:                   The common parameters of the request.
-    :param access_key:                Model Monitoring access key for managing user permissions.
-    :param stream_path:               Path to the model monitoring stream. By default, None.
-                                      Options:
-                                      1. None, will be set from the system configuration.
-                                      2. v3io - for v3io stream,
-                                         pass `v3io` and the system will generate the exact path.
-                                      3. Kafka - for Kafka stream, please provide full connection string without
-                                         custom topic, for example kafka://<some_kafka_broker>:<port>.
-    :param tsdb_connection:           Connection string to the time series database. By default, None.
-                                      Options:
-                                      1. None, will be set from the system configuration.
-                                      2. v3io - for v3io stream,
-                                         pass `v3io` and the system will generate the exact path.
-                                      3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
-                                         for example taosws://<username>:<password>@<host>:<port>.
+    :param tsdb_profile_name:         TSDB datastore profile name.
+    :param stream_profile_name:       Stream datastore profile name.
+                                      The profile can be V3IO or KafkaSource.
     :param replace_creds:             If True, it will force the credentials update. By default, False.
     """
     MonitoringDeployment(
@@ -347,8 +325,7 @@ def set_model_monitoring_credentials(
         db_session=commons.db_session,
         model_monitoring_access_key=commons.model_monitoring_access_key,
     ).set_credentials(
-        access_key=access_key,
-        stream_path=stream_path,
-        tsdb_connection=tsdb_connection,
+        tsdb_profile_name=tsdb_profile_name,
+        stream_profile_name=stream_profile_name,
         replace_creds=replace_creds,
     )

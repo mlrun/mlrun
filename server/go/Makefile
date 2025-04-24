@@ -17,13 +17,12 @@ MLRUN_DOCKER_REPO ?= mlrun
 MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 
-GO_VERSION=$(shell grep -m1 'go ' go.work | cut -d' ' -f2)
+GO_VERSION=$(shell grep -m1 'go ' go.mod | awk '{split($$2,a,"."); print a[1] "." a[2]}')
 GOPATH ?= $(shell go env GOPATH)
 OS_NAME = $(shell uname)
 KUBECONFIG := $(if $(KUBECONFIG),$(KUBECONFIG),$(HOME)/.kube/config)
 
 CI_BIN_DIR=$(shell pwd)/.bin
-GO_WORKSPACES ?= $(shell go work edit -json | jq -c -r '[.Use[].DiskPath] | map_values("./" + . + "/...")[]')
 DOCKER_IMAGES = log-collector
 
 #
@@ -41,7 +40,7 @@ docker-images: compile-schemas $(DOCKER_IMAGES)
 log-collector: compile-schemas
 	@echo Building log-collector image
 	docker build \
-		--file services/log-collector/cmd/logcollector/docker/Dockerfile \
+		--file services/logcollector/cmd/docker/Dockerfile \
 		--build-arg GO_VERSION=$(GO_VERSION) \
 		--tag $(MLRUN_DOCKER_IMAGE_PREFIX)/log-collector:$(MLRUN_DOCKER_TAG) \
 		.
@@ -80,11 +79,11 @@ compile-schemas-go:
 #
 .PHONY: test-unit-local
 test-unit-local: compile-schemas-local
-	go test -v -race -tags=test_unit -short $(GO_WORKSPACES)
+	go test -v -race -tags=test_unit -short ./...
 
 .PHONY: test-integration-local
 test-integration-local: compile-schemas-local
-	go test -v -p 1 -race -tags=test_integration $(GO_WORKSPACES)
+	go test -v -p 1 -race -tags=test_integration ./...
 
 .PHONY: test-unit-dockerized
 test-unit-dockerized: schemas-compiler
@@ -111,17 +110,23 @@ test-integration-dockerized: schemas-compiler
 # Misc
 #
 .PHONY: fmt
-fmt: ensure-golangci
+fmt: ensure-golangci compile-schemas-go
 	@echo Formatting...
 	gofmt -s -w .
-	$(CI_BIN_DIR)/golangci-lint run --fix -- $(GO_WORKSPACES)
+	$(CI_BIN_DIR)/golangci-lint run --fix ./...
 	@echo Done.
 
 .PHONY: lint
 lint: ensure-golangci compile-schemas-go ensure-test-files-annotated
 	@echo Linting...
-	$(CI_BIN_DIR)/golangci-lint run --verbose -- $(GO_WORKSPACES)
+	$(CI_BIN_DIR)/golangci-lint run --verbose ./...
 	@echo Done.
+
+.PHONY: security
+security: compile-schemas-go
+	@echo Running security checks...
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
 
 .PHONY: ensure-test-files-annotated
 ensure-test-files-annotated:
@@ -135,7 +140,18 @@ ensure-test-files-annotated:
 	@echo "All go test files have //go:build test_X annotation"
 	@exit $(.SHELLSTATUS)
 
+GOLANGCI_LINT_VERSION := v1.64.6
+GOLANGCI_LINT_BIN := $(CI_BIN_DIR)/golangci-lint
+
 .PHONY: ensure-golangci
 ensure-golangci:
-	@test -e $(CI_BIN_DIR)/golangci-lint || \
-		(curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(CI_BIN_DIR) v1.55.2)
+	@if ! command -v $(GOLANGCI_LINT_BIN) >/dev/null 2>&1; then \
+		echo "golangci-lint not found. Installing..."; \
+		GOBIN=$(CI_BIN_DIR) go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
+	else \
+		installed_version=$$($(GOLANGCI_LINT_BIN) version | awk '/version/ {print $$4}'); \
+		if [ "$$installed_version" != "$(GOLANGCI_LINT_VERSION)" ]; then \
+			echo "golangci-lint version mismatch ($$installed_version != $(GOLANGCI_LINT_VERSION)). Reinstalling..."; \
+			GOBIN=$(CI_BIN_DIR) go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
+		fi \
+	fi

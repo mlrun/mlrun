@@ -190,7 +190,7 @@ def predictions_df() -> pd.DataFrame:
         index="time",
         columns=[
             "time",
-            "count(latency)",
+            "sum(estimated_prediction_count)",
         ],
     )
 
@@ -273,7 +273,7 @@ def test_read_predictions() -> None:
             str(err.value)
             == "both or neither of `aggregation_window` and `agg_funcs` must be provided"
         )
-    predictions_args["agg_funcs"] = ["count"]
+    predictions_args["agg_funcs"] = ["sum"]
     result = tsdb_connector.read_predictions(**predictions_args)
     assert result.full_name == "fictitious-one.mlrun-infra.metric.invocations"
     assert result.values == [

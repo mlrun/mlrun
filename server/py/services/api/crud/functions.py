@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import datetime
 from typing import Optional, Union
@@ -99,6 +98,7 @@ class Functions(
         tag: Optional[str] = None,
         kind: Optional[str] = None,
         labels: Optional[list[str]] = None,
+        states: Optional[list[str]] = None,
         hash_key: Optional[str] = None,
         offset: Optional[int] = None,
         limit: Optional[int] = None,
@@ -116,6 +116,7 @@ class Functions(
             tag=tag,
             kind=kind,
             labels=labels,
+            states=states or None,
             hash_key=hash_key,
             format_=format_,
             since=since,

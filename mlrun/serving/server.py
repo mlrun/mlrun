@@ -44,6 +44,8 @@ from ..utils import get_caller_globals
 from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
 from .utils import event_id_key, event_path_key
 
+DUMMY_STREAM = "dummy://"
+
 
 class _StreamContext:
     """Handles the stream context for the events stream process. Includes the configuration for the output stream
@@ -63,7 +65,7 @@ class _StreamContext:
         self.hostname = socket.gethostname()
         self.function_uri = function_uri
         self.output_stream = None
-        self.stream_uri = None
+        stream_uri = None
         log_stream = parameters.get(FileTargetKind.LOG_STREAM, "")
 
         if (enabled or log_stream) and function_uri:
@@ -72,15 +74,23 @@ class _StreamContext:
                 function_uri, config.default_project
             )
 
-            self.stream_uri = mlrun.model_monitoring.get_stream_path(project=project)
+            stream_args = parameters.get("stream_args", {})
+
+            if log_stream == DUMMY_STREAM:
+                # Dummy stream used for testing, see tests/serving/test_serving.py
+                stream_uri = DUMMY_STREAM
+            elif not stream_args.get("mock"):  # if not a mock: `context.is_mock = True`
+                stream_uri = mlrun.model_monitoring.get_stream_path(project=project)
 
             if log_stream:
                 # Update the stream path to the log stream value
-                self.stream_uri = log_stream.format(project=project)
-
-            stream_args = parameters.get("stream_args", {})
-
-            self.output_stream = get_stream_pusher(self.stream_uri, **stream_args)
+                stream_uri = log_stream.format(project=project)
+                self.output_stream = get_stream_pusher(stream_uri, **stream_args)
+            else:
+                # Get the output stream from the profile
+                self.output_stream = mlrun.model_monitoring.helpers.get_output_stream(
+                    project=project, mock=stream_args.get("mock", False)
+                )
 
 
 class GraphServer(ModelObj):
@@ -104,6 +114,7 @@ class GraphServer(ModelObj):
         function_name=None,
         function_tag=None,
         project=None,
+        model_endpoint_creation_task_name=None,
     ):
         self._graph = None
         self.graph: Union[RouterStep, RootFlowStep] = graph
@@ -129,6 +140,7 @@ class GraphServer(ModelObj):
         self.function_name = function_name
         self.function_tag = function_tag
         self.project = project
+        self.model_endpoint_creation_task_name = model_endpoint_creation_task_name
 
     def set_current_function(self, function):
         """set which child function this server is currently running on"""
@@ -324,6 +336,7 @@ def v2_serving_init(context, namespace=None):
     context.logger.info("Initializing server from spec")
     spec = mlrun.utils.get_serving_spec()
     server = GraphServer.from_dict(spec)
+
     if config.log_level.lower() == "debug":
         server.verbose = True
     if hasattr(context, "trigger"):
@@ -367,7 +380,9 @@ def _set_callbacks(server, context):
 
         async def termination_callback():
             context.logger.info("Termination callback called")
-            server.wait_for_completion()
+            maybe_coroutine = server.wait_for_completion()
+            if asyncio.iscoroutine(maybe_coroutine):
+                await maybe_coroutine
             context.logger.info("Termination of async flow is completed")
 
         context.platform.set_termination_callback(termination_callback)
@@ -379,7 +394,9 @@ def _set_callbacks(server, context):
 
         async def drain_callback():
             context.logger.info("Drain callback called")
-            server.wait_for_completion()
+            maybe_coroutine = server.wait_for_completion()
+            if asyncio.iscoroutine(maybe_coroutine):
+                await maybe_coroutine
             context.logger.info(
                 "Termination of async flow is completed. Rerunning async flow."
             )
@@ -532,10 +549,18 @@ class GraphContext:
         self.get_store_resource = None
         self.get_table = None
         self.is_mock = False
+        self.monitoring_mock = False
+        self._project_obj = None
 
     @property
     def server(self):
         return self._server
+
+    @property
+    def project_obj(self):
+        if not self._project_obj:
+            self._project_obj = mlrun.get_run_db().get_project(name=self.project)
+        return self._project_obj
 
     @property
     def project(self) -> str:

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import typing
 
@@ -33,6 +32,7 @@ class FeatureSetFormat(ObjectFormat, mlrun.common.types.StrEnum):
                     "metadata.name",
                     "metadata.project",
                     "metadata.tag",
+                    "metadata.updated",
                     "metadata.uid",
                     "metadata.labels",
                     "spec.entities",

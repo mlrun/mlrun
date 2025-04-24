@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import os
 from typing import Optional
@@ -23,12 +22,12 @@ import mlrun.utils.helpers
 import mlrun_pipelines.common.ops
 from mlrun.config import config
 from mlrun.utils import get_in, logger
+from mlrun_pipelines.common.constants import PipelineRunType
 from mlrun_pipelines.common.helpers import (
     FUNCTION_ANNOTATION,
     PROJECT_ANNOTATION,
     RUN_ANNOTATION,
 )
-from mlrun_pipelines.common.ops import PipelineRunType
 from mlrun_pipelines.imports import dsl
 from mlrun_pipelines.imports import kubernetes as kfp_k8s
 
@@ -84,7 +83,8 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
 
 
 def add_default_function_resources(
-    task: dsl.PipelineTask,
+    task,
+    function: dsl.PipelineTask,
 ) -> dsl.PipelineTask:
     __set_task_requests = {
         "cpu": task.set_cpu_request,
@@ -104,6 +104,7 @@ def add_default_function_resources(
         if resource_value:
             __set_task_limits[resource_name](resource_value)
 
+    mlrun_pipelines.common.ops._enrich_gpu_limits(function=function, task=task)
     return task
 
 
@@ -305,7 +306,7 @@ def generate_pipeline_node(
     task = container_component()
     task.set_display_name(name)
 
-    add_default_function_resources(task)
+    add_default_function_resources(task, function)
     add_function_node_selection_attributes(function, task)
     add_annotations(task, PipelineRunType.run, function, func_url, project_name)
     add_labels(task, function, scrape_metrics)

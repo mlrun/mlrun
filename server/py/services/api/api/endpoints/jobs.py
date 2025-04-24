@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import typing
 from http import HTTPStatus
 
@@ -34,7 +34,7 @@ router = fastapi.APIRouter(prefix="/projects/{project}/jobs")
     deprecated=True,
     description="/projects/{project}/jobs/model-monitoring-controller "
     "is deprecated in 1.7.0 and will be removed in 1.9.0, "
-    "use /projects/{project}/model-monitoring/enable-model-monitoring instead",
+    "use PUT /projects/{project}/model-monitoring/ instead",
 )
 async def create_model_monitoring_controller(
     project: str,

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import tempfile
 import unittest.mock
 import uuid
@@ -252,30 +252,45 @@ def test_delete_artifacts_after_storing_empty_dict(db: Session, client: TestClie
 
 
 @pytest.mark.parametrize(
-    "deletion_strategy, expected_status_code",
+    "deletion_strategy, expected_status_code, expected_status_code_for_getting_artifact",
     [
         (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_optional,
             HTTPStatus.NO_CONTENT.value,
+            # Artifact does not exist in DB after deleting data fails
+            HTTPStatus.NOT_FOUND.value,
         ),
         (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force,
             HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            # Artifact exists in DB after deleting data fails
+            HTTPStatus.OK.value,
         ),
     ],
 )
-def test_fails_deleting_artifact_data(
-    deletion_strategy, expected_status_code, db: Session, unversioned_client: TestClient
+def test_delete_artifact_data_failure(
+    deletion_strategy,
+    expected_status_code,
+    expected_status_code_for_getting_artifact,
+    unversioned_client: TestClient,
 ):
     # This test attempts to delete the artifact data, but fails - the request should
     # be failed or succeeded by the deletion strategy.
     _create_project(unversioned_client)
-    artifact = mlrun.artifacts.Artifact(key=KEY, body="123", target_path="dummy-path")
 
+    # Generate artifact
+    artifact_data = _generate_artifact_body()
     resp = unversioned_client.post(
-        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
-        data=artifact.to_json(),
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
     )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_response = resp.json()
+    artifact_uid = artifact_response["metadata"]["uid"]
+
+    # Check if the artifact is created successfully
+    artifact_url = _get_artifact_url(uid=artifact_uid)
+    resp = unversioned_client.get(artifact_url)
     assert resp.status_code == HTTPStatus.OK.value
 
     url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
@@ -289,6 +304,10 @@ def test_fails_deleting_artifact_data(
             url_with_deletion_strategy.format(deletion_strategy=deletion_strategy)
         )
     assert resp.status_code == expected_status_code
+
+    # Verify artifact exists in DB based on the deletion strategy
+    resp = unversioned_client.get(artifact_url)
+    assert resp.status_code == expected_status_code_for_getting_artifact
 
 
 def test_delete_artifact_data_default_deletion_strategy(
@@ -401,6 +420,45 @@ def test_deleting_dataset_artifact_data_includes_one_file(
             )
         )
     assert resp.status_code == HTTPStatus.NO_CONTENT.value
+
+
+def test_delete_artifact_includes_multiple_results(
+    db: Session, unversioned_client: TestClient
+):
+    _create_project(unversioned_client)
+
+    # Create the first artifact (tree1)
+    artifact_data = _generate_artifact_body(tree="tree1")
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_response = resp.json()
+    artifact1_uid = artifact_response["metadata"]["uid"]
+
+    # Create the second artifact (tree2)
+    artifact_data = _generate_artifact_body(tree="tree2")
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_response = resp.json()
+    artifact2_uid = artifact_response["metadata"]["uid"]
+
+    assert artifact1_uid != artifact2_uid
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+    resp = unversioned_client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # Attempt to delete the artifact
+    response = unversioned_client.delete(
+        DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+    )
+    assert response.status_code == HTTPStatus.BAD_REQUEST.value
+    assert "Failed to delete artifact, multiple artifacts matching" in response.text
 
 
 def test_list_artifacts(db: Session, client: TestClient) -> None:
@@ -684,6 +742,53 @@ def test_get_artifact_validate_tag_exists_in_the_response(
     assert resp.status_code == HTTPStatus.OK.value
     artifact = resp.json()
     assert artifact["metadata"].get("tag") is None
+
+
+def test_server_handles_artifact_uri_with_uid_for_older_clients(
+    db: Session,
+    unversioned_client: TestClient,
+) -> None:
+    """
+    Test that the server handles artifact URIs with the `^uid` notation correctly,
+    including scenarios with matching UIDs, mismatching UIDs, and missing explicit UIDs.
+    """
+    _create_project(unversioned_client)
+
+    # Generate and store artifact data with a tree value
+    tree = "tree"
+    artifact_data = _generate_artifact_body(tree=tree)
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact = resp.json()
+    artifact_uid = artifact["metadata"]["uid"]
+
+    # Add `^uid` to the `tree` in the artifact URI to simulate the new URI format
+    tree_with_uid = f"{artifact['metadata']['tree']}^{artifact_uid}"
+
+    # Validate server behavior when using the new `tree^uid` format
+    url = _get_artifact_url(uid=artifact_uid, tree=tree_with_uid)
+    resp = unversioned_client.get(url)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+
+    # Ensure the server correctly parses the tree and uid
+    assert artifact["metadata"]["tree"] == tree
+    assert artifact["metadata"]["uid"] == artifact_uid
+
+    # Test with mismatched UID in the `tree`
+    tree_with_mismatched_uid = f"{artifact['metadata']['tree']}^{artifact_uid}123"
+    url = _get_artifact_url(uid=artifact_uid, tree=tree_with_mismatched_uid)
+    resp = unversioned_client.get(url)
+    assert resp.status_code == HTTPStatus.OK.value
+    assert artifact["metadata"]["uid"] == artifact_uid
+
+    # Test without providing the explicit object UID in the request
+    url = _get_artifact_url(tree=tree_with_mismatched_uid)
+    resp = unversioned_client.get(url)
+    assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
 
 def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
@@ -1167,6 +1272,63 @@ def test_list_artifacts_partition_by(db: Session, unversioned_client: TestClient
     )
 
 
+def test_failed_to_delete_artifact_with_referenced_model_endpoint(
+    db: Session, unversioned_client: TestClient
+):
+    # Create a new project
+    _create_project(unversioned_client, project_name=PROJECT)
+
+    # Create and store a model artifact
+    # Generate artifact
+    artifact_data = _generate_artifact_body()
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_response = resp.json()
+    artifact_uid = artifact_response["metadata"]["uid"]
+
+    # Check if the artifact is created successfully
+    artifact_url = _get_artifact_url(uid=artifact_uid)
+    resp = unversioned_client.get(artifact_url)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # Create a model endpoint that references the model artifact
+    model_endpoint = mlrun.common.schemas.ModelEndpoint(
+        metadata=mlrun.common.schemas.ModelEndpointMetadata(
+            project=PROJECT,
+            name="model-endpoint",
+        ),
+        spec=mlrun.common.schemas.ModelEndpointSpec(
+            model_class="model_class",
+            _model_id=1,
+        ),
+        status=mlrun.common.schemas.ModelEndpointStatus(state="ready"),
+    )
+
+    creation_strategy = mlrun.common.schemas.ModelEndpointCreationStrategy.INPLACE
+    response = unversioned_client.post(
+        f"/projects/{PROJECT}/model-endpoints?creation_strategy={creation_strategy}",
+        json=model_endpoint.dict(),
+    )
+    assert (
+        response.status_code == HTTPStatus.CREATED.value
+    ), f"Expected 201 CREATED when creating the model endpoint, got {response.status_code}: {response.text}"
+
+    # Attempt to delete the model artifact that is still referenced by the model endpoint
+    response = unversioned_client.delete(
+        DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+    )
+    # Assert that the deletion fails with a conflict because of the reference
+    assert (
+        response.status_code == HTTPStatus.CONFLICT.value
+    ), f"Expected 409 CONFLICT when deleting an artifact in use, got {response.status_code}: {response.text}"
+    assert (
+        "The artifact is used by" in response.text
+    ), f"Expected conflict explanation in response, got: {response.text}"
+
+
 def _create_project(
     client: TestClient, project_name: str = PROJECT, prefix: Optional[str] = None
 ):
@@ -1219,7 +1381,9 @@ def _generate_artifact_body(
     return data
 
 
-def _get_artifact_url(uid: Optional[str] = None, tag: Optional[str] = None) -> str:
+def _get_artifact_url(
+    uid: Optional[str] = None, tag: Optional[str] = None, tree: Optional[str] = None
+) -> str:
     url = GET_API_ARTIFACT_V2_PATH.format(project=PROJECT, key=KEY)
     params = []
 
@@ -1227,6 +1391,8 @@ def _get_artifact_url(uid: Optional[str] = None, tag: Optional[str] = None) -> s
         params.append(f"object-uid={uid}")
     if tag:
         params.append(f"tag={tag}")
+    if tree:
+        params.append(f"tree={tree}")
 
     return f"{url}?{'&'.join(params)}" if params else url
 

@@ -12,23 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
 import datetime
-import os
 import typing
-
-import storey
 
 import mlrun
 import mlrun.common.model_monitoring.helpers
-import mlrun.config
-import mlrun.datastore.targets
 import mlrun.feature_store as fstore
 import mlrun.feature_store.steps
-import mlrun.model_monitoring.db
 import mlrun.serving.states
 import mlrun.utils
 from mlrun.common.schemas.model_monitoring.constants import (
+    ControllerEvent,
+    ControllerEventKind,
     EndpointType,
     EventFieldType,
     FileTargetKind,
@@ -66,14 +61,11 @@ class EventStreamProcessor:
             parquet_batching_max_events=self.parquet_batching_max_events,
         )
 
-        self.storage_options = None
         self.tsdb_configurations = {}
         if not mlrun.mlconf.is_ce_mode():
             self._initialize_v3io_configurations(
                 model_monitoring_access_key=model_monitoring_access_key
             )
-        elif self.parquet_path.startswith("s3://"):
-            self.storage_options = mlrun.mlconf.get_s3_storage_options()
 
     def _initialize_v3io_configurations(
         self,
@@ -88,14 +80,11 @@ class EventStreamProcessor:
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
         self.v3io_api = v3io_api or mlrun.mlconf.v3io_api
 
-        self.v3io_access_key = v3io_access_key or os.environ.get("V3IO_ACCESS_KEY")
+        self.v3io_access_key = v3io_access_key or mlrun.mlconf.get_v3io_access_key()
         self.model_monitoring_access_key = (
             model_monitoring_access_key
-            or os.environ.get(ProjectSecretKeys.ACCESS_KEY)
+            or mlrun.get_secret_or_env(ProjectSecretKeys.ACCESS_KEY)
             or self.v3io_access_key
-        )
-        self.storage_options = dict(
-            v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
         )
 
         # TSDB path and configurations
@@ -118,6 +107,7 @@ class EventStreamProcessor:
         self,
         fn: mlrun.runtimes.ServingRuntime,
         tsdb_connector: TSDBConnector,
+        controller_stream_uri: str,
     ) -> None:
         """
         Apply monitoring serving graph to a given serving function. The following serving graph includes about 4 main
@@ -146,11 +136,13 @@ class EventStreamProcessor:
 
         :param fn: A serving function.
         :param tsdb_connector: Time series database connector.
+        :param controller_stream_uri: The controller stream URI. Runs on server api pod so needed to be provided as
+        input
         """
 
         graph = typing.cast(
             mlrun.serving.states.RootFlowStep,
-            fn.set_topology(mlrun.serving.states.StepKinds.flow),
+            fn.set_topology(mlrun.serving.states.StepKinds.flow, engine="async"),
         )
 
         # split the graph between event with error vs valid event
@@ -209,6 +201,20 @@ class EventStreamProcessor:
             )
 
         apply_map_feature_names()
+        # split the graph between event with error vs valid event
+        graph.add_step(
+            "storey.Filter",
+            "FilterNOP",
+            after="MapFeatureNames",
+            _fn="(event.get('kind', " ") != 'nop_event')",
+        )
+        graph.add_step(
+            "storey.Filter",
+            "ForwardNOP",
+            after="MapFeatureNames",
+            _fn="(event.get('kind', " ") == 'nop_event')",
+        )
+
         tsdb_connector.apply_monitoring_stream_steps(
             graph=graph,
             aggregate_windows=self.aggregate_windows,
@@ -221,7 +227,7 @@ class EventStreamProcessor:
             graph.add_step(
                 "ProcessBeforeParquet",
                 name="ProcessBeforeParquet",
-                after="MapFeatureNames",
+                after="FilterNOP",
                 _fn="(event)",
             )
 
@@ -230,12 +236,12 @@ class EventStreamProcessor:
         # Write the Parquet target file, partitioned by key (endpoint_id) and time.
         def apply_parquet_target():
             graph.add_step(
-                "storey.ParquetTarget",
+                "mlrun.datastore.storeytargets.ParquetStoreyTarget",
+                alternative_v3io_access_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                 name="ParquetTarget",
                 after="ProcessBeforeParquet",
                 graph_shape="cylinder",
                 path=self.parquet_path,
-                storage_options=self.storage_options,
                 max_events=self.parquet_batching_max_events,
                 flush_after_seconds=self.parquet_batching_timeout_secs,
                 attributes={"infer_columns_from_data": True},
@@ -247,6 +253,21 @@ class EventStreamProcessor:
             )
 
         apply_parquet_target()
+
+        # controller branch
+        def apply_push_controller_stream(stream_uri: str):
+            graph.add_step(
+                ">>",
+                "controller_stream",
+                path=stream_uri,
+                sharding_func=ControllerEvent.ENDPOINT_ID,
+                after="ForwardNOP",
+                # Force using the pipeline key instead of the one in the profile in case of v3io profile.
+                # In case of Kafka, this parameter will be ignored.
+                alternative_v3io_access_key="V3IO_ACCESS_KEY",
+            )
+
+        apply_push_controller_stream(controller_stream_uri)
 
 
 class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
@@ -313,14 +334,17 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         self.first_request: dict[str, str] = dict()
         self.last_request: dict[str, str] = dict()
 
-        # Number of errors (value) per endpoint (key)
-        self.error_count: dict[str, int] = collections.defaultdict(int)
-
         # Set of endpoints in the current events
         self.endpoints: set[str] = set()
 
     def do(self, full_event):
         event = full_event.body
+        if event.get(ControllerEvent.KIND, "") == ControllerEventKind.NOP_EVENT:
+            logger.debug(
+                "Skipped nop event inside of ProcessEndpointEvent", event=event
+            )
+            full_event.body = [event]
+            return full_event
         # Getting model version and function uri from event
         # and use them for retrieving the endpoint_id
         function_uri = full_event.body.get(EventFieldType.FUNCTION_URI)
@@ -331,16 +355,12 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         if not is_not_none(model, [EventFieldType.MODEL]):
             return None
 
-        version = full_event.body.get(EventFieldType.VERSION)
-        versioned_model = f"{model}:{version}" if version else f"{model}:latest"
-
-        full_event.body[EventFieldType.VERSIONED_MODEL] = versioned_model
         endpoint_id = event[EventFieldType.ENDPOINT_ID]
 
         # In case this process fails, resume state from existing record
         self.resume_state(
-            endpoint_id,
-            full_event.body.get(EventFieldType.MODEL),
+            endpoint_id=endpoint_id,
+            endpoint_name=full_event.body.get(EventFieldType.MODEL),
         )
 
         # Validate event fields
@@ -354,10 +374,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         predictions = event.get("resp", {}).get("outputs")
 
         if not self.is_valid(
-            endpoint_id,
-            is_not_none,
-            timestamp,
-            ["when"],
+            validation_function=is_not_none,
+            field=timestamp,
+            dict_path=["when"],
         ):
             return None
 
@@ -365,40 +384,33 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             # Set time for the first request of the current endpoint
             self.first_request[endpoint_id] = timestamp
 
-        # Set time for the last reqeust of the current endpoint
-        self.last_request[endpoint_id] = timestamp
-
         if not self.is_valid(
-            endpoint_id,
-            is_not_none,
-            request_id,
-            ["request", "id"],
+            validation_function=is_not_none,
+            field=request_id,
+            dict_path=["request", "id"],
         ):
             return None
         if not self.is_valid(
-            endpoint_id,
-            is_not_none,
-            latency,
-            ["microsec"],
+            validation_function=is_not_none,
+            field=latency,
+            dict_path=["microsec"],
         ):
             return None
         if not self.is_valid(
-            endpoint_id,
-            is_not_none,
-            features,
-            ["request", "inputs"],
+            validation_function=is_not_none,
+            field=features,
+            dict_path=["request", "inputs"],
         ):
             return None
         if not self.is_valid(
-            endpoint_id,
-            is_not_none,
-            predictions,
-            ["resp", "outputs"],
+            validation_function=is_not_none,
+            field=predictions,
+            dict_path=["resp", "outputs"],
         ):
             return None
 
         # Convert timestamp to a datetime object
-        timestamp = datetime.datetime.fromisoformat(timestamp)
+        timestamp_obj = datetime.datetime.fromisoformat(timestamp)
 
         # Separate each model invocation into sub events that will be stored as dictionary
         # in list of events. This list will be used as the body for the storey event.
@@ -430,36 +442,41 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             if not isinstance(feature, list):
                 feature = [feature]
 
+            effective_sample_count, estimated_prediction_count = (
+                self._get_effective_and_estimated_counts(event=event)
+            )
+
             events.append(
                 {
                     EventFieldType.FUNCTION_URI: function_uri,
-                    EventFieldType.MODEL: versioned_model,
                     EventFieldType.ENDPOINT_NAME: event.get(EventFieldType.MODEL),
                     EventFieldType.MODEL_CLASS: model_class,
-                    EventFieldType.TIMESTAMP: timestamp,
+                    EventFieldType.TIMESTAMP: timestamp_obj,
                     EventFieldType.ENDPOINT_ID: endpoint_id,
                     EventFieldType.REQUEST_ID: request_id,
                     EventFieldType.LATENCY: latency,
                     EventFieldType.FEATURES: feature,
                     EventFieldType.PREDICTION: prediction,
                     EventFieldType.FIRST_REQUEST: self.first_request[endpoint_id],
-                    EventFieldType.LAST_REQUEST: self.last_request[endpoint_id],
+                    EventFieldType.LAST_REQUEST: timestamp,
                     EventFieldType.LAST_REQUEST_TIMESTAMP: mlrun.utils.enrich_datetime_with_tz_info(
-                        self.last_request[endpoint_id]
+                        timestamp
                     ).timestamp(),
-                    EventFieldType.ERROR_COUNT: self.error_count[endpoint_id],
                     EventFieldType.LABELS: event.get(EventFieldType.LABELS, {}),
                     EventFieldType.METRICS: event.get(EventFieldType.METRICS, {}),
                     EventFieldType.ENTITIES: event.get("request", {}).get(
                         EventFieldType.ENTITIES, {}
                     ),
+                    EventFieldType.EFFECTIVE_SAMPLE_COUNT: effective_sample_count,
+                    EventFieldType.ESTIMATED_PREDICTION_COUNT: estimated_prediction_count,
                 }
             )
 
         # Create a storey event object with list of events, based on endpoint_id which will be used
         # in the upcoming steps
-        storey_event = storey.Event(body=events, key=endpoint_id)
-        return storey_event
+        full_event.key = endpoint_id
+        full_event.body = events
+        return full_event
 
     def resume_state(self, endpoint_id, endpoint_name):
         # Make sure process is resumable, if process fails for any reason, be able to pick things up close to where we
@@ -472,40 +489,45 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                     project=self.project,
                     endpoint_id=endpoint_id,
                     name=endpoint_name,
+                    tsdb_metrics=False,
                 )
                 .flat_dict()
             )
 
-            # If model endpoint found, get first_request, last_request and error_count values
+            # If model endpoint found, get first_request & last_request values
             if endpoint_record:
                 first_request = endpoint_record.get(EventFieldType.FIRST_REQUEST)
 
                 if first_request:
                     self.first_request[endpoint_id] = first_request
 
-                last_request = endpoint_record.get(EventFieldType.LAST_REQUEST)
-                if last_request:
-                    self.last_request[endpoint_id] = last_request
-
-                error_count = endpoint_record.get(EventFieldType.ERROR_COUNT)
-
-                if error_count:
-                    self.error_count[endpoint_id] = int(error_count)
-
             # add endpoint to endpoints set
             self.endpoints.add(endpoint_id)
 
     def is_valid(
         self,
-        endpoint_id: str,
         validation_function,
         field: typing.Any,
         dict_path: list[str],
     ):
         if validation_function(field, dict_path):
             return True
-        self.error_count[endpoint_id] += 1
+
         return False
+
+    @staticmethod
+    def _get_effective_and_estimated_counts(event):
+        """
+        Calculate the `effective_sample_count` and the `estimated_prediction_count` based on the event's
+        sampling percentage. These values will be stored in the TSDB target.
+        Note that In non-batch serving, the `effective_sample_count` is always set to 1. In addition, when the sampling
+        percentage is 100%, the `estimated_prediction_count` is equal to the `effective_sample_count`.
+        """
+        effective_sample_count = event.get(EventFieldType.EFFECTIVE_SAMPLE_COUNT, 1)
+        estimated_prediction_count = effective_sample_count * (
+            100 / event.get(EventFieldType.SAMPLING_PERCENTAGE, 100)
+        )
+        return effective_sample_count, estimated_prediction_count
 
 
 def is_not_none(field: typing.Any, dict_path: list[str]):
@@ -569,6 +591,8 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
         return None
 
     def do(self, event: dict):
+        if event.get(ControllerEvent.KIND, "") == ControllerEventKind.NOP_EVENT:
+            return event
         endpoint_id = event[EventFieldType.ENDPOINT_ID]
 
         feature_values = event[EventFieldType.FEATURES]
@@ -589,6 +613,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     project=self.project,
                     endpoint_id=endpoint_id,
                     name=event[EventFieldType.ENDPOINT_NAME],
+                    tsdb_metrics=False,
                 )
                 .flat_dict()
             )
@@ -662,6 +687,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     project=self.project,
                     endpoint_id=endpoint_id,
                     name=event[EventFieldType.ENDPOINT_NAME],
+                    tsdb_metrics=False,
                 )
                 .flat_dict()
             )
@@ -672,6 +698,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     )
                 )
             self.first_request[endpoint_id] = True
+
         if attributes_to_update:
             logger.info(
                 "Updating endpoint record",
@@ -730,6 +757,8 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
         """
         event[mapping_dictionary] = {}
+        diff = len(named_iters) - len(values_iters)
+        values_iters += [None] * diff
         for name, value in zip(named_iters, values_iters):
             event[name] = value
             event[mapping_dictionary][name] = value

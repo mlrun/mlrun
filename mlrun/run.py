@@ -36,9 +36,9 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
+import mlrun_pipelines.utils
 from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
-from mlrun_pipelines.utils import get_client
 
 from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
@@ -437,7 +437,7 @@ def new_function(
     mode: Optional[str] = None,
     handler: Optional[str] = None,
     source: Optional[str] = None,
-    requirements: Optional[Union[str, list[str]]] = None,
+    requirements: Optional[list[str]] = None,
     kfp: Optional[bool] = None,
     requirements_file: str = "",
 ):
@@ -637,7 +637,7 @@ def code_to_function(
     - databricks: run code on Databricks cluster (python scripts, Spark etc.)
     - application: run a long living application (e.g. a web server, UI, etc.)
 
-    Learn more about [Kinds of function (runtimes)](../concepts/functions-overview.html).
+    Learn more about :doc:`../../concepts/functions-overview`
 
     :param name:         function name, typically best to use hyphen-case
     :param project:      project used to namespace the function, defaults to 'default'
@@ -911,7 +911,7 @@ def _run_pipeline(
 
 def retry_pipeline(
     run_id: str,
-    project: Optional[str] = None,
+    project: str,
     namespace: Optional[str] = None,
 ) -> str:
     """Retry a pipeline run.
@@ -920,7 +920,7 @@ def retry_pipeline(
     retryable state, a new run is created as a clone of the original run.
 
     :param run_id: ID of the pipeline run to retry.
-    :param project: Optional; name of the project associated with the pipeline run.
+    :param project: name of the project associated with the pipeline run.
     :param namespace: Optional; Kubernetes namespace to use if not the default.
 
     :returns: ID of the retried pipeline run or the ID of a cloned run if the original run is not retryable.
@@ -1015,7 +1015,7 @@ def wait_for_pipeline_completion(
             _wait_for_pipeline_completion,
         )
     else:
-        client = get_client(namespace=namespace)
+        client = mlrun_pipelines.utils.get_client(namespace=namespace)
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
@@ -1076,7 +1076,7 @@ def get_pipeline(
         )
 
     else:
-        client = get_client(namespace=namespace)
+        client = mlrun_pipelines.utils.get_client(namespace=namespace)
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()

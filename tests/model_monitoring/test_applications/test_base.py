@@ -12,12 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
+from contextlib import nullcontext as does_not_raise
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Optional, Union
+from unittest.mock import Mock, patch
+
+import pandas as pd
 import pytest
 
 import mlrun
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,
+    ModelMonitoringApplicationMetric,
     ModelMonitoringApplicationResult,
     MonitoringApplicationContext,
 )
@@ -33,7 +43,8 @@ class InProgressApp0(ModelMonitoringApplicationBase):
         self, monitoring_context: MonitoringApplicationContext
     ) -> ModelMonitoringApplicationResult:
         monitoring_context.logger.info(
-            "This test app is failing on purpose - ignore the failure!"
+            "This test app is failing on purpose - ignore the failure!",
+            project=monitoring_context.project_name,
         )
         raise ValueError
 
@@ -42,12 +53,41 @@ class InProgressApp1(ModelMonitoringApplicationBase):
     def do_tracking(
         self, monitoring_context: MonitoringApplicationContext
     ) -> ModelMonitoringApplicationResult:
-        monitoring_context.logger.info("It should work now")
+        monitoring_context.logger.info(
+            "It should work now",
+            project=monitoring_context.project_name,
+        )
         return ModelMonitoringApplicationResult(
             name="res0",
             value=0,
             status=ResultStatusApp.irrelevant,
             kind=ResultKindApp.mm_app_anomaly,
+        )
+
+
+class ModelEndpointAccessApp(ModelMonitoringApplicationBase):
+    def do_tracking(self, monitoring_context: MonitoringApplicationContext) -> None:
+        monitoring_context.logger.info(
+            "Accessing the model endpoint",
+            project=monitoring_context.project_name,
+        )
+        model_endpoint = monitoring_context.model_endpoint
+        monitoring_context.logger.info(
+            "Model endpoint labels",
+            labels=model_endpoint.metadata.labels,
+        )
+
+
+class SampleDFAccessApp(ModelMonitoringApplicationBase):
+    def do_tracking(self, monitoring_context: MonitoringApplicationContext) -> None:
+        monitoring_context.logger.info(
+            "Accessing the model endpoint's sample data",
+            project=monitoring_context.project_name,
+        )
+        sample_df = monitoring_context.sample_df
+        monitoring_context.logger.info(
+            "Read the sample data",
+            sample_df=sample_df,
         )
 
 
@@ -57,10 +97,12 @@ def test_no_deprecation_instantiation() -> None:
 
 
 class TestEvaluate:
-    @classmethod
+    @staticmethod
     @pytest.fixture(autouse=True)
-    def _set_project(cls) -> None:
-        mlrun.get_or_create_project("test")
+    def _set_project() -> Iterator[None]:
+        project = mlrun.get_or_create_project("test")
+        with patch("mlrun.db.nopdb.NopDB.get_project", Mock(return_value=project)):
+            yield
 
     @staticmethod
     def test_local_no_params() -> None:
@@ -69,3 +111,264 @@ class TestEvaluate:
         assert run.state() == "created"  # Should be "error", see ML-8507
         run = InProgressApp1.evaluate(func_path=__file__, func_name=func_name)
         assert run.state() == "completed"
+        assert run.status.results == {
+            "return": {
+                "result_name": "res0",
+                "result_value": 0.0,
+                "result_kind": 4,
+                "result_status": -1,
+                "result_extra_data": "{}",
+            }
+        }, "The run results are different than expected"
+
+    @staticmethod
+    def test_model_endpoint_blocked(capsys: pytest.CaptureFixture) -> None:
+        """Test that the logs contain the error message about the blocked model endpoint access"""
+        run = ModelEndpointAccessApp.evaluate(func_path=__file__)
+        assert run.state() == "created"  # Should be "error", see ML-8507
+        captured = capsys.readouterr()
+        assert (
+            "mlrun.errors.MLRunValueError: You have NOT provided the model endpoint's name and ID: "
+            "`endpoint_name`=None and `endpoint_id`=None, "
+            "but you have tried to access `monitoring_context.model_endpoint`"
+            in captured.out
+        ), "The error message is different than expected or was not captured"
+
+    @staticmethod
+    def test_invalid_sample_df_access(capsys: pytest.CaptureFixture) -> None:
+        """Test that the logs contain the error message about sample data access"""
+        run = SampleDFAccessApp.evaluate(func_path=__file__)
+        assert run.state() == "created"  # Should be "error", see ML-8507
+        captured = capsys.readouterr()
+        assert (
+            "You have tried to access `monitoring_context.sample_df`, but have not provided it directly"
+            in captured.out
+        ), "The error message is different than expected or was not captured"
+
+    @staticmethod
+    def test_valid_sample_df_access(
+        tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        project = mlrun.get_or_create_project(
+            "local-test-sample-df", context=str(tmp_path)
+        )
+        project.artifact_path = str(tmp_path)
+        sample_df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+        ds_artifact = project.log_dataset("sample-df", df=sample_df)
+        job = SampleDFAccessApp.to_job(func_path=__file__)
+        run = job.run(local=True, inputs={"sample_data": ds_artifact.target_path})
+        assert run.state() == "completed"
+        captured = capsys.readouterr()
+        assert (
+            "You have tried to access `monitoring_context.sample_df`, but have not provided it directly"
+            not in captured.out
+        ), "The captured error was not expected"
+
+        assert (
+            "Read the sample data" in captured.out
+        ), "The expected log message was not found in the captured output"
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "base_period", "expectation"),
+    [
+        (None, None, None, does_not_raise()),
+        (
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
+            None,
+            does_not_raise(),
+        ),
+        (
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
+            0,
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="`base_period` must be a nonnegative integer .*",
+            ),
+        ),
+    ],
+)
+def test_window_generator_validation(
+    start: Optional[str],
+    end: Optional[str],
+    base_period: Optional[int],
+    expectation: AbstractContextManager,
+) -> None:
+    with expectation:
+        next(ModelMonitoringApplicationBase._window_generator(start, end, base_period))
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "base_period", "expected_windows"),
+    [
+        (
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            None,
+            [
+                (
+                    datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
+                    datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+                ),
+            ],
+        ),
+        (
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            600,
+            [
+                (
+                    datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
+                    datetime(2008, 9, 1, 20, 2, 1, tzinfo=timezone.utc),
+                ),
+                (
+                    datetime(2008, 9, 1, 20, 2, 1, tzinfo=timezone.utc),
+                    datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
+                ),
+                (
+                    datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
+                    datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+                ),
+            ],
+        ),
+        (
+            datetime(2024, 12, 26, 14, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 12, 26, 14, 4, 0, tzinfo=timezone.utc),
+            1,
+            [
+                (
+                    datetime(2024, 12, 26, 14, 0, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 1, 0, tzinfo=timezone.utc),
+                ),
+                (
+                    datetime(2024, 12, 26, 14, 1, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 2, 0, tzinfo=timezone.utc),
+                ),
+                (
+                    datetime(2024, 12, 26, 14, 2, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 3, 0, tzinfo=timezone.utc),
+                ),
+                (
+                    datetime(2024, 12, 26, 14, 3, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 4, 0, tzinfo=timezone.utc),
+                ),
+            ],
+        ),
+    ],
+)
+def test_windows(
+    start: datetime,
+    end: datetime,
+    base_period: Optional[int],
+    expected_windows: list[tuple[datetime, datetime]],
+) -> None:
+    assert (
+        list(
+            ModelMonitoringApplicationBase._window_generator(
+                start=start.isoformat(), end=end.isoformat(), base_period=base_period
+            )
+        )
+        == expected_windows
+    ), "The generated windows are different than expected"
+
+
+def test_job_handler() -> None:
+    assert (
+        ModelMonitoringApplicationBase.get_job_handler(
+            "package.subpackage.module.AppClass"
+        )
+        == "package.subpackage.module.AppClass::_handler"
+    )
+
+
+@pytest.mark.parametrize(
+    ("result", "expected_flattened_result"),
+    [
+        (
+            ModelMonitoringApplicationMetric(name="m1", value=98),
+            {"metric_name": "m1", "metric_value": 98},
+        ),
+        (
+            [
+                ModelMonitoringApplicationMetric(name="m0", value=-2),
+                ModelMonitoringApplicationResult(
+                    name="r0",
+                    value=0,
+                    status=ResultStatusApp.no_detection,
+                    kind=ResultKindApp.mm_app_anomaly,
+                ),
+            ],
+            [
+                {"metric_name": "m0", "metric_value": -2},
+                {
+                    "result_name": "r0",
+                    "result_value": 0,
+                    "result_status": 0,
+                    "result_kind": 4,
+                    "result_extra_data": "{}",
+                },
+            ],
+        ),
+    ],
+)
+def test_flatten_data_result(
+    result: Union[
+        ModelMonitoringApplicationMetric,
+        ModelMonitoringApplicationResult,
+        list[Union[ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult]],
+    ],
+    expected_flattened_result: Union[dict, list[dict]],
+) -> None:
+    assert (
+        ModelMonitoringApplicationBase._flatten_data_result(result)
+        == expected_flattened_result
+    ), "The flattened result is different than expected"
+
+
+class TestToJob:
+    @staticmethod
+    @pytest.fixture
+    def project(tmpdir: Path) -> mlrun.projects.MlrunProject:
+        return mlrun.get_or_create_project("test-to-job", context=str(tmpdir))
+
+    @staticmethod
+    @pytest.fixture
+    def _set_project(project: mlrun.projects.MlrunProject) -> Iterator[None]:
+        with patch("mlrun.db.nopdb.NopDB.get_project", Mock(return_value=project)):
+            yield
+
+    @staticmethod
+    def test_base_is_blocked(project: mlrun.projects.MlrunProject) -> None:
+        with pytest.raises(
+            ValueError,
+            match="You must provide a handler to the model monitoring application class",
+        ):
+            ModelMonitoringApplicationBase.to_job(project=project)
+
+    @staticmethod
+    @pytest.mark.usefixtures("_set_project")
+    def test_with_class_handler(project: mlrun.projects.MlrunProject) -> None:
+        job = ModelMonitoringApplicationBase.to_job(
+            func_path=__file__,
+            class_handler="NoOpApp",
+            project=project,
+        )
+        assert isinstance(job, mlrun.runtimes.KubejobRuntime)
+        run = job.run(local=True)
+        assert run.state() == "completed"
+
+
+@pytest.mark.parametrize(
+    "endpoints", ["model-ep-1", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]
+)
+def test_handle_endpoints_type_evaluate(
+    rundb_mock, endpoints: Union[str, list[str], list[tuple]]
+) -> None:
+    project = "test-endpoints-handler"
+    endpoints_output = ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
+        project, endpoints
+    )
+
+    assert endpoints_output == [("model-ep-1", "model-ep-1-uid")]

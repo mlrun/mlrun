@@ -134,7 +134,7 @@ class SecretsStore:
     def k8s_env_variable_name_for_secret(secret_name):
         from mlrun.config import config
 
-        return config.secret_stores.kubernetes.env_variable_prefix + secret_name.upper()
+        return config.secret_stores.kubernetes.env_variable_prefix + secret_name
 
     def get_k8s_secrets(self):
         for source in self._hidden_sources:
@@ -151,7 +151,7 @@ def get_secret_or_env(
     secret_provider: Union[dict, SecretsStore, Callable, None] = None,
     default: Optional[str] = None,
     prefix: Optional[str] = None,
-) -> str:
+) -> Optional[str]:
     """Retrieve value of a secret, either from a user-provided secret store, or from environment variables.
     The function will retrieve a secret value, attempting to find it according to the following order:
 

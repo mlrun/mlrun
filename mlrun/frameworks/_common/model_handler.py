@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import importlib.util
 import json
 import os
@@ -976,7 +976,6 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
             custom_objects_map_json,
             local_path=custom_objects_map_json,
             artifact_path=self._context.artifact_path,
-            db_key=False,
         )
 
         # Zip the custom objects directory:
@@ -997,7 +996,6 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
             custom_objects_zip,
             local_path=custom_objects_zip,
             artifact_path=self._context.artifact_path,
-            db_key=False,
         )
 
         return artifacts

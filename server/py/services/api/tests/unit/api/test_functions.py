@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import http
 import unittest.mock
@@ -279,12 +279,58 @@ async def test_list_functions_with_hash_key_versioned(
     assert list_functions_results[0]["metadata"]["hash"] == hash_key
 
 
+@pytest.mark.asyncio
+async def test_list_functions_filter_by_states(db, async_client):
+    await services.api.tests.unit.api.utils.create_project_async(async_client, PROJECT)
+
+    function_name = "function-name"
+    function = {
+        "kind": "job",
+        "metadata": {
+            "name": function_name,
+            "project": PROJECT,
+            "tag": "latest",
+        },
+        "spec": {"image": "mlrun/mlrun"},
+        "status": {"state": mlrun.common.schemas.FunctionState.ready},
+    }
+
+    post_function_response = await async_client.post(
+        f"projects/{PROJECT}/functions/{function_name}",
+        json=function,
+    )
+
+    assert post_function_response.status_code == HTTPStatus.OK.value
+
+    response = await async_client.get(
+        f"projects/{PROJECT}/functions?state={mlrun.common.schemas.FunctionState.ready}&state={mlrun.common.schemas.FunctionState.error}",
+    )
+
+    assert response.status_code == HTTPStatus.OK.value
+    assert len(response.json()["funcs"]) == 1
+
+    # list with default param value
+    response = await async_client.get(
+        f"projects/{PROJECT}/functions",
+    )
+
+    assert response.status_code == HTTPStatus.OK.value
+    assert len(response.json()["funcs"]) == 1
+
+    response = await async_client.get(
+        f"projects/{PROJECT}/functions?state={mlrun.common.schemas.FunctionState.error}",
+    )
+
+    assert response.status_code == HTTPStatus.OK.value
+    assert len(response.json()["funcs"]) == 0
+
+
 @pytest.mark.parametrize(
-    "post_schedule, kind",
+    "kind",
     [
-        (True, "job"),
-        (False, "job"),
-        (False, "remote"),
+        "job",
+        "job",
+        "remote",
     ],
 )
 @pytest.mark.parametrize(
@@ -300,7 +346,6 @@ def test_delete_function(
     patched_delete_nuclio_function,
     db: sqlalchemy.orm.Session,
     unversioned_client: fastapi.testclient.TestClient,
-    post_schedule,
     kind,
     function_deletion_endpoint_prefix,
     expected_status,
@@ -334,40 +379,6 @@ def test_delete_function(
     assert function.status_code == HTTPStatus.OK.value
     hash_key = function.json()["hash_key"]
 
-    endpoint = f"projects/{PROJECT}/schedules"
-    if post_schedule:
-        # generate schedule object that matches to the function and create it
-        scheduled_object = {
-            "task": {
-                "spec": {
-                    "function": f"{PROJECT}/{function_name}@{hash_key}",
-                    "handler": "handler",
-                },
-                "metadata": {"name": "my-task", "project": f"{PROJECT}"},
-            }
-        }
-        schedule_cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(minute=1)
-
-        schedule = mlrun.common.schemas.ScheduleInput(
-            name=function_name,
-            kind=mlrun.common.schemas.ScheduleKinds.job,
-            scheduled_object=scheduled_object,
-            cron_trigger=schedule_cron_trigger,
-        )
-
-        endpoint = f"projects/{PROJECT}/schedules"
-        response = unversioned_client.post(
-            f"{endpoint_prefix}{endpoint}",
-            data=mlrun.utils.dict_to_json(schedule.dict()),
-        )
-        assert response.status_code == HTTPStatus.CREATED.value
-
-        response = unversioned_client.get(f"{endpoint_prefix}{endpoint}")
-        assert (
-            response.status_code == HTTPStatus.OK.value
-            and response.json()["schedules"][0]["name"] == function_name
-        )
-
     # delete the function and assert that it has been removed, as has its schedule if created
     response = unversioned_client.delete(
         f"{function_deletion_endpoint_prefix}{function_endpoint}"
@@ -378,13 +389,6 @@ def test_delete_function(
         f"{endpoint_prefix}{function_endpoint}", params={"hash_key": hash_key}
     )
     assert response.status_code == HTTPStatus.NOT_FOUND.value
-
-    if post_schedule:
-        response = unversioned_client.get(f"{endpoint_prefix}{endpoint}")
-        assert (
-            response.status_code == HTTPStatus.OK.value
-            and not response.json()["schedules"]
-        )
 
 
 @pytest.mark.asyncio

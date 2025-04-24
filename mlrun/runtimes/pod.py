@@ -214,9 +214,7 @@ class KubeResourceSpec(FunctionSpec):
         # default service account is set in mlrun.utils.process_function_service_account
         # due to project specific defaults
         self.service_account = service_account
-        self.image_pull_secret = (
-            image_pull_secret or mlrun.mlconf.function.spec.image_pull_secret.default
-        )
+        self.image_pull_secret = image_pull_secret
         self.node_name = node_name
         self.node_selector = node_selector or {}
         self._affinity = affinity
@@ -294,7 +292,6 @@ class KubeResourceSpec(FunctionSpec):
     @preemption_mode.setter
     def preemption_mode(self, mode):
         self._preemption_mode = mode or mlconf.function_defaults.preemption_mode
-        self.enrich_function_preemption_spec()
 
     @property
     def security_context(self) -> k8s_client.V1SecurityContext:
@@ -1474,15 +1471,13 @@ class KubeResource(BaseRuntime):
                 f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
             )
         if watch and not ready:
-            state = self._build_watch(
+            self.status.state = self._build_watch(
                 watch=watch,
                 show_on_failure=show_on_failure,
             )
-            ready = state == "ready"
-            self.status.state = state
-
-        if watch and not ready:
-            raise mlrun.errors.MLRunRuntimeError("Deploy failed")
+            ready = self.status.state == "ready"
+            if not ready:
+                raise mlrun.errors.MLRunRuntimeError("Deploy failed")
         return ready
 
     def _build_watch(
@@ -1650,6 +1645,10 @@ def get_sanitized_attribute(spec, attribute_name: str):
         if _resolve_if_type_sanitized(attribute_name, attribute[0]):
             return attribute
 
+    return sanitize_attribute(attribute)
+
+
+def sanitize_attribute(attribute):
     api = k8s_client.ApiClient()
     return api.sanitize_for_serialization(attribute)
 

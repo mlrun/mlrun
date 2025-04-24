@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import base64
 import json
 import os
@@ -238,7 +238,9 @@ def test_build_runtime_target_image(monkeypatch):
     assert target_image == function.spec.build.image
 
 
-def test_build_runtime_use_default_node_selector(monkeypatch):
+def test_build_runtime_use_default_node_selector_and_sets_gpu_limits_to_zero(
+    monkeypatch,
+):
     _patch_k8s_helper(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
     node_selector = {
@@ -256,6 +258,9 @@ def test_build_runtime_use_default_node_selector(monkeypatch):
         kind=RuntimeKinds.job,
         requirements=["some-package"],
     )
+    gpu_type = "nvidia.com/gpu"
+    function.with_limits(gpus=1, gpu_type=gpu_type)
+
     func_node_selector, func_val = "label-3", "val3"
     function.spec.node_selector = {func_node_selector: func_val}
 
@@ -263,9 +268,11 @@ def test_build_runtime_use_default_node_selector(monkeypatch):
         mlrun.common.schemas.AuthInfo(),
         function,
     )
+    kaniko_pod_spec_mock = _create_pod_mock_pod_spec()
+    assert kaniko_pod_spec_mock.containers[0].resources["limits"][gpu_type] == 0
     assert (
         deepdiff.DeepDiff(
-            _create_pod_mock_pod_spec().node_selector,
+            kaniko_pod_spec_mock.node_selector,
             {**node_selector, func_node_selector: func_val},
             ignore_order=True,
         )
@@ -594,15 +601,9 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
         for volume in pod_spec.volumes
         if volume.secret
     ]
-    aws_mount = {
-        "mount_path": "/tmp/aws",
-        "mount_propagation": None,
-        "name": "aws-secret",
-        "read_only": None,
-        "sub_path": None,
-        "sub_path_expr": None,
-    }
-    assert aws_mount in [
+    aws_mount = client.V1VolumeMount(name="aws-secret", mount_path="/tmp/aws")
+    assert len(pod_spec.containers[0].volume_mounts) > 0
+    assert aws_mount.to_dict() in [
         volume_mount.to_dict() for volume_mount in pod_spec.containers[0].volume_mounts
     ]
 
@@ -616,7 +617,7 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
     ]
     for init_container in pod_spec.init_containers:
         if init_container.name == "create-repos":
-            assert aws_mount in [
+            assert aws_mount.to_dict() in [
                 volume_mount.to_dict() for volume_mount in init_container.volume_mounts
             ]
             assert aws_creds_location_env in [
@@ -866,7 +867,7 @@ def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
                 expected_output_re = re.compile(
                     rf"COPY {expected_source} /home/mlrun_code/source"
                 )
-                expected_line_index = 3
+                expected_line_index = 2
 
             else:
                 expected_output_re = re.compile(

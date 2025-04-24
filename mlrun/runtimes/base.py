@@ -16,7 +16,6 @@ import http
 import re
 import typing
 import warnings
-from base64 import b64encode
 from os import environ
 from typing import Callable, Optional, Union
 
@@ -34,6 +33,14 @@ import mlrun.launcher.factory
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
+from mlrun.model import (
+    BaseMetadata,
+    HyperParamOptions,
+    ImageBuilder,
+    ModelObj,
+    RunObject,
+    RunTemplate,
+)
 from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 from mlrun_pipelines.common.ops import mlrun_op
 
@@ -41,7 +48,6 @@ from ..config import config
 from ..datastore import store_manager
 from ..errors import err_to_str
 from ..lists import RunList
-from ..model import BaseMetadata, HyperParamOptions, ImageBuilder, ModelObj, RunObject
 from ..utils import (
     dict_to_json,
     dict_to_yaml,
@@ -339,6 +345,7 @@ class BaseRuntime(ModelObj):
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
+        output_path: Optional[str] = "",
         **launcher_kwargs,
     ) -> RunObject:
         """
@@ -352,9 +359,9 @@ class BaseRuntime(ModelObj):
         :param inputs:         Input objects to pass to the handler. Type hints can be given so the input will be parsed
                                during runtime from `mlrun.DataItem` to the given type hint. The type hint can be given
                                in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
-        :param out_path:       Default artifact output path.
-        :param artifact_path:  Default artifact output path (will replace out_path).
-        :param workdir:        Default input artifacts path.
+        :param out_path:       (deprecated) Default artifact output path.
+        :param artifact_path:  (deprecated) Default artifact output path (will replace out_path).
+        :param workdir:        Working directory of the executed job and the default path for artifact inputs
         :param watch:          Watch/follow run log.
         :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string
                                (which will be converted to the class using its `from_crontab` constructor),
@@ -396,8 +403,18 @@ class BaseRuntime(ModelObj):
         :param reset_on_run: When True, function python modules would reload prior to code execution.
                              This ensures latest code changes are executed. This argument must be used in
                              conjunction with the local=True argument.
+        :param output_path:    Default artifact output path.
         :return: Run context object (RunObject) with run metadata, results and status
         """
+        if artifact_path or out_path:
+            deprecated_param = "artifact_path" if artifact_path else "out_path"
+            warnings.warn(
+                f"'{deprecated_param}' parameter is deprecated in 1.10.0 and will be removed in 1.12.0, "
+                "use 'output_path' instead.",
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
+            )
+        output_path = output_path or out_path or artifact_path
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
             self._is_remote, local=local, **launcher_kwargs
         )
@@ -409,9 +426,8 @@ class BaseRuntime(ModelObj):
             project=project,
             params=params,
             inputs=inputs,
-            out_path=out_path,
             workdir=workdir,
-            artifact_path=artifact_path,
+            output_path=output_path,
             watch=watch,
             schedule=schedule,
             hyperparams=hyperparams,
@@ -669,7 +685,7 @@ class BaseRuntime(ModelObj):
 
     def as_step(
         self,
-        runspec: RunObject = None,
+        runspec: Union[RunObject, RunTemplate] = None,
         handler=None,
         name: str = "",
         project: str = "",
@@ -705,7 +721,7 @@ class BaseRuntime(ModelObj):
                                 given in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
         :param outputs:         list of outputs which can pass in the workflow
         :param artifact_path:   default artifact output path (replace out_path)
-        :param workdir:         default input artifacts path
+        :param workdir:         working directory of the executed job and the default path for artifact inputs
         :param image:           container image to use
         :param labels:          labels to tag the job/run with ({key:val, ..})
         :param use_db:          save function spec in the db (vs the workflow file)
@@ -795,9 +811,7 @@ class BaseRuntime(ModelObj):
                     mlrun.runtimes.nuclio.serving.serving_subkind
                 )
 
-        self.spec.build.functionSourceCode = b64encode(body.encode("utf-8")).decode(
-            "utf-8"
-        )
+        self.spec.build.functionSourceCode = mlrun.utils.helpers.encode_user_code(body)
         if with_doc:
             update_function_entry_points(self, body)
         return self
@@ -855,7 +869,7 @@ class BaseRuntime(ModelObj):
 
     def requires_build(self) -> bool:
         build = self.spec.build
-        return (
+        return bool(
             build.commands
             or build.requirements
             or (build.source and not build.load_source_on_run)

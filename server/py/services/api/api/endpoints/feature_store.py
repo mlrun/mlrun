@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 from http import HTTPStatus
 from typing import Optional
@@ -26,7 +26,7 @@ import mlrun.errors
 import mlrun.feature_store
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import get_default_prefix_for_target
-from mlrun.feature_store.api import RunConfig, ingest
+from mlrun.feature_store.api import RunConfig, _ingest
 from mlrun.model import DataSource, DataTargetBase
 from mlrun.runtimes.mounts import v3io_cred
 
@@ -461,7 +461,7 @@ async def ingest_feature_set(
     infer_options = ingest_parameters.infer_options or InferOptions.default()
 
     run_params = await run_in_threadpool(
-        ingest,
+        _ingest,
         feature_set,
         data_source,
         data_targets,

@@ -11,11 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import json
 import os
 import pathlib
+import random
+import string
 import typing
 
 import dateutil.parser
@@ -27,6 +29,7 @@ import mlrun.artifacts
 import mlrun.artifacts.base
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.utils.regex
 from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
 from mlrun.errors import MLRunPreconditionFailedError, err_to_str
@@ -40,7 +43,7 @@ import framework.constants
 import framework.db.sqldb.db
 import framework.db.sqldb.models
 import framework.utils.db.mysql
-import services.api.crud.pagination_cache
+import framework.utils.pagination_cache
 import services.api.utils.db.alembic
 import services.api.utils.db.backup
 import services.api.utils.scheduler
@@ -100,21 +103,25 @@ def init_data(
     logger.info("Creating initial data")
     config.httpdb.state = mlrun.common.schemas.APIStates.migrations_in_progress
 
-    if is_migration_from_scratch or is_migration_needed:
-        try:
-            _perform_schema_migrations(alembic_util)
-            init_db()
-            db_session = create_session()
+    db_session = create_session()
+    try:
+        if is_migration_from_scratch or is_migration_needed:
             try:
+                _perform_schema_migrations(alembic_util)
+                init_db()
                 _add_initial_data(db_session)
                 _perform_data_migrations(db_session)
-            finally:
-                close_session(db_session)
-        except Exception:
-            state = mlrun.common.schemas.APIStates.migrations_failed
-            logger.warning("Migrations failed, changing API state", state=state)
-            config.httpdb.state = state
-            raise
+            except Exception:
+                state = mlrun.common.schemas.APIStates.migrations_failed
+                logger.warning("Migrations failed, changing API state", state=state)
+                config.httpdb.state = state
+                raise
+
+        # initialize system id
+        _init_system_id(db_session)
+    finally:
+        close_session(db_session)
+
     # if the above process actually ran a migration - initializations that were skipped on the API initialization
     # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
     # therefore moving to migration_completed state, and other component will take care of moving to online
@@ -126,7 +133,7 @@ def init_data(
     if not from_scratch:
         # Cleanup pagination cache on api startup
         session = create_session()
-        services.api.crud.pagination_cache.PaginationCache().cleanup_pagination_cache(
+        framework.utils.pagination_cache.PaginationCache().cleanup_pagination_cache(
             session
         )
         session.commit()
@@ -877,30 +884,37 @@ def _perform_version_8_data_migrations(
 def _perform_version_9_data_migrations(
     db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    _ensure_function_kind(db, db_session)
+    _ensure_function_kind_and_state(db, db_session)
     _add_producer_uri_to_artifact(db, db_session)
+    _ensure_latest_tag_for_artifacts(db_session)
 
 
-def _ensure_function_kind(
+def _ensure_function_kind_and_state(
     db: framework.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
     chunk_size: int = 500,
 ):
-    def handle_function_kind(record):
+    def handle_function_kind_and_state(record):
         function_dict = record.struct
-        record.kind = function_dict.pop("kind", "")
+        # Since we filter by no kind or no state, check which attribute is the one missing or both are
+        if not record.kind:
+            record.kind = function_dict.pop("kind", "")
+        if not record.state:
+            record.state = function_dict.get("status", {}).pop("state", "")
         record.struct = function_dict
         return record
 
-    def filter_function_kind():
-        return getattr(framework.db.sqldb.models.Function, "kind").is_(None)
+    def filter_function_kind_or_state():
+        return getattr(framework.db.sqldb.models.Function, "kind").is_(None) | getattr(
+            framework.db.sqldb.models.Function, "state"
+        ).is_(None)
 
     _migrate_data(
         db,
         db_session,
         model=framework.db.sqldb.models.Function,
-        filter_func=filter_function_kind,
-        handle_field_record_func=handle_function_kind,
+        filter_func=filter_function_kind_or_state,
+        handle_field_record_func=handle_function_kind_and_state,
         chunk_size=chunk_size,
     )
 
@@ -908,8 +922,10 @@ def _ensure_function_kind(
 def _add_producer_uri_to_artifact(
     db: framework.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
-    chunk_size: int = 500,
+    chunk_size: typing.Optional[int] = None,
 ):
+    chunk_size = chunk_size or config.artifacts.artifact_migration_v9_batch_size
+
     def handle_artifact_producer_uri(record):
         record.producer_uri = (
             record.full_object.get("spec", {}).get("producer", {}).get("uri", "")
@@ -974,6 +990,176 @@ def _migrate_data(
             break
 
 
+def _ensure_latest_tag_for_artifacts(
+    db_session: sqlalchemy.orm.Session, chunk_size: typing.Optional[int] = None
+):
+    chunk_size = chunk_size or config.artifacts.artifact_migration_v9_batch_size
+
+    # Note: when logging the same artifact and spawning tags in version < 1.8  and then migrating to 1.8,
+    # two artifacts should remain at the end
+
+    # Step 1: Get the latest artifact row for each combination of project, key, and iteration
+    subquery = db_session.query(
+        framework.db.sqldb.models.ArtifactV2.id,
+        framework.db.sqldb.models.ArtifactV2.key,
+        framework.db.sqldb.models.ArtifactV2.project,
+        framework.db.sqldb.models.ArtifactV2.iteration,
+        sqlalchemy.func.row_number()
+        .over(
+            partition_by=[
+                framework.db.sqldb.models.ArtifactV2.project,
+                framework.db.sqldb.models.ArtifactV2.key,
+                framework.db.sqldb.models.ArtifactV2.iteration,
+            ],
+            order_by=framework.db.sqldb.models.ArtifactV2.updated.desc(),
+        )
+        .label("row_number"),
+    ).subquery()
+
+    # Step 2: Get only the latest row for each combination of project, key, and iteration
+    subquery_filtered = (
+        db_session.query(
+            subquery.c.id,
+            subquery.c.key,
+            subquery.c.project,
+            subquery.c.iteration,
+        )
+        .filter(subquery.c.row_number == 1)  # Get only the latest for each combination
+        .subquery()
+    )
+
+    # Step 3: Query to join with Tag table
+    query = db_session.query(
+        subquery_filtered.c.id,
+        subquery_filtered.c.key,
+        subquery_filtered.c.project,
+        subquery_filtered.c.iteration,
+    ).outerjoin(
+        framework.db.sqldb.models.ArtifactV2.Tag,
+        framework.db.sqldb.models.ArtifactV2.Tag.obj_id == subquery_filtered.c.id,
+    )
+
+    # Step 4: Collect project+key pairs for iteration 0 and >0
+    latest_with_iter_0 = query.filter(
+        framework.db.sqldb.models.ArtifactV2.Tag.name == "latest",
+        subquery_filtered.c.iteration == 0,
+    )
+    latest_with_iter_gt_0 = query.filter(
+        framework.db.sqldb.models.ArtifactV2.Tag.name == "latest",
+        subquery_filtered.c.iteration > 0,
+    )
+
+    # Collecting the two sets of (project, key) tuples
+    project_key_iter_0 = set(
+        latest_with_iter_0.with_entities(
+            subquery_filtered.c.project, subquery_filtered.c.key
+        )
+        .distinct()
+        .all()
+    )
+
+    project_key_iter_gt_0 = set(
+        latest_with_iter_gt_0.with_entities(
+            subquery_filtered.c.project, subquery_filtered.c.key
+        )
+        .distinct()
+        .all()
+    )
+
+    # Create an alias for the Tag table for the NOT EXISTS condition
+    tag_alias = sqlalchemy.orm.aliased(framework.db.sqldb.models.ArtifactV2.Tag)
+
+    # Step 5: Collect all artifacts that need to be tagged, filter out artifacts that already have the "latest" tag
+    query = query.filter(
+        ~sqlalchemy.exists().where(
+            sqlalchemy.and_(
+                tag_alias.obj_id == subquery_filtered.c.id, tag_alias.name == "latest"
+            )
+        )
+    ).distinct()
+
+    processed_artifacts = set()
+
+    while True:
+        # Filter artifacts that have already been processed, as there are artifacts that were processed but not tagged.
+        artifacts_to_tag = (
+            query.filter(~subquery_filtered.c.id.in_(processed_artifacts))
+            .limit(chunk_size)
+            .all()
+        )
+
+        if not artifacts_to_tag:
+            logger.info(
+                "No artifacts without 'latest' were found",
+                model=framework.db.sqldb.models.ArtifactV2.Tag,
+            )
+            break
+
+        logger.info(
+            "Starting artifacts without 'latest' tag migration",
+            model=framework.db.sqldb.models.ArtifactV2.Tag,
+            count=len(artifacts_to_tag),
+        )
+
+        new_tags = []
+        for artifact_id, key, project, iteration in artifacts_to_tag:
+            new_tag = _tag_artifact(
+                artifact_id,
+                key,
+                project,
+                iteration,
+                project_key_iter_0,
+                project_key_iter_gt_0,
+            )
+
+            if new_tag:
+                new_tags.append(new_tag)
+
+            processed_artifacts.add(artifact_id)
+
+        if new_tags:
+            logger.info(
+                "Committing migrated records",
+                model=framework.db.sqldb.models.ArtifactV2.Tag,
+                count=len(new_tags),
+            )
+            db_session.add_all(new_tags)
+            db_session.commit()
+
+    logger.info("No more artifacts to migrate.")
+
+
+def _tag_artifact(
+    artifact_id, key, project, iteration, project_key_iter_0, project_key_iter_gt_0
+):
+    """Tags an artifact as 'latest' depending on its iteration and project+key set."""
+
+    # Note: In cases where the same project and key were created from both a hyper-params run and a single run, and the
+    # user removed the 'latest' tag from all items, we will assign the 'latest' tag to either the hyper-params items
+    # or the single run items. This will depend on which item we encounter first when iterating over the results.
+
+    new_tag = None
+
+    if iteration == 0 and (project, key) not in project_key_iter_gt_0:
+        new_tag = framework.db.sqldb.models.ArtifactV2.Tag(
+            project=project,
+            name="latest",
+            obj_id=artifact_id,
+            obj_name=key,
+        )
+        project_key_iter_0.add((project, key))  # Add to iter=0 set
+    elif iteration > 0 and (project, key) not in project_key_iter_0:
+        new_tag = framework.db.sqldb.models.ArtifactV2.Tag(
+            project=project,
+            name="latest",
+            obj_id=artifact_id,
+            obj_name=key,
+        )
+        project_key_iter_gt_0.add((project, key))  # Add to iter>0 set
+
+    return new_tag
+
+
 def _create_project_summaries(db, db_session):
     # Create a project summary record for all projects.
     # We need to create them manually because a summary record is created only when a new
@@ -989,6 +1175,52 @@ def _create_project_summaries(db, db_session):
         for project_name in projects.projects
     ]
     db._upsert(db_session, project_summaries, ignore=True)
+
+
+def _init_system_id(db_session: sqlalchemy.orm.Session):
+    """
+    Initializes a system id for MLRun deployment.
+    The system id is first checked in the database. If it does not exist, the function checks if an id was set in the
+    config, and if neither is found, a new random one is generated and stored.
+    """
+
+    db = framework.db.sqldb.db.SQLDB()
+
+    # check if a system id already exists in the database
+    system_id = db.get_system_id(db_session)
+
+    if system_id is not None:
+        logger.debug("Existing system id found in the database", system_id=system_id)
+        mlrun.mlconf.system_id = system_id
+        return
+
+    logger.debug("System id not found in DB")
+    # check if the system id is already set in the config
+    system_id = _get_configured_system_id()
+
+    if system_id:
+        logger.debug("Using configured system id", system_id=system_id)
+    else:
+        # if no system id is found, generate a new one
+        system_id = _generate_system_id()
+    db.store_system_id(db_session, system_id)
+
+    # set the system id in mlrun config
+    mlrun.mlconf.system_id = system_id
+
+    logger.info("Initialized system ID", system_id=system_id)
+
+
+def _get_configured_system_id() -> typing.Optional[str]:
+    return mlrun.mlconf.system_id or None
+
+
+def _generate_system_id() -> str:
+    # Generate a 6-character alphanumeric ID using lowercase letters and digits only
+    valid_chars = string.ascii_lowercase + string.digits
+    system_id_len = 6
+
+    return "".join(random.choices(valid_chars, k=system_id_len))
 
 
 def main() -> None:

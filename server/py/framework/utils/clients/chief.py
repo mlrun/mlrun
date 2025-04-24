@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import contextlib
 import typing
 
@@ -245,6 +245,16 @@ class Client(
         """
         return await self._proxy_request_to_chief(
             "DELETE", f"projects/{project}/alerts/{name}", request
+        )
+
+    async def delete_alerts(
+        self, project: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        """
+        Alerts are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "DELETE", f"projects/{project}/alerts", request
         )
 
     async def reset_alert(

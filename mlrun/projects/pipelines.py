@@ -31,7 +31,7 @@ import mlrun_pipelines.patcher
 import mlrun_pipelines.utils
 from mlrun.errors import err_to_str
 from mlrun.utils import (
-    get_ui_url,
+    get_workflow_url,
     logger,
     normalize_workflow_name,
     retry_until_successful,
@@ -471,6 +471,7 @@ class _PipelineRunner(abc.ABC):
         namespace=None,
         source=None,
         notifications: typing.Optional[list[mlrun.model.Notification]] = None,
+        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
     ) -> _PipelineRunStatus:
         pass
 
@@ -522,10 +523,11 @@ class _PipelineRunner(abc.ABC):
         text = _PipelineRunner._generate_workflow_finished_message(
             run.run_id, errors_counter, run._state
         )
-
         notifiers = notifiers or project.notifiers
         if notifiers:
             notifiers.push(text, "info", runs)
+
+        project.push_pipeline_notification_kfp_runner(run.run_id, run._state, text)
 
         if raise_error:
             raise raise_error
@@ -595,6 +597,7 @@ class _KFPRunner(_PipelineRunner):
         namespace=None,
         source=None,
         notifications: typing.Optional[list[mlrun.model.Notification]] = None,
+        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -612,11 +615,21 @@ class _KFPRunner(_PipelineRunner):
                 "Notifications will only be sent if you wait for pipeline completion. "
                 "Some of the features (like setting message or severity level) are not supported."
             )
-            # for start message, fallback to old notification behavior
             for notification in notifications or []:
                 params = notification.params
                 params.update(notification.secret_params)
-                project.notifiers.add_notification(notification.kind, params)
+                project.notifiers.add_notification(
+                    notification_type=notification.kind,
+                    params=params,
+                    name=notification.name,
+                    message=notification.message,
+                    severity=notification.severity,
+                    when=notification.when,
+                    condition=notification.condition,
+                    secret_params=notification.secret_params,
+                )
+
+        project.spec.notifications = project.notifiers.server_notifications
 
         run_id = _run_pipeline(
             workflow_handler,
@@ -644,12 +657,24 @@ class _KFPRunner(_PipelineRunner):
                     func_name=func.metadata.name,
                     exc_info=err_to_str(exc),
                 )
-        project.notifiers.push_pipeline_start_message(
-            project.metadata.name,
-            project.get_param("commit_id", None),
-            run_id,
-            True,
+
+        # Pushing only relevant notification for the client (ipython and console)
+        project.notifiers.push_pipeline_start_message_from_client(
+            project.metadata.name, pipeline_id=run_id
         )
+
+        if context:
+            project.notifiers.push_pipeline_start_message(
+                project.metadata.name,
+                context.uid,
+            )
+        else:
+            project.push_pipeline_notification_kfp_runner(
+                run_id,
+                mlrun_pipelines.common.models.RunStatuses.running,
+                f"Workflow {run_id} started in project {project.metadata.name}",
+                notifications,
+            )
         pipeline_context.clear()
         return _PipelineRunStatus(run_id, cls, project=project, workflow=workflow_spec)
 
@@ -722,6 +747,7 @@ class _LocalRunner(_PipelineRunner):
         namespace=None,
         source=None,
         notifications: typing.Optional[list[mlrun.model.Notification]] = None,
+        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -743,7 +769,8 @@ class _LocalRunner(_PipelineRunner):
             project.set_source(source=source)
         pipeline_context.workflow_artifact_path = artifact_path
 
-        project.notifiers.push_pipeline_start_message(
+        # TODO: we should create endpoint for sending custom notification from BE
+        project.notifiers.push_pipeline_start_message_from_client(
             project.metadata.name, pipeline_id=workflow_id
         )
         err = None
@@ -805,6 +832,7 @@ class _RemoteRunner(_PipelineRunner):
         namespace: typing.Optional[str] = None,
         source: typing.Optional[str] = None,
         notifications: typing.Optional[list[mlrun.model.Notification]] = None,
+        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = normalize_workflow_name(name=name, project_name=project.name)
         workflow_id = None
@@ -1111,6 +1139,11 @@ def load_and_run_workflow(
         if "running" in notification.when
     ]
 
+    # Prevent redundant notifications for run completion by ensuring that notifications are only triggered when the run
+    # reaches the "running" state, as the server already handles the completion notifications.
+    for notification in start_notifications:
+        notification.when = ["running"]
+
     workflow_log_message = workflow_name or workflow_path
     context.logger.info(f"Running workflow {workflow_log_message} from remote")
     run = project.run(
@@ -1127,6 +1160,7 @@ def load_and_run_workflow(
         engine=engine,
         local=local,
         notifications=start_notifications,
+        context=context,
     )
     context.log_result(key="workflow_id", value=run.run_id)
     context.log_result(key="engine", value=run._engine.engine, commit=True)
@@ -1204,7 +1238,7 @@ def notify_scheduled_workflow_failure(
         notification_pusher = mlrun.utils.notifications.CustomNotificationPusher(
             ["slack"]
         )
-        url = get_ui_url(project_name, context_uid)
+        url = get_workflow_url(project_name, context_uid)
         link = f"<{url}|*view workflow job details*>"
         message = (
             f":x: Failed to run scheduled workflow {workflow_name} "

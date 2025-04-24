@@ -11,18 +11,34 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import os
 
+import pytest
+
 import mlrun
+from mlrun.config import config
 from mlrun.secrets import SecretsStore
+
+
+@pytest.fixture
+def reset_config():
+    # Save the original configuration value
+    original_prefix = config.secret_stores.kubernetes.env_variable_prefix
+    yield
+    # Revert the configuration after the test
+    config.secret_stores.kubernetes.env_variable_prefix = original_prefix
 
 
 def reverser(key):
     return key[::-1]
 
 
-def test_get_secret_from_env():
+def test_get_secret_from_env(reset_config):
+    # Set the prefix to "MLRUN_K8S_SECRET__" as this test validates behavior with a defined prefix,
+    # while the default configuration has been changed to empty.
+    config.secret_stores.kubernetes.env_variable_prefix = "MLRUN_K8S_SECRET__"
+
     key = "SOME_KEY"
     value = "SOME_VALUE"
     project_secret_value = "SOME_OTHER_VALUE"

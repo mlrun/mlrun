@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import os
 import typing
 from collections.abc import Iterator
@@ -97,7 +98,6 @@ class TestAppDeployment:
             "services.api.crud.Functions.get_function",
             side_effect=mlrun.errors.MLRunNotFoundError,
         ):
-            mlrun.mlconf.model_endpoint_monitoring.tsdb_connection = "v3io"
             with pytest.raises(mlrun.errors.MLRunBadRequestError):
                 monitoring_deployment.check_if_credentials_are_set()
 
@@ -124,12 +124,6 @@ class TestAppDeployment:
             )
 
             secrets = monitoring_deployment._get_monitoring_mandatory_project_secrets()
-            assert (
-                secrets[
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
-                ]
-                == "v3io"
-            )
 
             monitoring_deployment.set_credentials(
                 tsdb_connection="v3io",

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import http
 
 import deepdiff
@@ -278,7 +278,9 @@ def test_store_project_update(
     requests_mock.get(
         f"{api_url}/api/projects/{project_name}", json=mocked_project_body
     )
-    requests_mock.put(f"{api_url}/api/projects", json=verify_store_update)
+    requests_mock.put(
+        f"{api_url}/api/projects/{project_name}", json=verify_store_update
+    )
     nuclio_client.store_project(
         None,
         project_name,
@@ -332,7 +334,7 @@ def test_patch_project(
     requests_mock.get(
         f"{api_url}/api/projects/{project_name}", json=mocked_project_body
     )
-    requests_mock.put(f"{api_url}/api/projects", json=verify_patch)
+    requests_mock.put(f"{api_url}/api/projects/{project_name}", json=verify_patch)
     nuclio_client.patch_project(
         None,
         project_name,
@@ -374,7 +376,7 @@ def test_patch_project_only_labels(
     requests_mock.get(
         f"{api_url}/api/projects/{project_name}", json=mocked_project_body
     )
-    requests_mock.put(f"{api_url}/api/projects", json=verify_patch)
+    requests_mock.put(f"{api_url}/api/projects/{project_name}", json=verify_patch)
     nuclio_client.patch_project(
         None,
         project_name,

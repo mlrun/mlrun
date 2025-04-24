@@ -16,7 +16,10 @@ import enum
 import typing
 
 import mlrun.common.schemas.secret
+import mlrun.datastore.datastore_profile
 import mlrun.errors
+import mlrun.model_monitoring.helpers
+from mlrun.datastore.datastore_profile import DatastoreProfile
 
 from .base import TSDBConnector
 
@@ -27,10 +30,13 @@ class ObjectTSDBFactory(enum.Enum):
     v3io_tsdb = "v3io-tsdb"
     tdengine = "tdengine"
 
-    def to_tsdb_connector(self, project: str, **kwargs) -> TSDBConnector:
+    def to_tsdb_connector(
+        self, project: str, profile: DatastoreProfile, **kwargs
+    ) -> TSDBConnector:
         """
         Return a TSDBConnector object based on the provided enum value.
         :param project: The name of the project.
+        :param profile: Datastore profile containing DSN and credentials for TSDB connection
         :return: `TSDBConnector` object.
         """
 
@@ -49,7 +55,7 @@ class ObjectTSDBFactory(enum.Enum):
 
         from .tdengine.tdengine_connector import TDEngineConnector
 
-        return TDEngineConnector(project=project, **kwargs)
+        return TDEngineConnector(project=project, profile=profile, **kwargs)
 
     @classmethod
     def _missing_(cls, value: typing.Any):
@@ -65,41 +71,46 @@ class ObjectTSDBFactory(enum.Enum):
 def get_tsdb_connector(
     project: str,
     secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
-    tsdb_connection_string: typing.Optional[str] = None,
-    **kwargs,
+    profile: typing.Optional[mlrun.datastore.datastore_profile.DatastoreProfile] = None,
 ) -> TSDBConnector:
     """
     Get TSDB connector object.
     :param project:                 The name of the project.
     :param secret_provider:         An optional secret provider to get the connection string secret.
-    :param tsdb_connection_string:  An optional explicit connection string to the TSDB.
+    :param profile:                 An optional profile to initialize the TSDB connector from.
 
-    :return: `TSDBConnector` object. The main goal of this object is to handle different operations on the
+    :return: ``TSDBConnector`` object. The main goal of this object is to handle different operations on the
              TSDB connector such as updating drift metrics or write application record result.
-    :raise: `MLRunInvalidMMStoreTypeError` if the user didn't provide TSDB connection
-            or the provided TSDB connection is invalid.
+    :raise: ``MLRunNotFoundError`` if the user didn't set the TSDB datastore profile and didn't provide it through
+            the ``profile`` parameter.
+    :raise: ``MLRunInvalidMMStoreTypeError`` if the TSDB datastore profile is of an invalid type.
     """
-
-    tsdb_connection_string = (
-        tsdb_connection_string
-        or mlrun.model_monitoring.helpers.get_tsdb_connection_string(
-            secret_provider=secret_provider
-        )
+    profile = profile or mlrun.model_monitoring.helpers._get_tsdb_profile(
+        project=project, secret_provider=secret_provider
     )
-
-    if tsdb_connection_string and tsdb_connection_string.startswith("taosws"):
-        tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.TDEngine
-        kwargs["connection_string"] = tsdb_connection_string
-    elif tsdb_connection_string and tsdb_connection_string == "v3io":
+    kwargs = {}
+    if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.V3IO_TSDB
+    elif isinstance(
+        profile, mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
+    ):
+        tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.TDEngine
     else:
+        extra_message = (
+            ""
+            if profile
+            else " by using `project.set_model_monitoring_credentials` API"
+        )
         raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-            "You must provide a valid tsdb store connection by using "
-            "set_model_monitoring_credentials API."
+            "You must provide a valid TSDB datastore profile"
+            f"{extra_message}. "
+            f"Found an unexpected profile of class: {type(profile)}"
         )
 
     # Get connector type value from ObjectTSDBFactory enum class
     tsdb_connector_factory = ObjectTSDBFactory(tsdb_connector_type)
 
     # Convert into TSDB connector object
-    return tsdb_connector_factory.to_tsdb_connector(project=project, **kwargs)
+    return tsdb_connector_factory.to_tsdb_connector(
+        project=project, profile=profile, **kwargs
+    )

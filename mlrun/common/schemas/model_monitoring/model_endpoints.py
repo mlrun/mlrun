@@ -36,12 +36,6 @@ from .constants import (
 Model = TypeVar("Model", bound=BaseModel)
 
 
-class ModelMonitoringStoreKinds:
-    # TODO: do changes in examples & demos In 1.5.0 remove
-    ENDPOINTS = "endpoints"
-    EVENTS = "events"
-
-
 class Histogram(BaseModel):
     buckets: list[float]
     counts: list[int]
@@ -117,15 +111,19 @@ class ModelEndpointMetadata(ObjectMetadata, ModelEndpointParser):
     endpoint_type: EndpointType = EndpointType.NODE_EP
     uid: Optional[constr(regex=MODEL_ENDPOINT_ID_PATTERN)]
 
+    @classmethod
+    def mutable_fields(cls):
+        return ["labels"]
+
 
 class ModelEndpointSpec(ObjectSpec, ModelEndpointParser):
-    model_uid: Optional[str] = ""
-    model_name: Optional[str] = ""
-    model_tag: Optional[str] = ""
     model_class: Optional[str] = ""
     function_name: Optional[str] = ""
     function_tag: Optional[str] = ""
-    function_uid: Optional[str] = ""
+    model_path: Optional[str] = ""
+    model_name: Optional[str] = ""
+    model_tags: Optional[list[str]] = []
+    _model_id: Optional[int] = ""
     feature_names: Optional[list[str]] = []
     label_names: Optional[list[str]] = []
     feature_stats: Optional[dict] = {}
@@ -135,11 +133,23 @@ class ModelEndpointSpec(ObjectSpec, ModelEndpointParser):
     children_uids: Optional[list[str]] = []
     monitoring_feature_set_uri: Optional[str] = ""
 
+    @classmethod
+    def mutable_fields(cls):
+        return [
+            "model_path",
+            "model_class",
+            "feature_names",
+            "label_names",
+            "children",
+            "children_uids",
+        ]
+
 
 class ModelEndpointStatus(ObjectStatus, ModelEndpointParser):
     state: Optional[str] = "unknown"  # will be updated according to the function state
     first_request: Optional[datetime] = None
     monitoring_mode: Optional[ModelMonitoringMode] = ModelMonitoringMode.disabled
+    sampling_percentage: Optional[float] = 100
 
     # operative
     last_request: Optional[datetime] = None
@@ -151,12 +161,29 @@ class ModelEndpointStatus(ObjectStatus, ModelEndpointParser):
     drift_measures: Optional[dict] = {}
     drift_measures_timestamp: Optional[datetime] = None
 
+    @classmethod
+    def mutable_fields(cls):
+        return [
+            "monitoring_mode",
+            "first_request",
+            "last_request",
+            "sampling_percentage",
+        ]
+
 
 class ModelEndpoint(BaseModel):
     kind: ObjectKind = Field(ObjectKind.model_endpoint, const=True)
     metadata: ModelEndpointMetadata
     spec: ModelEndpointSpec
     status: ModelEndpointStatus
+
+    @classmethod
+    def mutable_fields(cls):
+        return (
+            ModelEndpointMetadata.mutable_fields()
+            + ModelEndpointSpec.mutable_fields()
+            + ModelEndpointStatus.mutable_fields()
+        )
 
     def flat_dict(self) -> dict[str, Any]:
         """Generate a flattened `ModelEndpoint` dictionary. The flattened dictionary result is important for storing
@@ -174,7 +201,6 @@ class ModelEndpoint(BaseModel):
             ModelEndpointSchema.CURRENT_STATS,
             ModelEndpointSchema.DRIFT_MEASURES,
             ModelEndpointSchema.FUNCTION_URI,
-            ModelEndpointSchema.MODEL_URI,
         }
         # Initialize a flattened dictionary that will be filled with the model endpoint dictionary attributes
         flatten_dict = {}
@@ -223,12 +249,12 @@ class ModelEndpointMonitoringMetric(BaseModel):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.full_name = _compose_full_name(
+        self.full_name = compose_full_name(
             project=self.project, app=self.app, name=self.name, type=self.type
         )
 
 
-def _compose_full_name(
+def compose_full_name(
     *,
     project: str,
     app: str,

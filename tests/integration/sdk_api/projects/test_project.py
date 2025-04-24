@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import copy
 import pathlib
 
@@ -111,7 +111,6 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
             db.store_artifact(
                 artifact_key,
                 artifact_instance,
-                "some_uid",
                 tag="some-tag",
                 project=project.metadata.name,
             )

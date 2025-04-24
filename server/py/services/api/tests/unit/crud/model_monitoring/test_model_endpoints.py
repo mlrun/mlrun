@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import pytest
 import sqlalchemy
 
@@ -28,7 +27,9 @@ def model_endpoint() -> mlrun.common.schemas.ModelEndpoint:
             project="my-proj",
             name="my-endpoint",
         ),
-        spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(),
+        spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
+            function_name="my-func", function_tag="my-tag"
+        ),
         status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(),
     )
 
@@ -37,4 +38,9 @@ def test_create_with_empty_feature_stats(
     db: sqlalchemy.orm.Session,
     model_endpoint: mlrun.common.schemas.ModelEndpoint,
 ) -> None:
-    ModelEndpoints.create_model_endpoint(db_session=db, model_endpoint=model_endpoint)
+    ModelEndpoints().create_model_endpoint(
+        db_session=db,
+        model_endpoint=model_endpoint,
+        creation_strategy="inplace",
+        delete_background_task="some_task",
+    )

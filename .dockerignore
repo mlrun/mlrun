@@ -1,24 +1,42 @@
+# Git
 .git
-.circleci
-.pytest_cache
-.github
-.import_linter_cache
-.run
-venv
-.venv
-__pycache__
-.idea
-**/.DS_Store
 .git-blame-ignore-revs
 .gitignore
+
+# Pytest
+.pytest_cache
 .hypothesis
+
+# Lint
+.import_linter_cache
 .ruff_cache
-kubeconfig
-**/env.yml
-**/patch[_\-]env.yml
-**/mlrun.env
+
+# Build
+build/
 mlrun.egg-info
 
+# CI
+.circleci
+.github
+
+# MacOS
+**/.DS_Store
+
+# PyCharm / Development
+.idea
+.run
+playground/
+
+# Virtual environment
+.venv*/
+venv*/
+
+# Byte-compiled / optimized / DLL files
+**/__pycache__/
+**/*.py[cod]
+
+# Configuration / Secret files
+kubeconfig*
 **/*.coverage
 **/.aws-secrets
 **/credentials.txt
@@ -30,7 +48,9 @@ mlrun.egg-info
 **/test-dbfs-store.yml
 **/test-redis.yml
 **/tests
-
+**/env.yml
+**/patch[_\-]env.yml
+**/mlrun.env
 **/google-big-query-credentials.json
 
 # this is just a template

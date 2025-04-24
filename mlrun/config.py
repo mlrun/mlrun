@@ -30,7 +30,6 @@ import typing
 import warnings
 from collections.abc import Mapping
 from datetime import timedelta
-from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
 
@@ -65,7 +64,7 @@ default_config = {
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
     "nuclio_version": "",
-    "default_nuclio_runtime": "python:3.9",
+    "default_nuclio_runtime": "python:3.11",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
@@ -83,8 +82,8 @@ default_config = {
     "images_to_enrich_registry": "^mlrun/*,python:3.9",
     "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
-    "kfp_image": "mlrun/mlrun",  # image to use for KFP runner (defaults to mlrun/mlrun)
-    "dask_kfp_image": "mlrun/ml-base",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
+    "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
+    "dask_kfp_image": "mlrun/ml-base",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
@@ -105,7 +104,7 @@ default_config = {
     # custom logger format, workes only with log_formatter: custom
     # Note that your custom format must include those 4 fields - timestamp, level, message and more
     "log_format_override": None,
-    "submit_timeout": "180",  # timeout when submitting a new k8s resource
+    "submit_timeout": "280",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
     "monitoring": {
@@ -160,6 +159,7 @@ default_config = {
         # migration from artifacts to artifacts_v2 is done in batches, and requires a state file to keep track of the
         # migration progress.
         "artifact_migration_batch_size": 200,
+        "artifact_migration_v9_batch_size": 30000,
         "artifact_migration_state_file_path": "./db/_artifact_migration_state.json",
         "datasets": {
             "max_preview_columns": 100,
@@ -168,6 +168,7 @@ default_config = {
             "max_chunk_size": 1024 * 1024 * 1,  # 1MB
             "max_preview_size": 1024 * 1024 * 10,  # 10MB
             "max_download_size": 1024 * 1024 * 100,  # 100MB
+            "max_deletions": 200,
         },
     },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
@@ -230,6 +231,8 @@ default_config = {
                 "abort_grace_period": "10",
                 "delete_project": "900",
                 "delete_function": "900",
+                "model_endpoint_creation": "600",
+                "model_endpoint_tsdb_leftovers": "900",
             },
             "runtimes": {"dask": "600"},
             "push_notifications": "60",
@@ -264,6 +267,7 @@ default_config = {
             # When the module is reloaded, the maximum depth recursion configuration for the recursive reload
             # function is used to prevent infinite loop
             "reload_max_recursion_depth": 100,
+            "source_code_max_bytes": 10000,
         },
         "databricks": {
             "artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"
@@ -482,6 +486,10 @@ default_config = {
             "iguazio_client_job_cache_ttl": "20 minutes",
             "nuclio_project_deletion_verification_timeout": "300 seconds",
             "nuclio_project_deletion_verification_interval": "5 seconds",
+            "summaries": {
+                # Number of days back to include when calculating the project pipeline summary.
+                "list_pipelines_time_period_in_days": 7,
+            },
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -504,7 +512,7 @@ default_config = {
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
             "kaniko_image": "gcr.io/kaniko-project/executor:v1.23.2",  # kaniko builder image
-            "kaniko_init_container_image": "alpine:3.18",
+            "kaniko_init_container_image": "alpine:3.20",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.17.16",
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
@@ -535,6 +543,8 @@ default_config = {
         },
         "pagination": {
             "default_page_size": 200,
+            "page_limit": 1000000,
+            "page_size_limit": 1000000,
             "pagination_cache": {
                 "interval": 60,
                 "ttl": 3600,
@@ -543,6 +553,10 @@ default_config = {
         },
     },
     "model_endpoint_monitoring": {
+        # Scaling Rule
+        # The fundamental scaling rule to maintain is: Shards/Partitions = Replicas * Workers
+        # In other words, the number of shards (V3IO) or partitions (Kafka) must be equal to the
+        # total number of worker processes across all pods.
         "serving_stream": {
             "v3io": {
                 "shard_count": 2,
@@ -561,16 +575,16 @@ default_config = {
         },
         "application_stream_args": {
             "v3io": {
-                "shard_count": 1,
+                "shard_count": 4,
                 "retention_period_hours": 24,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
             "kafka": {
-                "partition_count": 1,
+                "partition_count": 4,
                 "replication_factor": 1,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
@@ -592,6 +606,22 @@ default_config = {
                 "max_replicas": 1,
             },
         },
+        "controller_stream_args": {
+            "v3io": {
+                "shard_count": 10,
+                "retention_period_hours": 24,
+                "num_workers": 10,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+            "kafka": {
+                "partition_count": 10,
+                "replication_factor": 1,
+                "num_workers": 10,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+        },
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {
@@ -602,17 +632,11 @@ default_config = {
         # Offline storage path can be either relative or a full path. This path is used for general offline data
         # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
         "offline_storage_path": "model-endpoints/{kind}",
-        # Default http path that points to the monitoring stream nuclio function. Will be used as a stream path
-        # when the user is working in CE environment and has not provided any stream path.
-        "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.{namespace}.svc.cluster.local:8080",
-        "default_http_sink_app": "http://nuclio-{project}-{application_name}.{namespace}.svc.cluster.local:8080",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
-        # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
-        "tsdb_connection": "",
-        # See mlrun.common.schemas.model_monitoring.constants.StreamKind for available options
-        "stream_connection": "",
         "tdengine": {
+            "run_directly": True,
+            # timeout and retry are ignored when run_directly is set to True
             "timeout": 10,
             "retries": 1,
         },
@@ -644,7 +668,7 @@ default_config = {
             "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
             "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
-            "env_variable_prefix": "MLRUN_K8S_SECRET__",
+            "env_variable_prefix": "",
             "global_function_env_secret_name": None,
         },
     },
@@ -729,6 +753,7 @@ default_config = {
     },
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
+        "concurrent_delete_worker_count": 20,
         # Default timeout seconds for retrieving workflow id after execution
         # Remote workflow timeout is the maximum between remote and the inner engine timeout
         "timeouts": {"local": 120, "kfp": 60, "remote": 60 * 5},
@@ -797,11 +822,18 @@ default_config = {
         "mode": "enabled",
         # maximum number of alerts we allow to be configured.
         # user will get an error when exceeding this
-        "max_allowed": 10000,
+        "max_allowed": 20000,
         # maximum allowed value for count in criteria field inside AlertConfig
         "max_criteria_count": 100,
         # interval for periodic events generation job
-        "events_generation_interval": "30",
+        "events_generation_interval": 30,  # seconds
+        # number of alerts to delete in each chunk
+        "chunk_size_during_project_deletion": 100,
+        # maximum allowed alert config cache size in alert's CRUD
+        # for the best performance, it is recommended to set this value to the maximum number of alerts
+        "max_allowed_cache_size": 20000,
+        # default limit for listing alert configs
+        "default_list_alert_configs_limit": 2000,
     },
     "auth_with_client_id": {
         "enabled": False,
@@ -824,6 +856,7 @@ default_config = {
             "refresh_interval": "30",
         }
     },
+    "system_id": "",
 }
 _is_running_as_api = None
 
@@ -855,6 +888,14 @@ class Config:
         if isinstance(val, Mapping):
             return self.__class__(val)
         return val
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        # create a new Config without calling __init__ (avoid recursion)
+        result = cls.__new__(cls)
+        # manually deep-copy _cfg
+        object.__setattr__(result, "_cfg", copy.deepcopy(self._cfg, memo))
+        return result
 
     def __setattr__(self, attr, value):
         # in order for the dbpath setter to work
@@ -1004,12 +1045,9 @@ class Config:
         )
 
     def is_preemption_nodes_configured(self):
-        if (
-            not self.get_preemptible_tolerations()
-            and not self.get_preemptible_node_selector()
-        ):
-            return False
-        return True
+        return (
+            self.get_preemptible_tolerations() or self.get_preemptible_node_selector()
+        )
 
     @staticmethod
     def get_valid_function_priority_class_names():
@@ -1283,23 +1321,38 @@ class Config:
                 function_name
                 and function_name
                 != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
+                and function_name
+                != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
             ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
                     kind=kind
                     if function_name is None
-                    else f"{kind}-{function_name.lower()}",
+                    else f"{kind}-{function_name.lower()}-v1",
                 )
-            elif kind == "stream":
+            elif (
+                kind == "stream"
+                and function_name
+                != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+            ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
-                    kind=kind,
+                    kind=f"{kind}-v1",
                 )
-            else:
+            elif (
+                function_name
+                == mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+                and kind == "stream"
+            ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                     project=project,
-                    kind=kind,
+                    kind=f"{kind}-{function_name.lower()}-v1",
                 )
+
+            return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+                project=project,
+                kind=kind,
+            )
 
         # Get the current offline path from the configuration
         file_path = mlrun.mlconf.model_endpoint_monitoring.offline_storage_path.format(
@@ -1327,35 +1380,6 @@ class Config:
         return isinstance(mlrun.mlconf.ce, mlrun.config.Config) and any(
             ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
         )
-
-    def get_s3_storage_options(self) -> dict[str, typing.Any]:
-        """
-        Generate storage options dictionary as required for handling S3 path in fsspec. The model monitoring stream
-        graph uses this method for generating the storage options for S3 parquet target path.
-        :return: A storage options dictionary in which each key-value pair  represents a particular configuration,
-        such as endpoint_url or aws access key.
-        """
-        key = mlrun.get_secret_or_env("AWS_ACCESS_KEY_ID")
-        secret = mlrun.get_secret_or_env("AWS_SECRET_ACCESS_KEY")
-
-        force_non_anonymous = mlrun.get_secret_or_env("S3_NON_ANONYMOUS")
-        profile = mlrun.get_secret_or_env("AWS_PROFILE")
-
-        storage_options = dict(
-            anon=not (force_non_anonymous or (key and secret)),
-            key=key,
-            secret=secret,
-        )
-
-        endpoint_url = mlrun.get_secret_or_env("S3_ENDPOINT_URL")
-        if endpoint_url:
-            client_kwargs = {"endpoint_url": endpoint_url}
-            storage_options["client_kwargs"] = client_kwargs
-
-        if profile:
-            storage_options["profile"] = profile
-
-        return storage_options
 
     def is_explicit_ack_enabled(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
@@ -1461,17 +1485,6 @@ def _convert_resources_to_str(config: typing.Optional[dict] = None):
             if value is None:
                 continue
             resource_requirement[resource_type] = str(value)
-
-
-def _convert_str(value, typ):
-    if typ in (str, _none_type):
-        return value
-
-    if typ is bool:
-        return strtobool(value)
-
-    # e.g. int('8080') → 8080
-    return typ(value)
 
 
 def _configure_ssl_verification(verify_ssl: bool) -> None:
@@ -1581,6 +1594,15 @@ def read_env(env=None, prefix=env_prefix):
     # The default function pod resource values are of type str; however, when reading from environment variable numbers,
     # it converts them to type int if contains only number, so we want to convert them to str.
     _convert_resources_to_str(config)
+
+    # If the environment variable MLRUN_HTTPDB__HTTP__VERIFY is set, we ensure SSL verification settings take precedence
+    # by moving the 'httpdb' configuration to the beginning of the config dictionary.
+    # This ensures that SSL verification is applied before other settings.
+    if "MLRUN_HTTPDB__HTTP__VERIFY" in env:
+        httpdb = config.pop("httpdb", None)
+        if httpdb:
+            config = {"httpdb": httpdb, **config}
+
     return config
 
 

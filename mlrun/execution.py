@@ -94,6 +94,8 @@ class MLClientCtx:
         self._labels = {}
         self._annotations = {}
         self._node_selector = {}
+        self._tolerations = {}
+        self._affinity = {}
 
         self._function = ""
         self._parameters = {}
@@ -228,9 +230,24 @@ class MLClientCtx:
         return deepcopy(self._node_selector)
 
     @property
+    def tolerations(self):
+        """Dictionary with tolerations (read-only)"""
+        return deepcopy(self._tolerations)
+
+    @property
+    def affinity(self):
+        """Dictionary with affinities (read-only)"""
+        return deepcopy(self._affinity)
+
+    @property
     def annotations(self):
         """Dictionary with annotations (read-only)"""
         return deepcopy(self._annotations)
+
+    @property
+    def host(self):
+        """Execution host"""
+        return self._host
 
     def get_child_context(self, with_parent_params=False, **params):
         """Get child context (iteration)
@@ -411,6 +428,8 @@ class MLClientCtx:
                 "state_thresholds", self._state_thresholds
             )
             self._node_selector = spec.get("node_selector", self._node_selector)
+            self._tolerations = spec.get("tolerations", self._tolerations)
+            self._affinity = spec.get("affinity", self._affinity)
             self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
 
         self._init_dbs(rundb)
@@ -876,38 +895,87 @@ class MLClientCtx:
 
     def log_document(
         self,
-        key: str,
+        key: str = "",
         tag: str = "",
         local_path: str = "",
         artifact_path: Optional[str] = None,
-        document_loader: DocumentLoaderSpec = DocumentLoaderSpec(),
+        document_loader_spec: DocumentLoaderSpec = DocumentLoaderSpec(),
         upload: Optional[bool] = False,
         labels: Optional[dict[str, str]] = None,
         target_path: Optional[str] = None,
+        db_key: Optional[str] = None,
         **kwargs,
     ) -> DocumentArtifact:
         """
         Log a document as an artifact.
 
-        :param key: Artifact key
+        :param key: Optional artifact key. If not provided, will be derived from local_path
+                or target_path using DocumentArtifact.key_from_source()
         :param tag: Version tag
-        :param local_path:    path to the local file we upload, will also be use
-                              as the destination subpath (under "artifact_path")
-        :param artifact_path:   Target artifact path (when not using the default)
-                                to define a subpath under the default location use:
-                                `artifact_path=context.artifact_subpath('data')`
-        :param document_loader: Spec to use to load the artifact as langchain document
+        :param local_path: path to the local file we upload, will also be use
+                        as the destination subpath (under "artifact_path")
+        :param artifact_path: Target artifact path (when not using the default)
+                            to define a subpath under the default location use:
+                            `artifact_path=context.artifact_subpath('data')`
+        :param document_loader_spec: Spec to use to load the artifact as langchain document.
+
+            By default, uses DocumentLoaderSpec() which initializes with:
+
+            * loader_class_name="langchain_community.document_loaders.TextLoader"
+            * src_name="file_path"
+            * kwargs=None
+
+            Can be customized for different document types, e.g.::
+
+                DocumentLoaderSpec(
+                    loader_class_name="langchain_community.document_loaders.PDFLoader",
+                    src_name="file_path",
+                    kwargs={"extract_images": True}
+                )
         :param upload: Whether to upload the artifact
-        :param labels: Key-value labels
+        :param labels:  Key-value labels. A 'source' label is automatically added using either
+                        local_path or target_path to facilitate easier document searching.
         :param target_path: Path to the local file
+        :param db_key: The key to use in the artifact DB table, by default its run name + '_' + key
+                       db_key=False will not register it in the artifacts table
         :param kwargs: Additional keyword arguments
         :return: DocumentArtifact object
+
+        Example:
+            >>> # Log a PDF document with custom loader
+            >>> project.log_document(
+            ...     local_path="path/to/doc.pdf",
+            ...     document_loader_spec=DocumentLoaderSpec(
+            ...         loader_class_name="langchain_community.document_loaders.PDFLoader",
+            ...         src_name="file_path",
+            ...         kwargs={"extract_images": True},
+            ...     ),
+            ... )
         """
+        original_source = local_path or target_path
+
+        if not key and not original_source:
+            raise ValueError(
+                "Must provide either 'key' parameter or 'local_path'/'target_path' to derive the key from"
+            )
+        if not key:
+            key = DocumentArtifact.key_from_source(original_source)
+
         doc_artifact = DocumentArtifact(
             key=key,
-            original_source=local_path or target_path,
-            document_loader=document_loader,
+            original_source=original_source,
+            document_loader_spec=document_loader_spec,
+            collections=kwargs.pop("collections", None),
             **kwargs,
+        )
+
+        # limit label to a max of 255 characters (for db reasons)
+        max_length = 255
+        labels = labels or {}
+        labels["source"] = (
+            original_source[: max_length - 3] + "..."
+            if len(original_source) > max_length
+            else original_source
         )
 
         item = self._artifacts_manager.log_artifact(
@@ -917,6 +985,9 @@ class MLClientCtx:
             tag=tag,
             upload=upload,
             labels=labels,
+            local_path=local_path,
+            target_path=target_path,
+            db_key=db_key,
         )
         self._update_run()
         return item
@@ -929,9 +1000,15 @@ class MLClientCtx:
         )
         return self.get_artifact(key)
 
-    def get_artifact(self, key: str) -> Artifact:
-        artifact_uri = self._artifacts_manager.artifact_uris[key]
-        return self.get_store_resource(artifact_uri)
+    def get_artifact(
+        self, key, tag=None, iter=None, tree=None, uid=None
+    ) -> Optional[Artifact]:
+        cached_artifact_uri = self._artifacts_manager.artifact_uris.get(key, None)
+        if tag or iter or tree or uid or (not cached_artifact_uri):
+            project = self.get_project_object()
+            return project.get_artifact(key=key, tag=tag, iter=iter, tree=tree, uid=uid)
+        else:
+            return self.get_store_resource(cached_artifact_uri)
 
     def update_artifact(self, artifact_object: Artifact):
         """Update an artifact object in the DB and the cached uri"""
@@ -1076,6 +1153,8 @@ class MLClientCtx:
                 "notifications": self._notifications,
                 "state_thresholds": self._state_thresholds,
                 "node_selector": self._node_selector,
+                "tolerations": self._tolerations,
+                "affinity": self._affinity,
             },
             "status": {
                 "results": self._results,

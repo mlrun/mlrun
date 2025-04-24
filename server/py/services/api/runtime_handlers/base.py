@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import traceback
 import typing
 import uuid
@@ -228,7 +228,6 @@ class BaseRuntimeHandler(ABC):
                     exc=err_to_str(exc),
                     traceback=traceback.format_exc(),
                 )
-
         self._terminate_resourceless_runs(
             db, db_session, project_run_uid_map, run_runtime_resources_map
         )
@@ -610,14 +609,28 @@ class BaseRuntimeHandler(ABC):
                     )
                     return
 
+                # Determine resource type and set error message
+                crd_info = self._get_crd_info()
+                if any(crd_info):
+                    crd_group, crd_version, crd_plural = crd_info
+                    # Identify as a CRD if any part of the CRD info is non-empty
+                    resource_type = f"Kubernetes custom resource of type {crd_group}/{crd_version}/{crd_plural}"
+                    reason = f"{resource_type} related to this run cannot be found."
+                else:
+                    # Default to pod if CRD info is empty
+                    reason = (
+                        "A Kubernetes pod related to this run cannot be found, "
+                        "possibly it was preempted or evicted. "
+                        "Additional details may be available from Kubernetes events."
+                    )
                 logger.info(
                     "Updating run state", run_uid=run_uid, run_state=RunStates.error
                 )
                 run.setdefault("status", {})["state"] = RunStates.error
-                run.setdefault("status", {})["reason"] = (
-                    "A runtime resource related to this run could not be found"
-                )
+
+                run.setdefault("status", {})["reason"] = reason
                 run.setdefault("status", {})["last_update"] = now.isoformat()
+                run.setdefault("status", {})["end_time"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
 
     def _get_runtime_resources(self, label_selector: str, namespace: str):
@@ -1744,7 +1757,6 @@ class BaseRuntimeHandler(ABC):
         logger.info("Updating run state", run_uid=uid, run_state=run_state)
         run_updates = {
             "status.state": run_state,
-            "status.last_update": now_date().isoformat(),
             "status.reason": reason or "",
             "status.status_text": message or "",
             "status.error": "",

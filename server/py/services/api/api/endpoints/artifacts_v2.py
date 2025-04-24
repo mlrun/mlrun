@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 from http import HTTPStatus
 from typing import Optional
 
@@ -25,9 +25,9 @@ from mlrun.common.schemas.artifact import ArtifactsDeletionStrategies
 from mlrun.utils import logger
 
 import framework.utils.auth.verifier
+import framework.utils.pagination
 import framework.utils.singletons.project_member
 import services.api.crud
-import services.api.utils.pagination
 from framework.api import deps
 from framework.api.utils import artifact_project_and_resource_name_extractor
 
@@ -197,7 +197,7 @@ async def list_artifacts(
             "'page/page_size' and 'limit' are conflicting, only one can be specified."
         )
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     async def _filter_artifacts(_artifacts):
         return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
@@ -268,6 +268,20 @@ async def get_artifact(
             auth_info,
         )
     )
+
+    # Older clients (pre-1.8.0) do not support parsing "uid" and treat "tree^uid" as a single "tree" value.
+    # To ensure compatibility, we split "tree" here to extract "uid" if it exists.
+    if tree and "^" in tree:
+        tree, uri_object_uid = tree.split("^", 1)
+        if object_uid and object_uid != uri_object_uid:
+            mlrun.utils.logger.warning(
+                "Conflicting UIDs detected",
+                object_uid=object_uid,
+                extracted_object_uid=uri_object_uid,
+            )
+        # If object_uid is not set, assign it from the URI
+        object_uid = object_uid or uri_object_uid
+
     artifact = await run_in_threadpool(
         services.api.crud.Artifacts().get_artifact,
         db_session,

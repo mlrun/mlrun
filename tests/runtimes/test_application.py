@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import base64
 import pathlib
 
@@ -318,6 +318,9 @@ def test_application_runtime_resources(rundb_mock, igz_version_mock):
             },
         }
     ]
+
+    # assert the resources for the function itself remain the defaults
+    assert fn.spec.resources == {}
 
 
 def test_deploy_reverse_proxy_image(rundb_mock, igz_version_mock):

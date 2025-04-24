@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import ast
+import concurrent.futures
 import http
 import tempfile
 import traceback
@@ -29,6 +30,7 @@ import mlrun.errors
 import mlrun.utils
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+import mlrun_pipelines.client
 import mlrun_pipelines.common.models
 import mlrun_pipelines.common.ops
 import mlrun_pipelines.imports
@@ -81,7 +83,9 @@ class Pipelines(
                 "Applying project-based filter for project to match pipelines with project name as a substring",
                 project=project_names[0],
             )
-            filter_ = mlrun.utils.get_kfp_project_filter(project_name=project_names[0])
+            filter_ = mlrun.utils.get_kfp_list_runs_filter(
+                project_name=project_names[0]
+            )
         runs, next_page_token = self._paginate_runs(
             kfp_client, page_token, page_size, sort_by, filter_
         )
@@ -113,62 +117,85 @@ class Pipelines(
             mlrun.utils.logger.debug(
                 "Detected pipeline runs for project, deleting them",
                 project_name=project_name,
-                pipeline_run_ids=[run["id"] for run in project_pipeline_runs],
+                pipeline_run_count=len(project_pipeline_runs),
             )
 
-        succeeded = 0
-        failed = 0
+        runs_succeeded = 0
+        runs_failed = 0
         experiment_ids = set()
-        for pipeline_run in project_pipeline_runs:
-            try:
+        delete_run_futures = []
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=mlrun.mlconf.workflows.concurrent_delete_worker_count,
+            thread_name_prefix="delete_workflow_experiment_",
+        ) as executor:
+            for pipeline_run in project_pipeline_runs:
                 pipeline_run = mlrun_pipelines.models.PipelineRun(pipeline_run)
                 # delete pipeline run also terminates it if it is in progress
-                kfp_client._run_api.delete_run(pipeline_run.id)
+                delete_run_futures.append(
+                    executor.submit(kfp_client._run_api.delete_run, pipeline_run.id)
+                )
                 if pipeline_run.experiment_id:
                     experiment_ids.add(pipeline_run.experiment_id)
-                succeeded += 1
-            except Exception as exc:
-                # we don't want to fail the entire delete operation if we failed to delete a single pipeline run
-                # so it won't fail the delete project operation. we will log the error and continue
-                mlrun.utils.logger.warning(
-                    "Failed to delete pipeline run",
+            for future in concurrent.futures.as_completed(delete_run_futures):
+                delete_run_exception = future.exception()
+                if delete_run_exception is not None:
+                    # we don't want to fail the entire delete operation if we failed to delete a single pipeline run
+                    # so it won't fail the delete project operation. we will log the error and continue
+                    mlrun.utils.logger.warning(
+                        "Failed to delete pipeline run",
+                        project_name=project_name,
+                        pipeline_run_id=pipeline_run.id,
+                        exc_info=delete_run_exception,
+                    )
+                    runs_failed += 1
+                else:
+                    runs_succeeded += 1
+            else:
+                mlrun.utils.logger.debug(
+                    "Finished deleting pipeline runs",
                     project_name=project_name,
-                    pipeline_run_id=pipeline_run.id,
-                    exc_info=exc,
+                    succeeded=runs_succeeded,
+                    failed=runs_failed,
                 )
-                failed += 1
-        mlrun.utils.logger.debug(
-            "Finished deleting pipeline runs",
-            project_name=project_name,
-            succeeded=succeeded,
-            failed=failed,
-        )
 
-        succeeded = 0
-        failed = 0
-        for experiment_id in experiment_ids:
-            try:
+        experiments_succeeded = 0
+        experiments_failed = 0
+        delete_experiment_futures = []
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=mlrun.mlconf.workflows.concurrent_delete_worker_count,
+            thread_name_prefix="delete_workflow_experiment_",
+        ) as executor:
+            for experiment_id in experiment_ids:
                 mlrun.utils.logger.debug(
                     f"Detected experiment for project {project_name} and deleting it",
                     project_name=project_name,
                     experiment_id=experiment_id,
                 )
-                kfp_client._experiment_api.delete_experiment(id=experiment_id)
-                succeeded += 1
-            except Exception as exc:
-                failed += 1
-                mlrun.utils.logger.warning(
-                    "Failed to delete an experiment",
-                    project_name=project_name,
-                    experiment_id=experiment_id,
-                    exc_info=mlrun.errors.err_to_str(exc),
+                delete_experiment_futures.append(
+                    executor.submit(
+                        kfp_client._experiment_api.delete_experiment,
+                        experiment_id,
+                    )
                 )
-        mlrun.utils.logger.debug(
-            "Finished deleting project experiments",
-            project_name=project_name,
-            succeeded=succeeded,
-            failed=failed,
-        )
+            for future in concurrent.futures.as_completed(delete_run_futures):
+                delete_experiment_exception = future.exception()
+                if delete_experiment_exception is not None:
+                    experiments_failed += 1
+                    mlrun.utils.logger.warning(
+                        "Failed to delete an experiment",
+                        project_name=project_name,
+                        experiment_id=experiment_id,
+                        exc_info=mlrun.errors.err_to_str(delete_experiment_exception),
+                    )
+                else:
+                    experiments_succeeded += 1
+            else:
+                mlrun.utils.logger.debug(
+                    "Finished deleting project experiments",
+                    project_name=project_name,
+                    succeeded=experiments_succeeded,
+                    failed=experiments_failed,
+                )
 
     def get_pipeline(
         self,
@@ -216,7 +243,7 @@ class Pipelines(
         self,
         db_session: sqlalchemy.orm.Session,
         run_id: str,
-        project: typing.Optional[str] = None,
+        project: str,
         namespace: typing.Optional[str] = None,
     ) -> str:
         """
@@ -224,8 +251,7 @@ class Pipelines(
 
         :param db_session: The SQLAlchemy session used for retrieving and storing pipeline information.
         :param run_id: The unique identifier of the pipeline run to retry.
-        :param project: (Optional) The name of the MLRun project associated with the pipeline run.
-                        If provided, the pipeline run's project will be validated against this.
+        :param project: The name of the MLRun project associated with the pipeline run.
         :param namespace: (Optional) The Kubernetes namespace in which the pipeline is running.
                           Defaults to the configured namespace if not specified.
         :raises MLRunBadRequestError: If the pipeline run is not in a retryable state.
@@ -251,7 +277,7 @@ class Pipelines(
             ) from exc
         run = mlrun_pipelines.models.PipelineRun(api_run_detail)
 
-        if project and project != "*":
+        if project:
             run_project = self.resolve_project_from_pipeline(run)
             if run_project != project:
                 raise mlrun.errors.MLRunNotFoundError(
@@ -261,7 +287,7 @@ class Pipelines(
         # Check if the pipeline is in a completed state
         if (
             run.status
-            not in mlrun_pipelines.common.models.RunStatuses.stable_statuses()
+            not in mlrun_pipelines.common.models.RunStatuses.retryable_statuses()
         ):
             raise mlrun.errors.MLRunBadRequestError(
                 f"Pipeline run {run_id} is not in a completed state. Current status: {run.status}"
@@ -275,6 +301,7 @@ class Pipelines(
         )
         return kfp_client.retry_run(
             run_id=run_id,
+            project=run_project,
         )
 
     def create_pipeline(
@@ -342,11 +369,16 @@ class Pipelines(
 
     @staticmethod
     def initialize_kfp_client(namespace: typing.Optional[str] = None):
-        return mlrun_pipelines.utils.get_client(mlrun.mlconf.kfp_url, namespace)
+        if namespace is None:
+            namespace = mlrun.mlconf.namespace
+        return mlrun_pipelines.utils.get_client(
+            url=mlrun.mlconf.kfp_url,
+            namespace=namespace,
+        )
 
     def _paginate_runs(
         self,
-        kfp_client: mlrun_pipelines.imports.kfp.Client,
+        kfp_client: mlrun_pipelines.client.Client,
         page_token: typing.Optional[str] = None,
         page_size: typing.Optional[int] = None,
         sort_by: typing.Optional[str] = None,
@@ -382,7 +414,7 @@ class Pipelines(
 
     def _list_runs_from_kfp(
         self,
-        kfp_client: mlrun_pipelines.imports.kfp.Client,
+        kfp_client: mlrun_pipelines.client.Client,
         page_token: typing.Optional[str] = None,
         page_size: typing.Optional[int] = None,
         sort_by: typing.Optional[str] = None,
@@ -413,7 +445,7 @@ class Pipelines(
         self,
         runs: list[dict],
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: mlrun_pipelines.imports.kfp.Client = None,
+        kfp_client: mlrun_pipelines.client.Client = None,
     ) -> list[dict]:
         formatted_runs = []
         for run in runs:
@@ -424,7 +456,7 @@ class Pipelines(
         self,
         run: mlrun_pipelines.models.PipelineRun,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: mlrun_pipelines.imports.kfp.Client = None,
+        kfp_client: mlrun_pipelines.client.Client = None,
     ) -> dict:
         run.project = self.resolve_project_from_pipeline(run)
         if kfp_client:

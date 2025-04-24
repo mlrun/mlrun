@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import http
 import json
 import unittest.mock
@@ -569,7 +569,7 @@ def test_submit_job_failure_params_exceed_int64(
     assert resp.status_code == HTTPStatus.BAD_REQUEST.value
     assert "exceeds int64" in resp.json()["detail"]
 
-    resp = client.get("runs", params={"project": project_name})
+    resp = client.get(f"projects/{project_name}/runs")
     # assert the run wasn't saved to the DB
     assert len(resp.json()["runs"]) == 0
 

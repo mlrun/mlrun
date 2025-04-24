@@ -10,9 +10,8 @@ This release of MLRun supports only Python 3.9 for both the server and the clien
 - [Set up a Python 3.9 client environment](#set-up-a-python-39-client-environment)
 - [Configure remote environment](#configure-remote-environment)
    - [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)
-   - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-config-set-command-in-mlrun-cli)
-   - [Using your IDE (e.g. PyCharm or VSCode)](#using-your-ide-eg-pycharm-or-vscode)
-- [Setting up a dark site](#setting-up-a-dark-site)
+   - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
+   - [Using your IDE (e.g. PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
 
 <a id="prerequisites"></a>
 ## Prerequisites
@@ -110,7 +109,7 @@ MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it
 **Note:** Only relevant if your remote service is on an instance of the Iguazio AI Platform (**not MLRun CE**). <br>
 Run this command in MLRun CLI:
  ```
- mlrun config set -a https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com -u joe -k mykey -e 
+ mlrun config set -a https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com -u joe -k mykey
  ```
 
 It creates the following environment file:
@@ -146,6 +145,7 @@ The `set` command can work with the following parameters:
 - `--artifact-path` or `-p` to set the [artifact path](https://docs.mlrun.org/en/latest/store/artifacts.html?highlight=artifact_path#artifact-path)
 - `--env-vars` or `-e` to set additional environment variables, e.g. -e `ENV_NAME=<value>`
 
+(using-mlrun-set-environment-command-in-mlrun-sdk)=
 ### Using `mlrun.set_environment` command in MLRun SDK
 
 You can set the environment using `mlrun.set_environment` command in MLRun SDK and either use the `env_file` parameter that saves the 
@@ -158,8 +158,8 @@ mlrun.set_environment("http://localhost:8080", artifact_path="./")
 mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
 ```
 
-For more explanations read the documentation [mlrun.set_environment](https://docs.mlrun.org/en/latest/api/mlrun.html?highlight=set_env_from_file()#mlrun.set_environment).
-
+For more explanations read the documentation [mlrun.set_environment](https://docs.mlrun.org/en/stable/api/mlrun.html#mlrun.set_environment).
+(using-your-ide-e-g-pycharm-or-vscode)=
 ### Using your IDE (e.g. PyCharm or VSCode)
 
 Use these procedures to access MLRun remotely from your IDE. These instructions are for PyCharm and VSCode.
@@ -265,15 +265,3 @@ If you created a new configuration in the previous step, your `launch.json` woul
     ]
 }
 ```
-
-## Setting up a dark site
-Use this procedure for the MLRun package, and any other packages you want to install on a dark site.
-
-To install a package in a dark (air-gapped) site:
-1. Download the packages: conda==23.1.0, pip.
-2. Pack the conda package file and upload it to your dark system.
-2. Install the tar.gz by running:
-
-   ```
-   conda install -y <package-filename>.tar.gz 
-   ```

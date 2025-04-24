@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import uuid
 from http import HTTPStatus
@@ -29,23 +29,16 @@ from mlrun.utils import logger
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.notifications
+import framework.utils.pagination
 import framework.utils.singletons.db as db_singleton
 import framework.utils.singletons.project_member
 import services.api.crud
-import services.api.utils.pagination
 from framework.api import deps
 from framework.api.utils import log_and_raise
 
 router = APIRouter()
 
 
-# TODO: remove /run/{project}/{uid} in 1.8.0
-@router.post(
-    "/run/{project}/{uid}",
-    deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
-    "use /projects/{project}/runs/{uid} instead",
-)
 @router.post("/projects/{project}/runs/{uid}")
 async def store_run(
     request: Request,
@@ -87,13 +80,6 @@ async def store_run(
     return {}
 
 
-# TODO: remove /run/{project}/{uid} in 1.8.0
-@router.patch(
-    "/run/{project}/{uid}",
-    deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
-    "use /projects/{project}/runs/{uid} instead",
-)
 @router.patch("/projects/{project}/runs/{uid}")
 async def update_run(
     request: Request,
@@ -129,13 +115,6 @@ async def update_run(
     return {}
 
 
-# TODO: remove /run/{project}/{uid} in 1.8.0
-@router.get(
-    "/run/{project}/{uid}",
-    deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
-    "use /projects/{project}/runs/{uid} instead",
-)
 @router.get("/projects/{project}/runs/{uid}")
 async def get_run(
     project: str,
@@ -164,13 +143,6 @@ async def get_run(
     }
 
 
-# TODO: remove /run/{project}/{uid} in 1.8.0
-@router.delete(
-    "/run/{project}/{uid}",
-    deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
-    "use /projects/{project}/runs/{uid} instead",
-)
 @router.delete("/projects/{project}/runs/{uid}")
 async def delete_run(
     project: str,
@@ -197,13 +169,6 @@ async def delete_run(
     return {}
 
 
-# TODO: remove /runs in 1.8.0
-@router.get(
-    "/runs",
-    deprecated=True,
-    description="/runs is deprecated in 1.5.0 and will be removed in 1.8.0, "
-    "use /projects/{project}/runs/ instead",
-)
 @router.get("/projects/{project}/runs")
 async def list_runs(
     project: Optional[str] = None,
@@ -211,13 +176,14 @@ async def list_runs(
     uid: list[str] = Query([]),
     labels: list[str] = Query([], alias="label"),
     states: list[str] = Query([], alias="state"),
-    last: int = 0,
     sort: bool = True,
     iter: bool = True,
     start_time_from: Optional[str] = None,
     start_time_to: Optional[str] = None,
     last_update_time_from: Optional[str] = None,
     last_update_time_to: Optional[str] = None,
+    end_time_from: Optional[str] = None,
+    end_time_to: Optional[str] = None,
     partition_by: mlrun.common.schemas.RunPartitionByField = Query(
         None, alias="partition-by"
     ),
@@ -242,7 +208,7 @@ async def list_runs(
         )
     )
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     async def _filter_runs(_runs):
         return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
@@ -269,12 +235,13 @@ async def list_runs(
         labels=labels,
         states=states,
         sort=sort,
-        last=last,
         iter=iter,
         start_time_from=start_time_from,
         start_time_to=start_time_to,
         last_update_time_from=last_update_time_from,
         last_update_time_to=last_update_time_to,
+        end_time_from=end_time_from,
+        end_time_to=end_time_to,
         partition_by=partition_by,
         rows_per_partition=rows_per_partition,
         partition_sort_by=partition_sort_by,
@@ -288,13 +255,6 @@ async def list_runs(
     }
 
 
-# TODO: remove /runs in 1.8.0
-@router.delete(
-    "/runs",
-    deprecated=True,
-    description="/runs is deprecated in 1.5.0 and will be removed in 1.8.0, "
-    "use /projects/{project}/runs/{uid} instead",
-)
 @router.delete("/projects/{project}/runs")
 async def delete_runs(
     project: Optional[str] = None,
@@ -338,7 +298,7 @@ async def delete_runs(
         projects = set(run.project or mlrun.mlconf.default_project for run in runs)
         for run_project in projects:
             # currently we fail if the user doesn't has permissions to delete runs to one of the projects in the system
-            # TODO Delete only runs from projects that user has permissions to
+            # TODO: Delete only runs from projects that user has permissions to
             await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
                 mlrun.common.schemas.AuthorizationResourceTypes.run,
                 run_project,
@@ -523,7 +483,7 @@ async def abort_run(
 
 
 @router.post(
-    "/projects/{project}/runs/{uid}/push_notifications",
+    "/projects/{project}/runs/{uid}/push-notifications",
     response_model=mlrun.common.schemas.BackgroundTask,
 )
 async def push_notifications(
@@ -532,7 +492,6 @@ async def push_notifications(
     background_tasks: BackgroundTasks,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    iter: int = 0,
 ):
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -547,7 +506,7 @@ async def push_notifications(
         services.api.crud.Runs().get_run,
         db_session,
         uid,
-        iter,
+        0,
         project,
         mlrun.common.formatters.RunFormat.notifications,
     )
@@ -570,7 +529,7 @@ async def push_notifications(
 
 def _push_notifications(db_session, run):
     db = db_singleton.get_db()
-    framework.utils.notifications.unmask_notification_params_secret_on_task(
+    run = framework.utils.notifications.unmask_notification_params_secret_on_task(
         db, db_session, run
     )
     run_notification_pusher_class = (

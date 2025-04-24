@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
 import json
 import traceback
+from collections import OrderedDict
+from datetime import datetime
 from typing import Any, Optional, Union
 
 import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_objects
-import mlrun.common.schemas.model_monitoring.constants as mm_constant
-import mlrun.datastore
-import mlrun.model_monitoring
-from mlrun.model_monitoring.helpers import get_stream_path
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.model_monitoring.helpers
 from mlrun.serving import GraphContext
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
@@ -37,29 +38,14 @@ from .results import (
 class _PushToMonitoringWriter(StepToDict):
     kind = "monitoring_application_stream_pusher"
 
-    def __init__(
-        self,
-        project: str,
-        writer_application_name: str,
-        stream_uri: Optional[str] = None,
-        name: Optional[str] = None,
-    ):
+    def __init__(self, project: str) -> None:
         """
         Class for pushing application results to the monitoring writer stream.
 
-        :param project:                     Project name.
-        :param writer_application_name:     Writer application name.
-        :param stream_uri:                  Stream URI for pushing results.
-        :param name:                        Name of the PushToMonitoringWriter
-                                            instance default to PushToMonitoringWriter.
+        :param project: Project name.
         """
         self.project = project
-        self.application_name_to_push = writer_application_name
-        self.stream_uri = stream_uri or get_stream_path(
-            project=self.project, function_name=self.application_name_to_push
-        )
         self.output_stream = None
-        self.name = name or "PushToMonitoringWriter"
 
     def do(
         self,
@@ -82,43 +68,48 @@ class _PushToMonitoringWriter(StepToDict):
         self._lazy_init()
         application_results, application_context = event
         writer_event = {
-            mm_constant.WriterEvent.ENDPOINT_NAME: application_context.endpoint_name,
-            mm_constant.WriterEvent.APPLICATION_NAME: application_context.application_name,
-            mm_constant.WriterEvent.ENDPOINT_ID: application_context.endpoint_id,
-            mm_constant.WriterEvent.START_INFER_TIME: application_context.start_infer_time.isoformat(
+            mm_constants.WriterEvent.ENDPOINT_NAME: application_context.endpoint_name,
+            mm_constants.WriterEvent.APPLICATION_NAME: application_context.application_name,
+            mm_constants.WriterEvent.ENDPOINT_ID: application_context.endpoint_id,
+            mm_constants.WriterEvent.START_INFER_TIME: application_context.start_infer_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
-            mm_constant.WriterEvent.END_INFER_TIME: application_context.end_infer_time.isoformat(
+            mm_constants.WriterEvent.END_INFER_TIME: application_context.end_infer_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
         }
         for result in application_results:
             data = result.to_dict()
             if isinstance(result, ModelMonitoringApplicationResult):
-                writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
-                    mm_constant.WriterEventKind.RESULT
+                writer_event[mm_constants.WriterEvent.EVENT_KIND] = (
+                    mm_constants.WriterEventKind.RESULT
                 )
             elif isinstance(result, _ModelMonitoringApplicationStats):
-                writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
-                    mm_constant.WriterEventKind.STATS
+                writer_event[mm_constants.WriterEvent.EVENT_KIND] = (
+                    mm_constants.WriterEventKind.STATS
                 )
             else:
-                writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
-                    mm_constant.WriterEventKind.METRIC
+                writer_event[mm_constants.WriterEvent.EVENT_KIND] = (
+                    mm_constants.WriterEventKind.METRIC
                 )
-            writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
-            logger.info(
-                f"Pushing data = {writer_event} \n to stream = {self.stream_uri}"
+            writer_event[mm_constants.WriterEvent.DATA] = json.dumps(data)
+            logger.debug(
+                "Pushing data to output stream", writer_event=str(writer_event)
             )
             self.output_stream.push([writer_event])
-            logger.info(f"Pushed data to {self.stream_uri} successfully")
+            logger.debug("Pushed data to output stream successfully")
 
     def _lazy_init(self):
         if self.output_stream is None:
-            self.output_stream = mlrun.datastore.get_stream_pusher(self.stream_uri)
+            self.output_stream = mlrun.model_monitoring.helpers.get_output_stream(
+                project=self.project,
+                function_name=mm_constants.MonitoringFunctionNames.WRITER,
+            )
 
 
 class _PrepareMonitoringEvent(StepToDict):
+    MAX_MODEL_ENDPOINTS: int = 1500
+
     def __init__(self, context: GraphContext, application_name: str) -> None:
         """
         Class for preparing the application event for the application step.
@@ -126,8 +117,12 @@ class _PrepareMonitoringEvent(StepToDict):
         :param application_name: Application name.
         """
         self.graph_context = context
+        _ = self.graph_context.project_obj  # Ensure project exists
         self.application_name = application_name
-        self.model_endpoints: dict[str, mlrun.common.schemas.ModelEndpoint] = {}
+        self.model_endpoints: OrderedDict[str, mlrun.common.schemas.ModelEndpoint] = (
+            collections.OrderedDict()
+        )
+        self.feature_sets: dict[str, mlrun.common.schemas.FeatureSet] = {}
 
     def do(self, event: dict[str, Any]) -> MonitoringApplicationContext:
         """
@@ -136,16 +131,48 @@ class _PrepareMonitoringEvent(StepToDict):
         :param event: Application event.
         :return: Application context.
         """
-        application_context = MonitoringApplicationContext(
+        endpoint_id = event.get(mm_constants.ApplicationEvent.ENDPOINT_ID)
+        endpoint_updated = datetime.fromisoformat(
+            event.get(mm_constants.ApplicationEvent.ENDPOINT_UPDATED)
+        )
+        if (
+            endpoint_id in self.model_endpoints
+            and endpoint_updated != self.model_endpoints[endpoint_id].metadata.updated
+        ):
+            logger.debug(
+                "Updated endpoint removing endpoint from cash",
+                new_updated=endpoint_updated.isoformat(),
+                old_updated=self.model_endpoints[
+                    endpoint_id
+                ].metadata.updated.isoformat(),
+            )
+            self.model_endpoints.pop(endpoint_id)
+
+        application_context = MonitoringApplicationContext._from_graph_ctx(
             application_name=self.application_name,
             event=event,
             model_endpoint_dict=self.model_endpoints,
             graph_context=self.graph_context,
+            feature_sets_dict=self.feature_sets,
         )
 
         self.model_endpoints.setdefault(
             application_context.endpoint_id, application_context.model_endpoint
         )
+        self.feature_sets.setdefault(
+            application_context.endpoint_id, application_context.feature_set
+        )
+        # every used endpoint goes to first location allowing to pop last used:
+        self.model_endpoints.move_to_end(application_context.endpoint_id, last=False)
+        if len(self.model_endpoints) > self.MAX_MODEL_ENDPOINTS:
+            removed_endpoint_id, _ = self.model_endpoints.popitem(
+                last=True
+            )  # Removing the LRU endpoint
+            self.feature_sets.pop(removed_endpoint_id, None)
+            logger.debug(
+                "Exceeded maximum number of model endpoints removing the LRU from cash",
+                endpoint_id=removed_endpoint_id,
+            )
 
         return application_context
 
@@ -166,7 +193,9 @@ class _ApplicationErrorHandler(StepToDict):
             "Endpoint ID": event.body.endpoint_id,
             "Application Class": event.body.application_name,
             "Error": "".join(
-                traceback.format_exception(None, event.error, event.error.__traceback__)
+                traceback.format_exception(
+                    None, value=event.error, tb=event.error.__traceback__
+                )
             ),
             "Timestamp": event.timestamp,
         }

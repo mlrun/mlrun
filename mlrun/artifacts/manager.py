@@ -108,7 +108,7 @@ class ArtifactProducer:
 def dict_to_artifact(struct: dict) -> Artifact:
     kind = struct.get("kind", "")
 
-    # TODO: remove this in 1.8.0
+    # TODO: Remove once data migration v5 is obsolete
     if mlrun.utils.is_legacy_artifact(struct):
         return mlrun.artifacts.base.convert_legacy_artifact_to_new_format(struct)
 
@@ -306,7 +306,6 @@ class ArtifactManager:
         item.target_path = target_path
 
         item.before_log()
-        self.artifact_uris[key] = item.uri
 
         if ((upload is None and item.kind != "dir") or upload) and not item.is_inline():
             # before uploading the item, we want to ensure that its tags are valid,
@@ -315,7 +314,12 @@ class ArtifactManager:
             item.upload(artifact_path=artifact_path)
 
         if db_key:
-            self._log_to_db(db_key, project, producer.inputs, item)
+            artifact_uid = self._log_to_db(db_key, project, producer.inputs, item)
+            if artifact_uid is not None:
+                item.uid = artifact_uid
+        # Generate the artifact URI after logging to the database and retrieving the artifact UID, if available.
+        self.artifact_uris[key] = item.uri
+
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"
         logger.debug(
@@ -327,20 +331,21 @@ class ArtifactManager:
         self.artifact_uris[item.key] = item.uri
         self._log_to_db(item.db_key, producer.project, producer.inputs, item)
 
-    def _log_to_db(self, key, project, sources, item, tag=None):
+    def _log_to_db(self, key, project, sources, item, tag=None) -> typing.Optional[str]:
         """
         log artifact to db
         :param key: Identifying key of the artifact.
         :param project: Project that the artifact belongs to.
-        :param sources: List of artifact sources ( Mainly passed from the producer.items ).
+        :param sources: List of artifact sources ( Mainly passed from the `producer.items` ).
         :param item: The actual artifact to store.
         :param tag: The name of the Tag of the artifact.
+        :return: The logged artifact uid.
         """
         if self.artifact_db:
             item.updated = None
             if sources:
                 item.sources = [{"name": k, "path": str(v)} for k, v in sources.items()]
-            self.artifact_db.store_artifact(
+            artifact_item = self.artifact_db.store_artifact(
                 key,
                 item.to_dict(),
                 iter=item.iter,
@@ -348,6 +353,8 @@ class ArtifactManager:
                 project=project,
                 tree=item.tree,
             )
+            if artifact_item:
+                return artifact_item.get("metadata", {}).get("uid")
 
     def link_artifact(
         self,
@@ -396,6 +403,7 @@ class ArtifactManager:
             project=item.project,
             tag=item.tag,
             tree=item.tree,
+            iter=item.iter,
             deletion_strategy=deletion_strategy,
             secrets=secrets,
         )

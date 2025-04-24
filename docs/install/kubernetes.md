@@ -1,5 +1,5 @@
 (install-on-kubernetes)=
-# Install MLRun on Kubernetes
+# Install MLRun CE on Kubernetes
 
 ```{admonition} Note
 These instructions install the community edition, which currently includes MLRun {{ ceversion }}. 
@@ -118,6 +118,16 @@ your internet speed).
 ```
 
 To install the chart with the release name `mlrun-ce` use the following command.
+:::{admonition} Note
+If you are using NFS storage in your Kubernetes cluster, add these flags to the chart deployment command:
+```
+--set kube-prometheus-stack.grafana.securityContext.runAsUser=1000 
+--set kube-prometheus-stack.grafana.securityContext.runAsGroup=1000 
+--set kube-prometheus-stack.grafana.securityContext.fsGroup=1000 
+--set kube-prometheus-stack.grafana.securityContext.fsGroupChangePolicy=OnRootMismatch 
+--set kube-prometheus-stack.grafana.initChownData.enabled
+```
+:::
 Note the reference to the pre-created `registry-credentials` secret in `global.registry.secretName`:
 
 ```bash
@@ -138,15 +148,15 @@ Where:
 
 When the installation is complete, the helm command prints the URLs and ports of all the MLRun CE services.
 
-```{admonition} Note
-There is currently a known issue with installing the chart on Macs using Apple silicon (M1/M2). The current pipelines
-MySQL database fails to start. The workaround for now is to opt out of pipelines by installing the chart with the
-`--set pipelines.enabled=false`.
+```{admonition} Known issue when installing the chart on Macs using Apple silicon (ARM-based architicture):
+- The current pipelines MySQL database fails to start. The workaround for now is to run this line `docker pull mysql:5.7 --platform linux/amd64` before installing the chart.
+- The Grafana statistics do not work well in this release. A fix will be delivered in a subsequent release.
+- An issue with Prometheus node selector. The workaround for now is to opt out of kube-prometheus-stack by installing the chart with the `--set kube-prometheus-stack.enabled=false`.
 ```
 
 ## Configuring the online feature store
 The MLRun Community Edition supports the online feature store. To enable it, you need to first deploy a Redis service that is accessible to your MLRun CE cluster.
-To deploy a Redis service, refer to the [Redis documentation](https://redis.io/docs/getting-started/).
+To deploy a Redis service, refer to the [Redis documentation](https://redis.io/learn/howtos/quick-start).
 
 When you have a Redis service deployed, you can configure MLRun CE to use it by adding the following helm value configuration to your helm install command:
 ```bash
@@ -177,6 +187,10 @@ You can change the ports by providing values to the helm install command.
 You can add and configure a Kubernetes ingress-controller for better security and control over external access.
 ```
 
+
+## Optional additional packages
+To run local Spark jobs on the MLRun CE Jupyter, install PySpark.
+
 ## Start working
     
 Open the Jupyter notebook on [**jupyter-notebook UI**](http://localhost:30040) and run the code in the 
@@ -201,7 +215,7 @@ To opt out of some of the components, use the following helm values:
 ...
 --set pipelines.enabled=false \
 --set kube-prometheus-stack.enabled=false \
---set sparkOperator.enabled=false \
+--set spark-operator.enabled=false \
 ...
 ```
 
@@ -210,7 +224,7 @@ To opt out of some of the components, use the following helm values:
 If you are using Docker Desktop, you can install MLRun CE on your local machine.
 Docker Desktop is available for Mac and Windows. For download information, system requirements, and installation instructions, see:
 
-- [Install Docker Desktop on Mac](https://docs.docker.com/docker-for-mac/install/)
+- [Install Docker Desktop on Mac](https://docs.docker.com/desktop/setup/install/mac-install/)
 - [Install Docker Desktop on Windows](https://docs.docker.com/docker-for-windows/install/). Note that WSL 2 backend was tested, Hyper-V was not tested.
 
 #### Configuring Docker Desktop
@@ -219,7 +233,7 @@ Docker Desktop includes a standalone Kubernetes server and client, as well as Do
 Kubernetes server runs locally within your Docker instance. To enable Kubernetes support and install a standalone instance of Kubernetes 
 running as a Docker container, go to **Preferences** > **Kubernetes** and then press **Enable Kubernetes**. Press **Apply & Restart** to 
 save the settings and then press **Install** to confirm. This instantiates the images that are required to run the Kubernetes server as 
-containers, and installs the `/usr/local/bin/kubectl` command on your machine. For more information, see [the Kubernetes documentation](https://docs.docker.com/desktop/kubernetes/).
+containers, and installs the `/usr/local/bin/kubectl` command on your machine. For more information, see [the Kubernetes documentation](https://docs.docker.com/desktop/features/kubernetes/).
 
 It's recommended to limit the amount of memory allocated to Kubernetes. If you're using Windows and WSL 2, you can configure global WSL options by placing a `.wslconfig` file into the root directory of 
 your users folder: `C:\Users\<yourUserName>\.wslconfig`. Keep in mind that you might need to run `wsl --shutdown` to shut down the WSL 2 VM and then restart your WSL instance for these changes to take effect.
@@ -231,8 +245,8 @@ memory=8GB # Limits VM memory in WSL 2 to 8 GB
 
 To learn about the various UI options and their usage, see:
 
-- [Docker Desktop for Mac user manual](https://docs.docker.com/docker-for-mac/)
-- [Docker Desktop for Windows user manual](https://docs.docker.com/docker-for-windows/)
+- [Docker Desktop for Mac user manual](https://docs.docker.com/desktop/setup/install/mac-install/)
+- [Docker Desktop for Windows user manual](https://docs.docker.com/desktop/setup/install/windows-install/)
 
 ## Storage resources
 

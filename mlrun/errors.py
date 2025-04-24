@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import typing
 from http import HTTPStatus
 
@@ -171,6 +171,10 @@ class MLRunBadRequestError(MLRunHTTPStatusError):
 
 
 class MLRunInvalidArgumentError(MLRunHTTPStatusError, ValueError):
+    error_status_code = HTTPStatus.BAD_REQUEST.value
+
+
+class MLRunModelLimitExceededError(MLRunHTTPStatusError, ValueError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
 

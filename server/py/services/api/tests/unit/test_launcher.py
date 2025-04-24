@@ -11,17 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
+import pathlib
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
 import pytest
+import sqlalchemy.orm
 from fastapi.testclient import TestClient
 
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.launcher.base
 import mlrun.launcher.factory
+from mlrun.config import Config
 
 import framework.utils.clients.iguazio
 import services.api.launcher
@@ -137,3 +140,52 @@ def test_validate_state_thresholds_failure(state_thresholds, expected_error):
             state_thresholds=state_thresholds
         )
     assert expected_error in str(exc.value)
+
+
+def test_new_function_args_with_default_image_pull_secret(
+    db: sqlalchemy.orm.Session, client: TestClient
+):
+    assets_path = pathlib.Path(__file__).parent / "assets"
+    func_path = assets_path / "sample_function.py"
+    handler = "hello_word"
+    services.api.tests.unit.api.utils.create_project(
+        client, mlrun.mlconf.default_project
+    )
+
+    mlrun.mlconf.function.spec.image_pull_secret = Config(
+        {"default": "adam-docker-registry-auth"}
+    )
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo()
+    )
+    runtime = mlrun.code_to_function(
+        name="test",
+        kind="job",
+        filename=str(func_path),
+        handler=handler,
+        image="mlrun/mlrun",
+    )
+    uid = "123"
+    run = {
+        "metadata": {
+            "uid": uid,
+            "name": "test",
+        },
+    }
+    rundb = mlrun.get_run_db()
+    rundb.store_run(run, uid)
+    run = launcher._create_run_object(run)
+
+    run = launcher._enrich_run(
+        runtime,
+        run=run,
+    )
+    assert (
+        run.spec.image_pull_secret
+        == mlrun.mlconf.function.spec.image_pull_secret.default
+    )
+    launcher.enrich_runtime(runtime, full=True)
+    assert (
+        runtime.spec.image_pull_secret
+        == mlrun.mlconf.function.spec.image_pull_secret.default
+    )

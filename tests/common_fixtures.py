@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import inspect
 import os
 import shutil
@@ -45,10 +45,8 @@ import mlrun.projects.project
 import mlrun.utils
 import mlrun.utils.singleton
 from mlrun import new_function
-from mlrun.common.schemas import ModelMonitoringMode
 from mlrun.config import config
 from mlrun.lists import ArtifactList
-from mlrun.model_monitoring import ModelEndpoint
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.utils import global_context
 from mlrun.utils import update_in
@@ -249,6 +247,7 @@ class RunDBMock:
         self._project = None
         self._runs = {}
         self._api_gateways = {}
+        self._get_model_endpoint_calls = 0
 
     def reset(self):
         self._functions = {}
@@ -308,6 +307,21 @@ class RunDBMock:
 
         return ArtifactList(filter(filter_artifact, self._artifacts.values()))
 
+    def del_artifact(
+        self,
+        key,
+        tag="",
+        project="",
+        tree=None,
+        uid=None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: Optional[dict] = None,
+        iter=None,
+    ):
+        self._artifacts.pop((key, iter or 0), None)
+
     def store_run(self, struct, uid, project="", iter=0):
         if hasattr(struct, "to_dict"):
             struct = struct.to_dict()
@@ -323,6 +337,14 @@ class RunDBMock:
     def read_run(self, uid, project, iter=0, format_=None):
         return self._runs.get(uid, {})
 
+    def push_run_notifications(
+        self,
+        uid,
+        project="",
+        timeout=45,
+    ):
+        pass
+
     def list_runs(
         self,
         name: Optional[str] = None,
@@ -331,7 +353,6 @@ class RunDBMock:
         labels: Optional[Union[str, list[str]]] = None,
         state: Optional[str] = None,
         sort: bool = True,
-        last: int = 0,
         iter: bool = False,
         start_time_from: Optional[datetime] = None,
         start_time_to: Optional[datetime] = None,
@@ -380,15 +401,38 @@ class RunDBMock:
         self,
         project,
         pipeline,
-        arguments,
-        experiment,
-        run,
-        namespace,
-        ops,
-        artifact_path,
+        arguments=None,
+        experiment=None,
+        run=None,
+        namespace=None,
+        artifact_path=None,
+        ops=None,
+        cleanup_ttl=None,
+        timeout=60,
     ):
         self._pipeline = pipeline
         return True
+
+    def push_pipeline_notifications(
+        self,
+        pipeline_id,
+        project="",
+        notifications=None,
+        timeout=45,
+    ):
+        pass
+
+    def get_pipeline(
+        self,
+        run_id: str,
+        namespace: Optional[str] = None,
+        timeout: int = 30,
+        format_: Union[
+            str, mlrun.common.formatters.PipelineFormat
+        ] = mlrun.common.formatters.PipelineFormat.summary,
+        project: Optional[str] = None,
+    ):
+        pass
 
     def store_project(self, name, project):
         return self.create_project(project)
@@ -660,21 +704,71 @@ class RunDBMock:
         name: str,
         project: str,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         feature_analysis: bool = False,
-    ) -> mlrun.common.schemas.ModelEndpoint:
-        mep = ModelEndpoint(
-            metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                name=name, project=project
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
+        self._get_model_endpoint_calls += 1
+        name = str.split(name, ":")[0]
+        model_uid = endpoint_id or f"{name}_uid"
+        return mlrun.common.schemas.model_monitoring.ModelEndpoint(
+            metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
+                name=name,
+                project=project,
+                labels={},
+                uid=model_uid,
             ),
-            spec=mlrun.common.schemas.ModelEndpointSpec(),
-            status=mlrun.common.schemas.ModelEndpointStatus(),
+            spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
+                function_name=function_name,
+                function_tag=function_tag,
+                model_name="model_name-test",
+                model_class="modelcc",
+                model_tag="latest",
+            ),
+            status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(
+                monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled,
+            ),
         )
-        mep.metadata.uid = endpoint_id
-        mep.spec.monitoring_mode = ModelMonitoringMode.enabled
-        mep.spec.function_name = function_name
-        return mep
+
+    def assert_called_get_model_endpoint_once(self):
+        assert self._get_model_endpoint_calls == 1
+
+    def list_model_endpoints(
+        self,
+        project: str = "default",
+        names: Optional[Union[str, list[str]]] = None,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        model_name: Optional[str] = None,
+        model_tag: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
+        top_level: bool = False,
+        uids: Optional[list[str]] = None,
+        latest_only: bool = False,
+    ) -> mlrun.common.schemas.ModelEndpointList:
+        if isinstance(names, str):
+            names = [names]
+        endpoints = []
+        for name in names:
+            endpoints.append(
+                mlrun.common.schemas.model_monitoring.ModelEndpoint(
+                    metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                        name=name, project=project, uid=f"{name}-uid"
+                    ),
+                    spec=mlrun.common.schemas.ModelEndpointSpec(),
+                    status=mlrun.common.schemas.ModelEndpointStatus(),
+                )
+            )
+
+        return mlrun.common.schemas.model_monitoring.ModelEndpointList(
+            endpoints=endpoints
+        )
 
 
 @pytest.fixture()
@@ -690,7 +784,6 @@ def rundb_mock() -> RunDBMock:
 
     orig_db_path = config.dbpath
     config.dbpath = "http://localhost:12345"
-    mock_object.patch_model_endpoint = unittest.mock.Mock()
 
     # Create the default project to mimic real MLRun DB (the default project is always available for use):
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -718,13 +811,32 @@ class RemoteBuilderMock(RunDBMock):
         ):
             # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
             # it overrides the mock args - this way the value will remain as it was.
+            image = f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest"
             return {
                 "ready": True,
                 "data": {
                     "spec": {
                         "clone_target_dir": func.spec.clone_target_dir,
                         "build": {
-                            "image": f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest",
+                            "image": image,
+                        },
+                        "env": [
+                            {"name": "SIDECAR_PORT", "value": "8050"},
+                        ],
+                        "config": {
+                            "spec.sidecars": [
+                                {
+                                    "image": image,
+                                    "name": "application-test-sidecar",
+                                    "ports": [
+                                        {
+                                            "containerPort": 8050,
+                                            "name": "application-t-0",
+                                            "protocol": "TCP",
+                                        }
+                                    ],
+                                }
+                            ],
                         },
                     },
                     "status": {

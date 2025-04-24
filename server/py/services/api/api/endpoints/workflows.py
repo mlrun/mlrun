@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import collections.abc
 import copy
 import traceback
@@ -36,6 +36,7 @@ import framework.utils.auth.verifier
 import framework.utils.clients.chief
 import framework.utils.singletons.project_member
 import services.api.crud
+import services.api.utils.helpers
 from framework.api.utils import log_and_raise
 
 router = fastapi.APIRouter()
@@ -161,6 +162,12 @@ async def submit_workflow(
     updated_request = workflow_request.copy()
     updated_request.spec = workflow_spec
 
+    client_image = services.api.utils.helpers.resolve_client_default_kfp_image(
+        project,
+        workflow_spec,
+        client_version=client_version,
+    )
+
     # This function is for loading the project and running workflow remotely.
     # In this way we can schedule workflows (by scheduling a job that runs the workflow)
     workflow_runner: mlrun.run.KubejobRuntime = await run_in_threadpool(
@@ -172,9 +179,7 @@ async def submit_workflow(
         project=project.metadata.name,
         db_session=db_session,
         auth_info=auth_info,
-        image=workflow_spec.image
-        or project.spec.default_image
-        or mlrun.mlconf.default_base_image,
+        image=client_image,
     )
 
     logger.debug(

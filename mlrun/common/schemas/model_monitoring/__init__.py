@@ -13,9 +13,8 @@
 # limitations under the License.
 
 from .constants import (
-    V3IO_MODEL_MONITORING_DB,
+    INTERSECT_DICT_KEYS,
     ApplicationEvent,
-    ControllerPolicy,
     DriftStatus,
     EndpointType,
     EndpointUID,
@@ -26,12 +25,10 @@ from .constants import (
     FileTargetKind,
     FunctionURI,
     MetricData,
+    ModelEndpointCreationStrategy,
     ModelEndpointMonitoringMetricType,
     ModelEndpointSchema,
-    ModelEndpointTarget,
-    ModelEndpointTargetSchemas,
     ModelMonitoringMode,
-    ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
     PredictionsQueryConstants,
     ProjectSecretKeys,
@@ -49,11 +46,9 @@ from .constants import (
 from .grafana import (
     GrafanaColumn,
     GrafanaColumnType,
-    GrafanaDataPoint,
     GrafanaNumberColumn,
     GrafanaStringColumn,
     GrafanaTable,
-    GrafanaTimeSeriesTarget,
 )
 from .model_endpoints import (
     Features,

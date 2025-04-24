@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import inspect
 import os
 from collections import OrderedDict
@@ -50,7 +50,7 @@ class ContextHandler:
         "numpy",
     ]
     # Optional packagers to be collected at initialization time:
-    _EXTENDED_PACKAGERS = []  # TODO: Create "matplotlib", "plotly", "bokeh" packagers.
+    _EXTENDED_PACKAGERS = []  # TODO: Create "matplotlib", "plotly", packagers.
     # Optional packagers from the `mlrun.frameworks` package:
     _MLRUN_FRAMEWORKS_PACKAGERS = []  # TODO: Create frameworks packagers.
     # Default priority values for packagers:

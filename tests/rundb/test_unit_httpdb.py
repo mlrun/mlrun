@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 # test_httpdb.py actually holds integration tests (that should be migrated to tests/integration/sdk_api/httpdb)
 # currently we are running it in the integration tests CI step so adding this file for unit tests for the httpdb
 import enum
@@ -313,3 +313,30 @@ def test_watch_logs_continue():
     assert (
         adapter.call_count == len(log_lines) + 1
     ), "should have called the adapter once per log line, and one more time at the end of log"
+
+
+@pytest.mark.parametrize(
+    "params,expected_page_params",
+    [
+        # defaults
+        (
+            {},
+            {"page": 1, "page-size": mlrun.mlconf.httpdb.pagination.default_page_size},
+        ),
+        # override `page-size`
+        ({"page-size": 1}, {"page": 1, "page-size": 1}),
+        # override `page`
+        (
+            {"page": 2},
+            {"page": 2, "page-size": mlrun.mlconf.httpdb.pagination.default_page_size},
+        ),
+        # `limit` turns into `page-size`
+        ({"limit": 5}, {"page": 1, "page-size": 5}),
+        # `page-size` overrides limit
+        ({"page-size": 2, "limit": 5}, {"page": 1, "page-size": 2}),
+    ],
+)
+def test_resolve_page_params(params, expected_page_params):
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
+    resolved_page_params = db._resolve_page_params(params)
+    assert expected_page_params == resolved_page_params

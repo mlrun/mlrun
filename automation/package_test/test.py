@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
 import re
 import subprocess
@@ -60,7 +60,7 @@ class PackageTester:
             "[google-cloud-bigquery]": {
                 "import_test_command": f"{basic_import}; {google_cloud_bigquery_import}"
             },
-            "[google-cloud-storage]": {
+            "[google-cloud]": {
                 "import_test_command": f"{basic_import}; {google_cloud_storage_import}"
             },
             "[redis]": {"import_test_command": f"{basic_import}; {redis_import}"},
@@ -272,7 +272,7 @@ class PackageTester:
             extra=extra,
         )
         self._run_command(
-            "python -m pip install --upgrade pip~=24.0",
+            "python -m pip install --upgrade pip~=25.0",
             run_in_venv=True,
         )
 

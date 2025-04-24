@@ -22,7 +22,7 @@ import nuclio
 from nuclio import KafkaTrigger
 
 import mlrun
-import mlrun.common.schemas
+import mlrun.common.schemas as schemas
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
@@ -152,6 +152,7 @@ class ServingSpec(NuclioSpec):
         clone_target_dir=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        model_endpoint_creation_task_name=None,
     ):
         super().__init__(
             command=command,
@@ -209,6 +210,7 @@ class ServingSpec(NuclioSpec):
         self.tracking_policy = tracking_policy
         self.secret_sources = secret_sources or []
         self.default_content_type = default_content_type
+        self.model_endpoint_creation_task_name = model_endpoint_creation_task_name
 
     @property
     def graph(self) -> Union[RouterStep, RootFlowStep]:
@@ -269,13 +271,14 @@ class ServingRuntime(RemoteRuntime):
                    can specify special router class and router arguments
 
           flow   - workflow (DAG) with a chain of states
-                   flow support "sync" and "async" engines, branches are not allowed in sync mode
+                   flow supports both "sync" and "async" engines, with "async" being the default.
+                   Branches are not allowed in sync mode.
                    when using async mode calling state.respond() will mark the state as the
                    one which generates the (REST) call response
 
         :param topology:     - graph topology, router or flow
         :param class_name:   - optional for router, router class name/path or router object
-        :param engine:       - optional for flow, sync or async engine (default to async)
+        :param engine:       - optional for flow, sync or async engine
         :param exist_ok:     - allow overriding existing topology
         :param class_args:   - optional, router/flow class init args
 
@@ -298,7 +301,7 @@ class ServingRuntime(RemoteRuntime):
                 step = RouterStep(class_name=class_name, class_args=class_args)
             self.spec.graph = step
         elif topology == StepKinds.flow:
-            self.spec.graph = RootFlowStep(engine=engine)
+            self.spec.graph = RootFlowStep(engine=engine or "async")
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"unsupported topology {topology}, use 'router' or 'flow'"
@@ -309,7 +312,7 @@ class ServingRuntime(RemoteRuntime):
         self,
         stream_path: Optional[str] = None,
         batch: Optional[int] = None,
-        sample: Optional[int] = None,
+        sampling_percentage: float = 100,
         stream_args: Optional[dict] = None,
         tracking_policy: Optional[Union["TrackingPolicy", dict]] = None,
         enable_tracking: bool = True,
@@ -317,13 +320,13 @@ class ServingRuntime(RemoteRuntime):
         """Apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
         and analyze performance.
 
-        :param stream_path:         Path/url of the tracking stream e.g. v3io:///users/mike/mystream
-                                    you can use the "dummy://" path for test/simulation.
-        :param batch:               Micro batch size (send micro batches of N records at a time).
-        :param sample:              Sample size (send only one of N records).
-        :param stream_args:         Stream initialization parameters, e.g. shards, retention_in_hours, ..
-        :param enable_tracking:     Enabled/Disable model-monitoring tracking.
-                                    Default True (tracking enabled).
+        :param stream_path:                Path/url of the tracking stream e.g. v3io:///users/mike/mystream
+                                           you can use the "dummy://" path for test/simulation.
+        :param batch:                      Deprecated. Micro batch size (send micro batches of N records at a time).
+        :param sampling_percentage:        Down sampling events that will be pushed to the monitoring stream based on
+                                           a specified percentage. e.g. 50 for 50%. By default, all events are pushed.
+        :param stream_args:                Stream initialization parameters, e.g. shards, retention_in_hours, ..
+        :param enable_tracking:            Enabled/Disable model-monitoring tracking. Default True (tracking enabled).
 
         Example::
 
@@ -335,13 +338,33 @@ class ServingRuntime(RemoteRuntime):
         """
         # Applying model monitoring configurations
         self.spec.track_models = enable_tracking
+        if self._spec and self._spec.function_refs:
+            logger.debug(
+                "Set tracking for children references", enable_tracking=enable_tracking
+            )
+            for name in self._spec.function_refs.keys():
+                self._spec.function_refs[name].track_models = enable_tracking
+                # Check if function_refs _function is filled if so update track_models field:
+                if self._spec.function_refs[name]._function:
+                    self._spec.function_refs[
+                        name
+                    ]._function.spec.track_models = enable_tracking
+
+        if not 0 < sampling_percentage <= 100:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "`sampling_percentage` must be greater than 0 and less or equal to 100."
+            )
+        self.spec.parameters["sampling_percentage"] = sampling_percentage
 
         if stream_path:
             self.spec.parameters["log_stream"] = stream_path
         if batch:
-            self.spec.parameters["log_stream_batch"] = batch
-        if sample:
-            self.spec.parameters["log_stream_sample"] = sample
+            warnings.warn(
+                "The `batch` size parameter was deprecated in version 1.8.0 and is no longer used. "
+                "It will be removed in 1.10.",
+                # TODO: Remove this in 1.10
+                FutureWarning,
+            )
         if stream_args:
             self.spec.parameters["stream_args"] = stream_args
         if tracking_policy is not None:
@@ -362,6 +385,10 @@ class ServingRuntime(RemoteRuntime):
         handler: Optional[str] = None,
         router_step: Optional[str] = None,
         child_function: Optional[str] = None,
+        creation_strategy: Optional[
+            schemas.ModelEndpointCreationStrategy
+        ] = schemas.ModelEndpointCreationStrategy.INPLACE,
+        outputs: Optional[list[str]] = None,
         **class_args,
     ):
         """add ml model and/or route to the function.
@@ -384,6 +411,19 @@ class ServingRuntime(RemoteRuntime):
         :param router_step: router step name (to determine which router we add the model to in graphs
                             with multiple router steps)
         :param child_function: child function name, when the model runs in a child function
+        :param creation_strategy: Strategy for creating or updating the model endpoint:
+            * **overwrite**:
+            1. If model endpoints with the same name exist, delete the `latest` one.
+            2. Create a new model endpoint entry and set it as `latest`.
+            * **inplace** (default):
+            1. If model endpoints with the same name exist, update the `latest` entry.
+            2. Otherwise, create a new entry.
+            * **archive**:
+            1. If model endpoints with the same name exist, preserve them.
+            2. Create a new model endpoint with the same name and set it to `latest`.
+        :param outputs: list of the model outputs (e.g. labels) ,if provided will override the outputs that been
+                        configured in the model artifact, please note that those outputs need to be equal to the
+                        model serving function outputs (length, and order)
         :param class_args:  extra kwargs to pass to the model serving class __init__
                             (can be read in the model using .get_param(key) method)
         """
@@ -419,10 +459,15 @@ class ServingRuntime(RemoteRuntime):
         if class_name and hasattr(class_name, "to_dict"):
             if model_path:
                 class_name.model_path = model_path
-            key, state = params_to_step(class_name, key)
+            if outputs:
+                class_name.outputs = outputs
+            key, state = params_to_step(
+                class_name,
+                key,
+                model_endpoint_creation_strategy=creation_strategy,
+                endpoint_type=schemas.EndpointType.LEAF_EP,
+            )
         else:
-            if not model_path and not model_url:
-                raise ValueError("model_path or model_url must be provided")
             class_name = class_name or self.spec.default_class
             if class_name and not isinstance(class_name, str):
                 raise ValueError(
@@ -434,12 +479,23 @@ class ServingRuntime(RemoteRuntime):
                 model_path = str(model_path)
 
             if model_url:
-                state = new_remote_endpoint(model_url, **class_args)
+                state = new_remote_endpoint(
+                    model_url,
+                    creation_strategy=creation_strategy,
+                    endpoint_type=schemas.EndpointType.LEAF_EP,
+                    **class_args,
+                )
             else:
                 class_args = deepcopy(class_args)
                 class_args["model_path"] = model_path
+                class_args["outputs"] = outputs
                 state = TaskStep(
-                    class_name, class_args, handler=handler, function=child_function
+                    class_name,
+                    class_args,
+                    handler=handler,
+                    function=child_function,
+                    model_endpoint_creation_strategy=creation_strategy,
+                    endpoint_type=schemas.EndpointType.LEAF_EP,
                 )
 
         return graph.add_route(key, state)
@@ -462,7 +518,11 @@ class ServingRuntime(RemoteRuntime):
         :return function object
         """
         function_reference = FunctionReference(
-            url, image, requirements=requirements, kind=kind or "serving"
+            url,
+            image,
+            requirements=requirements,
+            kind=kind or "serving",
+            track_models=self.spec.track_models,
         )
         self._spec.function_refs.update(function_reference, name)
         func = function_reference.to_function(self.kind)
@@ -583,7 +643,7 @@ class ServingRuntime(RemoteRuntime):
         project="",
         tag="",
         verbose=False,
-        auth_info: mlrun.common.schemas.AuthInfo = None,
+        auth_info: schemas.AuthInfo = None,
         builder_env: Optional[dict] = None,
         force_build: bool = False,
     ):
@@ -653,7 +713,7 @@ class ServingRuntime(RemoteRuntime):
             "project": self.metadata.project,
             "version": "v2",
             "parameters": self.spec.parameters,
-            "graph": self.spec.graph.to_dict() if self.spec.graph else {},
+            "graph": self.spec.graph.to_dict(strip=True) if self.spec.graph else {},
             "load_mode": self.spec.load_mode,
             "functions": function_name_uri_map,
             "graph_initializer": self.spec.graph_initializer,
@@ -661,6 +721,7 @@ class ServingRuntime(RemoteRuntime):
             "track_models": self.spec.track_models,
             "tracking_policy": None,
             "default_content_type": self.spec.default_content_type,
+            "model_endpoint_creation_task_name": self.spec.model_endpoint_creation_task_name,
         }
 
         if self.spec.secret_sources:
@@ -721,7 +782,7 @@ class ServingRuntime(RemoteRuntime):
             namespace=namespace,
             logger=logger,
             is_mock=True,
-            monitoring_mock=track_models,
+            monitoring_mock=self.spec.track_models,
         )
 
         if workdir:
@@ -739,7 +800,7 @@ class ServingRuntime(RemoteRuntime):
             serving_fn.add_model(
                 "my-classifier",
                 model_path=model_path,
-                class_name="mlrun.frameworks.sklearn.SklearnModelServer",
+                class_name="mlrun.frameworks.sklearn.SKLearnModelServer",
             )
             serving_fn.plot(rankdir="LR")
 

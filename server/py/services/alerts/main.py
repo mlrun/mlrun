@@ -13,6 +13,7 @@
 # limitations under the License.
 import datetime
 import http
+import typing
 from typing import Optional, Union
 
 import fastapi
@@ -34,6 +35,8 @@ import framework.db.sqldb.db
 import framework.service
 import framework.utils.auth.verifier
 import framework.utils.clients.chief
+import framework.utils.helpers
+import framework.utils.pagination
 import framework.utils.periodic
 import framework.utils.singletons.db
 import framework.utils.singletons.project_member
@@ -41,7 +44,6 @@ import framework.utils.time_window_tracker
 import services.alerts.crud
 import services.alerts.initial_data
 import services.api.crud
-from framework.db.session import close_session, create_session
 from framework.routers import (
     alert_activations,
     alert_template,
@@ -57,6 +59,12 @@ from framework.utils.singletons.project_member import (
 
 
 class Service(framework.service.Service):
+    def __init__(self):
+        super().__init__()
+        self._paginated_methods = [
+            (services.alerts.crud.AlertActivation, "list_alert_activations"),
+        ]
+
     async def store_alert(
         self,
         request: fastapi.Request,
@@ -125,17 +133,24 @@ class Service(framework.service.Service):
             auth_info,
         )
 
+        exclude_updated = self._should_exclude_updated(request)
         return await run_in_threadpool(
-            services.alerts.crud.Alerts().get_enriched_alert, db_session, project, name
+            services.alerts.crud.Alerts().get_alert,
+            db_session,
+            project,
+            name,
+            exclude_updated=exclude_updated,
         )
 
     async def list_alerts(
         self,
         request: fastapi.Request,
         project: str,
+        page_size: typing.Optional[int],
+        offset: typing.Optional[int],
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
-    ) -> list[mlrun.common.schemas.AlertConfig]:
+    ) -> dict[str, list[mlrun.common.schemas.AlertConfig]]:
         if project != "*":
             # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
             #  not access it directly (ML-8565)
@@ -151,10 +166,19 @@ class Service(framework.service.Service):
             )
         )
 
+        exclude_updated = self._should_exclude_updated(request)
+
+        # TODO: Remove this when implementing pagination for alert configs
+        #  page_size is used for the limit in the query, but we don't have pagination yet
+        limit = page_size or mlconf.alerts.default_list_alert_configs_limit
+
         alerts = await run_in_threadpool(
             services.alerts.crud.Alerts().list_alerts,
             db_session,
             project=allowed_project_names,
+            exclude_updated=exclude_updated,
+            offset=offset,
+            limit=limit,
         )
 
         alerts = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
@@ -167,7 +191,9 @@ class Service(framework.service.Service):
             auth_info,
         )
 
-        return alerts
+        return {
+            "alerts": alerts,
+        }
 
     async def delete_alert(
         self,
@@ -206,6 +232,40 @@ class Service(framework.service.Service):
             services.alerts.crud.Alerts().delete_alert, db_session, project, name
         )
 
+    async def delete_alerts(
+        self,
+        request: fastapi.Request,
+        project: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ):
+        # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
+        #  not access it directly (ML-8565)
+        await run_in_threadpool(
+            framework.utils.singletons.project_member.get_project_member().ensure_project,
+            db_session,
+            project,
+            auth_info=auth_info,
+        )
+
+        await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.alert,
+            project,
+            "*",
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
+
+        if not self._is_chief_or_standalone():
+            chief_client = framework.utils.clients.chief.Client()
+            return await chief_client.delete_alerts(project=project, request=request)
+
+        self._logger.debug("Deleting all alerts in project", project=project)
+
+        await run_in_threadpool(
+            services.alerts.crud.Alerts().delete_alerts, db_session, project
+        )
+
     async def reset_alert(
         self,
         request: fastapi.Request,
@@ -242,7 +302,7 @@ class Service(framework.service.Service):
             services.alerts.crud.Alerts().reset_alert, db_session, project, name
         )
 
-    async def post_event(
+    async def process_event(
         self,
         request: fastapi.Request,
         project: str,
@@ -408,7 +468,7 @@ class Service(framework.service.Service):
                 project=project,
             )
         )
-        paginator = services.api.utils.pagination.Paginator()
+        paginator = framework.utils.pagination.Paginator()
 
         async def _filter_alert_activations_by_permissions(_alert_activations):
             return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
@@ -444,6 +504,43 @@ class Service(framework.service.Service):
             pagination=page_info,
         )
 
+    async def get_alert_activation(
+        self,
+        request: fastapi.Request,
+        project: str,
+        name: Optional[str],
+        activation_id: int,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ) -> mlrun.common.schemas.AlertActivation:
+        await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.alert_activations,
+            project,
+            # TODO: add name emptiness check when we have fine-grained permissions
+            name,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
+        alert_activation = await run_in_threadpool(
+            services.alerts.crud.AlertActivation().get_alert_activation,
+            db_session,
+            activation_id,
+        )
+        if alert_activation.project != project:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert activation not found. "
+                f"activation_id={activation_id}, "
+                f"project={project}"
+            )
+        if name and alert_activation.name != name:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert activation not found. "
+                f"activation_id={activation_id}, "
+                f"name={name}"
+            )
+
+        return alert_activation
+
     async def _move_service_to_online(self):
         if not get_project_member():
             await fastapi.concurrency.run_in_threadpool(initialize_project_member)
@@ -452,6 +549,17 @@ class Service(framework.service.Service):
         if self._is_chief_or_standalone():
             services.alerts.initial_data.update_default_configuration_data(self._logger)
             await self._start_periodic_functions()
+
+    @staticmethod
+    def _should_exclude_updated(request: fastapi.Request):
+        # The 'updated' field was added in 1.8.0, and earlier versions don't support it, so we exclude it
+        # for compatibility.
+        client_version = request.headers.get("x-mlrun-client-version")
+        return bool(
+            client_version
+        ) and not framework.utils.helpers.validate_client_version(
+            client_version, "1.8.0"
+        )
 
     def _register_routes(self):
         # TODO: Resolve these dynamically from configuration
@@ -507,10 +615,8 @@ class Service(framework.service.Service):
             )
 
     async def _generate_events(self):
-        db_session = await fastapi.concurrency.run_in_threadpool(create_session)
         try:
             await framework.utils.time_window_tracker.run_with_time_window_tracker(
-                db_session=db_session,
                 key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.events_generation,
                 max_window_size_seconds=int(
                     # TODO: This needs to be aligned with chief
@@ -524,8 +630,6 @@ class Service(framework.service.Service):
                 "Failed generating events. Ignoring",
                 exc=mlrun.errors.err_to_str(exc),
             )
-        finally:
-            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
     @staticmethod
     def _get_authorization_resource_for_alert_template():
@@ -548,7 +652,7 @@ class Service(framework.service.Service):
             db_session,
             project="*",
             states=[mlrun.common.runtimes.constants.RunStates.error],
-            last_update_time_from=last_update_time,
+            end_time_from=last_update_time,
         )
 
         for run in runs:

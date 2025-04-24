@@ -55,6 +55,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
+        output_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[
             Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
@@ -116,8 +117,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
             hyper_param_options=hyper_param_options,
             verbose=verbose,
             scrape_metrics=scrape_metrics,
-            out_path=out_path,
-            artifact_path=artifact_path,
+            output_path=output_path,
             workdir=workdir,
             notifications=notifications,
             state_thresholds=state_thresholds,
@@ -281,5 +281,9 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         # once the run is completed, and we can just push the notifications.
         # Only push from jupyter, not from the CLI.
         # "handler" and "dask" kinds are special cases of local runs which don't set local=True
-        if self._is_run_local or runtime.kind in ["handler", "dask"]:
+        if self._is_run_local or runtime.kind in ["handler"]:
             mlrun.utils.notifications.NotificationPusher([runobj]).push()
+        elif runtime.kind in ["dask"]:
+            runtime._get_db().push_run_notifications(
+                uid=runobj.metadata.uid, project=runobj.metadata.project
+            )

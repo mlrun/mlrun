@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import typing
 
 if typing.TYPE_CHECKING:
@@ -34,6 +34,7 @@ from kubernetes.client import V1EnvVar, V1EnvVarSource, V1SecretKeySelector
 import mlrun
 import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun_pipelines.common.constants
 import mlrun_pipelines.common.models
 from mlrun.config import config
 from mlrun.errors import err_to_str
@@ -55,12 +56,6 @@ from mlrun.utils import (
 # directories to /tmp to allow running with security context
 KFPMETA_DIR = "/tmp"
 KFP_ARTIFACTS_DIR = "/tmp"
-
-
-class PipelineRunType:
-    run = "run"
-    build = "build"
-    deploy = "deploy"
 
 
 def mlrun_op(
@@ -339,6 +334,7 @@ def mlrun_op(
         else:
             raise ValueError("local image registry env not found")
 
+    # TODO: move enrichment to server side
     image = mlrun.utils.enrich_image_url(
         image, mlrun.get_version(), str(version.Version().get_python_version())
     )
@@ -458,6 +454,17 @@ def get_default_reg():
     return ""
 
 
+def replace_last_occurrence(string: str, old: str, new: str) -> str:
+    """
+    Replace the last occurrence of `old` in `string` with `new`.
+
+    If `old` is not found, returns the original string."""
+    head, separator, tail = string.rpartition(old)
+    if separator:
+        return head + new + tail
+    return string
+
+
 def format_summary_from_kfp_run(kfp_run, project=None):
     from mlrun_pipelines.ops import generate_kfp_dag_and_resolve_project
 
@@ -471,6 +478,7 @@ def format_summary_from_kfp_run(kfp_run, project=None):
     # enrich DAG with mlrun run info
     runs = mlrun.db.get_run_db().list_runs(project=project, labels=f"workflow={run_id}")
     for run in runs:
+        run_name = get_in(run, "metadata.name")
         step = get_in(
             run,
             [
@@ -479,9 +487,18 @@ def format_summary_from_kfp_run(kfp_run, project=None):
                 mlrun.common.constants.MLRunInternalLabels.runner_pod,
             ],
         )
-        if step and step in dag:
-            dag[step]["run_uid"] = get_in(run, "metadata.uid")
-            dag[step]["kind"] = get_in(run, "metadata.labels.kind")
+        # In KFP v1, the step name is suffixed with the run name, whereas in KFP v2, the step name is not suffixed.
+        # We need to check both cases to find the step in the DAG.
+        alternative_step_name = replace_last_occurrence(step, f"-{run_name}", "")
+        if step:
+            if step in dag:
+                step_name = step
+            elif alternative_step_name in dag:
+                step_name = alternative_step_name
+            else:
+                continue
+            dag[step_name]["run_uid"] = get_in(run, "metadata.uid")
+            dag[step_name]["kind"] = get_in(run, "metadata.labels.kind")
             error = get_in(run, "status.error")
             if error:
                 dag[step]["error"] = error
@@ -492,7 +509,6 @@ def format_summary_from_kfp_run(kfp_run, project=None):
     }
     short_run["run"]["project"] = project
     short_run["run"]["message"] = message
-    logger.debug("Completed summary formatting", run_id=run_id, project=project)
     return short_run
 
 
@@ -503,9 +519,9 @@ def show_kfp_run(run, html_display_id=None, dag_display_id=None, with_html=True)
         mlrun_pipelines.common.models.RunStatuses.skipped: "white",
     }
     runtype_to_shape = {
-        PipelineRunType.run: "ellipse",
-        PipelineRunType.build: "box",
-        PipelineRunType.deploy: "box3d",
+        mlrun_pipelines.common.constants.PipelineRunType.run: "ellipse",
+        mlrun_pipelines.common.constants.PipelineRunType.build: "box",
+        mlrun_pipelines.common.constants.PipelineRunType.deploy: "box3d",
     }
     if not run or "graph" not in run:
         return
@@ -703,6 +719,13 @@ def _enrich_node_selector(function):
     return mlrun.utils.helpers.to_non_empty_values_dict(function_node_selector)
 
 
+def _enrich_gpu_limits(function, task):
+    function_limits = function.spec.resources.get("limits", {})
+    function_gpu_limits = mlrun.utils.helpers.get_enriched_gpu_limits(function_limits)
+    for resource_name, resource_value in function_gpu_limits.items():
+        task.container.add_resource_limit(resource_name, resource_value)
+
+
 def replace_kfp_plaintext_secret_env_vars_with_secret_refs(
     byte_buffer: bytes,
     content_type: str,
@@ -805,8 +828,9 @@ def _enrich_kfp_workflow_yaml_credentials(
     api_version = (
         workflow_dict.get("api_version") or workflow_dict.get("apiVersion", "").lower()
     )
+    api_version_project = api_version.split("/")[0]
 
-    if "argoproj.io" in api_version:  # KFP Argo Workflow
+    if api_version_project == "argoproj.io":  # KFP Argo Workflow
         spec = workflow_dict.get("spec")
         if not spec:
             logger.warning("Missing spec, not modifying workflow")
@@ -823,7 +847,7 @@ def _enrich_kfp_workflow_yaml_credentials(
 
         return yaml.safe_dump(workflow_dict).encode()
 
-    elif "tekton.dev" in api_version:  # KFP Tekton Pipeline
+    elif api_version_project == "tekton.dev":  # KFP Tekton Pipeline
         for task in workflow_dict["spec"].get("tasks", []):
             if "name" in task:
                 _replace_secret_envs_in_tekton_template(

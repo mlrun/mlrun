@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 from typing import Optional
 
 import mlrun.common.schemas
@@ -46,7 +46,9 @@ class ClientSpec(
             spark_app_image_tag=config.spark_app_image_tag,
             spark_history_server_path=config.spark_history_server_path,
             kfp_image=self._resolve_image_by_client_versions(
-                config.kfp_image, client_version, client_python_version
+                image=mlrun.mlconf.default_base_image,
+                client_version=client_version,
+                client_python_version=client_python_version,
             ),
             kfp_url=config.kfp_url,
             dask_kfp_image=self._resolve_image_by_client_versions(
@@ -113,14 +115,12 @@ class ClientSpec(
             external_platform_tracking=self._get_config_value_if_not_default(
                 "external_platform_tracking"
             ),
-            model_monitoring_tsdb_connection=self._get_config_value_if_not_default(
-                "model_endpoint_monitoring.tsdb_connection"
-            ),
-            model_monitoring_stream_connection=self._get_config_value_if_not_default(
-                "model_endpoint_monitoring.stream_connection"
-            ),
             packagers=self._get_config_value_if_not_default("packagers"),
             alerts_mode=self._get_config_value_if_not_default("alerts.mode"),
+            system_id=self._get_config_value_if_not_default("system_id"),
+            model_endpoint_monitoring_store_prefixes=self._get_config_value_if_not_default(
+                "model_endpoint_monitoring.store_prefixes"
+            ),
         )
 
     @staticmethod

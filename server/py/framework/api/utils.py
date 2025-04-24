@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import collections
 import copy
@@ -1091,6 +1091,7 @@ async def _delete_function(
         function_name=function_name,
         functions_count=len(functions),
         project=project,
+        kind=functions[0].get("kind"),
     )
 
     # update functions with deletion task id

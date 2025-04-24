@@ -28,9 +28,9 @@ The images are:
 - `mlrun/ml-base`: Image for file acquisition, compression, Dask jobs, simple training jobs and other utilities.
 - `mlrun/jupyter`: An image with Jupyter giving a playground to use MLRun in the open source. Built on top of jupyter/scipy-notebook, with the addition of MLRun and several demos and examples.
 
-```{admonition} Note
-When using the `mlrun` or `mlrun-gpu` image, use PyTorch versions up to and including than 2.0.1, but not higher. 
-You can build your own images with newer CUDA for later releases of PyTorch.
+```{admonition} Notes
+- When using the `mlrun` or `mlrun-gpu` image, use PyTorch versions up to and including than 2.0.1, but not higher. You can build your own images with newer CUDA for later releases of PyTorch.
+-  If you are using a zipped source, use `mlrun/mlrun` images or install `unzip` in the provided function base image. 
 ```
 
 
@@ -44,7 +44,7 @@ To build all images, run this command from the root directory of the mlrun repos
 Where:
 - MLRUN_VERSION is used as the tag of the image and also as the version injected into the code (e.g. latest or 0.7.0 or 0.6.5-rc6, defaults to unstable)
 - MLRUN_DOCKER_REPO is the docker repository (defaults to mlrun)
-- MLRUN_DOCKER_REGISTRY is the docker registry (e.g. quay.io/, gcr.io/, defaults to empty (docker hub))
+- MLRUN_DOCKER_REGISTRY is the docker registry (e.g. `quay.io/`, `gcr.io/`, defaults to empty (docker hub))
 
 For example, running `MLRUN_VERSION=x.y.z make docker-images` generates these images:
 - mlrun/mlrun-api:x.y.z

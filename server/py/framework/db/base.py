@@ -26,6 +26,8 @@ import mlrun.common.types
 import mlrun.lists
 import mlrun.model
 
+import framework.db.sqldb.models
+
 
 class DBError(Exception):
     pass
@@ -117,12 +119,13 @@ class DBInterface(ABC):
         labels: Optional[Union[str, list[str]]] = None,
         states: Optional[list[str]] = None,
         sort: bool = True,
-        last: int = 0,
         iter: bool = False,
         start_time_from: Optional[datetime.datetime] = None,
         start_time_to: Optional[datetime.datetime] = None,
         last_update_time_from: Optional[datetime.datetime] = None,
         last_update_time_to: Optional[datetime.datetime] = None,
+        end_time_from: Optional[datetime.datetime] = None,
+        end_time_to: Optional[datetime.datetime] = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -141,7 +144,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def del_runs(self, session, name="", project="", labels=None, state="", days_ago=0):
+    def del_runs(
+        self, session, name="", project="", labels=None, state="", days_ago=0, uids=None
+    ):
         pass
 
     def overwrite_artifacts_with_tag(
@@ -255,7 +260,7 @@ class DBInterface(ABC):
         session,
         producer_id: str,
         project: str,
-        key_tag_iteration_pairs: list[tuple] = "",
+        artifact_identifiers: list[tuple] = "",
     ):
         pass
 
@@ -283,10 +288,40 @@ class DBInterface(ABC):
     ):
         return []
 
-    # TODO: remove in 1.8.0
+    def validate_artifact_removal_preconditions(
+        self,
+        session,
+        key: str,
+        tag: str = "",
+        iter: Optional[str] = None,
+        project: str = "",
+        producer_id: Optional[str] = None,
+        uid: Optional[str] = None,
+    ) -> Optional[dict[str, Any]]:
+        """
+        Validate whether an artifact can be safely removed from the system.
+
+        This method checks if the specified artifact is currently in use by other resources,
+        such as model endpoints. If it is, the deletion will be blocked, and an appropriate
+        exception should be raised (MLRunConflictError).
+
+        :param session:     Active SQLAlchemy DB session for querying.
+        :param key:         Artifact key.
+        :param tag:         Specific tag for the artifact.
+        :param iter:        Artifact iteration number, if applicable.
+        :param project:     Project to which the artifact belongs.
+        :param producer_id: Identifier of the artifact's producer.
+        :param uid:         UID of the artifact object.
+
+        :return: An artifact dictionary.
+        :raises MLRunConflictError: If the artifact is in use and cannot be deleted.
+        """
+        pass
+
+    # TODO: Remove once data migration v5 is obsolete
     @deprecated(
-        version="1.8.0",
-        reason="'store_artifact_v1' will be removed from this file in 1.8.0, use "
+        version="1.9.0",
+        reason="'store_artifact_v1' will be removed from this file in 1.9.0, use "
         "'store_artifact' instead",
         category=FutureWarning,
     )
@@ -307,10 +342,10 @@ class DBInterface(ABC):
         """
         pass
 
-    # TODO: remove in 1.8.0
+    # TODO: Remove once data migration v5 is obsolete
     @deprecated(
-        version="1.8.0",
-        reason="'read_artifact_v1' will be removed from this file in 1.8.0, use "
+        version="1.9.0",
+        reason="'read_artifact_v1' will be removed from this file in 1.9.0, use "
         "'read_artifact' instead",
         category=FutureWarning,
     )
@@ -364,6 +399,7 @@ class DBInterface(ABC):
         tag: Optional[str] = None,
         kind: Optional[str] = None,
         labels: Optional[list[str]] = None,
+        states: Optional[list[mlrun.common.schemas.FunctionState]] = None,
         hash_key: Optional[str] = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
         offset: Optional[int] = None,
@@ -893,13 +929,31 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_alerts(
-        self, session, project: typing.Optional[typing.Union[str, list[str]]] = None
+        self,
+        session,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
+        exclude_updated: bool = False,
+        limit: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         pass
 
     @abstractmethod
+    def delete_project_alerts(
+        self,
+        session,
+        project: str,
+        chunk_size: typing.Optional[int] = None,
+    ) -> list[int]:
+        pass
+
+    @abstractmethod
     def get_alert(
-        self, session, project: str, name: str
+        self,
+        session,
+        project: str,
+        name: str,
+        with_state=False,
     ) -> mlrun.common.schemas.AlertConfig:
         pass
 
@@ -910,14 +964,19 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def enrich_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
+    def enrich_alert(
+        self,
+        session,
+        alert: mlrun.common.schemas.AlertConfig,
+        state: Optional[framework.db.sqldb.models.AlertState] = None,
+    ):
         pass
 
     @staticmethod
     def create_partitions(
         session,
         table_name: str,
-        partitioning_information_list: list[tuple[str, str, str]],
+        partitioning_information_list: list[tuple[str, str]],
     ):
         pass
 
@@ -936,6 +995,21 @@ class DBInterface(ABC):
     ) -> str:
         pass
 
+    @staticmethod
+    def table_exist(
+        session,
+        table_name: str,
+    ) -> bool:
+        pass
+
+    @abstractmethod
+    def create_alert(
+        self,
+        session,
+        alert: mlrun.common.schemas.AlertConfig,
+    ) -> mlrun.common.schemas.AlertConfig:
+        pass
+
     @abstractmethod
     def delete_alert(self, session, project: str, name: str):
         pass
@@ -946,10 +1020,11 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
-        last_updated: datetime.datetime,
+        last_updated: typing.Optional[datetime.datetime],
         count: typing.Optional[int] = None,
         active: bool = False,
         obj: typing.Optional[dict] = None,
+        alert_id: typing.Optional[int] = None,
     ):
         pass
 
@@ -977,7 +1052,6 @@ class DBInterface(ABC):
         session,
         alert_data: mlrun.common.schemas.AlertConfig,
         event_data: mlrun.common.schemas.Event,
-        notifications_states: list[mlrun.common.schemas.NotificationState],
     ):
         pass
 
@@ -987,7 +1061,11 @@ class DBInterface(ABC):
         session,
         activation_id: int,
         activation_time: datetime.datetime,
-        number_of_events: Optional[int],
+        number_of_events: Optional[int] = None,
+        notifications_states: Optional[
+            list[mlrun.common.schemas.NotificationState]
+        ] = None,
+        update_reset_time: bool = False,
     ):
         pass
 
@@ -1010,6 +1088,14 @@ class DBInterface(ABC):
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
+        pass
+
+    @abstractmethod
+    def get_alert_activation(
+        self,
+        session,
+        activation_id: int,
+    ) -> mlrun.common.schemas.AlertActivation:
         pass
 
     @abstractmethod
@@ -1166,19 +1252,33 @@ class DBInterface(ABC):
         self,
         session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
-        name: str,
-        project: str,
-        function_name: str,
-    ) -> mlrun.common.schemas.ModelEndpoint:
+    ) -> str:
         """
         Store a model endpoint in the DB.
 
         :param session:         The database session.
         :param model_endpoint:  The model endpoint object.
-        :param name:            The model endpoint name.
+        :return:                The created model endpoint uid.
+        """
+        pass
+
+    def store_model_endpoints(
+        self,
+        session,
+        model_endpoints: list[mlrun.common.schemas.ModelEndpoint],
+        function_name: str,
+        function_tag: str,
+        project: str,
+    ) -> None:
+        """
+        Store list of model endpoints in the DB.
+        Note all the model endpoints should have the same function name and tag.
+
+        :param session:         The database session.
+        :param model_endpoints: Model endpoints object to store.
         :param project:         The project name.
         :param function_name:   The function name.
-        :return:                The model endpoint uid.
+        :param function_tag:    The function tag.
         """
         pass
 
@@ -1187,7 +1287,8 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
-        function_name: str,
+        function_name: Optional[str] = None,
+        function_tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
@@ -1198,6 +1299,7 @@ class DBInterface(ABC):
         :param project:       The project name.
         :param name:          The model endpoint name.
         :param function_name: The function name.
+        :param function_tag:  The function tag.
         :param uid:           The model endpoint uid.
         :return:              The model endpoint object.
         """
@@ -1208,10 +1310,11 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
-        function_name: str,
         attributes: dict,
+        function_name: Optional[str] = None,
+        function_tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
-    ) -> mlrun.common.schemas.ModelEndpoint:
+    ) -> str:
         """
         Update a model endpoint by project, name and uid.
         If uid is not provided, the latest model endpoint with the provided name and project will be updated.
@@ -1220,10 +1323,29 @@ class DBInterface(ABC):
         :param session:         The database session.
         :param project:         The project name.
         :param name:            The model endpoint name.
-        :param function_name:   The function name.
         :param attributes:      The attributes to update.
+        :param function_name:   The function name.
+        :param function_tag:    The function tag.
         :param uid:             The model endpoint uid.
         :return:                The updated model endpoint uid.
+        """
+        pass
+
+    def update_model_endpoints(
+        self,
+        session,
+        project: str,
+        attributes: dict[str, dict[str, Any]],
+    ) -> None:
+        """
+        Update a model endpoint by project, name and uid.
+        If uid is not provided, the latest model endpoint with the provided name and project will be updated.
+        The attributes parameter is a flatten dictionary which should contain the fields that need to be update.
+
+        :param session:         The database session.
+        :param project:         The project name.
+        :param attributes:      Dictionary where the key is the model endpoint uids to update
+                                and the value are the attribute to update in.
         """
         pass
 
@@ -1231,9 +1353,11 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-        name: typing.Optional[str] = None,
+        names: typing.Optional[list[str]] = None,
         function_name: typing.Optional[str] = None,
+        function_tag: typing.Optional[str] = None,
         model_name: typing.Optional[str] = None,
+        model_tag: typing.Optional[str] = None,
         top_level: typing.Optional[bool] = None,
         labels: typing.Optional[list[str]] = None,
         start: typing.Optional[datetime.datetime] = None,
@@ -1242,24 +1366,33 @@ class DBInterface(ABC):
         latest_only: bool = False,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
-    ) -> list[mlrun.common.schemas.ModelEndpoint]:
+        order_by: typing.Optional[str] = None,
+        as_dict: bool = False,
+    ) -> Union[
+        mlrun.common.schemas.ModelEndpointList,
+        dict[str, framework.db.sqldb.models.ModelEndpoint],
+    ]:
         """
         List model endpoints by project and optional filters.
 
-        :param session:     The database session.
-        :param project:     The project name.
-        :param name:        The model endpoint name.
-        :param function_name: The function name.
-        :param model_name:  The model name.
-        :param top_level:   Whether to return only top level model endpoints (1,2,4).
-        :param labels:      The labels to filter by.
-        :param start:       The start time to filter by.
-        :param end:         The end time to filter by.
-        :param uids:        The model endpoint uids to filter by.
-        :param latest_only: Whether to return only the latest model endpoint for each name.
-        :param offset:      SQL query offset.
-        :param limit:       SQL query limit.
-        :return:            A list of model endpoints.
+        :param session:         The database session.
+        :param project:         The project name.
+        :param names:           The model endpoint list of names.
+        :param function_name:   The function name.
+        :param function_tag:    The function tag.
+        :param model_name:      The model name.
+        :param model_tag:       The model tag.
+        :param top_level:       Whether to return only top level model endpoints (1,2,4).
+        :param labels:          The labels to filter by.
+        :param start:           The start time to filter by.
+        :param end:             The end time to filter by.
+        :param uids:            The model endpoint uids to filter by.
+        :param latest_only:     Whether to return only the latest model endpoint for each name.
+        :param offset:          SQL query offset.
+        :param limit:           SQL query limit.
+        :param order_by:        Name of column to order by it (in ascending order).
+        :param as_dict:         Allow returning endpoints as list of framework.db.sqldb.models.ModelEndpoint dictionary.
+        :return:                A list of model endpoints.
         """
         pass
 
@@ -1268,8 +1401,9 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
-        function_name: str,
-        uid: str,
+        function_name: Optional[str] = None,
+        function_tag: typing.Optional[str] = None,
+        uid: typing.Optional[str] = None,
     ) -> None:
         """
         Delete a model endpoint by project, name and uid.
@@ -1279,6 +1413,7 @@ class DBInterface(ABC):
         :param project:         The project name.
         :param name:            The model endpoint name.
         :param function_name:   The function name.
+        :param function_tag:    The function tag.
         :param uid:             The model endpoint uid.
         """
         pass
@@ -1287,13 +1422,26 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-        names: typing.Optional[typing.Union[str, list[str]]] = None,
+        uids: typing.Optional[list[str]] = None,
     ) -> None:
         """
         Delete model endpoints across projects and names.
 
         :param session: The database session.
         :param project: The project name.
-        :param names:   The model endpoint names.
+        """
+        pass
+
+    def delete_feature_sets(
+        self,
+        session,
+        project: str,
+        uids: typing.Optional[list[str]] = None,
+    ) -> None:
+        """
+        Delete multiple feature sets.
+        :param session: The database session.
+        :param project: The project name.
+        :param uids:    The feature set uids to delete.
         """
         pass

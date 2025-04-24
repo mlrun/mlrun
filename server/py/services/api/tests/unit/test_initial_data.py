@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
+import string
 import typing
 import unittest.mock
 
@@ -24,6 +25,7 @@ import mlrun.common.db.sql_session
 import mlrun.common.schemas
 from mlrun.config import config
 
+import framework.constants
 import framework.db.init_db
 import framework.db.sqldb.db
 import framework.db.sqldb.models
@@ -229,7 +231,7 @@ def test_add_default_hub_source_if_needed():
         assert update_default_hub_source.call_count == 0
 
 
-def test_migrate_function_kind():
+def test_migrate_function_kind_and_state():
     db, db_session = _initialize_db_without_migrations()
     num_of_functions = 10
     chunk_size = 1
@@ -243,18 +245,94 @@ def test_migrate_function_kind():
     fn_name_none_kind = "name-10"
     _insert_function(db, db_session, fn_name_none_kind, function_kind=None)
 
+    # Insert a function with None state
+    fn_name_none_state = "name-11"
+    _insert_function(db, db_session, fn_name_none_state, function_state=None)
+
+    # Insert a function with both kind and state as None
+    fn_name_none_kind_state = "name-12"
+    _insert_function(
+        db, db_session, fn_name_none_kind_state, function_kind=None, function_state=None
+    )
+
     # Migrate function kind
-    services.api.initial_data._ensure_function_kind(
+    services.api.initial_data._ensure_function_kind_and_state(
         db, db_session, chunk_size=chunk_size
     )
 
     # Verify the migration for the first set of functions
     for fn_counter in range(num_of_functions):
         fn_name = f"name-{fn_counter}"
-        _verify_function_kind(db, db_session, fn_name, expected_kind="remote")
+        _verify_function_attr(
+            db,
+            db_session,
+            fn_name,
+            attribute_name="kind",
+            attribute_path="kind",
+            expected_value="remote",
+        )
+        _verify_function_attr(
+            db,
+            db_session,
+            fn_name,
+            attribute_name="state",
+            attribute_path="status.state",
+            expected_value="ready",
+        )
 
     # Verify the migration for the function with None as kind
-    _verify_function_kind(db, db_session, fn_name_none_kind, expected_kind="")
+    _verify_function_attr(
+        db,
+        db_session,
+        fn_name_none_kind,
+        attribute_name="kind",
+        attribute_path="kind",
+        expected_value="",
+    )
+    _verify_function_attr(
+        db,
+        db_session,
+        fn_name_none_kind,
+        attribute_name="state",
+        attribute_path="status.state",
+        expected_value="ready",
+    )
+
+    # Verify the migration for the function with None as state
+    _verify_function_attr(
+        db,
+        db_session,
+        fn_name_none_state,
+        attribute_name="kind",
+        attribute_path="kind",
+        expected_value="remote",
+    )
+    _verify_function_attr(
+        db,
+        db_session,
+        fn_name_none_state,
+        attribute_name="state",
+        attribute_path="status.state",
+        expected_value="",
+    )
+
+    # Verify the migration for the function with both kind and state as None
+    _verify_function_attr(
+        db,
+        db_session,
+        fn_name_none_kind_state,
+        attribute_name="kind",
+        attribute_path="kind",
+        expected_value="",
+    )
+    _verify_function_attr(
+        db,
+        db_session,
+        fn_name_none_kind_state,
+        attribute_name="state",
+        attribute_path="status.state",
+        expected_value="",
+    )
 
 
 def test_create_project_summaries():
@@ -375,6 +453,232 @@ def test_add_producer_uri_to_artifact():
     _verify_artifact_producer_uri(db, db_session, "name-11", "")
 
 
+@pytest.mark.parametrize(
+    "system_id_source, expected_system_id",
+    [
+        # when no system id is configured, a new random one should be generated
+        ("random", None),
+        # when a system id is set in mlconf, it should be used
+        ("mlconf", "123"),
+    ],
+)
+def test_init_system_id(
+    system_id_source, expected_system_id, monkeypatch: pytest.MonkeyPatch
+):
+    if system_id_source == "mlconf":
+        monkeypatch.setattr(
+            mlrun.mlconf, framework.constants.SYSTEM_ID_KEY, expected_system_id
+        )
+
+    db, db_session = _initialize_db_without_migrations()
+
+    # start with no system id
+    system_id = db.get_system_id(db_session)
+    assert system_id is None
+
+    # initialize the system id
+    services.api.initial_data._init_system_id(db_session)
+    system_id = db.get_system_id(db_session)
+    assert system_id is not None
+
+    if system_id_source == "random":
+        # ensure the generated id has the correct length
+        assert len(system_id) == 6
+        # ensure the generated id contains only alphanumeric characters
+        assert all(char in string.ascii_lowercase + string.digits for char in system_id)
+    else:
+        assert system_id == expected_system_id
+
+    assert mlrun.mlconf.system_id == system_id
+
+    # ensure reinitialization does not change an existing system id
+    services.api.initial_data._init_system_id(db_session)
+    system_id_after_second_init = db.get_system_id(db_session)
+    assert system_id_after_second_init == system_id
+
+
+def test_ensure_latest_tag_for_artifacts():
+    # This test verifies that the migration to ensure the "latest" tag is assigned correctly to artifacts works as
+    # expected. The test creates a set of artifacts with different iteration numbers and tags:
+
+    # 1. project1 + key1 + iteration 0 (run1) -> 2 tags (v1, v2)
+
+    # 2. project1 + key1 + iteration 1 (run2) -> 1 tag (latest)
+    # 3. project1 + key1 + iteration 2 (run2) -> 2 tags (v1, latest)
+    # 4. project1 + key1 + iteration 3 (run2) -> 2 tags (v1, latest)
+
+    # 5. project2 + key1 + iteration 0 -> 1 tag (latest)
+    # 6. project2 + key2 + iteration 0 -> 1 tag (latest)
+
+    # The test then deletes the "latest" tags from the second artifact and verifies that only 2 artifacts have the
+    # "latest" tag left. After performing the migration, the test verifies that the correct artifacts are tagged as
+    # "latest".
+
+    db, db_session = _initialize_db_without_migrations()
+    key1 = "key1"
+    project1 = "project1"
+    key2 = "key2"
+    project2 = "project2"
+    tree1 = "tree1"
+    tree2 = "tree2"
+
+    def generate_artifact(key, tree=None):
+        artifact = {
+            "metadata": {"key": key},
+            "kind": "artifact",
+        }
+        if tree:
+            artifact["metadata"]["tree"] = tree
+        return artifact
+
+    # Step 1: Create artifacts with different iteration numbers and tags
+
+    # Create artifact for project1 + key1 + iteration 0 (run1) -> 3 tags (v1, v2, latest)
+    artifact_1_uid = db.store_artifact(
+        db_session,
+        key=key1,
+        project=project1,
+        iter=0,
+        artifact=generate_artifact(key1, tree1),
+        tag="v1",
+    )
+    db.store_artifact(
+        db_session,
+        key=key1,
+        project=project1,
+        iter=0,
+        artifact=generate_artifact(key1, tree1),
+        tag="v2",
+    )
+
+    # Create 2 artifacts with hyperparameters, each will receive the 'latest' tag
+    # and the 'latest' tag is removed from the artifact from the previous run (run1)
+
+    # project1 + key1 + iteration 1 (run2) -> 1 tag (latest)
+    artifact_2_uid = db.store_artifact(
+        db_session,
+        key=key1,
+        project=project1,
+        iter=1,
+        artifact=generate_artifact(key1, tree2),
+    )
+
+    # project1 + key1 + iteration 2 (run2) -> 2 tags (v1, latest)
+    artifact_3_uid = db.store_artifact(
+        db_session,
+        key=key1,
+        project=project1,
+        iter=2,
+        artifact=generate_artifact(key1, tree2),
+        tag="v1",
+    )
+
+    # project1 + key1 + iteration 3 (run2) -> 2 tags (v1, latest)
+    artifact_4_uid = db.store_artifact(
+        db_session,
+        key=key1,
+        project=project1,
+        iter=3,
+        artifact=generate_artifact(key1, tree2),
+        tag="v1",
+    )
+
+    # project2 + key1 + iteration 0 -> 1 tag (latest)
+    artifact_5_uid = db.store_artifact(
+        db_session,
+        key=key1,
+        project=project2,
+        iter=0,
+        artifact=generate_artifact(key1),
+    )
+
+    # project2 + key2 + iteration 0 -> 1 tag (latest)
+    artifact_6_uid = db.store_artifact(
+        db_session,
+        key=key2,
+        project=project2,
+        iter=0,
+        artifact=generate_artifact(key2),
+    )
+
+    assert (
+        artifact_1_uid
+        != artifact_2_uid
+        != artifact_3_uid
+        != artifact_4_uid
+        != artifact_5_uid
+        != artifact_6_uid
+    )
+
+    # Step 2: List the artifacts for project1, key1, and the "latest" tag
+    artifacts = db.list_artifacts(
+        db_session, project=project1, name=key1, tag="latest", as_records=True
+    )
+    assert len(artifacts) == 3
+
+    # Read the artifacts that were stored to get their IDs
+    artifact2 = db.read_artifact(
+        db_session, project=project1, key=key1, uid=artifact_2_uid, as_record=True
+    )
+    artifact3 = db.read_artifact(
+        db_session, project=project1, key=key1, uid=artifact_3_uid, as_record=True
+    )
+    artifact4 = db.read_artifact(
+        db_session, project=project1, key=key1, uid=artifact_4_uid, as_record=True
+    )
+    artifact_2_id = artifact2.id
+    artifact_3_id = artifact3.id
+    artifact_4_id = artifact4.id
+
+    # Step 3: Delete the "latest" tags manually from the second artifact and the forth artifact
+    # (artifact_2_id, artifact_4_id)
+    db._delete(
+        db_session,
+        framework.db.sqldb.db.ArtifactV2.Tag,
+        obj_id=artifact_2_id,
+        name="latest",
+    )
+    db._delete(
+        db_session,
+        framework.db.sqldb.db.ArtifactV2.Tag,
+        obj_id=artifact_4_id,
+        name="latest",
+    )
+    db_session.flush()
+
+    # Step 4: Assert that only one artifact has the "latest" tag left (artifact_3)
+    artifacts = db.list_artifacts(
+        db_session, project=project1, name=key1, tag="latest", as_records=True
+    )
+    assert len(artifacts) == 1
+    assert artifacts[0].id == artifact_3_id
+
+    # Step 5: Perform migration to ensure the "latest" tag is reassigned correctly
+    services.api.initial_data._ensure_latest_tag_for_artifacts(db_session, chunk_size=1)
+
+    # Step 6: Verify that after migration, the correct artifacts are tagged as "latest"
+    artifacts = db.list_artifacts(
+        db_session, project=project1, name=key1, tag="latest", as_records=True
+    )
+    assert (
+        len(artifacts) == 3
+    ), f"Expected 3 artifacts with latest tag, found {len(artifacts)}"
+
+    # Verify that artifact from the previous run (run1) wasn't tagged as latest
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.read_artifact(db_session, project=project1, key=key1, tag="latest", iter=0)
+
+    # Ensure the tag was created correctly for the second artifact
+    artifact = db.read_artifact(
+        db_session, project=project1, key=key1, tag="latest", iter=1, as_record=True
+    )
+    assert len(artifact.tags) == 1
+    assert artifact.tags[0].name == "latest"
+    assert artifact.tags[0].project == project1
+    assert artifact.tags[0].obj_name == key1
+    assert artifact.tags[0].obj_id == artifact_2_id
+
+
 def _initialize_db_without_migrations() -> (
     tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
 ):
@@ -390,12 +694,16 @@ def _initialize_db_without_migrations() -> (
 
 
 def _insert_function(
-    db, db_session, fn_name, function_kind: typing.Optional[str] = "remote"
+    db,
+    db_session,
+    fn_name,
+    function_kind: typing.Optional[str] = "remote",
+    function_state: typing.Optional[str] = "ready",
 ):
     function_body = {
         "metadata": {"name": fn_name},
         "kind": function_kind,
-        "status": {"state": "online"},
+        "status": {"state": function_state},
         "spec": {"description": "some_description"},
     }
 
@@ -418,14 +726,16 @@ def _insert_function(
     assert db_function.struct["kind"] == function_kind
 
 
-def _verify_function_kind(db, db_session, fn_name, expected_kind):
+def _verify_function_attr(
+    db, db_session, fn_name, attribute_name, attribute_path, expected_value
+):
     db_function, _ = db._get_function_db_object(db_session, fn_name)
-    assert "kind" not in db_function.struct
-    assert db_function.kind == expected_kind
+    assert not mlrun.utils.get_in(db_function.struct, attribute_path)
+    assert getattr(db_function, attribute_name) == expected_value
 
     # Verify migration was stored correctly
     migrated_function = db.get_function(db_session, fn_name)
-    assert migrated_function["kind"] == expected_kind
+    assert mlrun.utils.get_in(migrated_function, attribute_path) == expected_value
 
 
 def _insert_artifact(db, db_session, artifact_key, artifact_uri=None, with_uri=True):

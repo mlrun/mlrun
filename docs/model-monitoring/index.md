@@ -40,13 +40,17 @@ The model monitoring APIs are configured per project. The APIs are:
 - {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring` &mdash; Brings up the controller, writer and stream realtime functions, and schedules the controller according to the `base_period`. 
 You can also deploy the default histogram-based data drift application when you enable model monitoring.
 - {py:meth}`~mlrun.projects.MlrunProject.create_model_monitoring_function` &mdash; Creates a monitoring function object without setting it to the project, used for user-apps and troubleshooting.
-- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function` &mdash; Updates or sets a monitoring function to the project. (Monitoring does not start until the function is deployed.) 
+- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function` &mdash; Updates or adds a monitoring function to the project. (Monitoring does not start until the function is deployed.) 
 - {py:meth}`~mlrun.projects.MlrunProject.list_model_monitoring_functions` &mdash; Retrieves a list of all the model monitoring functions.
 - {py:meth}`~mlrun.projects.MlrunProject.remove_model_monitoring_function` &mdash; Removes the specified model-monitoring-app function from the project and from the DB.
-- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials` &mdash; Set the credentials that are used by the project's model monitoring infrastructure functions. 
-- {py:meth}`~mlrun.projects.MlrunProject.disable_model_monitoring` &mdash; Disables the controller. 
+- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials` &mdash; Set the credentials that are used by the project's model monitoring infrastructure functions. You must set the credentials before deploying any model monitoring application or a monitored serving function.
+- {py:meth}`~mlrun.projects.MlrunProject.disable_model_monitoring` &mdash; Disables the model monitoring application controller, writer, stream, histogram data drift application and the user's applications functions, according to the given parameters. 
 - {py:meth}`~mlrun.projects.MlrunProject.update_model_monitoring_controller`  &mdash; Redeploys the model monitoring application controller functions.
 - {py:meth}`~mlrun.config.Config.get_model_monitoring_file_target_path` &mdash; Gets the full path from the configuration based on the provided project and kind.
+
+And for configuring alerts on model monitoring:
+- {py:meth}`~mlrun.projects.MlrunProject.create_model_monitoring_alert_configs` &mdash; Creates an alert for the specified model monitoring endpoint
+- {py:meth}`~mlrun.projects.MlrunProject.delete_model_monitoring_function` &mdash; Deletes the specified model-monitoring-app function/s
 
 
 ## Model and model monitoring endpoints
@@ -65,41 +69,38 @@ For example:
 
 ## Selecting the streaming and TSDB platforms
 
-Model monitoring supports Kafka or V3io as streaming platforms, and TDEngine or V3IO as TSDB platforms.
-In addition, internal model-monitoring metadata can be saved in MySQL or V3IO.
+Model monitoring supports Kafka or V3IO as streaming platforms, and TDEngine or V3IO TSDB platforms.
 
 We recommend the following versions:
-* TDEngine - `3.3.2.0`.
-* MySQL - `8.0.39`, or higher `8.0` compatible versions.
 
-Before you deploy the model monitoring or serving function, you need to {py:meth}`set the credentials <mlrun.projects.MlrunProject.set_model_monitoring_credentials>`. 
-There are three credentials you can set, and each one can have a different value. For example:
-```py
-stream_path = "kafka://<some_kafka_broker>:<port>"  # or "v3io"
-tsdb_connection = "taosws://<username>:<password>@<host>:<port>"  # or "v3io"
-endpoint_store_connection = (
-    "mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>"  # or "v3io"
-)
-```
+- TDEngine - `3.3.2.0`.
+- Kafka - `3.9.0`.
+
+Before you deploy the model monitoring or serving function, you need to {py:meth}`set the credentials <mlrun.projects.MlrunProject.set_model_monitoring_credentials>`.
 
 ## Model monitoring applications
 
-When you call `enable_model_monitoring` on a project, by default MLRun deploys the monitoring app, `HistogramDataDriftApplication`, which is 
+When you call `enable_model_monitoring` on a project, by default MLRun deploys the monitoring app, `HistogramDataDriftApplication`, which is
 tailored for classical ML models (not LLMs, gen AI, deep-learning models, etc.). It includes:
-* Total Variation Distance (TVD) &mdash; The statistical difference between the actual predictions and the model's trained predictions.
-* Hellinger Distance &mdash; A type of f-divergence that quantifies the similarity between the actual predictions, and the model's trained predictions.
-* The average of TVD & Hellinger as the general drift result.
-* Kullback–Leibler Divergence (KLD) &mdash; The measure of how the probability distribution of actual predictions is different from the second model's trained reference probability distribution.
 
-You can create your own model monitoring applications for LLMs, gen AI, deep-learning models, etc., based on the class {py:meth}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBaseV2`. 
-See {ref}`mm-applications`. </br>
-You can also integrate [Evidently](https://github.com/evidentlyai/evidently) 
-as an MLRun function and create MLRun artifacts, using the built-in class `EvidentlyModelMonitoringApplicationBase`. See an example in {ref}`realtime-monitor-drift-tutor`. 
+- Total Variation Distance (TVD) &mdash; The statistical difference between the actual predictions and the model's trained predictions.
+- Hellinger Distance &mdash; A type of f-divergence that quantifies the similarity between the actual predictions, and the model's trained predictions.
+- The average of TVD & Hellinger as the general drift result.
+- Kullback–Leibler Divergence (KLD) &mdash; The measure of how the probability distribution of actual predictions is different from the second model's
+  trained reference probability distribution.
 
-Projects are used to group functions that use the same model monitoring application. You first need to create a project for a specific application. 
-Then you disable the default app, enable your customer app, and create and run the functions. 
+You can create your own model monitoring applications for LLMs, gen AI, deep-learning models, etc., based on the
+{py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase` class.
+See {ref}`mm-applications`.</br>
+You can also integrate [Evidently](https://github.com/evidentlyai/evidently)
+as an MLRun function and create MLRun artifacts, using the built-in
+{py:class}`~mlrun.model_monitoring.applications.evidently.EvidentlyModelMonitoringApplicationBase` class.
+See an example in {ref}`realtime-monitor-drift-tutor`.
 
-The basic flow for classic ML and other models is the same, but the apps and the infer requests are different. 
+Projects are used to group functions that use the same model monitoring application. You first need to create a project for a specific application.
+Then you disable the default app, enable your customer app, and create and run the functions.
+
+The basic flow for classic ML and other models is the same, but the apps and the infer requests are different.
 
 ## Multi-port predictions
 

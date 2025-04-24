@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import collections.abc
 import copy
 import datetime
@@ -48,6 +48,7 @@ import framework.utils.clients.log_collector
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s
 import framework.utils.singletons.project_member
+import services.alerts.crud
 import services.api.crud
 import services.api.tests.unit.conftest
 import services.api.tests.unit.utils.clients.test_log_collector
@@ -210,6 +211,25 @@ def test_delete_project_with_resources(
     _create_resources_of_all_kinds(db, k8s_secrets_mock, project_to_keep)
     _create_resources_of_all_kinds(db, k8s_secrets_mock, project_to_remove)
 
+    # populate alerts cache
+    services.alerts.crud.alerts.Alerts().populate_caches(session=db)
+    # list alerts and remember ids
+    alert_ids_to_remove = [
+        alert.id
+        for alert in services.alerts.crud.Alerts().list_alerts(
+            session=db,
+            project=project_to_remove,
+        )
+    ]
+
+    alert_ids_to_keep = [
+        alert.id
+        for alert in services.alerts.crud.Alerts().list_alerts(
+            session=db,
+            project=project_to_keep,
+        )
+    ]
+
     (
         project_to_keep_table_name_records_count_map_before_project_removal,
         project_to_keep_object_records_count_map_before_project_removal,
@@ -288,6 +308,35 @@ def test_delete_project_with_resources(
         )
         == {}
     )
+
+    # check that alerts cache is cleaned up
+    for alert_id in alert_ids_to_remove:
+        assert (
+            services.alerts.crud.Alerts()._get_alert_by_id_cached()(db, alert_id)
+            is None
+        )
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            assert services.alerts.crud.Alerts()._get_alert_state_cached()(db, alert_id)
+
+    # check that alerts cache is not cleaned up
+    for alert_id in alert_ids_to_keep:
+        assert (
+            services.alerts.crud.Alerts()._get_alert_by_id_cached()(db, alert_id)
+            is not None
+        )
+        assert (
+            services.alerts.crud.Alerts()._get_alert_state_cached()(db, alert_id)
+            is not None
+        )
+
+    # check that event cache is removed for project_to_remove, and it isn't for project_to_keep
+    project_to_keep_cached_events_count = 0
+    for key, alert_ids in services.alerts.crud.events.Events()._cache.items():
+        assert key[0] != project_to_remove
+        if key[0] == project_to_keep:
+            project_to_keep_cached_events_count += len(alert_ids)
+
+    assert project_to_keep_cached_events_count == len(alert_ids_to_keep)
 
     # deletion strategy - check - should succeed cause no project
     _send_delete_request_and_assert_response_code(
@@ -397,17 +446,6 @@ async def test_list_and_get_project_summaries(
         two_days_ago,
     )
 
-    # create schedules for the project
-
-    (
-        schedules_count,
-        distinct_scheduled_jobs_pending_count,
-        distinct_scheduled_pipelines_pending_count,
-    ) = _create_schedules(
-        client,
-        project_name,
-    )
-
     # mock pipelines for the project
     running_pipelines_count = _mock_pipelines(
         project_name,
@@ -432,7 +470,7 @@ async def test_list_and_get_project_summaries(
     )
     for index, project_summary in enumerate(project_summaries_output.project_summaries):
         if project_summary.name == empty_project_name:
-            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0)
         elif project_summary.name == project_name:
             _assert_project_summary(
                 project_summary,
@@ -442,9 +480,6 @@ async def test_list_and_get_project_summaries(
                 runs_completed_recent_count,
                 recent_failed_runs_count + recent_aborted_runs_count,
                 running_runs_count,
-                schedules_count,
-                distinct_scheduled_jobs_pending_count,
-                distinct_scheduled_pipelines_pending_count,
                 running_pipelines_count,
             )
         else:
@@ -461,9 +496,6 @@ async def test_list_and_get_project_summaries(
         runs_completed_recent_count,
         recent_failed_runs_count + recent_aborted_runs_count,
         running_runs_count,
-        schedules_count,
-        distinct_scheduled_jobs_pending_count,
-        distinct_scheduled_pipelines_pending_count,
         running_pipelines_count,
     )
 
@@ -515,9 +547,6 @@ async def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
-        0,
-        0,
-        0,
     )
 
     # Enterprise installation configuration pre 3.4.0
@@ -533,9 +562,6 @@ async def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
-        0,
-        0,
-        0,
         0,
         0,
         0,
@@ -565,9 +591,6 @@ async def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
-        0,
-        0,
-        0,
     )
 
     # Docker installation configuration
@@ -583,9 +606,6 @@ async def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
-        0,
-        0,
-        0,
         0,
         0,
         0,
@@ -1370,7 +1390,7 @@ def _create_resources_of_all_kinds(
 
     alert = mlrun.common.schemas.AlertConfig(
         project=project,
-        name="test_alert",
+        name="test-alert",
         summary="oops",
         severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
         entities={
@@ -1499,9 +1519,6 @@ def _create_resources_of_all_kinds(
     db.store_model_endpoint(
         db_session,
         model_endpoint,
-        name=model_endpoint.metadata.name,
-        project=model_endpoint.metadata.project,
-        function_name=function_names[0],
     )
 
 
@@ -1600,6 +1617,7 @@ def _assert_db_resources_in_project(
             or cls.__tablename__ == "alert_states"
             or cls.__tablename__ == "alert_templates"
             or cls.__tablename__ == "alert_activations"
+            or cls.__tablename__ == "system_metadata"
         ):
             continue
         number_of_cls_records = 0
@@ -1764,9 +1782,6 @@ def _assert_project_summary(
     runs_completed_recent_count,
     runs_failed_recent_count: int,
     runs_running_count: int,
-    schedules_count: int,
-    distinct_scheduled_jobs_pending_count: int,
-    distinct_scheduled_pipelines_pending_count: int,
     pipelines_running_count: int,
 ):
     assert project_summary.files_count == files_count
@@ -1775,15 +1790,6 @@ def _assert_project_summary(
     assert project_summary.runs_completed_recent_count == runs_completed_recent_count
     assert project_summary.runs_failed_recent_count == runs_failed_recent_count
     assert project_summary.runs_running_count == runs_running_count
-    assert project_summary.distinct_schedules_count == schedules_count
-    assert (
-        project_summary.distinct_scheduled_jobs_pending_count
-        == distinct_scheduled_jobs_pending_count
-    )
-    assert (
-        project_summary.distinct_scheduled_pipelines_pending_count
-        == distinct_scheduled_pipelines_pending_count
-    )
     assert project_summary.pipelines_running_count == pipelines_running_count
 
 
@@ -1880,7 +1886,7 @@ def _create_runs(
                 }
             if start_time:
                 run.setdefault("status", {})["start_time"] = start_time.isoformat()
-            response = client.post(f"run/{project_name}/{run_uid}", json=run)
+            response = client.post(f"projects/{project_name}/runs/{run_uid}", json=run)
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
 

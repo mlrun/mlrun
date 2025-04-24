@@ -14,6 +14,7 @@
 import tempfile
 import urllib.parse
 from base64 import b64encode
+from copy import copy
 from os import path, remove
 from typing import Optional, Union
 from urllib.parse import urlparse
@@ -24,7 +25,6 @@ import pandas as pd
 import pyarrow
 import pytz
 import requests
-from deprecated import deprecated
 
 import mlrun.config
 import mlrun.errors
@@ -94,16 +94,6 @@ class DataStore:
     @staticmethod
     def uri_to_ipython(endpoint, subpath):
         return ""
-
-    # TODO: remove in 1.8.0
-    @deprecated(
-        version="1.8.0",
-        reason="'get_filesystem()' will be removed in 1.8.0, use "
-        "'filesystem' property instead",
-        category=FutureWarning,
-    )
-    def get_filesystem(self):
-        return self.filesystem
 
     @property
     def filesystem(self) -> Optional[fsspec.AbstractFileSystem]:
@@ -677,13 +667,6 @@ class DataItem:
         return f"'{self.url}'"
 
 
-def get_range(size, offset):
-    byterange = f"bytes={offset}-"
-    if size:
-        byterange += str(offset + size)
-    return byterange
-
-
 def basic_auth_header(user, password):
     username = user.encode("latin1")
     password = password.encode("latin1")
@@ -721,7 +704,11 @@ class HttpStore(DataStore):
         raise ValueError("unimplemented")
 
     def get(self, key, size=None, offset=0):
-        data = self._http_get(self.url + self._join(key), self._headers, self.auth)
+        headers = self._headers
+        if urlparse(self.url).hostname == "api.github.com":
+            headers = copy(self._headers)
+            headers["Accept"] = headers.get("Accept", "application/vnd.github.raw")
+        data = self._http_get(self.url + self._join(key), headers, self.auth)
         if offset:
             data = data[offset:]
         if size:
@@ -732,7 +719,7 @@ class HttpStore(DataStore):
         token = self._get_secret_or_env("HTTPS_AUTH_TOKEN")
         if token:
             self._https_auth_token = token
-            self._headers.setdefault("Authorization", f"token {token}")
+            self._headers.setdefault("Authorization", f"Bearer {token}")
 
     def _validate_https_token(self):
         if self._https_auth_token and self._schema in ["http"]:

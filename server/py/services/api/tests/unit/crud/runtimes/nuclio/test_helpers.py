@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import pytest
 
@@ -47,6 +46,7 @@ def test_compiled_function_config_nuclio_python():
     fn = mlrun.code_to_function(
         "nuclio", filename=name, kind="nuclio", handler="my_hand"
     )
+    fn.metadata.annotations = {"something": "somewhat"}
     (
         name,
         project,
@@ -60,6 +60,7 @@ def test_compiled_function_config_nuclio_python():
     assert (
         mlrun.utils.get_in(config, "spec.handler") == "training-nuclio:my_hand"
     ), "wrong handler"
+    assert mlrun.utils.get_in(config, "metadata.annotations.something") == "somewhat"
 
 
 def test_compiled_function_config_sidecar_image_enrichment():
@@ -104,15 +105,15 @@ def test_resolve_work_dir_and_handler(handler, expected):
 @pytest.mark.parametrize(
     "mlrun_client_version,python_version,expected_runtime",
     [
-        ("1.3.0", "3.9.16", "python:3.9"),
-        ("1.3.0", "3.7.16", "python:3.7"),
+        ("1.9.0", "3.11.16", mlrun.mlconf.default_nuclio_runtime),
+        ("1.8.0", "3.9.16", "python:3.9"),
         (None, None, mlrun.mlconf.default_nuclio_runtime),
         (None, "3.9.16", mlrun.mlconf.default_nuclio_runtime),
-        ("1.3.0", None, mlrun.mlconf.default_nuclio_runtime),
+        ("1.9.0", None, mlrun.mlconf.default_nuclio_runtime),
         ("0.0.0-unstable", "3.9.16", "python:3.9"),
-        ("0.0.0-unstable", "3.7.16", "python:3.7"),
-        ("1.2.0", "3.9.16", "python:3.7"),
-        ("1.2.0", "3.7.16", "python:3.7"),
+        ("0.0.0-unstable", "3.12.16", "python:3.12"),
+        ("1.7.0", "3.12.16", "python:3.9"),
+        ("1.7.0", "3.9.16", "python:3.9"),
     ],
 )
 def test_resolve_nuclio_runtime_python_image(

@@ -31,6 +31,7 @@ import mlrun.runtimes.generators
 import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.regex
+from mlrun.model import RunSpec, RunTemplate
 
 import framework.api.utils
 import framework.utils.helpers
@@ -67,6 +68,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
+        output_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[
             Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
@@ -100,8 +102,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             hyper_param_options=hyper_param_options,
             verbose=verbose,
             scrape_metrics=scrape_metrics,
-            out_path=out_path,
-            artifact_path=artifact_path,
+            output_path=output_path,
             workdir=workdir,
             notifications=notifications,
             state_thresholds=state_thresholds,
@@ -181,8 +182,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
     def _enrich_run(
         self,
-        runtime,
-        run,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        run: Union[RunSpec, RunTemplate],
         handler=None,
         project_name=None,
         name=None,
@@ -193,8 +194,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         hyper_param_options=None,
         verbose=None,
         scrape_metrics=None,
-        out_path=None,
-        artifact_path=None,
+        output_path=None,
         workdir=None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
@@ -212,31 +212,89 @@ class ServerSideLauncher(launcher.BaseLauncher):
             hyper_param_options=hyper_param_options,
             verbose=verbose,
             scrape_metrics=scrape_metrics,
-            out_path=out_path,
-            artifact_path=artifact_path,
+            output_path=output_path,
             workdir=workdir,
             notifications=notifications,
             state_thresholds=state_thresholds,
         )
 
-        return self._pre_run_node_selector_enrichement(runtime, run)
+        run = self._pre_run_image_pull_secret_enrichment(run)
+        return self._pre_run_scheduling_constraints_enrichment(runtime, run)
 
-    def _pre_run_node_selector_enrichement(self, runtime, run):
+    def _pre_run_scheduling_constraints_enrichment(
+        self,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        run: mlrun.run.RunObject,
+    ):
         """
+        Enrich the run object with node selector, tolerations, and affinity before execution.
+
         Enrich the run object with the project's default node selector.
         This ensures the node selector is correctly set on the run
         while maintaining the runtime's integrity from system-specific project settings.
+
+        Then, we apply preemption mode enrichment (if defined on the function).
+        Preemption mode takes precedence over user-defined values,  and may modify or remove the node_selector,
+        affinity, and tolerations fields to enforce scheduling behavior on preemptible/non-preemptible nodes.
+
+        This ensures the pod will reflect the correct intent based on both user config and system scheduling policies.
         """
-        run.spec.node_selector = deepcopy(runtime.spec.node_selector)
+        # Start with function-level selector
+        run.spec.node_selector = deepcopy(getattr(runtime.spec, "node_selector", {}))
+
+        # Apply project-level enrichment if available
         if runtime._get_db():
             project = runtime._get_db().get_project(run.metadata.project)
-            project_node_selector = project.spec.default_function_node_selector
-            resolved_node_selectors = mlrun.runtimes.utils.resolve_node_selectors(
-                project_node_selector, run.spec.node_selector
-            )
-            # Validate node selectors before enrichment
-            mlrun.k8s_utils.validate_node_selectors(resolved_node_selectors)
-            run.spec.node_selector = resolved_node_selectors
+            if project:
+                project_node_selector = project.spec.default_function_node_selector
+                resolved_node_selectors = mlrun.runtimes.utils.resolve_node_selectors(
+                    project_node_selector, run.spec.node_selector
+                )
+                mlrun.k8s_utils.validate_node_selectors(resolved_node_selectors)
+                run.spec.node_selector = resolved_node_selectors
+        self._enrich_run_with_preemption_mode(runtime, run)
+        return run
+
+    def _enrich_run_with_preemption_mode(
+        self,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        run: mlrun.run.RunObject,
+    ):
+        """
+        Apply preemption mode logic to node selector / affinity / tolerations on the run.
+        """
+        preemption_mode = getattr(runtime.spec, "preemption_mode", None)
+        if not preemption_mode:
+            return
+
+        node_selector, tolerations, affinity = mlrun.k8s_utils.enrich_preemption_mode(
+            preemption_mode,
+            getattr(run.spec, "node_selector", None),
+            getattr(runtime.spec, "tolerations", None),
+            getattr(runtime.spec, "affinity", None),
+        )
+        self._set_run_spec_with_enriched_params(
+            run,
+            node_selector=node_selector,
+            tolerations=tolerations,
+            affinity=affinity,
+        )
+
+    def _set_run_spec_with_enriched_params(self, run, **fields):
+        for key, value in fields.items():
+            setattr(run.spec, key, value)
+
+    def _pre_run_image_pull_secret_enrichment(self, run: Union[RunSpec, RunTemplate]):
+        """
+        Enrich the run object with the project's image pull secret.
+        This ensures the image pull secret is correctly set on the run,
+        either from the run spec or from the MLRun config
+        """
+        existing_image_pull_secret = getattr(run.spec, "image_pull_secret", None)
+        run.spec.image_pull_secret = (
+            existing_image_pull_secret
+            or mlrun.config.config.function.spec.image_pull_secret.default
+        )
         return run
 
     def enrich_runtime(
@@ -263,7 +321,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         if full:
             self._enrich_full_spec(runtime)
-
         # mask sensitive data after full spec enrichment in case auth was enriched by auto mount
         framework.api.utils.mask_function_sensitive_data(runtime, self._auth_info)
 
@@ -275,7 +332,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
         # this is mainly for tests with nop db
         # in normal use cases if no project is found we will get an error
         if project:
-            project = mlrun.projects.project.MlrunProject.from_dict(project.dict())
+            if not isinstance(project, mlrun.projects.project.MlrunProject):
+                project = mlrun.projects.project.MlrunProject.from_dict(project.dict())
             # there is no need to auto mount here as it was already done in the full spec enrichment with the auth info
             mlrun.projects.pipelines.enrich_function_object(
                 project, runtime, copy_function=False, try_auto_mount=False
@@ -305,6 +363,12 @@ class ServerSideLauncher(launcher.BaseLauncher):
         framework.api.utils.process_function_service_account(runtime)
 
         framework.api.utils.ensure_function_security_context(runtime, self._auth_info)
+
+        existing_image_pull_secret = runtime.spec.image_pull_secret
+        runtime.spec.image_pull_secret = (
+            existing_image_pull_secret
+            or mlrun.config.config.function.spec.image_pull_secret.default
+        )
 
     def _save_notifications(self, runobj):
         if not self._run_has_valid_notifications(runobj):

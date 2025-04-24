@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import copy
 import json
@@ -83,6 +83,9 @@ class Scheduler:
 
     async def stop(self):
         logger.info("Stopping scheduler")
+        if not self._scheduler.running:
+            # https://github.com/agronholm/apscheduler/issues/1019 mitigation
+            return
         self._scheduler.shutdown()
         # the scheduler shutdown and start operation are not fully async compatible yet -
         # https://github.com/agronholm/apscheduler/issues/360 - this sleep make them work

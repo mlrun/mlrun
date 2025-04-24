@@ -18,7 +18,7 @@ import warnings
 from base64 import b64encode
 from copy import copy
 from datetime import datetime
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import pandas as pd
 import semver
@@ -34,6 +34,7 @@ from mlrun.datastore.utils import transform_list_filters_to_tuple
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
 
+from ..common.schemas.function import Function
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, is_explicit_ack_supported
@@ -966,6 +967,21 @@ class OnlineSource(BaseSourceDriver):
             "This source type is not supported with ingestion service yet"
         )
 
+    @staticmethod
+    def set_explicit_ack_mode(function: Function, **extra_arguments) -> dict[str, Any]:
+        extra_arguments = extra_arguments or {}
+        engine = "sync"
+        if function.spec and hasattr(function.spec, "graph"):
+            engine = getattr(function.spec.graph, "engine", None) or engine
+        if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
+            extra_arguments["explicit_ack_mode"] = extra_arguments.get(
+                "explicit_ack_mode", "explicitOnly"
+            )
+            extra_arguments["worker_allocation_mode"] = extra_arguments.get(
+                "worker_allocation_mode", "static"
+            )
+        return extra_arguments
+
 
 class HttpSource(OnlineSource):
     kind = "http"
@@ -1028,15 +1044,7 @@ class StreamSource(OnlineSource):
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
         )
         res.raise_for_status([409, 204])
-
-        kwargs = {}
-        engine = "async"
-        if hasattr(function.spec, "graph") and function.spec.graph.engine:
-            engine = function.spec.graph.engine
-
-        if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
-            kwargs["explicit_ack_mode"] = "explicitOnly"
-            kwargs["worker_allocation_mode"] = "static"
+        kwargs = self.set_explicit_ack_mode(function=function)
 
         function.add_v3io_stream_trigger(
             url,
@@ -1087,12 +1095,9 @@ class KafkaSource(OnlineSource):
         attributes["initial_offset"] = initial_offset
         if partitions is not None:
             attributes["partitions"] = partitions
-        sasl = attributes.pop("sasl", {})
-        if sasl_user and sasl_pass:
-            sasl["enabled"] = True
-            sasl["user"] = sasl_user
-            sasl["password"] = sasl_pass
-        if sasl:
+        if sasl := mlrun.datastore.utils.KafkaParameters(attributes).sasl(
+            usr=sasl_user, pwd=sasl_pass
+        ):
             attributes["sasl"] = sasl
         super().__init__(attributes=attributes, **kwargs)
 
@@ -1117,18 +1122,15 @@ class KafkaSource(OnlineSource):
         else:
             extra_attributes = copy(self.attributes)
         partitions = extra_attributes.pop("partitions", None)
-        explicit_ack_mode = None
-        engine = "async"
-        if hasattr(function.spec, "graph") and function.spec.graph.engine:
-            engine = function.spec.graph.engine
 
-        if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
-            explicit_ack_mode = "explicitOnly"
-            extra_attributes["workerAllocationMode"] = extra_attributes.get(
-                "worker_allocation_mode", "static"
-            )
+        extra_attributes = self.set_explicit_ack_mode(function, **extra_attributes)
+        explicit_ack_mode = extra_attributes.get("explicit_ack_mode")
+        extra_attributes["workerAllocationMode"] = extra_attributes.get(
+            "worker_allocation_mode", "pool"
+        )
 
         trigger_kwargs = {}
+
         if "max_workers" in extra_attributes:
             trigger_kwargs = {"max_workers": extra_attributes.pop("max_workers")}
 
@@ -1194,19 +1196,13 @@ class KafkaSource(OnlineSource):
         new_topics = [
             NewTopic(topic, num_partitions, replication_factor) for topic in topics
         ]
-        kafka_admin = KafkaAdminClient(
-            bootstrap_servers=brokers,
-            sasl_mechanism=self.attributes.get("sasl", {}).get("sasl_mechanism"),
-            sasl_plain_username=self.attributes.get("sasl", {}).get("username"),
-            sasl_plain_password=self.attributes.get("sasl", {}).get("password"),
-            sasl_kerberos_service_name=self.attributes.get("sasl", {}).get(
-                "sasl_kerberos_service_name", "kafka"
-            ),
-            sasl_kerberos_domain_name=self.attributes.get("sasl", {}).get(
-                "sasl_kerberos_domain_name"
-            ),
-            sasl_oauth_token_provider=self.attributes.get("sasl", {}).get("mechanism"),
-        )
+
+        kafka_admin_kwargs = {}
+        kafka_admin_kwargs = mlrun.datastore.utils.KafkaParameters(
+            self.attributes
+        ).admin()
+
+        kafka_admin = KafkaAdminClient(bootstrap_servers=brokers, **kafka_admin_kwargs)
         try:
             kafka_admin.create_topics(new_topics)
         finally:

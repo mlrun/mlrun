@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import datetime
 import typing
@@ -33,6 +33,7 @@ from mlrun.utils import logger
 
 import framework.constants
 import framework.db.session
+import framework.db.sqldb.models
 import framework.utils.background_tasks
 import framework.utils.clients.log_collector
 import framework.utils.notifications
@@ -109,9 +110,6 @@ class Runs(
             data["status.artifact_uris"] = artifact_uris
         data.pop("status.artifacts", None)
 
-        # Note: Abort run moved to a separated endpoint
-        # TODO: Remove below function for 1.8.0 (once 1.5.x clients are not supported)
-        self._update_aborted_run(db_session, project, uid, iter, data)
         framework.utils.singletons.db.get_db().update_run(
             db_session, data, uid, project, iter
         )
@@ -163,6 +161,8 @@ class Runs(
         last_update_time_to: typing.Optional[
             typing.Union[str, datetime.datetime]
         ] = None,
+        end_time_from: typing.Optional[typing.Union[str, datetime.datetime]] = None,
+        end_time_to: typing.Optional[typing.Union[str, datetime.datetime]] = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -186,6 +186,8 @@ class Runs(
             and not start_time_to
             and not last_update_time_from
             and not last_update_time_to
+            and not end_time_from
+            and not end_time_to
             and not partition_by
             and not partition_sort_by
             and not iter
@@ -209,6 +211,10 @@ class Runs(
             last_update_time_to = mlrun.utils.helpers.datetime_from_iso(
                 last_update_time_to
             )
+        if isinstance(end_time_from, str):
+            end_time_from = mlrun.utils.helpers.datetime_from_iso(end_time_from)
+        if isinstance(end_time_to, str):
+            end_time_to = mlrun.utils.helpers.datetime_from_iso(end_time_to)
 
         return framework.utils.singletons.db.get_db().list_runs(
             session=db_session,
@@ -220,12 +226,13 @@ class Runs(
             if state is not None
             else states or None,
             sort=sort,
-            last=last,
             iter=iter,
             start_time_from=start_time_from,
             start_time_to=start_time_to,
             last_update_time_from=last_update_time_from,
             last_update_time_to=last_update_time_to,
+            end_time_from=end_time_from,
+            end_time_to=end_time_to,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
@@ -259,33 +266,20 @@ class Runs(
             )
             return
 
-        run_state = run.get("status", {}).get("state")
-        if (
-            run_state
-            in mlrun.common.runtimes.constants.RunStates.not_allowed_for_deletion_states()
-        ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Can not delete run in {run_state} state, consider aborting the run first"
-            )
+        await run_in_threadpool(
+            self._delete_run_resources,
+            db_session,
+            project,
+            uid,
+            run,
+        )
 
+        # get runtime kind for logging
         runtime_kind = (
             run.get("metadata", {})
             .get("labels", {})
             .get(mlrun_constants.MLRunInternalLabels.kind)
         )
-        if runtime_kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
-            runtime_handler = services.api.runtime_handlers.get_runtime_handler(
-                runtime_kind
-            )
-            if runtime_handler.are_resources_coupled_to_run_object():
-                runtime_handler.delete_runtime_object_resources(
-                    framework.utils.singletons.db.get_db(),
-                    db_session,
-                    object_id=uid,
-                    label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={project}",
-                    force=True,
-                )
-
         logger.debug(
             "Deleting run",
             project=project,
@@ -336,15 +330,26 @@ class Runs(
 
         failed_deletions = 0
         last_exception = None
-        while runs_list:
+        project_to_run_uids_to_delete = {}
+
+        # Delete each run's resources asynchronously in batches
+        for chunked_run_list in mlrun.utils.helpers.iterate_list_by_chunks(
+            runs_list, mlrun.mlconf.crud.runs.batch_delete_runs_chunk_size
+        ):
             tasks = []
-            for run in runs_list[: mlrun.mlconf.crud.runs.batch_delete_runs_chunk_size]:
+            for run in chunked_run_list:
+                project_to_run_uids_to_delete.setdefault(run.project, []).append(
+                    run.uid
+                )
                 tasks.append(
-                    framework.db.session.run_function_with_new_db_session(
-                        self.delete_run,
-                        run.uid,
-                        run.iteration,
-                        run.project,
+                    asyncio.create_task(
+                        run_in_threadpool(
+                            framework.db.session.run_function_with_new_db_session,
+                            self._delete_run_resources,
+                            project,
+                            run.uid,
+                            run,
+                        )
                     )
                 )
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -353,15 +358,28 @@ class Runs(
                     failed_deletions += 1
                     last_exception = result
                     run = runs_list[i]
+                    project_to_run_uids_to_delete[run.project].remove(run.uid)
                     logger.warning(
                         "Failed to delete run",
                         run_uid=run.uid,
                         run_name=run.name,
-                        project=run.project,
+                        project=project,
                         error=mlrun.errors.err_to_str(result),
                     )
 
-            runs_list = runs_list[mlrun.mlconf.crud.runs.batch_delete_runs_chunk_size :]
+        # Delete each project runs in parallel, since log deletion doesn't support "*" projects
+        if project_to_run_uids_to_delete:
+            tasks = []
+            for project, run_uids_to_delete in project_to_run_uids_to_delete.items():
+                tasks.append(
+                    framework.db.session.run_function_with_new_db_session(
+                        self._delete_runs,
+                        project,
+                        run_uids_to_delete,
+                    )
+                )
+
+            await asyncio.gather(*tasks)
 
         if failed_deletions:
             raise mlrun.errors.MLRunBadRequestError(
@@ -503,6 +521,80 @@ class Runs(
             run["status"]["artifacts"] = artifacts
 
     @staticmethod
+    def _delete_run_resources(
+        db_session,
+        project: str,
+        uid,
+        run: typing.Union[dict, mlrun.RunObject, framework.db.sqldb.models.Run],
+    ):
+        if isinstance(run, mlrun.RunObject):
+            run = run.to_dict()
+        elif isinstance(run, framework.db.sqldb.models.Run):
+            run = run.struct
+
+        # validate run state allowed for deletion
+        run_state = run.get("status", {}).get("state")
+        if (
+            run_state
+            in mlrun.common.runtimes.constants.RunStates.not_allowed_for_deletion_states()
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Can not delete run in {run_state} state, consider aborting the run first"
+            )
+
+        runtime_kind = (
+            run.get("metadata", {})
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.kind)
+        )
+
+        # If time passed is start_time + deletion_grace_period + 1 day, assume the resources are already gone
+        # and skip deleting runtime resources
+        start_time = run.get("status", {}).get("start_time")
+        if start_time:
+            start_time = mlrun.utils.helpers.datetime_from_iso(start_time)
+            deletion_grace_period = int(
+                mlrun.mlconf.runtime_resources_deletion_grace_period
+            )
+            if datetime.datetime.now(
+                datetime.timezone.utc
+            ) > start_time + datetime.timedelta(
+                seconds=deletion_grace_period
+            ) + datetime.timedelta(days=1):
+                logger.debug(
+                    "Skipping deleting runtime resources",
+                    project=project,
+                    uid=uid,
+                    iter=iter,
+                    runtime_kind=runtime_kind,
+                )
+
+        if runtime_kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
+            runtime_handler = services.api.runtime_handlers.get_runtime_handler(
+                runtime_kind
+            )
+            if runtime_handler.are_resources_coupled_to_run_object():
+                runtime_handler.delete_runtime_object_resources(
+                    framework.utils.singletons.db.get_db(),
+                    db_session,
+                    object_id=uid,
+                    label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={project}",
+                    force=True,
+                )
+
+    async def _delete_runs(self, db_session, project: str, uids: list[str]):
+        # Delete runs from DB
+        await run_in_threadpool(
+            framework.utils.singletons.db.get_db().del_runs,
+            session=db_session,
+            project=project,
+            uids=uids,
+        )
+
+        # Delete logs
+        await self._post_delete_runs(project=project, uids=uids)
+
+    @staticmethod
     async def _post_delete_run(project, uid):
         if (
             mlrun.mlconf.log_collector.mode
@@ -515,6 +607,21 @@ class Runs(
                 project,
                 uid,
             )
+
+    @staticmethod
+    async def _post_delete_runs(project: str, uids: list[str]):
+        if (
+            mlrun.mlconf.log_collector.mode
+            != mlrun.common.schemas.LogsCollectorMode.legacy
+        ):
+            await services.api.crud.Logs().delete_runs_logs(project, uids)
+        else:
+            for uid in uids:
+                await run_in_threadpool(
+                    services.api.crud.Logs().delete_run_logs_legacy,
+                    project,
+                    uid,
+                )
 
     def _update_aborted_run(self, db_session, project, uid, iter, data):
         if (
@@ -556,10 +663,10 @@ class Runs(
     ):
         """Fetch run artifacts by their artifact URIs in the run status"""
         artifact_uris = run.get("status", {}).get("artifact_uris", {})
-        key_tag_iteration_pairs = []
+        artifact_identifiers = []
         for _, uri in artifact_uris.items():
             _, uri = mlrun.datastore.parse_store_uri(uri)
-            project, key, iteration, tag, artifact_producer_id = (
+            project, key, iteration, tag, artifact_producer_id, uid = (
                 mlrun.utils.parse_artifact_uri(uri, project)
             )
             if artifact_producer_id != producer_id:
@@ -570,19 +677,20 @@ class Runs(
                     tag=tag,
                     iteration=iteration,
                     artifact_producer_id=artifact_producer_id,
+                    uid=uid,
                 )
                 continue
 
-            key_tag_iteration_pairs.append((key, tag, iteration))
+            artifact_identifiers.append((key, tag, iteration, uid))
 
-        if not key_tag_iteration_pairs:
+        if not artifact_identifiers:
             return []
 
         artifacts = services.api.crud.Artifacts().list_artifacts_for_producer_id(
             db_session,
             producer_id,
             project,
-            key_tag_iteration_pairs,
+            artifact_identifiers,
         )
 
         # DB artifacts result may contain more artifacts if the job is still running

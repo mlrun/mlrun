@@ -14,9 +14,65 @@
 
 import inspect
 from collections.abc import Iterable
-from typing import Union
+from typing import Optional, Union
 
 from mlrun.artifacts import DocumentArtifact
+
+
+def find_existing_attribute(obj, base_name="name", parent_name="collection"):
+    # Define all possible patterns
+
+    return None
+
+
+def _extract_collection_name(vectorstore: "VectorStore") -> str:  # noqa: F821
+    patterns = [
+        "collection.name",
+        "collection._name",
+        "_collection.name",
+        "_collection._name",
+        "collection_name",
+        "_collection_name",
+    ]
+
+    def resolve_attribute(obj, pattern):
+        if "." in pattern:
+            parts = pattern.split(".")
+            current = vectorstore
+            for part in parts:
+                if hasattr(current, part):
+                    current = getattr(current, part)
+                else:
+                    return None
+            return current
+        else:
+            return getattr(obj, pattern, None)
+
+    if type(vectorstore).__name__ == "PineconeVectorStore":
+        try:
+            url = (
+                vectorstore._index.config.host
+                if hasattr(vectorstore._index, "config")
+                else vectorstore._index._config.host
+            )
+            index_name = url.split("//")[1].split("-")[0]
+            return index_name
+        except Exception:
+            pass
+
+    for pattern in patterns:
+        try:
+            value = resolve_attribute(vectorstore, pattern)
+            if value is not None:
+                return value
+        except (AttributeError, TypeError):
+            continue
+
+    # If we get here, we couldn't find a valid collection name
+    raise ValueError(
+        "Failed to extract collection name from the vector store. "
+        "Please provide the collection name explicitly. "
+    )
 
 
 class VectorStoreCollection:
@@ -36,12 +92,17 @@ class VectorStoreCollection:
     def __init__(
         self,
         mlrun_context: Union["MlrunProject", "MLClientCtx"],  # noqa: F821
-        collection_name: str,
         vector_store: "VectorStore",  # noqa: F821
+        collection_name: Optional[str] = None,
     ):
         self._collection_impl = vector_store
         self._mlrun_context = mlrun_context
-        self.collection_name = collection_name
+        self.collection_name = collection_name or _extract_collection_name(vector_store)
+
+    @property
+    def __class__(self):
+        # Make isinstance() check the wrapped object's class
+        return self._collection_impl.__class__
 
     def __getattr__(self, name):
         # This method is called when an attribute is not found in the usual places
@@ -55,6 +116,22 @@ class VectorStoreCollection:
         else:
             # Forward the attribute setting to _collection_impl
             setattr(self._collection_impl, name, value)
+
+    def _get_mlrun_project_name(self):
+        import mlrun
+
+        if self._mlrun_context and isinstance(
+            self._mlrun_context, mlrun.projects.MlrunProject
+        ):
+            return self._mlrun_context.name
+        if self._mlrun_context and isinstance(
+            self._mlrun_context, mlrun.execution.MLClientCtx
+        ):
+            return self._mlrun_context.get_project_object().name
+        return None
+
+    def delete(self, *args, **kwargs):
+        self._collection_impl.delete(*args, **kwargs)
 
     def add_documents(
         self,
@@ -77,13 +154,22 @@ class VectorStoreCollection:
         """
         if self._mlrun_context:
             for document in documents:
-                mlrun_uri = document.metadata.get(
-                    DocumentArtifact.METADATA_ARTIFACT_URI_KEY
+                mlrun_key = document.metadata.get(
+                    DocumentArtifact.METADATA_ARTIFACT_KEY, None
                 )
-                if mlrun_uri:
-                    artifact = self._mlrun_context.get_store_resource(mlrun_uri)
-                    artifact.collection_add(self.collection_name)
-                    self._mlrun_context.update_artifact(artifact)
+                mlrun_project = document.metadata.get(
+                    DocumentArtifact.METADATA_ARTIFACT_PROJECT, None
+                )
+
+                if mlrun_key and mlrun_project == self._get_mlrun_project_name():
+                    mlrun_tag = document.metadata.get(
+                        DocumentArtifact.METADATA_ARTIFACT_TAG, None
+                    )
+                    artifact = self._mlrun_context.get_artifact(
+                        key=mlrun_key, tag=mlrun_tag
+                    )
+                    if artifact.collection_add(self.collection_name):
+                        self._mlrun_context.update_artifact(artifact)
 
         return self._collection_impl.add_documents(documents, **kwargs)
 
@@ -94,23 +180,29 @@ class VectorStoreCollection:
         Converts artifacts to LangChain documents, adds them to the vector store, and
         updates the MLRun context. If documents are split, the IDs are handled appropriately.
 
-        Args:
-            artifacts (list[DocumentArtifact]): List of DocumentArtifact objects to add
-            splitter (optional): Document splitter to break artifacts into smaller chunks.
-                If None, each artifact becomes a single document.
-            **kwargs: Additional arguments passed to the underlying add_documents method.
-                Special handling for 'ids' kwarg:
-                - If provided and document is split, IDs are generated as "{original_id}_{i}"
-                    where i starts from 1 (e.g., "doc1_1", "doc1_2", etc.)
-                - If provided and document isn't split, original IDs are used as-is
+        :param artifacts: List of DocumentArtifact objects to add
+        :type artifacts: list[DocumentArtifact]
+        :param splitter: Document splitter to break artifacts into smaller chunks.
+                        If None, each artifact becomes a single document.
+        :type splitter: TextSplitter, optional
+        :param kwargs: Additional arguments passed to the underlying add_documents method.
+                    Special handling for 'ids' kwarg:
 
-        Returns:
-            list: List of IDs for all added documents. When no custom IDs are provided:
-                - Without splitting: Vector store generates IDs automatically
-                - With splitting: Vector store generates separate IDs for each chunk
+                    * If provided and document is split, IDs are generated as "{original_id}_{i}"
+                        where i starts from 1 (e.g., "doc1_1", "doc1_2", etc.)
+                    * If provided and document isn't split, original IDs are used as-is
+
+        :return: List of IDs for all added documents. When no custom IDs are provided:
+
+                * Without splitting: Vector store generates IDs automatically
+                * With splitting: Vector store generates separate IDs for each chunk
+
                 When custom IDs are provided:
-                - Without splitting: Uses provided IDs directly
-                - With splitting: Generates sequential IDs as "{original_id}_{i}" for each chunk
+
+                * Without splitting: Uses provided IDs directly
+                * With splitting: Generates sequential IDs as "{original_id}_{i}" for each chunk
+        :rtype: list
+
         """
         all_ids = []
         user_ids = kwargs.pop("ids", None)
@@ -124,8 +216,7 @@ class VectorStoreCollection:
                 )
         for index, artifact in enumerate(artifacts):
             documents = artifact.to_langchain_documents(splitter)
-            artifact.collection_add(self.collection_name)
-            if self._mlrun_context:
+            if artifact.collection_add(self.collection_name) and self._mlrun_context:
                 self._mlrun_context.update_artifact(artifact)
             if user_ids:
                 num_of_documents = len(documents)
@@ -147,8 +238,8 @@ class VectorStoreCollection:
         Args:
             artifact (DocumentArtifact): The artifact from which the current object should be removed.
         """
-        artifact.collection_remove(self.collection_name)
-        if self._mlrun_context:
+
+        if artifact.collection_remove(self.collection_name) and self._mlrun_context:
             self._mlrun_context.update_artifact(artifact)
 
     def delete_artifacts(self, artifacts: list[DocumentArtifact]):
@@ -166,17 +257,23 @@ class VectorStoreCollection:
         """
         store_class = self._collection_impl.__class__.__name__.lower()
         for artifact in artifacts:
-            artifact.collection_remove(self.collection_name)
-            if self._mlrun_context:
+            if artifact.collection_remove(self.collection_name) and self._mlrun_context:
                 self._mlrun_context.update_artifact(artifact)
 
             if store_class == "milvus":
                 expr = f"{DocumentArtifact.METADATA_SOURCE_KEY} == '{artifact.get_source()}'"
-                return self._collection_impl.delete(expr=expr)
+                self._collection_impl.delete(expr=expr)
             elif store_class == "chroma":
                 where = {DocumentArtifact.METADATA_SOURCE_KEY: artifact.get_source()}
-                return self._collection_impl.delete(where=where)
-
+                self._collection_impl.delete(where=where)
+            elif store_class == "pineconevectorstore":
+                filter = {
+                    DocumentArtifact.METADATA_SOURCE_KEY: {"$eq": artifact.get_source()}
+                }
+                self._collection_impl.delete(filter=filter)
+            elif store_class == "mongodbatlasvectorsearch":
+                filter = {DocumentArtifact.METADATA_SOURCE_KEY: artifact.get_source()}
+                self._collection_impl.collection.delete_many(filter=filter)
             elif (
                 hasattr(self._collection_impl, "delete")
                 and "filter"
@@ -187,7 +284,7 @@ class VectorStoreCollection:
                         DocumentArtifact.METADATA_SOURCE_KEY: artifact.get_source()
                     }
                 }
-                return self._collection_impl.delete(filter=filter)
+                self._collection_impl.delete(filter=filter)
             else:
                 raise NotImplementedError(
                     f"delete_artifacts() operation not supported for {store_class}"

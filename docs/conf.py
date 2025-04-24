@@ -156,7 +156,7 @@ myst_xref_missing = "ignore"
 # These substitutions point to the relevant mlrun docs for the current CE version
 myst_substitutions = {
     "version": "version",
-    "ceversion": "v1.7.0",
+    "ceversion": "v1.7.2",
     "releasedocumentation": "docs.mlrun.org/en/stable/index.html",
 }
 
@@ -206,6 +206,13 @@ linkcheck_ignore = [
     "project.yaml",
     "http://function.py",
     "http://localhost:30040",
+    "https://dev.mysql.com/doc/refman/8.0/en/keywords.html",
+    "https://www.kaggle.com/code/jsylas/python-version-of-top-ten-rank-r-22-m-2-88/data?select=train.csv",
+    # Returns 404 though link is valid
+    "https://docs.databricks.com/aws/en/reference/jobs-2.0-api",
+    # Mckinsey restricted
+    "https://ollama.com/download",
+    "https://ollama.com/library/llama3",
 ]
 
 # -- Autosummary -------------------------------------------------------------

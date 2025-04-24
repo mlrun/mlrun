@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import base64
+import json
 import os
 import pathlib
 import sys
@@ -53,9 +54,9 @@ class TestMLRunSystem:
         "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE",
     ]
 
-    model_monitoring_mandatory_env_vars = [
-        "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION",
-        "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION",
+    model_monitoring_mandatory_keys = [
+        "mlrun_model_monitoring_tsdb_profile",
+        "mlrun_model_monitoring_stream_profile",
     ]
 
     enterprise_configured = os.getenv("V3IO_API")
@@ -74,6 +75,14 @@ class TestMLRunSystem:
         cls.custom_setup_class()
         cls._logger = logger.get_child(cls.__name__.lower())
         cls.project: typing.Optional[mlrun.projects.MlrunProject] = None
+
+        cls.mm_tsdb_profile_data = cls._get_mm_data(
+            env, "mlrun_model_monitoring_tsdb_profile"
+        )
+        cls.mm_stream_profile_data = cls._get_mm_data(
+            env, "mlrun_model_monitoring_stream_profile"
+        )
+
         cls.uploaded_code = False
 
         if "MLRUN_IGUAZIO_API_URL" in env:
@@ -86,6 +95,15 @@ class TestMLRunSystem:
         # so even though we set the env var, we still need to directly configure
         # it in mlconf.
         mlconf.dbpath = cls._test_env["MLRUN_DBPATH"]
+
+    @staticmethod
+    def _get_mm_data(
+        env: dict[str, typing.Any], key: str
+    ) -> typing.Optional[dict[str, typing.Any]]:
+        data = env.get(key)
+        if isinstance(data, str):
+            data = json.loads(data)
+        return data
 
     @classmethod
     def custom_setup_class(cls):
@@ -172,7 +190,7 @@ class TestMLRunSystem:
             else cls.mandatory_env_vars
         )
         if cls._has_marker(test, cls.model_monitoring_marker_name):
-            mandatory_env_vars += cls.model_monitoring_mandatory_env_vars
+            mandatory_env_vars += cls.model_monitoring_mandatory_keys
 
         missing_env_vars = []
         try:
@@ -224,19 +242,12 @@ class TestMLRunSystem:
         cls._logger.debug("Setting up test environment")
         cls._test_env.update(env)
 
-        # Define the keys to process first
-        ordered_keys = [
-            "MLRUN_HTTPDB__HTTP__VERIFY"  # Ensure this key is processed first for proper connection setup
-        ]
-
-        # Process ordered keys
-        for key in ordered_keys & env.keys():
-            cls._process_env_var(key, env[key])
-
-        # Process remaining keys
+        # Process keys
         for key, value in env.items():
-            if key not in ordered_keys:
-                cls._process_env_var(key, value)
+            if key in cls.model_monitoring_mandatory_keys:
+                # model monitoring profiles data is saved separately
+                continue
+            cls._process_env_var(key, value)
 
         # Reload the config so changes to the env vars will take effect
         mlrun.mlconf.reload()
@@ -250,7 +261,7 @@ class TestMLRunSystem:
         # Set the environment variable
         if isinstance(value, bool):
             os.environ[key] = "true" if value else "false"
-        elif value is not None:
+        elif value is not None and not isinstance(value, (list, dict)):
             os.environ[key] = value
 
     @classmethod
@@ -260,9 +271,14 @@ class TestMLRunSystem:
 
         kubeconfig_content = None
         try:
-            base64_kubeconfig_content = os.environ["MLRUN_SYSTEM_TEST_KUBECONFIG"]
-            kubeconfig_content = base64.b64decode(base64_kubeconfig_content)
-        except (ValueError, KeyError) as exc:
+            if kubeconfig_path := os.environ.get("MLRUN_SYSTEM_TEST_KUBECONFIG_PATH"):
+                with open(kubeconfig_path, "rb") as file:
+                    kubeconfig_content = file.read()
+            elif base64_kubeconfig_content := os.environ.get(
+                "MLRUN_SYSTEM_TEST_KUBECONFIG"
+            ):
+                kubeconfig_content = base64.b64decode(base64_kubeconfig_content)
+        except ValueError as exc:
             logger.warning(
                 "Kubeconfig was empty or invalid.",
                 exc_info=mlrun.errors.err_to_str(exc),
@@ -368,20 +384,23 @@ class TestMLRunSystem:
         loss: typing.Optional[int] = None,
         best_iteration: typing.Optional[int] = None,
         iteration_results: bool = False,
+        iteration: typing.Optional[int] = None,
     ):
+        fragment = "" if iteration is None else f"#{iteration}"
+
         self._logger.debug("Verifying run outputs", spec=run_outputs)
         assert run_outputs["plotly"].startswith(str(output_path))
         assert (
-            run_outputs["mydf"]
-            == f"store://datasets/{project}/{name}_mydf:latest@{uid}"
+            f"store://datasets/{project}/{name}_mydf{fragment}:latest@{uid}"
+            in run_outputs["mydf"]
         )
         assert (
-            run_outputs["model"]
-            == f"store://artifacts/{project}/{name}_model:latest@{uid}"
+            f"store://artifacts/{project}/{name}_model{fragment}:latest@{uid}"
+            in run_outputs["model"]
         )
         assert (
-            run_outputs["html_result"]
-            == f"store://artifacts/{project}/{name}_html_result:latest@{uid}"
+            f"store://artifacts/{project}/{name}_html_result{fragment}:latest@{uid}"
+            in run_outputs["html_result"]
         )
         if accuracy:
             assert run_outputs["accuracy"] == accuracy

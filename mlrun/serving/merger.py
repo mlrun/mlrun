@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 from typing import Optional
 
@@ -74,7 +73,7 @@ class Merge(storey.Flow):
         self._queue_len = max_behind or 64  # default queue is 64 entries
         self._keys_queue = []
 
-    def post_init(self, mode="sync"):
+    def post_init(self, mode="sync", **kwargs):
         # auto detect number of uplinks or use user specified value
         self._uplinks = self.expected_num_events or (
             len(self._graph_step.after) if self._graph_step else 0

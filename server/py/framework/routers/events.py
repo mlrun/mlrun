@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Request
@@ -28,7 +26,7 @@ router = APIRouter()
 
 @router.post("/projects/{project}/events/{name}")
 @inject
-async def post_event(
+async def process_event(
     request: Request,
     project: str,
     name: str,
@@ -40,7 +38,7 @@ async def post_event(
     ),
 ):
     return await service.handle_request(
-        "post_event",
+        "process_event",
         request,
         project,
         name,

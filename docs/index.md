@@ -97,7 +97,6 @@ preprocess (prepare) the data, run the training pipeline, and evaluate the model
 <br> {octicon}`code-square` **Demos:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
 {bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
-{bdg-link-success}`Interactive bot demo using LLMs <https://github.com/mlrun/demo-llm-bot/blob/main>`
 <br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
@@ -118,7 +117,6 @@ inferring results using one or more models, and driving actions.
 <br> {octicon}`code-square` **Demos:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
 {bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
-{bdg-link-success}`Interactive bot demo using LLMs <https://github.com/mlrun/demo-llm-bot/blob/main>`
 <br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
@@ -190,7 +188,7 @@ MLRun can be used to automate and orchestrate all the different tasks or just sp
 In MLRun the assets, metadata, and services (data, functions, jobs, artifacts, models, secrets, etc.) are organized into projects.
 Projects can be imported/exported as a whole, mapped to git repositories or IDE projects (in PyCharm, VSCode, etc.), which enables versioning, collaboration, and CI/CD. 
 Project access can be restricted to a set of users and roles.
-{bdg-link-primary-line}`more... <./projects/project.md>`
+{bdg-link-primary-line}`more... <./projects/project.html>`
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
@@ -229,7 +227,7 @@ train models at scale with multiple parameters, test models, track each experime
 models, etc. MLRun provides scalable built-in or custom model training services that integrate with any framework and 
 can work with 3rd party training/auto-ML services. You can also bring your own pre-trained model and use it in the pipeline.
 
-{bdg-link-primary-line}`more... <./development/index.md>`
+{bdg-link-primary-line}`more... <./development/index.html>`
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**

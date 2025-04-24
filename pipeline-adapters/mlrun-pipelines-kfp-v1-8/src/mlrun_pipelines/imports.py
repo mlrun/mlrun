@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -126,7 +126,6 @@ try:
     import kfp as real_kfp
     import kfp.compiler as real_compiler
     import kfp.dsl as real_dsl
-    from kfp import Client as real_Client
     from kfp.dsl import ContainerOp as real_ContainerOp
     from kfp.dsl import PipelineConf as real_PipelineConf
     from kfp.dsl import PipelineParam as real_PipelineParam
@@ -137,19 +136,15 @@ try:
     compiler = real_compiler
     Compiler = real_compiler.Compiler
     ContainerOp = real_ContainerOp
-    Client = real_Client
     PipelineParam = real_PipelineParam
     PipelineConf = real_PipelineConf
+    dsl.ContainerOp = ContainerOp
 
     if hasattr(ContainerOp, "_DISABLE_REUSABLE_COMPONENT_WARNING"):
         ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
 
 except ImportError:
-    logger.warning(
-        "Kubeflow Pipelines (KFP) is not installed. Using noop implementations."
-    )
     from mlrun_pipelines.common.imports import (
-        Client,
         Compiler,
         PipelineConf,
         PipelineParam,
@@ -159,9 +154,9 @@ except ImportError:
     )
 
     ContainerOp = DummyContainerOp
+    dsl.ContainerOp = DummyContainerOp
 
 __all__ = [
-    "Client",
     "Compiler",
     "ContainerOp",
     "PipelineConf",

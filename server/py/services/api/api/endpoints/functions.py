@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import traceback
-from distutils.util import strtobool
 from http import HTTPStatus
 from typing import Optional
 
@@ -48,13 +47,13 @@ import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.chief
 import framework.utils.helpers
+import framework.utils.pagination
 import framework.utils.singletons.k8s
 import framework.utils.singletons.project_member
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.runtimes.nuclio.function
 import services.api.launcher
 import services.api.utils.functions
-import services.api.utils.pagination
 from framework.api import deps
 from services.api.api.endpoints.nuclio import (
     _get_api_gateways_urls_for_function,
@@ -219,6 +218,7 @@ async def list_functions(
     since: Optional[str] = None,
     until: Optional[str] = None,
     kind: Optional[str] = None,
+    states: list[str] = Query([], alias="state"),
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
     page_token: str = Query(None, alias="page-token"),
@@ -232,7 +232,7 @@ async def list_functions(
         )
     )
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     async def _filter_functions_by_permissions(_functions):
         return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
@@ -261,6 +261,7 @@ async def list_functions(
         labels=labels,
         hash_key=hash_key,
         kind=kind,
+        states=states,
         format_=format_,
         since=mlrun.utils.datetime_from_iso(since),
         until=mlrun.utils.datetime_from_iso(until),
@@ -335,7 +336,7 @@ async def build_function(
     if isinstance(data.get("with_mlrun"), bool):
         with_mlrun = data.get("with_mlrun")
     else:
-        with_mlrun = strtobool(data.get("with_mlrun", "on"))
+        with_mlrun = mlrun.utils.str_to_bool(data.get("with_mlrun", "on"))
     skip_deployed = data.get("skip_deployed", False)
     force_build = data.get("force_build", False)
     mlrun_version_specifier = data.get("mlrun_version_specifier")

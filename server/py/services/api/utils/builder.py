@@ -107,12 +107,12 @@ def make_dockerfile(
     if source:
         args = args.rstrip("\n")
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
+        # it is up to base image to have unzip included in case source is zip
         if source.endswith(".zip"):
             source_dir = os.path.join(target_dir, "source")
             stage_lines = [
                 f"FROM {base_image} AS extractor",
                 args,
-                "RUN apt-get update -qqy && apt install --assume-yes unzip",
                 f"RUN mkdir -p {source_dir}",
                 f"COPY {source} {source_dir}",
                 f"RUN cd {source_dir} && unzip {source} && rm {source}",
@@ -223,6 +223,16 @@ def make_kaniko_pod(
             mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
         )
     }
+    # Some cloud providers add a toleration when a GPU limit is set.
+    # If the Kaniko pod inherits a GPU-related node selector from the function
+    # but lacks a GPU limit, it may get stuck in a pending state due to unsatisfiable scheduling.
+    # Setting GPU limits to zero ensures tolerations are applied while preventing GPU allocation.
+    if runtime_spec:
+        gpu_resources = mlrun.utils.get_enriched_gpu_limits(
+            runtime_spec.resources.get("limits", {})
+        )
+        if gpu_resources:
+            resources["limits"] = gpu_resources
 
     kpod = framework.utils.singletons.k8s.BasePod(
         name or "mlrun-build",

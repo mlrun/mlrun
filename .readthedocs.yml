@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 version: 2
 
 # Set the OS, Python version and other tools you might need
@@ -28,9 +28,6 @@ formats: all
 
 python:
   install:
-    - requirements: requirements.txt
-    - requirements: dev-requirements.txt
-    - requirements: dockerfiles/mlrun-api/requirements.txt
     - requirements: docs/requirements.txt
 
 search:

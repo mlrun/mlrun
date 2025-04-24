@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import typing
 
 import pydantic.v1
@@ -114,6 +114,8 @@ class AuthorizationVerificationInput(pydantic.v1.BaseModel):
 
 
 class AuthInfo(pydantic.v1.BaseModel):
+    # Keep request headers for inter-service communication
+    request_headers: typing.Optional[dict[str, str]] = None
     # Basic + Iguazio auth
     username: typing.Optional[str] = None
     # Basic auth

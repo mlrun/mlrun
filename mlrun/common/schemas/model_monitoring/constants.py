@@ -42,11 +42,10 @@ class ModelEndpointSchema(MonitoringStrEnum):
     # spec
     FUNCTION_NAME = "function_name"
     FUNCTION_TAG = "function_tag"
-    FUNCTION_UID = "function_uid"
     MODEL_NAME = "model_name"
-    MODEL_TAG = "model_tag"
+    MODEL_TAGS = "model_tags"
+    MODEL_PATH = "model_path"
     MODEL_CLASS = "model_class"
-    MODEL_UID = "model_uid"
     FEATURE_NAMES = "feature_names"
     LABEL_NAMES = "label_names"
     FEATURE_STATS = "feature_stats"
@@ -60,6 +59,7 @@ class ModelEndpointSchema(MonitoringStrEnum):
     STATE = "state"
     MONITORING_MODE = "monitoring_mode"
     FIRST_REQUEST = "first_request"
+    SAMPLING_PERCENTAGE = "sampling_percentage"
 
     # status - operative
     LAST_REQUEST = "last_request"
@@ -68,6 +68,13 @@ class ModelEndpointSchema(MonitoringStrEnum):
     ERROR_COUNT = "error_count"
     CURRENT_STATS = "current_stats"
     DRIFT_MEASURES = "drift_measures"
+
+
+class ModelEndpointCreationStrategy(MonitoringStrEnum):
+    INPLACE = "inplace"
+    ARCHIVE = "archive"
+    OVERWRITE = "overwrite"
+    SKIP = "skip"
 
 
 class EventFieldType:
@@ -129,11 +136,14 @@ class EventFieldType:
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
     TIME = "time"
     TABLE_COLUMN = "table_column"
+    SAMPLING_PERCENTAGE = "sampling_percentage"
+    SAMPLING_RATE = "sampling_rate"
+    ESTIMATED_PREDICTION_COUNT = "estimated_prediction_count"
+    EFFECTIVE_SAMPLE_COUNT = "effective_sample_count"
 
 
 class FeatureSetFeatures(MonitoringStrEnum):
     LATENCY = EventFieldType.LATENCY
-    ERROR_COUNT = EventFieldType.ERROR_COUNT
     METRICS = EventFieldType.METRICS
 
     @classmethod
@@ -151,7 +161,7 @@ class ApplicationEvent:
     END_INFER_TIME = "end_infer_time"
     ENDPOINT_ID = "endpoint_id"
     ENDPOINT_NAME = "endpoint_name"
-    OUTPUT_STREAM_URI = "output_stream_uri"
+    ENDPOINT_UPDATED = "endpoint_updated"
 
 
 class WriterEvent(MonitoringStrEnum):
@@ -168,6 +178,31 @@ class WriterEventKind(MonitoringStrEnum):
     METRIC = "metric"
     RESULT = "result"
     STATS = "stats"
+
+
+class ControllerEvent(MonitoringStrEnum):
+    KIND = "kind"
+    ENDPOINT_ID = "endpoint_id"
+    ENDPOINT_NAME = "endpoint_name"
+    PROJECT = "project"
+    TIMESTAMP = "timestamp"
+    FIRST_REQUEST = "first_request"
+    FEATURE_SET_URI = "feature_set_uri"
+    ENDPOINT_TYPE = "endpoint_type"
+    ENDPOINT_POLICY = "endpoint_policy"
+    # Note: currently under endpoint policy we will have a dictionary including the keys: "application_names"
+    # "base_period", and "updated_endpoint" stand for when the MEP was updated
+
+
+class ControllerEventEndpointPolicy(MonitoringStrEnum):
+    BASE_PERIOD = "base_period"
+    MONITORING_APPLICATIONS = "monitoring_applications"
+    ENDPOINT_UPDATED = "endpoint_updated"
+
+
+class ControllerEventKind(MonitoringStrEnum):
+    NOP_EVENT = "nop_event"
+    REGULAR_EVENT = "regular_event"
 
 
 class MetricData(MonitoringStrEnum):
@@ -210,16 +245,6 @@ class EventKeyMetrics:
     REAL_TIME = "real_time"
 
 
-class ModelEndpointTarget(MonitoringStrEnum):
-    V3IO_NOSQL = "v3io-nosql"
-    SQL = "sql"
-
-
-class StreamKind(MonitoringStrEnum):
-    V3IO_STREAM = "v3io_stream"
-    KAFKA = "kafka"
-
-
 class TSDBTarget(MonitoringStrEnum):
     V3IO_TSDB = "v3io-tsdb"
     TDEngine = "tdengine"
@@ -227,26 +252,21 @@ class TSDBTarget(MonitoringStrEnum):
 
 class ProjectSecretKeys:
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
-    STREAM_PATH = "STREAM_PATH"
-    TSDB_CONNECTION = "TSDB_CONNECTION"
+    TSDB_PROFILE_NAME = "TSDB_PROFILE_NAME"
+    STREAM_PROFILE_NAME = "STREAM_PROFILE_NAME"
 
     @classmethod
     def mandatory_secrets(cls):
         return [
-            cls.STREAM_PATH,
-            cls.TSDB_CONNECTION,
+            cls.STREAM_PROFILE_NAME,
+            cls.TSDB_PROFILE_NAME,
         ]
 
 
-class ModelEndpointTargetSchemas(MonitoringStrEnum):
-    V3IO = "v3io"
-    MYSQL = "mysql"
-    SQLITE = "sqlite"
-
-
-class ModelMonitoringStoreKinds:
-    ENDPOINTS = "endpoints"
-    EVENTS = "events"
+class GetEventsFormat(MonitoringStrEnum):
+    SINGLE = "single"
+    SEPARATION = "separation"
+    INTERSECTION = "intersection"
 
 
 class FileTargetKind:
@@ -261,11 +281,17 @@ class FileTargetKind:
     MONITORING_APPLICATION = "monitoring_application"
     ERRORS = "errors"
     STATS = "stats"
+    LAST_REQUEST = "last_request"
 
 
 class ModelMonitoringMode(StrEnum):
     enabled = "enabled"
     disabled = "disabled"
+
+
+class ScheduleChiefFields(StrEnum):
+    LAST_REQUEST = "last_request"
+    LAST_ANALYZED = "last_analyzed"
 
 
 class EndpointType(IntEnum):
@@ -290,6 +316,7 @@ class V3IOTSDBTables(MonitoringStrEnum):
     METRICS = "metrics"
     EVENTS = "events"
     ERRORS = "errors"
+    PREDICTIONS = "predictions"
 
 
 class TDEngineSuperTables(MonitoringStrEnum):
@@ -397,10 +424,6 @@ class ModelMonitoringAppLabel:
         return f"{self.KEY}={self.VAL}"
 
 
-class ControllerPolicy:
-    BASE_PERIOD = "base_period"
-
-
 class HistogramDataDriftApplicationConstants:
     NAME = "histogram-data-drift"
     GENERAL_RESULT_NAME = "general_drift"
@@ -416,8 +439,6 @@ class SpecialApps:
 
 
 _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]
-
-V3IO_MODEL_MONITORING_DB = "v3io"
 
 
 class ModelEndpointMonitoringMetricType(StrEnum):
@@ -436,5 +457,13 @@ FQN_REGEX = re.compile(FQN_PATTERN)
 
 # refer to `mlrun.utils.regex.project_name`
 PROJECT_PATTERN = r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
-
 MODEL_ENDPOINT_ID_PATTERN = r"^[a-zA-Z0-9_-]+$"
+RESULT_NAME_PATTERN = r"[a-zA-Z_][a-zA-Z0-9_]*"
+
+INTERSECT_DICT_KEYS = {
+    ModelEndpointMonitoringMetricType.METRIC: "intersect_metrics",
+    ModelEndpointMonitoringMetricType.RESULT: "intersect_results",
+}
+
+CRON_TRIGGER_KINDS = ("http", "cron")
+STREAM_TRIGGER_KINDS = ("v3io-stream", "kafka-cluster")

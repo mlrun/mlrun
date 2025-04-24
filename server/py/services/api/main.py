@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import collections
 import datetime
@@ -36,11 +36,13 @@ from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 import framework.api.utils
 import framework.constants
 import framework.db.base
+import framework.db.sqldb.db
 import framework.service
 import framework.utils.clients.chief
 import framework.utils.clients.log_collector
 import framework.utils.clients.messaging
 import framework.utils.notifications.notification_pusher
+import framework.utils.pagination_cache
 import framework.utils.time_window_tracker
 import services.api.crud
 import services.api.initial_data
@@ -72,6 +74,14 @@ _run_uid_start_log_request_counters: collections.Counter = collections.Counter()
 
 
 class Service(framework.service.Service):
+    def __init__(self):
+        super().__init__()
+        self._paginated_methods = [
+            (services.api.crud.Runs, "list_runs"),
+            (services.api.crud.Functions, "list_functions"),
+            (services.api.crud.Artifacts, "list_artifacts"),
+        ]
+
     async def _move_service_to_online(self):
         # scheduler is needed on both workers and chief
         # on workers - it allows to us to list/get scheduler(s)
@@ -98,7 +108,30 @@ class Service(framework.service.Service):
             services.api.initial_data.update_default_configuration_data()
             await self._start_periodic_functions()
 
+        # For the worker, fetch and sync the system metadata from the database to ensure that the config values are
+        # correctly set.
+        else:
+            self._sync_system_metadata()
         await self._move_mounted_services_to_online()
+
+    def _sync_system_metadata(self):
+        """
+        Sync system metadata values from the database to the config.
+        Currently, it synchronizes only the system ID but can be extended for other new metadata values in the future.
+        """
+
+        db_session = create_session()
+        try:
+            db = framework.db.sqldb.db.SQLDB()
+
+            system_id = db.get_system_id(db_session)
+            if system_id is not None:
+                self._logger.debug(
+                    "Existing system ID found in the database", system_id=system_id
+                )
+                mlrun.mlconf.system_id = system_id
+        finally:
+            close_session(db_session)
 
     async def _base_handler(
         self,
@@ -208,23 +241,18 @@ class Service(framework.service.Service):
         collect logs.
         :param start_logs_limit: Semaphore which limits the number of concurrent log collection tasks
         """
-        db_session = await fastapi.concurrency.run_in_threadpool(create_session)
-        try:
-            await framework.utils.time_window_tracker.run_with_time_window_tracker(
-                db_session,
-                key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
-                # If the API was down for more than the grace period, we will only collect logs for runs which reached
-                # terminal state within the grace period and not since the API actually went down.
-                max_window_size_seconds=min(
-                    int(mlconf.log_collector.api_downtime_grace_period),
-                    int(mlconf.runtime_resources_deletion_grace_period),
-                ),
-                ensure_window_update=True,
-                callback=self._verify_log_collection_started,
-                start_logs_limit=start_logs_limit,
-            )
-        finally:
-            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+        await framework.utils.time_window_tracker.run_with_time_window_tracker(
+            key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
+            # If the API was down for more than the grace period, we will only collect logs for runs which reached
+            # terminal state within the grace period and not since the API actually went down.
+            max_window_size_seconds=min(
+                int(mlconf.log_collector.api_downtime_grace_period),
+                int(mlconf.runtime_resources_deletion_grace_period),
+            ),
+            ensure_window_update=True,
+            callback=self._verify_log_collection_started,
+            start_logs_limit=start_logs_limit,
+        )
 
     async def _verify_log_collection_started(
         self, db_session, last_update_time: datetime.datetime, start_logs_limit
@@ -521,10 +549,10 @@ class Service(framework.service.Service):
             )
             run_function_periodically(
                 interval,
-                services.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache.__name__,
+                framework.utils.pagination_cache.PaginationCache().monitor_pagination_cache.__name__,
                 False,
                 framework.db.session.run_function_with_new_db_session,
-                services.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache,
+                framework.utils.pagination_cache.PaginationCache().monitor_pagination_cache,
             )
 
     def _start_periodic_project_summaries_calculation(self):
@@ -691,7 +719,6 @@ class Service(framework.service.Service):
                 )
         try:
             await framework.utils.time_window_tracker.run_with_time_window_tracker(
-                db_session,
                 key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.run_monitoring,
                 max_window_size_seconds=int(
                     mlconf.runtime_resources_deletion_grace_period
@@ -732,22 +759,36 @@ class Service(framework.service.Service):
         db: framework.db.base.DBInterface,
     ):
         """
-        Get all runs with notification configs which became terminal since the last call to the function
+        Get all runs with notification configs which became terminal since the last call to the function (- grace)
         and push their notifications if they haven't been pushed yet.
+        On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
+        and their notifications haven't been sent yet.
         """
 
-        # When pushing notifications, push notifications only for runs that entered a terminal state
-        # since the last time we pushed notifications.
-        # On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
-        # and their notifications haven't been sent yet.
+        # Calculation of end_time_from creates an overlap between the current and the previous window to make sure we
+        # don't miss any runs that ended just before the current window (ML-9572)
+        end_time_from = last_update_time - datetime.timedelta(
+            seconds=min(int(mlconf.monitoring.runs.interval) // 2, 5)
+        )
+        self._logger.debug(
+            "Checking notifications since last end time",
+            last_update_time=last_update_time,
+            end_time_from=end_time_from,
+        )
 
         runs = db.list_runs(
             db_session,
             project="*",
             states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
-            last_update_time_from=last_update_time,
+            end_time_from=end_time_from,
             with_notifications=True,
         )
+
+        if not len(runs):
+            self._logger.debug(
+                "No runs ended during the current window",
+                end_time_from=end_time_from,
+            )
 
         if not len(runs):
             return
@@ -757,7 +798,7 @@ class Service(framework.service.Service):
         unmasked_runs = []
         for run in runs:
             try:
-                framework.utils.notifications.unmask_notification_params_secret_on_task(
+                run = framework.utils.notifications.unmask_notification_params_secret_on_task(
                     db, db_session, run
                 )
                 unmasked_runs.append(run)

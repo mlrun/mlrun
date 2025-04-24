@@ -37,111 +37,148 @@ from mlrun.model_monitoring.applications._application_steps import (
 )
 from mlrun.utils import Logger, logger
 
-STREAM_PATH = "./test_stream.json"
-
 
 class TestEventPreparation:
     ENDPOINT_ID = "test-ep-id"
+    ENDPOINT_NAME = "test-ep-name"
     APPLICATION_NAME = "test-app"
-
-    @staticmethod
-    @pytest.fixture
-    def mock_load_project(tmp_path: Path) -> typing.Iterator[None]:
-        with patch(
-            "mlrun.load_project",
-            Mock(
-                return_value=mlrun.projects.MlrunProject(
-                    spec=mlrun.projects.ProjectSpec(artifact_path=str(tmp_path))
-                )
-            ),
-        ):
-            yield
+    ENDPOINT_UPDATED = mlrun.utils.now_date().isoformat()
 
     @classmethod
     @pytest.fixture
     def controller_event(cls) -> dict[str, typing.Any]:
         return {
             mm_constants.ApplicationEvent.ENDPOINT_ID: cls.ENDPOINT_ID,
+            mm_constants.ApplicationEvent.ENDPOINT_NAME: cls.ENDPOINT_NAME,
             mm_constants.ApplicationEvent.APPLICATION_NAME: cls.APPLICATION_NAME,
+            mm_constants.ApplicationEvent.ENDPOINT_UPDATED: cls.ENDPOINT_UPDATED,
         }
 
     @classmethod
-    @pytest.mark.usefixtures("mock_load_project")
     def test_prepare_monitoring_event(
-        cls, controller_event: dict[str, typing.Any]
+        cls, controller_event: dict[str, typing.Any], tmp_path: Path
     ) -> None:
         with patch.object(
-            mlrun.db.get_run_db(), "get_model_endpoint"
+            mlrun.db.get_run_db(),
+            "get_model_endpoint",
+            Mock(
+                return_value=mlrun.common.schemas.model_monitoring.ModelEndpoint(
+                    metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
+                        project="my-proj",
+                        name="my-endpoint",
+                    ),
+                    spec=mlrun.common.schemas.ModelEndpointSpec(
+                        function_name="my-func",
+                        function_tag="my-tag",
+                        monitoring_feature_set_uri=mlrun.utils.generate_object_uri(
+                            project="my-proj", name="my-serving"
+                        ),
+                    ),
+                    status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(),
+                )
+            ),
         ) as patch_get_model_endpoint:
-            logger.info("Set up a mock server with a `_PrepareMonitoringEvent` step")
-
-            fn = typing.cast(
-                mlrun.runtimes.ServingRuntime,
-                mlrun.code_to_function(
-                    filename=__file__,
-                    name="model-monitoring-context-preparation",
-                    kind=mlrun.run.RuntimeKinds.serving,
+            with patch.object(
+                mlrun.db.get_run_db(),
+                "get_project",
+                Mock(
+                    return_value=mlrun.projects.MlrunProject(
+                        spec=mlrun.projects.ProjectSpec(artifact_path=str(tmp_path))
+                    )
                 ),
-            )
-            graph = fn.set_topology(mlrun.serving.states.StepKinds.flow)
+            ):
+                logger.info(
+                    "Set up a mock server with a `_PrepareMonitoringEvent` step"
+                )
 
-            graph.to(
-                "_PrepareMonitoringEvent", application_name=cls.APPLICATION_NAME
-            ).respond()
-            server = fn.to_mock_server()
-            monitoring_context = typing.cast(
-                mm_context.MonitoringApplicationContext,
-                server.test(body=controller_event),
-            )
+                fn = typing.cast(
+                    mlrun.runtimes.ServingRuntime,
+                    mlrun.code_to_function(
+                        filename=__file__,
+                        name="model-monitoring-context-preparation",
+                        kind=mlrun.run.RuntimeKinds.serving,
+                    ),
+                )
+                graph = fn.set_topology(mlrun.serving.states.StepKinds.flow)
 
-            logger.info("Test `monitoring_context` functionality")
+                graph.to(
+                    "_PrepareMonitoringEvent", application_name=cls.APPLICATION_NAME
+                ).respond()
+                server = fn.to_mock_server()
+                monitoring_context = typing.cast(
+                    mm_context.MonitoringApplicationContext,
+                    server.test(body=controller_event),
+                )
 
-            monitoring_context.logger.debug("Checking `get_endpoint_record` was called")
-            patch_get_model_endpoint.assert_called_once()
+                logger.info("Test `monitoring_context` functionality")
 
-            monitoring_context.logger.debug("Logging an artifact")
-            artifact = monitoring_context.log_artifact(
-                "my-app-data",
-                body=b"Sometimes, context is important.",
-                format="txt",
-                labels={"framework": "deepeval"},
-            )
+                monitoring_context.logger.debug(
+                    "Checking `get_endpoint_record` was called"
+                )
+                patch_get_model_endpoint.assert_called_once()
 
-            monitoring_context.logger.debug("Checking logged artifact labels")
-            assert {
-                "framework": "deepeval",
-                "mlrun/producer-type": "model-monitoring-app",
-                "mlrun/app-name": cls.APPLICATION_NAME,
-                "mlrun/endpoint-id": cls.ENDPOINT_ID,
-            }.items() <= artifact.labels.items()
+                monitoring_context.logger.debug("Logging an artifact")
+                artifact = monitoring_context.log_artifact(
+                    "my-app-data",
+                    body=b"Sometimes, context is important.",
+                    format="txt",
+                    labels={"framework": "deepeval"},
+                )
 
-            server.wait_for_completion()
-            monitoring_context.logger.debug("I'm done")
+                monitoring_context.logger.debug("Checking logged artifact labels")
+                assert {
+                    "framework": "deepeval",
+                    "mlrun/producer-type": "model-monitoring-app",
+                    "mlrun/app-name": cls.APPLICATION_NAME,
+                    "mlrun/endpoint-id": cls.ENDPOINT_ID,
+                    "mlrun/endpoint-name": cls.ENDPOINT_NAME,
+                }.items() <= artifact.labels.items()
+                assert (
+                    artifact.key == f"my-app-data-{cls.ENDPOINT_ID}"
+                ), "By default monitoring context concat endpoint id to artifact key"
+
+                dataset = monitoring_context.log_dataset(
+                    key="my-app-df",
+                    df=pd.DataFrame({"a": [1, 2, 3]}),
+                    labels={"framework": "deepeval"},
+                )
+                assert {
+                    "framework": "deepeval",
+                    "mlrun/producer-type": "model-monitoring-app",
+                    "mlrun/app-name": cls.APPLICATION_NAME,
+                    "mlrun/endpoint-id": cls.ENDPOINT_ID,
+                    "mlrun/endpoint-name": cls.ENDPOINT_NAME,
+                }.items() <= dataset.labels.items()
+                assert (
+                    dataset.key == f"my-app-df-{cls.ENDPOINT_ID}"
+                ), "By default monitoring context concat endpoint id to dataset key"
+                server.wait_for_completion()
+                monitoring_context.logger.debug("I'm done")
 
 
 class Pusher:
-    def __init__(self, stream_uri):
-        self.stream_uri = stream_uri
+    def __init__(self, filename: str) -> None:
+        self.stream_filename = filename
 
-    def push(self, data: list[dict[str, typing.Any]]):
+    def push(self, data: list[dict[str, typing.Any]]) -> None:
         data = data[0]
-        with open(self.stream_uri, "w") as json_file:
+        with open(self.stream_filename, "w") as json_file:
             json.dump(data, json_file)
             json_file.write("\n")
 
 
 @pytest.fixture
-def push_to_monitoring_writer():
-    return _PushToMonitoringWriter(
-        project="demo-project",
-        writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
-        name="PushToMonitoringWriter",
-        stream_uri="./test_stream.json",
-    )
+def pusher(tmp_path: Path) -> Pusher:
+    return Pusher(filename=f"{tmp_path}/test_stream.txt")
 
 
 @pytest.fixture
-def monitoring_context() -> Mock:
+def push_to_monitoring_writer():
+    return _PushToMonitoringWriter(project="demo-project")
+
+
+@pytest.fixture
+def monitoring_context() -> mm_context.MonitoringApplicationContext:
     mock_monitoring_context = Mock(spec=mm_context.MonitoringApplicationContext)
     mock_monitoring_context.log_stream = Logger(
         name="test_data_drift_app", level=logging.DEBUG
@@ -160,18 +197,18 @@ def monitoring_context() -> Mock:
     return mock_monitoring_context
 
 
-@patch("mlrun.datastore.get_stream_pusher")
+@patch("mlrun.model_monitoring.helpers.get_output_stream")
 def test_push_result_to_monitoring_writer_stream(
-    mock_get_stream_pusher,
+    mock_get_output_stream: Mock,
+    pusher: Pusher,
     push_to_monitoring_writer: _PushToMonitoringWriter,
-    monitoring_context: Mock,
-    tmp_path: Path,
+    monitoring_context: mm_context.MonitoringApplicationContext,
 ):
     """
     Test that the `_PushToMonitoringWriter` step pushes the results to the monitoring writer stream. In addition,
     test that the extra data is not pushed to the stream if it exceeds the maximum size of 998 characters.
     """
-    mock_get_stream_pusher.return_value = Pusher(stream_uri=f"{tmp_path}/{STREAM_PATH}")
+    mock_get_output_stream.return_value = pusher
     results = [
         ModelMonitoringApplicationResult(
             name="res1",
@@ -187,22 +224,14 @@ def test_push_result_to_monitoring_writer_stream(
             extra_data={"extra_data": "extra_data" * 1000},
             kind=mm_constants.ResultKindApp.data_drift,
         ),
-        ModelMonitoringApplicationMetric(
-            name="met",
-            value=2,
-        ),
+        ModelMonitoringApplicationMetric(name="met", value=2),
     ]
 
     for result in results:
-        push_to_monitoring_writer.do(
-            (
-                [result],
-                monitoring_context,
-            )
-        )
+        push_to_monitoring_writer.do(([result], monitoring_context))
 
-        with open(f"{tmp_path}/{STREAM_PATH}") as json_file:
-            for i, line in enumerate(json_file):
+        with open(pusher.stream_filename) as file:
+            for line in file:
                 loaded_data = json.loads(line.strip())
             if isinstance(result, ModelMonitoringApplicationResult):
                 event_kind = mm_constants.WriterEventKind.RESULT

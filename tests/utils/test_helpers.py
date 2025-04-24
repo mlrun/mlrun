@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
+import json
 import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from pandas import Timedelta, Timestamp
@@ -34,6 +35,7 @@ from mlrun.utils.helpers import (
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
+    parse_artifact_uri,
     resolve_image_tag_suffix,
     str_to_timestamp,
     template_artifact_path,
@@ -370,6 +372,125 @@ def test_validate_artifact_name(artifact_name, expected):
 
 
 @pytest.mark.parametrize(
+    "uri,project,expected_project,expected_key,expected_iteration,expected_tag,expected_tree,expected_uid",
+    [
+        # Backward compatibility: URI without uid
+        ("artifact_key", "default", "default", "artifact_key", 0, None, None, None),
+        (
+            "project_name/artifact_key",
+            "",
+            "project_name",
+            "artifact_key",
+            0,
+            None,
+            None,
+            None,
+        ),
+        (
+            "project_name/artifact_key#1",
+            "",
+            "project_name",
+            "artifact_key",
+            1,
+            None,
+            None,
+            None,
+        ),
+        (
+            "project_name/artifact_key:latest",
+            "",
+            "project_name",
+            "artifact_key",
+            0,
+            "latest",
+            None,
+            None,
+        ),
+        (
+            "project_name/artifact_key@a1b2c3",
+            "",
+            "project_name",
+            "artifact_key",
+            0,
+            None,
+            "a1b2c3",
+            None,
+        ),
+        (
+            "artifact_key#2:tag@us3jfdrkj",
+            "default",
+            "default",
+            "artifact_key",
+            2,
+            "tag",
+            "us3jfdrkj",
+            None,
+        ),
+        # New functionality: URI with uid
+        (
+            "artifact_key^uid123",
+            "default",
+            "default",
+            "artifact_key",
+            0,
+            None,
+            None,
+            "uid123",
+        ),
+        (
+            "project_name/artifact_key^uid123",
+            "",
+            "project_name",
+            "artifact_key",
+            0,
+            None,
+            None,
+            "uid123",
+        ),
+        (
+            "project_name/artifact_key#1:latest@branch^uid123",
+            "",
+            "project_name",
+            "artifact_key",
+            1,
+            "latest",
+            "branch",
+            "uid123",
+        ),
+        (
+            "artifact_key@branch^uid123",
+            "default",
+            "default",
+            "artifact_key",
+            0,
+            None,
+            "branch",
+            "uid123",
+        ),
+    ],
+)
+def test_parse_artifact_uri(
+    uri,
+    project,
+    expected_project,
+    expected_key,
+    expected_iteration,
+    expected_tag,
+    expected_tree,
+    expected_uid,
+):
+    result = parse_artifact_uri(uri, project)
+    assert result == (
+        expected_project,
+        expected_key,
+        expected_iteration,
+        expected_tag,
+        expected_tree,
+        expected_uid,
+    ), f"Failed to parse artifact URI: {uri}"
+
+
+@pytest.mark.parametrize(
     "value,expected",
     [
         ("a", does_not_raise()),
@@ -571,38 +692,38 @@ def test_validate_v3io_consumer_group(value, expected):
         },
         {
             "image": "mlrun/mlrun",
-            "client_version": "1.3.0",
-            "client_python_version": "3.7.13",
-            "images_tag": None,
-            "version": None,
-            "expected_output": "mlrun/mlrun:1.3.0-py37",
-            "images_to_enrich_registry": "",
-        },
-        {
-            "image": "mlrun/mlrun",
-            "client_version": "1.5.0",
-            "client_python_version": "3.7.13",
-            "images_tag": None,
-            "version": None,
-            "expected_output": "mlrun/mlrun:1.5.0",
-            "images_to_enrich_registry": "",
-        },
-        {
-            "image": "mlrun/mlrun",
-            "client_version": "1.3.0",
-            "client_python_version": None,
-            "images_tag": None,
-            "version": None,
-            "expected_output": "mlrun/mlrun:1.3.0",
-            "images_to_enrich_registry": "",
-        },
-        {
-            "image": "mlrun/mlrun",
-            "client_version": "1.3.0",
+            "client_version": "1.9.0",
             "client_python_version": "3.9.13",
             "images_tag": None,
             "version": None,
-            "expected_output": "mlrun/mlrun:1.3.0",
+            "expected_output": "mlrun/mlrun:1.9.0-py39",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.11.0",
+            "client_python_version": "3.7.13",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.11.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.9.0",
+            "client_python_version": None,
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.9.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.9.0",
+            "client_python_version": "3.11.13",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.9.0",
             "images_to_enrich_registry": "",
         },
         {
@@ -640,36 +761,36 @@ def test_enrich_image(case):
 @pytest.mark.parametrize(
     "mlrun_version,python_version,expected",
     [
-        ("1.3.0", "3.7.13", "-py37"),
-        ("1.3.0", "3.9.13", ""),
-        ("1.3.0", None, ""),
-        ("1.3.0", "3.8.13", ""),
-        ("1.3.0", "3.9.0", ""),
-        ("1.2.0", "3.7.0", ""),
-        ("1.2.0", "3.8.0", ""),
-        ("1.3.0-rc12", "3.7.13", "-py37"),
-        ("1.3.0-rc12", "3.9.13", ""),
-        ("1.3.0-rc12", None, ""),
-        ("1.3.0-rc12", "3.8.13", ""),
-        ("1.3.1", "3.7.13", "-py37"),
-        ("1.3.1", "3.9.13", ""),
-        ("1.3.1", None, ""),
-        ("1.3.1", "3.8.13", ""),
-        ("1.3.1-rc12", "3.7.13", "-py37"),
-        ("1.3.1-rc12", "3.9.13", ""),
+        ("1.9.0", "3.9.13", "-py39"),
+        ("1.9.0", "3.11.13", ""),
+        ("1.9.0", None, ""),
+        ("1.9.0", "3.10.13", ""),
+        ("1.9.0", "3.11.0", ""),
+        ("1.8.0", "3.9.0", ""),
+        ("1.8.0", "3.10.0", ""),
+        ("1.9.0-rc12", "3.9.13", "-py39"),
+        ("1.9.0-rc12", "3.11.13", ""),
+        ("1.9.0-rc12", None, ""),
+        ("1.9.0-rc12", "3.10.13", ""),
+        ("1.9.1", "3.9.13", "-py39"),
+        ("1.9.1", "3.11.13", ""),
+        ("1.9.1", None, ""),
+        ("1.9.1", "3.10.13", ""),
+        ("1.9.1-rc12", "3.9.13", "-py39"),
+        ("1.9.1-rc12", "3.11.13", ""),
         # an example of a version which contains a suffix of commit hash and not a rc suffix (our CI uses this format)
-        ("1.3.0-zwqeiubz", "3.7.13", "-py37"),
-        ("1.3.0-zwqeiubz", "3.9.13", ""),
+        ("1.9.0-zwqeiubz", "3.9.13", "-py39"),
+        ("1.9.0-zwqeiubz", "3.11.13", ""),
         # an example of a dev version which contains `unstable` and not a rc suffix (When compiling from source without
         # defining a version)
-        ("0.0.0-unstable", "3.7.13", "-py37"),
-        ("0.0.0-unstable", "3.9.13", ""),
-        # list of versions which are later than 1.3.0, if we decide to stop supporting python 3.7 in later versions
+        ("0.0.0-unstable", "3.9.13", "-py39"),
+        ("0.0.0-unstable", "3.11.13", ""),
+        # list of versions which are later than 1.9.0, if we decide to stop supporting python 3.9 in later versions
         # we can remove them
-        ("1.4.0", "3.9.13", ""),
-        ("1.4.0", "3.7.13", "-py37"),
-        ("1.4.0-rc1", "3.7.13", "-py37"),
-        ("1.4.0-rc1", "3.9.13", ""),
+        ("1.10.0", "3.11.13", ""),
+        ("1.10.0", "3.9.13", "-py39"),
+        ("1.10.0-rc1", "3.9.13", "-py39"),
+        ("1.10.0-rc1", "3.11.13", ""),
     ],
 )
 def test_resolve_image_tag_suffix(mlrun_version, python_version, expected):
@@ -869,6 +990,40 @@ def test_get_pretty_types_names():
         assert pretty_result == expected
 
 
+@pytest.mark.parametrize(
+    "value, expected, exception",
+    [
+        # True values
+        ("y", True, does_not_raise()),
+        ("yes", True, does_not_raise()),
+        ("t", True, does_not_raise()),
+        ("true", True, does_not_raise()),
+        ("on", True, does_not_raise()),
+        ("1", True, does_not_raise()),
+        # False values
+        ("n", False, does_not_raise()),
+        ("no", False, does_not_raise()),
+        ("f", False, does_not_raise()),
+        ("false", False, does_not_raise()),
+        ("off", False, does_not_raise()),
+        ("0", False, does_not_raise()),
+        # Invalid values
+        ("maybe", None, pytest.raises(ValueError)),
+        ("2", None, pytest.raises(ValueError)),
+        ("", None, pytest.raises(ValueError)),
+        (" ", None, pytest.raises(ValueError)),
+        # Case insensitivity
+        ("Y", True, does_not_raise()),
+        ("nO", False, does_not_raise()),
+        ("TrUe", True, does_not_raise()),
+        ("FaLsE", False, does_not_raise()),
+    ],
+)
+def test_str_to_bool(value, expected, exception):
+    with exception:
+        assert mlrun.utils.str_to_bool(value) == expected
+
+
 def test_str_to_timestamp():
     now_time = Timestamp("2021-01-01 00:01:00")
     cases = [
@@ -1043,60 +1198,91 @@ def test_is_safe_path(basedir, path, is_symlink, is_valid):
 
 
 @pytest.mark.parametrize(
-    "kind, tag, target_path, expected",
+    "kind, tag, target_path, uid, expected",
     [
         (
             "artifact",
             "v1",
             "/path/to/artifact",
+            None,
             f"{ARTIFACT_STORE_PREFIX}:v1@dummy-tree",
         ),
         (
             "artifact",
             None,
             "/path/to/artifact",
-            f"{ARTIFACT_STORE_PREFIX}:latest@dummy-tree",
+            "dummy-uid",
+            f"{ARTIFACT_STORE_PREFIX}:latest@dummy-tree^dummy-uid",
         ),
         (
             "artifact",
             "latest",
             "/path/to/artifact",
-            f"{ARTIFACT_STORE_PREFIX}:latest@dummy-tree",
+            "dummy-uid",
+            f"{ARTIFACT_STORE_PREFIX}:latest@dummy-tree^dummy-uid",
         ),
-        ("dataset", "v1", "/path/to/artifact", f"{DATASET_STORE_PREFIX}:v1@dummy-tree"),
+        (
+            "dataset",
+            "v1",
+            "/path/to/artifact",
+            None,
+            f"{DATASET_STORE_PREFIX}:v1@dummy-tree",
+        ),
         (
             "dataset",
             None,
             "/path/to/artifact",
+            None,
             f"{DATASET_STORE_PREFIX}:latest@dummy-tree",
+        ),
+        (
+            "dataset",
+            None,
+            "/path/to/artifact",
+            "dummy-uid",
+            f"{DATASET_STORE_PREFIX}:latest@dummy-tree^dummy-uid",
         ),
         (
             "dataset",
             "latest",
             "/path/to/artifact",
+            None,
             f"{DATASET_STORE_PREFIX}:latest@dummy-tree",
         ),
-        ("model", "v1", "/path/to/artifact", f"{MODEL_STORE_PREFIX}:v1@dummy-tree"),
-        ("model", None, "/path/to/artifact", f"{MODEL_STORE_PREFIX}:latest@dummy-tree"),
+        (
+            "model",
+            "v1",
+            "/path/to/artifact",
+            "dummy-uid",
+            f"{MODEL_STORE_PREFIX}:v1@dummy-tree^dummy-uid",
+        ),
+        (
+            "model",
+            None,
+            "/path/to/artifact",
+            None,
+            f"{MODEL_STORE_PREFIX}:latest@dummy-tree",
+        ),
         (
             "model",
             "latest",
             "/path/to/artifact",
-            f"{MODEL_STORE_PREFIX}:latest@dummy-tree",
+            "dummy-uid",
+            f"{MODEL_STORE_PREFIX}:latest@dummy-tree^dummy-uid",
         ),
-        ("dir", "v1", "/path/to/artifact", "/path/to/artifact"),
-        ("table", "v1", "/path/to/artifact", "/path/to/artifact"),
-        ("plot", "v1", "/path/to/artifact", "/path/to/artifact"),
+        ("dir", "v1", "/path/to/artifact", "dummy-uid", "/path/to/artifact"),
+        ("table", "v1", "/path/to/artifact", "dummy-uid", "/path/to/artifact"),
+        ("plot", "v1", "/path/to/artifact", "dummy-uid", "/path/to/artifact"),
     ],
 )
-def test_get_artifact_target(kind, tag, target_path, expected):
+def test_get_artifact_target(kind, tag, target_path, uid, expected):
     item = {
         "kind": kind,
         "spec": {
             "db_key": "dummy-db-key",
             "target_path": target_path,
         },
-        "metadata": {"tree": "dummy-tree", "tag": tag},
+        "metadata": {"tree": "dummy-tree", "tag": tag, "uid": uid},
     }
     target = mlrun.utils.get_artifact_target(item, project="dummy-project")
     assert target == expected
@@ -1115,6 +1301,20 @@ def handler():
         "The code file contains a function named “handler“, which is reserved. "
         + "Use a different name for your function."
     )
+
+
+@pytest.mark.parametrize(
+    "obj, expected",
+    [
+        ({"a": 1, "b": 2}, {"a": 1, "b": 2}),
+        ('{"a": 1, "b": 2}', {"a": 1, "b": 2}),
+        ({}, {}),
+        ("{}", {}),
+        (None, None),
+    ],
+)
+def test_as_dict(obj, expected):
+    assert expected == mlrun.utils.helpers.as_dict(obj)
 
 
 @pytest.mark.parametrize(
@@ -1214,3 +1414,174 @@ def test_validate_single_def_handler_valid_handler(code):
 )
 def test_join_urls(base_url, path, expected_result):
     assert mlrun.utils.helpers.join_urls(base_url, path) == expected_result
+
+
+@pytest.mark.parametrize(
+    "input_time, expected_output",
+    [
+        (None, None),
+        # no timezone
+        ("2025-01-15T11:00:00", datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc)),
+        # timezone-aware datetime (UTC+2), should convert to UTC
+        (
+            "2025-01-15T11:00:00+02:00",
+            datetime(2025, 1, 15, 9, 0, 0, tzinfo=timezone.utc),
+        ),
+        # already in UTC
+        (
+            "2025-01-15T11:00:00+00:00",
+            datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc),
+        ),
+    ],
+)
+def test_datetime_from_iso(input_time, expected_output):
+    assert mlrun.utils.helpers.datetime_from_iso(input_time) == expected_output
+
+
+@pytest.mark.parametrize(
+    "dt, expected",
+    [
+        # Test for naive datetime (without tzinfo), should be set to UTC
+        (datetime(2025, 3, 13, 12, 30, 45, 123456), "2025-03-13 12:30:45.123456+00:00"),
+        # Test for datetime with UTC timezone info
+        (
+            datetime(2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone.utc),
+            "2025-03-13 12:30:45.123456+00:00",
+        ),
+        # Test for datetime with a non-UTC timezone offset (+05:00), should keep the original timezone
+        (
+            datetime(
+                2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone(timedelta(hours=5))
+            ),
+            "2025-03-13 12:30:45.123456+05:00",
+        ),
+        # Test for datetime with a timezone offset (+02:00), should keep the original timezone
+        (
+            datetime(
+                2025, 3, 13, 12, 30, 45, 123456, tzinfo=timezone(timedelta(hours=2))
+            ),
+            "2025-03-13 12:30:45.123456+02:00",
+        ),
+    ],
+)
+def test_format_datetime(dt, expected):
+    assert mlrun.utils.helpers.format_datetime(dt) == expected
+
+
+@pytest.mark.parametrize(
+    "project_name, end_date, start_date, expected_filter",
+    [
+        # Specific project, end date only
+        (
+            "test-project",
+            "2024-11-05T15:30:00Z",
+            "",
+            json.dumps(
+                {
+                    "predicates": [
+                        {
+                            "key": "created_at",
+                            "op": 7,
+                            "timestamp_value": "2024-11-05T15:30:00Z",
+                        },
+                        {"key": "name", "op": 9, "string_value": "test-project"},
+                    ]
+                }
+            ),
+        ),
+        # Wildcard project, end date only
+        (
+            "*",
+            "2024-11-05T15:30:00Z",
+            "",
+            json.dumps(
+                {
+                    "predicates": [
+                        {
+                            "key": "created_at",
+                            "op": 7,
+                            "timestamp_value": "2024-11-05T15:30:00Z",
+                        },
+                    ]
+                }
+            ),
+        ),
+        # Specific project with both start and end dates
+        (
+            "test-project",
+            "2024-11-05T15:30:00Z",
+            "2024-10-01T00:00:00Z",
+            json.dumps(
+                {
+                    "predicates": [
+                        {
+                            "key": "created_at",
+                            "op": 7,
+                            "timestamp_value": "2024-11-05T15:30:00Z",
+                        },
+                        {"key": "name", "op": 9, "string_value": "test-project"},
+                        {
+                            "key": "created_at",
+                            "op": 5,
+                            "timestamp_value": "2024-10-01T00:00:00Z",
+                        },
+                    ]
+                }
+            ),
+        ),
+        # Wildcard project with both start and end dates
+        (
+            "*",
+            "2024-11-05T15:30:00Z",
+            "2024-10-01T00:00:00Z",
+            json.dumps(
+                {
+                    "predicates": [
+                        {
+                            "key": "created_at",
+                            "op": 7,
+                            "timestamp_value": "2024-11-05T15:30:00Z",
+                        },
+                        {
+                            "key": "created_at",
+                            "op": 5,
+                            "timestamp_value": "2024-10-01T00:00:00Z",
+                        },
+                    ]
+                }
+            ),
+        ),
+    ],
+)
+def test_get_list_runs_filter(project_name, end_date, start_date, expected_filter):
+    generated_filter = mlrun.utils.helpers.get_kfp_list_runs_filter(
+        project_name, end_date, start_date
+    )
+    assert json.loads(generated_filter) == json.loads(expected_filter)
+
+
+@pytest.mark.parametrize(
+    "date_input, expected_output, expectation",
+    [
+        # Valid date without timezone, assume UTC
+        ("2024-11-05T15:30:00", "2024-11-05T15:30:00Z", does_not_raise()),
+        # Valid date with UTC timezone
+        ("2024-11-05T15:30:00Z", "2024-11-05T15:30:00Z", does_not_raise()),
+        # Valid date with different timezone (convert to UTC)
+        ("2024-11-05T15:30:00+02:00", "2024-11-05T13:30:00Z", does_not_raise()),
+        # Valid date with timezone-aware string
+        ("2024-11-05T15:30:00-05:00", "2024-11-05T20:30:00Z", does_not_raise()),
+        # Date with timezone info but no time
+        ("2024-11-05", "2024-11-05T00:00:00Z", does_not_raise()),
+        ("2024/11/05T09:00", "2024-11-05T09:00:00Z", does_not_raise()),
+        # Invalid date format
+        ("invalid-date", "", pytest.raises(ValueError)),
+        # Overflow date (not a realistic timestamp)
+        ("9999-99-99T99:99:99Z", "", pytest.raises(ValueError)),
+    ],
+)
+def test_validate_and_convert_date(date_input, expected_output, expectation):
+    with expectation:
+        assert (
+            mlrun.utils.helpers.validate_and_convert_date(date_input) == expected_output
+        )

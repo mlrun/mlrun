@@ -430,6 +430,19 @@ class ObjectList:
         self._children[child_obj.name] = child_obj
         return child_obj
 
+    def move_to_end(self, child, last=True):
+        self._children.move_to_end(child, last)
+
+    def update_list(self, object_list: "ObjectList", push_at_start: bool = False):
+        if push_at_start:
+            self._children = OrderedDict(
+                list(object_list._children.items()) + list(self._children.items())
+            )
+        else:
+            self._children = OrderedDict(
+                list(self._children.items()) + list(object_list._children.items())
+            )
+
 
 class Credentials(ModelObj):
     generate_access_key = "$generate"
@@ -916,6 +929,8 @@ class RunSpec(ModelObj):
 
     _fields_to_serialize = ModelObj._fields_to_serialize + [
         "handler",
+        "affinity",
+        "tolerations",
     ]
 
     def __init__(
@@ -943,6 +958,8 @@ class RunSpec(ModelObj):
         state_thresholds=None,
         reset_on_run=None,
         node_selector=None,
+        tolerations=None,
+        affinity=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -981,6 +998,8 @@ class RunSpec(ModelObj):
         self.state_thresholds = state_thresholds or {}
         self.reset_on_run = reset_on_run
         self.node_selector = node_selector or {}
+        self.tolerations = tolerations or {}
+        self.affinity = affinity or {}
 
     def _serialize_field(
         self, struct: dict, field_name: Optional[str] = None, strip: bool = False
@@ -990,6 +1009,14 @@ class RunSpec(ModelObj):
             if self.handler and isinstance(self.handler, str):
                 return self.handler
             return None
+
+        # Properly serialize known K8s objects
+        if field_name in {"affinity", "tolerations"}:
+            value = getattr(self, field_name, None)
+            if hasattr(value, "to_dict"):
+                return value.to_dict()
+            return value
+
         return super()._serialize_field(struct, field_name, strip)
 
     def is_hyper_job(self):
@@ -1284,6 +1311,7 @@ class RunStatus(ModelObj):
         results=None,
         artifacts=None,
         start_time=None,
+        end_time=None,
         last_update=None,
         iterations=None,
         ui_url=None,
@@ -1299,6 +1327,7 @@ class RunStatus(ModelObj):
         self.results = results
         self._artifacts = artifacts
         self.start_time = start_time
+        self.end_time = end_time
         self.last_update = last_update
         self.iterations = iterations
         self.ui_url = ui_url

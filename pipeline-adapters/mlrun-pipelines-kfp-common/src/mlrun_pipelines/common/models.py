@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import enum
 
 
@@ -52,6 +52,7 @@ class RunStatuses(StrEnum):
     skipped = "Skipped"
     error = "Error"  # available only on KFP 1.8 or lower
     running = "Running"
+    unknown = "Unknown"
 
     # States available only on KFP 2.0
     runtime_state_unspecified = "Runtime_State_Unspecified"
@@ -90,6 +91,7 @@ class RunStatuses(StrEnum):
             RunStatuses.canceling,
             RunStatuses.canceled,
             RunStatuses.paused,
+            RunStatuses.unknown,
         ]
 
     @staticmethod
@@ -108,4 +110,11 @@ class RunStatuses(StrEnum):
             status
             for status in RunStatuses.all()
             if status not in RunStatuses.stable_statuses()
+        ]
+
+    @classmethod
+    def retryable_statuses(cls):
+        return cls.stable_statuses() + [
+            RunStatuses.unknown,
+            RunStatuses.runtime_state_unspecified,
         ]

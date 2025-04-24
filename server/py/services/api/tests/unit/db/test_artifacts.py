@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import copy
 import datetime
 import tempfile
@@ -21,6 +21,7 @@ import deepdiff
 import pytest
 from sqlalchemy import distinct, select
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -694,7 +695,7 @@ class TestArtifacts(TestDatabaseBase):
             kind=ArtifactCategories.model,
             key=artifact_key,
             uid=artifact_tree,
-            tag=artifact_1_tag,
+            iter=0,
         )
 
         # overwrite the tag for only one of the artifacts
@@ -717,6 +718,81 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, project=project, tag=artifact_2_tag
         )
         assert len(artifacts) == 1
+
+    def test_modify_artifact_tags(self):
+        project = "artifact_project"
+        artifact_key = "artifact-key"
+        artifact_body = self._generate_artifact(artifact_key, project=project)
+
+        # Step 1: Store artifacts with initial tags "v1" and "v2"
+        self._db.store_artifact(
+            self._db_session, artifact_key, artifact_body, project=project, tag="v1"
+        )
+        self._db.store_artifact(
+            self._db_session, artifact_key, artifact_body, project=project, tag="v2"
+        )
+
+        # Verify initial state: 3 artifacts, with the "latest", "v1", and "v2" tags
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, name=artifact_key
+        )
+        assert len(artifacts) == 3
+        assert (
+            artifacts[0]["metadata"]["tag"]
+            == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
+        assert artifacts[1]["metadata"]["tag"] == "v2"
+        assert artifacts[2]["metadata"]["tag"] == "v1"
+
+        # Step 2: Overwrite artifact with tag "v3"
+        identifier = mlrun.common.schemas.ArtifactIdentifier(key=artifact_key)
+        self._db.overwrite_artifacts_with_tag(
+            self._db_session, project, tag="v3", identifiers=[identifier]
+        )
+
+        # Verify after overwrite: "latest" remains, all other tags are deleted, and "v3" is added
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, name=artifact_key
+        )
+        assert len(artifacts) == 2
+        assert (
+            artifacts[0]["metadata"]["tag"]
+            == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
+        assert artifacts[1]["metadata"]["tag"] == "v3"
+
+        # Step 3: Append tag "v4"
+        self._db.append_tag_to_artifacts(
+            self._db_session, project, tag="v4", identifiers=[identifier]
+        )
+
+        # Verify after append: "latest" and "v3" remain, "v4" is added, so we expect 3 artifacts in total
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, name=artifact_key
+        )
+        assert len(artifacts) == 3
+        assert (
+            artifacts[0]["metadata"]["tag"]
+            == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
+        assert artifacts[1]["metadata"]["tag"] == "v4"
+        assert artifacts[2]["metadata"]["tag"] == "v3"
+
+        # Step 4: Delete tag "v3"
+        self._db.delete_tag_from_artifacts(
+            self._db_session, project, tag="v3", identifiers=[identifier]
+        )
+
+        # Verify that "latest" and "v4" tags remain, and "v3" tag is deleted
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, name=artifact_key
+        )
+        assert len(artifacts) == 2
+        assert (
+            artifacts[0]["metadata"]["tag"]
+            == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
+        assert artifacts[1]["metadata"]["tag"] == "v4"
 
     def test_delete_artifacts_tag_filter(self):
         artifact_1_key = "artifact_key_1"
@@ -771,7 +847,9 @@ class TestArtifacts(TestDatabaseBase):
         )
         with (
             unittest.mock.patch.object(
-                self._db, "_delete_multi_objects", return_value=0
+                self._db,
+                "_delete",
+                side_effect=mlrun.errors.MLRunInternalServerError("some error"),
             ),
             pytest.raises(mlrun.errors.MLRunInternalServerError) as exc,
         ):
@@ -780,7 +858,9 @@ class TestArtifacts(TestDatabaseBase):
 
         with (
             unittest.mock.patch.object(
-                self._db, "_delete_multi_objects", return_value=1
+                self._db,
+                "_delete",
+                side_effect=[mlrun.errors.MLRunInternalServerError("some error"), None],
             ),
             pytest.raises(mlrun.errors.MLRunInternalServerError) as exc,
         ):
@@ -792,6 +872,42 @@ class TestArtifacts(TestDatabaseBase):
         self._db.del_artifacts(self._db_session)
         artifacts = self._db.list_artifacts(self._db_session)
         assert len(artifacts) == 0
+
+    def test_delete_artifacts_exceeds_max_allowed_deletions(self):
+        project = "artifact_project"
+        artifact_key = "artifact_key"
+        artifact_body = self._generate_artifact(artifact_key)
+
+        # Store two artifacts with the same project and key
+        self._db.store_artifact(
+            self._db_session,
+            key=artifact_key,
+            project=project,
+            iter=0,
+            artifact=artifact_body,
+        )
+        self._db.store_artifact(
+            self._db_session,
+            key=artifact_key,
+            project=project,
+            iter=1,
+            artifact=artifact_body,
+        )
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, name=artifact_key
+        )
+        assert len(artifacts) == 2
+
+        mlrun.mlconf.artifacts.limits.max_deletions = 1
+
+        with (
+            pytest.raises(mlrun.errors.MLRunInternalServerError) as exc,
+        ):
+            self._db.del_artifacts(self._db_session, project=project, name=artifact_key)
+        assert (
+            "Cannot delete 2 artifacts. The maximum allowed artifacts deletions"
+            in str(exc.value)
+        )
 
     def test_delete_artifacts_with_specific_iteration(self):
         project = "artifact_project"
@@ -963,6 +1079,208 @@ class TestArtifacts(TestDatabaseBase):
         # Assert all tags were deleted
         tags = self._db.list_artifact_tags(self._db_session, project)
         assert len(tags) == 0
+
+    def test_delete_artifact_with_latest_tag_and_iteration_0(
+        self,
+    ):
+        # This test is based on the following scenario:
+        # 1. Log an artifact hyperparameters - iteration 1, best_iteration=True
+        # 2. Log an artifact hyperparameters - iteration 2, best_iteration=False
+        # 3. Log an artifact without hyperparameters - iteration 0, best_iteration=True
+        # 4. Delete the artifact with the "latest" tag - the last artifact that was logged (iteration 0)
+        # 5. The "latest" tag should move to both iteration artifacts of the hyperparameter run
+
+        project = "artifact_project"
+        artifact_key = "artifact-key"
+        artifact_1_tree = "artifact_tree_1"
+        artifact_1_body = self._generate_artifact(artifact_key, tree=artifact_1_tree)
+        artifact_2_tree = "artifact_tree_2"
+        artifact_2_body = self._generate_artifact(artifact_key, tree=artifact_2_tree)
+
+        # Log the first artifact as part of a function run with hyperparameters (iteration 1, best_iteration=True)
+        uid1 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_1_body,
+            project=project,
+            tag="v1",
+            iter=1,
+            best_iteration=True,
+        )
+
+        # Log the second artifact as part of a function run with hyperparameters (iteration 2, without best_iteration)
+        uid2 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_1_body,
+            project=project,
+            tag="v2",
+            iter=2,
+        )
+
+        # Logging artifact in a regular way, with iteration = 0 best_iteration=True.
+        # The "latest" tag should now be assigned to this artifact.
+        uid3 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_2_body,
+            project=project,
+            tag="v3",
+            best_iteration=True,
+        )
+
+        assert uid1 != uid2 != uid3
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project
+        )
+        # When logging an artifact with hyperparameters, each artifact also receives the 'latest' tag
+        # (v1, latest, v2, latest). However, when logging the artifact without hyperparameters, the 'latest' tag
+        # moves to this artifact and is removed from the others (v1, v2, v3, latest).
+        assert len(artifacts) == 4
+
+        # Verify that the "latest" tag is correctly attached to the artifact with uid3
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project, tag="latest"
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["uid"] == uid3
+        assert artifacts[0]["metadata"]["tag"] == "latest"
+
+        # Delete the artifact that currently holds the "latest" tag (uid3)
+        self._db.del_artifact(
+            self._db_session, artifact_key, project=project, tag="latest"
+        )
+
+        # The "latest" tag should move to the most recent artifacts
+        # This should be both iterations of the hyperparameter run (uid1 and uid2)
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project, tag="latest"
+        )
+        assert len(artifacts) == 2
+        assert sorted(
+            [artifact["metadata"]["uid"] for artifact in artifacts]
+        ) == sorted([uid1, uid2])
+        assert all(artifact["metadata"]["tag"] == "latest" for artifact in artifacts)
+
+    def test_delete_artifact_with_latest_tag_and_iteration_not_0(self):
+        # This test is based on the following scenario:
+        # 1. Log 3 artifacts with hyperparameters - iteration 1 (best_iteration), iteration 2, and iteration 3.
+        # 2. Log 2 artifacts with hyperparameters (same artifacts, but fewer iterations) - iteration 1 and iteration 2.
+        # 3. Delete an artifact from the second run (iteration 2).
+        # 4. The "latest" tag should not move because there is still an artifact with the latest tag in other
+        #    iterations with the same producer id.
+        # 5. Delete an artifact from the first run (iteration 3).
+        # 6. The "latest" tag should not move, because artifact is not holding the latest tag (artifact is untagged).
+        # 7. Delete the last artifact from the second run (iteration 1).
+        # 8. The "latest" tag should move because there is no other latest tag in the same producer id
+        #    for other iterations.
+        #    move the latest tag to all remaining iterations of the previous latest run.
+
+        project = "artifact_project"
+        artifact_key = "artifact-key"
+        artifact_1_tree = "artifact_tree_1"
+        artifact_1_body = self._generate_artifact(artifact_key, tree=artifact_1_tree)
+        artifact_2_tree = "artifact_tree_2"
+        artifact_2_body = self._generate_artifact(artifact_key, tree=artifact_2_tree)
+
+        # Log the first artifact as part of a function run with hyperparameters (iteration 1, best_iteration=True)
+        uid1 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_1_body,
+            project=project,
+            tag="v1",
+            iter=1,
+            best_iteration=True,
+        )
+
+        # Log the second artifact as part of a function run with hyperparameters (iteration 2, without best_iteration)
+        uid2 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_1_body,
+            project=project,
+            tag="v1",
+            iter=2,
+        )
+
+        # Log the third artifact as part of a function run with hyperparameters (iteration 3, without best_iteration)
+        uid3 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_1_body,
+            project=project,
+            tag="v1",
+            iter=3,
+        )
+
+        assert uid1 != uid2 != uid3
+
+        # Should have both "v1" and "latest" tags for each of the artifacts
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project
+        )
+        assert len(artifacts) == 6
+
+        # Log the same function again with hyperparameters, but now only with 2 iterations (iteration 1 and iteration 2)
+        uid4 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_2_body,
+            project=project,
+            tag="v1",
+            iter=1,
+        )
+
+        uid5 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_2_body,
+            project=project,
+            tag="v1",
+            iter=2,
+            best_iteration=True,
+        )
+        assert uid1 != uid2 != uid3 != uid4 != uid5
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project, tag="latest"
+        )
+        # All the artifacts from previous runs are now untagged.
+        assert len(artifacts) == 2
+        assert artifacts[0]["metadata"]["uid"] == uid5
+        assert artifacts[1]["metadata"]["uid"] == uid4
+
+        # Delete artifact uid5
+        self._db.del_artifact(self._db_session, artifact_key, project=project, uid=uid5)
+
+        # The "latest" tag should not be moved, as there is still an artifact in other iterations with
+        # the "latest" tag and the same producer ID.
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project, tag="latest"
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["uid"] == uid4
+
+        # Delete artifact uid3 (which does not have the "latest" tag) - The "latest" tag should not be moved.
+        self._db.del_artifact(self._db_session, artifact_key, project=project, uid=uid3)
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project, tag="latest"
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["uid"] == uid4
+
+        # Delete artifact uid4
+        self._db.del_artifact(self._db_session, artifact_key, project=project, uid=uid4)
+
+        # The "latest" tag should be moved because there is no other "latest" tag for the same producer ID in
+        # other iterations. Moved to all remaining iterations of the previous latest run.
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project, tag="latest"
+        )
+        assert len(artifacts) == 2
+        assert sorted(
+            [artifact["metadata"]["uid"] for artifact in artifacts]
+        ) == sorted([uid1, uid2])
 
     def test_list_artifacts_exact_name_match(self):
         artifact_1_key = "pre_artifact_key_suffix"
@@ -1239,12 +1557,16 @@ class TestArtifacts(TestDatabaseBase):
     @pytest.mark.parametrize("limit", [None, 6])
     def test_list_artifacts_returns_elements_by_order_updated_field(self, limit):
         project = "artifact_project"
+        artifact_kinds = ArtifactCategories.all()
 
         # Create artifacts
         number_of_artifacts = 10
         for counter in range(number_of_artifacts):
+            next_cyclic_item = artifact_kinds[counter % len(artifact_kinds)]
             artifact_key = f"artifact-{counter}"
-            artifact_body = self._generate_artifact(artifact_key, project=project)
+            artifact_body = self._generate_artifact(
+                artifact_key, project=project, kind=next_cyclic_item
+            )
             self._db.store_artifact(
                 self._db_session, artifact_key, artifact_body, project=project
             )
@@ -1269,6 +1591,116 @@ class TestArtifacts(TestDatabaseBase):
             assert (
                 artifact_name == expected_name
             ), f"Expected {expected_name}, got {artifact_name}"
+
+    @pytest.mark.parametrize("limit", [None, 6])
+    def test_list_artifacts_orders_by_id_when_updated_is_identical(self, limit):
+        # this test is verified that when updated date is identical, artifacts should be ordered by artifact id
+
+        project = "artifact_project"
+        t1 = datetime.datetime.now()
+
+        # Create artifacts
+        number_of_artifacts = 10
+        for counter in range(number_of_artifacts):
+            artifact_key = f"artifact-{counter}"
+            artifact_body = self._generate_artifact(
+                artifact_key,
+                project=project,
+            )
+            self._db.store_artifact(
+                self._db_session, artifact_key, artifact_body, project=project
+            )
+
+            # Set the same `updated` timestamp for all artifacts
+            self._db.update_db_object(
+                self._db_session,
+                framework.db.sqldb.models.ArtifactV2,
+                filters={"key": artifact_key},
+                updated=t1,
+            )
+
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, limit=limit
+        )
+
+        expected_count = limit or number_of_artifacts
+        assert (
+            len(artifacts) == expected_count
+        ), f"Expected {expected_count} results, got {len(artifacts)}"
+
+        start_index = number_of_artifacts - 1
+        expected_names = [
+            f"artifact-{i}"
+            for i in range(start_index, start_index - expected_count, -1)
+        ]
+
+        for artifact, expected_name in zip(artifacts, expected_names):
+            artifact_name = artifact["metadata"]["key"]
+            assert (
+                artifact_name == expected_name
+            ), f"Expected {expected_name}, got {artifact_name}"
+
+    @pytest.mark.parametrize("limit", [None, 3])
+    def test_list_artifacts_orders_by_tag_id(self, limit):
+        # This test verifies that when an artifact has multiple tags, the returned list is ordered with 'latest'
+        # first and the rest by tag ID descending.
+
+        project = "artifact_project"
+        artifact_key = "dummy-artifact"
+
+        artifact_body = self._generate_artifact(
+            key=artifact_key,
+            project=project,
+        )
+
+        number_of_tags = 5
+        for counter in range(number_of_tags):
+            self._db.store_artifact(
+                self._db_session,
+                artifact_key,
+                artifact_body,
+                project=project,
+                tag=f"v{counter}",
+            )
+
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, limit=limit
+        )
+
+        expected_count = limit or (number_of_tags + 1)  # one more for latest tag
+
+        # Build expected tag order with "latest" first
+        expected_tags = [mlrun.common.constants.RESERVED_TAG_NAME_LATEST] + [
+            f"v{i}" for i in reversed(range(number_of_tags))
+        ]
+        expected_tags = expected_tags[:expected_count]
+
+        actual_tags = [artifact["metadata"]["tag"] for artifact in artifacts]
+        assert (
+            actual_tags == expected_tags
+        ), f"Expected tags {expected_tags}, got {actual_tags}"
+
+        # Verify the case of listing artifacts by a specific tag, which should result in an inner join and
+        # return only the matching tagged artifact
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, limit=limit, tag="v3"
+        )
+        assert len(artifacts) == 1
+
+        # List artifacts partitioned by 'project' and 'name' to verify that the query is working as expected
+        # when using both 'partition_by' and 'order_by'.
+        # The test verifies the query behavior both with and without the 'limit' parameter.
+        artifacts = self._db.list_artifacts(
+            self._db_session,
+            project=project,
+            limit=limit,
+            partition_by=mlrun.common.schemas.ArtifactPartitionByField.project_and_name,
+        )
+        assert len(artifacts) == 1
+        assert (
+            artifacts[0]["metadata"]["tag"]
+            == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
 
     def test_list_artifacts_producer_uri(self):
         project = "artifact_project"
@@ -1422,7 +1854,9 @@ class TestArtifacts(TestDatabaseBase):
         assert len(tags) == 4
 
         # files counters should return the most recent artifacts, for each key -> 5 artifacts
-        project_to_files_count = self._db._calculate_files_counters(self._db_session)
+        project_to_files_count = self._db._calculate_artifact_counters_by_category(
+            self._db_session
+        )[mlrun.common.schemas.ArtifactCategories.other]
         assert project_to_files_count[project] == 5
 
     def test_migrate_artifacts_to_v2(self):
@@ -2083,6 +2517,127 @@ class TestArtifacts(TestDatabaseBase):
         )
         assert 1 == len(arts), "since/until t2"
 
+    def test_list_artifacts_for_producer_id(self):
+        project = "project_name"
+        artifact_name = "artifact_name"
+        tree1 = "artifact_tree_1"
+        tree2 = "artifact_tree_2"
+
+        # Generate and store two artifacts with the same name and different producer id
+        artifact_1 = self._generate_artifact(artifact_name, tree=tree1)
+        artifact_2 = self._generate_artifact(artifact_name, project=project, tree=tree2)
+        self._db.store_artifact(
+            self._db_session,
+            artifact_name,
+            artifact_1,
+            project=project,
+        )
+        self._db.store_artifact(
+            self._db_session,
+            artifact_name,
+            artifact_2,
+            project=project,
+        )
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, name=artifact_name
+        )
+        assert len(artifacts) == 2
+
+        # Retrieve the first artifact without tag (None) and with specific UID
+        artifact_identifiers = [(artifact_name, None, 0, artifact_1["metadata"]["uid"])]
+        artifacts = self._db.list_artifacts_for_producer_id(
+            self._db_session,
+            project=project,
+            producer_id=tree1,
+            artifact_identifiers=artifact_identifiers,
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["uid"] == artifact_1["metadata"]["uid"]
+        assert artifacts[0]["metadata"]["tag"] is None
+
+        # Retrieve same artifact without tag (None) and without specific UID
+        artifact_identifiers = [(artifact_name, None, 0, None)]
+        artifacts = self._db.list_artifacts_for_producer_id(
+            self._db_session,
+            project=project,
+            producer_id=tree1,
+            artifact_identifiers=artifact_identifiers,
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["uid"] == artifact_1["metadata"]["uid"]
+        assert artifacts[0]["metadata"]["tag"] is None
+
+        # Retrieve the second artifact with tag "latest" and no UID
+        artifact_identifiers = [(artifact_name, None, 0, None)]
+        artifacts = self._db.list_artifacts_for_producer_id(
+            self._db_session,
+            project=project,
+            producer_id=tree2,
+            artifact_identifiers=artifact_identifiers,
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["uid"] == artifact_2["metadata"]["uid"]
+        assert artifacts[0]["metadata"]["tag"] == "latest"
+
+    @pytest.mark.parametrize(
+        "kwargs, expected",
+        [
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": True,
+                    "tag": "latest",
+                },
+                True,
+                id="default_query",
+            ),
+            pytest.param(
+                {
+                    "best_iteration": True,
+                    "tag": "latest",
+                },
+                False,
+                id="no_pagination",
+            ),
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": False,
+                    "tag": "latest",
+                },
+                False,
+                id="best_iteration_false",
+            ),
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": True,
+                    "tag": "any_tag",
+                },
+                False,
+                id="tag_not_latest",
+            ),
+            pytest.param(
+                {
+                    "limit": 1001,
+                    "best_iteration": True,
+                    "tag": "latest",
+                    "name": "any_name",
+                },
+                False,
+                id="additional_params",
+            ),
+        ],
+    )
+    def test_is_default_list_artifacts_query(self, kwargs: dict, expected: bool):
+        ignored_params = {
+            "project": "any_project",
+            "category": "any_category",
+            "offset": 5,  # any offset
+        }
+        kwargs.update(ignored_params)
+        assert self._db._is_default_list_artifacts_query(**kwargs) == expected
+
     def _generate_artifact_with_iterations(
         self, key, tree, num_iters, best_iter, kind, project=""
     ):
@@ -2164,6 +2719,7 @@ class TestArtifacts(TestDatabaseBase):
                 name=project_name,
             ),
             spec=mlrun.common.schemas.ProjectSpec(description="some-description"),
+            kind=mlrun.common.schemas.ObjectKind.project,
         )
         self._db.create_project(self._db_session, project)
 

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import base64
 import json
 import unittest.mock
@@ -38,6 +38,7 @@ import framework.utils.clients.iguazio
 import services.api.crud
 import services.api.tests.unit.api.utils
 import services.api.tests.unit.conftest
+import services.api.utils.helpers
 from framework.api.utils import (
     _generate_function_and_task_from_submit_run_body,
     _mask_v3io_access_key_env_var,
@@ -367,9 +368,12 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
     )
 
 
-def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_tolerations(
+def test_function_object_only_persists_preemption_mode_no_scheduling_fields_on_submit(
     db: Session, client: TestClient
 ):
+    # The function object is expected to hold only the preemption_mode itself.
+    # Scheduling-related fields (node_selector, affinity, tolerations) should not be enriched
+    # on the function spec, only on the run object at execution time.
     k8s_api = kubernetes.client.ApiClient()
     task_name = "task_name"
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
@@ -388,13 +392,7 @@ def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_t
         },
         "function": {"spec": {"preemption_mode": "prevent"}},
     }
-    expected_anti_affinity = kubernetes.client.V1Affinity(
-        node_affinity=kubernetes.client.V1NodeAffinity(
-            required_during_scheduling_ignored_during_execution=kubernetes.client.V1NodeSelector(
-                node_selector_terms=mlrun.k8s_utils.generate_preemptible_nodes_anti_affinity_terms(),
-            ),
-        ),
-    )
+
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
         db, submit_job_body
     )
@@ -402,8 +400,7 @@ def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_t
         parsed_function_object.spec.preemption_mode
         == submit_job_body["function"]["spec"]["preemption_mode"]
     )
-    assert parsed_function_object.spec.affinity == expected_anti_affinity
-    assert parsed_function_object.spec.tolerations is None
+    assert parsed_function_object.spec.affinity is None
 
     preemptible_tolerations = [
         kubernetes.client.V1Toleration(
@@ -427,20 +424,12 @@ def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_t
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
         db, submit_job_body
     )
-    expected_affinity = kubernetes.client.V1Affinity(
-        node_affinity=kubernetes.client.V1NodeAffinity(
-            required_during_scheduling_ignored_during_execution=kubernetes.client.V1NodeSelector(
-                node_selector_terms=mlrun.k8s_utils.generate_preemptible_nodes_affinity_terms(),
-            ),
-        ),
-    )
 
     assert (
         parsed_function_object.spec.preemption_mode
         == submit_job_body["function"]["spec"]["preemption_mode"]
     )
-    assert parsed_function_object.spec.affinity == expected_affinity
-    assert parsed_function_object.spec.tolerations == preemptible_tolerations
+    assert parsed_function_object.spec.tolerations is None
 
 
 def test_generate_function_and_task_from_submit_run_body_keep_resources(
@@ -559,7 +548,7 @@ def test_ensure_function_has_auth_set(
             ignore_order_func=lambda level: "env" not in level.path(),
             exclude_paths=[
                 "root['metadata']['credentials']['access_key']",
-                f"root['spec']['env'][{len(function.spec.env)-1}]",
+                f"root['spec']['env'][{len(function.spec.env) - 1}]",
             ],
         )
         == {}
@@ -614,7 +603,7 @@ def test_ensure_function_has_auth_set(
             function.to_dict(),
             # ignore order with exclude path of specific list index ends up with errors
             ignore_order_func=lambda level: "env" not in level.path(),
-            exclude_paths=[f"root['spec']['env'][{len(function.spec.env)-1}]"],
+            exclude_paths=[f"root['spec']['env'][{len(function.spec.env) - 1}]"],
         )
         == {}
     )
@@ -650,7 +639,7 @@ def test_ensure_function_has_auth_set(
             ignore_order_func=lambda level: "env" not in level.path(),
             exclude_paths=[
                 "root['metadata']['credentials']['access_key']",
-                f"root['spec']['env'][{len(function.spec.env)-1}]",
+                f"root['spec']['env'][{len(function.spec.env) - 1}]",
             ],
         )
         == {}
@@ -745,7 +734,7 @@ def test_mask_v3io_access_key_env_var(
             function.to_dict(),
             # ignore order with exclude path of specific list index ends up with errors
             ignore_order_func=lambda level: "env" not in level.path(),
-            exclude_paths=[f"root['spec']['env'][{len(function.spec.env)-1}]"],
+            exclude_paths=[f"root['spec']['env'][{len(function.spec.env) - 1}]"],
         )
         == {}
     )
@@ -1724,3 +1713,64 @@ async def test_update_functions_with_deletion_info(db: sqlalchemy.orm.Session):
         db, name=function_name, project=project, tag=function_tag
     )
     assert function["status"]["deletion_task_id"] == deletion_task_id
+
+
+@pytest.mark.parametrize(
+    "project_image,workflow_image,client_version,expected_image",
+    [
+        (
+            "x",
+            "",
+            "1.8.0",
+            "x",
+        ),
+        (
+            "x",
+            "y",
+            "1.8.0",
+            "y",
+        ),
+        (
+            "",
+            "y",
+            "1.8.0",
+            "y",
+        ),
+        (
+            "",
+            "",
+            "1.8.0",
+            "mlrun/mlrun-kfp",
+        ),
+        (
+            "",
+            "",
+            "",
+            "mlrun/mlrun-kfp",
+        ),
+        (
+            "",
+            "",
+            "1.8.0-rc1",
+            "mlrun/mlrun-kfp",
+        ),
+        (
+            "",
+            "",
+            "1.7.0",
+            "mlrun/mlrun:1.7.0",
+        ),
+    ],
+)
+def test_resolve_client_default_kfp_image(
+    project_image, workflow_image, client_version, expected_image
+):
+    project = mlrun.common.schemas.ProjectOut(
+        spec=mlrun.common.schemas.ProjectSpecOut(default_image=project_image),
+        metadata=mlrun.common.schemas.ProjectMetadata(name="test"),
+    )
+    workflow_spec = mlrun.common.schemas.WorkflowSpec(name="test", image=workflow_image)
+    image = services.api.utils.helpers.resolve_client_default_kfp_image(
+        project, workflow_spec, client_version
+    )
+    assert image == expected_image

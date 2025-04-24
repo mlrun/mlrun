@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import unittest.mock
 import uuid
 
@@ -137,7 +137,7 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
                 return_value=k8s_client.V1PodList(
                     items=[], metadata=k8s_client.V1ListMeta()
                 ),
-            ),
+            ) as list_namespaced_pod_mock,
             unittest.mock.patch.object(
                 services.api.runtime_handlers.BaseRuntimeHandler,
                 "_ensure_run_logs_collected",
@@ -153,7 +153,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
             runs = services.api.crud.Runs().list_runs(db, run_name, project=project)
             assert len(runs) == 0
             delete_namespaced_pod_mock.assert_not_called()
-            assert delete_logs_mock.call_count == 20
+            assert list_namespaced_pod_mock.call_count == 20
+            assert delete_logs_mock.call_count == 1
+            assert len(delete_logs_mock.call_args_list[0][1]["run_uids"]) == 20
 
     @pytest.mark.asyncio
     async def test_delete_runs_failure(self, db: sqlalchemy.orm.Session):
@@ -210,7 +212,8 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
                     db, name=run_name, project=project
                 )
             assert "Failed to delete 1 run(s). Error: Boom!" in str(exc.value)
-            assert delete_logs_mock.call_count == 2
+            assert delete_logs_mock.call_count == 1
+            assert len(delete_logs_mock.call_args_list[0][1]["run_uids"]) == 2
 
             runs = services.api.crud.Runs().list_runs(db, run_name, project=project)
             assert len(runs) == 1
@@ -331,9 +334,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         run = runs[0]
         assert "artifacts" not in run["status"]
         assert run["status"]["artifact_uris"] == {
-            "key1": "store://artifacts/project-name/db_key1@tree1",
+            "key1": "store://artifacts/project-name/db_key1@tree1^uid1",
             "key2": "store://artifacts/project-name/db_key2@tree2",
-            "key3": "store://artifacts/project-name/db_key3@tree3",
+            "key3": "store://artifacts/project-name/db_key3@tree3^uid3",
         }
 
     def test_update_run_strip_artifacts_metadata(self, db: sqlalchemy.orm.Session):
@@ -401,9 +404,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         run = runs[0]
         assert "artifacts" not in run["status"]
         assert run["status"]["artifact_uris"] == {
-            "key1": "store://artifacts/project-name/db_key1@tree1",
+            "key1": "store://artifacts/project-name/db_key1@tree1^uid1",
             "key2": "store://artifacts/project-name/db_key2@tree2",
-            "key3": "store://artifacts/project-name/db_key3@tree3",
+            "key3": "store://artifacts/project-name/db_key3@tree3^uid3",
         }
 
     def test_get_run_restore_artifacts_metadata(self, db: sqlalchemy.orm.Session):

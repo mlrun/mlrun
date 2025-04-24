@@ -1,6 +1,6 @@
 (change-log)=
 # Change log
-- [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
+- [v1.7.2](#v172-16-january-2025) | [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
 - [v1.6.4](#v164-2-july-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
 - [v1.5.2](#v152-30-november-2023) | [v1.5.1](#v151-2-november-2023) | [v1.5.0](#v150-23-october-2023)
 - [v1.4.1](#v141-8-august-2023) | [v1.4.0](#v140-23-july-2023)
@@ -12,12 +12,23 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
-## v1.7.1 (2 December 2024)
+## v1.7.2 (16 January 2025)
 
-### Model monitoring
+### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-7731|Model monitoring can now be run on a larger scale, using MLRun's additional replicas/workers. To benefit from the scale-out: After upgrading to v1.7.1, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
+|ML-8841 |Application runtimes no longer duplicate the configured resources for the running pod.|
+|ML-8842 |Failed pipelines now send notifications when using webhook.|
+|ML-8892 |UI: Artifact counters now display correctly.|
+|ML-8974 |UI: Artifacts stored as S3 now display in the UI.|
+|ML-9053 |Fixed the race condition when updating artifacts with the same key.|
+
+## v1.7.1 (2 December 2024)
+
+### Serving graph
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-7818|Serving graphs can now use a conditional step.|
 
 ### Breaking changes
 | ID    |Description                                                                 |
@@ -1104,7 +1115,9 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-7955|The **Owner** field is blank for artifacts that are registered in the UI.| NA| v1.7.0|                                                                                                                                                                                                                                                                                                                                               | v1.7.0|
 |ML-8064|When using notifications with `when=running` the user always gets a default notification.|NA| v1.7.0|
 |ML-8419|When the MySQL server is unavailable, a project with non-V3IO model monitoring cannot be deleted.|Run `project.set_model_monitoring_credentials(endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io", replace_creds=True)` before deleting the project.|v1.7.1|
-
+|ML-8754|The default spot-labels node-selector are removed when configuring the `allow` preemption mode with one of the node selectors defined in `mlconf.get_preemptible_node_selector()`.|Use a non-default label.|v1.7.1|
+|ML-8796|The application runtime has two containers: the nuclio container uses the default resources and the sidecar container uses the function resources. | NA   |v1.7.1|
+|ML-8949|Error `MultipleResultsFound` when reading DataItem because of duplicate artifacts tagged as `latest`.s|NA| v1.7.0| 
 ## Limitations
 
 | ID     |Description                                                                                                                                 |Workaround |Opened in|
@@ -1159,12 +1172,11 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.8.0       |v1.6.0    |Feature store: `preview`                                                             |`FeatureSet.preview()`|
 | v1.8.0       |v1.6.0    |Feature store: `ingest`                                                              |`FeatureSet.ingest()`|
 | v1.8.0       |v1.6.0    |Artifacts: `uid` parameter of `store_artifact`                                       | `tree` parameter of `store_artifact` (artifact uid is generated in the backend)|
-| v1.8.0       |v1.6.0    |Runtimes: `with_requirements` &mdash; `requirements` param as a requirements file    |`requirements_file` param  |
 
 ### Removed APIs
 
 | Version|API                                                                                                                                                                                                                                                                                                 |Use instead                                                                  |
-|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+|--------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
 | v1.7.0 |Function: `mlrun.utils.helpers.parse_versioned_object_uri`                                  |`mlrun.common.helpers.parse_versioned_object_uri`         |
 | v1.7.0 |`func_info`                                                                       |`ast_func_info`                                                |
 | v1.7.0 |Class: `MpiRuntimeV1Alpha1`                                                         |`MpiRuntimeV1`          |
@@ -1173,9 +1185,10 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.7.0 |API endpoint GET: `/files` and `/filestat`                                        |`/projects/{project}/filestat`                                                                                                                              |
 | v1.7.0 |`LegacyArtifact` and all legacy artifact types that inherit from it (`LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`, `BokehArtifact`, `LegacyArtifact`)|`Artifact` or other artifact classes that inherit from it                    |
 | v1.7.0 |Parameter of mlrun.feature_store.feature_set.FeatureSet.set_targets `default_final_state`   |`default_final_step`                                                                                                                                          |
-| v1.6.2  |`dashboard` parameter of the RemoteRuntime `invoke`                             |NA. The parameter was ignored. |
+| v1.6.2 |`dashboard` parameter of the RemoteRuntime `invoke`                             |NA. The parameter was ignored. |
 | v1.6.0 |`dashboard` parameter of `project.deploy_function`, `RemoteRuntime.deploy`, `RemoteRuntime.get_nuclio_deploy_status`, `ServingRuntime.with_secrets`| NA. The parameter was ignored.         |
 | v1.6.0 |`MLRunProject.clear_context()`                                                      |NA |
+|v1.6.0  |Runtimes: `with_requirements` &mdash; `requirements` param as a requirements file    |`requirements_file` param  |
 | v1.6.0 |MLRunProject object legacy parameters                                              |metadata and spec                                                                                                                                           |
 | v1.6.0 |`BaseRuntime.with_commands` and `KubejobRuntime.build_config` `verify_base_image` param|`prepare_image_for_deploy`                                                                                                                                 |
 | v1.6.0 |`run_local`                                                                          |`function.run(local=True)`                                                                                                                                   |

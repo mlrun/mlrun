@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import base64
 import typing
@@ -245,6 +245,20 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         # won't be overridden
         if not auth_info.data_session and "X-V3io-Access-Key" in request.headers:
             auth_info.data_session = request.headers["X-V3io-Access-Key"]
+
+        # Maintain authentication headers for inter-services communication
+        auth_info.request_headers = dict(request.headers)
+        for header in [
+            "content-length",
+            "content-type",
+        ]:
+            auth_info.request_headers.pop(header, None)
+
+        # mask clients host with worker's host
+        origin_host = auth_info.request_headers.pop("host", None)
+        if origin_host:
+            # original host requested by client
+            auth_info.request_headers["x-forwarded-host"] = origin_host
         return auth_info
 
     def get_or_create_access_key(

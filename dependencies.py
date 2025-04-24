@@ -46,10 +46,6 @@ def extra_requirements() -> dict[str, list[str]]:
             "azure-keyvault-secrets~=4.2",
             "pyopenssl>=23",
         ],
-        "bokeh": [
-            # >=2.4.2 to force having a security fix done in 2.4.2
-            "bokeh~=2.4, >=2.4.2",
-        ],
         "plotly": ["plotly~=5.23"],
         # used to generate visualization nuclio/serving graph steps
         "graphviz": ["graphviz~=0.20.0"],
@@ -69,32 +65,36 @@ def extra_requirements() -> dict[str, list[str]]:
             "avro~=1.11",
         ],
         "redis": ["redis~=4.3"],
-        "mlflow": ["mlflow~=2.8"],
-        "databricks-sdk": ["databricks-sdk~=0.13.0"],
+        "mlflow": ["mlflow~=2.16"],
+        "databricks-sdk": ["databricks-sdk~=0.20.0"],
         "sqlalchemy": ["sqlalchemy~=1.4"],
         "dask": [
-            "dask~=2023.12.1",
-            "distributed~=2023.12.1",
+            # dask 2023 does not work on python 3.11
+            # dask 2024 requires dependencies that current mlrun with 3.9 cannot support
+            'dask~=2024.12.1; python_version >= "3.11"',
+            'distributed~=2024.12.1; python_version >= "3.11"',
+            'dask~=2023.12.1; python_version < "3.11"',
+            'distributed~=2023.12.1; python_version < "3.11"',
         ],
         "alibaba-oss": ["ossfs==2023.12.0", "oss2==2.18.1"],
-        "tdengine": ["taos-ws-py==0.3.2", "taoswswrap~=0.2.0"],
+        "tdengine": ["taos-ws-py==0.3.2", "taoswswrap~=0.3.5"],
         "snowflake": ["snowflake-connector-python~=3.7"],
     }
 
-    exclude_from_complete = ["bokeh"]
     api_deps = list(
         _load_dependencies_from_file("dockerfiles/mlrun-api/requirements.txt")
     )
     extras_require.update(
         {
+            "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]>=0.5.0; python_version < '3.11'"],
+            # TODO uncomment when KFP 1.8 support is removed
+            # "kfp2": ["mlrun_pipelines_kfp_v2[kfp]>=0.5.0 ; python_version >= '3.11'"],
             "api": api_deps,
             "all": _get_extra_dependencies(extras_require=extras_require),
             "complete": _get_extra_dependencies(
-                exclude=exclude_from_complete,
                 extras_require=extras_require,
             ),
             "complete-api": _get_extra_dependencies(
-                exclude=exclude_from_complete,
                 base_deps=api_deps,
                 extras_require=extras_require,
             ),

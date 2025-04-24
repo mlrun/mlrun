@@ -213,7 +213,9 @@ def set_env_from_file(env_file: str, return_dict: bool = False) -> Optional[dict
     env_vars = dotenv.dotenv_values(env_file)
     if None in env_vars.values():
         raise MLRunInvalidArgumentError("env file lines must be in the form key=value")
+
     for key, value in env_vars.items():
-        environ[key] = value  # Load to local environ
+        environ[key] = value
+
     mlconf.reload()  # reload mlrun configuration
     return env_vars if return_dict else None

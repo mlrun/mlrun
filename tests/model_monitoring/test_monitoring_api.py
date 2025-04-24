@@ -14,11 +14,13 @@
 
 import datetime
 import pathlib
-from typing import Literal
+from typing import Any, Literal
 from unittest.mock import Mock, patch
 
+import pandas as pd
 import pytest
 
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.api
 from mlrun.common.schemas import alert as alert_constants
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
@@ -61,21 +63,48 @@ def test_read_dataset_as_dataframe():
     assert list(df.columns) == feature_columns
 
 
-def test_record_result_updates_last_request() -> None:
+@pytest.fixture
+def batch_model_endpoint() -> ModelEndpoint:
+    return ModelEndpoint(
+        metadata=mlrun.common.schemas.ModelEndpointMetadata(
+            name="my-endpoint",
+            project="some-project",
+            endpoint_type=mm_constants.EndpointType.BATCH_EP,
+        ),
+        spec=mlrun.common.schemas.ModelEndpointSpec(
+            model_path="path/to/model", monitoring_feature_set_uri="path/to/feature"
+        ),
+        status=mlrun.common.schemas.ModelEndpointStatus(),
+    )
+
+
+def test_record_result_updates_last_request(
+    batch_model_endpoint: ModelEndpoint,
+) -> None:
     db_mock = Mock(spec=RunDBInterface)
     datetime_mock = datetime.datetime(
         2011, 11, 4, 0, 5, 23, 283000, tzinfo=datetime.timezone.utc
+    )
+    df_mock = pd.DataFrame(
+        {
+            "feature_1": [-500, -500],
+            "feature_2": [-500, -500],
+            "feature_3": [-500, -500],
+            "feature_4": [-500, -500],
+            "p0": [0, 0],
+        }
     )
     with patch("mlrun.model_monitoring.api.datetime_now", return_value=datetime_mock):
         with patch("mlrun.model_monitoring.api.mlrun.get_run_db", return_value=db_mock):
             with patch(
                 "mlrun.model_monitoring.api.get_or_create_model_endpoint",
-                spec=ModelEndpoint,
+                return_value=batch_model_endpoint,
             ):
                 mlrun.model_monitoring.api.record_results(
-                    project="some-project",
-                    model_path="path/to/model",
-                    model_endpoint_name="my-endpoint",
+                    project=batch_model_endpoint.metadata.project,
+                    model_path=batch_model_endpoint.spec.model_path,
+                    model_endpoint_name=batch_model_endpoint.metadata.name,
+                    infer_results_df=df_mock,
                 )
 
     db_mock.patch_model_endpoint.assert_called_once()
@@ -87,8 +116,9 @@ def test_record_result_updates_last_request() -> None:
 
 def _get_metrics(
     project: str,
-    endpoint_id: str,
+    endpoint_ids: list,
     type: Literal["results", "metrics", "all"] = "all",
+    events_format: mm_constants.GetEventsFormat = mm_constants.GetEventsFormat.SEPARATION,
 ):
     results = {
         "mep_id1": [
@@ -132,12 +162,12 @@ def _get_metrics(
             ),
         ],
     }
-    return results[endpoint_id]
+    return results
 
 
 def test_project_create_model_monitoring_alert_configs() -> None:
     db_mock = Mock(spec=RunDBInterface)
-    db_mock.get_model_endpoint_monitoring_metrics.side_effect = _get_metrics
+    db_mock.get_metrics_by_multiple_endpoints.side_effect = _get_metrics
     project = mlrun.get_or_create_project("mm-project")
 
     notification = Notification(
@@ -173,14 +203,21 @@ def test_project_create_model_monitoring_alert_configs() -> None:
             summary="summary",
             events=alert_constants.EventKind.FAILED,
             notifications=[alert_notification],
-            result_names=[f"{APP}.metric-*", "*.result-b"],
+            result_names=[
+                f"{APP}.metric-*",
+                "*.result-b",
+                "mep_id1.test_app.result.metric-3",
+            ],
         )
+        #  "mep_id1.test_app.result.metric-3" is not exist, but because it is a full result name,
+        #  it should raise a warning and create an alert config.
         alert_ids = []
         for alert in alerts:
             alert_ids += alert.entities.ids
         expected_ids = [
             "mep_id1.test_app.result.metric-1",
             "mep_id1.test_app.result.metric-2",
+            "mep_id1.test_app.result.metric-3",
             "mep_id2.test_app.result.metric-1",
             "mep_id2.test_app.result.result-b",
         ]
@@ -202,7 +239,7 @@ def test_project_create_model_monitoring_alert_configs() -> None:
         },
     ],
 )
-def test_create_model_monitoring_function(function) -> None:
+def test_create_model_monitoring_function(function: dict[str, Any]) -> None:
     app = mlrun.model_monitoring.api._create_model_monitoring_function_base(
         project="", name="my-app", **function
     )
@@ -210,10 +247,13 @@ def test_create_model_monitoring_function(function) -> None:
 
     steps = app.spec.graph.steps
 
-    assert "PrepareMonitoringEvent" in app.spec.graph.steps
-    assert "DemoMonitoringApp" in app.spec.graph.steps
-    assert "PushToMonitoringWriter" in app.spec.graph.steps
-    assert "ApplicationErrorHandler" in app.spec.graph.steps
+    assert "PrepareMonitoringEvent" in steps
+    assert "DemoMonitoringApp" in steps
+    assert "PushToMonitoringWriter" in steps
+    assert "ApplicationErrorHandler" in steps
 
     app_step = steps["DemoMonitoringApp"]
     assert app_step.class_args == {"param_1": 1, "param_2": 2}
+
+    with pytest.raises(NotImplementedError):
+        app.to_mock_server()

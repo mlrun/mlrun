@@ -14,19 +14,16 @@
 
 import os
 
-import pytest
-
 import mlrun.datastore
 from tests.system.base import TestMLRunSystem
 
 
 class TestHttpDataStore(TestMLRunSystem):
     private_repo_function_path = (
-        "https://raw.githubusercontent.com/mlrun/private-system-tests/main/"
-        "support_private_hub_repo/func/function.yaml"
+        "https://api.github.com/repos/mlrun/private-system-tests/contents/support_private_hub_repo/func/"
+        "function.yaml?ref=main"
     )
 
-    @pytest.mark.smoke
     def test_https_auth_token_with_env(self):
         os.environ["HTTPS_AUTH_TOKEN"] = os.environ["MLRUN_SYSTEM_TESTS_GIT_TOKEN"]
         func = mlrun.import_function(

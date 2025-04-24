@@ -16,6 +16,7 @@ import re
 import typing
 
 import aiohttp
+import orjson
 
 import mlrun.common.schemas
 import mlrun.lists
@@ -79,6 +80,13 @@ class WebhookNotification(NotificationBase):
         if override_body:
             request_body = self._serialize_runs_in_request_body(override_body, runs)
 
+        request_body = orjson.dumps(
+            request_body,
+            option=orjson.OPT_NAIVE_UTC
+            | orjson.OPT_SERIALIZE_NUMPY
+            | orjson.OPT_NON_STR_KEYS
+            | orjson.OPT_SORT_KEYS,
+        ).decode()
         # Specify the `verify_ssl` parameter value only for HTTPS urls.
         # The `ClientSession` allows using `ssl=None` for the default SSL check,
         # and `ssl=False` to skip SSL certificate validation.

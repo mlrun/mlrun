@@ -162,7 +162,7 @@ ignore_imports = [
 # TODO Files in 'pipeline-adapters' are excluded from coverage unless imported directly. See issue ML-9729.
 source=["mlrun", "server/py", "pipeline-adapters"]
 
-omit =[
+omit = [
     "test_*.py" ,
     "**/tests/*" ,
     "**/conftest.py" ,

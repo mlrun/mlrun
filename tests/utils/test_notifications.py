@@ -621,10 +621,12 @@ async def test_webhook_override_body_job_failed(monkeypatch, override_body):
     await mlrun.utils.notifications.notification.webhook.WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
     ).push("test-message", "info", [run])
-    expected_body = orjson.dumps({
-        "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
-        "'status': {'state': 'error', 'error': 'some_error'}, 'host': 'func-func-8lvl8'}]"
-    }).decode()
+    expected_body = orjson.dumps(
+        {
+            "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
+            "'status': {'state': 'error', 'error': 'some_error'}, 'host': 'func-func-8lvl8'}]"
+        }
+    ).decode()
     requests_mock.assert_called_once_with(
         "http://test.com", headers={}, json=expected_body, ssl=None
     )
@@ -1734,7 +1736,9 @@ class DummyEvent:
 @pytest.mark.asyncio
 async def test_push_full_payload(client_session: Any) -> None:
     runs: list[DummyRun] = [
-        DummyRun(project="p", name="n", host="h", state="running", error="err").to_dict()
+        DummyRun(
+            project="p", name="n", host="h", state="running", error="err"
+        ).to_dict()
     ]
     alert = DummyAlert("alertName", "alertProj", "alertSeverity", summary="summaryText")
     event = DummyEvent({"key": "val"}, ["id1", "id2"])

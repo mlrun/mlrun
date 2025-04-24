@@ -388,7 +388,9 @@ jobs:
           retention-days: 30
       - name: Create diff coverage report
         run: |
-          diff-cover tests/coverage_reports/combined.xml --compare-branch origin/development --show-uncovered \
+          diff-cover tests/coverage_reports/combined.xml \
+          --compare-branch origin/development \
+          --show-uncovered \
           --html-report tests/coverage_reports/combined_diff.html
       - name: Upload coverage diff report
         uses: actions/upload-artifact@v4

@@ -94,6 +94,8 @@ class MLClientCtx:
         self._labels = {}
         self._annotations = {}
         self._node_selector = {}
+        self._tolerations = {}
+        self._affinity = {}
 
         self._function = ""
         self._parameters = {}
@@ -226,6 +228,16 @@ class MLClientCtx:
     def node_selector(self):
         """Dictionary with node selectors (read-only)"""
         return deepcopy(self._node_selector)
+
+    @property
+    def tolerations(self):
+        """Dictionary with tolerations (read-only)"""
+        return deepcopy(self._tolerations)
+
+    @property
+    def affinity(self):
+        """Dictionary with affinities (read-only)"""
+        return deepcopy(self._affinity)
 
     @property
     def annotations(self):
@@ -416,6 +428,8 @@ class MLClientCtx:
                 "state_thresholds", self._state_thresholds
             )
             self._node_selector = spec.get("node_selector", self._node_selector)
+            self._tolerations = spec.get("tolerations", self._tolerations)
+            self._affinity = spec.get("affinity", self._affinity)
             self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
 
         self._init_dbs(rundb)
@@ -1139,6 +1153,8 @@ class MLClientCtx:
                 "notifications": self._notifications,
                 "state_thresholds": self._state_thresholds,
                 "node_selector": self._node_selector,
+                "tolerations": self._tolerations,
+                "affinity": self._affinity,
             },
             "status": {
                 "results": self._results,

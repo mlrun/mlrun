@@ -656,11 +656,19 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
             sleep(choice([0.01, 0.04]))
 
         sleep(15)
-        endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
-        assert len(endpoints_list.endpoints) == 1
 
-        endpoint = endpoints_list.endpoints[0]
+        # ensure we don't get metrics we didn't ask for (ML-9793)
+        endpoint = (
+            mlrun.get_run_db()
+            .list_model_endpoints(self.project_name, metric_list=["error_count"])
+            .endpoints[0]
+        )
+        assert endpoint.status.last_request is None
+        assert endpoint.status.avg_latency is None
 
+        endpoint = (
+            mlrun.get_run_db().list_model_endpoints(self.project_name).endpoints[0]
+        )
         assert not endpoint.spec.feature_stats
 
         self._assert_model_endpoint_tags_and_labels(

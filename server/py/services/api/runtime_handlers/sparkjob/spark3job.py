@@ -805,6 +805,8 @@ with ctx:
             if enriched_affinity:
                 update_in(job, f"spec.{component}.affinity", enriched_affinity)
 
+            # Only update the node selector if the preemption mode enrichment modified it.
+            # If enrichment returns the same value, avoid reapplying to prevent unnecessary updates.
             if current_node_selector != node_selector:
                 update_in(job, f"spec.{component}.nodeSelector", node_selector)
 

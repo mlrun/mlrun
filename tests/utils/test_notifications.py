@@ -16,18 +16,22 @@ import asyncio
 import builtins
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
-from typing import Optional
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Optional
 
 import aiohttp
 import pytest
 import tabulate
 
 import mlrun.common.runtimes.constants as runtimes_constants
+import mlrun.common.schemas
 import mlrun.common.schemas.notification
+import mlrun.utils
+import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.notifications.notification.mail as mail
-from mlrun.utils import logger
-from mlrun.utils.notifications.notification.webhook import WebhookNotification
+import mlrun.utils.notifications.notification.webhook
 
 
 @pytest.mark.parametrize(
@@ -552,7 +556,7 @@ async def test_webhook_override_body_job_succeed(monkeypatch, override_body):
     run = _generate_run_result(
         state=runtimes_constants.RunStates.completed, results={"return": 1}
     )
-    await WebhookNotification(
+    await mlrun.utils.notifications.notification.webhook.WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
     ).push("test-message", "info", [run])
     expected_body = {
@@ -611,7 +615,7 @@ async def test_webhook_override_body_job_failed(monkeypatch, override_body):
     run = _generate_run_result(
         state=runtimes_constants.RunStates.error, error="some_error"
     )
-    await WebhookNotification(
+    await mlrun.utils.notifications.notification.webhook.WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
     ).push("test-message", "info", [run])
     expected_body = {
@@ -1547,7 +1551,7 @@ class TestMailNotification:
         ],
     )
     def test_enrich_default_params(self, name, params, expected_params):
-        logger.debug(f"Testing {name}")
+        mlrun.utils.logger.debug(f"Testing {name}")
         enriched_params = mail.MailNotification.enrich_default_params(
             params, TestMailNotification.DEFAULT_PARAMS
         )
@@ -1584,10 +1588,249 @@ class TestMailNotification:
         ],
     )
     async def test_push(self, name, params, message, severity, expected):
-        logger.debug(f"Testing {name}")
+        mlrun.utils.logger.debug(f"Testing {name}")
         notification = mail.MailNotification(params=params)
         notification._send_email = unittest.mock.AsyncMock()
         notification._get_html = unittest.mock.MagicMock(return_value=self.MOCKED_HTML)
         await notification.push(message, severity, [])
         assert notification.params["subject"] == expected["subject"]
         assert notification.params["body"] == expected["body"]
+
+
+class DummyResponse:
+    def __init__(self) -> None:
+        self.status: int = 200
+
+    def raise_for_status(self) -> None:
+        pass
+
+
+class DummySession:
+    def __init__(self) -> None:
+        self.request_args: Optional[dict[str, Any]] = None
+
+    async def post(
+        self,
+        url: str,
+        headers: Optional[dict[str, str]] = None,
+        json: Any = None,
+        ssl: Optional[bool] = None,
+    ) -> DummyResponse:
+        self.request_args = {
+            "method": "post",
+            "url": url,
+            "headers": headers,
+            "json": json,
+            "ssl": ssl,
+        }
+        return DummyResponse()
+
+    async def put(
+        self,
+        url: str,
+        headers: Optional[dict[str, str]] = None,
+        json: Any = None,
+        ssl: Optional[bool] = None,
+    ) -> DummyResponse:
+        self.request_args = {
+            "method": "put",
+            "url": url,
+            "headers": headers,
+            "json": json,
+            "ssl": ssl,
+        }
+        return DummyResponse()
+
+
+class DummySessionContext:
+    dummy_session_holder: dict[str, DummySession] = {}
+
+    def __init__(self) -> None:
+        self._session = DummySession()
+
+    async def __aenter__(self) -> DummySession:
+        self.dummy_session_holder["session"] = self._session
+        return self._session
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        pass
+
+
+@pytest.fixture
+def client_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Patch aiohttp.ClientSession only for the tests that need it.
+    """
+    monkeypatch.setattr(
+        mlrun.utils.notifications.notification.webhook.aiohttp,
+        "ClientSession",
+        DummySessionContext,
+    )
+
+
+@dataclass
+class DummyRun:
+    project: str = "proj"
+    name: str = "run1"
+    host: Optional[str] = None
+    state: str = "s"
+    error: Optional[str] = None
+    results: Optional[list[Any]] = None
+    metadata: dict[str, Any] = field(init=False)
+    status: dict[str, Any] = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.metadata = {"project": self.project, "name": self.name, "labels": {}}
+        if self.host:
+            self.metadata["labels"]["host"] = self.host
+        self.status = {"state": self.state}
+        if self.error:
+            self.status["error"] = self.error
+        elif self.results is not None:
+            self.status["results"] = self.results
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"metadata": self.metadata, "status": self.status}
+
+
+@dataclass
+class DummyAlert:
+    name: str
+    project: str
+    severity: str
+    summary: Optional[str] = None
+
+
+@dataclass
+class DummyEntity:
+    ids: list[Any]
+
+
+@dataclass
+class DummyEvent:
+    value_dict: dict[str, Any]
+    ids: list[Any]
+    entity: DummyEntity = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.entity = DummyEntity(self.ids)
+
+
+@pytest.mark.asyncio
+async def test_push_full_payload(client_session: Any) -> None:
+    runs: list[DummyRun] = [
+        DummyRun(project="p", name="n", host="h", state="running", error="err")
+    ]
+    alert = DummyAlert("alertName", "alertProj", "alertSeverity", summary="summaryText")
+    event = DummyEvent({"key": "val"}, ["id1", "id2"])
+    custom_html = "<b>html</b>"
+
+    notif = mlrun.utils.notifications.notification.webhook.WebhookNotification(
+        params={
+            "url": "https://example.com/hook",
+            "method": "PUT",
+            "headers": {"H": "v"},
+        }
+    )
+    await notif.push(
+        message="hello",
+        severity="origSeverity",
+        runs=runs,
+        custom_html=custom_html,
+        alert=alert,
+        event_data=event,
+    )
+
+    session = DummySessionContext.dummy_session_holder["session"]
+    args = session.request_args or {}
+    assert args["method"] == "put"
+    assert args["url"] == "https://example.com/hook"
+    assert args["headers"] == {"H": "v"}
+
+    payload = args["json"]
+    assert payload["message"] == "hello"
+    assert payload["severity"] == alert.severity
+    assert payload["runs"] == runs
+    assert payload["name"] == alert.name
+    assert payload["project"] == alert.project
+    assert payload["summary"] == "summaryText"
+    assert payload["value"] == {"key": "val"}
+    assert payload["id"] == "id1"
+    assert payload["custom_html"] == custom_html
+    assert args["ssl"] is None
+
+
+@pytest.mark.asyncio
+async def test_override_list_passthrough(client_session: Any) -> None:
+    override_body: list[str] = ["a", "b"]
+    notif = mlrun.utils.notifications.notification.webhook.WebhookNotification(
+        params={
+            "url": "http://example.com",
+            "override_body": override_body,
+            "verify_ssl": True,
+        },
+    )
+    await notif.push("ignored")
+    session = DummySessionContext.dummy_session_holder["session"]
+    assert session.request_args and session.request_args["json"] is override_body
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "override_body, runs, key, expected",
+    [
+        (
+            {"dict": {"x": datetime(2025, 1, 1, 0, 0, 0)}},
+            None,
+            "dict",
+            {"x": datetime(2025, 1, 1, 0, 0, 0)},
+        ),
+        ({"float": 1.23}, None, "float", 1.23),
+        ({"bool": True}, None, "bool", True),
+        ({"none": None}, None, "none", None),
+        ({"list": [1, 2, "a"]}, None, "list", [1, 2, "a"]),
+        ({"mixed": "val{{ runs }}end"}, [], "mixed", "val[]end"),
+    ],
+)
+async def test_override_values(
+    client_session: Any,
+    override_body: dict[str, Any],
+    runs: Optional[list[Any]],
+    key: str,
+    expected: Any,
+) -> None:
+    notif = mlrun.utils.notifications.notification.webhook.WebhookNotification(
+        params={
+            "url": "http://example.com",
+            "override_body": override_body.copy(),
+        }
+    )
+    await notif.push("ignored", runs=runs)
+    sent = DummySessionContext.dummy_session_holder["session"].request_args["json"]
+    assert sent[key] == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "url, verify_ssl, expected_ssl",
+    [
+        ("https://example.com", None, None),
+        ("https://example.com", False, False),
+        ("http://example.com", True, None),
+    ],
+)
+async def test_ssl_logic(
+    client_session: Any,
+    url: str,
+    verify_ssl: Optional[bool],
+    expected_ssl: Optional[bool],
+) -> None:
+    params: dict[str, Any] = {"url": url}
+    if verify_ssl is not None:
+        params["verify_ssl"] = verify_ssl
+    notification = mlrun.utils.notifications.notification.webhook.WebhookNotification(
+        params=params
+    )
+    await notification.push("ignored")
+    ssl_arg = DummySessionContext.dummy_session_holder["session"].request_args["ssl"]
+    assert ssl_arg is expected_ssl

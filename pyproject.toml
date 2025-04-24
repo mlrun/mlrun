@@ -165,7 +165,6 @@ source=["mlrun", "server/py", "pipeline-adapters"]
 omit =[
     "test_*.py" ,
     "**/tests/*" ,
-    "**/__init__.py" ,
     "**/conftest.py" ,
     "server/py/schemas/proto/*"
     ]

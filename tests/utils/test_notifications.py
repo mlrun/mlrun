@@ -998,11 +998,11 @@ def test_notification_validation_defaults(monkeypatch):
         "name": "",
     }
 
-    for field, expected_value in notification_fields.items():
-        value = getattr(notification, field)
+    for notification_field, expected_value in notification_fields.items():
+        value = getattr(notification, notification_field)
         assert (
             value == expected_value
-        ), f"{field} field value is {value}, expected {expected_value}"
+        ), f"{notification_field} field value is {value}, expected {expected_value}"
 
 
 @pytest.mark.parametrize(

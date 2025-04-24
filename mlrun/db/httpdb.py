@@ -21,7 +21,7 @@ import typing
 import warnings
 from copy import deepcopy
 from datetime import datetime, timedelta
-from os import path, remove
+from os import path, remove, environ
 from typing import Literal, Optional, Union
 from urllib.parse import urlparse
 
@@ -129,7 +129,7 @@ class HTTPRunDB(RunDBInterface):
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
-        self.python_version = str(version.Version().get_python_version())
+        self.python_version = environ.get("MLRUN_PYTHON_VERSION") or str(version.Version().get_python_version())
 
         self._enrich_and_validate(url)
 
@@ -260,6 +260,8 @@ class HTTPRunDB(RunDBInterface):
                     mlrun.common.schemas.HeaderNames.python_version: self.python_version,
                 }
             )
+
+        logger.warning("Python version", version=self.python_version, headers=kw["headers"])
 
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
         # convert to strings. Do the same for params for niceness
@@ -2238,6 +2240,7 @@ class HTTPRunDB(RunDBInterface):
 
         try:
             params = {"namespace": namespace, "experiment": experiment, "run": run}
+            logger.warning("ALONNN", python_version=self.python_version, headers=headers)
             resp = self.api_call(
                 "POST",
                 f"projects/{project}/pipelines",

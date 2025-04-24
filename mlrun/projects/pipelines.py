@@ -1118,6 +1118,7 @@ def load_and_run_workflow(
     if client_python_version:
         db = mlrun.get_run_db()
         db.python_version = client_python_version
+        logger.warning("ALON2", python_version=db.python_version)
 
     project_context = project_context or f"./{project_name}"
 

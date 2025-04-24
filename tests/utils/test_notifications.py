@@ -21,6 +21,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 import aiohttp
+import orjson
 import pytest
 import tabulate
 
@@ -559,10 +560,12 @@ async def test_webhook_override_body_job_succeed(monkeypatch, override_body):
     await mlrun.utils.notifications.notification.webhook.WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
     ).push("test-message", "info", [run])
-    expected_body = {
-        "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
-        "'status': {'state': 'completed', 'results': {'return': 1}}, 'host': 'func-func-8lvl8'}]"
-    }
+    expected_body = orjson.dumps(
+        {
+            "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
+            "'status': {'state': 'completed', 'results': {'return': 1}}, 'host': 'func-func-8lvl8'}]"
+        }
+    ).decode()
     requests_mock.assert_called_once_with(
         "http://test.com", headers={}, json=expected_body, ssl=None
     )
@@ -618,10 +621,10 @@ async def test_webhook_override_body_job_failed(monkeypatch, override_body):
     await mlrun.utils.notifications.notification.webhook.WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
     ).push("test-message", "info", [run])
-    expected_body = {
+    expected_body = orjson.dumps({
         "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
         "'status': {'state': 'error', 'error': 'some_error'}, 'host': 'func-func-8lvl8'}]"
-    }
+    }).decode()
     requests_mock.assert_called_once_with(
         "http://test.com", headers={}, json=expected_body, ssl=None
     )
@@ -839,11 +842,17 @@ async def test_webhook_notification(monkeypatch, test_method):
     requests_mock.assert_called_once_with(
         test_url,
         headers=test_headers,
-        json={
-            "message": test_message,
-            "severity": test_severity,
-            "runs": test_runs_info,
-        },
+        json=orjson.dumps(
+            {
+                "message": test_message,
+                "severity": test_severity,
+                "runs": test_runs_info,
+            },
+            option=orjson.OPT_NAIVE_UTC
+            | orjson.OPT_SERIALIZE_NUMPY
+            | orjson.OPT_NON_STR_KEYS
+            | orjson.OPT_SORT_KEYS,
+        ).decode(),
         ssl=None,
     )
 
@@ -854,7 +863,13 @@ async def test_webhook_notification(monkeypatch, test_method):
     requests_mock.assert_called_with(
         test_url,
         headers=test_headers,
-        json=test_override_body,
+        json=orjson.dumps(
+            test_override_body,
+            option=orjson.OPT_NAIVE_UTC
+            | orjson.OPT_SERIALIZE_NUMPY
+            | orjson.OPT_NON_STR_KEYS
+            | orjson.OPT_SORT_KEYS,
+        ).decode(),
         ssl=None,
     )
 
@@ -1719,7 +1734,7 @@ class DummyEvent:
 @pytest.mark.asyncio
 async def test_push_full_payload(client_session: Any) -> None:
     runs: list[DummyRun] = [
-        DummyRun(project="p", name="n", host="h", state="running", error="err")
+        DummyRun(project="p", name="n", host="h", state="running", error="err").to_dict()
     ]
     alert = DummyAlert("alertName", "alertProj", "alertSeverity", summary="summaryText")
     event = DummyEvent({"key": "val"}, ["id1", "id2"])
@@ -1747,7 +1762,7 @@ async def test_push_full_payload(client_session: Any) -> None:
     assert args["url"] == "https://example.com/hook"
     assert args["headers"] == {"H": "v"}
 
-    payload = args["json"]
+    payload = orjson.loads(args["json"])
     assert payload["message"] == "hello"
     assert payload["severity"] == alert.severity
     assert payload["runs"] == runs
@@ -1762,7 +1777,7 @@ async def test_push_full_payload(client_session: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_override_list_passthrough(client_session: Any) -> None:
-    override_body: list[str] = ["a", "b"]
+    override_body = ["a", "b"]
     notif = mlrun.utils.notifications.notification.webhook.WebhookNotification(
         params={
             "url": "http://example.com",
@@ -1772,7 +1787,10 @@ async def test_override_list_passthrough(client_session: Any) -> None:
     )
     await notif.push("ignored")
     session = DummySessionContext.dummy_session_holder["session"]
-    assert session.request_args and session.request_args["json"] is override_body
+    assert (
+        session.request_args
+        and orjson.loads(session.request_args["json"]) == override_body
+    )
 
 
 @pytest.mark.asyncio
@@ -1783,7 +1801,7 @@ async def test_override_list_passthrough(client_session: Any) -> None:
             {"dict": {"x": datetime(2025, 1, 1, 0, 0, 0)}},
             None,
             "dict",
-            {"x": datetime(2025, 1, 1, 0, 0, 0)},
+            {"x": "2025-01-01T00:00:00+00:00"},
         ),
         ({"float": 1.23}, None, "float", 1.23),
         ({"bool": True}, None, "bool", True),
@@ -1807,7 +1825,7 @@ async def test_override_values(
     )
     await notif.push("ignored", runs=runs)
     sent = DummySessionContext.dummy_session_holder["session"].request_args["json"]
-    assert sent[key] == expected
+    assert orjson.loads(sent)[key] == expected
 
 
 @pytest.mark.asyncio

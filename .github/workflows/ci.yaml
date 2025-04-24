@@ -121,12 +121,8 @@ jobs:
             echo "UNIT_TESTS_IGNORE_PATH=\"server/\"" >> $GITHUB_ENV
           fi
     - name: Set RUN_COVERAGE environment variable
-      run: |
-        if [[ "${{ matrix.python-version }}" == "3.9" ]]; then
-          echo "RUN_COVERAGE=true" >> $GITHUB_ENV
-        else
-          echo "RUN_COVERAGE=false" >> $GITHUB_ENV
-        fi
+      if: matrix.python-version == '3.9'
+      run: echo "RUN_COVERAGE=true" >> $GITHUB_ENV
     - name: Run Dockerized tests
       run: |
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
@@ -186,12 +182,8 @@ jobs:
       run: pip install -r automation/requirements.txt
 
     - name: Set RUN_COVERAGE environment variable
-      run: |
-        if [[ "${{ matrix.python-version }}" == "3.9" ]]; then
-          echo "RUN_COVERAGE=true" >> $GITHUB_ENV
-        else
-          echo "RUN_COVERAGE=false" >> $GITHUB_ENV
-        fi
+      if: matrix.python-version == '3.9'
+      run: echo "RUN_COVERAGE=true" >> $GITHUB_ENV
 
     - name: Run Dockerized tests
       run: |

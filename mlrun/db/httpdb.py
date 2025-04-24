@@ -3768,6 +3768,7 @@ class HTTPRunDB(RunDBInterface):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
@@ -3785,6 +3786,9 @@ class HTTPRunDB(RunDBInterface):
         :param start:           The start time to filter by.Corresponding to the `created` field.
         :param end:             The end time to filter by. Corresponding to the `created` field.
         :param tsdb_metrics:    Whether to include metrics from the time series DB.
+        :param metric_list:     List of metrics to include from the time series DB. Defaults to all metrics.
+                                If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                will be included.
         :param top_level:       Whether to return only top level model endpoints.
         :param uids:            A list of unique ids to filter by.
         :param latest_only:     Whether to return only the latest model endpoint version.
@@ -3807,6 +3811,7 @@ class HTTPRunDB(RunDBInterface):
                 "start": datetime_to_iso(start),
                 "end": datetime_to_iso(end),
                 "tsdb-metrics": tsdb_metrics,
+                "metric": metric_list,
                 "top-level": top_level,
                 "uid": uids,
                 "latest-only": latest_only,
@@ -3823,6 +3828,7 @@ class HTTPRunDB(RunDBInterface):
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
@@ -3834,6 +3840,9 @@ class HTTPRunDB(RunDBInterface):
         :param function_tag:               The tag of the function
         :param endpoint_id:                The id of the endpoint
         :param tsdb_metrics:               Whether to include metrics from the time series DB.
+        :param metric_list:                List of metrics to include from the time series DB. Defaults to all metrics.
+                                           If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                           will be included.
         :param feature_analysis:           Whether to include feature analysis data (feature_stats,
                                             current_stats & drift_measures).
 
@@ -3851,6 +3860,7 @@ class HTTPRunDB(RunDBInterface):
                 "function-tag": function_tag,
                 "endpoint-id": endpoint_id,
                 "tsdb-metrics": tsdb_metrics,
+                "metric": metric_list,
                 "feature-analysis": feature_analysis,
             },
         )

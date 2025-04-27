@@ -1653,7 +1653,7 @@ class DummySession:
             raise ValueError(
                 "data and json parameters can not be used at the same time"
             )
-        elif kwargs["json"] is not None:
+        elif kwargs.get("json") is not None:
             data = self._json_serialize(kwargs["json"])
         self.request_args = {
             "method": method,

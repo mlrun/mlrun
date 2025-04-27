@@ -1,4 +1,4 @@
-import uuid
+import re
 
 import chromadb
 import pandas as pd
@@ -9,6 +9,10 @@ import mlrun
 from mlrun.execution import MLClientCtx
 
 
+def ensure_alphanumeric_end(s):
+    return s if re.search(r"[a-zA-Z0-9]$", s) else s + "a"
+
+
 @mlrun.handler()
 def handler_chroma(
     context: MLClientCtx,
@@ -17,6 +21,14 @@ def handler_chroma(
     chunk_size: int = 500,
     chunk_overlap: int = 0,
 ):
+    # project = mlrun.get_current_project()
+
+    spec = mlrun.artifacts.DocumentLoaderSpec(
+        loader_class_name="langchain_community.document_loaders.WebBaseLoader",
+        src_name="web_path",
+        download_object=False,
+    )
+
     # Create chroma client
     chroma_client = chromadb.PersistentClient(path=cache_dir)
 
@@ -24,9 +36,7 @@ def handler_chroma(
     collection_name = "my_news"
     print(f"Creating collection: '{collection_name}'")
 
-    if len(chroma_client.list_collections()) > 0 and collection_name in [
-        chroma_client.list_collections()[0].name
-    ]:
+    if collection_name in chroma_client.list_collections():
         chroma_client.delete_collection(name=collection_name)
 
     collection = chroma_client.create_collection(name=collection_name)
@@ -40,11 +50,22 @@ def handler_chroma(
     )
     splits = text_splitter.split_documents(docs)
 
-    # Add to vector store
-    collection.add(
-        ids=[str(uuid.uuid4()) for d in splits],
-        metadatas=[d.metadata for d in splits],
-        documents=[d.page_content for d in splits],
-    )
+    for doc in splits:
+        # Make sure artifact key ends with alpha-numeric char
+        artifact_key = ensure_alphanumeric_end(
+            mlrun.artifacts.DocumentArtifact.key_from_source(doc.metadata["link"])
+        )
+
+        collection.add(
+            ids=[artifact_key],
+            metadatas=[doc.metadata],
+            documents=[doc.page_content],
+        )
+
+        context.log_document(
+            key=artifact_key,
+            target_path=doc.metadata["link"],
+            document_loader_spec=spec,
+        )
 
     context.logger.info("Vector DB was created")

@@ -3121,24 +3121,14 @@ class SQLDB(DBInterface):
             project=project,
             main_table_identifier=main_table_identifier,
         )
-        '''
-        original code that was here :
-        query = session.query(main_table).filter(where_clause)
-        deletions_count = query.delete(synchronize_session=False)
-        log_kwargs = {
-            "deletions_count": deletions_count,
-            "main_table": main_table,
-            "project": project,
-            "main_table_identifier": main_table_identifier,
-        }
-        logger.debug("Removed rows from table", **log_kwargs)
-        session.commit()
-        return deletions_count
-        '''
         return total_deleted
 
     @staticmethod
-    def _delete_table_in_chunks(session: Session, table:mlrun.utils.db.BaseModel, where_clause,) -> int:
+    def _delete_table_in_chunks(
+        session: Session,
+        table: mlrun.utils.db.BaseModel,
+        where_clause,
+    ) -> int:
         """
         Delete rows from a table in chunks based on ID ordering.
         :param session: SQLAlchemy session.
@@ -3151,7 +3141,6 @@ class SQLDB(DBInterface):
         total_deleted = 0
         batch_size = mlrun.mlconf.artifacts.limits.deletion_batch_size
 
-        # Assume id exists and is a numeric, increasing primary key
         while True:
             ids_to_delete = (
                 session.query(table.id)

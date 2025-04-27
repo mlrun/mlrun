@@ -268,7 +268,10 @@ def test_enrich_node_selector_with_preemption_mode_prevent_on_kfp_pod(
     mlconf.preemptible_nodes.node_selector = base64.b64encode(
         json.dumps({preemptible_node_selector: preemptioble_val}).encode("utf-8")
     )
-    function.spec.node_selector = {function_node_selector: function_val, preemptible_node_selector: preemptioble_val}
+    function.spec.node_selector = {
+        function_node_selector: function_val,
+        preemptible_node_selector: preemptioble_val,
+    }
 
     # Convert function to step (triggers enrichment)
     cop = function.as_step()
@@ -287,7 +290,9 @@ def test_enrich_node_selector_with_preemption_mode_prevent_on_kfp_pod(
     affinity = cop.affinity
     assert affinity is not None
     assert affinity.node_affinity is not None
-    required = affinity.node_affinity.required_during_scheduling_ignored_during_execution
+    required = (
+        affinity.node_affinity.required_during_scheduling_ignored_during_execution
+    )
     assert required is not None
     assert len(required.node_selector_terms) > 0
     match_expressions = required.node_selector_terms[0].match_expressions

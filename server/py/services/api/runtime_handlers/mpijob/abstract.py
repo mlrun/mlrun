@@ -12,18 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-import time
+from typing import Optional
 
 from kubernetes import client
+from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.k8s_utils
 import mlrun.utils.helpers
-from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.runtimes.mpijob import AbstractMPIJobRuntime
 from mlrun.utils import logger
 
 import framework.utils.singletons.k8s
+from framework.db.base import DBInterface
 from services.api.runtime_handlers import KubeRuntimeHandler
 
 
@@ -50,37 +52,37 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
 
         job = self._generate_mpi_job(runtime, run, execution, meta)
 
-        resp = self._submit_mpijob(job, meta.namespace)
+        self._submit_mpijob(job, meta.namespace)
 
-        state = None
-        timeout = int(config.submit_timeout) or 120
-        for _ in range(timeout):
-            resp = self.get_job(meta.name, meta.namespace)
-            state = self._get_job_launcher_status(resp)
-            if resp and state:
-                break
-            time.sleep(1)
+        # fetch the launcher pod status
+        resp = self.get_job(meta.name, meta.namespace)
+        status = self._get_job_launcher_status(resp)
 
-        if resp:
-            logger.info(f"MpiJob {meta.name} state={state or 'unknown'}")
-            if state:
-                state = self._crd_state_to_run_state(state)
-                launcher, _ = self._get_launcher(meta.name, meta.namespace)
-                execution.set_hostname(launcher)
-                execution.set_state(state)
-                txt = f"MpiJob {meta.name} launcher pod {launcher} state {state}"
-                logger.info(txt)
-                run.status.status_text = txt
+        if status:
+            # map the CRD state to run state and set hostname if launcher started
+            state = self._crd_state_to_run_state(status)
+            launcher, _ = self._get_launcher(meta.name, meta.namespace)
+            execution.set_hostname(launcher)
+            status_text = (
+                f"MpiJob {meta.name} launcher pod {launcher} is in state {state}"
+            )
+            logger.info(
+                "MpiJob launcher pod state update",
+                name=meta.name,
+                launcher=launcher,
+                state=state,
+            )
+        else:
+            # no state yet, assume pending
+            state = mlrun.run.RunStatuses.pending
+            status_text = f"MpiJob {meta.name} pending - awaiting launcher pod startup"
+            logger.info(
+                "Waiting for MpiJob launcher pod to start", name=meta.name, state=state
+            )
 
-            else:
-                pods_phases = self.get_pods(meta.name, meta.namespace)
-                txt = f"MpiJob status unknown or failed, check pods: {pods_phases}"
-                logger.warning(
-                    "MpiJob status unknown or failed",
-                    pods_phases=pods_phases,
-                    resp_status=mlrun.utils.get_in(resp, "status"),
-                )
-                run.status.status_text = txt
+        # update execution state and run status
+        execution.set_state(state)
+        run.status.status_text = status_text
 
     def get_pods(self, name=None, namespace=None, launcher=False):
         namespace = framework.utils.singletons.k8s.get_k8s_helper().resolve_namespace(
@@ -176,3 +178,50 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
             "failed": mlrun.common.runtimes.constants.RunStates.error,
         }
         return mapping.get(state, state)
+
+    def _ensure_run_state(
+        self,
+        db: DBInterface,
+        db_session: Session,
+        project: str,
+        uid: str,
+        name: str,
+        run_state: str,
+        run: Optional[dict] = None,
+        search_run: bool = True,
+        runtime_resource: Optional[dict] = None,
+    ) -> tuple[bool, str, dict]:
+        _, run_state, run = super()._ensure_run_state(
+            db,
+            db_session,
+            project,
+            uid,
+            name,
+            run_state,
+            run,
+            search_run,
+            runtime_resource,
+        )
+
+        execution = mlrun.execution.MLClientCtx.from_dict(run, store_run=False)
+        pod_name = (
+            run["metadata"]
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.job, "")
+        )
+
+        # ensure hostname is set if not already assigned
+        if pod_name and not execution.host:
+            namespace = mlrun.mlconf.namespace
+            launcher, _ = self._get_launcher(pod_name, namespace)
+            execution.set_hostname(launcher)
+
+            # persist the hostname change in the DB
+            updates = {"status.host": launcher}
+            run = db.update_run(
+                db_session,
+                updates,
+                uid,
+                project,
+            )
+        return True, run_state, run

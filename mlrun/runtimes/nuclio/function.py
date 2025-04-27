@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import asyncio
+import copy
 import json
 import typing
 import warnings
@@ -49,6 +50,19 @@ from mlrun.runtimes.pod import KubeResource, KubeResourceSpec
 from mlrun.runtimes.utils import get_item_name, log_std
 from mlrun.utils import get_in, logger, update_in
 from mlrun_pipelines.common.ops import deploy_op
+
+SENSITIVE_PATHS_IN_TRIGGER_CONFIG = {
+    "password",
+    "secret",
+    "attributes/password",
+    "attributes/accesskeyid",
+    "attributes/secretaccesskey",
+    "attributes/cacert",
+    "attributes/accesskey",
+    "attributes/accesscertificate",
+    "attributes/sasl/password",
+    "attributes/sasl/oauth/clientsecret",
+}
 
 
 def validate_nuclio_version_compatibility(*min_versions):
@@ -273,6 +287,37 @@ class RemoteRuntime(KubeResource):
     def pre_deploy_validation(self):
         if self.metadata.tag:
             mlrun.utils.validate_tag_name(self.metadata.tag, "function.metadata.tag")
+
+    def mask_sensitive_data_in_config(self):
+        if not self.spec.config:
+            return {}
+
+        raw_config = copy.deepcopy(self.spec.config)
+
+        for key, value in self.spec.config.items():
+            if key.startswith("spec.triggers"):
+                trigger_name = key.split(".")[-1]
+
+                for path in SENSITIVE_PATHS_IN_TRIGGER_CONFIG:
+                    # Handle nested keys
+                    nested_keys = path.split("/")
+                    target = value
+                    for sub_key in nested_keys[:-1]:
+                        target = target.get(sub_key, {})
+
+                    last_key = nested_keys[-1]
+                    if last_key in target:
+                        sensitive_field = target[last_key]
+                        if sensitive_field.startswith(
+                            mlrun.model.Credentials.secret_reference_prefix
+                        ):
+                            # already masked
+                            continue
+                        target[last_key] = (
+                            f"{mlrun.model.Credentials.secret_reference_prefix}/spec/triggers/{trigger_name}/{path}"
+                        )
+
+        return raw_config
 
     def set_config(self, key, value):
         self.spec.config[key] = value
@@ -532,13 +577,9 @@ class RemoteRuntime(KubeResource):
             access_key = self._resolve_v3io_access_key()
         engine = "sync"
         explicit_ack_mode = kwargs.pop("explicit_ack_mode", None)
-        if (
-            self.spec
-            and hasattr(self.spec, "graph")
-            and self.spec.graph
-            and self.spec.graph.engine
-        ):
-            engine = self.spec.graph.engine
+        if self.spec and hasattr(self.spec, "graph"):
+            engine = getattr(self.spec.graph, "engine", None) or engine
+
         if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
             explicit_ack_mode = explicit_ack_mode or "explicitOnly"
 
@@ -610,6 +651,11 @@ class RemoteRuntime(KubeResource):
         logger.info("Starting remote function deploy")
         data = db.deploy_nuclio_function(func=self, builder_env=builder_env)
         self.status = data["data"].get("status")
+
+        # Extract the spec to avoid overwriting server-side updates during the later save in
+        # _enrich_command_from_status.
+        self.spec = data["data"].get("spec")
+
         self._update_credentials_from_remote_build(data["data"])
 
         # when a function is deployed, we wait for it to be ready by default
@@ -959,7 +1005,7 @@ class RemoteRuntime(KubeResource):
             else:
                 http_client_kwargs["json"] = body
         try:
-            logger.info("Invoking function", method=method, path=path)
+            logger.debug("Invoking function", method=method, path=path)
             if not getattr(self, "_http_session", None):
                 self._http_session = requests.Session()
             resp = self._http_session.request(
@@ -1229,6 +1275,9 @@ class RemoteRuntime(KubeResource):
         for remote_env in remote_data.get("spec", {}).get("env", []):
             if remote_env.get("name") in credentials_env_var_names:
                 new_env.append(remote_env)
+
+        # update nuclio-specific credentials
+        self.mask_sensitive_data_in_config()
 
         self.spec.env = new_env
 

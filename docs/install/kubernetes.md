@@ -1,5 +1,5 @@
 (install-on-kubernetes)=
-# Install MLRun on Kubernetes
+# Install MLRun CE on Kubernetes
 
 ```{admonition} Note
 These instructions install the community edition, which currently includes MLRun {{ ceversion }}. 
@@ -118,7 +118,7 @@ your internet speed).
 ```
 
 To install the chart with the release name `mlrun-ce` use the following command.
-```{admonition} Note
+:::{admonition} Note
 If you are using NFS storage in your Kubernetes cluster, add these flags to the chart deployment command:
 ```
 --set kube-prometheus-stack.grafana.securityContext.runAsUser=1000 
@@ -127,7 +127,7 @@ If you are using NFS storage in your Kubernetes cluster, add these flags to the 
 --set kube-prometheus-stack.grafana.securityContext.fsGroupChangePolicy=OnRootMismatch 
 --set kube-prometheus-stack.grafana.initChownData.enabled
 ```
-```
+:::
 Note the reference to the pre-created `registry-credentials` secret in `global.registry.secretName`:
 
 ```bash
@@ -186,6 +186,10 @@ a minute for all services to start.
 You can change the ports by providing values to the helm install command.
 You can add and configure a Kubernetes ingress-controller for better security and control over external access.
 ```
+
+
+## Optional additional packages
+To run local Spark jobs on the MLRun CE Jupyter, install PySpark.
 
 ## Start working
     

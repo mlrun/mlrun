@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
+import time
 import unittest.mock
 from datetime import datetime, timezone
 
@@ -23,6 +24,7 @@ import mlrun.model
 from tests.conftest import new_run
 
 import framework.db.sqldb.helpers
+import framework.db.sqldb.models
 import services.api.initial_data
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
@@ -442,6 +444,8 @@ class TestRuns(TestDatabaseBase):
         # Store running expected to remove end time
         assert "end_time" not in run["status"]
 
+        # Sleep 1 second to allow next end time to be different
+        time.sleep(1)
         self._db.update_run(
             self._db_session,
             {"status.state": mlrun.common.runtimes.constants.RunStates.completed},
@@ -521,6 +525,22 @@ class TestRuns(TestDatabaseBase):
                 iteration,
             )
 
+        label_key = "a" * 256
+        run["metadata"]["labels"] = {label_key: "b"}
+        # too long name
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=f"Name of `{label_key}` label is too long. "
+            "Maximum allowed length is 255 characters.",
+        ):
+            self._db.update_run(
+                self._db_session,
+                run,
+                uid,
+                project,
+                iteration,
+            )
+
     def test_store_and_update_run_update_name_failure(self):
         project, name, uid, iteration, run = self._create_new_run()
 
@@ -574,32 +594,58 @@ class TestRuns(TestDatabaseBase):
         )
         assert len(runs) == 4
 
-    def test_list_runs_with_end_time(self):
-        project, name, run_uid, iteration, run = self._create_new_run()
+    def test_list_runs_orders_by_id_when_start_time_is_identical(self):
+        # this test verifies that when start_time date is identical, runs should be ordered by run id
+        project_name = "my-project"
+        t1 = datetime.now()
 
-        assert not run["status"].get("end_time")
+        # Create runs
+        number_of_runs = 10
+        for counter in range(number_of_runs):
+            run_name = f"run-{counter}"
+            self._create_new_run(
+                project=project_name, name=run_name, uid=f"uid-{counter}"
+            )
 
-        # update the run's end_time
-        updates = {
-            "status.state": "completed",
-        }
-        self._db.update_run(self._db_session, updates, run_uid, project)
+            # Set the same `start_time` timestamp for all runs
+            self._db.update_db_object(
+                self._db_session,
+                framework.db.sqldb.models.Run,
+                filters={"name": run_name},
+                start_time=t1,
+            )
 
-        # fetch the run and verify the end_time
-        run = self._db.read_run(self._db_session, run_uid, project, iteration)
-        assert run["status"].get("end_time")
-        end_time = datetime.fromisoformat(run["status"]["end_time"])
-
-        # list runs with end_time filter
         runs = self._db.list_runs(
             self._db_session,
-            project=project,
-            end_time_from=end_time,
+            project=project_name,
         )
+        assert (
+            len(runs) == number_of_runs
+        ), f"Expected {number_of_runs} results, got {len(runs)}"
+
+        expected_names = [f"run-{i}" for i in range(number_of_runs - 1, -1, -1)]
+
+        for run, expected_name in zip(runs, expected_names):
+            run_name = run["metadata"]["name"]
+            assert (
+                run_name == expected_name
+            ), f"Expected {expected_name}, got {run_name}"
+
+    def test_list_runs_with_missing_milliseconds_in_timestamp(self):
+        self._create_new_run(project="my-project")
+
+        t1 = datetime.now().replace(microsecond=0)
+
+        # Set the `start_time` and `end_time` timestamps without microseconds
+        self._db.update_db_object(
+            self._db_session, framework.db.sqldb.models.Run, start_time=t1, end_time=t1
+        )
+
+        runs = self._db.list_runs(self._db_session, project="my-project")
         assert len(runs) == 1
-        stored_run = runs[0]
-        assert stored_run["metadata"]["uid"] == run_uid
-        assert stored_run["status"]["end_time"] > stored_run["status"]["start_time"]
+
+        assert runs[0]["status"]["start_time"].endswith(".000000+00:00")
+        assert runs[0]["status"]["end_time"].endswith(".000000+00:00")
 
     @staticmethod
     def _change_run_record_to_before_align_runs_migration(run, time_before_creation):

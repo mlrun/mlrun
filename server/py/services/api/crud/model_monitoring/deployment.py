@@ -47,6 +47,7 @@ import mlrun.serving.states
 import mlrun.utils.v3io_clients
 from mlrun import feature_store as fstore
 from mlrun.config import config
+from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFileChief
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
@@ -149,6 +150,7 @@ class MonitoringDeployment:
         self.deploy_model_monitoring_stream_processing(
             stream_image=image,
         )
+        ModelMonitoringSchedulesFileChief(project=self.project).get_or_create()
         if deploy_histogram_data_drift_app:
             self.deploy_histogram_data_drift_app(image=image)
 
@@ -248,7 +250,6 @@ class MonitoringDeployment:
             fn, ready = services.api.utils.functions.build_function(
                 db_session=self.db_session, auth_info=self.auth_info, function=fn
             )
-
             logger.debug(
                 "Submitted the controller deployment",
                 controller_data=fn.to_dict(),
@@ -1126,11 +1127,11 @@ class MonitoringDeployment:
                     "MLRun CE supports only TDEngine TSDB, received a V3IO profile for the TSDB"
                 )
         elif not isinstance(
-            tsdb_profile, mlrun.datastore.datastore_profile.TDEngineDatastoreProfile
+            tsdb_profile, mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
         ):
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 f"The model monitoring TSDB profile is of an unexpected type: '{type(tsdb_profile)}'\n"
-                "Expects `DatastoreProfileV3io` or `TDEngineDatastoreProfile`."
+                "Expects `DatastoreProfileV3io` or `DatastoreProfileTDEngine`."
             )
 
         return tsdb_profile

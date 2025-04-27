@@ -13,6 +13,7 @@
 # limitations under the License.
 import datetime
 import http
+import typing
 from typing import Optional, Union
 
 import fastapi
@@ -145,9 +146,11 @@ class Service(framework.service.Service):
         self,
         request: fastapi.Request,
         project: str,
+        page_size: typing.Optional[int],
+        offset: typing.Optional[int],
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
-    ) -> list[mlrun.common.schemas.AlertConfig]:
+    ) -> dict[str, list[mlrun.common.schemas.AlertConfig]]:
         if project != "*":
             # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
             #  not access it directly (ML-8565)
@@ -164,11 +167,18 @@ class Service(framework.service.Service):
         )
 
         exclude_updated = self._should_exclude_updated(request)
+
+        # TODO: Remove this when implementing pagination for alert configs
+        #  page_size is used for the limit in the query, but we don't have pagination yet
+        limit = page_size or mlconf.alerts.default_list_alert_configs_limit
+
         alerts = await run_in_threadpool(
             services.alerts.crud.Alerts().list_alerts,
             db_session,
             project=allowed_project_names,
             exclude_updated=exclude_updated,
+            offset=offset,
+            limit=limit,
         )
 
         alerts = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
@@ -181,7 +191,9 @@ class Service(framework.service.Service):
             auth_info,
         )
 
-        return alerts
+        return {
+            "alerts": alerts,
+        }
 
     async def delete_alert(
         self,

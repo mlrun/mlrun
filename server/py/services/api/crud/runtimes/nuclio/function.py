@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import base64
 import gzip
@@ -32,6 +32,7 @@ import mlrun.errors
 import mlrun.runtimes.nuclio.function
 import mlrun.runtimes.pod
 import mlrun.utils
+from mlrun.k8s_utils import enrich_preemption_mode
 from mlrun.utils import logger
 
 import framework.utils.clients.async_nuclio
@@ -509,10 +510,9 @@ def _resolve_and_set_nuclio_runtime(
 ):
     nuclio_runtime = (
         function.spec.nuclio_runtime
-        # TODO: Uncomment when the function is aligned with the supported python versions
-        # or services.api.crud.runtimes.nuclio.helpers.resolve_nuclio_runtime_python_image(
-        #     mlrun_client_version=client_version, python_version=client_python_version
-        # )
+        or services.api.crud.runtimes.nuclio.helpers.resolve_nuclio_runtime_python_image(
+            mlrun_client_version=client_version, python_version=client_python_version
+        )
         or mlrun.mlconf.default_nuclio_runtime
     )
 
@@ -632,7 +632,24 @@ def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=Non
 
 
 def _set_function_scheduling_params(function, nuclio_spec):
-    # don't send node selections if nuclio is not compatible
+    node_selector = _resolve_node_selector(
+        function._get_db(), function.metadata.project, function.spec.node_selector
+    )
+    affinity = function.spec.affinity
+    tolerations = function.spec.tolerations
+    preemption_mode = function.spec.preemption_mode
+
+    # Enrich using preemption mode if defined
+    (
+        enriched_node_selector,
+        enriched_tolerations,
+        enriched_affinity,
+    ) = enrich_preemption_mode(
+        preemption_mode=preemption_mode,
+        node_selector=node_selector,
+        affinity=affinity,
+        tolerations=tolerations,
+    )
 
     if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
         "1.5.20", "1.6.10"
@@ -640,37 +657,30 @@ def _set_function_scheduling_params(function, nuclio_spec):
         # We handle the enrichment of node selectors directly within MLRun, on the nuclio spec config.
         # This approach ensures that node selector settings from both the project and MLRun service levels
         # are incorporated into the Nuclio config.
-        if node_selector := _resolve_node_selector(
-            function._get_db(), function.metadata.project, function.spec.node_selector
-        ):
-            nuclio_spec.set_config(
-                "spec.nodeSelector",
-                node_selector,
-            )
+
+        if enriched_node_selector:
+            nuclio_spec.set_config("spec.nodeSelector", enriched_node_selector)
+
         if function.spec.node_name:
             nuclio_spec.set_config("spec.nodeName", function.spec.node_name)
-        if function.spec.affinity:
+
+        if enriched_affinity:
             nuclio_spec.set_config(
                 "spec.affinity",
-                mlrun.runtimes.pod.get_sanitized_attribute(function.spec, "affinity"),
+                mlrun.runtimes.pod.sanitize_attribute(enriched_affinity),
             )
 
     # don't send tolerations if nuclio is not compatible
     if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility("1.7.5"):
-        if function.spec.tolerations:
+        if enriched_tolerations:
             nuclio_spec.set_config(
                 "spec.tolerations",
-                mlrun.runtimes.pod.get_sanitized_attribute(
-                    function.spec, "tolerations"
-                ),
+                mlrun.runtimes.pod.sanitize_attribute(enriched_tolerations),
             )
-    # don't send preemption_mode if nuclio is not compatible
+
     if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility("1.8.6"):
-        if function.spec.preemption_mode:
-            nuclio_spec.set_config(
-                "spec.PreemptionMode",
-                function.spec.preemption_mode,
-            )
+        if preemption_mode:
+            nuclio_spec.set_config("spec.PreemptionMode", preemption_mode)
 
 
 def _set_function_replicas(function, nuclio_spec):

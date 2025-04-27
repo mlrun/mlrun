@@ -145,8 +145,14 @@ class V2ModelServer(StepToDict):
                 feature.name for feature in self.model_spec.outputs
             ]
 
+        if (
+            kwargs.get("endpoint_type", mlrun.common.schemas.EndpointType.LEAF_EP)
+            == mlrun.common.schemas.EndpointType.NODE_EP
+        ):
+            self._initialize_model_logger()
+
     def _lazy_init(self, event):
-        if event and isinstance(event, dict):
+        if event and isinstance(event, dict) and not self.initialized:
             background_task_state = event.get("background_task_state", None)
             if (
                 background_task_state
@@ -460,6 +466,50 @@ class V2ModelServer(StepToDict):
             )
         request["inputs"] = new_inputs
         return request
+
+    def _initialize_model_logger(self):
+        server: mlrun.serving.GraphServer = getattr(
+            self.context, "_server", None
+        ) or getattr(self.context, "server", None)
+        if not self.context.is_mock or self.context.monitoring_mock:
+            if server.model_endpoint_creation_task_name:
+                background_task = mlrun.get_run_db().get_project_background_task(
+                    server.project, server.model_endpoint_creation_task_name
+                )
+                logger.debug(
+                    "Checking model endpoint creation task status",
+                    task_name=server.model_endpoint_creation_task_name,
+                )
+                if (
+                    background_task.status.state
+                    in mlrun.common.schemas.BackgroundTaskState.terminal_states()
+                ):
+                    logger.debug(
+                        f"Model endpoint creation task completed with state {background_task.status.state}"
+                    )
+                    if (
+                        background_task.status.state
+                        == mlrun.common.schemas.BackgroundTaskState.succeeded
+                    ):
+                        self._model_logger = (
+                            _ModelLogPusher(self, self.context)
+                            if self.context
+                            and self.context.stream.enabled
+                            and self.model_endpoint_uid
+                            else None
+                        )
+                        self.initialized = True
+
+                else:  # in progress
+                    logger.debug(
+                        f"Model endpoint creation task is still in progress with the current state: "
+                        f"{background_task.status.state}.",
+                        name=self.name,
+                    )
+            else:
+                logger.debug(
+                    "Model endpoint creation task name not provided",
+                )
 
 
 class _ModelLogPusher:

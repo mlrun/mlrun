@@ -1067,6 +1067,7 @@ class SQLRunDB(RunDBInterface):
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
@@ -1081,6 +1082,7 @@ class SQLRunDB(RunDBInterface):
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         raise NotImplementedError()
@@ -1267,11 +1269,6 @@ class SQLRunDB(RunDBInterface):
     ) -> bool:
         raise NotImplementedError
 
-    def deploy_histogram_data_drift_app(
-        self, project: str, image: str = "mlrun/mlrun"
-    ) -> None:
-        raise NotImplementedError
-
     def set_model_monitoring_credentials(
         self,
         project: str,
@@ -1310,7 +1307,9 @@ class SQLRunDB(RunDBInterface):
     def get_alert_config(self, alert_name: str, project=""):
         pass
 
-    def list_alerts_configs(self, project=""):
+    def list_alerts_configs(
+        self, project="", limit: Optional[int] = None, offset: Optional[int] = None
+    ):
         pass
 
     def delete_alert_config(self, alert_name, project=""):

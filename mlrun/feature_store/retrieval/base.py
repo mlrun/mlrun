@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import abc
 import typing
 from datetime import datetime
@@ -21,10 +21,9 @@ import pandas as pd
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
 from mlrun.feature_store.feature_set import FeatureSet
-from mlrun.feature_store.feature_vector import JoinGraph
+from mlrun.feature_store.feature_vector_utils import JoinGraph, OfflineVectorResponse
 
 from ...utils import logger, str_to_timestamp
-from ..feature_vector import OfflineVectorResponse
 
 
 class BaseMerger(abc.ABC):

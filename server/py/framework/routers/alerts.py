@@ -11,12 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 from http import HTTPStatus
 
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -82,13 +81,15 @@ async def get_alert(
 
 @router.get(
     "",
-    response_model=list[mlrun.common.schemas.AlertConfig],
+    response_model=dict[str, list[mlrun.common.schemas.AlertConfig]],
     response_model_exclude_none=True,
 )
 @inject
 async def list_alerts(
     request: Request,
     project: str,
+    page_size: int = Query(None, alias="page-size", gt=0),
+    offset: int = Query(None),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
     service: framework.service.Service = Depends(
@@ -99,6 +100,8 @@ async def list_alerts(
         "list_alerts",
         request,
         project,
+        page_size,
+        offset,
         auth_info,
         db_session,
     )

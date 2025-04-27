@@ -22,8 +22,8 @@ from mlrun import MlrunProject
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfileKafkaSource,
+    DatastoreProfileTDEngine,
     DatastoreProfileV3io,
-    TDEngineDatastoreProfile,
 )
 from tests.system.base import TestMLRunSystem
 
@@ -31,7 +31,7 @@ _ProfilesMap: TypeAlias = dict[str, type[DatastoreProfile]]
 
 _DS_TYPE_TO_DS_PROFILE: _ProfilesMap = {
     "v3io": DatastoreProfileV3io,
-    "taosws": TDEngineDatastoreProfile,
+    "taosws": DatastoreProfileTDEngine,
     "kafka_source": DatastoreProfileKafkaSource,
 }
 

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import copy
 import datetime
 import tempfile
@@ -741,8 +741,8 @@ class TestArtifacts(TestDatabaseBase):
             artifacts[0]["metadata"]["tag"]
             == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         )
-        assert artifacts[1]["metadata"]["tag"] == "v1"
-        assert artifacts[2]["metadata"]["tag"] == "v2"
+        assert artifacts[1]["metadata"]["tag"] == "v2"
+        assert artifacts[2]["metadata"]["tag"] == "v1"
 
         # Step 2: Overwrite artifact with tag "v3"
         identifier = mlrun.common.schemas.ArtifactIdentifier(key=artifact_key)
@@ -775,8 +775,8 @@ class TestArtifacts(TestDatabaseBase):
             artifacts[0]["metadata"]["tag"]
             == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         )
-        assert artifacts[1]["metadata"]["tag"] == "v3"
-        assert artifacts[2]["metadata"]["tag"] == "v4"
+        assert artifacts[1]["metadata"]["tag"] == "v4"
+        assert artifacts[2]["metadata"]["tag"] == "v3"
 
         # Step 4: Delete tag "v3"
         self._db.delete_tag_from_artifacts(
@@ -1591,6 +1591,116 @@ class TestArtifacts(TestDatabaseBase):
             assert (
                 artifact_name == expected_name
             ), f"Expected {expected_name}, got {artifact_name}"
+
+    @pytest.mark.parametrize("limit", [None, 6])
+    def test_list_artifacts_orders_by_id_when_updated_is_identical(self, limit):
+        # this test is verified that when updated date is identical, artifacts should be ordered by artifact id
+
+        project = "artifact_project"
+        t1 = datetime.datetime.now()
+
+        # Create artifacts
+        number_of_artifacts = 10
+        for counter in range(number_of_artifacts):
+            artifact_key = f"artifact-{counter}"
+            artifact_body = self._generate_artifact(
+                artifact_key,
+                project=project,
+            )
+            self._db.store_artifact(
+                self._db_session, artifact_key, artifact_body, project=project
+            )
+
+            # Set the same `updated` timestamp for all artifacts
+            self._db.update_db_object(
+                self._db_session,
+                framework.db.sqldb.models.ArtifactV2,
+                filters={"key": artifact_key},
+                updated=t1,
+            )
+
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, limit=limit
+        )
+
+        expected_count = limit or number_of_artifacts
+        assert (
+            len(artifacts) == expected_count
+        ), f"Expected {expected_count} results, got {len(artifacts)}"
+
+        start_index = number_of_artifacts - 1
+        expected_names = [
+            f"artifact-{i}"
+            for i in range(start_index, start_index - expected_count, -1)
+        ]
+
+        for artifact, expected_name in zip(artifacts, expected_names):
+            artifact_name = artifact["metadata"]["key"]
+            assert (
+                artifact_name == expected_name
+            ), f"Expected {expected_name}, got {artifact_name}"
+
+    @pytest.mark.parametrize("limit", [None, 3])
+    def test_list_artifacts_orders_by_tag_id(self, limit):
+        # This test verifies that when an artifact has multiple tags, the returned list is ordered with 'latest'
+        # first and the rest by tag ID descending.
+
+        project = "artifact_project"
+        artifact_key = "dummy-artifact"
+
+        artifact_body = self._generate_artifact(
+            key=artifact_key,
+            project=project,
+        )
+
+        number_of_tags = 5
+        for counter in range(number_of_tags):
+            self._db.store_artifact(
+                self._db_session,
+                artifact_key,
+                artifact_body,
+                project=project,
+                tag=f"v{counter}",
+            )
+
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, limit=limit
+        )
+
+        expected_count = limit or (number_of_tags + 1)  # one more for latest tag
+
+        # Build expected tag order with "latest" first
+        expected_tags = [mlrun.common.constants.RESERVED_TAG_NAME_LATEST] + [
+            f"v{i}" for i in reversed(range(number_of_tags))
+        ]
+        expected_tags = expected_tags[:expected_count]
+
+        actual_tags = [artifact["metadata"]["tag"] for artifact in artifacts]
+        assert (
+            actual_tags == expected_tags
+        ), f"Expected tags {expected_tags}, got {actual_tags}"
+
+        # Verify the case of listing artifacts by a specific tag, which should result in an inner join and
+        # return only the matching tagged artifact
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, limit=limit, tag="v3"
+        )
+        assert len(artifacts) == 1
+
+        # List artifacts partitioned by 'project' and 'name' to verify that the query is working as expected
+        # when using both 'partition_by' and 'order_by'.
+        # The test verifies the query behavior both with and without the 'limit' parameter.
+        artifacts = self._db.list_artifacts(
+            self._db_session,
+            project=project,
+            limit=limit,
+            partition_by=mlrun.common.schemas.ArtifactPartitionByField.project_and_name,
+        )
+        assert len(artifacts) == 1
+        assert (
+            artifacts[0]["metadata"]["tag"]
+            == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
 
     def test_list_artifacts_producer_uri(self):
         project = "artifact_project"

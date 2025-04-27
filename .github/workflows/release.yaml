@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 name: Release
 
@@ -158,8 +157,8 @@ jobs:
           # TODO: move to a separated requirements file
           python -m pip install \
             build~=1.2 \
-            wheel~=0.43 \
-            twine~=5.1
+            wheel~=0.45 \
+            twine~=6.1
       - name: Build & push to pypi
         if: github.event.inputs.skip_publish_pypi != 'true'
         run: |

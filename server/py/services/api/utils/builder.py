@@ -18,7 +18,6 @@ import textwrap
 import typing
 from base64 import b64decode, b64encode
 from collections import defaultdict
-from functools import lru_cache
 from os import path
 from urllib.parse import urlparse
 
@@ -574,6 +573,8 @@ def get_kaniko_spec_attributes_from_runtime(
     project, runtime_spec, project_default_fucntion_node_selector
 ):
     """Get the names of Kaniko spec attributes that are defined for runtime but should also be applied to Kaniko."""
+    # preemption mode scheduling constraints cache
+    _preemption_enrichment_result = {}
 
     def service_account_handler(attr_value):
         from framework.api.utils import resolve_project_default_service_account
@@ -598,33 +599,26 @@ def get_kaniko_spec_attributes_from_runtime(
         )
         return attr_value
 
-    # Manual per-call cache
-    _preemption_enrichment_result = None
-
-    def preemption_mode_handler():
-        nonlocal _preemption_enrichment_result
-        if _preemption_enrichment_result is None:
-            _preemption_enrichment_result = enrich_preemption_mode(
+    def preemption_mode_handler(key):
+        if key not in _preemption_enrichment_result:
+            keys = ["node_selector", "tolerations", "affinity"]
+            values = enrich_preemption_mode(
                 preemption_mode=runtime_spec.preemption_mode,
                 node_selector=get_merged_node_selector(runtime_spec.node_selector),
                 affinity=runtime_spec.affinity,
                 tolerations=runtime_spec.tolerations,
             )
-        enriched_node_selector, enriched_tolerations, enriched_affinity = _preemption_enrichment_result
-        return {
-            "node_selector": enriched_node_selector,
-            "affinity": enriched_affinity,
-            "tolerations": enriched_tolerations,
-        }
+            _preemption_enrichment_result.update(dict(zip(keys, values)))
+        return _preemption_enrichment_result[key]
 
     def node_selector_handler(attr_value):
-        return preemption_mode_handler()["node_selector"]
+        return preemption_mode_handler("node_selector")
 
     def affinity_handler(attr_value):
-        return preemption_mode_handler()["affinity"]
+        return preemption_mode_handler("affinity")
 
     def tolerations_handler(attr_value):
-        return preemption_mode_handler()["tolerations"]
+        return preemption_mode_handler("tolerations")
 
     def identity_handler(attr_value):
         return attr_value

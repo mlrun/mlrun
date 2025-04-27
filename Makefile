@@ -63,7 +63,6 @@ else
 endif
 
 SETUP_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
-	echo "coverage file: $$COVERAGE_FILE"; \
 	case "$$COVERAGE_FILE" in *.coverage) \
 		rm -rf $$COVERAGE_FILE && \
 		mkdir -p $$(dirname $$COVERAGE_FILE) ;\

@@ -15,19 +15,15 @@
 import asyncio
 import builtins
 import unittest.mock
-from collections.abc import Awaitable, Iterable, Mapping
 from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass, field
 from datetime import datetime
-from ssl import SSLContext
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional
 
 import aiohttp
 import pytest
 import tabulate
-from aiohttp import BasicAuth, ClientResponse, ClientTimeout, Fingerprint
-from aiohttp.helpers import _SENTINEL, sentinel
-from aiohttp.typedefs import LooseCookies, LooseHeaders, Query, StrOrURL
+from aiohttp.typedefs import StrOrURL
 
 import mlrun.common.runtimes.constants as runtimes_constants
 import mlrun.common.schemas
@@ -1653,12 +1649,12 @@ class DummySession:
         str_or_url: StrOrURL,
         **kwargs: Any,
     ) -> DummyResponse:
-        if kwargs.get('data') is not None and kwargs.get('json') is not None:
+        if kwargs.get("data") is not None and kwargs.get("json") is not None:
             raise ValueError(
                 "data and json parameters can not be used at the same time"
             )
-        elif kwargs['json'] is not None:
-            data = self._json_serialize(kwargs['json'])
+        elif kwargs["json"] is not None:
+            data = self._json_serialize(kwargs["json"])
         self.request_args = {
             "method": method,
             "url": str_or_url,

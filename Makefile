@@ -63,17 +63,29 @@ else
 endif
 
 SETUP_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
-	rm -rf $$COVERAGE_FILE && \
-	mkdir -p $$(dirname $$COVERAGE_FILE) ;\
+		if [[ "$(COVERAGE_FILE)" == *.coverage ]]; then \
+			rm -rf $$COVERAGE_FILE && \
+			mkdir -p $$(dirname $$COVERAGE_FILE) ;\
+		else \
+			echo "Error: COVERAGE_FILE must end with .coverage" >&2 ; \
+        	exit 1 ;\
+        fi; \
 	fi; \
 
 PRINT_COVERAGE_REPORT = if [ "$(RUN_COVERAGE)" = "true" ]; then \
-		echo "coverage report $$COVERAGE_FILE :"; \
+    	echo "coverage report $$COVERAGE_FILE :"; \
 		COVERAGE_FILE=$$COVERAGE_FILE coverage report; \
 	fi;
-SETUP_COVERAGE_MOUNTING = if [ "$(RUN_COVERAGE)" = "true" ]; then \
-		rm -rf $$COVERAGE_MOUNT_PATH && \
-		mkdir -p $$COVERAGE_MOUNT_PATH; \
+
+# Verify the mount point to avoid deleting essential paths
+SETUP_COVERAGE_MOUNTING = if [[ "$(RUN_COVERAGE)" == "true" ]]; then \
+		if [[ "$(COVERAGE_MOUNT_PATH)" == /tmp/coverage_reports/* ]]; then \
+			rm -rf $$COVERAGE_MOUNT_PATH && \
+			mkdir -p $$COVERAGE_MOUNT_PATH; \
+		else \
+			echo "Error: COVERAGE_MOUNT_PATH is invalid, must be under /tmp/coverage_reports/*" >&2 ; \
+        	exit 1 ;\
+        fi; \
 	fi;
 # THIS BLOCK IS FOR COMPUTED VARIABLES
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))

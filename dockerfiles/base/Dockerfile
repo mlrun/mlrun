@@ -54,6 +54,10 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_
 
 ENV PATH=/opt/conda/bin:$PATH
 
+# Remove ensurepip folders from both conda and system python
+RUN rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
+    && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
+
 RUN conda install -y -n base conda-libmamba-solver && \
     conda config --set solver libmamba && \
     conda clean -aqy

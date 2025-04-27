@@ -38,6 +38,9 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/
 
+# Remove system ensurepip from conda's Python
+RUN rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
+
 USER $NB_UID
 
 ## Install it via mamba to overcome installing jupyterlab not being able to install the latest version

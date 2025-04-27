@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import copy
 import time
@@ -677,7 +677,7 @@ def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock):
             "message": "completed",
             "name": "notification-1",
             "secret_params": {
-                "webhook": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+                "webhook": "https://slack.com/api/api.test",
                 "other_param": "other_value",
             },
             "severity": "info",

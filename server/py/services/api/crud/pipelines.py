@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import ast
 import concurrent.futures
 import http
@@ -30,6 +30,7 @@ import mlrun.errors
 import mlrun.utils
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+import mlrun_pipelines.client
 import mlrun_pipelines.common.models
 import mlrun_pipelines.common.ops
 import mlrun_pipelines.imports
@@ -82,7 +83,9 @@ class Pipelines(
                 "Applying project-based filter for project to match pipelines with project name as a substring",
                 project=project_names[0],
             )
-            filter_ = mlrun.utils.get_kfp_project_filter(project_name=project_names[0])
+            filter_ = mlrun.utils.get_kfp_list_runs_filter(
+                project_name=project_names[0]
+            )
         runs, next_page_token = self._paginate_runs(
             kfp_client, page_token, page_size, sort_by, filter_
         )
@@ -366,11 +369,16 @@ class Pipelines(
 
     @staticmethod
     def initialize_kfp_client(namespace: typing.Optional[str] = None):
-        return mlrun_pipelines.utils.get_client(mlrun.mlconf.kfp_url, namespace)
+        if namespace is None:
+            namespace = mlrun.mlconf.namespace
+        return mlrun_pipelines.utils.get_client(
+            url=mlrun.mlconf.kfp_url,
+            namespace=namespace,
+        )
 
     def _paginate_runs(
         self,
-        kfp_client: mlrun_pipelines.imports.kfp.Client,
+        kfp_client: mlrun_pipelines.client.Client,
         page_token: typing.Optional[str] = None,
         page_size: typing.Optional[int] = None,
         sort_by: typing.Optional[str] = None,
@@ -406,7 +414,7 @@ class Pipelines(
 
     def _list_runs_from_kfp(
         self,
-        kfp_client: mlrun_pipelines.imports.kfp.Client,
+        kfp_client: mlrun_pipelines.client.Client,
         page_token: typing.Optional[str] = None,
         page_size: typing.Optional[int] = None,
         sort_by: typing.Optional[str] = None,
@@ -437,7 +445,7 @@ class Pipelines(
         self,
         runs: list[dict],
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: mlrun_pipelines.imports.kfp.Client = None,
+        kfp_client: mlrun_pipelines.client.Client = None,
     ) -> list[dict]:
         formatted_runs = []
         for run in runs:
@@ -448,7 +456,7 @@ class Pipelines(
         self,
         run: mlrun_pipelines.models.PipelineRun,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: mlrun_pipelines.imports.kfp.Client = None,
+        kfp_client: mlrun_pipelines.client.Client = None,
     ) -> dict:
         run.project = self.resolve_project_from_pipeline(run)
         if kfp_client:

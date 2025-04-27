@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
 import logging
 from pathlib import Path
-from typing import Any
 from unittest.mock import Mock
 
 import pandas as pd
@@ -23,7 +21,6 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-import mlrun.artifacts.manager
 import mlrun.common.model_monitoring.helpers
 import mlrun.model_monitoring.applications
 import mlrun.model_monitoring.applications.context as mm_context
@@ -38,32 +35,28 @@ from mlrun.model_monitoring.applications.histogram_data_drift import (
     InvalidMetricValueError,
     InvalidThresholdValueError,
 )
-from mlrun.utils import Logger
 
 assets_folder = Path(__file__).parent / "assets"
 
 
 @pytest.fixture
+def project(tmp_path: Path) -> mlrun.MlrunProject:
+    project = mlrun.get_or_create_project("temp")
+    project.artifact_path = str(tmp_path)
+    return project
+
+
+@pytest.fixture
 def application() -> HistogramDataDriftApplication:
-    app = HistogramDataDriftApplication()
+    app = HistogramDataDriftApplication(
+        produce_json_artifact=True, produce_plotly_artifact=True
+    )
     return app
 
 
 @pytest.fixture
 def logger() -> mlrun.utils.Logger:
-    return mlrun.utils.Logger(level=logging.DEBUG, name=__name__)
-
-
-@pytest.fixture
-def monitoring_context() -> Mock:
-    mock_monitoring_context = Mock(spec=mm_context.MonitoringApplicationContext)
-    mock_monitoring_context.log_stream = Logger(
-        name="test_data_drift_app", level=logging.DEBUG
-    )
-    mock_monitoring_context._artifacts_manager = Mock(
-        spec=mlrun.artifacts.manager.ArtifactManager
-    )
-    return mock_monitoring_context
+    return mlrun.utils.Logger(level=logging.DEBUG, name="test_histogram_data_drift_app")
 
 
 class TestDataDriftClassifier:
@@ -177,40 +170,34 @@ class TestApplication:
 
     @staticmethod
     @pytest.fixture
-    def application_kwargs(
+    def monitoring_context(
         sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
         feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
         application: HistogramDataDriftApplication,
-        monitoring_context: Mock,
         logger: mlrun.utils.Logger,
-    ) -> dict[str, Any]:
-        kwargs = {}
-        kwargs["monitoring_context"] = monitoring_context
-        monitoring_context.application_name = application.NAME
-        monitoring_context.sample_df_stats = sample_df_stats
-        monitoring_context.feature_stats = feature_stats
-        monitoring_context.sample_df = Mock(spec=pd.DataFrame)
-        monitoring_context.start_infer_time = Mock(spec=pd.Timestamp)
-        monitoring_context.end_infer_time = Mock(spec=pd.Timestamp)
-        monitoring_context.latest_request = Mock(spec=pd.Timestamp)
-        monitoring_context.endpoint_id = Mock(spec=str)
-        monitoring_context.dict_to_histogram = (
-            mm_context.MonitoringApplicationContext.dict_to_histogram
+        project: mlrun.MlrunProject,
+    ) -> mm_context.MonitoringApplicationContext:
+        monitoring_context = mm_context.MonitoringApplicationContext(
+            application_name=application.NAME,
+            event={},
+            artifacts_logger=project,
+            logger=logger,
+            project=project,
+            nuclio_logger=logger,  # the wrong type but works here
         )
-        monitoring_context.logger = logger
-        assert (
-            kwargs.keys()
-            == inspect.signature(application.do_tracking).parameters.keys()
-        )
-        return kwargs
+        monitoring_context._sample_df_stats = sample_df_stats
+        monitoring_context._feature_stats = feature_stats
+
+        return monitoring_context
 
     @classmethod
     def test(
         cls,
         application: HistogramDataDriftApplication,
-        application_kwargs: dict[str, Any],
+        monitoring_context: mm_context.MonitoringApplicationContext,
+        project: mlrun.MlrunProject,
     ) -> None:
-        results = application.do_tracking(**application_kwargs)
+        results = application.do_tracking(monitoring_context)
         metrics = []
         assert len(results) == 6, "Expected four results & metrics % stats"
         for res in results:
@@ -233,6 +220,16 @@ class TestApplication:
             ):
                 metrics.append(res)
         assert len(metrics) == 3, "Expected three metrics"
+
+        # Check the artifacts
+        assert project._artifact_manager.artifact_uris.keys() == {
+            "features_drift_results",
+            "drift_table_plot",
+        }, "The artifacts in the artifact manager are different than expected"
+        assert {f.name for f in Path(project.artifact_path).glob("*")} == {
+            "drift_table_plot.html",
+            "features_drift_results.json",
+        }, "The artifact files were not found or are different than expected"
 
 
 class TestMetricsPerFeature:

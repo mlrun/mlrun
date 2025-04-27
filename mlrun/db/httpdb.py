@@ -937,7 +937,7 @@ class HTTPRunDB(RunDBInterface):
 
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run, or a list of run UIDs.
-        :param project: Project that the runs belongs to.
+        :param project: Project that the runs belongs to. If not specified, the default project will be used.
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
             or `{"label": None}` to check for key existence.
@@ -3584,7 +3584,7 @@ class HTTPRunDB(RunDBInterface):
         params = {
             "type": type,
             "endpoint-id": endpoint_ids,
-            "events_format": events_format,
+            "events-format": events_format,
         }
         error_message = (
             f"Failed to get model monitoring metrics,"
@@ -3720,7 +3720,7 @@ class HTTPRunDB(RunDBInterface):
             path=path,
             body=model_endpoint.json(),
             params={
-                "creation_strategy": creation_strategy,
+                "creation-strategy": creation_strategy,
             },
         )
         return mlrun.common.schemas.ModelEndpoint(**response.json())
@@ -3750,9 +3750,9 @@ class HTTPRunDB(RunDBInterface):
             method=mlrun.common.types.HTTPMethod.DELETE,
             path=path,
             params={
-                "function_name": function_name,
-                "function_tag": function_tag,
-                "endpoint_id": endpoint_id,
+                "function-name": function_name,
+                "function-tag": function_tag,
+                "endpoint-id": endpoint_id,
             },
         )
 
@@ -3768,6 +3768,7 @@ class HTTPRunDB(RunDBInterface):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
@@ -3785,6 +3786,9 @@ class HTTPRunDB(RunDBInterface):
         :param start:           The start time to filter by.Corresponding to the `created` field.
         :param end:             The end time to filter by. Corresponding to the `created` field.
         :param tsdb_metrics:    Whether to include metrics from the time series DB.
+        :param metric_list:     List of metrics to include from the time series DB. Defaults to all metrics.
+                                If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                will be included.
         :param top_level:       Whether to return only top level model endpoints.
         :param uids:            A list of unique ids to filter by.
         :param latest_only:     Whether to return only the latest model endpoint version.
@@ -3799,17 +3803,18 @@ class HTTPRunDB(RunDBInterface):
             path=path,
             params={
                 "name": names,
-                "model_name": model_name,
-                "model_tag": model_tag,
-                "function_name": function_name,
-                "function_tag": function_tag,
+                "model-name": model_name,
+                "model-tag": model_tag,
+                "function-name": function_name,
+                "function-tag": function_tag,
                 "label": labels,
                 "start": datetime_to_iso(start),
                 "end": datetime_to_iso(end),
-                "tsdb_metrics": tsdb_metrics,
+                "tsdb-metrics": tsdb_metrics,
+                "metric": metric_list,
                 "top-level": top_level,
                 "uid": uids,
-                "latest_only": latest_only,
+                "latest-only": latest_only,
             },
         )
 
@@ -3823,6 +3828,7 @@ class HTTPRunDB(RunDBInterface):
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
@@ -3834,6 +3840,9 @@ class HTTPRunDB(RunDBInterface):
         :param function_tag:               The tag of the function
         :param endpoint_id:                The id of the endpoint
         :param tsdb_metrics:               Whether to include metrics from the time series DB.
+        :param metric_list:                List of metrics to include from the time series DB. Defaults to all metrics.
+                                           If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                           will be included.
         :param feature_analysis:           Whether to include feature analysis data (feature_stats,
                                             current_stats & drift_measures).
 
@@ -3847,11 +3856,12 @@ class HTTPRunDB(RunDBInterface):
             method=mlrun.common.types.HTTPMethod.GET,
             path=path,
             params={
-                "function_name": function_name,
-                "function_tag": function_tag,
-                "endpoint_id": endpoint_id,
-                "tsdb_metrics": tsdb_metrics,
-                "feature_analysis": feature_analysis,
+                "function-name": function_name,
+                "function-tag": function_tag,
+                "endpoint-id": endpoint_id,
+                "tsdb-metrics": tsdb_metrics,
+                "metric": metric_list,
+                "feature-analysis": feature_analysis,
             },
         )
 
@@ -3879,8 +3889,8 @@ class HTTPRunDB(RunDBInterface):
         attributes_keys = list(attributes.keys())
         attributes["name"] = name
         attributes["project"] = project
-        attributes["function_name"] = function_name or None
-        attributes["function_tag"] = function_tag or None
+        attributes["function-name"] = function_name or None
+        attributes["function-tag"] = function_tag or None
         attributes["uid"] = endpoint_id or None
         model_endpoint = mlrun.common.schemas.ModelEndpoint.from_flat_dict(attributes)
         path = f"projects/{project}/model-endpoints"

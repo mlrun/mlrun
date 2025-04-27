@@ -45,21 +45,19 @@ def pipeline(label_column: str, test_size=0.2):
     # Ingest the data set
     ingest = mlrun.run_function(
         'get-data',
-        handler='prep_data',
         params={'label_column': label_column},
-        outputs=[\"iris_dataset\"]
+        returns=[\"iris_dataset\", \"prep_data\"]
     )
     
     # Train a model   
     train = mlrun.run_function(
         \"train-model\",
-        handler=\"train_model\",
         inputs={\"dataset\": ingest.outputs[\"iris_dataset\"]},
         params={
             \"label_column\": label_column,
             \"test_size\" : test_size
         },
-        outputs=['model']
+        returns=[\"model\", \"train_model\"]
     )
     
     # Deploy the model as a serverless function

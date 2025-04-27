@@ -3113,6 +3113,16 @@ class SQLDB(DBInterface):
                 project=project,
             )
 
+        total_deleted = SQLDB._delete_table_in_chunks(session, main_table, where_clause)
+        logger.debug(
+            "Completed deletion",
+            deletions_count=total_deleted,
+            main_table=main_table,
+            project=project,
+            main_table_identifier=main_table_identifier,
+        )
+        '''
+        original code that was here :
         query = session.query(main_table).filter(where_clause)
         deletions_count = query.delete(synchronize_session=False)
         log_kwargs = {
@@ -3124,6 +3134,56 @@ class SQLDB(DBInterface):
         logger.debug("Removed rows from table", **log_kwargs)
         session.commit()
         return deletions_count
+        '''
+        return total_deleted
+
+    @staticmethod
+    def _delete_table_in_chunks(session: Session, table:mlrun.utils.db.BaseModel, where_clause,) -> int:
+        """
+        Delete rows from a table in chunks based on ID ordering.
+        :param session: SQLAlchemy session.
+        :param table: SQLAlchemy ORM model/table to delete from.
+        :param where_clause: SQLAlchemy WHERE clause.
+        :param batch_size: Number of rows to delete per chunk.
+        :return: Total number of deleted rows.
+        """
+        last_id = 0
+        total_deleted = 0
+        batch_size = mlrun.mlconf.artifacts.limits.deletion_batch_size
+
+        # Assume id exists and is a numeric, increasing primary key
+        while True:
+            ids_to_delete = (
+                session.query(table.id)
+                .filter(where_clause, table.id > last_id)
+                .order_by(table.id)
+                .limit(batch_size)
+                .all()
+            )
+
+            if not ids_to_delete:
+                break
+
+            id_values = [row.id for row in ids_to_delete]
+
+            delete_stmt = (
+                delete(table)
+                .where(table.id.in_(id_values))
+                .execution_options(synchronize_session=False)
+            )
+            result = session.execute(delete_stmt)
+            session.commit()
+
+            last_id = id_values[-1]
+            total_deleted += result.rowcount
+
+            logger.debug(
+                "Deleted batch from table",
+                batch_size=len(id_values),
+                total_deleted=total_deleted,
+                table=table,
+            )
+        return total_deleted
 
     def _get_schedule_record(
         self, session: Session, project: str, name: str, raise_on_not_found: bool = True

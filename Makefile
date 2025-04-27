@@ -139,16 +139,6 @@ MLRUN_UV_UPGRADE_FLAG ?= --upgrade
 help: ## Display available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: show-coverage
-show-coverage:
-	@MY_VAR="some_value" && \
-	if [ "$$MY_VAR" = "some_value" ]; then \
-		echo "MY_VAR is set to some_value"; \
-	else \
-		echo "MY_VAR is not some_value"; \
-		exit 1; \
-	fi
-
 
 .PHONY: all
 all:

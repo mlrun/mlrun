@@ -1651,75 +1651,19 @@ class DummySession:
         self,
         method: str,
         str_or_url: StrOrURL,
-        *,
-        params: Query = None,
-        data: Any = None,
-        json: Any = None,
-        cookies: Optional[LooseCookies] = None,
-        headers: Optional[LooseHeaders] = None,
-        skip_auto_headers: Optional[Iterable[str]] = None,
-        auth: Optional[BasicAuth] = None,
-        allow_redirects: bool = True,
-        max_redirects: int = 10,
-        compress: Union[str, bool, None] = None,
-        chunked: Optional[bool] = None,
-        expect100: bool = False,
-        raise_for_status: Union[
-            None, bool, Callable[[ClientResponse], Awaitable[None]]
-        ] = None,
-        read_until_eof: bool = True,
-        proxy: Optional[StrOrURL] = None,
-        proxy_auth: Optional[BasicAuth] = None,
-        timeout: Union[ClientTimeout, _SENTINEL] = sentinel,
-        verify_ssl: Optional[bool] = None,
-        fingerprint: Optional[bytes] = None,
-        ssl_context: Optional[SSLContext] = None,
-        ssl: Union[SSLContext, bool, Fingerprint] = True,
-        server_hostname: Optional[str] = None,
-        proxy_headers: Optional[LooseHeaders] = None,
-        trace_request_ctx: Optional[Mapping[str, Any]] = None,
-        read_bufsize: Optional[int] = None,
-        auto_decompress: Optional[bool] = None,
-        max_line_size: Optional[int] = None,
-        max_field_size: Optional[int] = None,
+        **kwargs: Any,
     ) -> DummyResponse:
-        if data is not None and json is not None:
+        if kwargs.get('data') is not None and kwargs.get('json') is not None:
             raise ValueError(
                 "data and json parameters can not be used at the same time"
             )
-        elif json is not None:
-            data = self._json_serialize(json)
+        elif kwargs['json'] is not None:
+            data = self._json_serialize(kwargs['json'])
         self.request_args = {
             "method": method,
             "url": str_or_url,
-            "params": params,
             "data": data,
-            "json": json,
-            "cookies": cookies,
-            "headers": headers,
-            "skip_auto_headers": skip_auto_headers,
-            "auth": auth,
-            "allow_redirects": allow_redirects,
-            "max_redirects": max_redirects,
-            "compress": compress,
-            "chunked": chunked,
-            "expect100": expect100,
-            "raise_for_status": raise_for_status,
-            "read_until_eof": read_until_eof,
-            "proxy": proxy,
-            "proxy_auth": proxy_auth,
-            "timeout": timeout,
-            "verify_ssl": verify_ssl,
-            "fingerprint": fingerprint,
-            "ssl_context": ssl_context,
-            "ssl": ssl,
-            "server_hostname": server_hostname,
-            "proxy_headers": proxy_headers,
-            "trace_request_ctx": trace_request_ctx,
-            "read_bufsize": read_bufsize,
-            "auto_decompress": auto_decompress,
-            "max_line_size": max_line_size,
-            "max_field_size": max_field_size,
+            **kwargs,
         }
 
 

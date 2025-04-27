@@ -690,10 +690,10 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         }
         self._registered_artifacts = {}
 
-        # Get the model artifact. If the model was logged during this run, use the cached artifact, otherwise use the
+        # Get the model artifact. If the model was logged during this run, use the artifact, otherwise use the
         # user's given model path:
         model_artifact = (
-            self._context.get_cached_artifact(self._model_name)
+            self._context.get_artifact(self._model_name)
             if self._is_logged
             else self._model_path
         )

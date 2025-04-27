@@ -15,15 +15,19 @@
 import asyncio
 import builtins
 import unittest.mock
+from collections.abc import Awaitable, Iterable, Mapping
 from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Optional
+from ssl import SSLContext
+from typing import Any, Callable, Optional, Union
 
 import aiohttp
-import orjson
 import pytest
 import tabulate
+from aiohttp import BasicAuth, ClientResponse, ClientTimeout, Fingerprint
+from aiohttp.helpers import _SENTINEL, sentinel
+from aiohttp.typedefs import LooseCookies, LooseHeaders, Query, StrOrURL
 
 import mlrun.common.runtimes.constants as runtimes_constants
 import mlrun.common.schemas
@@ -560,12 +564,10 @@ async def test_webhook_override_body_job_succeed(monkeypatch, override_body):
     await mlrun.utils.notifications.notification.webhook.WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
     ).push("test-message", "info", [run])
-    expected_body = orjson.dumps(
-        {
-            "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
-            "'status': {'state': 'completed', 'results': {'return': 1}}, 'host': 'func-func-8lvl8'}]"
-        }
-    ).decode()
+    expected_body = {
+        "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
+        "'status': {'state': 'completed', 'results': {'return': 1}}, 'host': 'func-func-8lvl8'}]"
+    }
     requests_mock.assert_called_once_with(
         "http://test.com", headers={}, json=expected_body, ssl=None
     )
@@ -621,12 +623,10 @@ async def test_webhook_override_body_job_failed(monkeypatch, override_body):
     await mlrun.utils.notifications.notification.webhook.WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
     ).push("test-message", "info", [run])
-    expected_body = orjson.dumps(
-        {
-            "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
-            "'status': {'state': 'error', 'error': 'some_error'}, 'host': 'func-func-8lvl8'}]"
-        }
-    ).decode()
+    expected_body = {
+        "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
+        "'status': {'state': 'error', 'error': 'some_error'}, 'host': 'func-func-8lvl8'}]"
+    }
     requests_mock.assert_called_once_with(
         "http://test.com", headers={}, json=expected_body, ssl=None
     )
@@ -844,17 +844,11 @@ async def test_webhook_notification(monkeypatch, test_method):
     requests_mock.assert_called_once_with(
         test_url,
         headers=test_headers,
-        json=orjson.dumps(
-            {
-                "message": test_message,
-                "severity": test_severity,
-                "runs": test_runs_info,
-            },
-            option=orjson.OPT_NAIVE_UTC
-            | orjson.OPT_SERIALIZE_NUMPY
-            | orjson.OPT_NON_STR_KEYS
-            | orjson.OPT_SORT_KEYS,
-        ).decode(),
+        json={
+            "message": test_message,
+            "severity": test_severity,
+            "runs": test_runs_info,
+        },
         ssl=None,
     )
 
@@ -865,13 +859,7 @@ async def test_webhook_notification(monkeypatch, test_method):
     requests_mock.assert_called_with(
         test_url,
         headers=test_headers,
-        json=orjson.dumps(
-            test_override_body,
-            option=orjson.OPT_NAIVE_UTC
-            | orjson.OPT_SERIALIZE_NUMPY
-            | orjson.OPT_NON_STR_KEYS
-            | orjson.OPT_SORT_KEYS,
-        ).decode(),
+        json=test_override_body,
         ssl=None,
     )
 
@@ -1623,8 +1611,9 @@ class DummyResponse:
 
 
 class DummySession:
-    def __init__(self) -> None:
+    def __init__(self, json_serialize: Callable) -> None:
         self.request_args: Optional[dict[str, Any]] = None
+        self._json_serialize = json_serialize
 
     async def post(
         self,
@@ -1633,13 +1622,13 @@ class DummySession:
         json: Any = None,
         ssl: Optional[bool] = None,
     ) -> DummyResponse:
-        self.request_args = {
-            "method": "post",
-            "url": url,
-            "headers": headers,
-            "json": json,
-            "ssl": ssl,
-        }
+        await self._request(
+            "post",
+            url,
+            headers=headers,
+            json=json,
+            ssl=ssl,
+        )
         return DummyResponse()
 
     async def put(
@@ -1649,21 +1638,96 @@ class DummySession:
         json: Any = None,
         ssl: Optional[bool] = None,
     ) -> DummyResponse:
-        self.request_args = {
-            "method": "put",
-            "url": url,
-            "headers": headers,
-            "json": json,
-            "ssl": ssl,
-        }
+        await self._request(
+            "put",
+            url,
+            headers=headers,
+            json=json,
+            ssl=ssl,
+        )
         return DummyResponse()
+
+    async def _request(
+        self,
+        method: str,
+        str_or_url: StrOrURL,
+        *,
+        params: Query = None,
+        data: Any = None,
+        json: Any = None,
+        cookies: Optional[LooseCookies] = None,
+        headers: Optional[LooseHeaders] = None,
+        skip_auto_headers: Optional[Iterable[str]] = None,
+        auth: Optional[BasicAuth] = None,
+        allow_redirects: bool = True,
+        max_redirects: int = 10,
+        compress: Union[str, bool, None] = None,
+        chunked: Optional[bool] = None,
+        expect100: bool = False,
+        raise_for_status: Union[
+            None, bool, Callable[[ClientResponse], Awaitable[None]]
+        ] = None,
+        read_until_eof: bool = True,
+        proxy: Optional[StrOrURL] = None,
+        proxy_auth: Optional[BasicAuth] = None,
+        timeout: Union[ClientTimeout, _SENTINEL] = sentinel,
+        verify_ssl: Optional[bool] = None,
+        fingerprint: Optional[bytes] = None,
+        ssl_context: Optional[SSLContext] = None,
+        ssl: Union[SSLContext, bool, Fingerprint] = True,
+        server_hostname: Optional[str] = None,
+        proxy_headers: Optional[LooseHeaders] = None,
+        trace_request_ctx: Optional[Mapping[str, Any]] = None,
+        read_bufsize: Optional[int] = None,
+        auto_decompress: Optional[bool] = None,
+        max_line_size: Optional[int] = None,
+        max_field_size: Optional[int] = None,
+    ) -> DummyResponse:
+        if data is not None and json is not None:
+            raise ValueError(
+                "data and json parameters can not be used at the same time"
+            )
+        elif json is not None:
+            data = self._json_serialize(json)
+        self.request_args = {
+            "method": method,
+            "url": str_or_url,
+            "params": params,
+            "data": data,
+            "json": json,
+            "cookies": cookies,
+            "headers": headers,
+            "skip_auto_headers": skip_auto_headers,
+            "auth": auth,
+            "allow_redirects": allow_redirects,
+            "max_redirects": max_redirects,
+            "compress": compress,
+            "chunked": chunked,
+            "expect100": expect100,
+            "raise_for_status": raise_for_status,
+            "read_until_eof": read_until_eof,
+            "proxy": proxy,
+            "proxy_auth": proxy_auth,
+            "timeout": timeout,
+            "verify_ssl": verify_ssl,
+            "fingerprint": fingerprint,
+            "ssl_context": ssl_context,
+            "ssl": ssl,
+            "server_hostname": server_hostname,
+            "proxy_headers": proxy_headers,
+            "trace_request_ctx": trace_request_ctx,
+            "read_bufsize": read_bufsize,
+            "auto_decompress": auto_decompress,
+            "max_line_size": max_line_size,
+            "max_field_size": max_field_size,
+        }
 
 
 class DummySessionContext:
     dummy_session_holder: dict[str, DummySession] = {}
 
-    def __init__(self) -> None:
-        self._session = DummySession()
+    def __init__(self, json_serialize: Callable) -> None:
+        self._session = DummySession(json_serialize)
 
     async def __aenter__(self) -> DummySession:
         self.dummy_session_holder["session"] = self._session
@@ -1766,7 +1830,8 @@ async def test_push_full_payload(client_session: Any) -> None:
     assert args["url"] == "https://example.com/hook"
     assert args["headers"] == {"H": "v"}
 
-    payload = orjson.loads(args["json"])
+    payload = args["json"]
+
     assert payload["message"] == "hello"
     assert payload["severity"] == alert.severity
     assert payload["runs"] == runs
@@ -1777,6 +1842,8 @@ async def test_push_full_payload(client_session: Any) -> None:
     assert payload["id"] == "id1"
     assert payload["custom_html"] == custom_html
     assert args["ssl"] is None
+    raw_data = args["data"]
+    assert raw_data == notif._encoder(payload)
 
 
 @pytest.mark.asyncio
@@ -1791,10 +1858,7 @@ async def test_override_list_passthrough(client_session: Any) -> None:
     )
     await notif.push("ignored")
     session = DummySessionContext.dummy_session_holder["session"]
-    assert (
-        session.request_args
-        and orjson.loads(session.request_args["json"]) == override_body
-    )
+    assert session.request_args and session.request_args["json"] == override_body
 
 
 @pytest.mark.asyncio
@@ -1805,7 +1869,7 @@ async def test_override_list_passthrough(client_session: Any) -> None:
             {"dict": {"x": datetime(2025, 1, 1, 0, 0, 0)}},
             None,
             "dict",
-            {"x": "2025-01-01T00:00:00+00:00"},
+            {"x": datetime(2025, 1, 1, 0, 0, 0)},
         ),
         ({"float": 1.23}, None, "float", 1.23),
         ({"bool": True}, None, "bool", True),
@@ -1829,7 +1893,7 @@ async def test_override_values(
     )
     await notif.push("ignored", runs=runs)
     sent = DummySessionContext.dummy_session_holder["session"].request_args["json"]
-    assert orjson.loads(sent)[key] == expected
+    assert sent[key] == expected
 
 
 @pytest.mark.asyncio

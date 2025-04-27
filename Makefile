@@ -63,7 +63,8 @@ else
 endif
 
 SETUP_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
-	case "$(COVERAGE_FILE)" in *.coverage) \
+	echo "coverage file: $$COVERAGE_FILE"; \
+	case "$$COVERAGE_FILE" in *.coverage) \
 		rm -rf $$COVERAGE_FILE && \
 		mkdir -p $$(dirname $$COVERAGE_FILE) ;\
 		;; \
@@ -81,7 +82,7 @@ PRINT_COVERAGE_REPORT = if [ "$(RUN_COVERAGE)" = "true" ]; then \
 
 # Verify the mount point to avoid deleting essential paths
 SETUP_COVERAGE_MOUNTING = if [[ "$(RUN_COVERAGE)" == "true" ]]; then \
-		case "$(COVERAGE_MOUNT_PATH)" in /tmp/coverage_reports/*) \
+		case "$$COVERAGE_MOUNT_PATH" in /tmp/coverage_reports/*) \
 			rm -rf $$COVERAGE_MOUNT_PATH && \
 			mkdir -p $$COVERAGE_MOUNT_PATH; \
 			;; \
@@ -138,6 +139,17 @@ MLRUN_UV_UPGRADE_FLAG ?= --upgrade
 .PHONY: help
 help: ## Display available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+.PHONY: show-coverage
+show-coverage:
+	@MY_VAR="some_value" && \
+	if [ "$$MY_VAR" = "some_value" ]; then \
+		echo "MY_VAR is set to some_value"; \
+	else \
+		echo "MY_VAR is not some_value"; \
+		exit 1; \
+	fi
+
 
 .PHONY: all
 all:
@@ -613,6 +625,7 @@ test: clean ## Run mlrun tests
 	else \
 		IGNORE_ADDITION=""; \
 	fi; \
+	COVERAGE_FILE=$(COVERAGE_FILE); \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/unit_tests.coverage"}; \
 	$(SETUP_COVERAGE) \
 	python \
@@ -649,7 +662,8 @@ test-integration-dockerized: build-test ## Run mlrun integration tests in docker
 .PHONY: test-integration
 test-integration: clean ## Run mlrun integration tests
 	set -e; \
-	COVERAGE_FILE=tests/coverage_reports/integration_tests.coverage; \
+	COVERAGE_FILE=$(COVERAGE_FILE); \
+	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/integration_tests.coverage"}; \
 	$(SETUP_COVERAGE) \
 	python $(COVERAGE_ADDITION) \
 		-m pytest -v \
@@ -678,7 +692,8 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 
 .PHONY: test-migrations
 test-migrations: clean ## Run mlrun db migrations tests
-	COVERAGE_FILE=tests/coverage_reports/migration_tests.coverage; \
+	COVERAGE_FILE=$(COVERAGE_FILE); \
+	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/migration_tests.coverage"}; \
 	$(SETUP_COVERAGE) \
 	COVERAGE_ADDITION="$(COVERAGE_ADDITION)" ./automation/scripts/test_migration_mysql.sh ;\
 	$(PRINT_COVERAGE_REPORT)

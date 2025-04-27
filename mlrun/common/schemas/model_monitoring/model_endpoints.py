@@ -338,7 +338,7 @@ def _mapping_attributes(
             else:
                 dict_to_parse[field_key] = None
 
-    return model_class.parse_obj(dict_to_parse)
+    return model_class.construct(**dict_to_parse)
 
 
 def _json_loads_if_not_none(field: Any) -> Any:

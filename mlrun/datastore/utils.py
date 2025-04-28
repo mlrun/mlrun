@@ -270,7 +270,9 @@ class KafkaParameters:
         }
         if sasl := self._kwargs.get("sasl"):
             res |= {
-                "security_protocol": "SASL_PLAINTEXT",
+                "security_protocol": self._kwargs.get(
+                    "security_protocol", "SASL_PLAINTEXT"
+                ),
                 "sasl_mechanism": sasl["mechanism"],
                 "sasl_plain_username": sasl["user"],
                 "sasl_plain_password": sasl["password"],

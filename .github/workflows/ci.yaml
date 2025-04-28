@@ -225,7 +225,7 @@ jobs:
         fi
 
     - name: Test package
-      run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make test-package-dockerized
+      run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make test-package
 
   docs:
     name: Build Project Documentation

@@ -639,13 +639,6 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 		-m $(if $(MLRUN_SYSTEM_TEST_MARKERS),"$(MLRUN_SYSTEM_TEST_MARKERS)","not enterprise") \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
-.PHONY: test-package-dockerized
-test-package-dockerized: build-test ## Run mlrun package tests in docker container
-	docker run \
-		-t \
-		--rm \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-package
-
 .PHONY: test-package compile-schemas
 test-package: ## Run mlrun package tests
 	python ./automation/package_test/test.py run

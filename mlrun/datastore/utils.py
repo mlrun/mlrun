@@ -246,6 +246,8 @@ class KafkaParameters:
             "partitions": "",
             "sasl": "",
             "worker_allocation_mode": "",
+            "tls_enable": "",  # for Nuclio with Confluent Kafka (Sarama client)
+            "tls": "",
         }
         self._reference_dicts = (
             self._custom_attributes,

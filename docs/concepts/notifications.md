@@ -158,7 +158,7 @@ project.run(..., notifications=[notification])
 ```
 
 ### Running notifications
-MLRun can also send a `pipeline started` notification. To do that, configure a notification that includes
+MLRun can also send a `pipeline started` notification for KFP pipelines (and not for job runs). To do that, configure a notification that includes
 `when=running`. The `pipeline started` notification uses its own parameters, for
 example the webhook, credentials, etc., for the notification message.
 You can set only the webhook; the message is the default message.

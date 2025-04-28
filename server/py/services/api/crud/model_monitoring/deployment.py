@@ -375,11 +375,11 @@ class MonitoringDeployment:
             group=kafka_profile.group,
             initial_offset=kafka_profile.initial_offset,
             partitions=kafka_profile.partitions,
-            attributes=kafka_profile.attributes()
-            | {
+            attributes={
                 "max_workers": stream_args.kafka.num_workers,
                 "worker_allocation_mode": "static",
-            },
+            }
+            | kafka_profile.attributes(),
         )
         try:
             stream_source.create_topics(

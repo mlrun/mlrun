@@ -3113,7 +3113,10 @@ class SQLDB(DBInterface):
                 project=project,
             )
 
-        total_deleted = SQLDB._delete_table_in_chunks(session, main_table, where_clause)
+        total_deleted = SQLDB._delete_table_in_batches(
+            session, main_table, where_clause
+        )
+        # redundant log ?
         logger.debug(
             "Completed deletion",
             deletions_count=total_deleted,
@@ -3124,13 +3127,13 @@ class SQLDB(DBInterface):
         return total_deleted
 
     @staticmethod
-    def _delete_table_in_chunks(
+    def _delete_table_in_batches(
         session: Session,
         table: mlrun.utils.db.BaseModel,
         where_clause,
     ) -> int:
         """
-        Delete rows from a table in chunks based on ID ordering.
+        Delete rows from a table in batches based on ID ordering.
         :param session: SQLAlchemy session.
         :param table: SQLAlchemy ORM model/table to delete from.
         :param where_clause: SQLAlchemy WHERE clause.

@@ -3036,8 +3036,8 @@ class SQLDB(DBInterface):
             project=project,
         )
 
-    @staticmethod
     def _delete_multi_objects(
+        self,
         session: Session,
         main_table: mlrun.utils.db.BaseModel,
         project: str,
@@ -3113,11 +3113,8 @@ class SQLDB(DBInterface):
                 project=project,
             )
 
-        total_deleted = SQLDB._delete_table_in_batches(
-            session, main_table, where_clause
-        )
-        # redundant log ?
-        logger.debug(
+        total_deleted = self._delete_table_in_batches(session, main_table, where_clause)
+        logger.info(
             "Completed deletion",
             deletions_count=total_deleted,
             main_table=main_table,
@@ -3137,7 +3134,6 @@ class SQLDB(DBInterface):
         :param session: SQLAlchemy session.
         :param table: SQLAlchemy ORM model/table to delete from.
         :param where_clause: SQLAlchemy WHERE clause.
-        :param batch_size: Number of rows to delete per chunk.
         :return: Total number of deleted rows.
         """
         last_id = 0

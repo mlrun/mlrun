@@ -1306,11 +1306,23 @@ class TestArtifacts(TestDatabaseBase):
         mlrun.mlconf.artifacts.limits.deletion_batch_size = 5
 
         where_clause = ArtifactV2.project == project
-        deleted_count = SQLDB._delete_table_in_batches(
-            self._db_session,
-            ArtifactV2,
-            where_clause,
-        )
+
+        with unittest.mock.patch.object(
+            self._db_session, "execute", wraps=self._db_session.execute
+        ) as mock_execute:
+            deleted_count = SQLDB._delete_table_in_batches(
+                self._db_session,
+                ArtifactV2,
+                where_clause,
+            )
+            delete_calls = [
+                call
+                for call in mock_execute.call_args_list
+                if str(call[0][0]).startswith("DELETE")
+            ]
+            assert (
+                len(delete_calls) == 3
+            ), f"Expected 3 batch deletions, got {len(delete_calls)}"
 
         # Validate that all artifacts were deleted
         assert deleted_count == 15

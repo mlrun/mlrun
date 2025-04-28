@@ -169,7 +169,6 @@ default_config = {
             "max_preview_size": 1024 * 1024 * 10,  # 10MB
             "max_download_size": 1024 * 1024 * 100,  # 100MB
             "max_deletions": 200,
-            "deletion_batch_size": 10000,
         },
     },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
@@ -491,6 +490,7 @@ default_config = {
                 # Number of days back to include when calculating the project pipeline summary.
                 "list_pipelines_time_period_in_days": 7,
             },
+            "resource_deletion_batch_size": 10000,
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",

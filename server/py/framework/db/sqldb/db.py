@@ -3138,7 +3138,7 @@ class SQLDB(DBInterface):
         """
         last_id = 0
         total_deleted = 0
-        batch_size = mlrun.mlconf.artifacts.limits.deletion_batch_size
+        batch_size = mlrun.mlconf.httpdb.projects.resource_deletion_batch_size
 
         while True:
             ids_to_delete = (

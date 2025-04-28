@@ -1303,7 +1303,7 @@ class TestArtifacts(TestDatabaseBase):
         assert len(artifacts) == 15
 
         # Set small batch size to force batch deletion
-        mlrun.mlconf.artifacts.limits.deletion_batch_size = 5
+        mlrun.mlconf.httpdb.projects.resource_deletion_batch_size = 5
 
         where_clause = ArtifactV2.project == project
 

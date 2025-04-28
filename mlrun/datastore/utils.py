@@ -302,6 +302,15 @@ class KafkaParameters:
             res["handshake"] = self._kwargs.get("sasl_handshake", True)
         return res
 
+    def tls(self, *, tls_enable: typing.Optional[bool] = None) -> dict[str, bool]:
+        res = self._kwargs.get("tls", {})
+        tls_enable = (
+            tls_enable if tls_enable is not None else self._kwargs.get("tls_enable")
+        )
+        if tls_enable:
+            res["enable"] = tls_enable
+        return res
+
     def valid_entries_only(self, input_dict: dict) -> dict:
         valid_keys = set()
         for ref_dict in self._reference_dicts:

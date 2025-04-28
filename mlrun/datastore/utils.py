@@ -288,15 +288,16 @@ class KafkaParameters:
 
     def sasl(
         self, *, usr: typing.Optional[str] = None, pwd: typing.Optional[str] = None
-    ) -> dict:
-        usr = usr or self._kwargs.get("sasl_plain_username", None)
-        pwd = pwd or self._kwargs.get("sasl_plain_password", None)
+    ) -> dict[str, typing.Union[str, bool]]:
         res = self._kwargs.get("sasl", {})
+        usr = usr or self._kwargs.get("sasl_plain_username")
+        pwd = pwd or self._kwargs.get("sasl_plain_password")
         if usr and pwd:
             res["enable"] = True
             res["user"] = usr
             res["password"] = pwd
             res["mechanism"] = self._kwargs.get("sasl_mechanism", "PLAIN")
+            res["handshake"] = self._kwargs.get("sasl_handshake", True)
         return res
 
     def valid_entries_only(self, input_dict: dict) -> dict:

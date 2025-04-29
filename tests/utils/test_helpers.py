@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import asyncio
+import json
 import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
@@ -1465,3 +1466,122 @@ def test_datetime_from_iso(input_time, expected_output):
 )
 def test_format_datetime(dt, expected):
     assert mlrun.utils.helpers.format_datetime(dt) == expected
+
+
+@pytest.mark.parametrize(
+    "project_name, end_date, start_date, expected_filter",
+    [
+        # Specific project, end date only
+        (
+            "test-project",
+            "2024-11-05T15:30:00Z",
+            "",
+            json.dumps(
+                {
+                    "predicates": [
+                        {
+                            "key": "created_at",
+                            "op": 7,
+                            "timestamp_value": "2024-11-05T15:30:00Z",
+                        },
+                        {"key": "name", "op": 9, "string_value": "test-project"},
+                    ]
+                }
+            ),
+        ),
+        # Wildcard project, end date only
+        (
+            "*",
+            "2024-11-05T15:30:00Z",
+            "",
+            json.dumps(
+                {
+                    "predicates": [
+                        {
+                            "key": "created_at",
+                            "op": 7,
+                            "timestamp_value": "2024-11-05T15:30:00Z",
+                        },
+                    ]
+                }
+            ),
+        ),
+        # Specific project with both start and end dates
+        (
+            "test-project",
+            "2024-11-05T15:30:00Z",
+            "2024-10-01T00:00:00Z",
+            json.dumps(
+                {
+                    "predicates": [
+                        {
+                            "key": "created_at",
+                            "op": 7,
+                            "timestamp_value": "2024-11-05T15:30:00Z",
+                        },
+                        {"key": "name", "op": 9, "string_value": "test-project"},
+                        {
+                            "key": "created_at",
+                            "op": 5,
+                            "timestamp_value": "2024-10-01T00:00:00Z",
+                        },
+                    ]
+                }
+            ),
+        ),
+        # Wildcard project with both start and end dates
+        (
+            "*",
+            "2024-11-05T15:30:00Z",
+            "2024-10-01T00:00:00Z",
+            json.dumps(
+                {
+                    "predicates": [
+                        {
+                            "key": "created_at",
+                            "op": 7,
+                            "timestamp_value": "2024-11-05T15:30:00Z",
+                        },
+                        {
+                            "key": "created_at",
+                            "op": 5,
+                            "timestamp_value": "2024-10-01T00:00:00Z",
+                        },
+                    ]
+                }
+            ),
+        ),
+    ],
+)
+def test_get_list_runs_filter(project_name, end_date, start_date, expected_filter):
+    generated_filter = mlrun.utils.helpers.get_kfp_list_runs_filter(
+        project_name, end_date, start_date
+    )
+    assert json.loads(generated_filter) == json.loads(expected_filter)
+
+
+@pytest.mark.parametrize(
+    "date_input, expected_output, expectation",
+    [
+        # Valid date without timezone, assume UTC
+        ("2024-11-05T15:30:00", "2024-11-05T15:30:00Z", does_not_raise()),
+        # Valid date with UTC timezone
+        ("2024-11-05T15:30:00Z", "2024-11-05T15:30:00Z", does_not_raise()),
+        # Valid date with different timezone (convert to UTC)
+        ("2024-11-05T15:30:00+02:00", "2024-11-05T13:30:00Z", does_not_raise()),
+        # Valid date with timezone-aware string
+        ("2024-11-05T15:30:00-05:00", "2024-11-05T20:30:00Z", does_not_raise()),
+        # Date with timezone info but no time
+        ("2024-11-05", "2024-11-05T00:00:00Z", does_not_raise()),
+        ("2024/11/05T09:00", "2024-11-05T09:00:00Z", does_not_raise()),
+        # Invalid date format
+        ("invalid-date", "", pytest.raises(ValueError)),
+        # Overflow date (not a realistic timestamp)
+        ("9999-99-99T99:99:99Z", "", pytest.raises(ValueError)),
+    ],
+)
+def test_validate_and_convert_date(date_input, expected_output, expectation):
+    with expectation:
+        assert (
+            mlrun.utils.helpers.validate_and_convert_date(date_input) == expected_output
+        )

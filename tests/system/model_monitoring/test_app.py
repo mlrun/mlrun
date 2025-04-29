@@ -60,6 +60,7 @@ from mlrun.utils.v3io_clients import get_v3io_client
 from tests.system.base import TestMLRunSystem
 
 from . import TestMLRunSystemModelMonitoring
+from .assets import histogram_app_with_artifacts
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     CountApp,
@@ -96,7 +97,6 @@ _DefaultDataDriftAppData = _AppData(
     deploy=False,
     results={"general_drift"},
     metrics={"hellinger_mean", "kld_mean", "tvd_mean"},
-    artifacts={"features_drift_results"},
 )
 
 
@@ -147,7 +147,7 @@ class _V3IORecordsChecker:
             lr_tsdb = cls._tsdb_storage.get_last_request(endpoint_ids=ep_id)
             if isinstance(lr_tsdb, pd.DataFrame):
                 cls._check_valid_tsdb_result(
-                    lr_tsdb, ep_id, "last_request", last_request
+                    lr_tsdb, ep_id, "last_request", pd.Timestamp(last_request)
                 )
             else:
                 cls._check_last_request_dict(
@@ -167,19 +167,9 @@ class _V3IORecordsChecker:
         assert (
             df.endpoint_id == ep_id
         ).all(), "The endpoint IDs are different than expected"
-        if isinstance(result_value, datetime) or isinstance(result_value, pd.Timestamp):
-            # Note: We check for differences in time is less than 1 ms because this is the highest resolution we get
-            # from TDEngine
-            assert abs(
-                df[df["endpoint_id"] == ep_id][result_name].item() - result_value
-            ) < np.timedelta64(1, "ms"), (
-                f"The {result_name} is different than expected for {ep_id}, "
-                f"for timestamp we use TDEngine resolution that is 1 ms"
-            )
-        else:
-            assert (
-                df[df["endpoint_id"] == ep_id][result_name].item() == result_value
-            ), f"The {result_name} is different than expected for {ep_id}"
+        assert (
+            df[df["endpoint_id"] == ep_id][result_name].item() == result_value
+        ), f"The {result_name} is different than expected for {ep_id}"
 
     @classmethod
     def _check_last_request_dict(
@@ -601,15 +591,16 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 self._logger.debug("Checking app artifacts", app_name=app_name)
                 for key in app_data.artifacts:
                     self._logger.debug("Checking artifact existence", key=key)
-                    artifact = self.project.get_artifact(key)
-                    self._logger.debug("Checking artifact labels", key=key)
+                    artifact = self.project.get_artifact(f"{key}-{ep_id}")
+                    self._logger.debug("Checking artifact labels", key=f"{key}-{ep_id}")
                     assert {
                         "mlrun/producer-type": "model-monitoring-app",
                         "mlrun/app-name": app_name,
                         "mlrun/endpoint-id": ep_id,
                     }.items() <= artifact.labels.items()
                     self._logger.debug(
-                        "Test the artifact can be fetched from the store", key=key
+                        "Test the artifact can be fetched from the store",
+                        key=f"{key}-{ep_id}",
                     )
                     artifact.to_dataitem().get()
 
@@ -1425,8 +1416,8 @@ class TestAppJob(TestMLRunSystem):
         reference_data = pd.DataFrame({"a": [12, 13], "b": [3.12, 4.12]})
 
         # Call `.evaluate(...)`
-        run_result = HistogramDataDriftApplication.evaluate(
-            func_path=mlrun.model_monitoring.applications.histogram_data_drift.__file__,
+        run_result = histogram_app_with_artifacts.HistogramDataDriftApplicationWithArtifacts.evaluate(
+            func_path=histogram_app_with_artifacts.__file__,
             sample_data=sample_data,
             reference_data=reference_data,
             run_local=run_local,
@@ -1461,7 +1452,7 @@ class TestAppJob(TestMLRunSystem):
             2:4
         ], "The returned metrics are different than the expected ones"
         # Test the artifacts
-        for artifact_name in _DefaultDataDriftAppData.artifacts:
+        for artifact_name in {"features_drift_results", "drift_table_plot"}:
             assert run_result.output(
                 artifact_name
             ), f"The artifact '{artifact_name}' is not listed in the run's output"
@@ -1515,8 +1506,8 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
     def _setup_resources(self) -> None:
         self.set_mm_credentials()
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(self._deploy_model_serving)
             executor.submit(self._set_infra)
+            executor.submit(self._deploy_model_serving)
 
     @pytest.mark.parametrize("run_local", [False, True])
     def test_count_app(self, run_local: bool) -> None:
@@ -1561,8 +1552,7 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
         # To include the first request, make a small offset
         start = model_endpoint.status.first_request - timedelta(microseconds=1)
 
-        # Adjust the end time - ML-9067
-        end = model_endpoint.status.last_request + timedelta(milliseconds=3)
+        end = model_endpoint.status.last_request
 
         endpoints_params = [
             [(model_endpoint.metadata.name, model_endpoint.metadata.uid)],

@@ -577,13 +577,9 @@ class RemoteRuntime(KubeResource):
             access_key = self._resolve_v3io_access_key()
         engine = "sync"
         explicit_ack_mode = kwargs.pop("explicit_ack_mode", None)
-        if (
-            self.spec
-            and hasattr(self.spec, "graph")
-            and self.spec.graph
-            and self.spec.graph.engine
-        ):
-            engine = self.spec.graph.engine
+        if self.spec and hasattr(self.spec, "graph"):
+            engine = getattr(self.spec.graph, "engine", None) or engine
+
         if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
             explicit_ack_mode = explicit_ack_mode or "explicitOnly"
 
@@ -1004,7 +1000,7 @@ class RemoteRuntime(KubeResource):
             else:
                 http_client_kwargs["json"] = body
         try:
-            logger.info("Invoking function", method=method, path=path)
+            logger.debug("Invoking function", method=method, path=path)
             if not getattr(self, "_http_session", None):
                 self._http_session = requests.Session()
             resp = self._http_session.request(

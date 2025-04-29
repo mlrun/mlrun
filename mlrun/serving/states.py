@@ -415,15 +415,18 @@ class BaseStep(ModelObj):
         steps: list[Union[str, StepToDict, dict[str, Any]]],
         force: bool = False,
     ):
-        """set list of steps as downstream from this step, in the order specified. This will overwrite any existing
+        """
+        Set list of steps as downstream from this step, in the order specified. This will overwrite any existing
         downstream steps.
 
         :param steps: list of steps to follow this one
         :param force: whether to overwrite existing downstream steps. If False, this method will fail if any downstream
-        steps have already been defined. Defaults to False.
+                      steps have already been defined. Defaults to False.
+
         :return: the last step added to the flow
 
-        example:
+        example::
+
             The below code sets the downstream nodes of step1 by using a list of steps (provided to `set_flow()`) and a
             single step (provided to `to()`), resulting in the graph (step1 -> step2 -> step3 -> step4).
             Notice that using `force=True` is required in case step1 already had downstream nodes (e.g. if the existing
@@ -1833,7 +1836,7 @@ def params_to_step(
     class_args = class_args or {}
 
     if isinstance(class_name, QueueStep):
-        if not name or class_name.name:
+        if not (name or class_name.name):
             raise MLRunInvalidArgumentError("queue name must be specified")
 
         step = class_name
@@ -1854,7 +1857,11 @@ def params_to_step(
     elif class_name and hasattr(class_name, "to_dict"):
         struct = class_name.to_dict()
         kind = struct.get("kind", StepKinds.task)
-        name = name or struct.get("name", struct.get("class_name"))
+        name = (
+            name
+            or struct.get("name", struct.get("class_name"))
+            or class_name.to_dict(["name"]).get("name")
+        )
         cls = classes_map.get(kind, RootFlowStep)
         step = cls.from_dict(struct)
         step.function = function

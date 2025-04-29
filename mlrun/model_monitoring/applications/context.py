@@ -23,12 +23,13 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
 import mlrun.feature_store as fstore
+import mlrun.feature_store.feature_set as fs
 import mlrun.features
 import mlrun.serving
 import mlrun.utils
 from mlrun.artifacts import Artifact, DatasetArtifact, ModelArtifact, get_model
 from mlrun.common.model_monitoring.helpers import FeatureStats
-from mlrun.common.schemas import FeatureSet, ModelEndpoint
+from mlrun.common.schemas import ModelEndpoint
 from mlrun.model_monitoring.helpers import (
     calculate_inputs_statistics,
 )
@@ -41,7 +42,6 @@ class _ArtifactsLogger(Protocol):
 
     def log_artifact(self, *args, **kwargs) -> Artifact: ...
     def log_dataset(self, *args, **kwargs) -> DatasetArtifact: ...
-    def log_model(self, *args, **kwargs) -> ModelArtifact: ...
 
 
 class MonitoringApplicationContext:
@@ -59,7 +59,7 @@ class MonitoringApplicationContext:
         model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
         sample_df: Optional[pd.DataFrame] = None,
         feature_stats: Optional[FeatureStats] = None,
-        feature_sets_dict: Optional[dict[str, FeatureSet]] = None,
+        feature_sets_dict: Optional[dict[str, fs.FeatureSet]] = None,
     ) -> None:
         """
         The :code:`MonitoringApplicationContext` object holds all the relevant information for the
@@ -124,9 +124,13 @@ class MonitoringApplicationContext:
         self._model_endpoint: Optional[ModelEndpoint] = (
             model_endpoint_dict.get(self.endpoint_id) if model_endpoint_dict else None
         )
-        self._feature_set: Optional[FeatureSet] = (
+        self._feature_set: Optional[fs.FeatureSet] = (
             feature_sets_dict.get(self.endpoint_id) if feature_sets_dict else None
         )
+        store, _, _ = mlrun.store_manager.get_or_create_store(
+            mlrun.mlconf.artifact_path
+        )
+        self.storage_options = store.get_storage_options()
 
     @classmethod
     def _from_ml_ctx(
@@ -169,7 +173,7 @@ class MonitoringApplicationContext:
         model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
         sample_df: Optional[pd.DataFrame] = None,
         feature_stats: Optional[FeatureStats] = None,
-        feature_sets_dict: Optional[dict[str, FeatureSet]] = None,
+        feature_sets_dict: Optional[dict[str, fs.FeatureSet]] = None,
     ) -> "MonitoringApplicationContext":
         nuclio_logger = graph_context.logger
         artifacts_logger = graph_context.project_obj
@@ -192,13 +196,14 @@ class MonitoringApplicationContext:
         )
 
     def _get_default_labels(self) -> dict[str, str]:
-        return {
+        labels = {
             mlrun_constants.MLRunInternalLabels.runner_pod: socket.gethostname(),
             mlrun_constants.MLRunInternalLabels.producer_type: "model-monitoring-app",
             mlrun_constants.MLRunInternalLabels.app_name: self.application_name,
             mlrun_constants.MLRunInternalLabels.endpoint_id: self.endpoint_id,
             mlrun_constants.MLRunInternalLabels.endpoint_name: self.endpoint_name,
         }
+        return {key: value for key, value in labels.items() if value is not None}
 
     def _add_default_labels(self, labels: Optional[dict[str, str]]) -> dict[str, str]:
         """Add the default labels to logged artifacts labels"""
@@ -221,22 +226,13 @@ class MonitoringApplicationContext:
                     "You can either provide the sample dataframe directly, the model endpoint's details and times, "
                     "or adapt the application's logic to not access the sample dataframe."
                 )
-            feature_set = self.feature_set
-            features = [f"{feature_set.metadata.name}.*"]
-            vector = fstore.FeatureVector(
-                name=f"{self.endpoint_id}_vector",
-                features=features,
-                with_indexes=True,
-            )
-            vector.metadata.tag = self.application_name
-            vector.feature_set_objects = {feature_set.metadata.name: feature_set}
-
-            offline_response = vector.get_offline_features(
+            df = self.feature_set.to_dataframe(
                 start_time=self.start_infer_time,
                 end_time=self.end_infer_time,
-                timestamp_for_filtering=mm_constants.FeatureSetFeatures.time_stamp(),
+                time_column=mm_constants.EventFieldType.TIMESTAMP,
+                storage_options=self.storage_options,
             )
-            self._sample_df = offline_response.to_dataframe().reset_index(drop=True)
+            self._sample_df = df.reset_index(drop=True)
         return self._sample_df
 
     @property
@@ -259,7 +255,7 @@ class MonitoringApplicationContext:
         return self._model_endpoint
 
     @property
-    def feature_set(self) -> FeatureSet:
+    def feature_set(self) -> fs.FeatureSet:
         if not self._feature_set and self.model_endpoint:
             self._feature_set = fstore.get_feature_set(
                 self.model_endpoint.spec.monitoring_feature_set_uri
@@ -329,13 +325,31 @@ class MonitoringApplicationContext:
         upload: Optional[bool] = None,
         labels: Optional[dict[str, str]] = None,
         target_path: Optional[str] = None,
+        unique_per_endpoint: bool = True,
         **kwargs,
     ) -> Artifact:
         """
         Log an artifact.
-        See :func:`~mlrun.projects.MlrunProject.log_artifact` for the documentation.
+
+        .. caution::
+
+            Logging artifacts in every model monitoring window may cause scale issues.
+            This method should be called on special occasions only.
+
+        See :func:`~mlrun.projects.MlrunProject.log_artifact` for the full documentation, except for one
+        new argument:
+
+        :param unique_per_endpoint: by default ``True``, we will log different artifact for each model endpoint,
+                                    set to ``False`` without changing item key will cause artifact override.
         """
         labels = self._add_default_labels(labels)
+        # By default, we want to log different artifact for each model endpoint
+        endpoint_id = labels.get(mlrun_constants.MLRunInternalLabels.endpoint_id, "")
+        if unique_per_endpoint and isinstance(item, str):
+            item = f"{item}-{endpoint_id}" if endpoint_id else item
+        elif unique_per_endpoint:  # isinstance(item, Artifact) is True
+            item.key = f"{item.key}-{endpoint_id}" if endpoint_id else item.key
+
         return self._artifacts_logger.log_artifact(
             item,
             body=body,
@@ -364,13 +378,29 @@ class MonitoringApplicationContext:
         target_path="",
         extra_data=None,
         label_column: Optional[str] = None,
+        unique_per_endpoint: bool = True,
         **kwargs,
     ) -> DatasetArtifact:
         """
         Log a dataset artifact.
-        See :func:`~mlrun.projects.MlrunProject.log_dataset` for the documentation.
+
+        .. caution::
+
+            Logging datasets in every model monitoring window may cause scale issues.
+            This method should be called on special occasions only.
+
+        See :func:`~mlrun.projects.MlrunProject.log_dataset` for the full documentation, except for one
+        new argument:
+
+        :param unique_per_endpoint: by default ``True``, we will log different artifact for each model endpoint,
+                                    set to ``False`` without changing item key will cause artifact override.
         """
         labels = self._add_default_labels(labels)
+        # By default, we want to log different artifact for each model endpoint
+        endpoint_id = labels.get(mlrun_constants.MLRunInternalLabels.endpoint_id, "")
+        if unique_per_endpoint and isinstance(key, str):
+            key = f"{key}-{endpoint_id}" if endpoint_id else key
+
         return self._artifacts_logger.log_dataset(
             key,
             df,
@@ -385,56 +415,5 @@ class MonitoringApplicationContext:
             target_path=target_path,
             extra_data=extra_data,
             label_column=label_column,
-            **kwargs,
-        )
-
-    def log_model(
-        self,
-        key,
-        body=None,
-        framework="",
-        tag="",
-        model_dir=None,
-        model_file=None,
-        algorithm=None,
-        metrics=None,
-        parameters=None,
-        artifact_path=None,
-        upload=None,
-        labels=None,
-        inputs: Optional[list[mlrun.features.Feature]] = None,
-        outputs: Optional[list[mlrun.features.Feature]] = None,
-        feature_vector: Optional[str] = None,
-        feature_weights: Optional[list] = None,
-        training_set=None,
-        label_column=None,
-        extra_data=None,
-        **kwargs,
-    ) -> ModelArtifact:
-        """
-        Log a model artifact.
-        See :func:`~mlrun.projects.MlrunProject.log_model` for the documentation.
-        """
-        labels = self._add_default_labels(labels)
-        return self._artifacts_logger.log_model(
-            key,
-            body=body,
-            framework=framework,
-            tag=tag,
-            model_dir=model_dir,
-            model_file=model_file,
-            algorithm=algorithm,
-            metrics=metrics,
-            parameters=parameters,
-            artifact_path=artifact_path,
-            upload=upload,
-            labels=labels,
-            inputs=inputs,
-            outputs=outputs,
-            feature_vector=feature_vector,
-            feature_weights=feature_weights,
-            training_set=training_set,
-            label_column=label_column,
-            extra_data=extra_data,
             **kwargs,
         )

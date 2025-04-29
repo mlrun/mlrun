@@ -50,7 +50,7 @@ def test_summary_formatter(summary, project, alert_name, entity_id, expected_str
         kind="slack",
         name="slack_drift",
         secret_params={
-            "webhook": "https://hooks.slack.com/services/",
+            "webhook": "https://slack.com/api/api.test",
         },
         condition="oops",
     )

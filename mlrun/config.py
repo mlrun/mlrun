@@ -513,7 +513,7 @@ default_config = {
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
             "kaniko_image": "gcr.io/kaniko-project/executor:v1.23.2",  # kaniko builder image
-            "kaniko_init_container_image": "alpine:3.18",
+            "kaniko_init_container_image": "alpine:3.20",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.17.16",
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
@@ -592,17 +592,17 @@ default_config = {
         },
         "writer_stream_args": {
             "v3io": {
-                "shard_count": 1,
+                "shard_count": 4,
                 "retention_period_hours": 24,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
             "kafka": {
-                "partition_count": 1,
+                "partition_count": 4,
                 # TODO: add retention period configuration
                 "replication_factor": 1,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
@@ -1046,12 +1046,9 @@ class Config:
         )
 
     def is_preemption_nodes_configured(self):
-        if (
-            not self.get_preemptible_tolerations()
-            and not self.get_preemptible_node_selector()
-        ):
-            return False
-        return True
+        return (
+            self.get_preemptible_tolerations() or self.get_preemptible_node_selector()
+        )
 
     @staticmethod
     def get_valid_function_priority_class_names():

@@ -37,7 +37,7 @@ def generate_alert_data(
             kind="slack",
             name="slack_notification",
             secret_params={
-                "webhook": "https://hooks.slack.com/services/",
+                "webhook": "https://slack.com/api/api.test",
             },
         )
         notifications = [alert_objects.AlertNotification(notification=notification)]

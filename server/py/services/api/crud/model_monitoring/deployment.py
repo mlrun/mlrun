@@ -1061,7 +1061,10 @@ class MonitoringDeployment:
                     client_id=client_id,
                     **kafka_admin_client_kwargs,
                 )
-                kafka_client.delete_topics(topics)
+                try:
+                    kafka_client.delete_topics(topics)
+                finally:
+                    kafka_client.close()
                 logger.debug("Deleted kafka topics", topics=topics)
             except Exception as exc:
                 # Raise an error that will be caught by the caller and skip the deletion of the stream

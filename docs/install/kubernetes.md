@@ -154,6 +154,21 @@ When the installation is complete, the helm command prints the URLs and ports of
 - An issue with Prometheus node selector. The workaround for now is to opt out of kube-prometheus-stack by installing the chart with the `--set kube-prometheus-stack.enabled=false`.
 ```
 
+## Configuring the Jupyter conda environment
+```py
+# Create the virtual environment
+conda create -n 'myenv' python=3.9 -y
+
+# Activate the virtual environment
+conda activate 'myenv'
+
+# Make sure that ipykernel is installed
+pip install --user ipykernel
+
+# Add the new virtual environment to Jupyter
+python -m ipykernel install --user --name myenv --display-name "Python (myenv)"
+```
+
 ## Configuring the online feature store
 The MLRun Community Edition supports the online feature store. To enable it, you need to first deploy a Redis service that is accessible to your MLRun CE cluster.
 To deploy a Redis service, refer to the [Redis documentation](https://redis.io/learn/howtos/quick-start).

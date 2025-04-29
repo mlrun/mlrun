@@ -326,6 +326,10 @@ The MLRun CE (Community Edition) includes the following services:
    ```
    kubectl -n mlrun get ingress mlrun-ce-ingress -o custom-columns=":status.loadBalancer.ingress[0].hostname" --no-headers
    ```
+2. To work with Spark and PIA authentication
+   ```
+   my_func.spec.spark_conf['spark.hadoop.fs.s3a.aws.credentials.provider'] = 'com.amazonaws.auth.WebIdentityTokenCredentialsProvider'
+   ```
 2. [Optional] Add access to the EKS API for additional users. See: [Grant IAM users and roles access to Kubernetes APIs - Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/grant-k8s-access.html).
 2. [Optional] Grant access to the S3 bucket for additional users. See the AWS walkthrough example: [Bucket owner granting its users bucket permissions - Amazon Simple Storage Service](https://docs.aws.amazon.com/AmazonS3/latest/userguide/example-walkthroughs-managing-access-example1.html).
 2. [Optional] Install PySpark for running local Spark jobs.

@@ -30,6 +30,7 @@ from typing import Any, Optional, Union, cast
 import storey.utils
 
 import mlrun
+import mlrun.artifacts
 import mlrun.common.schemas as schemas
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaSource,
@@ -1005,16 +1006,73 @@ class ModelRunnerStep(TaskStep, StepToDict):
             **kwargs,
         )
 
-    def add_model(self, model: Union[str, Model], **model_parameters) -> None:
+    def add_model(
+        self,
+        endpoint_name: str,
+        model_class: Union[str, Model],
+        model_artifact: Optional[Union[str, mlrun.artifacts.Artifact]] = None,
+        labels: Optional[Union[list[str], dict[str, str]]] = None,
+        creation_strategy: Optional[
+            schemas.ModelEndpointCreationStrategy
+        ] = schemas.ModelEndpointCreationStrategy.INPLACE,
+        inputs: Optional[list[str]] = None,
+        outputs: Optional[list[str]] = None,
+        input_path: Optional[str] = None,
+        **model_parameters,
+    ) -> None:
         """
         Add a Model to this ModelRunner.
 
-        :param model: Model class name or object
-        :param model_parameters: Parameters for model instantiation
+        :param endpoint_name:       str, will identify the model in the ModelRunnerStep, and assign model endpoint name
+        :param model_class:         Model class name or object
+        :param model_artifact:      model artifact or mlrun model artifact uri
+        :param labels:              model endpoint labels, should be list of str or mapping of str:str
+        :param creation_strategy:   Strategy for creating or updating the model endpoint:
+            * **overwrite**:
+            1. If model endpoints with the same name exist, delete the `latest` one.
+            2. Create a new model endpoint entry and set it as `latest`.
+            * **inplace** (default):
+            1. If model endpoints with the same name exist, update the `latest` entry.
+            2. Otherwise, create a new entry.
+            * **archive**:
+            1. If model endpoints with the same name exist, preserve them.
+            2. Create a new model endpoint with the same name and set it to `latest`.
+        :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs that
+                                    been configured in the model artifact, please note that those inputs need to be
+                                    equal in length and order to the inputs that Model predict method expects
+        :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs that
+                                    been configured in the model artifact, please note that those outputs need to be
+                                    equal to the model serving function outputs (length, and order)
+        :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
+                                    (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
+        :param model_parameters:    Parameters for model instantiation
         """
+
+        model_parameters = model_parameters or {}
+        if (
+            model_parameters.get("name", endpoint_name) != endpoint_name
+        ) or (isinstance(model_class, Model) and model_class.name and model_class.name != endpoint_name):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Inconsistent name for model added to ModelRunnerStep."
+            )
+
+        model_parameters["name"] = endpoint_name
         models = self.class_args.get("models", [])
-        models.append((model, model_parameters))
+        models.append((model_class, model_parameters))
+        monitoring_data = {
+            endpoint_name: {
+                "inputs_schema": inputs,
+                "outputs_schema": outputs,
+                "input_path": input_path,
+                "creation_strategy": creation_strategy,
+                "labels": labels,
+                "model_artifact_uri": model_artifact.uri
+                if isinstance(model_artifact, mlrun.artifacts.Artifact)
+                else model_artifact,
+            }
+        }
         self.class_args["models"] = models
+        self.class_args["monitoring_data"] = monitoring_data
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         model_selector = self.class_args.get("model_selector")

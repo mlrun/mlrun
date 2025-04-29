@@ -58,6 +58,8 @@ COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlce-start.sh /usr/local/bin/
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 
+RUN rm -rf $HOME/tutorials/genai-02-model-monitor-llm.ipynb $HOME/tutorials/genai_01_basic_tutorial.ipynb   # removing unsupported files
+
 # no-deps to ignore existing dependencies, just add the locked requirements
 # mainly because of how the jupyter image is built with conda
 # can be removed once we have newer jupyter image
@@ -86,8 +88,7 @@ ARG MLRUN_CACHE_DATE=initial
 
 # Use 1.7.x version from mlrun/demos to update the demos(do not update version).
 RUN git clone --branch 1.7.x https://github.com/mlrun/demos.git $HOME/demos && \
-    ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup && \
-    git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
+    ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup &&
 
 ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \

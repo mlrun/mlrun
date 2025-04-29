@@ -248,6 +248,7 @@ class KafkaParameters:
             "worker_allocation_mode": "",
             "tls_enable": "",  # for Nuclio with Confluent Kafka (Sarama client)
             "tls": "",
+            "new_topic": "",
         }
         self._reference_dicts = (
             self._custom_attributes,

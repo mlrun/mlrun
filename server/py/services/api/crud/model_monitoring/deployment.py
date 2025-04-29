@@ -368,7 +368,7 @@ class MonitoringDeployment:
         topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
             project=self.project, function_name=function_name
         )
-
+        profile_attributes = kafka_profile.attributes()
         stream_source = mlrun.datastore.sources.KafkaSource(
             brokers=kafka_profile.brokers,
             topics=[topic],
@@ -379,12 +379,18 @@ class MonitoringDeployment:
                 "max_workers": stream_args.kafka.num_workers,
                 "worker_allocation_mode": "static",
             }
-            | kafka_profile.attributes(),
+            | profile_attributes,
+        )
+        new_topic_profile_config = profile_attributes.get("new_topic", {})
+        num_partitions = new_topic_profile_config.get(
+            "num_partitions", stream_args.kafka.partition_count
+        )
+        replication_factor = new_topic_profile_config.get(
+            "replication_factor", stream_args.kafka.replication_factor
         )
         try:
             stream_source.create_topics(
-                num_partitions=stream_args.kafka.partition_count,
-                replication_factor=stream_args.kafka.replication_factor,
+                num_partitions=num_partitions, replication_factor=replication_factor
             )
         except kafka.errors.TopicAlreadyExistsError as exc:
             if ignore_stream_already_exists_failure:

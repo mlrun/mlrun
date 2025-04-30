@@ -1066,7 +1066,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
                 "input_path": input_path,
                 "creation_strategy": creation_strategy,
                 "labels": labels,
-                "model_artifact_uri": model_artifact.uri
+                "model_path": model_artifact.uri
                 if isinstance(model_artifact, mlrun.artifacts.Artifact)
                 else model_artifact,
             }

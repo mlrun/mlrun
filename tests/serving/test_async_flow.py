@@ -23,7 +23,6 @@ from mlrun.utils import logger
 from tests.conftest import results
 
 from .demo_states import *  # noqa
-from ..system.projects.test_project import model_class
 
 
 class _DummyStreamRaiser:
@@ -201,8 +200,8 @@ def test_model_runner_with_selector(execution_mechanism: str):
         name="my_model_runner",
         model_selector="MyModelSelector",
     )
-    model_runner_step.add_model(m1)
-    model_runner_step.add_model(m2)
+    model_runner_step.add_model(endpoint_name=m1.name,model_class=m1)
+    model_runner_step.add_model(endpoint_name=m2.name, model_class=m2)
     graph.to(model_runner_step).respond()
 
     server = function.to_mock_server()
@@ -229,8 +228,8 @@ def test_model_runner_with_gpu_allocation():
     model_runner_step = ModelRunnerStep(
         name="my_model_runner",
     )
-    model_runner_step.add_model(m1)
-    model_runner_step.add_model(m2)
+    model_runner_step.add_model(endpoint_name=m1.name, model_class=m1)
+    model_runner_step.add_model(endpoint_name=m2.name, model_class=m2)
     graph.to(model_runner_step).respond()
 
     server = function.to_mock_server()

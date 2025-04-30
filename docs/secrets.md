@@ -159,7 +159,11 @@ Viewers can only view the secret keys. The values themselves are not visible to 
 ##### Accessing the secrets
 By default, any runtime not executed locally (`local=False`) automatically gains access to all the secrets of the project it 
 belongs to, so no configuration is required to enable that. 
-**Jobs that are executed locally (`local=True`) do not have access to the project secrets.**
+
+```{admonition} Note
+Jobs that are executed locally (`local=True`) do not have access to the project secrets. To run a job locally and use credentials/secrets values, create a local environment, and use the `mlrun.get_secret_or_env("env-name")` method to get the env values in your code. The same method `mlrun.get_secret_or_env("env-name")` works when running the same function remotely (on the Kubernetes cluster).
+```
+
 It is possible to limit access of an executing job to a 
 subset of these secrets by calling the following function with a list of the secrets to be accessed:
 

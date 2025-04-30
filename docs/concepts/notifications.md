@@ -66,18 +66,20 @@ mail_notification = mlrun.model.Notification(
 ```
 MLRun uses the [aiosmtplib](https://aiosmtplib.readthedocs.io/en/stable/) library for sending mail notifications.
 The `params` argument is a dictionary that supports the following fields:
- - server_host (string): The SMTP server host.
- - server_port (int): The SMTP server port.
- - sender_address (string): The sender email address.
- - username (string): The username for the SMTP server.
- - password (string): The password for the SMTP server.
- - email_addresses (list of strings): The list of email addresses to send the mail to.
- - start_tls (boolean): Whether to start the TLS connection.
- - use_tls (boolean): Whether to use TLS.
- - validate_certs (boolean): Whether to validate the certificates.
+ - `server_host` (string): The SMTP server host
+ - `server_port` (int): The SMTP server port
+ - `sender_address` (string): The sender email address
+ - `username` (string): The username for the SMTP server
+ - `password` (string): The password for the SMTP server
+ - `email_addresses` (list of strings): The list of email addresses to send the mail to
+ - `start_tls` (boolean): Whether to start the TLS connection
+ - `use_tls` (boolean): Whether to use TLS
+ - `validate_certs` (boolean): Whether to validate the certificates
 
-You can read more about `start_tls` and `use_tls` in the  [aiosmtplib docs](https://aiosmtplib.readthedocs.io/en/stable/encryption.html).
-Missing parameters are enriched with default values, which can be configured in the `mlrun-smtp-config` kubernetes (see below).
+You can read more about `start_tls` and `use_tls` on the  [aiosmtplib docs](https://aiosmtplib.readthedocs.io/en/stable/encryption.html).
+Missing params are enriched with default values, which can be configured in the `mlrun-smtp-config` kubernetes (see below).
+
+Email notifications on local runs must explicitly include all SMTP settings.
 
 ### MLRun on Iguazio
 If MLRun is deployed on the Iguazio platform, an SMTP server already exists.
@@ -88,14 +90,14 @@ import mlrun
 mlrun.get_run_db().refresh_smtp_configuration()
 ```
 The `refresh_smtp_configuration` method gets the SMTP configuration from the Iguazio platform and sets it
-as the default SMTP configuration (create a `mlrun-smtp-config` with the SMTP configuration).
+as the default SMTP configuration (create an `mlrun-smtp-config` with the SMTP configuration).
 If you edit the configuration on the Iguazio platform, run the `refresh_smtp_configuration` method again.
 
 ### MLRun CE
 In the community edition, you can use your own SMTP server.
 To configure it, manually create the `mlrun-smtp-config` kubernetes secret with the default
 params for the SMTP server (`server_host`, `server_port`, `username`, `password`, etc..).
-After creating or editing the secret, refresh the mlrun SMTP configuration by running the `refresh_smtp_configuration` method.
+After creating or editing the secret, refresh the MLRun SMTP configuration by running the `refresh_smtp_configuration` method.
 
 ## Configuring notifications for runs
 

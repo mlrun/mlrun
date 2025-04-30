@@ -9,6 +9,7 @@ These instructions install the community edition, which currently includes MLRun
 - [Prerequisites](#prerequisites)
 - [Community Edition flavors](#community-edition-flavors)
 - [Installing the chart](#installing-the-chart)
+- [Configuring TDengine and Kafka for model monitoring](#configuring-tdengine-and-kafka-for-model-monitoring)
 - [Configuring the online features store](#configuring-the-online-feature-store)
 - [Usage](#usage)
 - [Start working](#start-working)
@@ -153,6 +154,19 @@ When the installation is complete, the helm command prints the URLs and ports of
 - The Grafana statistics do not work well in this release. A fix will be delivered in a subsequent release.
 - An issue with Prometheus node selector. The workaround for now is to opt out of kube-prometheus-stack by installing the chart with the `--set kube-prometheus-stack.enabled=false`.
 ```
+
+## Configuring TDengine and Kafka for model monitoring
+TDengine and Kafka are part of the default CE installations. These are the default TDengine and Kafka installation values. It's recommended to change the user/password.
+
+```py
+stream_path = "kafka://kafka-stream:9092"
+tsdb_connection = "taosws://root:taosdata@tdengine-tsdb:6041"
+project.set_model_monitoring_credentials(
+    tsdb_connection=tsdb_connection, stream_path=stream_path
+)
+```
+
+See more details, including additional configuration options, in {py:class}`mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
 
 ## Configuring the online feature store
 The MLRun Community Edition supports the online feature store. To enable it, you need to first deploy a Redis service that is accessible to your MLRun CE cluster.

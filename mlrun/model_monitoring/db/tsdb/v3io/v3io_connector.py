@@ -470,7 +470,8 @@ class V3IOTSDBConnector(TSDBConnector):
         store.rm(tsdb_path, recursive=True)
 
     def delete_tsdb_records(
-        self, endpoint_ids: list[str], delete_timeout: Optional[int] = None
+        self,
+        endpoint_ids: list[str],
     ):
         logger.debug(
             "Deleting model endpoints resources using the V3IO TSDB connector",

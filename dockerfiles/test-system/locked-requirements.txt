@@ -4455,12 +4455,6 @@ taos-ws-py==0.3.2 \
     # via
     #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
-    #   taoswswrap
-taoswswrap==0.3.5 \
-    --hash=sha256:cd90f2a52629157891917261a09e4dd7e5041e269967c920eaebdd4d0e83b2dc
-    # via
-    #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
-    #   -r extras-requirements.txt
 tblib==3.1.0 \
     --hash=sha256:06404c2c9f07f66fee2d7d6ad43accc46f9c3361714d9b8426e7f47e595cd652 \
     --hash=sha256:670bb4582578134b3d81a84afa1b016128b429f3d48e6cbbaecc9d15675e984e

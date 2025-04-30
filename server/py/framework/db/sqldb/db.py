@@ -3169,6 +3169,7 @@ class SQLDB(DBInterface):
                 "Deleted batch from table",
                 batch_size=len(id_values),
                 total_deleted=total_deleted,
+                last_id=last_id,
                 table=table,
             )
         return total_deleted

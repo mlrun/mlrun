@@ -5892,7 +5892,7 @@ class SQLDB(DBInterface):
         )
 
         model_endpoint_resp = mlrun.common.schemas.ModelEndpoint.from_flat_dict(
-            model_endpoint_full_dict
+            model_endpoint_full_dict, validate=False
         )
         model_endpoint_full_dict["_model_id"] = None
         return model_endpoint_resp

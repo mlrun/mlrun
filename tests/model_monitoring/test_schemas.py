@@ -69,12 +69,13 @@ def test_fqn_parsing(
 
 
 @pytest.mark.parametrize(
-    ("flat_mep", "expectation"),
+    ("flat_mep", "validate", "expectation"),
     [
-        ({"project": "proj-1", "uid": "ok_30", "name": "test"}, does_not_raise()),
-        ({}, pytest.raises(pydantic.v1.ValidationError)),
+        ({"project": "proj-1", "uid": "ok_30", "name": "test"}, True, does_not_raise()),
+        ({}, True, pytest.raises(pydantic.v1.ValidationError)),
         (
             {"project": "im-fine-10"},
+            True,
             pytest.raises(
                 pydantic.v1.ValidationError,
                 match=(
@@ -87,6 +88,7 @@ def test_fqn_parsing(
         ),
         (
             {"project": "im-fine-10", "uid": "xx' OR '1'='1", "name": "test"},
+            True,
             pytest.raises(
                 pydantic.v1.ValidationError,
                 match=(
@@ -98,13 +100,18 @@ def test_fqn_parsing(
                 ),
             ),
         ),
+        (
+            {"project": "im-fine-10", "uid": "xx' OR '1'='1", "name": "test"},
+            False,
+            does_not_raise(),
+        ),
     ],
 )
 def test_model_endpoint_from_flat_dict(
-    flat_mep: dict[str, Any], expectation: AbstractContextManager
+    flat_mep: dict[str, Any], validate: bool, expectation: AbstractContextManager
 ) -> None:
     with expectation:
-        ModelEndpoint.from_flat_dict(flat_mep)
+        ModelEndpoint.from_flat_dict(flat_mep, validate=validate)
 
 
 def test_project_pattern() -> None:

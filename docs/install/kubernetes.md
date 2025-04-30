@@ -156,14 +156,14 @@ When the installation is complete, the helm command prints the URLs and ports of
 
 ## Configuring the user Jupyter conda environment
 
-Run this in your Jupyter terminal:
+Run this in your Jupyter terminal, where `myenv` is the name of your environment:
 
 ```python
 # Create the virtual environment
-conda create -n 'myenv' python=3.9 -y
+conda create -n myenv python=3.9 -y
 
 # Activate the virtual environment
-conda activate 'myenv'
+conda activate myenv
 
 # Make sure that ipykernel is installed
 pip install --user ipykernel

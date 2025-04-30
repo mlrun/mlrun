@@ -200,7 +200,7 @@ def test_model_runner_with_selector(execution_mechanism: str):
         name="my_model_runner",
         model_selector="MyModelSelector",
     )
-    model_runner_step.add_model(endpoint_name=m1.name,model_class=m1)
+    model_runner_step.add_model(endpoint_name=m1.name, model_class=m1)
     model_runner_step.add_model(endpoint_name=m2.name, model_class=m2)
     graph.to(model_runner_step).respond()
 

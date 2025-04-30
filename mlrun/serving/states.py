@@ -1018,6 +1018,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
         inputs: Optional[list[str]] = None,
         outputs: Optional[list[str]] = None,
         input_path: Optional[str] = None,
+        override: bool = False,
         **model_parameters,
     ) -> None:
         """
@@ -1045,42 +1046,51 @@ class ModelRunnerStep(TaskStep, StepToDict):
                                     equal to the model serving function outputs (length, and order)
         :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
                                     (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
+        :param override:            bool allow override existing model.
         :param model_parameters:    Parameters for model instantiation
         """
 
         model_parameters = model_parameters or {}
-        if (
-            model_parameters.get("name", endpoint_name) != endpoint_name
-        ) or (isinstance(model_class, Model) and model_class.name and model_class.name != endpoint_name):
+        if (model_parameters.get("name", endpoint_name) != endpoint_name) or (
+            isinstance(model_class, Model)
+            and model_class.name
+            and model_class.name != endpoint_name
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Inconsistent name for model added to ModelRunnerStep."
             )
 
+        models = self.class_args.get("models", {})
+        if endpoint_name in models and not override:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Model with name {endpoint_name} already exists in this ModelRunnerStep."
+            )
+
         model_parameters["name"] = endpoint_name
-        models = self.class_args.get("models", [])
-        models.append((model_class, model_parameters))
-        monitoring_data = {
-            endpoint_name: {
-                "inputs_schema": inputs,
-                "outputs_schema": outputs,
-                "input_path": input_path,
-                "creation_strategy": creation_strategy,
-                "labels": labels,
-                "model_path": model_artifact.uri
-                if isinstance(model_artifact, mlrun.artifacts.Artifact)
-                else model_artifact,
-            }
+        monitoring_data = self.class_args.get(
+            schemas.ServingMonitoringData.MONITORING_DATA, {}
+        )
+        models[endpoint_name] = (model_class, model_parameters)
+        monitoring_data[endpoint_name] = {
+            schemas.ServingMonitoringData.INPUTS: inputs,
+            schemas.ServingMonitoringData.OUTPUTS: outputs,
+            schemas.ServingMonitoringData.INPUT_PATH: input_path,
+            schemas.ServingMonitoringData.CREATION_STRATEGY: creation_strategy,
+            schemas.ServingMonitoringData.LABELS: labels,
+            schemas.ServingMonitoringData.MODEL_PATH: model_artifact.uri
+            if isinstance(model_artifact, mlrun.artifacts.Artifact)
+            else model_artifact,
         }
         self.class_args["models"] = models
-        self.class_args["monitoring_data"] = monitoring_data
+        self.class_args[schemas.ServingMonitoringData.MONITORING_DATA] = monitoring_data
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         model_selector = self.class_args.get("model_selector")
-        models = self.class_args.get("models")
+        models = self.class_args.get("models", {})
         if isinstance(model_selector, str):
             model_selector = get_class(model_selector, namespace)()
         model_objects = []
-        for model, model_params in models:
+        for model, model_params in models.values():
             if not isinstance(model, Model):
                 model = get_class(model, namespace)(**model_params)
             model_objects.append(model)

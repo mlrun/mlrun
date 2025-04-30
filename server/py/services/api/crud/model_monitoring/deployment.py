@@ -1566,7 +1566,7 @@ class MonitoringDeployment:
                     function_tag=function_tag,
                     model_endpoints_dict=model_endpoints_dict,
                     creation_strategy=route.model_endpoint_creation_strategy,
-                    endpoint_name=route.name
+                    endpoint_name=route.name,
                 )
                 route.class_args["model_endpoint_uid"] = uid
                 model_endpoints_instructions.append(
@@ -1580,8 +1580,12 @@ class MonitoringDeployment:
                             track_models=track_models,
                             sampling_percentage=sampling_percentage,
                             uid=uid,
-                            label_names=route.class_args.get("outputs"),
-                            model_path=route.class_args.get("model_path", ""),
+                            label_names=route.class_args.get(
+                                mm_constants.ServingMonitoringData.OUTPUTS
+                            ),
+                            model_path=route.class_args.get(
+                                mm_constants.ServingMonitoringData.MODEL_PATH, ""
+                            ),
                         ),
                         route.model_endpoint_creation_strategy,
                     )
@@ -1598,9 +1602,11 @@ class MonitoringDeployment:
                 function_tag=function_tag,
                 model_endpoints_dict=model_endpoints_dict,
                 creation_strategy=router_step.model_endpoint_creation_strategy,
-                endpoint_name=router_step.name
+                endpoint_name=router_step.name,
             )
-            router_step.class_args["model_endpoint_uid"] = uid
+            router_step.class_args[
+                mm_constants.ServingMonitoringData.MODEL_ENDPOINT_UID
+            ] = uid
             model_endpoints_instructions.append(
                 (
                     self._model_endpoint_draft(
@@ -1673,7 +1679,7 @@ class MonitoringDeployment:
                         function_tag=function_tag,
                         model_endpoints_dict=model_endpoints_dict,
                         creation_strategy=step.model_endpoint_creation_strategy,
-                        endpoint_name=step.name
+                        endpoint_name=step.name,
                     )
                     step.class_args["model_endpoint_uid"] = uid
                     model_endpoints_instructions.append(
@@ -1708,8 +1714,7 @@ class MonitoringDeployment:
         uid = (
             old_model_endpoint.uid
             if old_model_endpoint
-            and creation_strategy
-            == mm_constants.ModelEndpointCreationStrategy.INPLACE
+            and creation_strategy == mm_constants.ModelEndpointCreationStrategy.INPLACE
             else uuid.uuid4().hex
         )
         return uid
@@ -1795,14 +1800,14 @@ class MonitoringDeployment:
         return BASE_PERIOD_LOOKUP_TABLE[float("inf")]
 
     def _extract_meps_from_model_runner_step(
-            self,
-            function_name: str,
-            function_tag: str,
-            track_models: bool,
-            model_runner: mlrun.serving.states.ModelRunnerStep,
-            sampling_percentage: float,
-            model_endpoints_dict: dict[str, ModelEndpoint],
-            project: str,
+        self,
+        function_name: str,
+        function_tag: str,
+        track_models: bool,
+        model_runner: mlrun.serving.states.ModelRunnerStep,
+        sampling_percentage: float,
+        model_endpoints_dict: dict[str, ModelEndpoint],
+        project: str,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -1810,26 +1815,40 @@ class MonitoringDeployment:
         ]
     ]:
         model_endpoints_instructions = []
-        monitoring_data = model_runner.class_args.get("monitoring_data", {})
-        for model_class, model_parameters in model_runner.class_args.get("models"):
-            model_name = model_parameters.get("name", "")
-            monitoring_data[model_name] = monitoring_data[model_name] or {}
-            if (monitoring_data[model_name].get("creation_strategy")
-            != mm_constants.ModelEndpointCreationStrategy.SKIP):
+        monitoring_data = model_runner.class_args.get(
+            mm_constants.ServingMonitoringData.MONITORING_DATA, {}
+        )
+        for endpoint_name, (
+            model_class,
+            model_parameter,
+        ) in model_runner.class_args.get("models", {}).items():
+            monitoring_data[endpoint_name] = monitoring_data[endpoint_name] or {}
+            if (
+                monitoring_data[endpoint_name].get(
+                    mm_constants.ServingMonitoringData.CREATION_STRATEGY
+                )
+                != mm_constants.ModelEndpointCreationStrategy.SKIP
+            ):
                 uid = self._get_or_create_uid(
                     project=project,
                     function_name=function_name,
                     function_tag=function_tag,
                     model_endpoints_dict=model_endpoints_dict,
-                    creation_strategy=monitoring_data[model_name].get("creation_strategy"),
-                    endpoint_name=model_name
+                    creation_strategy=monitoring_data[endpoint_name].get(
+                        mm_constants.ServingMonitoringData.CREATION_STRATEGY
+                    ),
+                    endpoint_name=endpoint_name,
                 )
                 # assign class args for the graph update:
-                model_runner.class_args["monitoring_data"][model_name]["endpoint_id"] = uid
+                model_runner.class_args[
+                    mm_constants.ServingMonitoringData.MONITORING_DATA
+                ][endpoint_name][
+                    mm_constants.ServingMonitoringData.MODEL_ENDPOINT_UID
+                ] = uid
                 model_endpoints_instructions.append(
                     (
                         self._model_endpoint_draft(
-                            name=model_name,
+                            name=endpoint_name,
                             endpoint_type=model_runner.endpoint_type,
                             model_class=model_class,
                             function_name=function_name,
@@ -1837,10 +1856,14 @@ class MonitoringDeployment:
                             track_models=track_models,
                             sampling_percentage=sampling_percentage,
                             uid=uid,
-                            label_names=monitoring_data[model_name].get("outputs"),
-                            model_path=monitoring_data[model_name].get("model_path", ""),
+                            label_names=monitoring_data[endpoint_name].get(
+                                mm_constants.ServingMonitoringData.OUTPUTS
+                            ),
+                            model_path=monitoring_data[endpoint_name].get(
+                                mm_constants.ServingMonitoringData.MODEL_PATH, ""
+                            ),
                         ),
-                        monitoring_data[model_name].get("creation_strategy"),
+                        monitoring_data[endpoint_name].get("creation_strategy"),
                     )
                 )
         return model_endpoints_instructions

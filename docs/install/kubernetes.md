@@ -154,8 +154,11 @@ When the installation is complete, the helm command prints the URLs and ports of
 - An issue with Prometheus node selector. The workaround for now is to opt out of kube-prometheus-stack by installing the chart with the `--set kube-prometheus-stack.enabled=false`.
 ```
 
-## Configuring the Jupyter conda environment
-```py
+## Configuring the user Jupyter conda environment
+
+Run this in your Jupyter terminal:
+
+```python
 # Create the virtual environment
 conda create -n 'myenv' python=3.9 -y
 

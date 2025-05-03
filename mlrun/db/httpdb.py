@@ -3981,6 +3981,7 @@ class HTTPRunDB(RunDBInterface):
                 "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
                 "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
             },
+            timeout=300,  # 5 minutes
         )
 
     def disable_model_monitoring(

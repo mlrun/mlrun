@@ -421,7 +421,13 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 )
 
         elif isinstance(stream_profile, DatastoreProfileKafkaSource):
-            consumer = kafka.KafkaConsumer(bootstrap_servers=stream_profile.brokers)
+            kafka_profile_attributes = stream_profile.attributes()
+            kafka_consumer_kwargs = mlrun.datastore.utils.KafkaParameters(
+                kafka_profile_attributes
+            ).consumer()
+            consumer = kafka.KafkaConsumer(
+                bootstrap_servers=stream_profile.brokers, **kafka_consumer_kwargs
+            )
             topics = consumer.topics()
 
             project_topics_list = [

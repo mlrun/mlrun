@@ -699,10 +699,11 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         )
 
         self._infer_with_error(serving_fn, with_training_set=with_training_set)
-        # mark the first window as "done" with another request
+        # wait for the NO-OP event to close the window
         time.sleep(
             2 * self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + 90  # external Confluent Kafka degrades the streams latency
         )
 
         mep = mlrun.db.get_run_db().get_model_endpoint(

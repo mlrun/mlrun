@@ -714,11 +714,15 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             tsdb_metrics=True,
         )
 
+        assert (
+            mep.status.last_request == last_request
+        ), "The saved `last_request` in the model endpoint is different than the last result timestamp"
+
         self._test_v3io_records(
             ep_id=mep.metadata.uid,
             inputs=inputs,
             outputs=outputs,
-            last_request=last_request,
+            last_request=mep.status.last_request,
             error_count=self.error_count,
         )
         self._test_predictions_table(mep.metadata.uid)

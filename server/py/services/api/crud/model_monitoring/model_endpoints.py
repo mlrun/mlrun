@@ -904,6 +904,7 @@ class ModelEndpoints:
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """Get a single model endpoint object.
@@ -916,6 +917,9 @@ class ModelEndpoints:
         :param endpoint_id:                The unique id of the model endpoint.
         :param tsdb_metrics:               When True, the time series metrics will be added to the output
                                            of the resulting.
+        :param metric_list:                List of metrics to include from the time series DB. Defaults to all metrics.
+                                           If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                           will be included.
         :param feature_analysis:           When True, the base feature statistics and current feature statistics will
                                            be added to the output of the resulting object.
 
@@ -931,6 +935,7 @@ class ModelEndpoints:
             function_tag=function_tag,
             endpoint_id=endpoint_id,
             tsdb_metrics=tsdb_metrics,
+            metric_list=metric_list,
             feature_analysis=feature_analysis,
         )
 
@@ -952,6 +957,7 @@ class ModelEndpoints:
                 await self._add_basic_metrics(
                     model_endpoint_objects=[model_endpoint_object],
                     project=project,
+                    metric_list=metric_list,
                 )
             )[0]
         if feature_analysis:
@@ -980,6 +986,7 @@ class ModelEndpoints:
         end: typing.Optional[datetime] = None,
         top_level: typing.Optional[bool] = None,
         tsdb_metrics: typing.Optional[bool] = None,
+        metric_list: Optional[list[str]] = None,
         uids: typing.Optional[list[str]] = None,
         latest_only: typing.Optional[bool] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -996,6 +1003,9 @@ class ModelEndpoints:
         :param end:                 The end time of the model endpoint creation.
         :param top_level:           When True, only top level model endpoints will be returned.
         :param tsdb_metrics:        When True, the time series metrics will be added to the output of the resulting
+        :param metric_list:         List of metrics to include from the time series DB. Defaults to all metrics.
+                                    If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                    will be included.
         :param uids:                A list of unique ids of the model endpoints.
         :param latest_only:         When True, only the latest model endpoint will be returned.
         :return:                    A list of `ModelEndpoint` objects.
@@ -1018,6 +1028,7 @@ class ModelEndpoints:
             end=end,
             top_level=top_level,
             tsdb_metrics=tsdb_metrics,
+            metric_list=metric_list,
             uids=uids,
             latest_only=latest_only,
         )
@@ -1044,6 +1055,7 @@ class ModelEndpoints:
             endpoint_list.endpoints = await self._add_basic_metrics(
                 model_endpoint_objects=endpoint_list.endpoints,
                 project=project,
+                metric_list=metric_list,
             )
 
         return endpoint_list
@@ -1357,13 +1369,17 @@ class ModelEndpoints:
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
+        metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Add basic metrics to the model endpoint object.
 
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
-                                        be filled with the relevant basic metrics.
+                                       be filled with the relevant basic metrics.
         :param project:                The name of the project.
+        :param metric_list:            List of metrics to include from the time series DB. Defaults to all metrics.
+                                       If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                       will be included.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
@@ -1384,7 +1400,10 @@ class ModelEndpoints:
             return model_endpoint_objects
 
         return await tsdb_connector.add_basic_metrics(
-            model_endpoint_objects, project, run_in_threadpool
+            model_endpoint_objects,
+            project,
+            run_in_threadpool,
+            metric_list,
         )
 
     @classmethod

@@ -1067,6 +1067,7 @@ class SQLRunDB(RunDBInterface):
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
@@ -1081,6 +1082,7 @@ class SQLRunDB(RunDBInterface):
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         raise NotImplementedError()

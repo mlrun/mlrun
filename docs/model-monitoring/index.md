@@ -140,7 +140,8 @@ When ramping up the scale of your model monitoring, take note of these limitatio
 - Up to 100 medium projects (100 < model endpoints < 1k)
 - Up to 200 small projects (model endpoints < 100)
 
-## How to upgrade from v1.7.x
+(upgrade-from-17)=
+## How to upgrade from v1.7.x to v1.8.0 and higher
 
 ### Before upgrade:
 1. Redeploy all monitored serving functions with set_tracking(False).
@@ -148,10 +149,10 @@ When ramping up the scale of your model monitoring, take note of these limitatio
 2. Run `project.disable_model_monitoring(delete_stream_function=True, delete_user_applications=True)`. **This deletes all MM applications, infra pods, and the streams.**
 
 ### After upgrade:
-1. Set model monitoring credentials (stream & tsdb) by using  `project.set_model_monitoring_credentials()`
-2. Run `enable_model_monitoring`
+1. Set model monitoring credentials (stream and TSDB) with `project.set_model_monitoring_credentials()`.
+2. Run `enable_model_monitoring`.
 2. Redeploy all monitored serving functions with `set_tracking(True)`.
 
 ```{admonition} Note
-* You must use the v1.8.0 client to utilize model monitoring on the v1.8.0 server.
+You must use the v1.8.0 client to utilize model monitoring on the v1.8.0 server.
 ``` 

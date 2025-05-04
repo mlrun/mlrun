@@ -49,16 +49,13 @@ class Artifacts(
         producer_id: typing.Optional[str] = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
-        project = project or mlrun.mlconf.default_project
-        # In case project is an empty string the setdefault won't catch it
-        if not artifact.setdefault("project", project):
-            artifact["project"] = project
-
-        if artifact["project"] != project:
+        artifact_project = artifact.get("project")
+        if artifact_project and artifact_project != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Conflicting project name - storing artifact with project {artifact['project']}"
                 f" into a different project: {project}."
             )
+        artifact["project"] = project
 
         # calculate the size of the artifact
         self._resolve_artifact_size(artifact, auth_info)
@@ -91,18 +88,15 @@ class Artifacts(
         project: typing.Optional[str] = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
-        project = project or mlrun.mlconf.default_project
-        # In case project is an empty string the setdefault won't catch it
-        if not artifact.setdefault("project", project):
-            artifact["project"] = project
-
-        best_iteration = artifact.get("metadata", {}).get("best_iteration", False)
-
-        if artifact["project"] != project:
+        artifact_project = artifact.get("project")
+        if artifact_project and artifact_project != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Conflicting project name - storing artifact with project {artifact['project']}"
                 f" into a different project: {project}."
             )
+        artifact["project"] = project
+
+        best_iteration = artifact.get("metadata", {}).get("best_iteration", False)
 
         # calculate the size of the artifact
         self._resolve_artifact_size(artifact, auth_info)
@@ -130,7 +124,6 @@ class Artifacts(
         object_uid: typing.Optional[str] = None,
         raise_on_not_found: bool = True,
     ) -> dict:
-        project = project or mlrun.mlconf.default_project
         artifact = framework.utils.singletons.db.get_db().read_artifact(
             db_session,
             key,
@@ -173,7 +166,6 @@ class Artifacts(
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
     ) -> list:
-        project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
         artifacts = framework.utils.singletons.db.get_db().list_artifacts(
@@ -220,7 +212,6 @@ class Artifacts(
         project: typing.Optional[str] = None,
         category: mlrun.common.schemas.ArtifactCategories = None,
     ):
-        project = project or mlrun.mlconf.default_project
         return framework.utils.singletons.db.get_db().list_artifact_tags(
             db_session, project, category
         )
@@ -240,7 +231,6 @@ class Artifacts(
         secrets: typing.Optional[dict] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        project = project or mlrun.mlconf.default_project
         artifact = framework.utils.singletons.db.get_db().validate_artifact_removal_preconditions(
             session=db_session,
             key=key,
@@ -291,7 +281,6 @@ class Artifacts(
         #  we should include the validation we added in validate_artifact_removal_preconditions
         #  before attempting the data deletion. Currently, deleting artifacts linked to model
         #  endpoints will fail with IntegrityError.
-        project = project or mlrun.mlconf.default_project
         framework.utils.singletons.db.get_db().del_artifacts(
             db_session, name, project, tag, labels, producer_id=producer_id
         )

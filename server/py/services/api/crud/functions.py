@@ -43,7 +43,6 @@ class Functions(
         versioned: bool = False,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ) -> str:
-        project = project or mlrun.mlconf.default_project
         if auth_info:
             function_obj = mlrun.new_function(
                 name=name, project=project, runtime=function, tag=tag
@@ -75,7 +74,6 @@ class Functions(
         hash_key: str = "",
         format_: Optional[str] = None,
     ) -> dict:
-        project = project or mlrun.mlconf.default_project
         return framework.utils.singletons.db.get_db().get_function(
             db_session, name, project, tag, hash_key, format_
         )
@@ -106,7 +104,6 @@ class Functions(
         since: Optional[datetime.datetime] = None,
         until: Optional[datetime.datetime] = None,
     ) -> list:
-        project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
         return framework.utils.singletons.db.get_db().list_functions(

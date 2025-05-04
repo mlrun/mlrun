@@ -846,7 +846,7 @@ def parse_reference(reference: str):
 # Extract project and artifact name from the artifact
 def artifact_project_and_resource_name_extractor(artifact):
     return (
-        artifact.get("metadata").get("project", mlrun.mlconf.default_project),
+        artifact.get("metadata").get("project"),
         artifact.get("spec")["db_key"],
     )
 

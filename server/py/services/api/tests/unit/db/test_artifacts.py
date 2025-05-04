@@ -36,6 +36,7 @@ from mlrun.common.schemas.artifact import ArtifactCategories
 
 import framework.db.sqldb.models
 import services.api.initial_data
+from framework.db.sqldb.db import SQLDB
 from framework.db.sqldb.models import ArtifactV2
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
@@ -1282,6 +1283,55 @@ class TestArtifacts(TestDatabaseBase):
             [artifact["metadata"]["uid"] for artifact in artifacts]
         ) == sorted([uid1, uid2])
 
+    def test_delete_artifacts_in_batches(self):
+        project = "artifact_project"
+        artifact_key_prefix = "artifact_key"
+        artifact_body = self._generate_artifact(artifact_key_prefix)
+
+        # Store artifacts
+        for i in range(15):
+            self._db.store_artifact(
+                self._db_session,
+                key=f"{artifact_key_prefix}_{i}",
+                project=project,
+                iter=0,
+                artifact=artifact_body,
+            )
+
+        # Verify artifacts were stored
+        artifacts = self._db.list_artifacts(self._db_session, project=project)
+        assert len(artifacts) == 15
+
+        # Set small batch size to force batch deletion
+        mlrun.mlconf.httpdb.projects.resource_deletion_batch_size = 5
+
+        where_clause = ArtifactV2.project == project
+
+        with unittest.mock.patch.object(
+            self._db_session, "execute", wraps=self._db_session.execute
+        ) as mock_execute:
+            deleted_count = SQLDB._delete_table_in_batches(
+                self._db_session,
+                ArtifactV2,
+                where_clause,
+            )
+            delete_calls = [
+                call
+                for call in mock_execute.call_args_list
+                if str(call[0][0]).startswith("DELETE")
+            ]
+            assert (
+                len(delete_calls) == 3
+            ), f"Expected 3 batch deletions, got {len(delete_calls)}"
+
+        # Validate that all artifacts were deleted
+        assert deleted_count == 15
+
+        artifacts_after_deletion = self._db.list_artifacts(
+            self._db_session, project=project
+        )
+        assert len(artifacts_after_deletion) == 0
+
     def test_list_artifacts_exact_name_match(self):
         artifact_1_key = "pre_artifact_key_suffix"
         artifact_2_key = "pre-artifact-key-suffix"
@@ -1604,8 +1654,7 @@ class TestArtifacts(TestDatabaseBase):
         for counter in range(number_of_artifacts):
             artifact_key = f"artifact-{counter}"
             artifact_body = self._generate_artifact(
-                artifact_key,
-                project=project,
+                artifact_key, project=project, labels={"key1": "val1", "key2": "val2"}
             )
             self._db.store_artifact(
                 self._db_session, artifact_key, artifact_body, project=project
@@ -1619,8 +1668,12 @@ class TestArtifacts(TestDatabaseBase):
                 updated=t1,
             )
 
+        # We are also listing with labels to verify that ordering works correctly with labels and limit.
         artifacts = self._db.list_artifacts(
-            self._db_session, project=project, limit=limit
+            self._db_session,
+            project=project,
+            limit=limit,
+            labels="key1=val1",
         )
 
         expected_count = limit or number_of_artifacts

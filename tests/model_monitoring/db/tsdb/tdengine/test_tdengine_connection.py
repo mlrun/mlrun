@@ -16,10 +16,11 @@ import os
 from datetime import datetime, timezone
 
 import pytest
-from taoswswrap import Statement
-from taoswswrap.tdengine_connection import (
+
+from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
     _TS_PRECISION_TO_FACTOR_AND_FUNC,
     Field,
+    Statement,
     TDEngineConnection,
     TimestampPrecision,
 )

@@ -301,6 +301,7 @@ mlrun-gpu: update-version-file ## Build mlrun gpu docker image
 	$(MLRUN_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/gpu/Dockerfile \
+		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_GPU_BASE_IMAGE=$(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \

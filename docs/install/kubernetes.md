@@ -159,7 +159,7 @@ When the installation is complete, the helm command prints the URLs and ports of
 
 Run this in your Jupyter terminal, where `myenv` is the name of your environment:
 
-```python
+```bash
 # Create the virtual environment
 conda create -n myenv python=3.9 -y
 

@@ -15,7 +15,6 @@
 import logging
 import os
 import uuid
-import warnings
 from copy import deepcopy
 from typing import Optional, Union, cast
 
@@ -94,6 +93,8 @@ class MLClientCtx:
         self._labels = {}
         self._annotations = {}
         self._node_selector = {}
+        self._tolerations = {}
+        self._affinity = {}
 
         self._function = ""
         self._parameters = {}
@@ -226,6 +227,16 @@ class MLClientCtx:
     def node_selector(self):
         """Dictionary with node selectors (read-only)"""
         return deepcopy(self._node_selector)
+
+    @property
+    def tolerations(self):
+        """Dictionary with tolerations (read-only)"""
+        return deepcopy(self._tolerations)
+
+    @property
+    def affinity(self):
+        """Dictionary with affinities (read-only)"""
+        return deepcopy(self._affinity)
 
     @property
     def annotations(self):
@@ -416,6 +427,8 @@ class MLClientCtx:
                 "state_thresholds", self._state_thresholds
             )
             self._node_selector = spec.get("node_selector", self._node_selector)
+            self._tolerations = spec.get("tolerations", self._tolerations)
+            self._affinity = spec.get("affinity", self._affinity)
             self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
 
         self._init_dbs(rundb)
@@ -978,14 +991,6 @@ class MLClientCtx:
         self._update_run()
         return item
 
-    def get_cached_artifact(self, key):
-        """Return a logged artifact from cache (for potential updates)"""
-        warnings.warn(
-            "get_cached_artifact is deprecated in 1.8.0 and will be removed in 1.10.0. Use get_artifact instead.",
-            FutureWarning,
-        )
-        return self.get_artifact(key)
-
     def get_artifact(
         self, key, tag=None, iter=None, tree=None, uid=None
     ) -> Optional[Artifact]:
@@ -1139,6 +1144,8 @@ class MLClientCtx:
                 "notifications": self._notifications,
                 "state_thresholds": self._state_thresholds,
                 "node_selector": self._node_selector,
+                "tolerations": self._tolerations,
+                "affinity": self._affinity,
             },
             "status": {
                 "results": self._results,

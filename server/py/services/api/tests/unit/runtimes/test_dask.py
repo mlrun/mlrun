@@ -439,10 +439,13 @@ class TestDaskRuntime(TestRuntimeBase):
     def test_enrich_dask_cluster(self):
         function_label_name, function_label_val = "kubernetes.io/os", "linux"
         config_label_name, config_label_val = "kubernetes.io/hostname", "k8s-node1"
+        preemptible_ns, preemptible_val = "lifecycle", "spot"
         mlrun.mlconf.default_function_node_selector = base64.b64encode(
             json.dumps({config_label_name: config_label_val}).encode("utf-8")
         )
-
+        mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+            json.dumps({preemptible_ns: preemptible_val}).encode("utf-8")
+        )
         function = mlrun.runtimes.DaskCluster(
             metadata=dict(
                 name="test",
@@ -460,7 +463,10 @@ class TestDaskRuntime(TestRuntimeBase):
                     {"name": "TEST_DUP", "value": "A"},
                     {"name": "TEST_DUP", "value": "B"},
                 ],
-                node_selector={function_label_name: function_label_val},
+                node_selector={
+                    function_label_name: function_label_val,
+                    preemptible_ns: preemptible_val,
+                },
             ),
         )
 
@@ -474,6 +480,7 @@ class TestDaskRuntime(TestRuntimeBase):
         # add default envvars that expected to be on enriched pods
         # do it to verify later on it is not duplicated and appears only once
         function.spec.env.extend(function.generate_runtime_k8s_env())
+        function.with_preemption_mode("prevent")
 
         expected_resources = {
             "limits": {"memory": "1Gi"},
@@ -500,6 +507,25 @@ class TestDaskRuntime(TestRuntimeBase):
             config_label_name: config_label_val,
         }
 
+        expected_affinity = k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=[
+                        k8s_client.V1NodeSelectorTerm(
+                            match_expressions=[
+                                k8s_client.V1NodeSelectorRequirement(
+                                    key="lifecycle",
+                                    operator="NotIn",
+                                    values=["spot"],
+                                )
+                            ]
+                        )
+                    ]
+                )
+            ),
+            pod_affinity=None,
+            pod_anti_affinity=None,
+        )
         secrets = []
         client_version = "1.6.0"
         client_python_version = "3.9"
@@ -527,6 +553,9 @@ class TestDaskRuntime(TestRuntimeBase):
         assert worker_pod.spec.containers[0].env == expected_env
         assert scheduler_pod.spec.containers[0].env == expected_env
         assert scheduler_pod.spec.node_selector == expected_node_selector
+        assert worker_pod.spec.node_selector == expected_node_selector
+        assert scheduler_pod.spec.affinity == expected_affinity
+        assert worker_pod.spec.affinity == expected_affinity
 
         # used once by test, once by enrich_dask_cluster
         assert function.generate_runtime_k8s_env.call_count == 2

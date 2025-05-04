@@ -30,7 +30,6 @@ from copy import deepcopy
 from os import environ, makedirs, path
 from typing import Callable, Optional, Union, cast
 
-import deprecated
 import dotenv
 import git
 import git.exc
@@ -470,7 +469,8 @@ def get_or_create_project(
     parameters: Optional[dict] = None,
     allow_cross_project: Optional[bool] = None,
 ) -> "MlrunProject":
-    """Load a project from MLRun DB, or create/import if it does not exist
+    """Load a project from MLRun DB, or create/import if it does not exist.
+    The project will become the default project for the current session.
 
     MLRun looks for a project.yaml file with project definition and objects in the project root path
     and use it to initialize the project, in addition it runs the project_setup.py file (if it exists)
@@ -2860,20 +2860,6 @@ class MlrunProject(ModelObj):
 
         self.spec.set_function(name, function_object, func)
 
-    # TODO: Remove this in 1.10.0
-    @deprecated.deprecated(
-        version="1.8.0",
-        reason="'remove_function' is deprecated and will be removed in 1.10.0. "
-        "Please use `delete_function` instead.",
-        category=FutureWarning,
-    )
-    def remove_function(self, name):
-        """remove the specified function from the project
-
-        :param name:    name of the function (under the project)
-        """
-        self.spec.remove_function(name)
-
     def delete_function(self, name, delete_from_db=False):
         """deletes the specified function from the project
 
@@ -3796,6 +3782,7 @@ class MlrunProject(ModelObj):
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         Returns a list of `ModelEndpoint` objects. Each `ModelEndpoint` object represents the current state of a
@@ -3825,10 +3812,15 @@ class MlrunProject(ModelObj):
             or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
-        :param start:                     The start time to filter by.Corresponding to the `created` field.
-        :param end:                       The end time to filter by. Corresponding to the `created` field.
-        :param top_level: if true will return only routers and endpoint that are NOT children of any router
-        :param uids: if passed will return a list `ModelEndpoint` object with uid in uids
+        :param start:           The start time to filter by.Corresponding to the `created` field.
+        :param end:             The end time to filter by. Corresponding to the `created` field.
+        :param top_level:       If true will return only routers and endpoint that are NOT children of any router.
+        :param uids:            If passed will return a list `ModelEndpoint` object with uid in uids.
+        :param tsdb_metrics:    When True, the time series metrics will be added to the output
+                                of the resulting.
+        :param metric_list:     List of metrics to include from the time series DB. Defaults to all metrics.
+                                If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                will be included.
 
         :returns: Returns a list of `ModelEndpoint` objects.
         """
@@ -3847,6 +3839,7 @@ class MlrunProject(ModelObj):
             uids=uids,
             latest_only=latest_only,
             tsdb_metrics=tsdb_metrics,
+            metric_list=metric_list,
         )
 
     def run_function(

@@ -19,6 +19,7 @@ import os
 import unittest.mock
 
 import deepdiff
+import kubernetes.client as k8s_client
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -35,6 +36,22 @@ import services.api.utils.builder
 from framework.utils.singletons.db import get_db
 from services.api.tests.unit.conftest import APIK8sSecretsMock
 from services.api.tests.unit.runtimes.base import TestRuntimeBase
+
+
+def create_node_affinity_with_terms(
+    terms: list[list[k8s_client.V1NodeSelectorRequirement]],
+) -> k8s_client.V1Affinity:
+    """Helper function to create a V1Affinity with specific node selector terms."""
+    return k8s_client.V1Affinity(
+        node_affinity=k8s_client.V1NodeAffinity(
+            required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                node_selector_terms=[
+                    k8s_client.V1NodeSelectorTerm(match_expressions=term)
+                    for term in terms
+                ]
+            )
+        )
+    )
 
 
 class TestKubejobRuntime(TestRuntimeBase):
@@ -162,7 +179,12 @@ class TestKubejobRuntime(TestRuntimeBase):
         }
         runtime.with_node_selection(node_selector=node_selector)
         self.execute_function(runtime)
-        self._assert_pod_creation_config(expected_node_selector=node_selector)
+        self._assert_pod_creation_config(
+            expected_node_selector={
+                **mlrun.mlconf.get_default_function_node_selector(),
+                **node_selector,
+            }
+        )
 
         runtime = self._generate_runtime()
         affinity = self._generate_affinity()
@@ -339,6 +361,279 @@ class TestKubejobRuntime(TestRuntimeBase):
         self.execute_function(runtime)
         self._assert_pod_creation_config(
             expected_node_selector=expected_merged_selector
+        )
+
+    # Common Preemptible Affinity Terms
+    preemptible_affinity_iguazio = [
+        [
+            k8s_client.V1NodeSelectorRequirement(
+                key="app.iguazio.com/lifecycle", operator="In", values=["preemptible"]
+            )
+        ]
+    ]
+
+    preemptible_affinity_cloud_provider = [
+        [
+            k8s_client.V1NodeSelectorRequirement(
+                key="cloud.google.com/gke-spot", operator="In", values=["true"]
+            )
+        ]
+    ]
+
+    @staticmethod
+    def mock_preemptible_config():
+        """Fixture to set up mock preemptible configurations before each test."""
+        mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+            json.dumps(
+                {
+                    "app.iguazio.com/lifecycle": "preemptible",
+                    "cloud.google.com/gke-spot": "true",
+                }
+            ).encode("utf-8")
+        )
+        mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
+            json.dumps(
+                [
+                    {
+                        "key": "cloud.google.com/gke-spot",
+                        "value": "true",
+                        "operator": "Equal",
+                        "effect": "NoSchedule",
+                    }
+                ]
+            ).encode("utf-8")
+        )
+
+    @pytest.mark.parametrize(
+        "mode, tolerations, node_selector, affinity, expected_tolerations, expected_node_selector, expected_affinity",
+        [
+            # Mode "none" – no change.
+            (
+                "none",
+                [
+                    {
+                        "key": "cloud.google.com/gke-spot",
+                        "value": "true",
+                        "operator": "Equal",
+                        "effect": "NoSchedule",
+                    },
+                    {
+                        "key": "some-key",
+                        "value": "true",
+                        "operator": "Equal",
+                        "effect": "NoSchedule",
+                    },
+                ],
+                {
+                    "user-node-selector": "some-value",
+                    "cloud.google.com/gke-spot": "true",
+                },
+                {},
+                [
+                    {
+                        "key": "cloud.google.com/gke-spot",
+                        "value": "true",
+                        "operator": "Equal",
+                        "toleration_seconds": None,
+                        "effect": "NoSchedule",
+                    },
+                    {
+                        "key": "some-key",
+                        "value": "true",
+                        "operator": "Equal",
+                        "toleration_seconds": None,
+                        "effect": "NoSchedule",
+                    },
+                ],
+                {
+                    "user-node-selector": "some-value",
+                    "cloud.google.com/gke-spot": "true",
+                },
+                {},
+            ),
+            # Mode "prevent" – preemptible settings are removed, affinity is cleared.
+            (
+                "prevent",
+                [
+                    {
+                        "key": "cloud.google.com/gke-spot",
+                        "value": "true",
+                        "operator": "Equal",
+                        "effect": "NoSchedule",
+                    },
+                    {
+                        "key": "some-key",
+                        "value": "true",
+                        "operator": "Equal",
+                        "effect": "NoSchedule",
+                    },
+                ],
+                {
+                    "app.iguazio.com/lifecycle": "preemptible",
+                    "some-node-selector": "some-value",
+                },
+                create_node_affinity_with_terms(preemptible_affinity_iguazio),
+                [
+                    {
+                        "key": "some-key",
+                        "value": "true",
+                        "operator": "Equal",
+                        "toleration_seconds": None,
+                        "effect": "NoSchedule",
+                    },
+                ],
+                {"some-node-selector": "some-value"},
+                None,
+            ),
+            # Mode "constrain" – preemptible toleration is merged, affinity is set to preemptible.
+            (
+                "constrain",
+                [],
+                {"user-node-selector": "some-value"},
+                None,
+                [
+                    {
+                        "key": "cloud.google.com/gke-spot",
+                        "value": "true",
+                        "operator": "Equal",
+                        "toleration_seconds": None,
+                        "effect": "NoSchedule",
+                    },
+                ],
+                {"user-node-selector": "some-value"},
+                create_node_affinity_with_terms(
+                    preemptible_affinity_iguazio + preemptible_affinity_cloud_provider
+                ),
+            ),
+            # Mode "allow" – conflicting node selector settings are purged.
+            (
+                "allow",
+                [
+                    {
+                        "key": "cloud.google.com/gke-spot",
+                        "value": "true",
+                        "operator": "Equal",
+                        "effect": "NoSchedule",
+                    }
+                ],
+                {
+                    "user-node-selector": "some-value",
+                    "app.iguazio.com/lifecycle": "preemptible",
+                },
+                create_node_affinity_with_terms(
+                    preemptible_affinity_iguazio + preemptible_affinity_cloud_provider
+                ),
+                [
+                    {
+                        "key": "cloud.google.com/gke-spot",
+                        "value": "true",
+                        "operator": "Equal",
+                        "toleration_seconds": None,
+                        "effect": "NoSchedule",
+                    }
+                ],
+                {
+                    "user-node-selector": "some-value",
+                },
+                {},
+            ),
+            # Mode "allow" with no preemptible toleration.
+            (
+                "allow",
+                [],
+                {"user-node-selector": "some-value"},
+                None,
+                [
+                    {
+                        "key": "cloud.google.com/gke-spot",
+                        "value": "true",
+                        "operator": "Equal",
+                        "toleration_seconds": None,
+                        "effect": "NoSchedule",
+                    }
+                ],
+                {"user-node-selector": "some-value"},
+                None,
+            ),
+            # Mode "prevent" without initial tolerations.
+            (
+                "prevent",
+                [],
+                {
+                    "user-node-selector": "some-value",
+                    "app.iguazio.com/lifecycle": "preemptible",
+                },
+                None,
+                [],
+                {"user-node-selector": "some-value"},
+                None,
+            ),
+            # Mode "constrain" with tolerations already set.
+            (
+                "constrain",
+                [
+                    {
+                        "key": "cloud.google.com/gke-spot",
+                        "value": "true",
+                        "operator": "Equal",
+                        "effect": "NoSchedule",
+                    }
+                ],
+                {"user-node-selector": "some-value"},
+                None,
+                [
+                    {
+                        "key": "cloud.google.com/gke-spot",
+                        "value": "true",
+                        "operator": "Equal",
+                        "toleration_seconds": None,
+                        "effect": "NoSchedule",
+                    }
+                ],
+                {"user-node-selector": "some-value"},
+                create_node_affinity_with_terms(
+                    preemptible_affinity_iguazio + preemptible_affinity_cloud_provider
+                ),
+            ),
+            # Mode "none" with no tolerations or selectors provided.
+            (
+                "none",
+                [],
+                {},
+                None,
+                [],
+                {},
+                None,
+            ),
+        ],
+    )
+    def test_merge_preemption_mode(
+        self,
+        db: Session,
+        k8s_secrets_mock,
+        mode,
+        tolerations,
+        node_selector,
+        affinity,
+        expected_tolerations,
+        expected_node_selector,
+        expected_affinity,
+    ):
+        self.mock_preemptible_config()
+        runtime = self._generate_runtime()
+        runtime.spec.preemption_mode = mode
+
+        runtime.with_node_selection(
+            node_selector=node_selector,
+            tolerations=tolerations,
+            affinity=affinity,
+        )
+
+        self.execute_function(runtime)
+        self._assert_pod_creation_config(
+            expected_node_selector=expected_node_selector,
+            expected_affinity=expected_affinity,
+            expected_tolerations=expected_tolerations,
         )
 
     def test_set_annotation(self, db: Session, k8s_secrets_mock):

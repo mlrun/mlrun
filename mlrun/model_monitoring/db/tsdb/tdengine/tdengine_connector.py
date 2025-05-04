@@ -18,10 +18,6 @@ from typing import Callable, Final, Literal, Optional, Union
 
 import pandas as pd
 import taosws
-from taoswswrap.tdengine_connection import (
-    Statement,
-    TDEngineConnection,
-)
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.common.types
@@ -29,6 +25,10 @@ import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
 from mlrun.datastore.datastore_profile import DatastoreProfile
 from mlrun.model_monitoring.db import TSDBConnector
+from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
+    Statement,
+    TDEngineConnection,
+)
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
 
@@ -74,12 +74,6 @@ class TDEngineConnector(TSDBConnector):
 
         self._init_super_tables()
 
-        self._run_directly = (
-            mlrun.mlconf.model_endpoint_monitoring.tdengine.run_directly
-        )
-        self._timeout = mlrun.mlconf.model_endpoint_monitoring.tdengine.timeout
-        self._retries = mlrun.mlconf.model_endpoint_monitoring.tdengine.retries
-
     @property
     def connection(self) -> TDEngineConnection:
         global _connection
@@ -97,7 +91,7 @@ class TDEngineConnector(TSDBConnector):
         """Establish a connection to the TSDB server."""
         logger.debug("Creating a new connection to TDEngine", project=self.project)
         conn = TDEngineConnection(
-            self._tdengine_connection_profile.dsn(), run_directly=self._run_directly
+            self._tdengine_connection_profile.dsn(),
         )
         conn.prefix_statements = [f"USE {self.database}"]
 
@@ -125,8 +119,6 @@ class TDEngineConnector(TSDBConnector):
         self.connection.prefix_statements = []
         self.connection.run(
             statements=f"CREATE DATABASE IF NOT EXISTS {self.database} PRECISION '{self._timestamp_precision}'",
-            timeout=self._timeout,
-            retries=self._retries,
         )
         self.connection.prefix_statements = [f"USE {self.database}"]
         logger.debug(
@@ -146,8 +138,6 @@ class TDEngineConnector(TSDBConnector):
             conn = self.connection
             conn.run(
                 statements=create_table_query,
-                timeout=self._timeout,
-                retries=self._retries,
             )
 
     def write_application_event(
@@ -207,8 +197,6 @@ class TDEngineConnector(TSDBConnector):
                 create_table_sql,
                 insert_statement,
             ],
-            timeout=self._timeout,
-            retries=self._retries,
         )
 
     @staticmethod
@@ -312,7 +300,8 @@ class TDEngineConnector(TSDBConnector):
         )
 
     def delete_tsdb_records(
-        self, endpoint_ids: list[str], delete_timeout: Optional[int] = None
+        self,
+        endpoint_ids: list[str],
     ):
         """
         To delete subtables within TDEngine, we first query the subtables names with the provided endpoint_ids.
@@ -333,8 +322,6 @@ class TDEngineConnector(TSDBConnector):
                 )
                 subtables_result = self.connection.run(
                     query=get_subtable_query,
-                    timeout=self._timeout,
-                    retries=self._retries,
                 )
                 subtables.extend([subtable[0] for subtable in subtables_result.data])
         except Exception as e:
@@ -355,8 +342,6 @@ class TDEngineConnector(TSDBConnector):
         try:
             self.connection.run(
                 statements=drop_statements,
-                timeout=delete_timeout or self._timeout,
-                retries=self._retries,
             )
         except Exception as e:
             logger.warning(
@@ -387,8 +372,6 @@ class TDEngineConnector(TSDBConnector):
         try:
             self.connection.run(
                 statements=drop_statements,
-                timeout=self._timeout,
-                retries=self._retries,
             )
         except Exception as e:
             logger.warning(
@@ -412,8 +395,6 @@ class TDEngineConnector(TSDBConnector):
         try:
             table_name = self.connection.run(
                 query=query_random_table_name,
-                timeout=self._timeout,
-                retries=self._retries,
             )
             if len(table_name.data) == 0:
                 # no tables were found under the database
@@ -436,8 +417,6 @@ class TDEngineConnector(TSDBConnector):
             try:
                 self.connection.run(
                     statements=drop_database_query,
-                    timeout=self._timeout,
-                    retries=self._retries,
                 )
                 logger.debug(
                     "The TDEngine database has been successfully dropped",
@@ -530,7 +509,7 @@ class TDEngineConnector(TSDBConnector):
         logger.debug("Querying TDEngine", query=full_query)
         try:
             query_result = self.connection.run(
-                query=full_query, timeout=self._timeout, retries=self._retries
+                query=full_query,
             )
         except taosws.QueryError as e:
             raise mlrun.errors.MLRunInvalidArgumentError(

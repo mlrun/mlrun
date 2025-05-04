@@ -403,6 +403,24 @@ class BaseStep(ModelObj):
             class_args=class_args,
             model_endpoint_creation_strategy=model_endpoint_creation_strategy,
         )
+
+        if isinstance(class_name, ModelRunnerStep) or class_name == "ModelRunnerStep":
+            if self.parent is not None:
+                root = self.parent
+            else:
+                root = self
+            if not isinstance(root, RootFlowStep):
+                raise GraphError(
+                    "ModelRunnerStep should be added to 'Flow' topology graph only"
+                )
+            for model_endpoint in step.class_args["models"].keys():
+                if model_endpoint in root.model_endpoints:
+                    raise GraphError(
+                        "ModelRunnerStep points to existed model in graph using the same model_endpoint name"
+                    )
+                else:
+                    root.update_model_endpoint(model_endpoint)
+
         step = parent._steps.update(name, step)
         step.set_parent(parent)
         if not hasattr(self, "steps"):
@@ -1745,6 +1763,34 @@ class RootFlowStep(FlowStep):
 
     kind = "root"
     _dict_fields = ["steps", "engine", "final_step", "on_error"]
+
+    def __init__(
+        self,
+        name=None,
+        steps=None,
+        after: Optional[list] = None,
+        engine=None,
+        final_step=None,
+    ):
+        super().__init__(
+            name,
+            steps,
+            after,
+            engine,
+            final_step,
+        )
+        self._models = []
+
+    @property
+    def model_endpoints(self) -> list[str]:
+        return self._models
+
+    @model_endpoints.setter
+    def model_endpoints(self, models: list[str]):
+        self._models = models
+
+    def update_model_endpoint(self, model_endpoint_name: str):
+        self._models.append(model_endpoint_name)
 
 
 classes_map = {

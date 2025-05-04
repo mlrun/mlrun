@@ -1658,7 +1658,7 @@ class SQLDB(DBInterface):
             raise ValueError(message)
 
         tag_id_alias = "tag_id"
-        tag_name_alias = "name"
+        tag_name_alias = "tag_name"
 
         # Create a subquery that selects only the artifact IDs along with tag metadata.
         # The tag name and tag ID are explicitly aliased as 'name' and 'tag_id' so they can be
@@ -1789,15 +1789,15 @@ class SQLDB(DBInterface):
         # therefore, we compile the above query as a sub query only for filtering out the relevant ids,
         # then join the outer query on the subquery to select the correct columns of the table.
         subquery = query.subquery()
-        outer_query = session.query(ArtifactV2, subquery.c.name)
+        outer_query = session.query(ArtifactV2, subquery.c.tag_name)
         if with_entities:
-            outer_query = outer_query.with_entities(*with_entities, subquery.c.name)
+            outer_query = outer_query.with_entities(*with_entities, subquery.c.tag_name)
 
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
         # Put "latest" tag first, then others by tag_id desc
         latest_first_case = case(
-            (subquery.c.name == "latest", 0),
+            (subquery.c.tag_name == "latest", 0),
             else_=1,
         )
 
@@ -4536,7 +4536,9 @@ class SQLDB(DBInterface):
         # in the final step we inner join the inner table with the full table.
         query = query.with_entities(
             cls.id,
-            *(cls.Tag.name, cls.Tag.id.label("tag_id")) if with_tagged else (),
+            *(cls.Tag.name.label("tag_name"), cls.Tag.id.label("tag_id"))
+            if with_tagged
+            else (),
         ).add_column(row_number_column)
         if max_partitions > 0:
             max_partition_value = (
@@ -4555,7 +4557,7 @@ class SQLDB(DBInterface):
             result_query = session.query(cls)
             if with_tagged:
                 result_query = result_query.add_columns(
-                    subquery.c.name,
+                    subquery.c.tag_name,
                     subquery.c.tag_id,
                 )
             result_query = result_query.join(subquery, cls.id == subquery.c.id).filter(

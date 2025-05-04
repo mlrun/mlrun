@@ -188,13 +188,15 @@ class TDEngineConnection:
                     prepared_statement.execute()
                 except taosws.Error as e:
                     raise TDEngineError(
-                        f"Failed to run prepared statement `{self._conn.statement()}`"
+                        f"Failed to run prepared statement `{self._conn.statement()}`: {e}"
                     ) from e
             else:
                 try:
                     self._conn.execute(statement)
                 except taosws.Error as e:
-                    raise TDEngineError(f"Failed to run statement `{statement}`") from e
+                    raise TDEngineError(
+                        f"Failed to run statement `{statement}`: {e}"
+                    ) from e
 
         if not query:
             return None
@@ -202,7 +204,7 @@ class TDEngineConnection:
         try:
             res = self._conn.query(query)
         except taosws.Error as e:
-            raise TDEngineError(f"Failed to run query `{query}`") from e
+            raise TDEngineError(f"Failed to run query `{query}`: {e}") from e
 
         fields = [
             Field(field.name(), field.type(), field.bytes()) for field in res.fields

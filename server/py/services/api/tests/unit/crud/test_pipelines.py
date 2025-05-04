@@ -242,7 +242,6 @@ def test_resolve_pipeline_project():
             },
         },
         {
-            # TODO: yacouby, need to deal with mixins in pipelines ( look for return mlconf.default_project)
             "expected_project": mlrun.mlconf.default_project,
             "template": {"dag": {"asdasd": "asdasd"}},
         },

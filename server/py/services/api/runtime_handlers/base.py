@@ -1601,7 +1601,6 @@ class BaseRuntimeHandler(ABC):
         resource_field_name: str,
         resource: mlrun.common.schemas.RuntimeResource,
     ):
-        # TODO: yacouby two places here
         if mlrun_constants.MLRunInternalLabels.uid in resource.labels:
             project = resource.labels.get(
                 mlrun_constants.MLRunInternalLabels.project, config.default_project

@@ -148,8 +148,9 @@ def test_new_function_args_with_default_image_pull_secret(
     assets_path = pathlib.Path(__file__).parent / "assets"
     func_path = assets_path / "sample_function.py"
     handler = "hello_word"
-    project = "some-project"
-    services.api.tests.unit.api.utils.create_project(client, project)
+    services.api.tests.unit.api.utils.create_project(
+        client, mlrun.mlconf.default_project
+    )
 
     mlrun.mlconf.function.spec.image_pull_secret = Config(
         {"default": "adam-docker-registry-auth"}
@@ -163,7 +164,6 @@ def test_new_function_args_with_default_image_pull_secret(
         filename=str(func_path),
         handler=handler,
         image="mlrun/mlrun",
-        project=project,
     )
     uid = "123"
     run = {

@@ -149,7 +149,9 @@ class SQLRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[Union[str, list[str]]] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[mlrun.common.runtimes.constants.RunStates] = None, # TODO: Remove this in 1.12
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # TODO: Remove this in 1.12
         states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         iter: bool = False,

@@ -175,7 +175,12 @@ async def list_runs(
     name: Optional[str] = None,
     uid: list[str] = Query([]),
     labels: list[str] = Query([], alias="label"),
-    states: list[str] = Query([], alias="state", deprecated=True, description="'state' query param is deprecated in 1.10.0 and will be removed in 1.12.0, Use 'states' instead"),
+    states: list[str] = Query(
+        [],
+        alias="state",
+        deprecated=True,
+        description="'state' query param is deprecated in 1.10.0 and will be removed in 1.12.0, Use 'states' instead",
+    ),
     sort: bool = True,
     iter: bool = True,
     start_time_from: Optional[str] = None,

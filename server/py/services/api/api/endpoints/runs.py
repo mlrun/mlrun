@@ -202,6 +202,8 @@ async def list_runs(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    if not project:
+        raise mlrun.errors.MLRunInvalidArgumentError("Project must be provided")
     allowed_project_names = (
         await services.api.crud.Projects().list_allowed_project_names(
             db_session, auth_info, project=project

@@ -148,7 +148,7 @@ class Runs(
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
         state: typing.Optional[
             mlrun.common.runtimes.constants.RunStates
-        ] = None,  # Backward compatibility
+        ] = None,  # It is needed when called from delete_runs
         states: typing.Optional[typing.Union[str, list[str]]] = None,
         sort: bool = True,
         last: int = 0,

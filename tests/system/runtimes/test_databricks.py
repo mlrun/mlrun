@@ -85,7 +85,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
 
     def _abort_run(self):
         self._logger.info("start aborting")
-        mlrun_runs = self.project.list_runs(state="running")
+        mlrun_runs = self.project.list_runs(states=["running"])
         if len(mlrun_runs) < 1:
             raise MLRunRuntimeError(
                 f"No active runs related to project {self.project_name} could be found"

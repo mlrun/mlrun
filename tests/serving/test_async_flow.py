@@ -180,21 +180,30 @@ def test_model_runner():
     finally:
         server.wait_for_completion()
 
+
 def test_model_runner_add_model():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
-    model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model_1", inc=1)
-    model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model_2", inc=2)
+    model_runner_step.add_model(
+        model_class="MyModel", endpoint_name="my_model_1", inc=1
+    )
+    model_runner_step.add_model(
+        model_class="MyModel", endpoint_name="my_model_2", inc=2
+    )
     graph.to(model_runner_step).respond()
-    assert ["my_model_1", "my_model_2"] == graph.model_endpoints, "model endpoints name not in graph"
+    assert [
+        "my_model_1",
+        "my_model_2",
+    ] == graph.model_endpoints, "model endpoints name not in graph"
 
     server = function.to_mock_server()
     try:
         resp = server.test(body={"n": 1})
-        assert resp == {'my_model_1': {'n': 2}, 'my_model_2': {'n': 3}}
+        assert resp == {"my_model_1": {"n": 2}, "my_model_2": {"n": 3}}
     finally:
         server.wait_for_completion()
+
 
 def test_model_runner_add_model_failure():
     function = mlrun.new_function("tests", kind="serving")
@@ -203,23 +212,34 @@ def test_model_runner_add_model_failure():
     model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model", inc=1)
     try:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model", inc=2)
+            model_runner_step.add_model(
+                model_class="MyModel", endpoint_name="my_model", inc=2
+            )
     except AssertionError:
-        pytest.fail("Expected 'mlrun.errors.MLRunInvalidArgumentError' using the same model name twice in step")
+        pytest.fail(
+            "Expected 'mlrun.errors.MLRunInvalidArgumentError' using the same model name twice in step"
+        )
 
     function_0 = mlrun.new_function("tests_1", kind="serving")
     graph_0 = function_0.set_topology("flow", engine="async")
     model_runner_step_0 = ModelRunnerStep(name="my_model_runner_0")
     model_runner_step_1 = ModelRunnerStep(name="my_model_runner_1")
-    model_runner_step_0.add_model(model_class="MyModel", endpoint_name="my_model", inc=1)
-    model_runner_step_1.add_model(model_class="MyModel", endpoint_name="my_model", inc=2)
+    model_runner_step_0.add_model(
+        model_class="MyModel", endpoint_name="my_model", inc=1
+    )
+    model_runner_step_1.add_model(
+        model_class="MyModel", endpoint_name="my_model", inc=2
+    )
     graph_0.to(model_runner_step_0)
 
     try:
         with pytest.raises(mlrun.serving.states.GraphError):
             graph_0.to(model_runner_step_1).respond()
     except AssertionError:
-        pytest.fail("Expected 'mlrun.serving.states.GraphError' using the same model name twice in graph")
+        pytest.fail(
+            "Expected 'mlrun.serving.states.GraphError' using the same model name twice in graph"
+        )
+
 
 class MyModelSelector(ModelSelector):
     def select(self, event, available_models: list[Model]) -> Optional[list[str]]:

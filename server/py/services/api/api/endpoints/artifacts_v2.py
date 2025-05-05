@@ -352,7 +352,7 @@ async def delete_artifacts(
     db_session: Session = Depends(deps.get_db_session),
 ):
     if not project:
-        raise mlrun.errors.MLRunInvalidArgumentError("Project must be provided")
+        raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
     artifacts = await run_in_threadpool(
         services.api.crud.Artifacts().list_artifacts,
         db_session,

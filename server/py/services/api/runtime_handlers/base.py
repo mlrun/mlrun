@@ -1602,9 +1602,7 @@ class BaseRuntimeHandler(ABC):
         resource: mlrun.common.schemas.RuntimeResource,
     ):
         if mlrun_constants.MLRunInternalLabels.uid in resource.labels:
-            project = resource.labels.get(
-                mlrun_constants.MLRunInternalLabels.project, config.default_project
-            )
+            project = resource.labels.get(mlrun_constants.MLRunInternalLabels.project)
             uid = resource.labels[mlrun_constants.MLRunInternalLabels.uid]
             self._add_resource_to_grouped_by_field_resources_response(
                 project, uid, resources, resource_field_name, resource

@@ -332,7 +332,7 @@ async def deploy_status(
     db_session: sqlalchemy.orm.Session = Depends(deps.get_db_session),
 ):
     if not project:
-        raise mlrun.errors.MLRunInvalidArgumentError("Project must be provided")
+        raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
     await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
         project,

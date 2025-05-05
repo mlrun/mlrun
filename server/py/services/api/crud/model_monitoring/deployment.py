@@ -218,7 +218,9 @@ class MonitoringDeployment:
                 f"Deploying {mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER} function",
                 project=self.project,
             )
-            fn = self._get_model_monitoring_controller_function(image=controller_image)
+            fn = self._get_model_monitoring_controller_function(
+                image=controller_image, ignore_stream_already_exists_failure=overwrite
+            )
             minutes = base_period
             hours = days = 0
             batch_dict = {
@@ -510,12 +512,16 @@ class MonitoringDeployment:
 
         return function
 
-    def _get_model_monitoring_controller_function(self, image: str):
+    def _get_model_monitoring_controller_function(
+        self, image: str, ignore_stream_already_exists_failure: bool
+    ):
         """
         Initialize model monitoring controller function.
 
-        :param image: Base docker image to use for building the function container.
-        :return:      A function object from a mlrun runtime class.
+        :param image:                               Base docker image to use for building the function container.
+        :param ignore_stream_already_exists_failure: If True, ignores `TopicAlreadyExistsError` error on
+                                                     MM-infra-functions deployment when using kafka.
+        :return:                                    A function object from a mlrun runtime class.
         """
         # Create job function runtime for the controller
         function = mlrun.code_to_function(
@@ -538,7 +544,7 @@ class MonitoringDeployment:
             function=function,
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             stream_args=config.model_endpoint_monitoring.controller_stream_args,
-            ignore_stream_already_exists_failure=True,
+            ignore_stream_already_exists_failure=ignore_stream_already_exists_failure,
         )
 
         function = self._apply_access_key_and_mount_function(

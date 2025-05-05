@@ -460,9 +460,13 @@ class BaseStep(ModelObj):
             raise GraphError(
                 "ModelRunnerStep should be added to 'Flow' topology graph only"
             )
-        step_model_endpoints = list(step.class_args[schemas.ModelRunnerStepData.MODELS].keys())
+        step_model_endpoints = list(
+            step.class_args[schemas.ModelRunnerStepData.MODELS].keys()
+        )
         # Get all model_endpoints names that are in both lists
-        common_endpoints_names = list(set(root.model_endpoints) & set(step_model_endpoints))
+        common_endpoints_names = list(
+            set(root.model_endpoints) & set(step_model_endpoints)
+        )
         if common_endpoints_names:
             raise GraphError(
                 f"The graph already contains model endpoints named {common_endpoints_names}."
@@ -1093,7 +1097,9 @@ class ModelRunnerStep(TaskStep, StepToDict):
         monitoring_data = self.class_args.get(
             schemas.ModelRunnerStepData.MONITORING_DATA, {}
         )
-        model_class = model_class.__class__ if isinstance(model_class, Model) else model_class
+        model_class = (
+            model_class.__class__ if isinstance(model_class, Model) else model_class
+        )
         models[endpoint_name] = (model_class, model_parameters)
         monitoring_data[endpoint_name] = {
             schemas.MonitoringData.INPUTS: inputs,

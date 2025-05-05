@@ -181,8 +181,8 @@ def test_model_runner():
         server.wait_for_completion()
 
 
-@pytest.mark.parametrize("use_add_step", [True, False])
-def test_model_runner_add_model(use_add_step: bool):
+@pytest.mark.parametrize("method", ["add_step", "to", "set_flow"])
+def test_model_runner_add_model(method: str):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
@@ -192,10 +192,12 @@ def test_model_runner_add_model(use_add_step: bool):
     model_runner_step.add_model(
         model_class="MyModel", endpoint_name="my_model_2", inc=2
     )
-    if use_add_step:
+    if method == "add_step":
         graph.add_step(model_runner_step).respond()
-    else:
+    elif method == "to":
         graph.to(model_runner_step).respond()
+    elif method == "set_flow":
+        graph.set_flow([model_runner_step]).respond()
     assert [
         "my_model_1",
         "my_model_2",
@@ -209,7 +211,8 @@ def test_model_runner_add_model(use_add_step: bool):
         server.wait_for_completion()
 
 
-def test_model_runner_add_model_failure():
+@pytest.mark.parametrize("method", ["add_step", "to", "set_flow"])
+def test_model_runner_add_model_failure(method: str):
     function = mlrun.new_function("tests", kind="serving")
     function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
@@ -234,11 +237,17 @@ def test_model_runner_add_model_failure():
     model_runner_step_1.add_model(
         model_class="MyModel", endpoint_name="my_model", inc=2
     )
-    graph_0.to(model_runner_step_0)
 
     try:
         with pytest.raises(mlrun.serving.states.GraphError):
-            graph_0.to(model_runner_step_1).respond()
+            if method == "add_step":
+                graph_0.add_step(model_runner_step_0)
+                graph_0.add_step(model_runner_step_1).respond()
+            elif method == "to":
+                graph_0.to(model_runner_step_0)
+                graph_0.to(model_runner_step_1).respond()
+            elif method == "set_flow":
+                graph_0.set_flow([model_runner_step_0, model_runner_step_1]).respond()
     except AssertionError:
         pytest.fail(
             "Expected 'mlrun.serving.states.GraphError' using the same model name twice in graph"

@@ -181,7 +181,8 @@ def test_model_runner():
         server.wait_for_completion()
 
 
-def test_model_runner_add_model():
+@pytest.mark.parametrize("use_add_step", [True, False])
+def test_model_runner_add_model(use_add_step: bool):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
@@ -191,7 +192,10 @@ def test_model_runner_add_model():
     model_runner_step.add_model(
         model_class="MyModel", endpoint_name="my_model_2", inc=2
     )
-    graph.to(model_runner_step).respond()
+    if use_add_step:
+        graph.add_step(model_runner_step).respond()
+    else:
+        graph.to(model_runner_step).respond()
     assert [
         "my_model_1",
         "my_model_2",

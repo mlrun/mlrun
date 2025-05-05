@@ -210,7 +210,6 @@ linkcheck_ignore = [
     "https://www.kaggle.com/code/jsylas/python-version-of-top-ten-rank-r-22-m-2-88/data?select=train.csv",
     "http://test-milvus.milvus.svc.cluster.local:19530",
     "https://docs.confident-ai.com/docs/",
-    "https://github.com/iguazio/genai-factory/blob/main/tutorials/data_for_genai/vector_databases.ipynb",
     # Returns 404 though link is valid
     "https://docs.databricks.com/aws/en/reference/jobs-2.0-api",
     # can be removed after v1.8.0 is released:

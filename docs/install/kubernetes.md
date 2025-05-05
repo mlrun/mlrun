@@ -49,11 +49,11 @@ The MLRun CE (Community Edition) includes the following components:
 * MPI Operator - https://github.com/kubeflow/mpi-operator
 * MinIO - https://github.com/minio/minio/tree/master/helm/minio
 * Spark Operator - https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
-* Pipelines - https://github.com/kubeflow/pipelines
 * Prometheus stack - https://github.com/prometheus-community/helm-charts
   - Prometheus
   - Grafana
-
+  
+[KFP Pipelines](https://github.com/kubeflow/pipelines) is optional. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images).
 
 <a id="installing-the-chart"></a>
 ## Installing the chart
@@ -153,6 +153,24 @@ When the installation is complete, the helm command prints the URLs and ports of
 - The current pipelines MySQL database fails to start. The workaround for now is to run this line `docker pull mysql:5.7 --platform linux/amd64` before installing the chart.
 - The Grafana statistics do not work well in this release. A fix will be delivered in a subsequent release.
 - An issue with Prometheus node selector. The workaround for now is to opt out of kube-prometheus-stack by installing the chart with the `--set kube-prometheus-stack.enabled=false`.
+```
+
+## Configuring the user Jupyter conda environment
+
+Run this in your Jupyter terminal, where `myenv` is the name of your environment:
+
+```bash
+# Create the virtual environment
+conda create -n myenv python=3.9 -y
+
+# Activate the virtual environment
+conda activate myenv
+
+# Make sure that ipykernel is installed
+pip install --user ipykernel
+
+# Add the new virtual environment to Jupyter
+python -m ipykernel install --user --name myenv --display-name "Python (myenv)"
 ```
 
 ## Configuring TDengine and Kafka for model monitoring

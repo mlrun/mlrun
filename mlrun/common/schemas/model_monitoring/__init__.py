@@ -35,7 +35,6 @@ from .constants import (
     ResultData,
     ResultKindApp,
     ResultStatusApp,
-    ServingMonitoringData,
     SpecialApps,
     TDEngineSuperTables,
     TSDBTarget,

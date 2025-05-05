@@ -446,17 +446,6 @@ class ModelEndpointMonitoringMetricType(StrEnum):
     METRIC = "metric"
 
 
-class ServingMonitoringData(StrEnum):
-    MONITORING_DATA = "monitoring_data"
-    INPUTS = "inputs"
-    OUTPUTS = "outputs"
-    INPUT_PATH = "input_path"
-    CREATION_STRATEGY = "creation_strategy"
-    LABELS = "labels"
-    MODEL_PATH = "model_path"
-    MODEL_ENDPOINT_UID = "model_endpoint_uid"
-
-
 _FQN_PART_PATTERN = r"[a-zA-Z0-9_-]+"
 FQN_PATTERN = (
     rf"^(?P<project>{_FQN_PART_PATTERN})\."

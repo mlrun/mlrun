@@ -405,21 +405,7 @@ class BaseStep(ModelObj):
         )
 
         if isinstance(class_name, ModelRunnerStep) or class_name == "ModelRunnerStep":
-            if self.parent is not None:
-                root = self.parent
-            else:
-                root = self
-            if not isinstance(root, RootFlowStep):
-                raise GraphError(
-                    "ModelRunnerStep should be added to 'Flow' topology graph only"
-                )
-            for model_endpoint in step.class_args["models"].keys():
-                if model_endpoint in root.model_endpoints:
-                    raise GraphError(
-                        "ModelRunnerStep points to existed model in graph using the same model_endpoint name"
-                    )
-                else:
-                    root.update_model_endpoint(model_endpoint)
+            self.verify_model_runner_step(step)
 
         step = parent._steps.update(name, step)
         step.set_parent(parent)
@@ -464,6 +450,25 @@ class BaseStep(ModelObj):
 
     def supports_termination(self):
         return False
+
+    def verify_model_runner_step(self, step: "ModelRunnerStep"):
+        if self.parent is not None:
+            root = self.parent
+        else:
+            root = self
+        if not isinstance(root, RootFlowStep):
+            raise GraphError(
+                "ModelRunnerStep should be added to 'Flow' topology graph only"
+            )
+        step_model_endpoints = list(step.class_args[schemas.ModelRunnerStepData.MODELS].keys())
+        # Get all model_endpoints names that are in both lists
+        common_endpoints_names = list(set(root.model_endpoints) & set(step_model_endpoints))
+        if common_endpoints_names:
+            raise GraphError(
+                f"The graph already contains model endpoints named {common_endpoints_names}."
+            )
+        else:
+            root.extend_model_endpoints(step_model_endpoints)
 
 
 class TaskStep(BaseStep):
@@ -1028,7 +1033,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
         self,
         endpoint_name: str,
         model_class: Union[str, Model],
-        model_artifact: Optional[Union[str, mlrun.artifacts.Artifact]] = None,
+        model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
@@ -1064,7 +1069,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
                                     equal to the model serving function outputs (length, and order)
         :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
                                     (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
-        :param override:            bool allow override existing model.
+        :param override:            bool allow override existing model on the current ModelRunnerStep.
         :param model_parameters:    Parameters for model instantiation
         """
 
@@ -1078,7 +1083,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
                 "Inconsistent name for model added to ModelRunnerStep."
             )
 
-        models = self.class_args.get("models", {})
+        models = self.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
         if endpoint_name in models and not override:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Model with name {endpoint_name} already exists in this ModelRunnerStep."
@@ -1086,25 +1091,26 @@ class ModelRunnerStep(TaskStep, StepToDict):
 
         model_parameters["name"] = endpoint_name
         monitoring_data = self.class_args.get(
-            schemas.ServingMonitoringData.MONITORING_DATA, {}
+            schemas.ModelRunnerStepData.MONITORING_DATA, {}
         )
+        model_class = model_class.__class__ if isinstance(model_class, Model) else model_class
         models[endpoint_name] = (model_class, model_parameters)
         monitoring_data[endpoint_name] = {
-            schemas.ServingMonitoringData.INPUTS: inputs,
-            schemas.ServingMonitoringData.OUTPUTS: outputs,
-            schemas.ServingMonitoringData.INPUT_PATH: input_path,
-            schemas.ServingMonitoringData.CREATION_STRATEGY: creation_strategy,
-            schemas.ServingMonitoringData.LABELS: labels,
-            schemas.ServingMonitoringData.MODEL_PATH: model_artifact.uri
+            schemas.MonitoringData.INPUTS: inputs,
+            schemas.MonitoringData.OUTPUTS: outputs,
+            schemas.MonitoringData.INPUT_PATH: input_path,
+            schemas.MonitoringData.CREATION_STRATEGY: creation_strategy,
+            schemas.MonitoringData.LABELS: labels,
+            schemas.MonitoringData.MODEL_PATH: model_artifact.uri
             if isinstance(model_artifact, mlrun.artifacts.Artifact)
             else model_artifact,
         }
-        self.class_args["models"] = models
-        self.class_args[schemas.ServingMonitoringData.MONITORING_DATA] = monitoring_data
+        self.class_args[schemas.ModelRunnerStepData.MODELS] = models
+        self.class_args[schemas.ModelRunnerStepData.MONITORING_DATA] = monitoring_data
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         model_selector = self.class_args.get("model_selector")
-        models = self.class_args.get("models", {})
+        models = self.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
         if isinstance(model_selector, str):
             model_selector = get_class(model_selector, namespace)()
         model_objects = []
@@ -1342,17 +1348,7 @@ class FlowStep(BaseStep):
             class_args=class_args,
         )
         if isinstance(class_name, ModelRunnerStep) or class_name == "ModelRunnerStep":
-            if self.parent is not None:
-                root = self.parent
-            else:
-                root = self
-            for model_endpoint in step.class_args["models"].keys():
-                if model_endpoint in root.model_endpoints:
-                    raise GraphError(
-                        "ModelRunnerStep points to existed model in graph using the same model_endpoint name"
-                    )
-                else:
-                    root.update_model_endpoint(model_endpoint)
+            self.verify_model_runner_step(step)
 
         after_list = after if isinstance(after, list) else [after]
         for after in after_list:
@@ -1801,8 +1797,8 @@ class RootFlowStep(FlowStep):
     def model_endpoints(self, models: list[str]):
         self._models = models
 
-    def update_model_endpoint(self, model_endpoint_name: str):
-        self._models.append(model_endpoint_name)
+    def extend_model_endpoints(self, model_endpoints_names: list):
+        self._models.extend(model_endpoints_names)
 
 
 classes_map = {

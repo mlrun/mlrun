@@ -1568,7 +1568,7 @@ class MonitoringDeployment:
                     creation_strategy=route.model_endpoint_creation_strategy,
                     endpoint_name=route.name,
                 )
-                route.class_args["model_endpoint_uid"] = uid
+                route.class_args[mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID] = uid
                 model_endpoints_instructions.append(
                     (
                         self._model_endpoint_draft(
@@ -1581,10 +1581,10 @@ class MonitoringDeployment:
                             sampling_percentage=sampling_percentage,
                             uid=uid,
                             label_names=route.class_args.get(
-                                mm_constants.ServingMonitoringData.OUTPUTS
+                                mlrun.common.schemas.MonitoringData.OUTPUTS
                             ),
                             model_path=route.class_args.get(
-                                mm_constants.ServingMonitoringData.MODEL_PATH, ""
+                                mlrun.common.schemas.MonitoringData.MODEL_PATH, ""
                             ),
                         ),
                         route.model_endpoint_creation_strategy,
@@ -1604,9 +1604,7 @@ class MonitoringDeployment:
                 creation_strategy=router_step.model_endpoint_creation_strategy,
                 endpoint_name=router_step.name,
             )
-            router_step.class_args[
-                mm_constants.ServingMonitoringData.MODEL_ENDPOINT_UID
-            ] = uid
+            router_step.class_args[mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID] = uid
             model_endpoints_instructions.append(
                 (
                     self._model_endpoint_draft(
@@ -1681,7 +1679,7 @@ class MonitoringDeployment:
                         creation_strategy=step.model_endpoint_creation_strategy,
                         endpoint_name=step.name,
                     )
-                    step.class_args["model_endpoint_uid"] = uid
+                    step.class_args[mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID] = uid
                     model_endpoints_instructions.append(
                         (
                             self._model_endpoint_draft(
@@ -1691,7 +1689,7 @@ class MonitoringDeployment:
                                 function_name=function_name,
                                 function_tag=function_tag,
                                 track_models=track_models,
-                                model_path=step.class_args.get("model_path", ""),
+                                model_path=step.class_args.get(mlrun.common.schemas.MonitoringData.MODEL_PATH, ""),
                                 uid=uid,
                             ),
                             step.model_endpoint_creation_strategy,
@@ -1816,16 +1814,16 @@ class MonitoringDeployment:
     ]:
         model_endpoints_instructions = []
         monitoring_data = model_runner.class_args.get(
-            mm_constants.ServingMonitoringData.MONITORING_DATA, {}
+            mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
         )
         for endpoint_name, (
             model_class,
-            model_parameter,
-        ) in model_runner.class_args.get("models", {}).items():
+            _,
+        ) in model_runner.class_args.get(mlrun.common.schemas.ModelRunnerStepData.MODELS, {}).items():
             monitoring_data[endpoint_name] = monitoring_data[endpoint_name] or {}
             if (
                 monitoring_data[endpoint_name].get(
-                    mm_constants.ServingMonitoringData.CREATION_STRATEGY
+                    mlrun.common.schemas.MonitoringData.CREATION_STRATEGY
                 )
                 != mm_constants.ModelEndpointCreationStrategy.SKIP
             ):
@@ -1835,16 +1833,14 @@ class MonitoringDeployment:
                     function_tag=function_tag,
                     model_endpoints_dict=model_endpoints_dict,
                     creation_strategy=monitoring_data[endpoint_name].get(
-                        mm_constants.ServingMonitoringData.CREATION_STRATEGY
+                        mlrun.common.schemas.MonitoringData.CREATION_STRATEGY
                     ),
                     endpoint_name=endpoint_name,
                 )
                 # assign class args for the graph update:
-                model_runner.class_args[
-                    mm_constants.ServingMonitoringData.MONITORING_DATA
-                ][endpoint_name][
-                    mm_constants.ServingMonitoringData.MODEL_ENDPOINT_UID
-                ] = uid
+                model_runner.class_args[mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA][
+                    endpoint_name
+                ][mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID] = uid
                 model_endpoints_instructions.append(
                     (
                         self._model_endpoint_draft(
@@ -1857,13 +1853,13 @@ class MonitoringDeployment:
                             sampling_percentage=sampling_percentage,
                             uid=uid,
                             label_names=monitoring_data[endpoint_name].get(
-                                mm_constants.ServingMonitoringData.OUTPUTS
+                                mlrun.common.schemas.MonitoringData.OUTPUTS
                             ),
                             model_path=monitoring_data[endpoint_name].get(
-                                mm_constants.ServingMonitoringData.MODEL_PATH, ""
+                                mlrun.common.schemas.MonitoringData.MODEL_PATH, ""
                             ),
                         ),
-                        monitoring_data[endpoint_name].get("creation_strategy"),
+                        monitoring_data[endpoint_name].get(mlrun.common.schemas.MonitoringData.CREATION_STRATEGY),
                     )
                 )
         return model_endpoints_instructions

@@ -71,12 +71,13 @@ For example:
 
 Model monitoring supports Kafka or V3IO as streaming platforms, and TDEngine or V3IO TSDB platforms.
 
-We recommend the following versions:
-
-- TDEngine - `3.3.2.0`.
-- Kafka - `3.9.0`.
+Recommended versions:
+- TDEngine: `3.3.2.0`
+- Kafka: `3.9.0`
 
 Before you deploy the model monitoring or serving function, you need to {py:meth}`set the credentials <mlrun.projects.MlrunProject.set_model_monitoring_credentials>`.
+
+See [Configuring TDengine and Kafka for model monitoring](../install/kubernetes.md#configuring-tdengine-and-kafka-for-model-monitoring).
 
 ## Model monitoring applications
 

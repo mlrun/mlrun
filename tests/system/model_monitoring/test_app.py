@@ -388,7 +388,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         self._external_stream_delay = 0
         if isinstance(
             self.mm_stream_profile, DatastoreProfileKafkaSource
-        ) and self.mm_stream_profile.brokers[0].endswith(".confluent.cloud:9092"):
+        ) and self.mm_stream_profile.attributes()["brokers"][0].endswith(
+            ".confluent.cloud:9092"
+        ):
             # external Confluent Cloud degrades the streams latency
             self._external_stream_delay = 90  # seconds
         super(TestMLRunSystem, self).custom_setup(project_name=self.project_name)

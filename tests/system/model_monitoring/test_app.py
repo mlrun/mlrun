@@ -703,7 +703,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         time.sleep(
             2 * self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
-            + 60  # external Confluent Kafka degrades the streams latency
+            + 90  # external Confluent Kafka degrades the streams latency
         )
 
         mep = mlrun.db.get_run_db().get_model_endpoint(

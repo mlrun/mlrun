@@ -80,7 +80,7 @@ def test_write_application_event(
         "result_extra_data": """{"question": "Who wrote 'To Kill a Mockingbird'?"}""",
         "result_value": result_value,
     }
-    with pytest.raises(TDEngineError, match="Failed to run statement `USE"):
+    with pytest.raises(TDEngineError, match="Database not exist"):
         connector.write_application_event(data)
     connector.create_tables()  # DB is created here
     connector.write_application_event(data)

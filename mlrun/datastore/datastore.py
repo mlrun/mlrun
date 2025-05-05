@@ -111,7 +111,7 @@ def schema_to_store(schema):
 
 def uri_to_ipython(link):
     schema, endpoint, parsed_url = parse_url(link)
-    if schema in [DB_SCHEMA, "memory"]:
+    if schema in [DB_SCHEMA, "memory", "ds"]:
         return ""
     return schema_to_store(schema).uri_to_ipython(endpoint, parsed_url.path)
 

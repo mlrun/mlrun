@@ -406,7 +406,7 @@ class ModelArtifact(Artifact):
         return mlrun.get_dataitem(target_model_path).get()
 
 
-def get_model(model_dir, suffix=""):
+def get_model(model_dir, suffix="") -> (str, ModelArtifact, dict):
     """return model file, model spec object, and list of extra data items
 
     this function will get the model file, metadata, and extra data

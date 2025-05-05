@@ -155,6 +155,24 @@ When the installation is complete, the helm command prints the URLs and ports of
 - An issue with Prometheus node selector. The workaround for now is to opt out of kube-prometheus-stack by installing the chart with the `--set kube-prometheus-stack.enabled=false`.
 ```
 
+## Configuring the user Jupyter conda environment
+
+Run this in your Jupyter terminal, where `myenv` is the name of your environment:
+
+```bash
+# Create the virtual environment
+conda create -n myenv python=3.9 -y
+
+# Activate the virtual environment
+conda activate myenv
+
+# Make sure that ipykernel is installed
+pip install --user ipykernel
+
+# Add the new virtual environment to Jupyter
+python -m ipykernel install --user --name myenv --display-name "Python (myenv)"
+```
+
 ## Configuring TDengine and Kafka for model monitoring
 TDengine and Kafka are part of the default CE installations. These are the default TDengine and Kafka installation values. It's recommended to change the user/password.
 

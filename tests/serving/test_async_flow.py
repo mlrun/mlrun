@@ -211,7 +211,7 @@ def test_model_runner_add_model(use_add_step: bool):
 
 def test_model_runner_add_model_failure():
     function = mlrun.new_function("tests", kind="serving")
-    graph = function.set_topology("flow", engine="async")
+    function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model", inc=1)
     try:

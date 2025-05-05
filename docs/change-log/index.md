@@ -60,7 +60,7 @@ To upgrade the MLRun server:
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-8951|Evidently-related code is now in a dedicated module. Code that imported `mlrun.model_monitoring.applications.EvidentlyModelMonitoringApplicationBase` needs to import `mlrun.model_monitoring.applications.evidently.EvidentlyModelMonitoringApplicationBase` instead.|
-| |Model monitoring credentials are now part of the project. See [Enable model monitoring on the project](../tutorials/05-model-monitoring.ipynb#enable-model-monitoring-on-the-project).|
+| |Model monitoring credentials are now part of the project. See {ref}`import-enablemm-deploy`.|
 
 ### Infrastructure
 | ID    |Description                                                                 |

@@ -43,7 +43,6 @@ import mlrun.feature_store
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
 import mlrun.model_monitoring.api
-import mlrun.model_monitoring.applications.histogram_data_drift
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfileKafkaSource,

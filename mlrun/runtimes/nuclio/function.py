@@ -1000,7 +1000,7 @@ class RemoteRuntime(KubeResource):
             else:
                 http_client_kwargs["json"] = body
         try:
-            logger.info("Invoking function", method=method, path=path)
+            logger.debug("Invoking function", method=method, path=path)
             if not getattr(self, "_http_session", None):
                 self._http_session = requests.Session()
             resp = self._http_session.request(

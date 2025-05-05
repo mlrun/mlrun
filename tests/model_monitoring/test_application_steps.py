@@ -160,7 +160,7 @@ class Pusher:
     def __init__(self, filename: str) -> None:
         self.stream_filename = filename
 
-    def push(self, data: list[dict[str, typing.Any]]) -> None:
+    def push(self, data: list[dict[str, typing.Any]], partition_key: str) -> None:
         data = data[0]
         with open(self.stream_filename, "w") as json_file:
             json.dump(data, json_file)

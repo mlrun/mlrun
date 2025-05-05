@@ -98,10 +98,13 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
 
         # When retrying a KFP pipeline, we fetch the pipeline parameters from the previous run.
         # Due to an issue with the KFP server API, the pipeline parameters are returned as a list
-        # containing a dictionary instead of a dictionary. We need to extract the dictionary from the list.
+        # containing a dictionary instead of a dictionary. We need to flatten the list.
         pipeline_parameters = pipeline_spec.parameters
-        if isinstance(pipeline_parameters, list):
-            pipeline_parameters = pipeline_parameters[0]
+        if isinstance(pipeline_spec.parameters, list):
+            pipeline_parameters = {
+                getattr(param, "name"): getattr(param, "value")
+                for param in pipeline_spec.parameters
+            }
 
         desired_prefix = f"{project}-Retry of "
         desired_prefix_lower = desired_prefix.lower()

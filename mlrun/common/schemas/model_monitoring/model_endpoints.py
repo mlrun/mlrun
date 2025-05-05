@@ -88,13 +88,18 @@ class ModelEndpointParser(abc.ABC, BaseModel):
 
     @classmethod
     def from_flat_dict(
-        cls, endpoint_dict: dict, json_parse_values: Optional[list] = None
+        cls,
+        endpoint_dict: dict,
+        json_parse_values: Optional[list] = None,
+        validate: bool = True,
     ) -> "ModelEndpointParser":
         """Create a `ModelEndpointParser` object from an endpoint dictionary
 
         :param endpoint_dict:     Model endpoint dictionary.
         :param json_parse_values: List of dictionary keys with a JSON string value that will be parsed into a
                                   dictionary using json.loads().
+        :param validate:          Whether to validate the flattened dictionary.
+                                  Skip validation to optimize performance when it is safe to do so.
         """
         if json_parse_values is None:
             json_parse_values = cls.json_parse_values()
@@ -103,6 +108,7 @@ class ModelEndpointParser(abc.ABC, BaseModel):
             model_class=cls,
             flattened_dictionary=endpoint_dict,
             json_parse_values=json_parse_values,
+            validate=validate,
         )
 
 
@@ -213,17 +219,27 @@ class ModelEndpoint(BaseModel):
         return flatten_dict
 
     @classmethod
-    def from_flat_dict(cls, endpoint_dict: dict) -> "ModelEndpoint":
+    def from_flat_dict(
+        cls, endpoint_dict: dict, validate: bool = True
+    ) -> "ModelEndpoint":
         """Create a `ModelEndpoint` object from an endpoint flattened dictionary. Because the provided dictionary
         is flattened, we pass it as is to the subclasses without splitting the keys into spec, metadata, and status.
 
         :param endpoint_dict:     Model endpoint dictionary.
+        :param validate:          Whether to validate the flattened dictionary.
+                                  Skip validation to optimize performance when it is safe to do so.
         """
 
         return cls(
-            metadata=ModelEndpointMetadata.from_flat_dict(endpoint_dict=endpoint_dict),
-            spec=ModelEndpointSpec.from_flat_dict(endpoint_dict=endpoint_dict),
-            status=ModelEndpointStatus.from_flat_dict(endpoint_dict=endpoint_dict),
+            metadata=ModelEndpointMetadata.from_flat_dict(
+                endpoint_dict=endpoint_dict, validate=validate
+            ),
+            spec=ModelEndpointSpec.from_flat_dict(
+                endpoint_dict=endpoint_dict, validate=validate
+            ),
+            status=ModelEndpointStatus.from_flat_dict(
+                endpoint_dict=endpoint_dict, validate=validate
+            ),
         )
 
     def get(self, field, default=None):
@@ -311,7 +327,10 @@ class ModelEndpointMonitoringMetricNoData(_ModelEndpointMonitoringMetricValuesBa
 
 
 def _mapping_attributes(
-    model_class: type[Model], flattened_dictionary: dict, json_parse_values: list
+    model_class: type[Model],
+    flattened_dictionary: dict,
+    json_parse_values: list,
+    validate: bool = True,
 ) -> Model:
     """Generate a `BaseModel` object with the provided dictionary attributes.
 
@@ -319,8 +338,10 @@ def _mapping_attributes(
     :param flattened_dictionary: Flattened dictionary that contains the model endpoint attributes.
     :param json_parse_values:    List of dictionary keys with a JSON string value that will be parsed into a
                                  dictionary using json.loads().
+    :param validate:             Whether to validate the flattened dictionary.
+                                 Skip validation to optimize performance when it is safe to do so.
     """
-    # Get the fields of the provided base model object. These fields will be used to filter to relevent keys
+    # Get the fields of the provided base model object. These fields will be used to filter to relevant keys
     # from the flattened dictionary.
     wanted_keys = model_class.__fields__.keys()
 
@@ -338,7 +359,10 @@ def _mapping_attributes(
             else:
                 dict_to_parse[field_key] = None
 
-    return model_class.parse_obj(dict_to_parse)
+    if validate:
+        return model_class.parse_obj(dict_to_parse)
+
+    return model_class.construct(**dict_to_parse)
 
 
 def _json_loads_if_not_none(field: Any) -> Any:

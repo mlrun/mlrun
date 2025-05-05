@@ -459,7 +459,7 @@ class BaseStep(ModelObj):
         root = current_node
         if not isinstance(root, RootFlowStep) or not isinstance(self, RootFlowStep):
             raise GraphError(
-                "ModelRunnerStep should be added to 'Flow' topology graph only"
+                "ModelRunnerStep can be added to 'Flow' topology graph only"
             )
         step_model_endpoints = list(
             step.class_args[schemas.ModelRunnerStepData.MODELS].keys()
@@ -470,7 +470,7 @@ class BaseStep(ModelObj):
         )
         if common_endpoints_names:
             raise GraphError(
-                f"The graph already contains model endpoints named {common_endpoints_names}."
+                f"The graph already contains the model endpoints named - {common_endpoints_names}."
             )
         else:
             root.extend_model_endpoints(step_model_endpoints)

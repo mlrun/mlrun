@@ -386,6 +386,12 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
     def custom_setup(self) -> None:
         self.set_mm_credentials()
+        self._external_stream_delay = 0
+        if isinstance(
+            self.mm_stream_profile, DatastoreProfileKafkaSource
+        ) and self.mm_stream_profile.brokers[0].endswith(".confluent.cloud:9092"):
+            # external Confluent Cloud degrades the streams latency
+            self._external_stream_delay = 90  # seconds
         super(TestMLRunSystem, self).custom_setup(project_name=self.project_name)
 
     def custom_teardown(self) -> None:
@@ -703,7 +709,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         time.sleep(
             2 * self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
-            + 90  # external Confluent Kafka degrades the streams latency
+            + self._external_stream_delay
         )
 
         mep = mlrun.db.get_run_db().get_model_endpoint(

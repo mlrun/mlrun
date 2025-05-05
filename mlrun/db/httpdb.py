@@ -1276,8 +1276,8 @@ class HTTPRunDB(RunDBInterface):
         :param producer_uri:    Return artifacts produced by the requested producer URI. Producer URI usually
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
-        :param format_:         The format in which to return the artifacts. Default is 'full'.
-        :param limit:           Maximum number of artifacts to return.
+        :param format_: The format in which to return the artifacts. Default is 'full'.
+        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.10.0).
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -5098,6 +5098,13 @@ class HTTPRunDB(RunDBInterface):
 
         project = project or config.default_project
         labels = self._parse_labels(labels)
+
+        if limit:
+            # TODO: Remove this in 1.10.0
+            warnings.warn(
+                "'limit' is deprecated and will be removed in 1.10.0. Use 'page' and 'page_size' instead.",
+                FutureWarning,
+            )
 
         params = {
             "name": name,

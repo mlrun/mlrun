@@ -4323,7 +4323,7 @@ class MlrunProject(ModelObj):
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
         :param tree: Return artifacts of the requested tree.
-        :param limit: Maximum number of artifacts to return.
+        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.10.0).
         :param format_: The format in which to return the artifacts. Default is 'full'.
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
@@ -4334,6 +4334,14 @@ class MlrunProject(ModelObj):
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
+
+        if limit:
+            # TODO: Remove this in 1.10.0
+            warnings.warn(
+                "'limit' is deprecated and will be removed in 1.10.0. Use 'page' and 'page_size' instead.",
+                FutureWarning,
+            )
+
         return db.list_artifacts(
             name,
             self.metadata.name,

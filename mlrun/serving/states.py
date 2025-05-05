@@ -452,11 +452,12 @@ class BaseStep(ModelObj):
         return False
 
     def verify_model_runner_step(self, step: "ModelRunnerStep"):
-        if self.parent is not None:
-            root = self.parent
-        else:
-            root = self
-        if not isinstance(root, RootFlowStep):
+        current_node = self
+        while current_node.parent is not None:
+            current_node = self.parent
+
+        root = current_node
+        if not isinstance(root, RootFlowStep) or not isinstance(self, RootFlowStep):
             raise GraphError(
                 "ModelRunnerStep should be added to 'Flow' topology graph only"
             )
@@ -1096,9 +1097,6 @@ class ModelRunnerStep(TaskStep, StepToDict):
         model_parameters["name"] = endpoint_name
         monitoring_data = self.class_args.get(
             schemas.ModelRunnerStepData.MONITORING_DATA, {}
-        )
-        model_class = (
-            model_class.__class__ if isinstance(model_class, Model) else model_class
         )
         models[endpoint_name] = (model_class, model_parameters)
         monitoring_data[endpoint_name] = {
@@ -1776,7 +1774,7 @@ class RootFlowStep(FlowStep):
     """root flow step"""
 
     kind = "root"
-    _dict_fields = ["steps", "engine", "final_step", "on_error"]
+    _dict_fields = ["steps", "engine", "final_step", "on_error", "model_endpoints"]
 
     def __init__(
         self,

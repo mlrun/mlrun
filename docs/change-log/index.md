@@ -14,31 +14,32 @@
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
 (v180)=
-## v1.8.0
+## v1.8.0 (7 May 2025)
 
 ### Model monitoring
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9305|Model monitoring is now GA. It requires Nuclio>=1.13.12.|
-|ML-7731|Model monitoring can now be run on a larger scale, using MLRun's additional replicas/workers. To benefit from the scale-out: After upgrading to v1.8.0, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
+|ML-9305|Model monitoring is now GA. It requires Nuclio>=1.13.12. It is not backwards-compatible with previous versions. See {ref}`mm-upgrade`.|
+|ML-7731|Model monitoring can now be run on a larger scale, using MLRun's additional replicas/workers.|
 |ML-8281|MLRun now supports experiment tracking for document-based models, integrating management of LangChain documents using the new artifact type {py:class}`mlrun.artifacts.document.DocumentArtifact`. Additionally, it provides a mechanism for provisioning third-party configuration keys and settings ({py:class}`mlrun.datastore.datastore_profile.ConfigProfile`). The UI has a new Projects > Documents page supporting this feature. See additional new SDK classes: {py:class}`mlrun.artifacts.document.MLRunLoader`, and {py:class}`mlrun.datastore.vectorstore.VectorStoreCollection`. See the new tutorial {ref}`genai-03-vectordb`.
 |ML-8537|You can now run and evaluate models before deploying them, saving time and resources. See [Testing your application before deploying it](../model-monitoring/applications.md#testing-your-application-before-deploying-it).|
 |ML-7688|You can now give model endpoints a name of your choice.|
 ||The SDK for creating model monitoring alerts is much simpler than previously. See [Creating a model monitoring alert](../concepts/alerts.md#creating-a-model-monitoring-alert).|
-
+(mm-upgrade)=
 ### Upgrading the MLRun server if model monitoring is deployed in v1.7.x
 
 To upgrade the MLRun server:
-1.Before upgrading:
-   1. Redeploy all monitored serving functions with set_tracking(False) - not mandatory. If not - upgrade image serving function to mlrun==1.8.0 before the deployment (with tracked functions).
+1. Before upgrading:
+   1. Optionally redeploy all monitored serving functions with `set_tracking(False)`. Otherwise, upgrade the image serving function to mlrun==1.8.0 before the deployment (with tracked functions).
    2. Run `project.disable_model_monitoring(delete_stream_function=True, delete_user_applications=True)`. This removes all MM applications, infra pods, and the streams.
-2. After upgrading, start using model monitoring as usual.
-   - Model Monitoring is disabled on your project after the upgrade;  all the functions deploy without tracking and all the model monitoring application were deleted.
-   - You must use the v1.8.0 client to utilize MM on the v1.8.0 server.
+2. After upgrading, start using model monitoring as usual. See {ref}`realtime-monitor-drift-tutor`.
 
-
-
+```{admonition} Notes
+- Model monitoring is disabled on your project after the upgrade; all the functions deploy without tracking and all the model monitoring applications were deleted.
+- You must use the v1.8.0 client to utilize model monitoring on a v1.8.0 server.
+```
+ß
 ### Alerts
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
@@ -94,7 +95,7 @@ To upgrade the MLRun server:
 |ML-4168|If a `.yaml` file is too large to view, a popup opens with the option to downoad the file.|
 |ML-6826|The improved error message for a non-scheduled pod, for example preempted, is now: A Kubernetes pod related to this run cannot be found, possibly it was preempted or evicted. Additional details may be available from Kubernetes events.|
 |ML-7270|Retrieving artifacts with `project.get_artifact` and `project.get_store_resource` now return the correct artifacts.|
-|ML-7347|MM-app: Logging artifacts does not leak memory. (The artifact manager no longer saves each logged artifact.)|
+|ML-7347|Model monitoring aplication: Logging artifacts does not leak memory. (The artifact manager no longer saves each logged artifact.)|
 |ML-7384|New label validation for all of the list methods in the SDK, including `db.list_functions()`.|
 |ML-7905|When changing the Docker Registry, MLRun now uses the correct secrets on redploy of the function.|
 |ML-8060/9|Notifications are now sent by the workflow, and not  by the client as previously.|
@@ -108,10 +109,8 @@ To upgrade the MLRun server:
 |ML-9155|The improved performance reduces timeouts that cause restart of MLRun workers.|
 |ML-9201|Running `project.run` with `dirty=True` skips the git check for dirty.|
 |ML-9257|Model monitoring: A mismatch between the serving function response and the MEP expected output is saved correctly (and does not cause the application to fail).|
+|ML-9321/9432|Notifications no longer get stuck in "Pending" in the DB.|
 |ML-9341|Increased the limit of alert configurations on the system up to 20k (from 10k).|
-|ML-9432|Notifications no longer get stuck in "Pending" in the DB.|
-
-
 
 ## v1.7.2 (16 January 2025)
 
@@ -1252,49 +1251,48 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | In    |ID     |Description                                                                                                                                                                                                                         |
 |--------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| v1.6.0 |ML-5137|The Create/edit function pane is removed from the UI.| 
-| v1.5.0 |ML-4010|Unused artifact types: BokehArtifact, ChartArtifact                                                                                                                                                                  |
-| v1.5.0 |ML-4075|Python 3.7                                                                                                                                                                                                            |
-| v1.5.0 |ML-4366 |MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu`                                                                                                                                                                            |
+| v1.6.0 |ML-5137|The Create/edit function pane was removed from the UI.|
+| v1.5.0 |ML-4075|Python 3.7                                                     |
+| v1.5.0 |ML-4366 |MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu`   |
 | v1.5.0 |ML-3605|Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards are not supported. |
-| v1.0.0 |NA      |MLRun / Nuclio does not support python 3.6.                                                                                                                                                                                         |
+| v1.0.0 |NA      |MLRun / Nuclio does not support python 3.6.      |
 
-### Deprecated APIs  
+## Deprecated APIs  
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
 |---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| v1.10.0      | v1.8.0 |Feature store: `get_offline_features`                                                     |`FeatureVector.get_offline_features()`|
-| v1.10.0      | v1.8.0 |Feature store: `get_online_feature_service` |`FeatureVector.get_online_feature_service()`|
-| v1.10.0      | v1.8.0 |Feature store: `preview`                                                                   |`FeatureSet.preview()`|
-| v1.10.0      |v1.8.0 |HTTPDB: last parameter of `list_runs`                                                     |NA. Was not used.|
-| v1.10.0      |v1.8.0 |Artifacts: `uid` parameter of `store_artifact`                                            |`tree` parameter of `store_artifact` (artifact uid is generated in the backend)|
-| v1.10.0      |v1.8.0 |mlrun.platforms.VolumeMount                                                  |mlrun.runtimes.mounts.VolumeMount|
-| v1.10.0      |v1.8.0 |mlrun.platforms.auto_mount                                                  |.mounts.auto_mount|
-| v1.10.0      |v1.8.0 |mlrun.platforms.mount_configmap                                                  |.mounts.mount_configmap|
-| v1.10.0      |v1.8.0 |mlrun.platforms.mount_hostpath                                                  |.mounts.mount_hostpath|
-| v1.10.0      |v1.8.0 |mlrun.platforms.mount_pvc                                                  |.mounts.mount_pvc|
-| v1.10.0      |v1.8.0 |mlrun.platforms.mount_s3                                                  |.mounts.mount_s3|
-| v1.10.0      |v1.8.0 |mlrun.platforms.mount_secret                                                  |.mounts.mount_secret|
-| v1.10.0      |v1.8.0 |mlrun.platforms.mount_v3io                                                  |.mounts.mount_v3io|
-| v1.10.0      |v1.8.0 |mlrun.platforms.set_env_variables                                                  |.mounts.set_env_variables|
-| v1.10.0      |v1.8.0 |mlrun.platforms.v3io_cred                                                  |.mounts.v3io_cred instead"|
+| v1.10.0      | v1.8.0 |`get_cached_artifact` of MLClientCtx                                                    |`get_artifact`|
+| v1.10.0      | v1.8.0 |`remove_function` of MLrunProject                                  |`delete_function`|
+| v1.10.0      | v1.8.0 |`batch` of `ServingRuntime.set_tracking`                         |NA|
+| v1.10.0      | v1.8.0 |`limit` in `MLrunProject.list_artifacts`                                     |`page` and `page_size`|
+| v1.10.0      | v1.8.0 |`limit` in `HTTPRunDB.list_artifacts`                                        |`page` and `page_size`|
+| v1.10.0      | v1.8.0 |`mlrun.platforms.VolumeMount`                                                 |mlrun.runtimes.mounts.VolumeMount|
+| v1.10.0      | v1.8.0 |`mlrun.platforms.auto_mount`                                                  |.mounts.auto_mount|
+| v1.10.0      | v1.8.0 |`mlrun.platforms.mount_configmap`                                                  |.mounts.mount_configmap|
+| v1.10.0      | v1.8.0 |`mlrun.platforms.mount_hostpath`                                                  |.mounts.mount_hostpath|
+| v1.10.0      | v1.8.0 |`mlrun.platforms.mount_pvc`                                                  |.mounts.mount_pvc|
+| v1.10.0      | v1.8.0 |`mlrun.platforms.mount_s3`                                                  |.mounts.mount_s3|
+| v1.10.0      | v1.8.0 |`mlrun.platforms.mount_secret`                                                  |.mounts.mount_secret|
+| v1.10.0      | v1.8.0 |`mlrun.platforms.mount_v3io`                                                  |.mounts.mount_v3io|
+| v1.10.0      | v1.8.0 |`mlrun.platforms.set_env_variables`                                                  |.mounts.set_env_variables|
+| v1.10.0      | v1.8.0 |`mlrun.platforms.v3io_cred`                                                  |.mounts.v3io_cred instead"|
 | v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.RunsFormat`                                       |`mlrun.common.formatters.RunFormat`                |
 | v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.ArtifactsFormat`                                  |`mlrun.common.formatters.ArtifactFormat`                |
 | v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.ProjectsFormat`                                  |`mlrun.common.formatters.ProjectFormat`                |
 | v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.PipelinesFormat`                                  |`mlrun.common.formatters.PipelineFormat`                |
-| v1.9.0       |v1.7.0    |Datastore redis:`credentials_prefix`                                                 |Datastore profiles|																																	
-| v1.9.0       |v1.7.0    |Parameter: `mlrun.runtimes.nuclio.function.RemoteRuntime.deploy` `auth_info`         | NA. Was not used.|
-| v1.9.0       |v1.7.0    |Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                           |`states`            |
-| v1.9.0       |v1.7.0    |Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                             |`states`            |
-| v1.9.0       |v1.7.0    |Class: `mlrun.common.runtimes.constants.RunLabels`                                   |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
-| v1.9.0       |v1.7.0    |Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                                    |MLRUN_DBPATH environment variable |
-| v1.9.0       |v1.7.0    |Query parameter: GET `/projects/{project}/schedules?labels="label1=val1"`            |`label`, which is an array of strings       |
-| v1.9.0       |v1.7.0    |Query parameter: DELETE `/projects/{project}/artifacts/{key:path}?uid="some-uid"`    |`object-uid`                                    |
-| v1.9.0       |v1.7.0    |Query parameter: GET `/projects/{project}/artifacts/{key:path}?uid="some-uid"`       |`object-uid`                                    |
-| v1.9.0       |v1.6.3    |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_code_target_dir`
+| v1.9.0       | v1.7.0 |Datastore redis:`credentials_prefix`                                                 |Datastore profiles|
+| v1.9.0       | v1.7.0 |Parameter: `mlrun.runtimes.nuclio.function.RemoteRuntime.deploy` `auth_info`         | NA. Was not used.|
+| v1.9.0       | v1.7.0 |Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                           |`states`            |
+| v1.9.0       | v1.7.0 |Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                             |`states`            |
+| v1.9.0       | v1.7.0 |Class: `mlrun.common.runtimes.constants.RunLabels`                                   |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
+| v1.9.0       | v1.7.0 |Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                                    |MLRUN_DBPATH environment variable |
+| v1.9.0       | v1.7.0 |Query parameter: GET `/projects/{project}/schedules?labels="label1=val1"`            |`label`, which is an array of strings       |
+| v1.9.0       | v1.7.0 |Query parameter: DELETE `/projects/{project}/artifacts/{key:path}?uid="some-uid"`    |`object-uid`                                    |
+| v1.9.0       | v1.7.0 |Query parameter: GET `/projects/{project}/artifacts/{key:path}?uid="some-uid"`       |`object-uid`                                    |
+| v1.9.0       | v1.6.3 |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_code_target_dir`
 
 
-### Removed APIs
+## Removed APIs
 
 | Version|API                                                    |Use instead                                                                  |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
@@ -1338,6 +1336,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.5.0 |`init_functions` in pipelines                                                                                                                                                                                                                                                                       |Add the function initialization to the pipeline code instead                 |
 | v1.5.0 |The entire `mlrun/mlutils` library                                                                                                                                                                                                                                                                  |`mlrun.framework`                                                            |
 | v1.5.0 |`run_pipeline`                                                                                                                                                                                                                                                                                      |`project.run`                                                                |
+| v1.5.0 |Unused artifact types: BokehArtifact, ChartArtifact      |NA|
 | v1.3.0 |`project.functions`                                                                                                                                                                                                                                                                                 |`project.get_function`, `project.set_function`, `project.list_function`      |
 | v1.3.0 |`project.artifacts`                                                                                                                                                                                                                                                                                 |`project.get_artifact`, `project.set_artifact`, `project.list_artifact`      |
 | v1.3.0 |`project.func()`                                                                                                                                                                                                                                                                                    |`project.get_function()`                                                     |
@@ -1350,7 +1349,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.3.0 |Dask `with_limits`                                                                                                                                                                                                                                                                                  |`with_scheduler_limits` / `with_worker_limits`                               |
 | v1.3.0 |Dask `with_requests`                                                                                                                                                                                                                                                                                |`with_scheduler_requests` / `with_worker_requests`                           |
 
-### Removed CLIs 
+## Removed CLIs 
 
 | Version | CLI                                                        |Use instead                                                 |  
 |---------|------------------------------------------------------------|------------------------------------------------------------|

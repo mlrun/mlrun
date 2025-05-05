@@ -1341,6 +1341,18 @@ class FlowStep(BaseStep):
             model_endpoint_creation_strategy=model_endpoint_creation_strategy,
             class_args=class_args,
         )
+        if isinstance(class_name, ModelRunnerStep) or class_name == "ModelRunnerStep":
+            if self.parent is not None:
+                root = self.parent
+            else:
+                root = self
+            for model_endpoint in step.class_args["models"].keys():
+                if model_endpoint in root.model_endpoints:
+                    raise GraphError(
+                        "ModelRunnerStep points to existed model in graph using the same model_endpoint name"
+                    )
+                else:
+                    root.update_model_endpoint(model_endpoint)
 
         after_list = after if isinstance(after, list) else [after]
         for after in after_list:

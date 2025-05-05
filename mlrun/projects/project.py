@@ -3742,7 +3742,7 @@ class MlrunProject(ModelObj):
                 sasl_pass="<API-secret>",
                 kwargs_public={
                     "security_protocol": "SASL_SSL",
-                    "api_version_auto_timeout_ms": 10_000,  # 10 seconds
+                    "api_version_auto_timeout_ms": 15_000,  # 15 seconds
                     "tls": {"enable": True},
                     "new_topic": {"replication_factor": 3},
                 },

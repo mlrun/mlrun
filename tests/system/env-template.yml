@@ -106,7 +106,7 @@ mlrun_model_monitoring_stream_profile:
   # For Confluent Kafka:
   # kwargs_public:
   #   security_protocol: SASL_SSL
-  #   api_version_auto_timeout_ms: 10_000
+  #   api_version_auto_timeout_ms: 15_000
   #   tls:
   #     enable: true
   #   new_topic:

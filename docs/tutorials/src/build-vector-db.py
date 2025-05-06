@@ -44,7 +44,11 @@ def handler_chroma(
     # Format and split docunments
     documents = df.pop("page_content").to_list()
     metadatas = df.to_dict(orient="records")
-    docs = [Document(page_content=d, metadata=m) for d, m in zip(documents, metadatas)]
+    docs = [
+        Document(page_content=d, metadata=m)
+        for d, m in zip(documents, metadatas)
+        if type(d) is str
+    ]
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size, chunk_overlap=chunk_overlap
     )

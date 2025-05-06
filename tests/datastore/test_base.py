@@ -176,6 +176,7 @@ def test_kafka_source_without_attributes():
     assert attributes["consumerGroup"] == "mygroup"
     assert attributes["sasl"] == {
         "enable": True,
+        "handshake": True,
         "user": "myuser",
         "password": "mypassword",
         "mechanism": "PLAIN",

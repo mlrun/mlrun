@@ -19,6 +19,7 @@ on:
       packages:
         description: 'Pipeline adapters package to release. Use "*" to release all packages.'
         default: '*'
+        type: choice
         options:
           - '*'
           - 'mlrun-pipelines-kfp-common'

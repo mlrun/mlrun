@@ -6,7 +6,9 @@ Vector databases work by storing vectors that represent the context of a request
 
 In MLRun, you can use vector databases to enrich the context of a request before passing it to a model for inference. This allows you to build more sophisticated models that take into account the context of the request and provide more accurate responses.
 
-MLRun does not come with a VectorDB out-of-the-box: you need to install your choice of DB,
+MLRun does not come with a VectorDB out-of-the-box: you need to install your choice of DB.
+
+See also {ref}`genai-03-vectordb`.
 
 ## Using vector databases in MLRun
 

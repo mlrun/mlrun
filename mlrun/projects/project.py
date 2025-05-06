@@ -30,7 +30,6 @@ from copy import deepcopy
 from os import environ, makedirs, path
 from typing import Callable, Optional, Union, cast
 
-import deprecated
 import dotenv
 import git
 import git.exc
@@ -2861,20 +2860,6 @@ class MlrunProject(ModelObj):
 
         self.spec.set_function(name, function_object, func)
 
-    # TODO: Remove this in 1.10.0
-    @deprecated.deprecated(
-        version="1.8.0",
-        reason="'remove_function' is deprecated and will be removed in 1.10.0. "
-        "Please use `delete_function` instead.",
-        category=FutureWarning,
-    )
-    def remove_function(self, name):
-        """remove the specified function from the project
-
-        :param name:    name of the function (under the project)
-        """
-        self.spec.remove_function(name)
-
     def delete_function(self, name, delete_from_db=False):
         """deletes the specified function from the project
 
@@ -3710,7 +3695,7 @@ class MlrunProject(ModelObj):
                 brokers=["<kafka-broker-ip-address>:9094"],
                 topics=[],  # Keep the topics list empty
                 ## SASL is supported
-                # sasl_user="user1",
+                # sasl_user="<kafka-sasl-user>",
                 # sasl_pass="<kafka-sasl-password>",
             )
             project.register_datastore_profile(stream_profile)
@@ -3742,6 +3727,29 @@ class MlrunProject(ModelObj):
             project.register_datastore_profile(stream_profile)
 
         In the V3IO datastore, you must provide an explicit access key to the stream, but not to the TSDB.
+
+        An external Confluent Kafka stream is also supported. Here is an example:
+
+        .. code-block:: python
+
+            from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
+
+            stream_profile = DatastoreProfileKafkaSource(
+                name="confluent-kafka",
+                brokers=["<server-domain-start>.confluent.cloud:9092"],
+                topics=[],
+                sasl_user="<API-key>",
+                sasl_pass="<API-secret>",
+                kwargs_public={
+                    "security_protocol": "SASL_SSL",
+                    "api_version_auto_timeout_ms": 15_000,  # 15 seconds
+                    "tls": {"enable": True},
+                    "new_topic": {"replication_factor": 3},
+                },
+            )
+
+        The replication factor and timeout configuration might need to be adjusted according to your Confluent cluster
+        type and settings.
 
         :param tsdb_profile_name:         The datastore profile name of the time-series database to be used in model
                                           monitoring. The supported profiles are:
@@ -4338,7 +4346,7 @@ class MlrunProject(ModelObj):
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
         :param tree: Return artifacts of the requested tree.
-        :param limit: Maximum number of artifacts to return.
+        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.10.0).
         :param format_: The format in which to return the artifacts. Default is 'full'.
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
@@ -4349,6 +4357,14 @@ class MlrunProject(ModelObj):
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
+
+        if limit:
+            # TODO: Remove this in 1.10.0
+            warnings.warn(
+                "'limit' is deprecated and will be removed in 1.10.0. Use 'page' and 'page_size' instead.",
+                FutureWarning,
+            )
+
         return db.list_artifacts(
             name,
             self.metadata.name,

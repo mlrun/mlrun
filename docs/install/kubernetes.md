@@ -180,7 +180,7 @@ TDengine and Kafka are part of the default CE installations. These are the defau
 # Create and register TSDB profile
 tsdb_profile = DatastoreProfileTDEngine(
     name="my-tdengine",
-    host="<taosws://root:taosdata@tdengine-tsdb>",
+     host="<tdengine-server-ip-address>",
     port=6041,
     user="username",
     password="<tdengine-password>",
@@ -190,8 +190,8 @@ project.register_datastore_profile(tsdb_profile)
 # Create and register stream profile
 stream_profile = DatastoreProfileKafkaSource(
     name="my-kafka",
-    brokers=["kafka://kafka-stream:9092"],
-    topics=[],  # Keep the topics list empty
+    brokers=["<kafka-broker-ip-address>:9094"],
+    topics=[],
 )
 
 # Set model monitoring credentials and enable the infrastructure

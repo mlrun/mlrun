@@ -38,8 +38,9 @@ The MLRun client supports:
 Run ```pip install mlrun```
 <br>This installs MLRun locally with the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt).
 
-```{admonition} Note
-To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number.
+```{admonition} Notes
+- See more about images in {ref}`images-usage`
+- To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number.
 ```
 
 ## Note for ARM64 (Apple Silicon) Users

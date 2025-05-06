@@ -100,8 +100,17 @@ mlrun_model_monitoring_stream_profile:
   # type: kafka_source
   # brokers: # <host>:<port>
   # topics: []
+  # With SASL:
   # sasl_user:
   # sasl_pass:
+  # For Confluent Kafka:
+  # kwargs_public:
+  #   security_protocol: SASL_SSL
+  #   api_version_auto_timeout_ms: 15_000
+  #   tls:
+  #     enable: true
+  #   new_topic:
+  #     replication_factor: 3
 
 # Controls whether the client verifies the server's TLS certificate.
 # Set to `True` to enable TLS verification.

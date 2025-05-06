@@ -208,6 +208,8 @@ linkcheck_ignore = [
     "http://localhost:30040",
     "https://dev.mysql.com/doc/refman/8.0/en/keywords.html",
     "https://www.kaggle.com/code/jsylas/python-version-of-top-ten-rank-r-22-m-2-88/data?select=train.csv",
+    "http://test-milvus.milvus.svc.cluster.local:19530",
+    "https://docs.confident-ai.com/docs/",
     # Returns 404 though link is valid
     "https://docs.databricks.com/aws/en/reference/jobs-2.0-api",
     # can be removed after v1.8.0 is released:
@@ -215,6 +217,15 @@ linkcheck_ignore = [
     # Mckinsey restricted
     "https://ollama.com/download",
     "https://ollama.com/library/llama3",
+    # Can be deleted after v1.8.0 is GA
+    "https://docs.mlrun.org/en/stable/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.get_vector_store_collection",
+    "https://docs.mlrun.org/en/stable/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.log_document",
+    "https://docs.mlrun.org/en/stable/api/mlrun.datastore/index.html#mlrun.datastore.vectorstore.VectorStoreCollection.add_artifacts",
+    "https://docs.mlrun.org/en/stable/api/mlrun.datastore/index.html#mlrun.datastore.datastore_profile.ConfigProfile",
+    "https://docs.mlrun.org/en/stable/api/mlrun.artifacts/mlrun.artifacts.document.html#mlrun.artifacts.document.MLRunLoader",
+    "https://docs.mlrun.org/en/stable/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.get_config_profile_attributes",
+    "https://docs.mlrun.org/en/stable/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.get_config_profile_attributes",
+    "https://docs.mlrun.org/en/stable/api/mlrun.artifacts/mlrun.artifacts.document.html#mlrun.artifacts.document.DocumentLoaderSpec",
     "https://docs.confident-ai.com/docs/getting-started",
     "https://docs.confident-ai.com/docs/metrics-contextual-recall",
     "https://docs.confident-ai.com/docs/metrics-answer-relevancy",

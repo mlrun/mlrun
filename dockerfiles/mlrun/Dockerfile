@@ -51,6 +51,10 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_
 
 ENV PATH=/opt/conda/bin:$PATH
 
+# Remove ensurepip folders from both conda and system python
+RUN rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
+    && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
+
 # Install Open-MPI:
 ARG OMPI_VERSION=4.1.5
 RUN conda install -y -c conda-forge openmpi-mpicc=${OMPI_VERSION} && \

@@ -9,6 +9,7 @@ These instructions install the community edition, which currently includes MLRun
 - [Prerequisites](#prerequisites)
 - [Community Edition flavors](#community-edition-flavors)
 - [Installing the chart](#installing-the-chart)
+- [Configuring TDengine and Kafka for model monitoring](#configuring-tdengine-and-kafka-for-model-monitoring)
 - [Configuring the online features store](#configuring-the-online-feature-store)
 - [Usage](#usage)
 - [Start working](#start-working)
@@ -154,6 +155,37 @@ When the installation is complete, the helm command prints the URLs and ports of
 - An issue with Prometheus node selector. The workaround for now is to opt out of kube-prometheus-stack by installing the chart with the `--set kube-prometheus-stack.enabled=false`.
 ```
 
+## Configuring the user Jupyter conda environment
+
+Run this in your Jupyter terminal, where `myenv` is the name of your environment:
+
+```bash
+# Create the virtual environment
+conda create -n myenv python=3.9 -y
+
+# Activate the virtual environment
+conda activate myenv
+
+# Make sure that ipykernel is installed
+pip install --user ipykernel
+
+# Add the new virtual environment to Jupyter
+python -m ipykernel install --user --name myenv --display-name "Python (myenv)"
+```
+
+## Configuring TDengine and Kafka for model monitoring
+TDengine and Kafka are part of the default CE installations. These are the default TDengine and Kafka installation values. It's recommended to change the user/password.
+
+```py
+stream_path = "kafka://kafka-stream:9092"
+tsdb_connection = "taosws://root:taosdata@tdengine-tsdb:6041"
+project.set_model_monitoring_credentials(
+    tsdb_connection=tsdb_connection, stream_path=stream_path
+)
+```
+
+See more details, including additional configuration options, in {py:class}`mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
+
 ## Configuring the online feature store
 The MLRun Community Edition supports the online feature store. To enable it, you need to first deploy a Redis service that is accessible to your MLRun CE cluster.
 To deploy a Redis service, refer to the [Redis documentation](https://redis.io/learn/howtos/quick-start).
@@ -186,6 +218,10 @@ a minute for all services to start.
 You can change the ports by providing values to the helm install command.
 You can add and configure a Kubernetes ingress-controller for better security and control over external access.
 ```
+
+
+## Optional additional packages
+To run local Spark jobs on the MLRun CE Jupyter, install PySpark.
 
 ## Start working
     

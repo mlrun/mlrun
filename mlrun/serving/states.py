@@ -1114,8 +1114,9 @@ class ModelRunnerStep(TaskStep, StepToDict):
         if isinstance(model_selector, str):
             model_selector = get_class(model_selector, namespace)()
         model_objects = []
-        for model_class, model_params in models.values():
-            model = get_class(model_class, namespace)(**model_params)
+        for model, model_params in models.values():
+            if not isinstance(model, Model):
+                model = get_class(model, namespace)(**model_params)
             model_objects.append(model)
         self._async_object = ModelRunner(
             model_selector=model_selector,

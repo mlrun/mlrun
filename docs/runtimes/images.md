@@ -35,7 +35,7 @@ The images are:
 ```{admonition} Notes
 - When using the `mlrun` or `mlrun-gpu` image, use PyTorch versions up to and including than 2.0.1, but not higher. You can build your own images with newer CUDA for later releases of PyTorch.
 - If you are using a zipped source, use `mlrun/mlrun` images or install `unzip` in the provided function base image. 
-- When building an image by using MLRun and with the MLRun base image, MLRun by default installs the mlrun package in addition to any other Python packages to align packages dependencies.
+- When building an image using MLRun methods and providing one of the mlrun/mlrun images, MLRun by default installs MLRun in addition to any other Python packages to align package dependencies.
 ```
 ### When to use an image with KFP
 

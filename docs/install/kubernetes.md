@@ -49,11 +49,11 @@ The MLRun CE (Community Edition) includes the following components:
 * MPI Operator - https://github.com/kubeflow/mpi-operator
 * MinIO - https://github.com/minio/minio/tree/master/helm/minio
 * Spark Operator - https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
-* Pipelines - https://github.com/kubeflow/pipelines
 * Prometheus stack - https://github.com/prometheus-community/helm-charts
   - Prometheus
   - Grafana
-
+  
+[KFP Pipelines](https://github.com/kubeflow/pipelines) is optional. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images).
 
 <a id="installing-the-chart"></a>
 ## Installing the chart

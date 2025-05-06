@@ -462,7 +462,7 @@ class V3IOTSDBConnector(TSDBConnector):
                     )
                 except v3io_frames.DeleteError as e:
                     logger.warning(
-                        f"Failed to delete TSDB table '{table}'",
+                        f"Failed to delete TSDB table '{table_to_delete}'",
                         err=mlrun.errors.err_to_str(e),
                     )
             else:

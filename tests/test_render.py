@@ -55,7 +55,7 @@ def test_list_runs(rundb_mock, generate_artifact_hash_mode, expected_target_path
     func = mlrun.code_to_function(
         filename=function_path, kind="job", handler="log_dataset"
     )
-    run = func.run(local=True, out_path=str(results))
+    run = func.run(local=True, output_path=str(results))
 
     # Verify target path in enriched run list
     runs = mlrun.lists.RunList([run.to_dict()])

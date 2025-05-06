@@ -1037,7 +1037,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
     def add_model(
         self,
         endpoint_name: str,
-        model_class: Union[str, Model],
+        model_class: str,
         model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[
@@ -1053,7 +1053,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
         Add a Model to this ModelRunner.
 
         :param endpoint_name:       str, will identify the model in the ModelRunnerStep, and assign model endpoint name
-        :param model_class:         Model class name or object
+        :param model_class:         Model class name
         :param model_artifact:      model artifact or mlrun model artifact uri
         :param labels:              model endpoint labels, should be list of str or mapping of str:str
         :param creation_strategy:   Strategy for creating or updating the model endpoint:
@@ -1079,11 +1079,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
         """
 
         model_parameters = model_parameters or {}
-        if (model_parameters.get("name", endpoint_name) != endpoint_name) or (
-            isinstance(model_class, Model)
-            and model_class.name
-            and model_class.name != endpoint_name
-        ):
+        if model_parameters.get("name", endpoint_name) != endpoint_name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Inconsistent name for model added to ModelRunnerStep."
             )
@@ -1118,9 +1114,8 @@ class ModelRunnerStep(TaskStep, StepToDict):
         if isinstance(model_selector, str):
             model_selector = get_class(model_selector, namespace)()
         model_objects = []
-        for model, model_params in models.values():
-            if not isinstance(model, Model):
-                model = get_class(model, namespace)(**model_params)
+        for model_class, model_params in models.values():
+            model = get_class(model_class, namespace)(**model_params)
             model_objects.append(model)
         self._async_object = ModelRunner(
             model_selector=model_selector,

@@ -1604,8 +1604,7 @@ class TestArtifacts(TestDatabaseBase):
         for counter in range(number_of_artifacts):
             artifact_key = f"artifact-{counter}"
             artifact_body = self._generate_artifact(
-                artifact_key,
-                project=project,
+                artifact_key, project=project, labels={"key1": "val1", "key2": "val2"}
             )
             self._db.store_artifact(
                 self._db_session, artifact_key, artifact_body, project=project
@@ -1619,8 +1618,12 @@ class TestArtifacts(TestDatabaseBase):
                 updated=t1,
             )
 
+        # We are also listing with labels to verify that ordering works correctly with labels and limit.
         artifacts = self._db.list_artifacts(
-            self._db_session, project=project, limit=limit
+            self._db_session,
+            project=project,
+            limit=limit,
+            labels="key1=val1",
         )
 
         expected_count = limit or number_of_artifacts

@@ -180,7 +180,7 @@ TDengine and Kafka are part of the default CE installations. These are the defau
 # Create and register TSDB profile
 tsdb_profile = DatastoreProfileTDEngine(
     name="my-tdengine",
-     host="<tdengine-server-ip-address>",
+    host="<tdengine-server-ip-address>",
     port=6041,
     user="username",
     password="<tdengine-password>",

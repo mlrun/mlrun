@@ -77,24 +77,26 @@ def handler(context, event):
     question_json = json.loads(event.body)
     question = question_json["question"]
     topic = question_json["topic"]
-
+    
     # Optional seed for deterministic responses
     seed = question_json.get("seed", None)
     if seed:
         set_seed(int(seed))
-
+        
     # Query vector store
     results = context.user_data.collection.query(
-        query_texts=[question], n_results=3, where={"topic": {"$eq": topic.upper()}}
+        query_texts=[question], n_results=1, where={"topic": {"$eq": topic.upper()}}
     )
+    
     sources = list({r["link"] for r in results["metadatas"][0]})
-
+    
     # Construct prompt
     q_context = "\n\n".join(results["documents"][0])
     prompt = PROMPT_TEMPLATE.format(question=question, context=q_context)
 
     # Generate result
     resp = context.user_data.pipe(prompt)
+    
     generated = resp[0]["generated_text"][len(prompt) :].split("#")[0]
-
+    
     return {"sources": sources, "prompt": prompt, "response": generated}

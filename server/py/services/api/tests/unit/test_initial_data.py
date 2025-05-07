@@ -232,6 +232,7 @@ def test_add_default_hub_source_if_needed():
 
 
 def test_migrate_function_kind_and_state():
+    project = "some-project"
     db, db_session = _initialize_db_without_migrations()
     num_of_functions = 10
     chunk_size = 1
@@ -239,20 +240,25 @@ def test_migrate_function_kind_and_state():
     # Insert multiple functions
     for fn_counter in range(num_of_functions):
         fn_name = f"name-{fn_counter}"
-        _insert_function(db, db_session, fn_name)
+        _insert_function(db, db_session, fn_name, project)
 
     # Insert a function with None as kind
     fn_name_none_kind = "name-10"
-    _insert_function(db, db_session, fn_name_none_kind, function_kind=None)
+    _insert_function(db, db_session, fn_name_none_kind, project, function_kind=None)
 
     # Insert a function with None state
     fn_name_none_state = "name-11"
-    _insert_function(db, db_session, fn_name_none_state, function_state=None)
+    _insert_function(db, db_session, fn_name_none_state, project, function_state=None)
 
     # Insert a function with both kind and state as None
     fn_name_none_kind_state = "name-12"
     _insert_function(
-        db, db_session, fn_name_none_kind_state, function_kind=None, function_state=None
+        db,
+        db_session,
+        fn_name_none_kind_state,
+        project,
+        function_kind=None,
+        function_state=None,
     )
 
     # Migrate function kind
@@ -267,6 +273,7 @@ def test_migrate_function_kind_and_state():
             db,
             db_session,
             fn_name,
+            project=project,
             attribute_name="kind",
             attribute_path="kind",
             expected_value="remote",
@@ -275,6 +282,7 @@ def test_migrate_function_kind_and_state():
             db,
             db_session,
             fn_name,
+            project=project,
             attribute_name="state",
             attribute_path="status.state",
             expected_value="ready",
@@ -285,6 +293,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_kind,
+        project=project,
         attribute_name="kind",
         attribute_path="kind",
         expected_value="",
@@ -293,6 +302,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_kind,
+        project=project,
         attribute_name="state",
         attribute_path="status.state",
         expected_value="ready",
@@ -303,6 +313,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_state,
+        project=project,
         attribute_name="kind",
         attribute_path="kind",
         expected_value="remote",
@@ -311,6 +322,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_state,
+        project=project,
         attribute_name="state",
         attribute_path="status.state",
         expected_value="",
@@ -321,6 +333,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_kind_state,
+        project=project,
         attribute_name="kind",
         attribute_path="kind",
         expected_value="",
@@ -329,6 +342,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_kind_state,
+        project=project,
         attribute_name="state",
         attribute_path="status.state",
         expected_value="",
@@ -416,6 +430,7 @@ def test_align_schedule_labels(
 
 
 def test_add_producer_uri_to_artifact():
+    project = "some-project"
     db, db_session = _initialize_db_without_migrations()
     num_of_artifacts = 10
     chunk_size = 1
@@ -425,14 +440,27 @@ def test_add_producer_uri_to_artifact():
     for artifact_counter in range(num_of_artifacts):
         artifact_key = f"name-{artifact_counter}"
         _insert_artifact(
-            db, db_session, artifact_key, f"{producer_uri}-{artifact_counter}"
+            db,
+            db_session,
+            artifact_key=artifact_key,
+            project=project,
+            artifact_uri=f"{producer_uri}-{artifact_counter}",
         )
 
     # Create artifact when uri field is not exists in spec.producer
-    _insert_artifact(db, db_session, f"name-{10}", None, with_uri=False)
+    _insert_artifact(
+        db,
+        db_session,
+        artifact_key=f"name-{10}",
+        project=project,
+        artifact_uri=None,
+        with_uri=False,
+    )
 
     # Create artifact with producer_uri is None in spec.producer.uri
-    _insert_artifact(db, db_session, f"name-{11}", None)
+    _insert_artifact(
+        db, db_session, artifact_key=f"name-{11}", project=project, artifact_uri=None
+    )
 
     # migrate the artifact producer_uri
     services.api.initial_data._add_producer_uri_to_artifact(
@@ -697,6 +725,7 @@ def _insert_function(
     db,
     db_session,
     fn_name,
+    project: str,
     function_kind: typing.Optional[str] = "remote",
     function_state: typing.Optional[str] = "ready",
 ):
@@ -708,7 +737,7 @@ def _insert_function(
     }
 
     # Insert function via db
-    db.store_function(db_session, function_body, fn_name)
+    db.store_function(db_session, function=function_body, name=fn_name, project=project)
 
     # Ensure the function is inserted the legacy way
     db_function, _ = db._get_function_db_object(db_session, fn_name)
@@ -727,23 +756,27 @@ def _insert_function(
 
 
 def _verify_function_attr(
-    db, db_session, fn_name, attribute_name, attribute_path, expected_value
+    db, db_session, fn_name, attribute_name, project, attribute_path, expected_value
 ):
-    db_function, _ = db._get_function_db_object(db_session, fn_name)
+    db_function, _ = db._get_function_db_object(db_session, fn_name, project)
     assert not mlrun.utils.get_in(db_function.struct, attribute_path)
     assert getattr(db_function, attribute_name) == expected_value
 
     # Verify migration was stored correctly
-    migrated_function = db.get_function(db_session, fn_name)
+    migrated_function = db.get_function(db_session, name=fn_name, project=project)
     assert mlrun.utils.get_in(migrated_function, attribute_path) == expected_value
 
 
-def _insert_artifact(db, db_session, artifact_key, artifact_uri=None, with_uri=True):
+def _insert_artifact(
+    db, db_session, artifact_key, project, artifact_uri=None, with_uri=True
+):
     artifact = {
         "metadata": {"key": artifact_key},
         "spec": {"producer": {"uri": artifact_uri} if with_uri else {}},
     }
-    uid = db.store_artifact(db_session, key=artifact_key, artifact=artifact)
+    uid = db.store_artifact(
+        db_session, key=artifact_key, artifact=artifact, project=project
+    )
 
     # Legacy insert: set producer_uri to None
     db_artifact = db._query(

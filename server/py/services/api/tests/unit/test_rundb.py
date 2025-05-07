@@ -167,9 +167,9 @@ def test_artifacts(db: RunDBInterface):
     assert expected == len(arts), "list artifacts length"
     assert {2, 3} == {a["metadata"]["description"] for a in arts}, "list artifact a"
 
-    db.del_artifact(key=k1)
+    db.del_artifact(key=k1, project=project)
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        db.read_artifact(k1)
+        db.read_artifact(k1, project=project)
 
 
 def test_list_runs(db: RunDBInterface):

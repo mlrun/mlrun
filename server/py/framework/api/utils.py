@@ -183,7 +183,7 @@ def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
         else:
             project, name, tag, hash_key = parse_versioned_object_uri(function_url)
             function_record = get_db().get_function(
-                db_session, name, project, tag, hash_key
+                db_session, name=name, project=project, tag=tag, hash_key=hash_key
             )
             if not function_record:
                 log_and_raise(

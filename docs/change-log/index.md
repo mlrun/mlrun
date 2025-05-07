@@ -26,6 +26,7 @@
 |ML-8537|You can now run and evaluate models before deploying them, saving time and resources. See [Testing your application before deploying it](../model-monitoring/applications.md#testing-your-application-before-deploying-it).|
 |ML-7688|You can now give model endpoints a name of your choice.|
 ||The SDK for creating model monitoring alerts is much simpler than previously. See [Creating a model monitoring alert](../concepts/alerts.md#creating-a-model-monitoring-alert).|
+
 (mm-upgrade)=
 ### Upgrading the MLRun server if model monitoring is deployed in v1.7.x
 
@@ -39,13 +40,12 @@ To upgrade the MLRun server:
 - Model monitoring is disabled on your project after the upgrade; all the functions deploy without tracking and all the model monitoring applications were deleted.
 - You must use the v1.8.0 client to utilize model monitoring on a v1.8.0 server.
 ```
-ß
+
 ### Alerts
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-7870|Alerts are now enabled by default.|
 |ML-8472|You can now list the alert activation history and filter the list by various parameters using the SDK. See {ref}`alert_activations`.|
-
 
 ### Notifications
 | ID    |Description                                                                 |

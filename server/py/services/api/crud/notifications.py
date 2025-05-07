@@ -102,7 +102,7 @@ class Notifications(
             )
 
         framework.utils.singletons.db.get_db().delete_run_notifications(
-            session, name, run_uid, project
+            session, name=name, run_uid=run_uid, project=project
         )
 
     @staticmethod

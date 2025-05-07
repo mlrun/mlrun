@@ -240,7 +240,7 @@ class Logs(
         log_contents = b""
         log_file_exists, log_file = self.log_file_exists_for_run_uid(project, uid)
         if not run:
-            run = get_db().read_run(db_session, uid, project)
+            run = get_db().read_run(db_session, uid=uid, project=project)
         if not run:
             framework.api.utils.log_and_raise(
                 HTTPStatus.NOT_FOUND.value, project=project, uid=uid
@@ -300,7 +300,9 @@ class Logs(
 
     @staticmethod
     async def _get_run_for_log(db_session: Session, project: str, uid: str) -> dict:
-        run = await run_in_threadpool(get_db().read_run, db_session, uid, project)
+        run = await run_in_threadpool(
+            get_db().read_run, db_session, uid=uid, project=project
+        )
         if not run:
             framework.api.utils.log_and_raise(
                 HTTPStatus.NOT_FOUND.value, project=project, uid=uid

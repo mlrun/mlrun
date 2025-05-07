@@ -1877,7 +1877,11 @@ def _create_mlrun_function_and_matching_scheduled_object(
     )
     function.spec.command = f"{str(code_path)}"
     hash_key = get_db().store_function(
-        db, function.to_dict(), function_name, project, versioned=True
+        session=db,
+        function=function.to_dict(),
+        name=function_name,
+        project=project,
+        versioned=True,
     )
     scheduled_object = {
         "task": {

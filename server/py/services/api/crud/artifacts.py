@@ -67,13 +67,13 @@ class Artifacts(
             ).to_dict()
 
         return framework.utils.singletons.db.get_db().store_artifact(
-            db_session,
-            key,
-            artifact,
-            object_uid,
-            iter,
-            tag,
-            project,
+            session=db_session,
+            key=key,
+            artifact=artifact,
+            uid=object_uid,
+            iter=iter,
+            tag=tag,
+            project=project,
             producer_id=producer_id,
         )
 
@@ -125,14 +125,14 @@ class Artifacts(
         raise_on_not_found: bool = True,
     ) -> dict:
         artifact = framework.utils.singletons.db.get_db().read_artifact(
-            db_session,
-            key,
-            tag,
-            iter,
-            project,
-            producer_id,
-            object_uid,
-            raise_on_not_found,
+            session=db_session,
+            key=key,
+            tag=tag,
+            iter=iter,
+            project=project,
+            producer_id=producer_id,
+            uid=object_uid,
+            raise_on_not_found=raise_on_not_found,
             format_=format_,
         )
         return artifact
@@ -170,16 +170,16 @@ class Artifacts(
             labels = []
         artifacts = framework.utils.singletons.db.get_db().list_artifacts(
             db_session,
-            name,
-            project,
-            tag,
-            labels,
-            since,
-            until,
-            kind,
-            category,
-            iter,
-            best_iteration,
+            name=name,
+            project=project,
+            tag=tag,
+            labels=labels,
+            since=since,
+            until=until,
+            kind=kind,
+            category=category,
+            iter=iter,
+            best_iteration=best_iteration,
             producer_id=producer_id,
             producer_uri=producer_uri,
             format_=format_,
@@ -282,7 +282,12 @@ class Artifacts(
         #  before attempting the data deletion. Currently, deleting artifacts linked to model
         #  endpoints will fail with IntegrityError.
         framework.utils.singletons.db.get_db().del_artifacts(
-            db_session, name, project, tag, labels, producer_id=producer_id
+            db_session,
+            name=name,
+            project=project,
+            tag=tag,
+            labels=labels,
+            producer_id=producer_id,
         )
 
     @staticmethod

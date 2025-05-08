@@ -14,13 +14,12 @@
 
 import mlrun
 import mlrun.artifacts
-from mlrun.config import config
-from mlrun.utils.helpers import parse_artifact_uri
-
 from mlrun.common.helpers import parse_versioned_object_uri
+from mlrun.config import config
+from mlrun.datastore.targets import get_online_target
 from mlrun.platforms.iguazio import parse_path
 from mlrun.utils import DB_SCHEMA, StorePrefix
-from mlrun.datastore.targets import get_online_target
+from mlrun.utils.helpers import parse_artifact_uri
 
 
 def is_store_uri(url):

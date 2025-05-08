@@ -38,11 +38,31 @@ from mlrun.errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject, RunTemplate, new_task
 from mlrun.package import ArtifactType, DefaultPackager, Packager, handler
-from mlrun.projects import MlrunProject, ProjectMetadata, build_function, deploy_function, get_or_create_project, \
-    load_project, new_project, pipeline_context, run_function
+from mlrun.projects import (
+    MlrunProject,
+    ProjectMetadata,
+    build_function,
+    deploy_function,
+    get_or_create_project,
+    load_project,
+    new_project,
+    pipeline_context,
+    run_function,
+)
 from mlrun.projects.project import _add_username_to_project_name_if_needed
-from mlrun.run import _run_pipeline, code_to_function, function_to_module, get_dataitem, get_object, get_or_create_ctx, \
-    get_pipeline, import_function, new_function, retry_pipeline, wait_for_pipeline_completion
+from mlrun.run import (
+    _run_pipeline,
+    code_to_function,
+    function_to_module,
+    get_dataitem,
+    get_object,
+    get_or_create_ctx,
+    get_pipeline,
+    import_function,
+    new_function,
+    retry_pipeline,
+    wait_for_pipeline_completion,
+)
 from mlrun.runtimes import mounts, new_model_server
 from mlrun.secrets import get_secret_or_env
 from mlrun.utils.version import Version

@@ -28,23 +28,27 @@ from mergedeep import merge
 
 import mlrun
 import mlrun.utils.helpers
+from framework.utils.db.sql_types import MicroSecondDateTime
+from mlrun import errors
 from mlrun.config import config
+from mlrun.data_types import ValueType, is_spark_dataframe
+from mlrun.datastore.datastore_profile import datastore_profile_read
 from mlrun.datastore.snowflake_utils import (
     get_snowflake_password,
     get_snowflake_spark_options,
 )
-from mlrun.datastore.utils import transform_list_filters_to_tuple
+from mlrun.datastore.spark_utils import spark_session_update_hadoop_options
+from mlrun.datastore.utils import (
+    _generate_sql_query_with_time_filter,
+    filter_df_start_end_time,
+    select_columns_from_df,
+    transform_list_filters_to_tuple,
+)
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
+from mlrun.platforms.iguazio import parse_path, split_path
 from mlrun.utils import logger, now_date
 from mlrun.utils.helpers import to_parquet
 from mlrun.utils.v3io_clients import get_frames_client
-
-from mlrun import errors
-from mlrun.data_types import ValueType, is_spark_dataframe
-from mlrun.platforms.iguazio import parse_path, split_path
-from mlrun.datastore.datastore_profile import datastore_profile_read
-from mlrun.datastore.spark_utils import spark_session_update_hadoop_options
-from mlrun.datastore.utils import _generate_sql_query_with_time_filter, filter_df_start_end_time, select_columns_from_df
 
 
 class TargetTypes:
@@ -2165,8 +2169,8 @@ class SQLTarget(BaseStoreTarget):
                 type_to_sql_type = {
                     int: sqlalchemy.Integer,
                     str: sqlalchemy.String(self.attributes.get("varchar_len")),
-                    datetime.datetime: MicroSecondDateTime(),
-                    pd.Timestamp: MicroSecondDateTime(),
+                    datetime.datetime: MicroSecondDateTime,
+                    pd.Timestamp: MicroSecondDateTime,
                     bool: sqlalchemy.Boolean,
                     float: sqlalchemy.Float,
                     datetime.timedelta: sqlalchemy.Interval,

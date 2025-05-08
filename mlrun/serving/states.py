@@ -404,8 +404,7 @@ class BaseStep(ModelObj):
             model_endpoint_creation_strategy=model_endpoint_creation_strategy,
         )
 
-        if isinstance(class_name, ModelRunnerStep) or class_name == "ModelRunnerStep":
-            self.verify_model_runner_step(step)
+        self.verify_model_runner_step(step)
 
         step = parent._steps.update(name, step)
         step.set_parent(parent)
@@ -452,28 +451,35 @@ class BaseStep(ModelObj):
         return False
 
     def verify_model_runner_step(self, step: "ModelRunnerStep"):
-        current_node = self
-        while current_node.parent is not None:
-            current_node = self.parent
+        """
+        Verify ModelRunnerStep, can be part of Flow graph and models may not repeat in graph.
+        :param step: ModelRunnerStep to verify
 
-        root = current_node
-        if not isinstance(root, RootFlowStep) or not isinstance(self, RootFlowStep):
+        """
+        if not isinstance(step, ModelRunnerStep):
+            return
+
+        root = self
+        while root.parent is not None:
+            root = self.parent
+
+        if not isinstance(root, RootFlowStep):
             raise GraphError(
                 "ModelRunnerStep can be added to 'Flow' topology graph only"
             )
-        step_model_endpoints = list(
+        step_model_endpoints_names = list(
             step.class_args[schemas.ModelRunnerStepData.MODELS].keys()
         )
         # Get all model_endpoints names that are in both lists
         common_endpoints_names = list(
-            set(root.model_endpoints) & set(step_model_endpoints)
+            set(root.model_endpoints_names) & set(step_model_endpoints_names)
         )
         if common_endpoints_names:
             raise GraphError(
                 f"The graph already contains the model endpoints named - {common_endpoints_names}."
             )
         else:
-            root.extend_model_endpoints(step_model_endpoints)
+            root.extend_model_endpoints_names(step_model_endpoints_names)
 
 
 class TaskStep(BaseStep):
@@ -1037,7 +1043,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
     def add_model(
         self,
         endpoint_name: str,
-        model_class: str,
+        model_class: str, # TODO add Model object option as part of ML-9924
         model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[
@@ -1347,8 +1353,8 @@ class FlowStep(BaseStep):
             model_endpoint_creation_strategy=model_endpoint_creation_strategy,
             class_args=class_args,
         )
-        if isinstance(class_name, ModelRunnerStep) or class_name == "ModelRunnerStep":
-            self.verify_model_runner_step(step)
+
+        self.verify_model_runner_step(step)
 
         after_list = after if isinstance(after, list) else [after]
         for after in after_list:
@@ -1770,7 +1776,7 @@ class RootFlowStep(FlowStep):
     """root flow step"""
 
     kind = "root"
-    _dict_fields = ["steps", "engine", "final_step", "on_error", "model_endpoints"]
+    _dict_fields = ["steps", "engine", "final_step", "on_error", "model_endpoints_names"]
 
     def __init__(
         self,
@@ -1790,14 +1796,14 @@ class RootFlowStep(FlowStep):
         self._models = []
 
     @property
-    def model_endpoints(self) -> list[str]:
+    def model_endpoints_names(self) -> list[str]:
         return self._models
 
-    @model_endpoints.setter
-    def model_endpoints(self, models: list[str]):
+    @model_endpoints_names.setter
+    def model_endpoints_names(self, models: list[str]):
         self._models = models
 
-    def extend_model_endpoints(self, model_endpoints_names: list):
+    def extend_model_endpoints_names(self, model_endpoints_names: list):
         self._models.extend(model_endpoints_names)
 
 

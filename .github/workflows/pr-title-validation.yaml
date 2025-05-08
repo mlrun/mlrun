@@ -17,6 +17,9 @@ name: "PR Title Checker"
 permissions:
   contents: read
 
+  # Needed so pr-title-checker can post a comment or set a PR status when title doesn't match rules
+  pull-requests: write
+
 on:
 
   # when opening PRs from forks

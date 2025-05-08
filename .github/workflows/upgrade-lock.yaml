@@ -15,7 +15,8 @@
 name: Update uv lock files
 
 permissions:
-  contents: read
+  contents: write   # Allows jobs to modify repository content (for creating/updating lock files).
+  pull-requests: write  # Allows jobs to create and manage pull requests (needed for automated PR creation).
 
 on:
   workflow_dispatch:

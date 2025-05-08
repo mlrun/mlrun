@@ -1055,7 +1055,7 @@ upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirement
 		upgrade-mlrun-system-test-deps-lock
 
 .PHONY: coverage-combine
-coverage-combine:
+coverage-combine:  ## Combine all coverage reports, with ignoring missing source files errors
 	rm -f tests/coverage_reports/combined.coverage; \
 	UNIT_TEST_COVERAGE_PATHS=$${UNIT_TEST_COVERAGE_PATHS:-"tests/coverage_reports/unit_tests.coverage"}; \
 	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage combine --keep \

@@ -709,7 +709,7 @@ test-system: ## Run mlrun system tests
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		 $(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
+		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
 .PHONY: test-system-open-source
 test-system-open-source: update-version-file ## Run mlrun system tests with opensource configuration

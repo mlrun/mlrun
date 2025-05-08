@@ -36,8 +36,7 @@ from sqlalchemy.orm import relationship
 
 import mlrun.common.schemas
 import mlrun.utils.db
-
-from framework.utils.db.sql_types import SQLTypesUtil
+from framework.utils.db.sql_types import MicroSecondDateTime, DateTime, Blob
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -179,7 +178,7 @@ def make_notification(table):
         #   start, therefore we need to separate the state from the notification itself (e.g. this table can be  table
         #   with notification_id, state, when, last_sent, etc.). This will require some refactoring in the code.
         sent_time = Column(
-            SQLTypesUtil.timestamp(),
+            MicroSecondDateTime,
             nullable=True,
         )
         status = Column(String(255), nullable=False)
@@ -207,9 +206,9 @@ with warnings.catch_warnings():
         key = Column(String(255))
         project = Column(String(255))
         uid = Column(String(255))
-        updated = Column(SQLTypesUtil.timestamp())
+        updated = Column(MicroSecondDateTime)
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        body = Column(SQLTypesUtil.blob())
+        body = Column(Blob)
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")
@@ -256,14 +255,14 @@ with warnings.catch_warnings():
         best_iteration = Column(BOOLEAN, default=False, index=True)
         uid = Column(String(255))
         created = Column(
-            SQLTypesUtil.timestamp(),
+            MicroSecondDateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
-            SQLTypesUtil.timestamp(),
+            MicroSecondDateTime,
             default=lambda: datetime.now(timezone.utc),
         )
-        _full_object = Column("object", SQLTypesUtil.blob())
+        _full_object = Column("object", Blob)
 
         labels = relationship(
             Label,
@@ -318,8 +317,8 @@ with warnings.catch_warnings():
         kind = Column(String(255))
         state = Column(String(255))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        body = Column(SQLTypesUtil.blob())
-        updated = Column(SQLTypesUtil.timestamp())
+        body = Column(Blob)
+        updated = Column(MicroSecondDateTime)
 
         labels = relationship(
             Label,
@@ -355,10 +354,10 @@ with warnings.catch_warnings():
         iteration = Column(Integer)
         state = Column(String(255))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        body = Column(SQLTypesUtil.blob())
-        start_time = Column(SQLTypesUtil.timestamp())
-        end_time = Column(SQLTypesUtil.datetime())
-        updated = Column(SQLTypesUtil.timestamp(), default=datetime.utcnow)
+        body = Column(Blob)
+        start_time = Column(MicroSecondDateTime)
+        end_time = Column(MicroSecondDateTime)
+        updated = Column(MicroSecondDateTime, default=datetime.utcnow)
         # requested logs column indicates whether logs were requested for this run
         # None - old runs prior to the column addition, logs were already collected for them, so no need to collect them
         # False - logs were not requested for this run
@@ -392,11 +391,11 @@ with warnings.catch_warnings():
         name = Column(String(255), nullable=False)
         project = Column(String(255), nullable=False)
         created = Column(
-            SQLTypesUtil.timestamp(),
+            MicroSecondDateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
-            SQLTypesUtil.timestamp(),
+            MicroSecondDateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         state = Column(String(255))
@@ -418,11 +417,11 @@ with warnings.catch_warnings():
         kind = Column(String(255))
         desired_state = Column(String(255))
         state = Column(String(255))
-        creation_time = Column(SQLTypesUtil.timestamp())
+        creation_time = Column(MicroSecondDateTime)
         cron_trigger_str = Column(String(255))
         last_run_uri = Column(String(255))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        struct = Column(SQLTypesUtil.blob())
+        struct = Column(Blob)
         labels = relationship(
             Label,
             cascade="all, delete-orphan",
@@ -430,7 +429,7 @@ with warnings.catch_warnings():
             passive_deletes=True,
         )
         concurrency_limit = Column(Integer, nullable=False)
-        next_run_time = Column(SQLTypesUtil.timestamp())
+        next_run_time = Column(MicroSecondDateTime)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
@@ -482,8 +481,8 @@ with warnings.catch_warnings():
         # the attribute name used to be _spec which is just a wrong naming, the attribute was renamed to _full_object
         # leaving the column as is to prevent redundant migration
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        _full_object = Column("spec", SQLTypesUtil.blob())
-        created = Column(SQLTypesUtil.timestamp(), default=datetime.utcnow)
+        _full_object = Column("spec", Blob)
+        created = Column(MicroSecondDateTime, default=datetime.utcnow)
         default_function_node_selector = Column("default_function_node_selector", JSON)
         state = Column(String(255))
         users = relationship(User, secondary=project_users)
@@ -569,11 +568,11 @@ with warnings.catch_warnings():
         name = Column(String(255))
         project = Column(String(255))
         created = Column(
-            SQLTypesUtil.timestamp(),
+            MicroSecondDateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
-            SQLTypesUtil.timestamp(),
+            MicroSecondDateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         state = Column(String(255))
@@ -633,11 +632,11 @@ with warnings.catch_warnings():
         name = Column(String(255))
         project = Column(String(255))
         created = Column(
-            SQLTypesUtil.timestamp(),
+            MicroSecondDateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
-            SQLTypesUtil.timestamp(),
+            MicroSecondDateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         state = Column(String(255))
@@ -682,11 +681,11 @@ with warnings.catch_warnings():
         name = Column(String(255))
         index = Column(Integer)
         created = Column(
-            SQLTypesUtil.timestamp(),
+            MicroSecondDateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
-            SQLTypesUtil.timestamp(),
+            MicroSecondDateTime,
             default=lambda: datetime.now(timezone.utc),
         )
 
@@ -712,7 +711,7 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         version = Column(String(255))
         created = Column(
-            SQLTypesUtil.timestamp(),
+            MicroSecondDateTime,
             default=lambda: datetime.now(timezone.utc),
         )
 
@@ -753,7 +752,7 @@ with warnings.catch_warnings():
         page_size = Column(Integer)
         kwargs = Column(JSON)
         last_accessed = Column(
-            SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
+            MicroSecondDateTime,  # TODO: change to `datetime`, see ML-6921
             default=lambda: datetime.now(timezone.utc),
         )
 
@@ -767,11 +766,11 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         count = Column(Integer)
         created = Column(
-            SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
+            MicroSecondDateTime,  # TODO: change to `datetime`, see ML-6921
             default=lambda: datetime.now(timezone.utc),
         )
         last_updated = Column(
-            SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
+            MicroSecondDateTime,  # TODO: change to `datetime`, see ML-6921
             default=None,
         )
         active = Column(BOOLEAN, default=False)
@@ -859,7 +858,7 @@ with warnings.catch_warnings():
         # ensuring stable indexing and avoiding potential inconsistencies.
         # This must remain unchanged to maintain compatibility with existing logic
         # and prevent unintended precision changes.
-        activation_time = Column(SQLTypesUtil.datetime(fsp=3), nullable=False)
+        activation_time = Column(DateTime, nullable=False)
         name = Column(String(255), nullable=False)
         project = Column(String(255), nullable=False)
         data = Column(JSON)
@@ -871,7 +870,7 @@ with warnings.catch_warnings():
 
         # Similarly, keep fsp=3 for reset_time to ensure consistency with activation_time
         # and maintain compatibility with the existing system behavior.
-        reset_time = Column(SQLTypesUtil.datetime(fsp=3), nullable=True)
+        reset_time = Column(DateTime, nullable=True)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.id}"
@@ -882,7 +881,7 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         project = Column(String(255), nullable=False)
-        updated = Column(SQLTypesUtil.datetime())
+        updated = Column(MicroSecondDateTime)
         summary = Column(JSON)
 
         def get_identifier_string(self) -> str:
@@ -893,7 +892,7 @@ with warnings.catch_warnings():
 
         key = Column(String(255), primary_key=True)
         timestamp = Column(
-            SQLTypesUtil.datetime(),
+            MicroSecondDateTime,
             nullable=False,
             default=lambda: datetime.now(timezone.utc),
         )
@@ -910,13 +909,13 @@ with warnings.catch_warnings():
         name = Column(String(255))
         endpoint_type = Column(Integer, nullable=False)
         project = Column(String(255))
-        body = Column(SQLTypesUtil.blob())
+        body = Column(Blob)
         created = Column(
-            SQLTypesUtil.timestamp(),
+            MicroSecondDateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
-            SQLTypesUtil.timestamp(),
+            MicroSecondDateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         function_id = Column(

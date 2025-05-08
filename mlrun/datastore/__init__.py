@@ -52,27 +52,15 @@ from mlrun.platforms.iguazio import (
     parse_path,
 )
 
-from ..utils import logger
-from .base import DataItem
-from .datastore import StoreManager, in_memory_store, uri_to_ipython
-from .dbfs_store import DatabricksFileBugFixed, DatabricksFileSystemDisableCache
-from .s3 import parse_s3_bucket_and_key
-from .sources import (
-    BigQuerySource,
-    CSVSource,
-    HttpSource,
-    KafkaSource,
-    ParquetSource,
-    StreamSource,
-)
-from .store_resources import (
-    get_store_resource,
-    get_store_uri,
-    is_store_uri,
-    parse_store_uri,
-)
-from .targets import CSVTarget, NoSqlTarget, ParquetTarget, StreamTarget
-from .utils import get_kafka_brokers_from_dict, parse_kafka_url
+from mlrun.utils import logger
+from mlrun.datastore.base import DataItem
+from mlrun.datastore.datastore import StoreManager, in_memory_store, uri_to_ipython
+from mlrun.datastore.dbfs_store import DatabricksFileBugFixed, DatabricksFileSystemDisableCache
+from mlrun.datastore.s3 import parse_s3_bucket_and_key
+from mlrun.datastore.sources import BigQuerySource, CSVSource, HttpSource, KafkaSource, ParquetSource, StreamSource
+from mlrun.datastore.store_resources import get_store_resource, get_store_uri, is_store_uri, parse_store_uri
+from mlrun.datastore.targets import CSVTarget, NoSqlTarget, ParquetTarget, StreamTarget
+from mlrun.datastore.utils import get_kafka_brokers_from_dict, parse_kafka_url
 
 store_manager = StoreManager()
 

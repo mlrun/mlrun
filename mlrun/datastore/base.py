@@ -31,8 +31,8 @@ import mlrun.errors
 from mlrun.errors import err_to_str
 from mlrun.utils import StorePrefix, is_jupyter, logger
 
-from .store_resources import is_store_uri, parse_store_uri
-from .utils import filter_df_start_end_time, select_columns_from_df
+from mlrun.datastore.store_resources import is_store_uri, parse_store_uri
+from mlrun.datastore.utils import filter_df_start_end_time, select_columns_from_df
 
 
 class FileStats:

@@ -31,41 +31,21 @@ from typing import Optional
 
 import dotenv
 
-from .config import config as mlconf
-from .datastore import DataItem, store_manager
-from .db import get_run_db
-from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
-from .execution import MLClientCtx
-from .model import RunObject, RunTemplate, new_task
-from .package import ArtifactType, DefaultPackager, Packager, handler
-from .projects import (
-    MlrunProject,
-    ProjectMetadata,
-    build_function,
-    deploy_function,
-    get_or_create_project,
-    load_project,
-    new_project,
-    pipeline_context,
-    run_function,
-)
-from .projects.project import _add_username_to_project_name_if_needed
-from .run import (
-    _run_pipeline,
-    code_to_function,
-    function_to_module,
-    get_dataitem,
-    get_object,
-    get_or_create_ctx,
-    get_pipeline,
-    import_function,
-    new_function,
-    retry_pipeline,
-    wait_for_pipeline_completion,
-)
-from .runtimes import mounts, new_model_server
-from .secrets import get_secret_or_env
-from .utils.version import Version
+from mlrun.config import config as mlconf
+from mlrun.datastore import DataItem, store_manager
+from mlrun.db import get_run_db
+from mlrun.errors import MLRunInvalidArgumentError, MLRunNotFoundError
+from mlrun.execution import MLClientCtx
+from mlrun.model import RunObject, RunTemplate, new_task
+from mlrun.package import ArtifactType, DefaultPackager, Packager, handler
+from mlrun.projects import MlrunProject, ProjectMetadata, build_function, deploy_function, get_or_create_project, \
+    load_project, new_project, pipeline_context, run_function
+from mlrun.projects.project import _add_username_to_project_name_if_needed
+from mlrun.run import _run_pipeline, code_to_function, function_to_module, get_dataitem, get_object, get_or_create_ctx, \
+    get_pipeline, import_function, new_function, retry_pipeline, wait_for_pipeline_completion
+from mlrun.runtimes import mounts, new_model_server
+from mlrun.secrets import get_secret_or_env
+from mlrun.utils.version import Version
 
 __version__ = Version().get()["version"]
 

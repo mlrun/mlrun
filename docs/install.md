@@ -64,7 +64,7 @@ which is implemented by Iguazio during installation, and applied system-wide:
 
 
 <br>
-<img src="_static/images/maintenance_logo.svg" alt="Maintenance logo" width="250"/>
+<img class="dark-light" src="_static/images/maintenance_logo.svg" alt="Maintenance logo" width="250"/>
 
 ```{toctree}
 :hidden:

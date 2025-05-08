@@ -39,6 +39,9 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
 # Redeclare python version (used above in FROM)
 ARG MLRUN_PYTHON_VERSION=3.11
 
+# Remove system ensurepip from conda's Python
+RUN rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
+
 # Create and activate mlrun conda environment
 RUN conda create -y -n mlrun python=${MLRUN_PYTHON_VERSION} && \
     echo "source /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
@@ -67,6 +70,9 @@ COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlrun.env $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlce-start.sh /usr/local/bin/mlce-start.sh
 
 ENV UV_LINK_MODE=copy
+
+# removing unsupported files
+RUN rm -rf $HOME/tutorials/genai-02-model-monitor-llm.ipynb $HOME/tutorials/genai_01_basic_tutorial.ipynb
 
 # no-deps to ignore existing dependencies, just add the locked requirements
 # mainly because of how the jupyter image is built with conda
@@ -101,8 +107,7 @@ ARG MLRUN_CACHE_DATE=initial
 
 # Use 1.7.x version from mlrun/demos to update the demos(do not update version).
 RUN git clone --branch 1.7.x https://github.com/mlrun/demos.git $HOME/demos && \
-    ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup && \
-    git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
+    ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup
 
 ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \

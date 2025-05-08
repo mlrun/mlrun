@@ -673,7 +673,9 @@ class MonitoringApplicationController:
         """
         logger.info("Starting monitoring controller chief")
         applications_names = []
-        endpoints = self.project_obj.list_model_endpoints(tsdb_metrics=True).endpoints
+        endpoints = self.project_obj.list_model_endpoints(
+            metric_list=["last_request"]
+        ).endpoints
         if not endpoints:
             logger.info("No model endpoints found", project=self.project)
             return

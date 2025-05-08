@@ -282,6 +282,42 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         assert run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.error
         assert run["status"]["error"] == "Failed to abort run, error: BOOM"
 
+    @pytest.mark.asyncio
+    async def test_store_and_get_run_missing_project(self, db: sqlalchemy.orm.Session):
+        project = "some-project"
+        uid = "some-uid"
+        run_name = "run-name"
+
+        services.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": run_name,
+                    "uid": uid,
+                    "labels": {
+                        mlrun_constants.MLRunInternalLabels.kind: "job",
+                    },
+                    "iteration": 0,
+                },
+            },
+            uid=uid,
+            project=project,
+        )
+
+        run = services.api.crud.Runs().get_run(db, uid=uid, iter=0, project=project)
+        assert run["metadata"]["name"] == run_name
+
+        # get without project should raise
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            services.api.crud.Runs().get_run(db, uid=uid, iter=0)
+
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            services.api.crud.Runs().get_run(db, uid=uid, iter=0, project=None)
+
+        # list without project should raise
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            services.api.crud.Runs().list_runs(db, name=run_name)
+
     def test_store_run_strip_artifacts_metadata(self, db: sqlalchemy.orm.Session):
         project = "project-name"
         run_uid = str(uuid.uuid4())

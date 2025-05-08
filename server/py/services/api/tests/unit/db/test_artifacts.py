@@ -697,6 +697,47 @@ class TestArtifacts(TestDatabaseBase):
         assert artifact["metadata"]["key"] == artifact_valid_key
         assert artifact["spec"]["db_key"] == artifact_valid_db_key
 
+    def test_store_and_list_artifact_missing_project(self):
+        project = "some-project"
+        artifact_name = "some-artifact"
+        tree = "artifact-tree"
+        artifact = self._generate_artifact(artifact_name, tree=tree)
+
+        # store with missing project should raise error
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            self._db.store_artifact(
+                self._db_session,
+                key=artifact_name,
+                artifact=artifact,
+                project=None,
+            )
+
+        # store with valid project
+        self._db.store_artifact(
+            self._db_session,
+            key=artifact_name,
+            artifact=artifact,
+            project=project,
+        )
+
+        # list with missing project should raise error
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            self._db.list_artifacts(
+                self._db_session,
+                project=None,
+            )
+
+        # delete with missing project should raise error
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            self._db.del_artifacts(self._db_session, project=None)
+
+        self._db.del_artifacts(self._db_session, project=project)
+        artifacts = self._db.list_artifacts(
+            self._db_session,
+            project=project,
+        )
+        assert len(artifacts) == 0
+
     def test_read_artifact_tag_resolution(self):
         """
         We had a bug in which when we got a tag filter for read/list artifact, we were transforming this tag to list of

@@ -330,6 +330,61 @@ class TestFunctions(TestDatabaseBase):
             == {}
         )
 
+    def test_store_and_get_function_missing_project(self):
+        project = "some-project"
+        function_name = "function-name-1"
+        tag = "latest"
+        function = self._generate_function()
+
+        # store with missing project should raise error
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            self._db.store_function(
+                self._db_session,
+                function=function.to_dict(),
+                name=function_name,
+                project=None,
+                tag=tag,
+                versioned=True,
+            )
+
+        # store with valid project
+        self._db.store_function(
+            self._db_session,
+            function=function.to_dict(),
+            name=function_name,
+            project=project,
+            tag=tag,
+            versioned=True,
+        )
+
+        # get with missing project should raise error
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            self._db.get_function(
+                self._db_session,
+                name=function_name,
+                tag=tag,
+                project=None,
+            )
+
+        # list with missing project should raise error
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            self._db.list_functions(
+                self._db_session,
+                name=function_name,
+                project=None,
+            )
+
+        self._db.delete_function(
+            self._db_session,
+            project=project,
+            name=function_name,
+        )
+
+        functions = self._db.list_functions(
+            self._db_session, name=function_name, project=project
+        )
+        assert len(functions) == 0
+
     def test_list_functions_no_tags(self):
         project = "some-project"
         function_1 = {"bla": "blabla", "status": {"bla": "blabla"}}

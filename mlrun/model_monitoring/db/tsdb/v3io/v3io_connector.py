@@ -455,12 +455,20 @@ class V3IOTSDBConnector(TSDBConnector):
             # Delete all tables
             tables = mm_schemas.V3IOTSDBTables.list()
         for table_to_delete in tables:
-            try:
-                self.frames_client.delete(backend=_TSDB_BE, table=table_to_delete)
-            except v3io_frames.DeleteError as e:
+            if table_to_delete in self.tables:
+                try:
+                    self.frames_client.delete(
+                        backend=_TSDB_BE, table=self.tables[table_to_delete]
+                    )
+                except v3io_frames.DeleteError as e:
+                    logger.warning(
+                        f"Failed to delete TSDB table '{table_to_delete}'",
+                        err=mlrun.errors.err_to_str(e),
+                    )
+            else:
                 logger.warning(
-                    f"Failed to delete TSDB table '{table}'",
-                    err=mlrun.errors.err_to_str(e),
+                    f"Skipping deletion: table '{table_to_delete}' is not among the initialized tables.",
+                    initialized_tables=list(self.tables.keys()),
                 )
 
         # Final cleanup of tsdb path
@@ -470,7 +478,8 @@ class V3IOTSDBConnector(TSDBConnector):
         store.rm(tsdb_path, recursive=True)
 
     def delete_tsdb_records(
-        self, endpoint_ids: list[str], delete_timeout: Optional[int] = None
+        self,
+        endpoint_ids: list[str],
     ):
         logger.debug(
             "Deleting model endpoints resources using the V3IO TSDB connector",

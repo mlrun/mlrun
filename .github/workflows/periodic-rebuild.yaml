@@ -56,7 +56,7 @@ jobs:
       # TODO: move to reuseable workflow once all branches have backported with the new workflow
       - name: Re-Build MLRun Image
         if: matrix.repo == 'mlrun'
-        uses: convictional/trigger-workflow-and-wait@v1.6.5
+        uses: convictional/trigger-workflow-and-wait@f69fa9eedd3c62a599220f4d5745230e237904be # 1.6.5
         with:
             owner: mlrun
             repo: mlrun
@@ -69,7 +69,7 @@ jobs:
             client_payload: '{"skip_images": "models,tests", "build_from_cache": "false"}'
       - name: Re-Build UI Image
         if: matrix.repo == 'ui'
-        uses: convictional/trigger-workflow-and-wait@v1.6.5
+        uses: convictional/trigger-workflow-and-wait@f69fa9eedd3c62a599220f4d5745230e237904be # 1.6.5
         with:
           owner: mlrun
           repo: ui

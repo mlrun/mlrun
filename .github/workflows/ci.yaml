@@ -43,9 +43,9 @@ jobs:
       matrix:
         python-version: ["3.9"]
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # 5.6.0
       with:
         python-version: ${{ matrix.python-version }}
         cache: pip
@@ -57,7 +57,7 @@ jobs:
       run: make lint
 
     # perform copyright check here, to avoid spinning up another runner needlessly
-    - uses: denoland/setup-deno@v2
+    - uses: denoland/setup-deno@909cc5acb0fdd60627fb858598759246509fa755 # 2.0.2
       with:
         deno-version: v1.x
     - name: Check
@@ -92,9 +92,9 @@ jobs:
         python-version: [ "3.9", "3.11"]
         test-suite: ["server", "client"]
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # 5.6.0
       with:
         python-version: ${{ matrix.python-version }}
         cache: pip
@@ -140,7 +140,7 @@ jobs:
         python-version: ["3.9", "3.11"]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
@@ -148,7 +148,7 @@ jobs:
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # 5.6.0
       with:
         python-version: ${{ matrix.python-version }}
         cache: pip
@@ -181,7 +181,7 @@ jobs:
     name: Run Dockerized Migrations Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
       # TODO: re-use the next 2 actions instead of duplicating
       - name: Extract git branch
         id: git_info
@@ -209,9 +209,9 @@ jobs:
 #          - python-version: "3.11"
 #            pipeline-adapter: "kfp-v2"
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # 5.6.0
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
@@ -231,7 +231,7 @@ jobs:
     name: Build Project Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
       # TODO: re-use the next 2 actions instead of duplicating
       - name: Extract git branch
         id: git_info
@@ -265,12 +265,12 @@ jobs:
         run: |
             echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
       - name: Checkout PR Base (target) Branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
         with:
           ref: ${{ steps.resolve_base_branch.outputs.branch }}
           path: base/mlrun
       - name: Checkout Merge Commit (requested branch merged with the target branch)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
         with:
           path: head/mlrun
       - name: Resolve docker cache tag
@@ -292,9 +292,9 @@ jobs:
         # 3.9 is the current >= 1.3.0 python version
         python-version: ["3.9", "3.11"]
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # 5.6.0
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'

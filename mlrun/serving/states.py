@@ -1043,7 +1043,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
     def add_model(
         self,
         endpoint_name: str,
-        model_class: str, # TODO add Model object option as part of ML-9924
+        model_class: str,  # TODO add Model object option as part of ML-9924
         model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[
@@ -1776,7 +1776,13 @@ class RootFlowStep(FlowStep):
     """root flow step"""
 
     kind = "root"
-    _dict_fields = ["steps", "engine", "final_step", "on_error", "model_endpoints_names"]
+    _dict_fields = [
+        "steps",
+        "engine",
+        "final_step",
+        "on_error",
+        "model_endpoints_names",
+    ]
 
     def __init__(
         self,

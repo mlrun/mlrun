@@ -171,7 +171,7 @@ def test_model_runner():
     model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model", inc=1)
     graph.to(model_runner_step).respond()
 
-    assert "my_model" in graph.model_endpoints, "model endpoint name not in graph"
+    assert "my_model" in graph.model_endpoints_names, "model endpoint name not in graph"
 
     server = function.to_mock_server()
     try:
@@ -201,7 +201,7 @@ def test_model_runner_add_model(method: str):
     assert [
         "my_model_1",
         "my_model_2",
-    ] == graph.model_endpoints, "model endpoints name not in graph"
+    ] == graph.model_endpoints_names, "model endpoints name not in graph"
 
     server = function.to_mock_server()
     try:

@@ -16,6 +16,7 @@ name: Docs Language Linter
 
 permissions:
   contents: read
+  pull-requests: write
 
 on:
   pull_request:

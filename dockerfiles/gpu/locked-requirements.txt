@@ -2394,9 +2394,9 @@ multipledispatch==1.0.0 \
     # via
     #   dask-glm
     #   dask-ml
-narwhals==1.38.1 ; python_full_version >= '3.11' \
-    --hash=sha256:16d4c13c9e045e1f5b26b289ec307349a9613e83345d1c809be697eb2f7ff938 \
-    --hash=sha256:f06fe4227299cb0a554e562ae639c115797b22f35bc3a6ccc95ed5d74212b3d9
+narwhals==1.38.2 ; python_full_version >= '3.11' \
+    --hash=sha256:7c5fbc9f2b8e1d5d95f49dcef9c2d94bf17810de68c87ff195dc7d22f7b3eeb5 \
+    --hash=sha256:a33a182e32f18d794a04e7828a5c401fb26ce9083f609993e7e5064aace641c7
     # via bokeh
 nbclient==0.10.2 \
     --hash=sha256:4ffee11e788b4a27fabeb7955547e4318a5298f34342a4bfd01f2e1faaeadc3d \
@@ -4050,11 +4050,6 @@ taos-ws-py==0.3.2 \
     --hash=sha256:b0ed47ba385e50e8efc8b38e37b8250e0dd270e999793a9123b3284167990306 \
     --hash=sha256:ea3a7fff25fc828e050459024e59558a925788c4fb8623af83bbcbca0f47c535 \
     --hash=sha256:f165176a20e99e44205e9693e032540a6be8125841e43d809a21b4888ac9be44
-    # via
-    #   -r extras-requirements.txt
-    #   taoswswrap
-taoswswrap==0.3.5 \
-    --hash=sha256:cd90f2a52629157891917261a09e4dd7e5041e269967c920eaebdd4d0e83b2dc
     # via -r extras-requirements.txt
 tblib==3.1.0 \
     --hash=sha256:06404c2c9f07f66fee2d7d6ad43accc46f9c3361714d9b8426e7f47e595cd652 \

@@ -197,9 +197,7 @@ This example runs the describe function. This function analyzes a dataset (in th
 ```python
 DATA_URL = "https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv"
 
-my_describe.run(
-    name="describe", inputs={"table": DATA_URL}, artifact_path=artifact_path
-)
+my_describe.run(name="describe", inputs={"table": DATA_URL}, output_path=artifact_path)
 ```
 
 ### Saving the artifacts in a unique folder for each run  <!-- omit in toc -->
@@ -209,7 +207,7 @@ out = mlconf.artifact_path or path.abspath("./data")
 my_describe.run(
     name="describe",
     inputs={"table": DATA_URL},
-    artifact_path=path.join(out, "{{run.uid}}"),
+    output_path=path.join(out, "{{run.uid}}"),
 )
 ```
 

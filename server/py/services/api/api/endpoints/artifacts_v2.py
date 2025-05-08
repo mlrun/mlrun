@@ -162,11 +162,6 @@ async def list_artifacts(
     producer_uri: Optional[str] = None,
     best_iteration: bool = Query(False, alias="best-iteration"),
     format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
-    limit: int = Query(
-        None,
-        deprecated=True,
-        description="Use page and page_size, will be removed in the 1.10.0",
-    ),
     since: Optional[str] = None,
     until: Optional[str] = None,
     partition_by: Optional[mlrun.common.schemas.ArtifactPartitionByField] = Query(
@@ -190,12 +185,6 @@ async def list_artifacts(
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
-
-    # TODO: deprecate the limit parameter in the list_artifacts method in 1.10.0
-    if limit and (page_size or page):
-        raise mlrun.errors.MLRunConflictError(
-            "'page/page_size' and 'limit' are conflicting, only one can be specified."
-        )
 
     paginator = framework.utils.pagination.Paginator()
 
@@ -228,7 +217,6 @@ async def list_artifacts(
         format_=format_,
         producer_id=tree,
         producer_uri=producer_uri,
-        limit=limit,
         partition_by=partition_by,
         rows_per_partition=rows_per_partition,
         partition_sort_by=partition_sort_by,

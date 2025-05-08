@@ -1043,7 +1043,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
     def add_model(
         self,
         endpoint_name: str,
-        model_class: str,  # TODO add Model object option as part of ML-9924
+        model_class: str,
         model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[
@@ -1083,7 +1083,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
         :param override:            bool allow override existing model on the current ModelRunnerStep.
         :param model_parameters:    Parameters for model instantiation
         """
-
+        # TODO allow model_class as Model object as part of ML-9924
         model_parameters = model_parameters or {}
         if model_parameters.get("name", endpoint_name) != endpoint_name:
             raise mlrun.errors.MLRunInvalidArgumentError(

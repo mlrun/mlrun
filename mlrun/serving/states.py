@@ -452,9 +452,8 @@ class BaseStep(ModelObj):
 
     def verify_model_runner_step(self, step: "ModelRunnerStep"):
         """
-        Verify ModelRunnerStep, can be part of Flow graph and models may not repeat in graph.
+        Verify ModelRunnerStep, can be part of Flow graph and models can not repeat in graph.
         :param step: ModelRunnerStep to verify
-
         """
         if not isinstance(step, ModelRunnerStep):
             return

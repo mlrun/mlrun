@@ -28,7 +28,6 @@ from mergedeep import merge
 
 import mlrun
 import mlrun.utils.helpers
-from framework.utils.db.sql_types import MicroSecondDateTime
 from mlrun import errors
 from mlrun.config import config
 from mlrun.data_types import ValueType, is_spark_dataframe
@@ -49,6 +48,8 @@ from mlrun.platforms.iguazio import parse_path, split_path
 from mlrun.utils import logger, now_date
 from mlrun.utils.helpers import to_parquet
 from mlrun.utils.v3io_clients import get_frames_client
+
+from framework.utils.db.sql_types import MicroSecondDateTime
 
 
 class TargetTypes:

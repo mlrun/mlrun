@@ -51,7 +51,6 @@ from mlrun.utils.helpers import to_parquet
 from mlrun.utils.v3io_clients import get_frames_client
 
 
-
 class TargetTypes:
     csv = "csv"
     parquet = "parquet"

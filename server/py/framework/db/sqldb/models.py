@@ -36,7 +36,7 @@ from sqlalchemy.orm import relationship
 
 import mlrun.common.schemas
 import mlrun.utils.db
-from mlrun.db.sql_types import MicroSecondDateTime, Blob, DateTime
+from mlrun.db.sql_types import Blob, DateTime, MicroSecondDateTime
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter

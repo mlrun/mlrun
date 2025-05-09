@@ -255,9 +255,8 @@ def setup(app):
     # Only connect the hook for the "latest" version on Read the Docs
     # to avoid generating llms.txt for every version build
     # TODO: change to stable (before releasing 1.8.0)
-    # if environ.get("READTHEDOCS_VERSION") == "latest":
-    app.connect("build-finished", create_llms_txt)
-    # app.connect("build-finished", copy_llms_redirect)
+    if environ.get("READTHEDOCS_VERSION") == "latest":
+        app.connect("build-finished", create_llms_txt)
 
 
 # default header for llms.txt file

@@ -64,8 +64,6 @@ extensions = [
     "sphinxcontrib.mermaid",
 ]
 
-html_extra_path = ["llms.txt"]
-
 # Add any paths that contain templates here, relative to this directory.
 templates_path = [
     "_templates",

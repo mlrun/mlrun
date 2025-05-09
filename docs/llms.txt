@@ -1,0 +1,338 @@
+# Documentation
+- [Resources](https://docs.mlrun.org/en/stable/resources.html): Familiarize yourself with the resources that can help you in your MLRun journey.
+- [MLRun architecture](https://docs.mlrun.org/en/stable/architecture.html): MLRun started as a community effort to map the different components in the ML project lifecycle, provide a common metadata layer, and automate the operationalization process (a.
+- [MLRun cheat sheet](https://docs.mlrun.org/en/stable/cheat-sheet.html): - [MLRun setup](#mlrun-setup).
+- [Working with secrets](https://docs.mlrun.org/en/stable/secrets.html): When executing jobs through MLRun, the code might need access to specific secrets, for example to access data.
+- [Command-Line Interface](https://docs.mlrun.org/en/stable/cli.html): - [CLI commands](#cli-commands).
+- [Glossary](https://docs.mlrun.org/en/stable/glossary.html): | MLRun terms        | Description                                                                                                                                                                                                                                 |.
+- [Installation and setup guide](https://docs.mlrun.org/en/stable/install.html): This guide outlines the steps for installing and running MLRun.
+- [MLOps development workflow](https://docs.mlrun.org/en/stable/mlops-dev-flow.html): ML applications require you to implement the following stages in a scalable and reproducible way:.
+- [MLRun ecosystem](https://docs.mlrun.org/en/stable/ecosystem.html): This section lists the data stores, development tools, services, platforms, etc.
+- [Using MLRun](https://docs.mlrun.org/en/stable/index.html): MLRun is an open source AI orchestration platform for quickly building and managing continuous (gen) AI applications across their lifecycle.
+- [Documenting mlrun](https://docs.mlrun.org/en/stable/CONTRIBUTING.html): This document describes how to write the external documentation for `mlrun`, the.
+- [Using data sources and items](https://docs.mlrun.org/en/stable/data-prep/ingesting_data.html): **In this section**.
+- [Ingest and process data](https://docs.mlrun.org/en/stable/data-prep/index.html): MLRun provides a set of tools and capabilities to streamline the task of data ingestion and processing.
+- [Logging datasets](https://docs.mlrun.org/en/stable/data-prep/logging_datasets.html): Storing datasets is important in order to have a record of the data that was used to train.
+- [Ingest data using the feature store](https://docs.mlrun.org/en/stable/data-prep/ingest-data-fs.html): Define the source and material targets, and start the ingestion process (as [local process](#ingest-data-locally), [using an MLRun job](#ingest-data-using-an-mlrun-job), [real-time ingestion](#real-time-ingestion), or [incremental ingestion](#incremental-ingestion)).
+- [Install MLRun CE on AWS](https://docs.mlrun.org/en/stable/install/aws-install.html): These instructions install the community edition (CE).
+- [Install MLRun CE on Kubernetes](https://docs.mlrun.org/en/stable/install/kubernetes.html): ```{admonition} Note.
+- [Set up your environment](https://docs.mlrun.org/en/stable/install/remote.html): You can write your code on a local machine while running your functions on a remote cluster.
+- [Serving graph high availability configuration](https://docs.mlrun.org/en/stable/serving/graph-ha-cfg.html): This figure illustrates a simplistic flow of an MLRun serving graph with remote invocation:.
+- [Build your own model serving class](https://docs.mlrun.org/en/stable/serving/custom-model-serving-class.html): Model serving classes implement the full model serving functionality, which includes.
+- [Real-time serving](https://docs.mlrun.org/en/stable/serving/serving-overview.html): MLRun can produce managed real-time serverless pipelines from various tasks, including MLRun models or standard model files.
+- [Real-time serving pipelines (graphs)](https://docs.mlrun.org/en/stable/serving/serving-graph.html): MLRun graphs enable building and running DAGs (directed acyclic graph).
+- [Built-in steps](https://docs.mlrun.org/en/stable/serving/available-steps.html): MlRun provides you with many built-in steps that you can use when building your graph.
+- [Using built-in model serving classes](https://docs.mlrun.org/en/stable/serving/built-in-model-serving.html): MLRun includes built-in classes for commonly used frameworks.
+- [Model serving API](https://docs.mlrun.org/en/stable/serving/model-api.html): MLRun Serving follows the same REST API defined by Triton and [KFServing v2](https://github.
+- [Error handling](https://docs.mlrun.org/en/stable/serving/pipelines-error-handling.html): Graph steps might raise an exception.
+- [Demos and tutorials](https://docs.mlrun.org/en/stable/serving/demos.html): Read these tutorials to get an even better understanding of serving graphs.
+- [Test and deploy a model server](https://docs.mlrun.org/en/stable/serving/test-deploy-model-server.html): **In this section**.
+- [Canary functions and rolling upgrades](https://docs.mlrun.org/en/stable/serving/canary.html): Canary rollout is a known practice to first test a software update on a small number of users before rolling it.
+- [Use cases](https://docs.mlrun.org/en/stable/serving/use-cases.html): **In this section**.
+- [Develop and train models](https://docs.mlrun.org/en/stable/development/index.html): **In this section**.
+- [Model training and tracking](https://docs.mlrun.org/en/stable/development/model-training-tracking.html): **In this section**.
+- [Model monitoring for MLOps](https://docs.mlrun.org/en/stable/model-monitoring/mlops-monitoring.html): By definition, ML models in production make inferences on constantly changing data.
+- [Model monitoring architecture](https://docs.mlrun.org/en/stable/model-monitoring/index.html): **In this section**.
+- [Writing a model monitoring application](https://docs.mlrun.org/en/stable/model-monitoring/applications.html): **In this section**.
+- [Working with data and model artifacts](https://docs.mlrun.org/en/stable/training/working-with-data-and-model-artifacts.html): When running a training job, you need to pass in the data used for training, and save the resulting model.
+- [Run pipelines with GitHub Actions, GitLab](https://docs.mlrun.org/en/stable/projects/ci-integration.html): You can run your ML Pipelines using CI frameworks like GitHub Actions, GitLab CI/CD, etc.
+- [CI/CD automation with Git](https://docs.mlrun.org/en/stable/projects/ci-cd-automate.html): **In this section**.
+- [Load projects](https://docs.mlrun.org/en/stable/projects/load-project.html): Project code, metadata, and configuration are stored and versioned in source control systems like Git or archives (zip, tar).
+- [Create, save, and use projects](https://docs.mlrun.org/en/stable/projects/create-project.html): A project is a container for all the assets, configuration, and code of a particular application.
+- [Projects and automation](https://docs.mlrun.org/en/stable/projects/project.html): MLRun **Project** is a container for all your work on a particular ML application.
+- [MLRun project bootstrapping with `project_setup.py`](https://docs.mlrun.org/en/stable/projects/project-setup.html): The `project_setup.
+- [Run, build, and deploy functions](https://docs.mlrun.org/en/stable/projects/run-build-deploy.html): **In this section**.
+- [Build and run workflows/pipelines](https://docs.mlrun.org/en/stable/projects/build-run-workflows-pipelines.html): This section shows how to write a batch pipeline so that it can be executed via an MLRun Project.
+- [Images and their usage in MLRun](https://docs.mlrun.org/en/stable/runtimes/images.html): Every release of MLRun includes several images for different usages.
+- [Configuring runs and functions](https://docs.mlrun.org/en/stable/runtimes/configuring-job-resources.html): MLRun orchestrates serverless functions over Kubernetes.
+- [Function of type `job`](https://docs.mlrun.org/en/stable/runtimes/job-function.html): You can deploy a model using a {py:meth}`~mlrun.
+- [Function hub](https://docs.mlrun.org/en/stable/runtimes/load-from-hub.html): This section demonstrates how to import a function from the hub into your project, and provides some basic instructions on how to run the function and view the results.
+- [Function of type `serving`](https://docs.mlrun.org/en/stable/runtimes/serving-function.html): Deploying models in MLRun uses the function type {py:meth}`~mlrun.
+- [Attach storage to functions](https://docs.mlrun.org/en/stable/runtimes/function-storage.html): In the vast majority of cases, an MLRun function requires access to storage.
+- [Functions](https://docs.mlrun.org/en/stable/runtimes/functions.html): All the executions in MLRun are based on serverless functions.
+- [Build function image](https://docs.mlrun.org/en/stable/runtimes/image-build.html): As discussed in {ref}`images-usage`, MLRun provides pre-built images which contain the components necessary to execute.
+- [Change log](https://docs.mlrun.org/en/stable/change-log/index.html): - [v1.
+- [Feature store](https://docs.mlrun.org/en/stable/feature-store/feature-store.html): A feature store provides a single pane of glass for sharing all available features across.
+- [Feature sets](https://docs.mlrun.org/en/stable/feature-store/feature-sets.html): In MLRun, a group of features can be ingested together and stored in logical group called feature set.
+- [Feature vectors](https://docs.mlrun.org/en/stable/feature-store/feature-vectors.html): You can define a group of features from different feature sets as a {py:class}`~mlrun.
+- [Ingest features with Spark](https://docs.mlrun.org/en/stable/feature-store/using-spark-engine.html): The feature store supports using Spark for ingesting, transforming, and writing results to data targets.
+- [Feature store overview](https://docs.mlrun.org/en/stable/feature-store/feature-store-overview.html): In machine-learning scenarios, generating a new feature, called feature engineering, takes a tremendous amount of work.
+- [Feature set transformations](https://docs.mlrun.org/en/stable/feature-store/transformations.html): A feature set contains an execution graph of operations that are performed when data is ingested, or.
+- [Training with the feature store](https://docs.mlrun.org/en/stable/feature-store/retrieve-offline-data.html): **In this section**.
+- [Serving with the feature store](https://docs.mlrun.org/en/stable/feature-store/training-serving.html): **In this section**.
+- [Sources and targets](https://docs.mlrun.org/en/stable/feature-store/sources-targets.html): - [Sources](#sources).
+- [Feature store end-to-end demo](https://docs.mlrun.org/en/stable/feature-store/end-to-end-demo/index.html): This demo shows the usage of MLRun and the feature store:.
+- [Deploy models and applications](https://docs.mlrun.org/en/stable/deployment/index.html): One of the advantages of using MLRun, is simplifying the deployment process.
+- [Resources](https://docs.mlrun.org/en/stable/_build/html/_sources/resources.html): Familiarize yourself with the resources that can help you in your MLRun journey.
+- [MLRun architecture](https://docs.mlrun.org/en/stable/_build/html/_sources/architecture.html): MLRun started as a community effort to map the different components in the ML project lifecycle, provide a common metadata layer, and automate the operationalization process (a.
+- [MLRun cheat sheet](https://docs.mlrun.org/en/stable/_build/html/_sources/cheat-sheet.html): - [MLRun setup](#mlrun-setup).
+- [Working with secrets](https://docs.mlrun.org/en/stable/_build/html/_sources/secrets.html): When executing jobs through MLRun, the code might need access to specific secrets, for example to access data.
+- [Command-Line Interface](https://docs.mlrun.org/en/stable/_build/html/_sources/cli.html): - [CLI commands](#cli-commands).
+- [Glossary](https://docs.mlrun.org/en/stable/_build/html/_sources/glossary.html): | MLRun terms        | Description                                                                                                                                                                                                                                 |.
+- [Installation and setup guide](https://docs.mlrun.org/en/stable/_build/html/_sources/install.html): This guide outlines the steps for installing and running MLRun.
+- [MLOps development workflow](https://docs.mlrun.org/en/stable/_build/html/_sources/mlops-dev-flow.html): ML applications require you to implement the following stages in a scalable and reproducible way:.
+- [MLRun ecosystem](https://docs.mlrun.org/en/stable/_build/html/_sources/ecosystem.html): This section lists the data stores, development tools, services, platforms, etc.
+- [Using MLRun](https://docs.mlrun.org/en/stable/_build/html/_sources/index.html): MLRun is an open source AI orchestration platform for quickly building and managing continuous (gen) AI applications across their lifecycle.
+- [Using data sources and items](https://docs.mlrun.org/en/stable/_build/html/_sources/data-prep/ingesting_data.html): **In this section**.
+- [Ingest and process data](https://docs.mlrun.org/en/stable/_build/html/_sources/data-prep/index.html): MLRun provides a set of tools and capabilities to streamline the task of data ingestion and processing.
+- [Logging datasets](https://docs.mlrun.org/en/stable/_build/html/_sources/data-prep/logging_datasets.html): Storing datasets is important in order to have a record of the data that was used to train.
+- [Ingest data using the feature store](https://docs.mlrun.org/en/stable/_build/html/_sources/data-prep/ingest-data-fs.html): Define the source and material targets, and start the ingestion process (as [local process](#ingest-data-locally), [using an MLRun job](#ingest-data-using-an-mlrun-job), [real-time ingestion](#real-time-ingestion), or [incremental ingestion](#incremental-ingestion)).
+- [Install MLRun CE on AWS](https://docs.mlrun.org/en/stable/_build/html/_sources/install/aws-install.html): These instructions install the community edition (CE).
+- [Install MLRun CE on Kubernetes](https://docs.mlrun.org/en/stable/_build/html/_sources/install/kubernetes.html): ```{admonition} Note.
+- [Set up your environment](https://docs.mlrun.org/en/stable/_build/html/_sources/install/remote.html): You can write your code on a local machine while running your functions on a remote cluster.
+- [Serving graph high availability configuration](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/graph-ha-cfg.html): This figure illustrates a simplistic flow of an MLRun serving graph with remote invocation:.
+- [Build your own model serving class](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/custom-model-serving-class.html): Model serving classes implement the full model serving functionality, which includes.
+- [Real-time serving](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/serving-overview.html): MLRun can produce managed real-time serverless pipelines from various tasks, including MLRun models or standard model files.
+- [Real-time serving pipelines (graphs)](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/serving-graph.html): MLRun graphs enable building and running DAGs (directed acyclic graph).
+- [Built-in steps](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/available-steps.html): MlRun provides you with many built-in steps that you can use when building your graph.
+- [Using built-in model serving classes](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/built-in-model-serving.html): MLRun includes built-in classes for commonly used frameworks.
+- [Model serving API](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/model-api.html): MLRun Serving follows the same REST API defined by Triton and [KFServing v2](https://github.
+- [Error handling](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/pipelines-error-handling.html): Graph steps might raise an exception.
+- [Demos and tutorials](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/demos.html): Read these tutorials to get an even better understanding of serving graphs.
+- [Test and deploy a model server](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/test-deploy-model-server.html): **In this section**.
+- [Canary functions and rolling upgrades](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/canary.html): Canary rollout is a known practice to first test a software update on a small number of users before rolling it.
+- [Use cases](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/use-cases.html): **In this section**.
+- [Develop and train models](https://docs.mlrun.org/en/stable/_build/html/_sources/development/index.html): **In this section**.
+- [Model training and tracking](https://docs.mlrun.org/en/stable/_build/html/_sources/development/model-training-tracking.html): **In this section**.
+- [Model monitoring for MLOps](https://docs.mlrun.org/en/stable/_build/html/_sources/model-monitoring/mlops-monitoring.html): By definition, ML models in production make inferences on constantly changing data.
+- [Model monitoring architecture](https://docs.mlrun.org/en/stable/_build/html/_sources/model-monitoring/index.html): **In this section**.
+- [Writing a model monitoring application](https://docs.mlrun.org/en/stable/_build/html/_sources/model-monitoring/applications.html): **In this section**.
+- [Working with data and model artifacts](https://docs.mlrun.org/en/stable/_build/html/_sources/training/working-with-data-and-model-artifacts.html): When running a training job, you need to pass in the data used for training, and save the resulting model.
+- [Run pipelines with GitHub Actions, GitLab](https://docs.mlrun.org/en/stable/_build/html/_sources/projects/ci-integration.html): You can run your ML Pipelines using CI frameworks like GitHub Actions, GitLab CI/CD, etc.
+- [CI/CD automation with Git](https://docs.mlrun.org/en/stable/_build/html/_sources/projects/ci-cd-automate.html): **In this section**.
+- [Load projects](https://docs.mlrun.org/en/stable/_build/html/_sources/projects/load-project.html): Project code, metadata, and configuration are stored and versioned in source control systems like Git or archives (zip, tar).
+- [Create, save, and use projects](https://docs.mlrun.org/en/stable/_build/html/_sources/projects/create-project.html): A project is a container for all the assets, configuration, and code of a particular application.
+- [Projects and automation](https://docs.mlrun.org/en/stable/_build/html/_sources/projects/project.html): MLRun **Project** is a container for all your work on a particular ML application.
+- [MLRun project bootstrapping with `project_setup.py`](https://docs.mlrun.org/en/stable/_build/html/_sources/projects/project-setup.html): The `project_setup.
+- [Run, build, and deploy functions](https://docs.mlrun.org/en/stable/_build/html/_sources/projects/run-build-deploy.html): **In this section**.
+- [Build and run workflows/pipelines](https://docs.mlrun.org/en/stable/_build/html/_sources/projects/build-run-workflows-pipelines.html): This section shows how to write a batch pipeline so that it can be executed via an MLRun Project.
+- [Images and their usage in MLRun](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/images.html): Every release of MLRun includes several images for different usages.
+- [Configuring runs and functions](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/configuring-job-resources.html): MLRun orchestrates serverless functions over Kubernetes.
+- [Function of type `job`](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/job-function.html): You can deploy a model using a {py:meth}`~mlrun.
+- [Function hub](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/load-from-hub.html): This section demonstrates how to import a function from the hub into your project, and provides some basic instructions on how to run the function and view the results.
+- [Function of type `serving`](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/serving-function.html): Deploying models in MLRun uses the function type {py:meth}`~mlrun.
+- [Attach storage to functions](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/function-storage.html): In the vast majority of cases, an MLRun function requires access to storage.
+- [Functions](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/functions.html): All the executions in MLRun are based on serverless functions.
+- [Build function image](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/image-build.html): As discussed in {ref}`images-usage`, MLRun provides pre-built images which contain the components necessary to execute.
+- [Change log](https://docs.mlrun.org/en/stable/_build/html/_sources/change-log/index.html): - [v1.
+- [Feature store](https://docs.mlrun.org/en/stable/_build/html/_sources/feature-store/feature-store.html): A feature store provides a single pane of glass for sharing all available features across.
+- [Feature sets](https://docs.mlrun.org/en/stable/_build/html/_sources/feature-store/feature-sets.html): In MLRun, a group of features can be ingested together and stored in logical group called feature set.
+- [Feature vectors](https://docs.mlrun.org/en/stable/_build/html/_sources/feature-store/feature-vectors.html): You can define a group of features from different feature sets as a {py:class}`~mlrun.
+- [Ingest features with Spark](https://docs.mlrun.org/en/stable/_build/html/_sources/feature-store/using-spark-engine.html): The feature store supports using Spark for ingesting, transforming, and writing results to data targets.
+- [Feature store overview](https://docs.mlrun.org/en/stable/_build/html/_sources/feature-store/feature-store-overview.html): In machine-learning scenarios, generating a new feature, called feature engineering, takes a tremendous amount of work.
+- [Feature set transformations](https://docs.mlrun.org/en/stable/_build/html/_sources/feature-store/transformations.html): A feature set contains an execution graph of operations that are performed when data is ingested, or.
+- [Training with the feature store](https://docs.mlrun.org/en/stable/_build/html/_sources/feature-store/retrieve-offline-data.html): **In this section**.
+- [Serving with the feature store](https://docs.mlrun.org/en/stable/_build/html/_sources/feature-store/training-serving.html): **In this section**.
+- [Sources and targets](https://docs.mlrun.org/en/stable/_build/html/_sources/feature-store/sources-targets.html): - [Sources](#sources).
+- [Feature store end-to-end demo](https://docs.mlrun.org/en/stable/_build/html/_sources/feature-store/end-to-end-demo/index.html): This demo shows the usage of MLRun and the feature store:.
+- [Deploy models and applications](https://docs.mlrun.org/en/stable/_build/html/_sources/deployment/index.html): One of the advantages of using MLRun, is simplifying the deployment process.
+- [MLRun execution context](https://docs.mlrun.org/en/stable/_build/html/_sources/concepts/mlrun-execution-context.html): After running a job, you need to be able to track it.
+- [Notifications](https://docs.mlrun.org/en/stable/_build/html/_sources/concepts/notifications.html): MLRun supports configuring notifications on jobs and scheduled jobs.
+- [Decorators and auto-logging](https://docs.mlrun.org/en/stable/_build/html/_sources/concepts/decorators-and-auto-logging.html): While it is possible to log results and artifacts using {ref}`the MLRun execution context<mlrun-execution-context>`, it is often more convenient to use the {py:func}`mlrun.
+- [Batch runs and workflows](https://docs.mlrun.org/en/stable/_build/html/_sources/concepts/runs-workflows.html): A workflow is a definition of execution of functions.
+- [Scheduled jobs and workflows](https://docs.mlrun.org/en/stable/_build/html/_sources/concepts/scheduled-jobs.html): Oftentimes you may want to run a `job` on a regular schedule.
+- [Data and artifacts](https://docs.mlrun.org/en/stable/_build/html/_sources/concepts/data.html): One of the biggest challenge in distributed systems is handling data given the different access methods, APIs, and.
+- [Alerts and notifications](https://docs.mlrun.org/en/stable/_build/html/_sources/concepts/alerts-notifications.html): {ref}`alerts` are a mechanism for informing you about possible problem situations.
+- [Model monitoring](https://docs.mlrun.org/en/stable/_build/html/_sources/concepts/model-monitoring.html): The MLRun's model monitoring service includes built-in model monitoring and reporting capabilities.
+- [Alerts](https://docs.mlrun.org/en/stable/_build/html/_sources/concepts/alerts.html): Alerts are a mechanism for informing you about possible problem situations.
+- [Automated experiment tracking](https://docs.mlrun.org/en/stable/_build/html/_sources/concepts/auto-logging-mlops.html): You can write custom training functions or use built-in hub functions for training models using.
+- [Running a multi-stage workflow](https://docs.mlrun.org/en/stable/_build/html/_sources/concepts/workflow-overview.html): **In this section**.
+- [Kinds of functions (runtimes)](https://docs.mlrun.org/en/stable/_build/html/_sources/concepts/functions-overview.html): When you create an MLRun function you need to specify a runtime kind (e.
+- [Running a task (job)](https://docs.mlrun.org/en/stable/_build/html/_sources/concepts/submitting-tasks-jobs-to-functions.html): **In this section**.
+- [Machine learning tutorials](https://docs.mlrun.org/en/stable/_build/html/_sources/tutorials/ml-index.html): ````{card} Make sure you start with the Quick start tutorial to understand the basics.
+- [Demos](https://docs.mlrun.org/en/stable/_build/html/_sources/tutorials/demos.html): These end-to-end demos demonstrate how to use the Iguazio AI platform, MLRun, and related tools, to address data science requirements for different industries and implementations.
+- [Tutorials and Examples](https://docs.mlrun.org/en/stable/_build/html/_sources/tutorials/index.html): The following tutorials provide a hands-on introduction to using MLRun to implement a data science workflow and automate machine-learning operations (MLOps).
+- [Gen AI development workflow](https://docs.mlrun.org/en/stable/_build/html/_sources/genai/genai-flow.html): MLRun automates the flow of tuning, validation, and optimizing LLMs to specific data - efficiently over elastic resources.
+- [Using LLMs to process unstructured data](https://docs.mlrun.org/en/stable/_build/html/_sources/genai/data-mgmt/unstructured-data.html): Unstructured data, such as text, images, and audio files, has become a significant challenge for many industries.
+- [Vector databases](https://docs.mlrun.org/en/stable/_build/html/_sources/genai/data-mgmt/vector-databases.html): Vector databases are used to enrich the context of a request before it is passed to a model for inference.
+- [Gen AI data management](https://docs.mlrun.org/en/stable/_build/html/_sources/genai/data-mgmt/index.html): The first stage is to build an automated ML pipeline for data collection, data preparation, training and evaluation, including.
+- [Guardrails for data management](https://docs.mlrun.org/en/stable/_build/html/_sources/genai/data-mgmt/guardrails-data.html): Guardrails ensure intellectual property protection, safeguarding user privacy, alignment with legal and regulatory standards, and more.
+- [Developing a gen AI pipeline](https://docs.mlrun.org/en/stable/_build/html/_sources/genai/development/index.html): Model development includes: Prompt library, experiment tracking, automatic distribution, fine-tuning, RLHF, fine parameter tuning.
+- [Gen AI realtime serving graph](https://docs.mlrun.org/en/stable/_build/html/_sources/genai/deployment/genai_serving_graph.html): During inference, it is common to serve a gen AI model as part of a larger pipeline that includes data preprocessing, model execution, and post-processing.
+- [GPU utilization](https://docs.mlrun.org/en/stable/_build/html/_sources/genai/deployment/gpu_utilization.html): Gen AI models require GPUs in order to run.
+- [Deploying gen AI application serving pipelines](https://docs.mlrun.org/en/stable/_build/html/_sources/genai/deployment/index.html): MLRun serving can produce managed ML application pipelines using real-time auto-scaling Nuclio serverless functions.
+- [Serving gen AI models](https://docs.mlrun.org/en/stable/_build/html/_sources/genai/deployment/genai_serving.html): Serving a gen AI model is, in essence, the same as serving any other model.
+- [Gen AI liveOps](https://docs.mlrun.org/en/stable/_build/html/_sources/genai/live-ops/index.html): The liveOps stage ensures that the models are always performing optimally and adapting to new data.
+- [Logging artifacts](https://docs.mlrun.org/en/stable/_build/html/_sources/store/log-artifacts.html): To log artifacts that are not of kind model or dataset, use the {py:meth}`~mlrun.
+- [Data stores](https://docs.mlrun.org/en/stable/_build/html/_sources/store/datastore.html): A data store defines a storage provider (e.
+- [Artifacts](https://docs.mlrun.org/en/stable/_build/html/_sources/store/artifacts.html): An artifact is any data that is produced and/or consumed by functions, jobs, or pipelines.
+- [Model Artifacts](https://docs.mlrun.org/en/stable/_build/html/_sources/store/models.html): An essential piece of artifact management and versioning is storing a model version.
+- [Data items](https://docs.mlrun.org/en/stable/_build/html/_sources/store/data-items.html): A data item can be one item or a collection of items (file, dir, table, etc.
+- [MLRun execution context](https://docs.mlrun.org/en/stable/concepts/mlrun-execution-context.html): After running a job, you need to be able to track it.
+- [Notifications](https://docs.mlrun.org/en/stable/concepts/notifications.html): MLRun supports configuring notifications on jobs and scheduled jobs.
+- [Decorators and auto-logging](https://docs.mlrun.org/en/stable/concepts/decorators-and-auto-logging.html): While it is possible to log results and artifacts using {ref}`the MLRun execution context<mlrun-execution-context>`, it is often more convenient to use the {py:func}`mlrun.
+- [Batch runs and workflows](https://docs.mlrun.org/en/stable/concepts/runs-workflows.html): A workflow is a definition of execution of functions.
+- [Scheduled jobs and workflows](https://docs.mlrun.org/en/stable/concepts/scheduled-jobs.html): Oftentimes you may want to run a `job` on a regular schedule.
+- [Data and artifacts](https://docs.mlrun.org/en/stable/concepts/data.html): One of the biggest challenge in distributed systems is handling data given the different access methods, APIs, and.
+- [Alerts and notifications](https://docs.mlrun.org/en/stable/concepts/alerts-notifications.html): {ref}`alerts` are a mechanism for informing you about possible problem situations.
+- [Model monitoring](https://docs.mlrun.org/en/stable/concepts/model-monitoring.html): The MLRun's model monitoring service includes built-in model monitoring and reporting capabilities.
+- [Alerts](https://docs.mlrun.org/en/stable/concepts/alerts.html): Alerts are a mechanism for informing you about possible problem situations.
+- [Automated experiment tracking](https://docs.mlrun.org/en/stable/concepts/auto-logging-mlops.html): You can write custom training functions or use built-in hub functions for training models using.
+- [Running a multi-stage workflow](https://docs.mlrun.org/en/stable/concepts/workflow-overview.html): **In this section**.
+- [Kinds of functions (runtimes)](https://docs.mlrun.org/en/stable/concepts/functions-overview.html): When you create an MLRun function you need to specify a runtime kind (e.
+- [Running a task (job)](https://docs.mlrun.org/en/stable/concepts/submitting-tasks-jobs-to-functions.html): **In this section**.
+- [Machine learning tutorials](https://docs.mlrun.org/en/stable/tutorials/ml-index.html): ````{card} Make sure you start with the Quick start tutorial to understand the basics.
+- [Demos](https://docs.mlrun.org/en/stable/tutorials/demos.html): These end-to-end demos demonstrate how to use the Iguazio AI platform, MLRun, and related tools, to address data science requirements for different industries and implementations.
+- [Tutorials and Examples](https://docs.mlrun.org/en/stable/tutorials/index.html): The following tutorials provide a hands-on introduction to using MLRun to implement a data science workflow and automate machine-learning operations (MLOps).
+- [Gen AI development workflow](https://docs.mlrun.org/en/stable/genai/genai-flow.html): MLRun automates the flow of tuning, validation, and optimizing LLMs to specific data - efficiently over elastic resources.
+- [Using LLMs to process unstructured data](https://docs.mlrun.org/en/stable/genai/data-mgmt/unstructured-data.html): Unstructured data, such as text, images, and audio files, has become a significant challenge for many industries.
+- [Vector databases](https://docs.mlrun.org/en/stable/genai/data-mgmt/vector-databases.html): Vector databases are used to enrich the context of a request before it is passed to a model for inference.
+- [Gen AI data management](https://docs.mlrun.org/en/stable/genai/data-mgmt/index.html): The first stage is to build an automated ML pipeline for data collection, data preparation, training and evaluation, including.
+- [Guardrails for data management](https://docs.mlrun.org/en/stable/genai/data-mgmt/guardrails-data.html): Guardrails ensure intellectual property protection, safeguarding user privacy, alignment with legal and regulatory standards, and more.
+- [Developing a gen AI pipeline](https://docs.mlrun.org/en/stable/genai/development/index.html): Model development includes: Prompt library, experiment tracking, automatic distribution, fine-tuning, RLHF, fine parameter tuning.
+- [Gen AI realtime serving graph](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving_graph.html): During inference, it is common to serve a gen AI model as part of a larger pipeline that includes data preprocessing, model execution, and post-processing.
+- [GPU utilization](https://docs.mlrun.org/en/stable/genai/deployment/gpu_utilization.html): Gen AI models require GPUs in order to run.
+- [Deploying gen AI application serving pipelines](https://docs.mlrun.org/en/stable/genai/deployment/index.html): MLRun serving can produce managed ML application pipelines using real-time auto-scaling Nuclio serverless functions.
+- [Serving gen AI models](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving.html): Serving a gen AI model is, in essence, the same as serving any other model.
+- [Gen AI liveOps](https://docs.mlrun.org/en/stable/genai/live-ops/index.html): The liveOps stage ensures that the models are always performing optimally and adapting to new data.
+- [Logging artifacts](https://docs.mlrun.org/en/stable/store/log-artifacts.html): To log artifacts that are not of kind model or dataset, use the {py:meth}`~mlrun.
+- [Data stores](https://docs.mlrun.org/en/stable/store/datastore.html): A data store defines a storage provider (e.
+- [Artifacts](https://docs.mlrun.org/en/stable/store/artifacts.html): An artifact is any data that is produced and/or consumed by functions, jobs, or pipelines.
+- [Model Artifacts](https://docs.mlrun.org/en/stable/store/models.html): An essential piece of artifact management and versioning is storing a model version.
+- [Data items](https://docs.mlrun.org/en/stable/store/data-items.html): A data item can be one item or a collection of items (file, dir, table, etc.
+
+## Examples
+- [Hyperparameter tuning optimization](https://docs.mlrun.org/en/stable/hyper-params.html): MLRun supports iterative tasks for automatic and distributed execution of many tasks with variable parameters (hyperparams).
+- [Distributed (multi-function) pipeline example](https://docs.mlrun.org/en/stable/serving/distributed-graph.html): This example demonstrates how to run a pipeline that consists of multiple serverless functions (connected using streams).
+- [Writing custom steps](https://docs.mlrun.org/en/stable/serving/writing-custom-steps.html): The Graph executes built-in task classes, or task classes and functions that you implement.
+- [Model serving graph](https://docs.mlrun.org/en/stable/serving/model-serving-get-started.html): **In this section**.
+- [Getting started](https://docs.mlrun.org/en/stable/serving/getting-started.html): This example uses a custom class and custom function.
+- [Advanced model serving graph - notebook example](https://docs.mlrun.org/en/stable/serving/graph-example.html): This example demonstrates how to use MLRun serving graphs and their advanced functionality including:.
+- [Graph concepts and state machine](https://docs.mlrun.org/en/stable/serving/realtime-pipelines.html): A graph is composed of the following:.
+- [View model monitoring results in the platform UI](https://docs.mlrun.org/en/stable/model-monitoring/monitoring-models.html): This tutorial illustrates the basic model monitoring capabilities of MLRun: deploying a model to a live endpoint and observing data drift.
+- [View model monitoring results in Grafana](https://docs.mlrun.org/en/stable/model-monitoring/monitoring-models-grafana.html): You can deploy a Grafana service in your Iguazio instance and use Grafana Dashboards to view model monitoring details.
+- [Using the built-in training function](https://docs.mlrun.org/en/stable/training/built-in-training-function.html): U.
+- [Create a basic training job](https://docs.mlrun.org/en/stable/training/create-a-basic-training-job.html): In this section, you create a simple job to train a model and log metrics, logs, and plots using MLRun's auto-logging:.
+- [Git best practices](https://docs.mlrun.org/en/stable/projects/git-best-practices.html): This section provides an overview of developing and deploying ML applications using MLRun and Git.
+- [Create a project using a Git source](https://docs.mlrun.org/en/stable/projects/automate-project-git-source.html): This example shows how to create a project in MLRun for CI/CD automation based on a remote source, in this case Git.
+- [Load project YAML from Git, Zip, Tar source](https://docs.mlrun.org/en/stable/projects/load-project-yaml.html): After you create your project and you have a project.
+- [Application runtime](https://docs.mlrun.org/en/stable/runtimes/application.html): You can use the {py:meth}`~mlrun.
+- [Running multiple functions in parallel](https://docs.mlrun.org/en/stable/runtimes/multiple-parallel-workflow.html): This example illustrates a workflow that triggers multiple functions in parallel.
+- [Create and use functions](https://docs.mlrun.org/en/stable/runtimes/create-and-use-functions.html): Functions are the basic building blocks of MLRun.
+- [Databricks runtime](https://docs.mlrun.org/en/stable/runtimes/databricks.html): The databricks runtime runs on a Databricks cluster (and not in the Iguazio cluster).
+- [MPIJob and Horovod runtime](https://docs.mlrun.org/en/stable/runtimes/horovod.html): Training a Deep Neural Network is a hard task.
+- [Pipelines using Dask, Kubeflow and MLRun](https://docs.mlrun.org/en/stable/runtimes/dask-pipeline.html): Projects are used to package multiple functions, workflows, and artifacts.
+- [Running Dask on the cluster with MLRun](https://docs.mlrun.org/en/stable/runtimes/dask-mlrun.html): ```{admonition} Note.
+- [Running multiple functions with ExitHandler](https://docs.mlrun.org/en/stable/runtimes/multiple-funcs-exithandler.html): This example uses the Kubernetes function ExitHandler to run multiple functions before continuing to the next function.
+- [Running a conditional workflow](https://docs.mlrun.org/en/stable/runtimes/conditional-workflow.html): This example demonstrates creating a workflow that runs a function based on the result of the previous function.
+- [Converting notebooks to function](https://docs.mlrun.org/en/stable/runtimes/mlrun_code_annotations.html): MLRun annotations are used to identify the code that needs to be converted into an MLRun function.
+- [Spark Operator runtime](https://docs.mlrun.org/en/stable/runtimes/spark-operator.html): ```{admonition} Note.
+- [Dask distributed runtime](https://docs.mlrun.org/en/stable/runtimes/dask-overview.html): ```{admonition} Quick Links.
+- [Using a Git repo as a function hub](https://docs.mlrun.org/en/stable/runtimes/git-repo-as-hub.html): You can save functions in a Git repo, and use this repo as your own function hub.
+- [Feature store example (stocks)](https://docs.mlrun.org/en/stable/feature-store/basic-demo.html): This notebook demonstrates the following:.
+- [Part 4: Automated ML pipeline](https://docs.mlrun.org/en/stable/feature-store/end-to-end-demo/04-pipeline.html): MLRun Project is a container for all your work on a particular activity: all of the associated code, functions,.
+- [Part 3: Serving](https://docs.mlrun.org/en/stable/feature-store/end-to-end-demo/03-deploy-serving-model.html): In this part you use MLRun's **serving runtime** to deploy your trained models from the previous stage, a `Voting Ensemble` using **max vote** logic.
+- [Part 1: Data ingestion](https://docs.mlrun.org/en/stable/feature-store/end-to-end-demo/01-ingest-datasources.html): ```{admonition} Note.
+- [Part 2: Training](https://docs.mlrun.org/en/stable/feature-store/end-to-end-demo/02-create-training-model.html): In this part you learn how to use MLRun's **Feature Store** to easily define a **Feature Vector** and create the dataset you need to run the training process.
+- [Batch inference](https://docs.mlrun.org/en/stable/deployment/batch_inference.html): Batch inference or offline inference addresses the need to run machine learning model on large datasets.
+- [Hyperparameter tuning optimization](https://docs.mlrun.org/en/stable/_build/html/_sources/hyper-params.html): MLRun supports iterative tasks for automatic and distributed execution of many tasks with variable parameters (hyperparams).
+- [Distributed (multi-function) pipeline example](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/distributed-graph.html): This example demonstrates how to run a pipeline that consists of multiple serverless functions (connected using streams).
+- [Writing custom steps](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/writing-custom-steps.html): The Graph executes built-in task classes, or task classes and functions that you implement.
+- [Model serving graph](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/model-serving-get-started.html): **In this section**.
+- [Getting started](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/getting-started.html): This example uses a custom class and custom function.
+- [Advanced model serving graph - notebook example](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/graph-example.html): This example demonstrates how to use MLRun serving graphs and their advanced functionality including:.
+- [Graph concepts and state machine](https://docs.mlrun.org/en/stable/_build/html/_sources/serving/realtime-pipelines.html): A graph is composed of the following:.
+- [View model monitoring results in the platform UI](https://docs.mlrun.org/en/stable/_build/html/_sources/model-monitoring/monitoring-models.html): This tutorial illustrates the basic model monitoring capabilities of MLRun: deploying a model to a live endpoint and observing data drift.
+- [View model monitoring results in Grafana](https://docs.mlrun.org/en/stable/_build/html/_sources/model-monitoring/monitoring-models-grafana.html): You can deploy a Grafana service in your Iguazio instance and use Grafana Dashboards to view model monitoring details.
+- [Using the built-in training function](https://docs.mlrun.org/en/stable/_build/html/_sources/training/built-in-training-function.html): U.
+- [Create a basic training job](https://docs.mlrun.org/en/stable/_build/html/_sources/training/create-a-basic-training-job.html): In this section, you create a simple job to train a model and log metrics, logs, and plots using MLRun's auto-logging:.
+- [Git best practices](https://docs.mlrun.org/en/stable/_build/html/_sources/projects/git-best-practices.html): This section provides an overview of developing and deploying ML applications using MLRun and Git.
+- [Create a project using a Git source](https://docs.mlrun.org/en/stable/_build/html/_sources/projects/automate-project-git-source.html): This example shows how to create a project in MLRun for CI/CD automation based on a remote source, in this case Git.
+- [Load project YAML from Git, Zip, Tar source](https://docs.mlrun.org/en/stable/_build/html/_sources/projects/load-project-yaml.html): After you create your project and you have a project.
+- [Application runtime](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/application.html): You can use the {py:meth}`~mlrun.
+- [Running multiple functions in parallel](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/multiple-parallel-workflow.html): This example illustrates a workflow that triggers multiple functions in parallel.
+- [Create and use functions](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/create-and-use-functions.html): Functions are the basic building blocks of MLRun.
+- [Databricks runtime](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/databricks.html): The databricks runtime runs on a Databricks cluster (and not in the Iguazio cluster).
+- [MPIJob and Horovod runtime](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/horovod.html): Training a Deep Neural Network is a hard task.
+- [Pipelines using Dask, Kubeflow and MLRun](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/dask-pipeline.html): Projects are used to package multiple functions, workflows, and artifacts.
+- [Running Dask on the cluster with MLRun](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/dask-mlrun.html): ```{admonition} Note.
+- [Running multiple functions with ExitHandler](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/multiple-funcs-exithandler.html): This example uses the Kubernetes function ExitHandler to run multiple functions before continuing to the next function.
+- [Running a conditional workflow](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/conditional-workflow.html): This example demonstrates creating a workflow that runs a function based on the result of the previous function.
+- [Converting notebooks to function](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/mlrun_code_annotations.html): MLRun annotations are used to identify the code that needs to be converted into an MLRun function.
+- [Spark Operator runtime](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/spark-operator.html): ```{admonition} Note.
+- [Dask distributed runtime](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/dask-overview.html): ```{admonition} Quick Links.
+- [Using a Git repo as a function hub](https://docs.mlrun.org/en/stable/_build/html/_sources/runtimes/git-repo-as-hub.html): You can save functions in a Git repo, and use this repo as your own function hub.
+- [Feature store example (stocks)](https://docs.mlrun.org/en/stable/_build/html/_sources/feature-store/basic-demo.html): This notebook demonstrates the following:.
+- [Part 4: Automated ML pipeline](https://docs.mlrun.org/en/stable/_build/html/_sources/feature-store/end-to-end-demo/04-pipeline.html): MLRun Project is a container for all your work on a particular activity: all of the associated code, functions,.
+- [Part 3: Serving](https://docs.mlrun.org/en/stable/_build/html/_sources/feature-store/end-to-end-demo/03-deploy-serving-model.html): In this part you use MLRun's **serving runtime** to deploy your trained models from the previous stage, a `Voting Ensemble` using **max vote** logic.
+- [Part 1: Data ingestion](https://docs.mlrun.org/en/stable/_build/html/_sources/feature-store/end-to-end-demo/01-ingest-datasources.html): ```{admonition} Note.
+- [Part 2: Training](https://docs.mlrun.org/en/stable/_build/html/_sources/feature-store/end-to-end-demo/02-create-training-model.html): In this part you learn how to use MLRun's **Feature Store** to easily define a **Feature Vector** and create the dataset you need to run the training process.
+- [Batch inference](https://docs.mlrun.org/en/stable/_build/html/_sources/deployment/batch_inference.html): Batch inference or offline inference addresses the need to run machine learning model on large datasets.
+- [Nuclio real-time functions](https://docs.mlrun.org/en/stable/_build/html/_sources/concepts/nuclio-real-time-functions.html): Nuclio is a high-performance "serverless" framework focused on data, I/O, and compute intensive workloads.
+- [Listing alert activations](https://docs.mlrun.org/en/stable/_build/html/_sources/concepts/alert_activations.html): You can list alert activations by:.
+- [Deploying an LLM using MLRun](https://docs.mlrun.org/en/stable/_build/html/_sources/tutorials/genai_01_basic_tutorial.html): This notebook illustrates deploying an LLM using MLRun.
+- [Projects and automated ML pipeline](https://docs.mlrun.org/en/stable/_build/html/_sources/tutorials/04-pipeline.html): This notebook demonstrates how to work with projects, source control (git), and automating the ML pipeline.
+- [Train, compare, and register models](https://docs.mlrun.org/en/stable/_build/html/_sources/tutorials/02-model-training.html): This notebook provides a quick overview of training ML models using [MLRun](https://www.
+- [Model monitoring tutorial](https://docs.mlrun.org/en/stable/_build/html/_sources/tutorials/05-model-monitoring.html): This tutorial illustrates the basic model monitoring capabilities of MLRun: deploying a model to a live endpoint and calculating data drift.
+- [Add MLOps to existing code](https://docs.mlrun.org/en/stable/_build/html/_sources/tutorials/07-add-mlops-to-code.html): This tutorial showcases how easy it is to apply MLRun on your existing code.
+- [MLflow tracker](https://docs.mlrun.org/en/stable/_build/html/_sources/tutorials/mlflow.html): This tutorial demonstrates how to seamlessly integrate and transfer logs from MLflow to MLRun, </br>.
+- [Serving pre-trained ML/DL models](https://docs.mlrun.org/en/stable/_build/html/_sources/tutorials/03-model-serving.html): This notebook demonstrate how to serve standard ML/DL models using **MLRun Serving**.
+- [Quick start tutorial for machine learning](https://docs.mlrun.org/en/stable/_build/html/_sources/tutorials/01-mlrun-basics.html): **Introduction to MLRun - Use serverless functions to train and deploy models**.
+- [Batch inference and drift detection](https://docs.mlrun.org/en/stable/_build/html/_sources/tutorials/06-batch-infer.html): This tutorial leverages a function from the [MLRun Function Hub](https://www.
+- [Model monitoring using LLM](https://docs.mlrun.org/en/stable/_build/html/_sources/tutorials/genai-02-model-monitor-llm.html): This tutorial illustrates a model monitoring system that leverages LLMs to maintain high standards for deployed models.
+- [Working with RAG in MLRun](https://docs.mlrun.org/en/stable/_build/html/_sources/genai/development/working-with-rag.html): Retrieval Augmented Generation (RAG) is a common strategy for extending the knowledge of pre-trained LLMs.
+- [Evaluating LLMs with MLRun](https://docs.mlrun.org/en/stable/_build/html/_sources/genai/development/evaluating-llms.html): Evaluating large language models (LLMs) is crucial throughout the ML lifecycle.
+- [Fine tuning LLMs with MLRun](https://docs.mlrun.org/en/stable/_build/html/_sources/genai/development/fine-tuning-llms.html): This demo modifies the vocabulary and behavior of a pre-trained model to talk like a **pirate**.
+- [Hyperparameter tuning optimization](https://docs.mlrun.org/en/stable/_build/jupyter_execute/hyper-params.html): MLRun supports iterative tasks for automatic and distributed execution of many tasks with variable parameters (hyperparams).
+- [Distributed (multi-function) pipeline example](https://docs.mlrun.org/en/stable/_build/jupyter_execute/serving/distributed-graph.html): This example demonstrates how to run a pipeline that consists of multiple serverless functions (connected using streams).
+- [Writing custom steps](https://docs.mlrun.org/en/stable/_build/jupyter_execute/serving/writing-custom-steps.html): The Graph executes built-in task classes, or task classes and functions that you implement.
+- [Model serving graph](https://docs.mlrun.org/en/stable/_build/jupyter_execute/serving/model-serving-get-started.html): **In this section**.
+- [Getting started](https://docs.mlrun.org/en/stable/_build/jupyter_execute/serving/getting-started.html): This example uses a custom class and custom function.
+- [Advanced model serving graph - notebook example](https://docs.mlrun.org/en/stable/_build/jupyter_execute/serving/graph-example.html): This example demonstrates how to use MLRun serving graphs and their advanced functionality including:.
+- [Graph concepts and state machine](https://docs.mlrun.org/en/stable/_build/jupyter_execute/serving/realtime-pipelines.html): A graph is composed of the following:.
+- [View model monitoring results in the platform UI](https://docs.mlrun.org/en/stable/_build/jupyter_execute/model-monitoring/monitoring-models.html): This tutorial illustrates the basic model monitoring capabilities of MLRun: deploying a model to a live endpoint and observing data drift.
+- [View model monitoring results in Grafana](https://docs.mlrun.org/en/stable/_build/jupyter_execute/model-monitoring/monitoring-models-grafana.html): You can deploy a Grafana service in your Iguazio instance and use Grafana Dashboards to view model monitoring details.
+- [Using the built-in training function](https://docs.mlrun.org/en/stable/_build/jupyter_execute/training/built-in-training-function.html): The MLRun [Function Hub](https://www.
+- [Create a basic training job](https://docs.mlrun.org/en/stable/_build/jupyter_execute/training/create-a-basic-training-job.html): In this section, you create a simple job to train a model and log metrics, logs, and plots using MLRun's auto-logging:.
+- [Git best practices](https://docs.mlrun.org/en/stable/_build/jupyter_execute/projects/git-best-practices.html): This section provides an overview of developing and deploying ML applications using MLRun and Git.
+- [Create a project using a Git source](https://docs.mlrun.org/en/stable/_build/jupyter_execute/projects/automate-project-git-source.html): This example shows how to create a project in MLRun for CI/CD automation based on a remote source, in this case Git.
+- [Load project YAML from Git, Zip, Tar source](https://docs.mlrun.org/en/stable/_build/jupyter_execute/projects/load-project-yaml.html): After you create your project and you have a project.
+- [Application runtime](https://docs.mlrun.org/en/stable/_build/jupyter_execute/runtimes/application.html): You can use the {py:meth}`~mlrun.
+- [Running multiple functions in parallel](https://docs.mlrun.org/en/stable/_build/jupyter_execute/runtimes/multiple-parallel-workflow.html): This example illustrates a workflow that triggers multiple functions in parallel.
+- [Create and use functions](https://docs.mlrun.org/en/stable/_build/jupyter_execute/runtimes/create-and-use-functions.html): Functions are the basic building blocks of MLRun.
+- [Databricks runtime](https://docs.mlrun.org/en/stable/_build/jupyter_execute/runtimes/databricks.html): The databricks runtime runs on a Databricks cluster (and not in the Iguazio cluster).
+- [MPIJob and Horovod runtime](https://docs.mlrun.org/en/stable/_build/jupyter_execute/runtimes/horovod.html): Training a Deep Neural Network is a hard task.
+- [Pipelines using Dask, Kubeflow and MLRun](https://docs.mlrun.org/en/stable/_build/jupyter_execute/runtimes/dask-pipeline.html): Projects are used to package multiple functions, workflows, and artifacts.
+- [Running Dask on the cluster with MLRun](https://docs.mlrun.org/en/stable/_build/jupyter_execute/runtimes/dask-mlrun.html): ```{admonition} Note.
+- [Running multiple functions with ExitHandler](https://docs.mlrun.org/en/stable/_build/jupyter_execute/runtimes/multiple-funcs-exithandler.html): This example uses the Kubernetes function ExitHandler to run multiple functions before continuing to the next function.
+- [Running a conditional workflow](https://docs.mlrun.org/en/stable/_build/jupyter_execute/runtimes/conditional-workflow.html): This example demonstrates creating a workflow that runs a function based on the result of the previous function.
+- [Converting notebooks to function](https://docs.mlrun.org/en/stable/_build/jupyter_execute/runtimes/mlrun_code_annotations.html): MLRun annotations are used to identify the code that needs to be converted into an MLRun function.
+- [Spark Operator runtime](https://docs.mlrun.org/en/stable/_build/jupyter_execute/runtimes/spark-operator.html): ```{admonition} Note.
+- [Dask distributed runtime](https://docs.mlrun.org/en/stable/_build/jupyter_execute/runtimes/dask-overview.html): ```{admonition} Quick Links.
+- [Using a Git repo as a function hub](https://docs.mlrun.org/en/stable/_build/jupyter_execute/runtimes/git-repo-as-hub.html): You can save functions in a Git repo, and use this repo as your own function hub.
+- [Feature store example (stocks)](https://docs.mlrun.org/en/stable/_build/jupyter_execute/feature-store/basic-demo.html): This notebook demonstrates the following:.
+- [Part 4: Automated ML pipeline](https://docs.mlrun.org/en/stable/_build/jupyter_execute/feature-store/end-to-end-demo/04-pipeline.html): MLRun Project is a container for all your work on a particular activity: all of the associated code, functions,.
+- [Part 3: Serving](https://docs.mlrun.org/en/stable/_build/jupyter_execute/feature-store/end-to-end-demo/03-deploy-serving-model.html): In this part you use MLRun's **serving runtime** to deploy your trained models from the previous stage, a `Voting Ensemble` using **max vote** logic.
+- [Part 1: Data ingestion](https://docs.mlrun.org/en/stable/_build/jupyter_execute/feature-store/end-to-end-demo/01-ingest-datasources.html): ```{admonition} Note.
+- [Part 2: Training](https://docs.mlrun.org/en/stable/_build/jupyter_execute/feature-store/end-to-end-demo/02-create-training-model.html): In this part you learn how to use MLRun's **Feature Store** to easily define a **Feature Vector** and create the dataset you need to run the training process.
+- [Batch inference](https://docs.mlrun.org/en/stable/_build/jupyter_execute/deployment/batch_inference.html): Batch inference or offline inference addresses the need to run machine learning model on large datasets.
+- [Nuclio real-time functions](https://docs.mlrun.org/en/stable/_build/jupyter_execute/concepts/nuclio-real-time-functions.html): Nuclio is a high-performance "serverless" framework focused on data, I/O, and compute intensive workloads.
+- [Listing alert activations](https://docs.mlrun.org/en/stable/_build/jupyter_execute/concepts/alert_activations.html): You can list alert activations by:.
+- [Deploying an LLM using MLRun](https://docs.mlrun.org/en/stable/_build/jupyter_execute/tutorials/genai_01_basic_tutorial.html): This notebook illustrates deploying an LLM using MLRun.
+- [Projects and automated ML pipeline](https://docs.mlrun.org/en/stable/_build/jupyter_execute/tutorials/04-pipeline.html): This notebook demonstrates how to work with projects, source control (git), and automating the ML pipeline.
+- [Train, compare, and register models](https://docs.mlrun.org/en/stable/_build/jupyter_execute/tutorials/02-model-training.html): This notebook provides a quick overview of training ML models using [MLRun](https://www.
+- [Model monitoring tutorial](https://docs.mlrun.org/en/stable/_build/jupyter_execute/tutorials/05-model-monitoring.html): This tutorial illustrates the basic model monitoring capabilities of MLRun: deploying a model to a live endpoint and calculating data drift.
+- [Add MLOps to existing code](https://docs.mlrun.org/en/stable/_build/jupyter_execute/tutorials/07-add-mlops-to-code.html): This tutorial showcases how easy it is to apply MLRun on your existing code.
+- [MLflow tracker](https://docs.mlrun.org/en/stable/_build/jupyter_execute/tutorials/mlflow.html): This tutorial demonstrates how to seamlessly integrate and transfer logs from MLflow to MLRun, </br>.
+- [Serving pre-trained ML/DL models](https://docs.mlrun.org/en/stable/_build/jupyter_execute/tutorials/03-model-serving.html): This notebook demonstrate how to serve standard ML/DL models using **MLRun Serving**.
+- [Quick start tutorial for machine learning](https://docs.mlrun.org/en/stable/_build/jupyter_execute/tutorials/01-mlrun-basics.html): **Introduction to MLRun - Use serverless functions to train and deploy models**.
+- [Batch inference and drift detection](https://docs.mlrun.org/en/stable/_build/jupyter_execute/tutorials/06-batch-infer.html): This tutorial leverages a function from the [MLRun Function Hub](https://www.
+- [Model monitoring using LLM](https://docs.mlrun.org/en/stable/_build/jupyter_execute/tutorials/genai-02-model-monitor-llm.html): This tutorial illustrates a model monitoring system that leverages LLMs to maintain high standards for deployed models.
+- [Working with RAG in MLRun](https://docs.mlrun.org/en/stable/_build/jupyter_execute/genai/development/working-with-rag.html): Retrieval Augmented Generation (RAG) is a common strategy for extending the knowledge of pre-trained LLMs.
+- [Evaluating LLMs with MLRun](https://docs.mlrun.org/en/stable/_build/jupyter_execute/genai/development/evaluating-llms.html): Evaluating large language models (LLMs) is crucial throughout the ML lifecycle.
+- [Fine tuning LLMs with MLRun](https://docs.mlrun.org/en/stable/_build/jupyter_execute/genai/development/fine-tuning-llms.html): This demo modifies the vocabulary and behavior of a pre-trained model to talk like a **pirate**.
+- [Nuclio real-time functions](https://docs.mlrun.org/en/stable/concepts/nuclio-real-time-functions.html): Nuclio is a high-performance "serverless" framework focused on data, I/O, and compute intensive workloads.
+- [Listing alert activations](https://docs.mlrun.org/en/stable/concepts/alert_activations.html): You can list alert activations by:.
+- [Deploying an LLM using MLRun](https://docs.mlrun.org/en/stable/tutorials/genai_01_basic_tutorial.html): This notebook illustrates deploying an LLM using MLRun.
+- [Projects and automated ML pipeline](https://docs.mlrun.org/en/stable/tutorials/04-pipeline.html): This notebook demonstrates how to work with projects, source control (git), and automating the ML pipeline.
+- [Train, compare, and register models](https://docs.mlrun.org/en/stable/tutorials/02-model-training.html): This notebook provides a quick overview of training ML models using [MLRun](https://www.
+- [Model monitoring tutorial](https://docs.mlrun.org/en/stable/tutorials/05-model-monitoring.html): This tutorial illustrates the basic model monitoring capabilities of MLRun: deploying a model to a live endpoint and calculating data drift.
+- [Add MLOps to existing code](https://docs.mlrun.org/en/stable/tutorials/07-add-mlops-to-code.html): This tutorial showcases how easy it is to apply MLRun on your existing code.
+- [MLflow tracker](https://docs.mlrun.org/en/stable/tutorials/mlflow.html): This tutorial demonstrates how to seamlessly integrate and transfer logs from MLflow to MLRun, </br>.
+- [Serving pre-trained ML/DL models](https://docs.mlrun.org/en/stable/tutorials/03-model-serving.html): This notebook demonstrate how to serve standard ML/DL models using **MLRun Serving**.
+- [Quick start tutorial for machine learning](https://docs.mlrun.org/en/stable/tutorials/01-mlrun-basics.html): **Introduction to MLRun - Use serverless functions to train and deploy models**.
+- [Batch inference and drift detection](https://docs.mlrun.org/en/stable/tutorials/06-batch-infer.html): This tutorial leverages a function from the [MLRun Function Hub](https://www.
+- [Model monitoring using LLM](https://docs.mlrun.org/en/stable/tutorials/genai-02-model-monitor-llm.html): This tutorial illustrates a model monitoring system that leverages LLMs to maintain high standards for deployed models.
+- [Working with RAG in MLRun](https://docs.mlrun.org/en/stable/genai/development/working-with-rag.html): Retrieval Augmented Generation (RAG) is a common strategy for extending the knowledge of pre-trained LLMs.
+- [Evaluating LLMs with MLRun](https://docs.mlrun.org/en/stable/genai/development/evaluating-llms.html): Evaluating large language models (LLMs) is crucial throughout the ML lifecycle.
+- [Fine tuning LLMs with MLRun](https://docs.mlrun.org/en/stable/genai/development/fine-tuning-llms.html): This demo modifies the vocabulary and behavior of a pre-trained model to talk like a **pirate**.

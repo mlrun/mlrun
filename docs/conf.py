@@ -13,7 +13,7 @@
 
 import re
 import sys
-from os import environ, path
+from os import path
 
 sys.path.insert(0, "..")
 
@@ -233,20 +233,14 @@ def copy_doc(src, dest, title=""):
                     changed = True
                 out.write(line)
 
-import os, shutil
-def copy_llms_redirect(app, exception):
-    if exception is None and app.builder.name == "html":
-        src = os.path.join(app.confdir, "_static/llms-redirect/index.html")
-        dst = os.path.join(app.outdir, "llms.txt")
-        shutil.copyfile(src, dst)
 
 def setup(app):
     # Only connect the hook for the "latest" version on Read the Docs
     # to avoid generating llms.txt for every version build
     # TODO: change to stable (before releasing 1.8.0)
-    #if environ.get("READTHEDOCS_VERSION") == "latest":
+    # if environ.get("READTHEDOCS_VERSION") == "latest":
     app.connect("build-finished", create_llms_txt)
-    #app.connect("build-finished", copy_llms_redirect)
+    # app.connect("build-finished", copy_llms_redirect)
 
 
 # default header for llms.txt file
@@ -274,8 +268,8 @@ def create_llms_txt(app, exception):
     sys.path.insert(0, path.abspath("."))
     from llms import generate_llm_txt
 
-    #output_path = path.join(app.outdir, "llms.txt")
-    generate_llm_txt(".", prefix=default_prefix, output_path="llms.txt")
+    output_path = path.join(app.outdir, "llms.txt")
+    generate_llm_txt(".", prefix=default_prefix, output_path=output_path)
 
 
 #   project_root = path.dirname(path.dirname(path.abspath(__file__)))

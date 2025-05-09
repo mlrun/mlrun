@@ -40,9 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # TODO: Ensure compatibility with Python 3.11 as well
-        # Currently, MLRun requires KFP with protobuf, which fails to install on Python 3.11.
-        python-version: [ "3.9" ]
+        python-version: [ "3.11" ]
     steps:
       - uses: actions/checkout@v4
       - name: Set up python ${{ matrix.python-version }}
@@ -63,8 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # TODO: Ensure compatibility with Python 3.11
-        python-version: [ "3.9" ]
+        python-version: [ "3.11" ]
 
     steps:
       - uses: actions/checkout@v4

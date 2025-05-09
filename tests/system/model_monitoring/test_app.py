@@ -43,7 +43,6 @@ import mlrun.feature_store
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
 import mlrun.model_monitoring.api
-import mlrun.model_monitoring.applications.histogram_data_drift
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfileKafkaSource,
@@ -60,6 +59,7 @@ from mlrun.utils.v3io_clients import get_v3io_client
 from tests.system.base import TestMLRunSystem
 
 from . import TestMLRunSystemModelMonitoring
+from .assets import histogram_app_with_artifacts
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     CountApp,
@@ -96,7 +96,6 @@ _DefaultDataDriftAppData = _AppData(
     deploy=False,
     results={"general_drift"},
     metrics={"hellinger_mean", "kld_mean", "tvd_mean"},
-    artifacts={"features_drift_results"},
 )
 
 
@@ -386,6 +385,14 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
     def custom_setup(self) -> None:
         self.set_mm_credentials()
+        self._external_stream_delay = 0
+        if isinstance(
+            self.mm_stream_profile, DatastoreProfileKafkaSource
+        ) and self.mm_stream_profile.attributes()["brokers"][0].endswith(
+            ".confluent.cloud:9092"
+        ):
+            # external Confluent Cloud degrades the streams latency
+            self._external_stream_delay = 90  # seconds
         super(TestMLRunSystem, self).custom_setup(project_name=self.project_name)
 
     def custom_teardown(self) -> None:
@@ -421,7 +428,13 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 )
 
         elif isinstance(stream_profile, DatastoreProfileKafkaSource):
-            consumer = kafka.KafkaConsumer(bootstrap_servers=stream_profile.brokers)
+            kafka_profile_attributes = stream_profile.attributes()
+            kafka_consumer_kwargs = mlrun.datastore.utils.KafkaParameters(
+                kafka_profile_attributes
+            ).consumer()
+            consumer = kafka.KafkaConsumer(
+                bootstrap_servers=stream_profile.brokers, **kafka_consumer_kwargs
+            )
             topics = consumer.topics()
 
             project_topics_list = [
@@ -693,10 +706,11 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         )
 
         self._infer_with_error(serving_fn, with_training_set=with_training_set)
-        # mark the first window as "done" with another request
+        # wait for the NO-OP event to close the window
         time.sleep(
             2 * self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + self._external_stream_delay
         )
 
         mep = mlrun.db.get_run_db().get_model_endpoint(
@@ -708,11 +722,15 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             tsdb_metrics=True,
         )
 
+        assert (
+            mep.status.last_request == last_request
+        ), "The saved `last_request` in the model endpoint is different than the last result timestamp"
+
         self._test_v3io_records(
             ep_id=mep.metadata.uid,
             inputs=inputs,
             outputs=outputs,
-            last_request=last_request,
+            last_request=mep.status.last_request,
             error_count=self.error_count,
         )
         self._test_predictions_table(mep.metadata.uid)
@@ -802,6 +820,7 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             **self.app_data.kwargs,
         )
         self.project.deploy_function(fn)
+        return fn
 
     def _record_results(self) -> str:
         model_endpoint = mlrun.model_monitoring.api.record_results(
@@ -827,8 +846,11 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
         self._log_model()
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(self._deploy_monitoring_app)
+            monitoring_app = executor.submit(self._deploy_monitoring_app)
             executor.submit(self._deploy_monitoring_infra)
+
+        fn = monitoring_app.result()
+        self._assert_replicas(fn)
 
         endpoint_id = self._record_results()
 
@@ -845,6 +867,16 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             mep.metadata.uid, inputs=set(self.columns), outputs=set(self.y_name)
         )
         self._test_predictions_table(mep.metadata.uid, should_be_empty=True)
+
+    @staticmethod
+    def _assert_replicas(fn):
+        """
+        Validate that the 'min_replicas' and 'max_replicas' values in the function's spec are correct after deployment.
+        This check ensures that the replica settings, which are modified on the server side during deployment, are
+        properly reflected on the client side.
+        """
+        assert fn.spec.min_replicas == 1
+        assert fn.spec.max_replicas == 1
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
@@ -1416,8 +1448,8 @@ class TestAppJob(TestMLRunSystem):
         reference_data = pd.DataFrame({"a": [12, 13], "b": [3.12, 4.12]})
 
         # Call `.evaluate(...)`
-        run_result = HistogramDataDriftApplication.evaluate(
-            func_path=mlrun.model_monitoring.applications.histogram_data_drift.__file__,
+        run_result = histogram_app_with_artifacts.HistogramDataDriftApplicationWithArtifacts.evaluate(
+            func_path=histogram_app_with_artifacts.__file__,
             sample_data=sample_data,
             reference_data=reference_data,
             run_local=run_local,
@@ -1452,7 +1484,7 @@ class TestAppJob(TestMLRunSystem):
             2:4
         ], "The returned metrics are different than the expected ones"
         # Test the artifacts
-        for artifact_name in _DefaultDataDriftAppData.artifacts:
+        for artifact_name in {"features_drift_results", "drift_table_plot"}:
             assert run_result.output(
                 artifact_name
             ), f"The artifact '{artifact_name}' is not listed in the run's output"

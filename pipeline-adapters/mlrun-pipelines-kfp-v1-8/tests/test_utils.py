@@ -15,13 +15,15 @@ import unittest.mock
 
 import pytest
 
+import mlrun_pipelines.client
 import mlrun_pipelines.utils
 
 
 @pytest.fixture
-def client():
-    client_klass = mlrun_pipelines.utils.ExtendedKfpClient
+def client(monkeypatch):
+    client_klass = mlrun_pipelines.client.Client
     client_klass.get_kfp_healthz = unittest.mock.MagicMock()
+    monkeypatch.setattr("kubernetes.config.load_incluster_config", lambda: None)
     return client_klass()
 
 

@@ -172,6 +172,6 @@ class TestKFP(tests.system.base.TestMLRunSystem):
             run_id, project=self.project_name, expected_statuses=[RunStatuses.failed]
         )
         db = mlrun.get_run_db()
-        run = db.get_pipeline(run_id, self.project_name)
+        run = db.get_pipeline(run_id, project=self.project_name)
 
         assert run["run"].get("error") == "Error (exit code 1)"

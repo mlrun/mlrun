@@ -11,19 +11,19 @@ We recommend using [pyenv](https://github.com/pyenv/pyenv#installation) to manag
 Once you have pyenv installed, you can create a new environment by running:
 
 ```bash
-pyenv install 3.9
+pyenv install 3.11
 ```
 
 To activate the environment, run:
 
 ```bash
-pyenv shell 3.9
+pyenv shell 3.11
 ```
 
 Or, set as default by running:
 
 ```bash
-pyenv global 3.9
+pyenv global 3.11
 ```
 
 
@@ -66,7 +66,7 @@ cd mlrun
 
 Create a [Conda](https://docs.anaconda.com/free/anaconda/install/index.html) environment and activate it
 ```shell script
-conda create -n mlrun python=3.9
+conda create -n mlrun python=3.11
 conda activate mlrun
 ```
 

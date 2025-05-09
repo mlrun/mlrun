@@ -286,7 +286,7 @@ spark.with_igz_spark()
 spark.spec.replicas = 2
 
 spark.deploy()  # build image
-spark.run(artifact_path="/User")  # run spark job
+spark.run(output_path="/User")  # run spark job
 ```
 
 ### Resource management

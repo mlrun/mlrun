@@ -80,7 +80,7 @@ jobs:
       - name: Freeing up disk space
         run: |
           "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
-      - uses: manusa/actions-setup-minikube@v2.13.1
+      - uses: manusa/actions-setup-minikube@b589f2d61bf96695c546929c72b38563e856059d # v2.14.0
         with:
           minikube version: "v1.34.0"
           kubernetes version: "v1.31.1"

@@ -82,7 +82,8 @@ class TSDBConnector(ABC):
 
     @abstractmethod
     def delete_tsdb_records(
-        self, endpoint_ids: list[str], delete_timeout: Optional[int] = None
+        self,
+        endpoint_ids: list[str],
     ) -> None:
         """
         Delete model endpoint records from the TSDB connector.
@@ -332,6 +333,7 @@ class TSDBConnector(ABC):
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
         run_in_threadpool: Callable,
+        metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         raise NotImplementedError()
 

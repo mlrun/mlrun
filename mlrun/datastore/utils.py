@@ -246,6 +246,9 @@ class KafkaParameters:
             "partitions": "",
             "sasl": "",
             "worker_allocation_mode": "",
+            "tls_enable": "",  # for Nuclio with Confluent Kafka (Sarama client)
+            "tls": "",
+            "new_topic": "",
         }
         self._reference_dicts = (
             self._custom_attributes,
@@ -270,7 +273,9 @@ class KafkaParameters:
         }
         if sasl := self._kwargs.get("sasl"):
             res |= {
-                "security_protocol": "SASL_PLAINTEXT",
+                "security_protocol": self._kwargs.get(
+                    "security_protocol", "SASL_PLAINTEXT"
+                ),
                 "sasl_mechanism": sasl["mechanism"],
                 "sasl_plain_username": sasl["user"],
                 "sasl_plain_password": sasl["password"],
@@ -288,15 +293,25 @@ class KafkaParameters:
 
     def sasl(
         self, *, usr: typing.Optional[str] = None, pwd: typing.Optional[str] = None
-    ) -> dict:
-        usr = usr or self._kwargs.get("sasl_plain_username", None)
-        pwd = pwd or self._kwargs.get("sasl_plain_password", None)
+    ) -> dict[str, typing.Union[str, bool]]:
         res = self._kwargs.get("sasl", {})
+        usr = usr or self._kwargs.get("sasl_plain_username")
+        pwd = pwd or self._kwargs.get("sasl_plain_password")
         if usr and pwd:
             res["enable"] = True
             res["user"] = usr
             res["password"] = pwd
             res["mechanism"] = self._kwargs.get("sasl_mechanism", "PLAIN")
+            res["handshake"] = self._kwargs.get("sasl_handshake", True)
+        return res
+
+    def tls(self, *, tls_enable: typing.Optional[bool] = None) -> dict[str, bool]:
+        res = self._kwargs.get("tls", {})
+        tls_enable = (
+            tls_enable if tls_enable is not None else self._kwargs.get("tls_enable")
+        )
+        if tls_enable:
+            res["enable"] = tls_enable
         return res
 
     def valid_entries_only(self, input_dict: dict) -> dict:

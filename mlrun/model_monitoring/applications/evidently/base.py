@@ -130,17 +130,28 @@ class EvidentlyModelMonitoringApplicationBase(
         monitoring_context: mm_context.MonitoringApplicationContext,
         evidently_object: "Display",
         artifact_name: str,
+        unique_per_endpoint: bool = True,
     ) -> None:
         """
-         Logs an Evidently report or suite as an artifact.
+        Logs an Evidently report or suite as an artifact.
+
+        .. caution::
+
+            Logging Evidently objects in every model monitoring window may cause scale issues.
+            This method should be called on special occasions only.
 
         :param monitoring_context:  (MonitoringApplicationContext) The monitoring context to process.
         :param evidently_object:    (Display) The Evidently display to log, e.g. a report or a test suite object.
         :param artifact_name:       (str) The name for the logged artifact.
+        :param unique_per_endpoint: by default ``True``, we will log different artifact for each model endpoint,
+                                    set to ``False`` without changing item key will cause artifact override.
         """
         evidently_object_html = evidently_object.get_html()
         monitoring_context.log_artifact(
-            artifact_name, body=evidently_object_html.encode("utf-8"), format="html"
+            artifact_name,
+            body=evidently_object_html.encode("utf-8"),
+            format="html",
+            unique_per_endpoint=unique_per_endpoint,
         )
 
     def log_project_dashboard(
@@ -149,14 +160,22 @@ class EvidentlyModelMonitoringApplicationBase(
         timestamp_start: pd.Timestamp,
         timestamp_end: pd.Timestamp,
         artifact_name: str = "dashboard",
+        unique_per_endpoint: bool = True,
     ) -> None:
         """
         Logs an Evidently project dashboard.
+
+        .. caution::
+
+            Logging Evidently dashboards in every model monitoring window may cause scale issues.
+            This method should be called on special occasions only.
 
         :param monitoring_context:  (MonitoringApplicationContext) The monitoring context to process.
         :param timestamp_start:     (pd.Timestamp) The start timestamp for the dashboard data.
         :param timestamp_end:       (pd.Timestamp) The end timestamp for the dashboard data.
         :param artifact_name:       (str) The name for the logged artifact.
+        :param unique_per_endpoint: by default ``True``, we will log different artifact for each model endpoint,
+                                    set to ``False`` without changing item key will cause artifact override.
         """
 
         dashboard_info = self.evidently_project.build_dashboard_info(
@@ -170,5 +189,8 @@ class EvidentlyModelMonitoringApplicationBase(
 
         dashboard_html = file_html_template(params=template_params)
         monitoring_context.log_artifact(
-            artifact_name, body=dashboard_html.encode("utf-8"), format="html"
+            artifact_name,
+            body=dashboard_html.encode("utf-8"),
+            format="html",
+            unique_per_endpoint=unique_per_endpoint,
         )

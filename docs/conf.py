@@ -192,6 +192,7 @@ redirects = {
 
 smartquotes = False
 
+# Do not invert all images by default in dark mode
 inverter_all = False
 
 linkcheck_ignore = [

@@ -159,6 +159,7 @@ def test_requirement_specifiers_convention():
         },
         "v3io-frames": {'>=0.13.0; python_version >= "3.11"'},
         "grpcio": {"~=1.70.0"},
+        "snowballstemmer": {"!=3.0.0"},
     }
 
     for (

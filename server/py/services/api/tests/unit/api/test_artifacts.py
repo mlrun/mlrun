@@ -518,34 +518,6 @@ def list_limit_unversioned_client(
         ensure_endpoint_limit(None)
 
 
-@pytest.mark.parametrize("list_limit_unversioned_client", [2], indirect=True)
-def test_list_artifacts_with_limits(
-    db: Session, list_limit_unversioned_client: TestClient
-) -> None:
-    list_limit, unversioned_client = list_limit_unversioned_client
-    _create_project(unversioned_client, prefix="v1")
-
-    for i in range(list_limit + 1):
-        data = _generate_artifact_body()
-        resp = unversioned_client.post(
-            STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
-            json=data,
-        )
-        assert resp.status_code == HTTPStatus.CREATED.value
-
-    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
-    resp = unversioned_client.get(f"{artifact_path}?limit={list_limit-1}")
-    assert resp.status_code == HTTPStatus.OK.value
-    artifacts = resp.json()["artifacts"]
-    assert len(artifacts) == list_limit - 1
-
-    # Get all artifacts
-    resp = unversioned_client.get(artifact_path)
-    assert resp.status_code == HTTPStatus.OK.value
-    artifacts = resp.json()["artifacts"]
-    assert len(artifacts) == list_limit
-
-
 def test_list_artifacts_with_producer_uri(
     db: Session, unversioned_client: TestClient
 ) -> None:

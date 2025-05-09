@@ -62,7 +62,7 @@ extensions = [
     "sphinx_reredirects",
     "versionwarning.extension",
     "sphinxcontrib.mermaid",
-    "sphinx_image_inverter"
+    "sphinx_image_inverter",
 ]
 
 # Add any paths that contain templates here, relative to this directory.

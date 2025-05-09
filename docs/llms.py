@@ -3,6 +3,7 @@ import os
 import re
 
 EXCLUDE_DIRS = {"_build", ".git", "venv"}
+BASE_DOCS_URL = "https://docs.mlrun.org/en/stable/"
 
 
 def generate_llm_txt(root_dir, prefix="", output_path=None, exclude_dirs=None):
@@ -80,7 +81,9 @@ def add_files_to_output(
         if title:
             relative_path = os.path.relpath(file, root_dir)
             html_path = os.path.splitext(relative_path)[0] + ".html"
-            parsed_output.append(f"- [{title}]({html_path}): {description}")
+            full_url = f"{BASE_DOCS_URL}{html_path.replace(os.sep, '/')}"
+            print(full_url)
+            parsed_output.append(f"- [{title}]({full_url}): {description}")
 
 
 def extract_md_first_title(md_path):
@@ -93,7 +96,7 @@ def extract_md_first_title(md_path):
             if match:
                 # Return the title without any extra formatting or HTML comments
                 return re.sub(r"\s*<!--.*?-->", "", match.group(1)).strip()
-    Exception(f"No title found in file {md_path}")
+    raise Exception(f"No title found in file {md_path}")
 
 
 def extract_md_first_sentence(md_path):
@@ -103,7 +106,6 @@ def extract_md_first_sentence(md_path):
     with open(md_path, encoding="utf-8") as f:
         lines = f.readlines()
 
-    # Skip the title and any lines with unwanted metadata (e.g., anchor links)
     for line in lines:
         if result := valid_first_sentence(line):
             return result
@@ -114,8 +116,6 @@ def extract_ipynb_first_title(nb_path):
     """
     Extract the first Markdown cell's first line as the title from a Jupyter Notebook.
     """
-    if "built-in-training-function" in nb_path:
-        print("z")
     with open(nb_path, encoding="utf-8") as file:
         notebook = json.load(file)
 
@@ -127,7 +127,7 @@ def extract_ipynb_first_title(nb_path):
                 lines = [lines]
             for line in lines:
                 line = line.strip()
-                if line.startswith("# "):  # Look for a level-1 title
+                if line.startswith("# "):
                     return re.sub(r"\s*<!--.*?-->", "", line[2:]).strip()
     raise Exception(f"No title found in file {nb_path}")
 
@@ -153,8 +153,10 @@ def valid_first_sentence(line):
     # Skip title lines and empty lines
     if line.startswith("#") or line.startswith("<"):
         return None
-    if re.match(r"^\(.*\)=", line):  # Skip anchor-like metadata lines
+    if re.match(r"^\(.*\)=", line):
+        # Skip anchor-like metadata lines
         return None
-    if line:  # After skipping header lines
+    if line:
+        # After skipping header lines
         # Extract first sentence after header
         return line.split(".")[0] + "."

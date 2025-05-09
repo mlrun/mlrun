@@ -30,11 +30,6 @@ python:
   install:
     - requirements: docs/requirements.txt
 
-redirects:
-  - redirect_type: html
-    from_url: /llms.txt
-    to_url: /en/latest/llms.txt
-
 search:
   ignore:
     # https://github.com/readthedocs/readthedocs.org/issues/10911

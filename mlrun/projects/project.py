@@ -278,7 +278,7 @@ def new_project(
         for key, val in parameters.items():
             project.spec.params[key] = val
 
-    _set_as_current_default_project(project)
+    _set_as_current_active_project(project)
 
     if save and mlrun.mlconf.dbpath:
         if overwrite:
@@ -451,7 +451,7 @@ def load_project(
     if sync_functions:
         project.sync_functions(save=to_save)
 
-    _set_as_current_default_project(project)
+    _set_as_current_active_project(project)
 
     return project
 
@@ -5444,8 +5444,8 @@ class MlrunProject(ModelObj):
         return os.getenv("V3IO_USERNAME") or self.spec.owner
 
 
-def _set_as_current_default_project(project: MlrunProject):
-    mlrun.mlconf.default_project = project.metadata.name
+def _set_as_current_active_project(project: MlrunProject):
+    mlrun.mlconf.active_project = project.metadata.name
     pipeline_context.set(project)
 
 

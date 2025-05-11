@@ -247,7 +247,7 @@ class Artifact(ModelObj):
 
         self.metadata.key = key or self.metadata.key
         self.metadata.project = (
-            project or mlrun.mlconf.default_project or self.metadata.project
+            project or mlrun.mlconf.active_project or self.metadata.project
         )
         self.spec.size = size or self.spec.size
         self.spec.target_path = target_path or self.spec.target_path

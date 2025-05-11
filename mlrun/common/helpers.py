@@ -14,9 +14,9 @@
 
 
 def parse_versioned_object_uri(
-    uri: str, default_project: str = ""
+    uri: str, active_project: str = ""
 ) -> tuple[str, str, str, str]:
-    project = default_project
+    project = active_project
     tag = ""
     hash_key = ""
     if "/" in uri:

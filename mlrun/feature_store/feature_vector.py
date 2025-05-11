@@ -333,9 +333,7 @@ class FeatureVector(ModelObj):
     @property
     def uri(self):
         """fully qualified feature vector uri"""
-        uri = (
-            f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
-        )
+        uri = f"{self._metadata.project or mlconf.active_project}/{self._metadata.name}"
         uri = get_store_uri(StorePrefix.FeatureVector, uri)
         if self._metadata.tag:
             uri += ":" + self._metadata.tag
@@ -385,7 +383,7 @@ class FeatureVector(ModelObj):
     def save(self, tag="", versioned=False):
         """save to mlrun db"""
         db = mlrun.get_run_db()
-        self.metadata.project = self.metadata.project or mlconf.default_project
+        self.metadata.project = self.metadata.project or mlconf.active_project
         tag = tag or self.metadata.tag
         as_dict = self.to_dict()
         db.store_feature_vector(as_dict, tag=tag, versioned=versioned)

@@ -2239,7 +2239,7 @@ def _get_target_path(driver, resource, run_id_mode=False, netloc=None, scheme=""
         else "vectors"
     )
     name = resource.metadata.name
-    project = resource.metadata.project or mlrun.mlconf.default_project
+    project = resource.metadata.project or mlrun.mlconf.active_project
 
     default_kind_name = kind
     if scheme == "ds":

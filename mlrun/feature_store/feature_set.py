@@ -414,7 +414,7 @@ class FeatureSet(ModelObj):
     def fullname(self) -> str:
         """full name in the form ``{project}/{name}[:{tag}]``"""
         fullname = (
-            f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
+            f"{self._metadata.project or mlconf.active_project}/{self._metadata.name}"
         )
         if self._metadata.tag:
             fullname += ":" + self._metadata.tag
@@ -971,7 +971,7 @@ class FeatureSet(ModelObj):
     def save(self, tag="", versioned=False):
         """save to mlrun db"""
         db = self._get_run_db()
-        self.metadata.project = self.metadata.project or mlconf.default_project
+        self.metadata.project = self.metadata.project or mlconf.active_project
         tag = tag or self.metadata.tag or "latest"
         as_dict = self.to_dict()
         as_dict["spec"]["features"] = as_dict["spec"].get(

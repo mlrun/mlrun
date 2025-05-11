@@ -331,7 +331,7 @@ def test_subclasses_packing_and_unpacking(rundb_mock, a: int, b: str):
                        `BaseClass`.
     """
     # Get the project:
-    project = mlrun.get_or_create_project("default", allow_cross_project=True)
+    project = mlrun.get_or_create_project("active", allow_cross_project=True)
 
     # Add the custom packager for `BaseClass`:
     project.add_custom_packager(

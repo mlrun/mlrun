@@ -64,7 +64,7 @@ def test_create_local_function_for_execution():
         runtime=runtime,
         run=run,
     )
-    assert runtime.metadata.project == "default"
+    assert runtime.metadata.project == "active"
     assert runtime.metadata.name == "test"
     assert run.spec.handler == handler
     assert runtime.kind == "local"

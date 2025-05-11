@@ -180,7 +180,7 @@ def test_image_enriched_on_build_application_image(remote_builder_mock):
         kind="application",
     )
     fn._build_application_image()
-    assert fn.spec.image == ".mlrun/func-default-application-test:latest"
+    assert fn.spec.image == ".mlrun/func-active-application-test:latest"
     assert fn.status.state == mlrun.common.schemas.FunctionState.ready
 
 
@@ -193,7 +193,7 @@ def test_application_image_build(remote_builder_mock, igz_version_mock):
     assert fn.requires_build()
     fn.deploy()
     _assert_application_post_deploy_spec(
-        fn, ".mlrun/func-default-application-test:latest"
+        fn, ".mlrun/func-active-application-test:latest"
     )
 
 

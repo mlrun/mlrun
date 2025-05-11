@@ -113,7 +113,7 @@ def test_parse_url_preserve_case():
 @pytest.mark.parametrize(
     "url,expected_project,expected_key,expected_tag,expected_iter,expected_tree,expected_uid",
     [
-        ("store:///artifact_key", "default", "artifact_key", None, 0, None, None),
+        ("store:///artifact_key", "active", "artifact_key", None, 0, None, None),
         (
             "store://project_name/artifact_key",
             "project_name",
@@ -161,7 +161,7 @@ def test_parse_url_preserve_case():
         ),
         (
             "store:///ArtifacT_key#1:some_Tag",
-            "default",
+            "active",
             "ArtifacT_key",
             "some_Tag",
             1,
@@ -170,7 +170,7 @@ def test_parse_url_preserve_case():
         ),
         (
             "store:///ArtifacT_key#1@Some_Tree",
-            "default",
+            "active",
             "ArtifacT_key",
             None,
             1,

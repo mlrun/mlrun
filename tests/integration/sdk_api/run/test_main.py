@@ -46,8 +46,8 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
     )
 
     def custom_setup(self):
-        # ensure default project exists
-        mlrun.get_or_create_project("default", allow_cross_project=True)
+        # ensure active project exists
+        mlrun.get_or_create_project("active", allow_cross_project=True)
 
     def test_main_run_basic(self):
         out = self._exec_run(

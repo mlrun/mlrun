@@ -195,7 +195,7 @@ def test_model_runner_add_model(method: str):
     if method == "add_step":
         graph.add_step(model_runner_step).respond()
     elif method == "to":
-        graph.to(model_runner_step).respond()
+        graph.to(name="echo", class_name="Echo").to(model_runner_step).respond()
     elif method == "set_flow":
         graph.set_flow([model_runner_step]).respond()
     assert [
@@ -237,15 +237,15 @@ def test_model_runner_add_model_failure(method: str):
     model_runner_step_1.add_model(
         model_class="MyModel", endpoint_name="my_model", inc=2
     )
-
     try:
         with pytest.raises(mlrun.serving.states.GraphError):
             if method == "add_step":
                 graph_0.add_step(model_runner_step_0)
                 graph_0.add_step(model_runner_step_1).respond()
             elif method == "to":
-                graph_0.to(model_runner_step_0)
-                graph_0.to(model_runner_step_1).respond()
+                graph_0.to(name="echo", class_name="Echo").to(model_runner_step_0).to(
+                    model_runner_step_1
+                ).respond()
             elif method == "set_flow":
                 graph_0.set_flow([model_runner_step_0, model_runner_step_1]).respond()
     except AssertionError:

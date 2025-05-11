@@ -78,3 +78,12 @@ class IncModel(mlrun.serving.states.Model):
 
     async def predict_async(self, body):
         return self.predict(body)
+
+
+class Echo:
+    def __init__(self, name=None):
+        self.name = name
+
+    def do(self, x):
+        print("Echo:", self.name, x)
+        return x

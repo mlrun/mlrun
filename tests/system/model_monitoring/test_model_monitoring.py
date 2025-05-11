@@ -592,7 +592,9 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         model_runner_step.add_model(
             model_class="IncModel", endpoint_name="my-model-2", inc=2
         )
-        graph.to(model_runner_step, "runner").respond()
+        graph.to(name="echo", class_name="Echo").to(
+            model_runner_step, "runner"
+        ).respond()
         function.set_tracking()
         function.deploy()
 

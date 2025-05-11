@@ -31,6 +31,7 @@ from tabulate import tabulate
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import mlrun.platforms
 import mlrun.utils.helpers
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.runtimes.mounts import auto_mount as auto_mount_modifier
@@ -63,12 +64,12 @@ from .utils.version import Version
 pd.set_option("mode.chained_assignment", None)
 
 
-def validate_base_argument(ctx, param, value):
+def validate_base_argument(ctx: click.Context, param: click.Parameter, value: str):
     if value and value.startswith("-"):
         raise click.BadParameter(
             f"{param.human_readable_name} ({value}) cannot start with '-', ensure the command options are typed "
             f"correctly. Preferably use '--' to separate options and arguments "
-            f"e.g. 'mlrun run --option1 --option2 -- {param.make_metavar()} [--arg1|arg1] [--arg2|arg2]'",
+            f"e.g. 'mlrun run --option1 --option2 -- {param.make_metavar(ctx)} [--arg1|arg1] [--arg2|arg2]'",
             ctx=ctx,
             param=param,
         )

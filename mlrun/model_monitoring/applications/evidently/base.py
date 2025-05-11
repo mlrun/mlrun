@@ -81,13 +81,16 @@ class EvidentlyModelMonitoringApplicationBase(
         cloud_workspace: bool = False,
     ) -> None:
         """
-        A class for integrating Evidently for mlrun model monitoring within a monitoring application.
-        Note: evidently is not installed by default in the mlrun/mlrun image.
-        It must be installed separately to use this class.
+        A class for integrating Evidently for MLRun model monitoring within a monitoring application.
+
+        .. note::
+
+            The ``evidently`` package is not installed by default in the mlrun/mlrun image.
+            It must be installed separately to use this class.
 
         :param evidently_project_id:        (str) The ID of the Evidently project.
         :param evidently_workspace_path:    (str) The path to the Evidently workspace.
-        :param cloud_workspace:             (bool) Whether the workspace is a cloud workspace.
+        :param cloud_workspace:             (bool) Whether the workspace is an Evidently Cloud workspace.
         """
 
         # TODO : more then one project (mep -> project)

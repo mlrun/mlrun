@@ -83,6 +83,7 @@ def validate_base_argument(ctx: click.Context, param: click.Parameter, value: st
             ctx=ctx,
             param=param,
         )
+    return value
 
 
 @click.group()

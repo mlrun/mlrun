@@ -24,7 +24,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import typing
 from pathlib import Path
 
 import requests
@@ -323,7 +322,7 @@ def setup_ce(
     namespace: str,
     ce_dir: Path,
     branch: str,
-    docker_creds_secret_name: typing.Optional[str],
+    docker_creds_secret_name: str | None,
     debug: bool,
 ):
     if not ce_version:

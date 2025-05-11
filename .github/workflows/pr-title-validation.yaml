@@ -17,8 +17,7 @@ name: "PR Title Checker"
 permissions:
   contents: read
 
-  # Needed so pr-title-checker can post a comment or set a PR status when title doesn't match rules
-  pull-requests: write
+  pull-requests: write  # Needed so pr-title-checker can post a comment or set a PR status when title doesn't match rules
 
 on:
 

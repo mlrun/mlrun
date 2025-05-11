@@ -1111,15 +1111,6 @@ def load_and_run_workflow(
     :param project_context:     project context path (used for loading the project)
     """
 
-    logger.warning("ALON", labels=context.labels)
-    client_python_version = context.labels.get(
-        mlrun_constants.MLRunInternalLabels.client_python_version
-    )
-    if client_python_version:
-        db = mlrun.get_run_db()
-        db.python_version = client_python_version
-        logger.warning("ALON2", python_version=db.python_version)
-
     project_context = project_context or f"./{project_name}"
 
     # Load the project to fetch files which the runner needs, such as remote source files

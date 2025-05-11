@@ -434,30 +434,26 @@ def enrich_function_from_dict(function, function_dict):
 def enrich_run_labels(
     labels: dict,
     labels_to_enrich: Optional[list[mlrun_constants.MLRunInternalLabels]] = None,
-    labels_enrichment_extension: Optional[dict] = None,
 ):
     """
     Enrich the run labels with the internal labels and the labels enrichment extension
     :param labels: The run labels dict
     :param labels_to_enrich: The label keys to enrich from MLRunInternalLabels.default_run_labels_to_enrich
-    :param labels_enrichment_extension: Extra labels to enrich the run labels with
     :return: The enriched labels dict
     """
     # Merge the labels with the labels enrichment extension
-    labels_enrichment_extension = labels_enrichment_extension or {}
     labels_enrichment = {
         mlrun_constants.MLRunInternalLabels.owner: os.environ.get("V3IO_USERNAME")
         or getpass.getuser(),
         # TODO: remove this in 1.9.0
         mlrun_constants.MLRunInternalLabels.v3io_user: os.environ.get("V3IO_USERNAME"),
-    } | labels_enrichment_extension
+    }
 
     # Resolve which label keys to enrich
     if labels_to_enrich is None:
         labels_to_enrich = (
             mlrun_constants.MLRunInternalLabels.default_run_labels_to_enrich()
         )
-    labels_to_enrich += list(labels_enrichment_extension.keys())
 
     # Enrich labels
     for label in labels_to_enrich:

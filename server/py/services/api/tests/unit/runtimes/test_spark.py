@@ -1139,7 +1139,7 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
                 target=ParquetTarget(),
             )
 
-        self.project = "default"
+        self.project = "active"
         self.project_default_function_node_selector = {}
         self._create_project(client)
 
@@ -1154,7 +1154,7 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         runspec = resp.run.spec.to_dict()
         expected_runspec = {
             "parameters": {
-                "vector_uri": "store://feature-vectors/default/my-vector",
+                "vector_uri": "store://feature-vectors/active/my-vector",
                 "target": {
                     "name": "parquet",
                     "kind": "parquet",

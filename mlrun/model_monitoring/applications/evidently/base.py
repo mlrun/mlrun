@@ -17,13 +17,14 @@ import posixpath
 import uuid
 import warnings
 from abc import ABC
+from typing import Optional
 
 import pandas as pd
 import semver
 
 import mlrun.model_monitoring.applications.base as mm_base
 import mlrun.model_monitoring.applications.context as mm_context
-from mlrun.errors import MLRunIncompatibleVersionError
+from mlrun.errors import MLRunIncompatibleVersionError, MLRunValueError
 
 SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.7.5")
 
@@ -62,33 +63,60 @@ if _HAS_EVIDENTLY:
     from evidently.legacy.suite.base_suite import Display
     from evidently.legacy.ui.storage.local.base import METADATA_PATH, FSLocation
     from evidently.legacy.utils.dashboard import TemplateParams, file_html_template
-    from evidently.ui.workspace import STR_UUID, Workspace
+    from evidently.ui.workspace import (
+        STR_UUID,
+        CloudWorkspace,
+        Workspace,
+        WorkspaceBase,
+    )
 
 
 class EvidentlyModelMonitoringApplicationBase(
     mm_base.ModelMonitoringApplicationBase, ABC
 ):
     def __init__(
-        self, evidently_workspace_path: str, evidently_project_id: "STR_UUID"
+        self,
+        evidently_project_id: "STR_UUID",
+        evidently_workspace_path: Optional[str] = None,
+        cloud_workspace: bool = False,
     ) -> None:
         """
         A class for integrating Evidently for mlrun model monitoring within a monitoring application.
         Note: evidently is not installed by default in the mlrun/mlrun image.
         It must be installed separately to use this class.
 
-        :param evidently_workspace_path:    (str) The path to the Evidently workspace.
         :param evidently_project_id:        (str) The ID of the Evidently project.
+        :param evidently_workspace_path:    (str) The path to the Evidently workspace.
+        :param cloud_workspace:             (bool) Whether the workspace is a cloud workspace.
         """
 
         # TODO : more then one project (mep -> project)
         if not _HAS_EVIDENTLY:
             raise ModuleNotFoundError("Evidently is not installed - the app cannot run")
-        self._log_location(evidently_workspace_path)
-        self.evidently_workspace = Workspace.create(evidently_workspace_path)
+        self.evidently_workspace_path = evidently_workspace_path
+        if cloud_workspace:
+            self.get_workspace = self.get_cloud_workspace
+        self.evidently_workspace = self.get_workspace()
         self.evidently_project_id = evidently_project_id
         self.evidently_project = self.evidently_workspace.get_project(
             evidently_project_id
         )
+
+    def get_workspace(self) -> WorkspaceBase:
+        """Get the Evidently workspace. Override this method for customize access to the workspace."""
+        if self.evidently_workspace_path:
+            self._log_location(self.evidently_workspace_path)
+            self.evidently_workspace = Workspace.create(self.evidently_workspace_path)
+        else:
+            raise MLRunValueError(
+                "A local workspace could not be created as `evidently_workspace_path` is not set.\n"
+                "If you intend to use a cloud workspace, please use `cloud_workspace=True` and set the "
+                "`EVIDENTLY_API_KEY` environment variable. In other cases, override this method."
+            )
+
+    def get_cloud_workspace(self) -> CloudWorkspace:
+        """Load the Evidently cloud workspace according to the `EVIDENTLY_API_KEY` environment variable."""
+        return CloudWorkspace()
 
     @staticmethod
     def _log_location(evidently_workspace_path):

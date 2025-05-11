@@ -23,6 +23,7 @@ from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.k8s_utils
 import mlrun.utils.regex
 from mlrun.common.runtimes.constants import RunStates, SparkApplicationStates
 from mlrun.runtimes import RuntimeClassMode, Spark3Runtime
@@ -330,6 +331,7 @@ with ctx:
         self._enrich_job(runtime, job)
 
         self._enrich_node_selectors(run, runtime, job, run.metadata.project)
+        self._enrich_preemption_mode(runtime, job)
 
         if runtime.spec.command:
             if "://" not in runtime.spec.command:
@@ -673,18 +675,6 @@ with ctx:
             runtime.spec.service_account or "sparkapp",
         )
 
-        if runtime.spec.driver_tolerations:
-            update_in(job, "spec.driver.tolerations", runtime.spec.driver_tolerations)
-        if runtime.spec.executor_tolerations:
-            update_in(
-                job, "spec.executor.tolerations", runtime.spec.executor_tolerations
-            )
-
-        if runtime.spec.driver_affinity:
-            update_in(job, "spec.driver.affinity", runtime.spec.driver_affinity)
-        if runtime.spec.executor_affinity:
-            update_in(job, "spec.executor.affinity", runtime.spec.executor_affinity)
-
         if runtime.spec.monitoring:
             if (
                 "enabled" in runtime.spec.monitoring
@@ -787,6 +777,52 @@ with ctx:
                     )
                 ),
             )
+
+    def _enrich_preemption_mode(
+        self,
+        runtime: mlrun.runtimes.sparkjob.spark3job.Spark3Runtime,
+        job: dict,
+    ):
+        """
+        Enrich Spark job driver and executor specs with nodeSelector, affinity, and tolerations
+        based on the function's preemption mode.
+        """
+
+        def enrich_and_update(component: str, affinity, tolerations, preemption_mode):
+            current_node_selector = job["spec"][component].get("nodeSelector", {})
+            node_selector, enriched_tolerations, enriched_affinity = (
+                mlrun.k8s_utils.enrich_preemption_mode(
+                    preemption_mode=preemption_mode,
+                    node_selector=current_node_selector,
+                    affinity=affinity,
+                    tolerations=tolerations,
+                )
+            )
+
+            if enriched_tolerations:
+                update_in(job, f"spec.{component}.tolerations", enriched_tolerations)
+
+            if enriched_affinity:
+                update_in(job, f"spec.{component}.affinity", enriched_affinity)
+
+            # Only update the node selector if the preemption mode enrichment modified it.
+            # If enrichment returns the same value, avoid reapplying to prevent unnecessary updates.
+            if current_node_selector != node_selector:
+                update_in(job, f"spec.{component}.nodeSelector", node_selector)
+
+        enrich_and_update(
+            component="driver",
+            affinity=runtime.spec.driver_affinity,
+            tolerations=runtime.spec.driver_tolerations,
+            preemption_mode=runtime.spec.driver_preemption_mode,
+        )
+
+        enrich_and_update(
+            component="executor",
+            affinity=runtime.spec.executor_affinity,
+            tolerations=runtime.spec.executor_tolerations,
+            preemption_mode=runtime.spec.executor_preemption_mode,
+        )
 
     def _get_spark_version(self):
         return "3.2.3"

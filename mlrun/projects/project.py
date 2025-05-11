@@ -30,7 +30,6 @@ from copy import deepcopy
 from os import environ, makedirs, path
 from typing import Callable, Optional, Union, cast
 
-import deprecated
 import dotenv
 import git
 import git.exc
@@ -470,7 +469,8 @@ def get_or_create_project(
     parameters: Optional[dict] = None,
     allow_cross_project: Optional[bool] = None,
 ) -> "MlrunProject":
-    """Load a project from MLRun DB, or create/import if it does not exist
+    """Load a project from MLRun DB, or create/import if it does not exist.
+    The project will become the default project for the current session.
 
     MLRun looks for a project.yaml file with project definition and objects in the project root path
     and use it to initialize the project, in addition it runs the project_setup.py file (if it exists)
@@ -2860,20 +2860,6 @@ class MlrunProject(ModelObj):
 
         self.spec.set_function(name, function_object, func)
 
-    # TODO: Remove this in 1.10.0
-    @deprecated.deprecated(
-        version="1.8.0",
-        reason="'remove_function' is deprecated and will be removed in 1.10.0. "
-        "Please use `delete_function` instead.",
-        category=FutureWarning,
-    )
-    def remove_function(self, name):
-        """remove the specified function from the project
-
-        :param name:    name of the function (under the project)
-        """
-        self.spec.remove_function(name)
-
     def delete_function(self, name, delete_from_db=False):
         """deletes the specified function from the project
 
@@ -3709,7 +3695,7 @@ class MlrunProject(ModelObj):
                 brokers=["<kafka-broker-ip-address>:9094"],
                 topics=[],  # Keep the topics list empty
                 ## SASL is supported
-                # sasl_user="user1",
+                # sasl_user="<kafka-sasl-user>",
                 # sasl_pass="<kafka-sasl-password>",
             )
             project.register_datastore_profile(stream_profile)
@@ -3741,6 +3727,29 @@ class MlrunProject(ModelObj):
             project.register_datastore_profile(stream_profile)
 
         In the V3IO datastore, you must provide an explicit access key to the stream, but not to the TSDB.
+
+        An external Confluent Kafka stream is also supported. Here is an example:
+
+        .. code-block:: python
+
+            from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
+
+            stream_profile = DatastoreProfileKafkaSource(
+                name="confluent-kafka",
+                brokers=["<server-domain-start>.confluent.cloud:9092"],
+                topics=[],
+                sasl_user="<API-key>",
+                sasl_pass="<API-secret>",
+                kwargs_public={
+                    "security_protocol": "SASL_SSL",
+                    "api_version_auto_timeout_ms": 15_000,  # 15 seconds
+                    "tls": {"enable": True},
+                    "new_topic": {"replication_factor": 3},
+                },
+            )
+
+        The replication factor and timeout configuration might need to be adjusted according to your Confluent cluster
+        type and settings.
 
         :param tsdb_profile_name:         The datastore profile name of the time-series database to be used in model
                                           monitoring. The supported profiles are:
@@ -3796,6 +3805,7 @@ class MlrunProject(ModelObj):
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         Returns a list of `ModelEndpoint` objects. Each `ModelEndpoint` object represents the current state of a
@@ -3825,10 +3835,15 @@ class MlrunProject(ModelObj):
             or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
-        :param start:                     The start time to filter by.Corresponding to the `created` field.
-        :param end:                       The end time to filter by. Corresponding to the `created` field.
-        :param top_level: if true will return only routers and endpoint that are NOT children of any router
-        :param uids: if passed will return a list `ModelEndpoint` object with uid in uids
+        :param start:           The start time to filter by.Corresponding to the `created` field.
+        :param end:             The end time to filter by. Corresponding to the `created` field.
+        :param top_level:       If true will return only routers and endpoint that are NOT children of any router.
+        :param uids:            If passed will return a list `ModelEndpoint` object with uid in uids.
+        :param tsdb_metrics:    When True, the time series metrics will be added to the output
+                                of the resulting.
+        :param metric_list:     List of metrics to include from the time series DB. Defaults to all metrics.
+                                If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                will be included.
 
         :returns: Returns a list of `ModelEndpoint` objects.
         """
@@ -3847,6 +3862,7 @@ class MlrunProject(ModelObj):
             uids=uids,
             latest_only=latest_only,
             tsdb_metrics=tsdb_metrics,
+            metric_list=metric_list,
         )
 
     def run_function(
@@ -4282,7 +4298,6 @@ class MlrunProject(ModelObj):
         kind: Optional[str] = None,
         category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: Optional[str] = None,
-        limit: Optional[int] = None,
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
@@ -4330,7 +4345,6 @@ class MlrunProject(ModelObj):
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
         :param tree: Return artifacts of the requested tree.
-        :param limit: Maximum number of artifacts to return.
         :param format_: The format in which to return the artifacts. Default is 'full'.
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
@@ -4354,7 +4368,6 @@ class MlrunProject(ModelObj):
             category=category,
             tree=tree,
             format_=format_,
-            limit=limit,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,

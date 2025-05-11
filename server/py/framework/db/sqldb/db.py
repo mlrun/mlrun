@@ -1658,14 +1658,14 @@ class SQLDB(DBInterface):
             raise ValueError(message)
 
         tag_id_alias = "tag_id"
+        tag_name_alias = "tag_name"
 
-        # create a sub query that gets only the artifact IDs
-        # apply all filters and limits
+        # Create a subquery that selects only the artifact IDs along with tag metadata.
+        # The tag name and tag ID are explicitly aliased as 'name' and 'tag_id' so they can be
+        # referenced in window functions, ordering, and outer queries (especially for sorting by tag).
         query = session.query(ArtifactV2).with_entities(
             ArtifactV2.id,
-            ArtifactV2.Tag.name,
-            # Include tag ID (as 'tag_id') to enable sorting by tag creation order DESC.
-            # The alias is required to reference it later in subqueries and outer queries.
+            ArtifactV2.Tag.name.label(tag_name_alias),
             ArtifactV2.Tag.id.label(tag_id_alias),
         )
 
@@ -1766,10 +1766,16 @@ class SQLDB(DBInterface):
             # ordered results.
             # If the updated fields are the same, we need a secondary field to sort by.
             # Third sort by tag ID to ensure consistent ordering when an artifact has multiple tags.
+            # Put "latest" tag first, then others by tag_id desc
+            latest_first_case = case(
+                (text(f"{tag_name_alias} = 'latest'"), 0),
+                else_=1,
+            )
             query = self._paginate_query(
                 query.order_by(
                     ArtifactV2.updated.desc(),
                     ArtifactV2.id.desc(),
+                    latest_first_case,
                     # Use raw SQL text to refer to the "tag_id" alias we defined earlier.
                     # This is necessary because SQLAlchemy does not allow direct reference
                     # to aliased columns (like "tag_id") in order_by() using ORM column objects.
@@ -1783,11 +1789,17 @@ class SQLDB(DBInterface):
         # therefore, we compile the above query as a sub query only for filtering out the relevant ids,
         # then join the outer query on the subquery to select the correct columns of the table.
         subquery = query.subquery()
-        outer_query = session.query(ArtifactV2, subquery.c.name)
+        outer_query = session.query(ArtifactV2, subquery.c.tag_name)
         if with_entities:
-            outer_query = outer_query.with_entities(*with_entities, subquery.c.name)
+            outer_query = outer_query.with_entities(*with_entities, subquery.c.tag_name)
 
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
+
+        # Put "latest" tag first, then others by tag_id desc
+        latest_first_case = case(
+            (subquery.c.tag_name == "latest", 0),
+            else_=1,
+        )
 
         # join may lose order, make sure order is applied on outer as well
         # If the updated fields are the same, we need a secondary field to sort by.
@@ -1795,6 +1807,7 @@ class SQLDB(DBInterface):
         outer_query = outer_query.order_by(
             ArtifactV2.updated.desc(),
             ArtifactV2.id.desc(),
+            latest_first_case,
             # Safe ordering by tag_id alias
             subquery.c[tag_id_alias].desc(),
         )
@@ -3023,8 +3036,8 @@ class SQLDB(DBInterface):
             project=project,
         )
 
-    @staticmethod
     def _delete_multi_objects(
+        self,
         session: Session,
         main_table: mlrun.utils.db.BaseModel,
         project: str,
@@ -3100,17 +3113,66 @@ class SQLDB(DBInterface):
                 project=project,
             )
 
-        query = session.query(main_table).filter(where_clause)
-        deletions_count = query.delete(synchronize_session=False)
-        log_kwargs = {
-            "deletions_count": deletions_count,
-            "main_table": main_table,
-            "project": project,
-            "main_table_identifier": main_table_identifier,
-        }
-        logger.debug("Removed rows from table", **log_kwargs)
-        session.commit()
-        return deletions_count
+        total_deleted = self._delete_table_in_batches(session, main_table, where_clause)
+        logger.info(
+            "Completed deletion",
+            deletions_count=total_deleted,
+            main_table=main_table,
+            project=project,
+            main_table_identifier=main_table_identifier,
+        )
+        return total_deleted
+
+    @staticmethod
+    def _delete_table_in_batches(
+        session: Session,
+        table: mlrun.utils.db.BaseModel,
+        where_clause,
+    ) -> int:
+        """
+        Delete rows from a table in batches based on ID ordering.
+        :param session: SQLAlchemy session.
+        :param table: SQLAlchemy ORM model/table to delete from.
+        :param where_clause: SQLAlchemy WHERE clause.
+        :return: Total number of deleted rows.
+        """
+        last_id = 0
+        total_deleted = 0
+        batch_size = mlrun.mlconf.httpdb.projects.resource_deletion_batch_size
+
+        while True:
+            ids_to_delete = (
+                session.query(table.id)
+                .filter(where_clause, table.id > last_id)
+                .order_by(table.id)
+                .limit(batch_size)
+                .all()
+            )
+
+            if not ids_to_delete:
+                break
+
+            id_values = [row.id for row in ids_to_delete]
+
+            delete_stmt = (
+                delete(table)
+                .where(table.id.in_(id_values))
+                .execution_options(synchronize_session=False)
+            )
+            result = session.execute(delete_stmt)
+            session.commit()
+
+            last_id = id_values[-1]
+            total_deleted += result.rowcount
+
+            logger.debug(
+                "Deleted batch from table",
+                batch_size=len(id_values),
+                total_deleted=total_deleted,
+                last_id=last_id,
+                table=table,
+            )
+        return total_deleted
 
     def _get_schedule_record(
         self, session: Session, project: str, name: str, raise_on_not_found: bool = True
@@ -4474,7 +4536,9 @@ class SQLDB(DBInterface):
         # in the final step we inner join the inner table with the full table.
         query = query.with_entities(
             cls.id,
-            *(cls.Tag.name, cls.Tag.id.label("tag_id")) if with_tagged else (),
+            *(cls.Tag.name.label("tag_name"), cls.Tag.id.label("tag_id"))
+            if with_tagged
+            else (),
         ).add_column(row_number_column)
         if max_partitions > 0:
             max_partition_value = (
@@ -4493,7 +4557,7 @@ class SQLDB(DBInterface):
             result_query = session.query(cls)
             if with_tagged:
                 result_query = result_query.add_columns(
-                    subquery.c.name,
+                    subquery.c.tag_name,
                     subquery.c.tag_id,
                 )
             result_query = result_query.join(subquery, cls.id == subquery.c.id).filter(
@@ -5877,7 +5941,7 @@ class SQLDB(DBInterface):
         )
 
         model_endpoint_resp = mlrun.common.schemas.ModelEndpoint.from_flat_dict(
-            model_endpoint_full_dict
+            model_endpoint_full_dict, validate=False
         )
         model_endpoint_full_dict["_model_id"] = None
         return model_endpoint_resp

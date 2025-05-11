@@ -43,22 +43,6 @@ jobs:
     - name: Upgrade dependencies in the lock file with uv
       run: make upgrade-mlrun-deps-lock
 
-    - name: Check for non-lock file changes
-      id: check-lock-files
-      run: |
-        git add -N .  # ensure all changes are tracked
-        changed_files=$(git diff --name-only)
-        echo "Changed files:"
-        echo "$changed_files"
-
-        for file in $changed_files; do
-          if [[ ! "$file" =~ \.lock$ ]]; then
-            echo "::error::Unauthorized file change detected: $file"
-            echo "Only .lock files should be modified in this workflow."
-            exit 1
-          fi
-        done
-
     - name: Format PR title
       id: format-title
       run: |

@@ -13,6 +13,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
+import importlib.metadata
 import json
 import pathlib
 import socket
@@ -25,6 +27,7 @@ from pprint import pprint
 import click
 import dotenv
 import pandas as pd
+import semver
 import yaml
 from tabulate import tabulate
 
@@ -65,11 +68,18 @@ pd.set_option("mode.chained_assignment", None)
 
 
 def validate_base_argument(ctx: click.Context, param: click.Parameter, value: str):
+    # click 8.2 expects the context to be passed to make_metavar
+    if semver.VersionInfo.parse(
+        importlib.metadata.version("click")
+    ) < semver.VersionInfo.parse("8.2.0"):
+        metavar_func = functools.partial(param.make_metavar)
+    else:
+        metavar_func = functools.partial(param.make_metavar, ctx)
     if value and value.startswith("-"):
         raise click.BadParameter(
             f"{param.human_readable_name} ({value}) cannot start with '-', ensure the command options are typed "
             f"correctly. Preferably use '--' to separate options and arguments "
-            f"e.g. 'mlrun run --option1 --option2 -- {param.make_metavar(ctx)} [--arg1|arg1] [--arg2|arg2]'",
+            f"e.g. 'mlrun run --option1 --option2 -- {metavar_func()} [--arg1|arg1] [--arg2|arg2]'",
             ctx=ctx,
             param=param,
         )

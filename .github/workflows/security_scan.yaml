@@ -16,6 +16,9 @@
 name: Security Scan
 run-name: Scanning ${{ inputs.tag }}
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:

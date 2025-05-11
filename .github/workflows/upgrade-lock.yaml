@@ -14,6 +14,10 @@
 
 name: Update uv lock files
 
+permissions:
+  contents: write  # Allows jobs to modify repository content (for creating/updating lock files).
+  pull-requests: write  # Allows jobs to create and manage pull requests (needed for automated PR creation).
+
 on:
   workflow_dispatch:
   schedule:
@@ -26,6 +30,7 @@ jobs:
     if: github.repository_owner == 'mlrun'
     steps:
     - uses: actions/checkout@v4
+
     - name: Get uv version from the Makefile
       id: uv-version
       run: |
@@ -34,8 +39,10 @@ jobs:
     - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # 6.0.1
       with:
         version: ${{ steps.uv-version.outputs.version }}
+
     - name: Upgrade dependencies in the lock file with uv
       run: make upgrade-mlrun-deps-lock
+
     - name: Format PR title
       id: format-title
       run: |

@@ -59,11 +59,10 @@ except ModuleNotFoundError:
 
 
 if _HAS_EVIDENTLY:
-    from evidently.legacy.ui.storage.local.base import METADATA_PATH, FSLocation
     from evidently.legacy.suite.base_suite import Display
-    from evidently.legacy.ui.type_aliases import STR_UUID
+    from evidently.legacy.ui.storage.local.base import METADATA_PATH, FSLocation
     from evidently.legacy.utils.dashboard import TemplateParams, file_html_template
-    from evidently.ui.workspace import Workspace
+    from evidently.ui.workspace import STR_UUID, Workspace
 
 
 class EvidentlyModelMonitoringApplicationBase(

@@ -17,17 +17,17 @@ from mlrun.model_monitoring.applications.evidently import (
 )
 
 if _HAS_EVIDENTLY:
-    from evidently.metrics import (
+    from evidently.legacy.metrics import (
         ColumnDriftMetric,
         ColumnSummaryMetric,
         DatasetDriftMetric,
         DatasetMissingValuesMetric,
     )
-    from evidently.report import Report
-    from evidently.test_preset import DataDriftTestPreset
-    from evidently.test_suite import TestSuite
-    from evidently.ui.base import Project
-    from evidently.ui.dashboards import (
+    from evidently.legacy.report import Report
+    from evidently.legacy.test_preset import DataDriftTestPreset
+    from evidently.legacy.test_suite import TestSuite
+    from evidently.legacy.ui.base import Project
+    from evidently.legacy.ui.dashboards import (
         CounterAgg,
         DashboardConfig,
         DashboardPanelCounter,
@@ -36,7 +36,7 @@ if _HAS_EVIDENTLY:
         PlotType,
         ReportFilter,
     )
-    from evidently.ui.type_aliases import STR_UUID
+    from evidently.legacy.ui.type_aliases import STR_UUID
     from evidently.ui.workspace import Workspace
 
     _PROJECT_NAME = "Iris Monitoring"

@@ -28,12 +28,12 @@ from framework.constants import MINIMUM_CLIENT_VERSION_FOR_MM
 router = fastapi.APIRouter(prefix="/projects/{project}/jobs")
 
 
-# TODO: remove /projects/{project}/jobs/model-monitoring-controller in 1.9.0
+# TODO: remove /projects/{project}/jobs/model-monitoring-controller in 1.10.0
 @router.post(
     "/model-monitoring-controller",
     deprecated=True,
     description="/projects/{project}/jobs/model-monitoring-controller "
-    "is deprecated in 1.7.0 and will be removed in 1.9.0, "
+    "is deprecated in 1.7.0 and will be removed in 1.10.0, "
     "use PUT /projects/{project}/model-monitoring/ instead",
 )
 async def create_model_monitoring_controller(

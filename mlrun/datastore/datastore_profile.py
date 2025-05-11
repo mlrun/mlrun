@@ -165,9 +165,9 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
                 self.brokers = self.bootstrap_servers
                 self.bootstrap_servers = None
             warnings.warn(
-                "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.9.0, "
+                "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.10.0, "
                 "use 'brokers' instead.",
-                # TODO: Remove this in 1.9.0
+                # TODO: Remove this in 1.10.0
                 FutureWarning,
             )
 

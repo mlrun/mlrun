@@ -47,7 +47,7 @@ def test_kafka_target_datastore_bootstrap_servers_bwc():
     with pytest.warns(
         FutureWarning,
         match="'bootstrap_servers' parameter is deprecated in 1.7.0 "
-        "and will be removed in 1.9.0, use 'brokers' instead.",
+        "and will be removed in 1.10.0, use 'brokers' instead.",
     ):
         profile = DatastoreProfileKafkaTarget(
             name="my_target", topic="my-topic", bootstrap_servers="localhost:9092"

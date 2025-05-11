@@ -181,7 +181,7 @@ def record_results(
     if drift_threshold is not None or possible_drift_threshold is not None:
         warnings.warn(
             "Custom drift threshold arguments are deprecated since version "
-            "1.7.0 and have no effect. They will be removed in version 1.9.0.\n"
+            "1.7.0 and have no effect. They will be removed in version 1.10.0.\n"
             "To enable the default histogram data drift application, run:\n"
             "`project.enable_model_monitoring()`.",
             FutureWarning,
@@ -189,7 +189,7 @@ def record_results(
     if trigger_monitoring_job is not False:
         warnings.warn(
             "`trigger_monitoring_job` argument is deprecated since version "
-            "1.7.0 and has no effect. It will be removed in version 1.9.0.\n"
+            "1.7.0 and has no effect. It will be removed in version 1.10.0.\n"
             "To enable the default histogram data drift application, run:\n"
             "`project.enable_model_monitoring()`.",
             FutureWarning,
@@ -197,13 +197,13 @@ def record_results(
     if artifacts_tag != "":
         warnings.warn(
             "`artifacts_tag` argument is deprecated since version "
-            "1.7.0 and has no effect. It will be removed in version 1.9.0.",
+            "1.7.0 and has no effect. It will be removed in version 1.10.0.",
             FutureWarning,
         )
     if default_batch_image != "mlrun/mlrun":
         warnings.warn(
             "`default_batch_image` argument is deprecated since version "
-            "1.7.0 and has no effect. It will be removed in version 1.9.0.",
+            "1.7.0 and has no effect. It will be removed in version 1.10.0.",
             FutureWarning,
         )
 

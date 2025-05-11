@@ -443,8 +443,8 @@ class BaseStoreTarget(DataTargetBase):
         self.credentials_prefix = credentials_prefix
         if credentials_prefix:
             warnings.warn(
-                "The 'credentials_prefix' parameter is deprecated and will be removed in "
-                "1.9.0. Please use datastore profiles instead.",
+                "The 'credentials_prefix' parameter is deprecated in 1.7.0 and will be removed in "
+                "1.10.0. Please use datastore profiles instead.",
                 FutureWarning,
             )
 
@@ -1671,7 +1671,7 @@ class KafkaTarget(BaseStoreTarget):
     ):
         attrs = {}
 
-        # TODO: Remove this in 1.9.0
+        # TODO: Remove this in 1.10.0
         if bootstrap_servers:
             if brokers:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -1679,7 +1679,7 @@ class KafkaTarget(BaseStoreTarget):
                     "'bootstrap_servers' parameter. Please use 'brokers' only."
                 )
             warnings.warn(
-                "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.9.0, "
+                "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.10.0, "
                 "use 'brokers' instead.",
                 FutureWarning,
             )

@@ -623,9 +623,9 @@ class RemoteRuntime(KubeResource):
         :param force_build: set True for force building the image
         """
         if auth_info:
-            # TODO: remove in 1.9.0
+            # TODO: remove in 1.10.0
             warnings.warn(
-                "'auth_info' is deprecated for nuclio runtimes in 1.7.0 and will be removed in 1.9.0",
+                "'auth_info' is deprecated for nuclio runtimes in 1.7.0 and will be removed in 1.10.0",
                 FutureWarning,
             )
 

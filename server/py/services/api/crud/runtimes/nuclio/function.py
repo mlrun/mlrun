@@ -394,7 +394,7 @@ def _configure_serving_spec(
     if serving_spec is not None:
         # To keep backward compatability, allow passing service spec
         # via Config Map only for client version higher then 1.7.0
-        # TODO: remove in 1.9.0.
+        # TODO: remove in 1.10.0.
         can_pass_via_cm = (
             not client_version
             or (
@@ -429,7 +429,7 @@ def _configure_serving_spec(
                     "utf-8"
                 )
             else:
-                # TODO: remove in 1.10.0.
+                # TODO: remove in 1.11.0.
                 if (
                     serving_spec_len >= SERVING_SPEC_MAX_LENGTH / 10
                 ):  # 1MB limitation as it were before the zip

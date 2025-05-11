@@ -437,7 +437,7 @@ def enrich_run_labels(
 ):
     labels_enrichment = {
         RunLabels.owner: os.environ.get("V3IO_USERNAME") or getpass.getuser(),
-        # TODO: remove this in 1.9.0
+        # TODO: remove this in 1.10.0
         RunLabels.v3io_user: os.environ.get("V3IO_USERNAME"),
     }
     labels_to_enrich = labels_to_enrich or RunLabels.all()

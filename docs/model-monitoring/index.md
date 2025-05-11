@@ -139,9 +139,18 @@ When ramping up the scale of your model monitoring, take note of these limitatio
 - Up to 20 large projects (model endpoints per project between 1k and 5k)
 - Up to 100 medium projects (100 < model endpoints < 1k)
 - Up to 200 small projects (model endpoints < 100)
-- Up to 50,000 app results per project (V3IO). This can vary depending on the overall general load on the system and the number of nodes.
-- Up to 50,000 app results per project (TSDB). This can vary depending on the overall general load on the system and the number of nodes.
-- The maximum number of projects depends on the scalability of the storage system. In the case of TSDB, it also depends on the TSDB capacity for handling requests
+- On each project and per 10 minute base-period:
+  - Up to 50,000 results/metrics can be captured (V3IO-TSDB)
+  - Up to 5,000 results/metrics can be captured (TDengine-TSDB)
+  These numbers can vary depending on the overall system "stress" level and the TSDB performance.
+
+An example of a suitable V3IO-TSDB setup is a project with model-monitoring enabled with:
+- a 10 minute `base-period`
+- Five serving functions, each with 1000 models
+- Two model monitoring apps each with 5 results
+
+Gives:  
+5 serving-functions * 1000 models * 2 model-monitoring-apps * 5 results = 50000 results per `base-period` of 10 min 
 
 (upgrade-from-17)=
 ## How to upgrade from v1.7.x to v1.8.0 and higher

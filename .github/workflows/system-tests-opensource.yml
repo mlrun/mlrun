@@ -103,7 +103,7 @@ jobs:
       mlrun_version: ${{ steps.computed_params.outputs.mlrun_version }}
       mlrun_version_specifier: ${{ steps.computed_params.outputs.mlrun_version_specifier }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
+      - uses: actions/checkout@v4
 
       - name: Extract git hashes from upstream and latest version
         id: git_upstream_info
@@ -186,7 +186,7 @@ jobs:
       group: mlrun-ce
     needs: [prepare-inputs, build-mlrun]
     steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
+    - uses: actions/checkout@v4
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space

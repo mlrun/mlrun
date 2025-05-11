@@ -28,20 +28,21 @@ from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
 
 class TestFunctions(TestDatabaseBase):
+    project = "function-project"
+
     def test_store_function_default_to_latest(self):
-        project = "some-project"
         function_1 = self._generate_function()
         function_hash_key = self._db.store_function(
             self._db_session,
             function=function_1.to_dict(),
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
         )
         assert function_hash_key is not None
         function_queried_without_tag = self._db.get_function(
             self._db_session,
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
         )
         function_queried_without_tag_hash = function_queried_without_tag["metadata"][
             "hash"
@@ -52,7 +53,7 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             name=function_1.metadata.name,
             tag="latest",
-            project=project,
+            project=self.project,
         )
         function_queried_without_tag_hash = function_queried_with_tag["metadata"][
             "hash"
@@ -62,19 +63,18 @@ class TestFunctions(TestDatabaseBase):
         assert function_queried_without_tag_hash == function_queried_without_tag_hash
 
     def test_store_function_versioned(self):
-        project = "some-project"
         function_1 = self._generate_function()
         function_hash_key = self._db.store_function(
             self._db_session,
             function=function_1.to_dict(),
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
             versioned=True,
         )
         function_queried_without_hash_key = self._db.get_function(
             self._db_session,
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
         )
         assert function_queried_without_hash_key is not None
         assert function_queried_without_hash_key["metadata"]["tag"] == "latest"
@@ -84,7 +84,7 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             name=function_1.metadata.name,
             hash_key=function_hash_key,
-            project=project,
+            project=self.project,
         )
         function_queried_with_hash_key_hash = function_queried_with_hash_key[
             "metadata"
@@ -98,13 +98,13 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             function=function_2,
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
             versioned=True,
         )
         functions = self._db.list_functions(
             self._db_session,
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
         )
 
         # Verifying both versions of the functions were saved
@@ -119,19 +119,18 @@ class TestFunctions(TestDatabaseBase):
         assert tagged_count == 1
 
     def test_store_function_not_versioned(self):
-        project = "some-project"
         function_1 = self._generate_function()
         function_hash_key = self._db.store_function(
             self._db_session,
             function=function_1.to_dict(),
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
             versioned=False,
         )
         function_result_1 = self._db.get_function(
             self._db_session,
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
         )
         assert function_result_1 is not None
         assert function_result_1["metadata"]["tag"] == "latest"
@@ -140,7 +139,7 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             name=function_1.metadata.name,
             hash_key=f"{unversioned_tagged_object_uid_prefix}latest",
-            project=project,
+            project=self.project,
         )
         assert function_result_2 is not None
         assert function_result_2["metadata"]["tag"] == "latest"
@@ -151,7 +150,7 @@ class TestFunctions(TestDatabaseBase):
                 self._db_session,
                 name=function_1.metadata.name,
                 hash_key=function_hash_key,
-                project=project,
+                project=self.project,
             )
 
         function_2 = {"test": "new_version"}
@@ -159,32 +158,31 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             function=function_2,
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
             versioned=False,
         )
         functions = self._db.list_functions(
             self._db_session,
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
         )
 
         # Verifying only the latest version was saved
         assert len(functions) == 1
 
     def test_get_function_by_hash_key(self):
-        project = "some-project"
         function_1 = self._generate_function()
         function_hash_key = self._db.store_function(
             self._db_session,
             function=function_1.to_dict(),
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
             versioned=True,
         )
         function_queried_without_hash_key = self._db.get_function(
             self._db_session,
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
         )
         assert function_queried_without_hash_key is not None
 
@@ -193,7 +191,7 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             name=function_1.metadata.name,
             hash_key=function_hash_key,
-            project=project,
+            project=self.project,
         )
         assert function_queried_with_hash_key is not None
 
@@ -204,12 +202,11 @@ class TestFunctions(TestDatabaseBase):
     def test_get_function_when_using_not_normalize_name(self):
         # add a function with a non-normalized name to the database
         function_name = "function_name"
-        project_name = "project"
-        self._generate_and_insert_function_record(function_name, project_name)
+        self._generate_and_insert_function_record(function_name, self.project)
 
         # getting the function using the non-normalized name, and ensure that it works
         response = self._db.get_function(
-            self._db_session, name=function_name, project=project_name
+            self._db_session, name=function_name, project=self.project
         )
         assert response["metadata"]["name"] == function_name
 
@@ -230,20 +227,19 @@ class TestFunctions(TestDatabaseBase):
         self._db_session.commit()
 
     def test_get_function_by_tag(self):
-        project = "some-project"
         function_1 = self._generate_function()
         function_hash_key = self._db.store_function(
             self._db_session,
             function=function_1.to_dict(),
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
             versioned=True,
         )
         function_queried_by_hash_key = self._db.get_function(
             self._db_session,
             name=function_1.metadata.name,
             hash_key=function_hash_key,
-            project=project,
+            project=self.project,
         )
         function_not_queried_by_tag_hash = function_queried_by_hash_key["metadata"][
             "hash"
@@ -251,13 +247,12 @@ class TestFunctions(TestDatabaseBase):
         assert function_hash_key == function_not_queried_by_tag_hash
 
     def test_get_function_not_found(self):
-        project = "some-project"
         function_1 = self._generate_function()
         self._db.store_function(
             self._db_session,
             function=function_1.to_dict(),
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
             versioned=True,
         )
 
@@ -266,7 +261,7 @@ class TestFunctions(TestDatabaseBase):
                 self._db_session,
                 name=function_1.metadata.name,
                 tag="inexistent_tag",
-                project=project,
+                project=self.project,
             )
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
@@ -274,11 +269,10 @@ class TestFunctions(TestDatabaseBase):
                 self._db_session,
                 name=function_1.metadata.name,
                 hash_key="inexistent_hash_key",
-                project=project,
+                project=self.project,
             )
 
     def test_get_and_list_functions_columns_enrichment(self):
-        project = "some-project"
         function_1 = self._generate_function()
         # Enrich status to ensure it is retained
         function_1.status.state = "test"
@@ -287,13 +281,13 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             function=function_1.to_dict(),
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
             versioned=True,
         )
         function_queried = self._db.get_function(
             self._db_session,
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
         )
         assert (
             deepdiff.DeepDiff(
@@ -313,7 +307,7 @@ class TestFunctions(TestDatabaseBase):
         functions = self._db.list_functions(
             self._db_session,
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
         )
         assert len(functions) == 1
         function_queried = functions[0]
@@ -331,7 +325,6 @@ class TestFunctions(TestDatabaseBase):
         )
 
     def test_store_and_get_function_missing_project(self):
-        project = "some-project"
         function_name = "function-name-1"
         tag = "latest"
         function = self._generate_function()
@@ -352,7 +345,7 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             function=function.to_dict(),
             name=function_name,
-            project=project,
+            project=self.project,
             tag=tag,
             versioned=True,
         )
@@ -376,17 +369,16 @@ class TestFunctions(TestDatabaseBase):
 
         self._db.delete_function(
             self._db_session,
-            project=project,
+            project=self.project,
             name=function_name,
         )
 
         functions = self._db.list_functions(
-            self._db_session, name=function_name, project=project
+            self._db_session, name=function_name, project=self.project
         )
         assert len(functions) == 0
 
     def test_list_functions_no_tags(self):
-        project = "some-project"
         function_1 = {"bla": "blabla", "status": {"bla": "blabla"}}
         function_2 = {"bla2": "blabla", "status": {"bla": "blabla"}}
         function_name_1 = "function_name_1"
@@ -398,7 +390,7 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             function=function_1,
             name=function_name_1,
-            project=project,
+            project=self.project,
             tag=tag,
             versioned=True,
         )
@@ -406,13 +398,13 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             function=function_2,
             name=function_name_1,
-            project=project,
+            project=self.project,
             tag=tag,
             versioned=True,
         )
         assert function_1_hash_key != function_2_hash_key
         functions = self._db.list_functions(
-            self._db_session, name=function_name_1, project=project
+            self._db_session, name=function_name_1, project=self.project
         )
         assert len(functions) == 2
 
@@ -423,7 +415,6 @@ class TestFunctions(TestDatabaseBase):
                 assert function["status"] is None
 
     def test_list_functions_by_tag(self):
-        project = "some-project"
         tag = "function_name_1"
 
         names = ["some_name", "some_name2", "some_name3"]
@@ -433,11 +424,13 @@ class TestFunctions(TestDatabaseBase):
                 self._db_session,
                 function=function_body,
                 name=name,
-                project=project,
+                project=self.project,
                 tag=tag,
                 versioned=True,
             )
-        functions = self._db.list_functions(self._db_session, project=project, tag=tag)
+        functions = self._db.list_functions(
+            self._db_session, project=self.project, tag=tag
+        )
         assert len(functions) == len(names)
         for function in functions:
             function_name = function["metadata"]["name"]
@@ -445,7 +438,6 @@ class TestFunctions(TestDatabaseBase):
         assert len(names) == 0
 
     def test_list_functions_with_non_existent_tag(self):
-        project = "some-project"
         names = ["some_name", "some_name2", "some_name3"]
         for name in names:
             function_body = {"metadata": {"name": name}}
@@ -453,16 +445,15 @@ class TestFunctions(TestDatabaseBase):
                 self._db_session,
                 function=function_body,
                 name=name,
-                project=project,
+                project=self.project,
                 versioned=True,
             )
         functions = self._db.list_functions(
-            self._db_session, project=project, tag="non_existent_tag"
+            self._db_session, project=self.project, tag="non_existent_tag"
         )
         assert len(functions) == 0
 
     def test_list_functions_filtering_unversioned_untagged(self):
-        project = "some-project"
         function_1 = self._generate_function()
         function_2 = self._generate_function()
         tag = "some_tag"
@@ -470,7 +461,7 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             function=function_1.to_dict(),
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
             versioned=False,
             tag=tag,
         )
@@ -478,12 +469,12 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             function=function_2.to_dict(),
             name=function_2.metadata.name,
-            project=project,
+            project=self.project,
             versioned=True,
             tag=tag,
         )
         functions = self._db.list_functions(
-            self._db_session, name=function_1.metadata.name, project=project
+            self._db_session, name=function_1.metadata.name, project=self.project
         )
 
         # First we stored to the tag without versioning (unversioned instance) then we stored to the tag with version
@@ -492,7 +483,6 @@ class TestFunctions(TestDatabaseBase):
         assert functions[0]["metadata"]["hash"] == tagged_function_hash_key
 
     def test_list_functions_with_format(self):
-        project = "some-project"
         name = "function_name_1"
         tag = "some_tag"
         function_body = {
@@ -516,13 +506,13 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             function=function_body,
             name=name,
-            project=project,
+            project=self.project,
             tag=tag,
             versioned=True,
         )
         functions = self._db.list_functions(
             self._db_session,
-            project=project,
+            project=self.project,
             tag=tag,
             format_="full",
         )
@@ -532,7 +522,7 @@ class TestFunctions(TestDatabaseBase):
 
         functions = self._db.list_functions(
             self._db_session,
-            project=project,
+            project=self.project,
             tag=tag,
             format_="minimal",
         )
@@ -552,7 +542,7 @@ class TestFunctions(TestDatabaseBase):
             "status": {"bla": "blabla"},
         }
         function_name = "function_name_1"
-        project = "bla"
+
         tags = ["some_tag", "some_tag2", "some_tag3"]
         function_hash_key = None
         for tag in tags:
@@ -560,7 +550,7 @@ class TestFunctions(TestDatabaseBase):
                 self._db_session,
                 function=function,
                 name=function_name,
-                project=project,
+                project=self.project,
                 tag=tag,
                 versioned=True,
             )
@@ -570,23 +560,23 @@ class TestFunctions(TestDatabaseBase):
             self._db.get_function(
                 self._db_session,
                 name=function_name,
-                project=project,
+                project=self.project,
                 tag=tag,
             )
         self._db.get_function(
             self._db_session,
             name=function_name,
-            project=project,
+            project=self.project,
             hash_key=function_hash_key,
         )
         assert len(tags) == len(
             self._db.list_functions(
-                self._db_session, name=function_name, project=project
+                self._db_session, name=function_name, project=self.project
             )
         )
         number_of_tags = (
             self._db_session.query(Function.Tag)
-            .filter_by(project=project, obj_name=function_name)
+            .filter_by(project=self.project, obj_name=function_name)
             .count()
         )
         number_of_labels = self._db_session.query(Function.Label).count()
@@ -594,30 +584,32 @@ class TestFunctions(TestDatabaseBase):
         assert len(tags) == number_of_tags
         assert len(labels) == number_of_labels
 
-        self._db.delete_function(self._db_session, project=project, name=function_name)
+        self._db.delete_function(
+            self._db_session, project=self.project, name=function_name
+        )
 
         for tag in tags:
             with pytest.raises(mlrun.errors.MLRunNotFoundError):
                 self._db.get_function(
-                    self._db_session, name=function_name, project=project, tag=tag
+                    self._db_session, name=function_name, project=self.project, tag=tag
                 )
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             self._db.get_function(
                 self._db_session,
                 name=function_name,
-                project=project,
+                project=self.project,
                 hash_key=function_hash_key,
             )
         assert 0 == len(
             self._db.list_functions(
-                self._db_session, name=function_name, project=project
+                self._db_session, name=function_name, project=self.project
             )
         )
 
         # verifying tags and labels (different table) records were removed
         number_of_tags = (
             self._db_session.query(Function.Tag)
-            .filter_by(project=project, obj_name=function_name)
+            .filter_by(project=self.project, obj_name=function_name)
             .count()
         )
         number_of_labels = self._db_session.query(Function.Label).count()
@@ -627,7 +619,6 @@ class TestFunctions(TestDatabaseBase):
 
     @pytest.mark.parametrize("use_hash_key", [True, False])
     def test_list_functions_multiple_tags(self, use_hash_key: bool):
-        project = "some-project"
         function_1 = self._generate_function()
 
         tags = ["some_tag", "some_tag2", "some_tag3"]
@@ -636,14 +627,14 @@ class TestFunctions(TestDatabaseBase):
                 self._db_session,
                 function=function_1.to_dict(),
                 name=function_1.metadata.name,
-                project=project,
+                project=self.project,
                 tag=tag,
                 versioned=True,
             )
         functions = self._db.list_functions(
             self._db_session,
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
             hash_key=function_hash_key if use_hash_key else None,
         )
         assert len(functions) == len(tags)
@@ -655,7 +646,6 @@ class TestFunctions(TestDatabaseBase):
         assert len(tags) == 0
 
     def test_list_function_with_tag_and_uid(self):
-        project = "some-project"
         tag_name = "some_tag"
         function_1 = self._generate_function(tag=tag_name)
         function_2 = self._generate_function(
@@ -666,7 +656,7 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             function=function_1.to_dict(),
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
             tag=tag_name,
             versioned=True,
         )
@@ -677,7 +667,7 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             function=function_2.to_dict(),
             name=function_2.metadata.name,
-            project=project,
+            project=self.project,
             tag=tag_name,
             versioned=True,
         )
@@ -685,7 +675,7 @@ class TestFunctions(TestDatabaseBase):
         functions = self._db.list_functions(
             self._db_session,
             name=function_1.metadata.name,
-            project=project,
+            project=self.project,
             tag=tag_name,
             hash_key=function_1_hash_key,
         )
@@ -695,7 +685,6 @@ class TestFunctions(TestDatabaseBase):
         )
 
     def test_list_functions_with_time_filters(self):
-        project = "some-project"
         function_1 = self._generate_function("function-name-1")
         function_2 = self._generate_function("function-name-2")
         function_3 = self._generate_function("function-name-3")
@@ -705,14 +694,14 @@ class TestFunctions(TestDatabaseBase):
                 self._db_session,
                 function=function.to_dict(),
                 name=function.metadata.name,
-                project=project,
+                project=self.project,
                 versioned=True,
             )
             time.sleep(1)
 
         # Verifying that the time filters are working:
         # No Filters
-        all_functions = self._db.list_functions(self._db_session, project=project)
+        all_functions = self._db.list_functions(self._db_session, project=self.project)
         assert len(all_functions) == 3
 
         # extract the updated time of the functions
@@ -725,20 +714,20 @@ class TestFunctions(TestDatabaseBase):
 
         # Since only
         functions = self._db.list_functions(
-            self._db_session, project=project, since=function_times[1]
+            self._db_session, project=self.project, since=function_times[1]
         )
         assert len(functions) == 2
 
         # Until only
         functions = self._db.list_functions(
-            self._db_session, project=project, until=function_times[1]
+            self._db_session, project=self.project, until=function_times[1]
         )
         assert len(functions) == 2
 
         # Since and Until
         functions = self._db.list_functions(
             self._db_session,
-            project=project,
+            project=self.project,
             since=function_times[0],
             until=function_times[0],
         )
@@ -748,16 +737,15 @@ class TestFunctions(TestDatabaseBase):
         now = datetime.datetime.now()
         yesterday = now - datetime.timedelta(days=1)
         functions = self._db.list_functions(
-            self._db_session, project=project, until=yesterday
+            self._db_session, project=self.project, until=yesterday
         )
         assert len(functions) == 0
         functions = self._db.list_functions(
-            self._db_session, project=project, since=now
+            self._db_session, project=self.project, since=now
         )
         assert len(functions) == 0
 
     def test_list_functions_by_kind(self):
-        project = "some-project"
         function_1_name = "function-name-1"
         function_2_name = "function-name-2"
         function_1 = self._generate_function(function_1_name)
@@ -769,30 +757,31 @@ class TestFunctions(TestDatabaseBase):
                 self._db_session,
                 function=function.to_dict(),
                 name=function.metadata.name,
-                project=project,
+                project=self.project,
             )
         functions = self._db.list_functions(
-            self._db_session, project=project, kind="local"
+            self._db_session, project=self.project, kind="local"
         )
         assert len(functions) == 1
         assert functions[0]["metadata"]["name"] == function_1_name
 
         functions = self._db.list_functions(
-            self._db_session, project=project, kind="job"
+            self._db_session, project=self.project, kind="job"
         )
         assert len(functions) == 1
         assert functions[0]["metadata"]["name"] == function_2_name
 
-        functions = self._db.list_functions(self._db_session, project=project, kind="x")
+        functions = self._db.list_functions(
+            self._db_session, project=self.project, kind="x"
+        )
         assert len(functions) == 0
 
         functions = self._db.list_functions(
-            self._db_session, project=project, kind=None
+            self._db_session, project=self.project, kind=None
         )
         assert len(functions) == 2
 
     def test_list_functions_by_states(self):
-        project = "some-project"
         function_1_name = "function-name-1"
         function_2_name = "function-name-2"
         function_1 = self._generate_function(function_1_name)
@@ -804,11 +793,11 @@ class TestFunctions(TestDatabaseBase):
                 self._db_session,
                 function=function.to_dict(),
                 name=function.metadata.name,
-                project=project,
+                project=self.project,
             )
         functions = self._db.list_functions(
             self._db_session,
-            project=project,
+            project=self.project,
             states=[mlrun.common.schemas.FunctionState.ready],
         )
         assert len(functions) == 1
@@ -816,30 +805,30 @@ class TestFunctions(TestDatabaseBase):
 
         functions = self._db.list_functions(
             self._db_session,
-            project=project,
+            project=self.project,
             states=[mlrun.common.schemas.FunctionState.error],
         )
         assert len(functions) == 1
         assert functions[0]["metadata"]["name"] == function_2_name
 
         functions = self._db.list_functions(
-            self._db_session, project=project, states=["x"]
+            self._db_session, project=self.project, states=["x"]
         )
         assert len(functions) == 0
 
         functions = self._db.list_functions(
-            self._db_session, project=project, states=[]
+            self._db_session, project=self.project, states=[]
         )
         assert len(functions) == 0
 
         functions = self._db.list_functions(
-            self._db_session, project=project, states=None
+            self._db_session, project=self.project, states=None
         )
         assert len(functions) == 2
 
         functions = self._db.list_functions(
             self._db_session,
-            project=project,
+            project=self.project,
             states=[
                 mlrun.common.schemas.FunctionState.ready,
                 mlrun.common.schemas.FunctionState.error,
@@ -849,7 +838,7 @@ class TestFunctions(TestDatabaseBase):
 
     def test_list_untagged_functions(self):
         # create 2 functions, one with tag and one without
-        project = "some-project"
+
         function_1_name = "function-name-1"
         function_2_name = "function-name-2"
         function_1 = self._generate_function(function_1_name)
@@ -861,7 +850,7 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             function=function_1.to_dict(),
             name=function_1_name,
-            project=project,
+            project=self.project,
             tag=tag,
             versioned=True,
         )
@@ -872,12 +861,12 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             function=func_2_dict,
             name=function_2_name,
-            project=project,
+            project=self.project,
             versioned=True,
         )
 
         # list all functions
-        functions = self._db.list_functions(self._db_session, project=project)
+        functions = self._db.list_functions(self._db_session, project=self.project)
         assert len(functions) == 2
 
         # change something in the second function
@@ -888,16 +877,16 @@ class TestFunctions(TestDatabaseBase):
             self._db_session,
             function=func_2_dict,
             name=function_2_name,
-            project=project,
+            project=self.project,
             versioned=True,
         )
 
         # list all functions
-        functions = self._db.list_functions(self._db_session, project=project)
+        functions = self._db.list_functions(self._db_session, project=self.project)
 
         # list only tagged functions
         tagged_function = self._db.list_functions(
-            self._db_session, project=project, tag="*"
+            self._db_session, project=self.project, tag="*"
         )
 
         assert len(functions) != len(tagged_function)
@@ -910,13 +899,12 @@ class TestFunctions(TestDatabaseBase):
 
         # list function with specific tag
         tagged_function = self._db.list_functions(
-            self._db_session, project=project, tag=tag
+            self._db_session, project=self.project, tag=tag
         )
         assert len(tagged_function) == 1
         assert tagged_function[0]["metadata"]["hash"] == tagged_function_hash
 
     def test_list_functions_returns_elements_by_order_updated_field(self):
-        project = "some-project"
         number_of_functions = 5
         for counter in range(number_of_functions):
             function_name = f"function-{counter}"
@@ -926,12 +914,12 @@ class TestFunctions(TestDatabaseBase):
                 self._db_session,
                 function=function.to_dict(),
                 name=function.metadata.name,
-                project=project,
+                project=self.project,
                 versioned=False,
                 tag=tag,
             )
 
-        functions = self._db.list_functions(self._db_session, project=project)
+        functions = self._db.list_functions(self._db_session, project=self.project)
 
         assert (
             len(functions) == number_of_functions
@@ -949,7 +937,7 @@ class TestFunctions(TestDatabaseBase):
 
     def test_list_functions_orders_by_id_when_updated_is_identical(self):
         # this test verifies that when updated date is identical, functions should be ordered by function id
-        project = "some-project"
+
         number_of_functions = 10
         t1 = datetime.datetime.now()
         for counter in range(number_of_functions):
@@ -960,7 +948,7 @@ class TestFunctions(TestDatabaseBase):
                 self._db_session,
                 function=function.to_dict(),
                 name=function.metadata.name,
-                project=project,
+                project=self.project,
                 versioned=False,
                 tag=tag,
             )
@@ -973,7 +961,7 @@ class TestFunctions(TestDatabaseBase):
                 updated=t1,
             )
 
-        functions = self._db.list_functions(self._db_session, project=project)
+        functions = self._db.list_functions(self._db_session, project=self.project)
 
         assert (
             len(functions) == number_of_functions
@@ -991,7 +979,7 @@ class TestFunctions(TestDatabaseBase):
 
     def test_list_functions_orders_by_tag_id(self):
         # This test verifies that when a function has multiple tags, the returned list is ordered by tag ID descending.
-        project = "some-project"
+
         number_of_tags = 5
         function = self._generate_function()
 
@@ -1001,12 +989,12 @@ class TestFunctions(TestDatabaseBase):
                 self._db_session,
                 function=function.to_dict(),
                 name=function.metadata.name,
-                project=project,
+                project=self.project,
                 versioned=False,
                 tag=tag,
             )
 
-        functions = self._db.list_functions(self._db_session, project=project)
+        functions = self._db.list_functions(self._db_session, project=self.project)
 
         assert (
             len(functions) == number_of_tags
@@ -1021,14 +1009,13 @@ class TestFunctions(TestDatabaseBase):
         assert returned_tags == sorted_tags
 
     def test_list_functions_with_missing_milliseconds_in_timestamp(self):
-        project = "some-project"
         function = self._generate_function()
         tag = "some_tag"
         self._db.store_function(
             self._db_session,
             function=function.to_dict(),
             name=function.metadata.name,
-            project=project,
+            project=self.project,
             versioned=False,
             tag=tag,
         )
@@ -1041,7 +1028,7 @@ class TestFunctions(TestDatabaseBase):
             updated=t1,
         )
 
-        functions = self._db.list_functions(self._db_session, project=project)
+        functions = self._db.list_functions(self._db_session, project=self.project)
         assert len(functions) == 1
 
         assert functions[0]["metadata"]["updated"].endswith(".000000+00:00")

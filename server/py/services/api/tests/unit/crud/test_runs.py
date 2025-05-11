@@ -282,8 +282,7 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         assert run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.error
         assert run["status"]["error"] == "Failed to abort run, error: BOOM"
 
-    @pytest.mark.asyncio
-    async def test_store_and_get_run_missing_project(self, db: sqlalchemy.orm.Session):
+    def test_store_and_get_run_missing_project(self, db: sqlalchemy.orm.Session):
         project = "some-project"
         uid = "some-uid"
         run_name = "run-name"

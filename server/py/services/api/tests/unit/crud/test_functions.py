@@ -111,7 +111,7 @@ def test_store_and_get_function_missing_project(db: sqlalchemy.orm.Session):
     # store with missing project should raise error
     with pytest.raises(mlrun.errors.MLRunMissingProjectError):
         services.api.crud.Functions().store_function(
-            db, project=None, function=function, name="name", tag="latest"
+            db, project=None, function=function, name=function_name, tag=function_tag
         )
 
     # store with valid project
@@ -122,11 +122,18 @@ def test_store_and_get_function_missing_project(db: sqlalchemy.orm.Session):
     # get with missing project should raise error
     with pytest.raises(mlrun.errors.MLRunMissingProjectError):
         services.api.crud.Functions().get_function(
-            db, name="name", project=None, tag="latest"
+            db, name=function_name, project=None, tag=function_tag
         )
 
     # list with missing project should raise error
     with pytest.raises(mlrun.errors.MLRunMissingProjectError):
         services.api.crud.Functions().list_functions(
-            db, name="name", project=None, tag="latest"
+            db, name=function_name, project=None, tag=function_tag
         )
+
+    # get with valid project
+    function = services.api.crud.Functions().get_function(
+        db, name=function_name, project=project, tag=function_tag
+    )
+    assert function["metadata"]["name"] == function_name
+    assert function["metadata"]["tag"] == function_tag

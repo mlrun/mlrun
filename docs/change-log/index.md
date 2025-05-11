@@ -1262,35 +1262,35 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
 |---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| v1.10.0      | v1.8.0 |`get_cached_artifact` of MLClientCtx                                                    |`get_artifact`|
-| v1.10.0      | v1.8.0 |`remove_function` of MLrunProject                                  |`delete_function`|
-| v1.10.0      | v1.8.0 |`batch` of `ServingRuntime.set_tracking`                         |NA|
-| v1.10.0      | v1.8.0 |`limit` in `MLrunProject.list_artifacts`                                     |`page` and `page_size`|
-| v1.10.0      | v1.8.0 |`limit` in `HTTPRunDB.list_artifacts`                                        |`page` and `page_size`|
-| v1.10.0      | v1.8.0 |`mlrun.platforms.VolumeMount`                                                 |mlrun.runtimes.mounts.VolumeMount|
-| v1.10.0      | v1.8.0 |`mlrun.platforms.auto_mount`                                                  |.mounts.auto_mount|
-| v1.10.0      | v1.8.0 |`mlrun.platforms.mount_configmap`                                                  |.mounts.mount_configmap|
-| v1.10.0      | v1.8.0 |`mlrun.platforms.mount_hostpath`                                                  |.mounts.mount_hostpath|
-| v1.10.0      | v1.8.0 |`mlrun.platforms.mount_pvc`                                                  |.mounts.mount_pvc|
-| v1.10.0      | v1.8.0 |`mlrun.platforms.mount_s3`                                                  |.mounts.mount_s3|
-| v1.10.0      | v1.8.0 |`mlrun.platforms.mount_secret`                                                  |.mounts.mount_secret|
-| v1.10.0      | v1.8.0 |`mlrun.platforms.mount_v3io`                                                  |.mounts.mount_v3io|
-| v1.10.0      | v1.8.0 |`mlrun.platforms.set_env_variables`                                                  |.mounts.set_env_variables|
-| v1.10.0      | v1.8.0 |`mlrun.platforms.v3io_cred`                                                  |.mounts.v3io_cred instead"|
-| v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.RunsFormat`                                       |`mlrun.common.formatters.RunFormat`                |
-| v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.ArtifactsFormat`                                  |`mlrun.common.formatters.ArtifactFormat`                |
-| v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.ProjectsFormat`                                  |`mlrun.common.formatters.ProjectFormat`                |
-| v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.PipelinesFormat`                                  |`mlrun.common.formatters.PipelineFormat`                |
-| v1.9.0       | v1.7.0 |Datastore redis:`credentials_prefix`                                                 |Datastore profiles|
-| v1.9.0       | v1.7.0 |Parameter: `mlrun.runtimes.nuclio.function.RemoteRuntime.deploy` `auth_info`         | NA. Was not used.|
-| v1.9.0       | v1.7.0 |Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                           |`states`            |
-| v1.9.0       | v1.7.0 |Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                             |`states`            |
-| v1.9.0       | v1.7.0 |Class: `mlrun.common.runtimes.constants.RunLabels`                                   |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
-| v1.9.0       | v1.7.0 |Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                                    |MLRUN_DBPATH environment variable |
-| v1.9.0       | v1.7.0 |Query parameter: GET `/projects/{project}/schedules?labels="label1=val1"`            |`label`, which is an array of strings       |
-| v1.9.0       | v1.7.0 |Query parameter: DELETE `/projects/{project}/artifacts/{key:path}?uid="some-uid"`    |`object-uid`                                    |
-| v1.9.0       | v1.7.0 |Query parameter: GET `/projects/{project}/artifacts/{key:path}?uid="some-uid"`       |`object-uid`                                    |
-| v1.9.0       | v1.6.3 |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_code_target_dir`
+| v1.11.0      | v1.8.0 |`get_cached_artifact` of MLClientCtx                                                    |`get_artifact`|
+| v1.11.0      | v1.8.0 |`remove_function` of MLrunProject                                  |`delete_function`|
+| v1.11.0      | v1.8.0 |`batch` of `ServingRuntime.set_tracking`                         |NA|
+| v1.11.0      | v1.8.0 |`limit` in `MLrunProject.list_artifacts`                                     |`page` and `page_size`|
+| v1.11.0      | v1.8.0 |`limit` in `HTTPRunDB.list_artifacts`                                        |`page` and `page_size`|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.VolumeMount`                                                 |mlrun.runtimes.mounts.VolumeMount|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.auto_mount`                                                  |.mounts.auto_mount|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_configmap`                                                  |.mounts.mount_configmap|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_hostpath`                                                  |.mounts.mount_hostpath|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_pvc`                                                  |.mounts.mount_pvc|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_s3`                                                  |.mounts.mount_s3|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_secret`                                                  |.mounts.mount_secret|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_v3io`                                                  |.mounts.mount_v3io|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.set_env_variables`                                                  |.mounts.set_env_variables|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.v3io_cred`                                                  |.mounts.v3io_cred instead"|
+| v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.RunsFormat`                                       |`mlrun.common.formatters.RunFormat`                |
+| v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.ArtifactsFormat`                                  |`mlrun.common.formatters.ArtifactFormat`                |
+| v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.ProjectsFormat`                                  |`mlrun.common.formatters.ProjectFormat`                |
+| v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.PipelinesFormat`                                  |`mlrun.common.formatters.PipelineFormat`                |
+| v1.10.0       | v1.7.0 |Datastore redis:`credentials_prefix`                                                 |Datastore profiles|
+| v1.10.0       | v1.7.0 |Parameter: `mlrun.runtimes.nuclio.function.RemoteRuntime.deploy` `auth_info`         | NA. Was not used.|
+| v1.10.0       | v1.7.0 |Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                           |`states`            |
+| v1.10.0       | v1.7.0 |Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                             |`states`            |
+| v1.10.0       | v1.7.0 |Class: `mlrun.common.runtimes.constants.RunLabels`                                   |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
+| v1.10.0       | v1.7.0 |Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                                    |MLRUN_DBPATH environment variable |
+| v1.10.0       | v1.7.0 |Query parameter: GET `/projects/{project}/schedules?labels="label1=val1"`            |`label`, which is an array of strings       |
+| v1.10.0       | v1.7.0 |Query parameter: DELETE `/projects/{project}/artifacts/{key:path}?uid="some-uid"`    |`object-uid`                                    |
+| v1.10.0       | v1.7.0 |Query parameter: GET `/projects/{project}/artifacts/{key:path}?uid="some-uid"`       |`object-uid`                                    |
+| v1.10.0       | v1.6.3 |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_code_target_dir`
 
 
 ## Removed APIs

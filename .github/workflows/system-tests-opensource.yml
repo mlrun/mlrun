@@ -14,6 +14,9 @@
 
 name: System Tests Open Source
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
@@ -194,7 +197,7 @@ jobs:
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v6
+      uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # 6.0.1
       with:
         enable-cache: true
         cache-dependency-glob: "**/*requirements*.txt"
@@ -210,7 +213,7 @@ jobs:
         make install-requirements install-complete-requirements
         uv pip install -r automation/requirements.txt
 
-    - uses: jupyterhub/action-k3s-helm@v4
+    - uses: jupyterhub/action-k3s-helm@6389a7f2a11343ea6b469628c6e7b3afa961db24 # 4.0.1
       name: "Start a local k8s cluster"
       with:
         # - k3s versions at https://github.com/k3s-io/k3s/tags
@@ -219,7 +222,7 @@ jobs:
         helm-version: v3.17.2
 
     - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
+      uses: mxschmitt/action-tmate@7b6a61a73bbb9793cb80ad69b8dd8ac19261834c # 3.22
       if: ${{ github.event.inputs.debug_enabled == 'true' }}
       with:
 

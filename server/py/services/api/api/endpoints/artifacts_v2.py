@@ -165,7 +165,7 @@ async def list_artifacts(
     limit: int = Query(
         None,
         deprecated=True,
-        description="Use page and page_size, will be removed in the 1.10.0",
+        description="Use page and page_size, will be removed in the 1.11.0",
     ),
     since: Optional[str] = None,
     until: Optional[str] = None,

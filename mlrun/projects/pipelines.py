@@ -21,7 +21,6 @@ import typing
 import uuid
 
 import mlrun
-import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.function
@@ -1110,7 +1109,6 @@ def load_and_run_workflow(
     :param wait_for_completion: wait for workflow completion before returning
     :param project_context:     project context path (used for loading the project)
     """
-
     project_context = project_context or f"./{project_name}"
 
     # Load the project to fetch files which the runner needs, such as remote source files

@@ -70,11 +70,10 @@ def test_add_code_metadata_stale_remote(repo):
 
 
 @pytest.mark.parametrize(
-    "labels, labels_to_enrich, labels_enrichment_extension, expected_labels, env_vars_to_mock",
+    "labels, labels_to_enrich, expected_labels, env_vars_to_mock",
     [
         (
             {},
-            None,
             None,
             {
                 mlrun_constants.MLRunInternalLabels.owner: mlrun_constants.MLRunInternalLabels.v3io_user,
@@ -84,15 +83,13 @@ def test_add_code_metadata_stale_remote(repo):
         ),
         (
             {},
-            None,
-            None,
+            {},
             {mlrun_constants.MLRunInternalLabels.owner: "test_user"},
             {"LOGNAME": "test_user", "V3IO_USERNAME": ""},
         ),
         (
             {mlrun_constants.MLRunInternalLabels.owner: "Mahatma"},
-            None,
-            None,
+            {},
             {
                 mlrun_constants.MLRunInternalLabels.owner: "Mahatma",
                 mlrun_constants.MLRunInternalLabels.v3io_user: mlrun_constants.MLRunInternalLabels.v3io_user,
@@ -104,8 +101,7 @@ def test_add_code_metadata_stale_remote(repo):
                 mlrun_constants.MLRunInternalLabels.owner: "Mahatma",
                 mlrun_constants.MLRunInternalLabels.v3io_user: "Gandhi",
             },
-            [],
-            None,
+            {},
             {
                 mlrun_constants.MLRunInternalLabels.owner: "Mahatma",
                 mlrun_constants.MLRunInternalLabels.v3io_user: "Gandhi",
@@ -114,8 +110,7 @@ def test_add_code_metadata_stale_remote(repo):
         ),
         (
             {"a": "A", "b": "B"},
-            [mlrun.common.runtimes.constants.RunLabels.owner],
-            None,
+            {mlrun.common.runtimes.constants.RunLabels.owner},
             {
                 "a": "A",
                 "b": "B",
@@ -123,47 +118,9 @@ def test_add_code_metadata_stale_remote(repo):
             },
             None,
         ),
-        (
-            {"a": "A", "b": "B"},
-            [],
-            {
-                mlrun_constants.MLRunInternalLabels.client_version: "1.9.0",
-                mlrun_constants.MLRunInternalLabels.client_python_version: "3.11",
-            },
-            {
-                "a": "A",
-                "b": "B",
-                mlrun_constants.MLRunInternalLabels.client_version: "1.9.0",
-                mlrun_constants.MLRunInternalLabels.client_python_version: "3.11",
-            },
-            None,
-        ),
-        (
-            {
-                mlrun_constants.MLRunInternalLabels.client_version: "1.8.0",
-                mlrun_constants.MLRunInternalLabels.client_python_version: "3.9",
-            },
-            [mlrun_constants.MLRunInternalLabels.owner],
-            {
-                mlrun_constants.MLRunInternalLabels.client_version: "1.9.0",
-                mlrun_constants.MLRunInternalLabels.client_python_version: "3.11",
-            },
-            {
-                mlrun_constants.MLRunInternalLabels.client_version: "1.8.0",
-                mlrun_constants.MLRunInternalLabels.client_python_version: "3.9",
-                mlrun_constants.MLRunInternalLabels.owner: "test_user",
-            },
-            {"V3IO_USERNAME": "test_user"},
-        ),
     ],
 )
-def test_enrich_run_labels(
-    labels,
-    labels_to_enrich,
-    labels_enrichment_extension,
-    expected_labels,
-    env_vars_to_mock,
-):
+def test_enrich_run_labels(labels, labels_to_enrich, expected_labels, env_vars_to_mock):
     env_vars_to_mock = env_vars_to_mock or {
         "V3IO_USERNAME": mlrun_constants.MLRunInternalLabels.v3io_user,
     }
@@ -171,12 +128,12 @@ def test_enrich_run_labels(
         os.environ,
         env_vars_to_mock,
     ):
-        mlrun.runtimes.utils.enrich_run_labels(
-            labels, labels_to_enrich, labels_enrichment_extension
+        enriched_labels = mlrun.runtimes.utils.enrich_run_labels(
+            labels, labels_to_enrich
         )
         assert (
             deepdiff.DeepDiff(
-                labels,
+                enriched_labels,
                 expected_labels,
                 ignore_order=True,
             )

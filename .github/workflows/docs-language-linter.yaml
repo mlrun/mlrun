@@ -32,7 +32,7 @@ jobs:
           venv="$HOME/.local/share/venv"
           python3 -m venv "$venv"
           echo "$venv/bin" >> $GITHUB_PATH
-      - uses: errata-ai/vale-action@reviewdog
+      - uses: errata-ai/vale-action@d89dee975228ae261d22c15adcd03578634d429c # 2.1.1
         with:
           reporter: github-pr-check
   docs_linkcheck:

@@ -2861,10 +2861,10 @@ class MlrunProject(ModelObj):
 
         self.spec.set_function(name, function_object, func)
 
-    # TODO: Remove this in 1.10.0
+    # TODO: Remove this in 1.11.0
     @deprecated.deprecated(
         version="1.8.0",
-        reason="'remove_function' is deprecated and will be removed in 1.10.0. "
+        reason="'remove_function' is deprecated and will be removed in 1.11.0. "
         "Please use `delete_function` instead.",
         category=FutureWarning,
     )

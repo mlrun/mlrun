@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import enum
 import getpass
 import hashlib
 import json
@@ -28,7 +29,6 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.utils.regex
 from mlrun.artifacts import TableArtifact
-from mlrun.common.runtimes.constants import RunLabels
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
@@ -433,18 +433,35 @@ def enrich_function_from_dict(function, function_dict):
 
 def enrich_run_labels(
     labels: dict,
-    labels_to_enrich: Optional[list[RunLabels]] = None,
+    labels_to_enrich: Optional[list[mlrun_constants.MLRunInternalLabels]] = None,
 ):
+    """
+    Enrich the run labels with the internal labels and the labels enrichment extension
+    :param labels: The run labels dict
+    :param labels_to_enrich: The label keys to enrich from MLRunInternalLabels.default_run_labels_to_enrich
+    :return: The enriched labels dict
+    """
+    # Merge the labels with the labels enrichment extension
     labels_enrichment = {
-        RunLabels.owner: os.environ.get("V3IO_USERNAME") or getpass.getuser(),
-        # TODO: remove this in 1.9.0
-        RunLabels.v3io_user: os.environ.get("V3IO_USERNAME"),
+        mlrun_constants.MLRunInternalLabels.owner: os.environ.get("V3IO_USERNAME")
+        or getpass.getuser(),
+        # TODO: remove this in 1.10.0
+        mlrun_constants.MLRunInternalLabels.v3io_user: os.environ.get("V3IO_USERNAME"),
     }
-    labels_to_enrich = labels_to_enrich or RunLabels.all()
+
+    # Resolve which label keys to enrich
+    if labels_to_enrich is None:
+        labels_to_enrich = (
+            mlrun_constants.MLRunInternalLabels.default_run_labels_to_enrich()
+        )
+
+    # Enrich labels
     for label in labels_to_enrich:
+        if isinstance(label, enum.Enum):
+            label = label.value
         enrichment = labels_enrichment.get(label)
-        if label.value not in labels and enrichment:
-            labels[label.value] = enrichment
+        if label not in labels and enrichment:
+            labels[label] = enrichment
     return labels
 
 

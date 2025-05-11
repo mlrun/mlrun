@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import os
 import posixpath
 import uuid
 import warnings
@@ -115,9 +116,16 @@ class EvidentlyModelMonitoringApplicationBase(
                 print(
                     f"evidently json issue, path got json error, path:{full_path}, error: {json_error}"
                 )
-                print("evidently json issue, file content:")
                 with location.open(metadata_path) as f:
-                    print(f.read())
+                    content = f.read()
+                os.makedirs("/projects/evidently_json_issue", exist_ok=True)
+                broken_json_path = f"/projects/evidently_json_issue/{uuid.uuid4()}.json"
+                with location.open(broken_json_path, "w") as f:
+                    f.write(content)
+                print(
+                    f"evidently json issue, file content: \n{content}\n\n, available in {broken_json_path}"
+                )
+
                 continue
             except Exception as error:
                 print(

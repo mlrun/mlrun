@@ -729,7 +729,7 @@ class MonitoringApplicationController:
                 self.project
             ) as schedule_file:
                 for endpoint in endpoints:
-                    last_request = last_request_dict.pop(endpoint.metadata.uid, None)
+                    last_request = last_request_dict.get(endpoint.metadata.uid, None)
                     if isinstance(last_request, float):
                         last_request = pd.to_datetime(last_request, unit="s", utc=True)
                     endpoint.status.last_request = last_request

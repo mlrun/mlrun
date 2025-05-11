@@ -1226,6 +1226,7 @@ class HTTPRunDB(RunDBInterface):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
+        limit: Optional[int] = None,
         partition_by: Optional[
             Union[mlrun.common.schemas.ArtifactPartitionByField, str]
         ] = None,
@@ -1276,6 +1277,7 @@ class HTTPRunDB(RunDBInterface):
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
         :param format_: The format in which to return the artifacts. Default is 'full'.
+        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.10.0).
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -1299,11 +1301,12 @@ class HTTPRunDB(RunDBInterface):
             tree=tree,
             producer_uri=producer_uri,
             format_=format_,
+            limit=limit,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
-            return_all=True,
+            return_all=not limit,
         )
         return artifacts
 
@@ -5076,6 +5079,7 @@ class HTTPRunDB(RunDBInterface):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
+        limit: Optional[int] = None,
         partition_by: Optional[
             Union[mlrun.common.schemas.ArtifactPartitionByField, str]
         ] = None,
@@ -5096,6 +5100,13 @@ class HTTPRunDB(RunDBInterface):
         project = project or config.default_project
         labels = self._parse_labels(labels)
 
+        if limit:
+            # TODO: Remove this in 1.10.0
+            warnings.warn(
+                "'limit' is deprecated and will be removed in 1.10.0. Use 'page' and 'page_size' instead.",
+                FutureWarning,
+            )
+
         params = {
             "name": name,
             "tag": tag,
@@ -5109,6 +5120,7 @@ class HTTPRunDB(RunDBInterface):
             "producer_uri": producer_uri,
             "since": datetime_to_iso(since),
             "until": datetime_to_iso(until),
+            "limit": limit,
             "page": page,
             "page-size": page_size,
             "page-token": page_token,
@@ -5366,8 +5378,7 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
-    @staticmethod
-    def _resolve_page_params(params: typing.Optional[dict]) -> dict:
+    def _resolve_page_params(self, params: typing.Optional[dict]) -> dict:
         """
         Resolve the page parameters, setting defaults where necessary.
         """
@@ -5375,7 +5386,23 @@ class HTTPRunDB(RunDBInterface):
         if page_params.get("page-token") is None and page_params.get("page") is None:
             page_params["page"] = 1
         if page_params.get("page-size") is None:
-            page_params["page-size"] = config.httpdb.pagination.default_page_size
+            page_size = config.httpdb.pagination.default_page_size
+
+            if page_params.get("limit") is not None:
+                page_size = page_params["limit"]
+
+                # limit and page/page size are conflicting
+                page_params.pop("limit")
+            page_params["page-size"] = page_size
+
+        # this may happen only when page-size was explicitly set along with limit
+        # this is to ensure we will not get stopped by API on similar below validation
+        # but rather simply fallback to use page-size.
+        if page_params.get("page-size") and page_params.get("limit"):
+            logger.warning(
+                "Both 'limit' and 'page-size' are provided, using 'page-size'."
+            )
+            page_params.pop("limit")
         return page_params
 
 

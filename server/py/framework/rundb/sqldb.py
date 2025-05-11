@@ -282,6 +282,7 @@ class SQLRunDB(RunDBInterface):
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: Optional[int] = None,
         partition_by: Optional[
             Union[mlrun.common.schemas.ArtifactPartitionByField, str]
         ] = None,
@@ -311,6 +312,7 @@ class SQLRunDB(RunDBInterface):
             category=category,
             producer_id=tree,
             format_=format_,
+            limit=limit,
         )
 
     def paginated_list_artifacts(

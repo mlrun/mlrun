@@ -320,7 +320,7 @@ class DBInterface(ABC):
 
     # TODO: Remove once data migration v5 is obsolete
     @deprecated(
-        version="1.10.0",
+        version="1.7.0",
         reason="'store_artifact_v1' will be removed from this file in 1.10.0, use "
         "'store_artifact' instead",
         category=FutureWarning,
@@ -344,7 +344,7 @@ class DBInterface(ABC):
 
     # TODO: Remove once data migration v5 is obsolete
     @deprecated(
-        version="1.10.0",
+        version="1.7.0",
         reason="'read_artifact_v1' will be removed from this file in 1.10.0, use "
         "'read_artifact' instead",
         category=FutureWarning,
@@ -652,7 +652,7 @@ class DBInterface(ABC):
 
     # TODO: remove in 1.10.0
     @deprecated(
-        version="1.10.0",
+        version="1.7.0",
         reason="'list_features' will be removed in 1.10.0, use 'list_features_v2' instead",
         category=FutureWarning,
     )
@@ -682,7 +682,7 @@ class DBInterface(ABC):
 
     # TODO: remove in 1.10.0
     @deprecated(
-        version="1.10.0",
+        version="1.7.0",
         reason="'list_entities' will be removed in 1.10.0, use 'list_entities_v2' instead",
         category=FutureWarning,
     )

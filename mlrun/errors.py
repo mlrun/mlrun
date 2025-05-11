@@ -231,7 +231,10 @@ class MLRunTSDBConnectionFailureError(MLRunHTTPStatusError, ValueError):
 
 
 class MLRunMissingProjectError(MLRunBadRequestError):
-    pass
+    default_message = "Project must be provided"
+
+    def __init__(self, message=None):
+        super().__init__(message or self.default_message)
 
 
 class MLRunRetryExhaustedError(Exception):

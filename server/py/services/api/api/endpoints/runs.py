@@ -203,7 +203,7 @@ async def list_runs(
     db_session: Session = Depends(deps.get_db_session),
 ):
     if not project:
-        raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+        raise mlrun.errors.MLRunMissingProjectError()
     allowed_project_names = (
         await services.api.crud.Projects().list_allowed_project_names(
             db_session, auth_info, project=project
@@ -268,7 +268,7 @@ async def delete_runs(
     db_session: Session = Depends(deps.get_db_session),
 ):
     if not project:
-        raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+        raise mlrun.errors.MLRunMissingProjectError()
     runs = []
 
     # TODO: handle project permissions like in the list endpoints

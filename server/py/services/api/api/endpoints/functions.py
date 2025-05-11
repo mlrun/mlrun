@@ -227,7 +227,7 @@ async def list_functions(
     db_session: Session = Depends(deps.get_db_session),
 ):
     if not project:
-        raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+        raise mlrun.errors.MLRunMissingProjectError()
     allowed_project_names = (
         await services.api.crud.Projects().list_allowed_project_names(
             db_session, auth_info, project=project
@@ -298,7 +298,7 @@ async def build_function(
     function = data.get("function")
     project = function.get("metadata", {}).get("project")
     if not project:
-        raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+        raise mlrun.errors.MLRunMissingProjectError()
     function_name = function.get("metadata", {}).get("name")
     await run_in_threadpool(
         framework.utils.singletons.project_member.get_project_member().ensure_project,
@@ -461,7 +461,7 @@ async def build_status(
     ),
 ):
     if not project:
-        raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+        raise mlrun.errors.MLRunMissingProjectError()
     await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
         project,

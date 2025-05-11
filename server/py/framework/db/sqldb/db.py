@@ -287,7 +287,7 @@ class SQLDB(DBInterface):
 
     def update_run(self, session, updates: dict, uid: str, project: str, iter: int = 0):
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         run = self._get_run(session, uid, project, iter, with_for_update=True)
         if not run:
             run_uri = RunObject.create_uri(project, uid, iter)
@@ -392,7 +392,7 @@ class SQLDB(DBInterface):
         populate_existing: bool = False,
     ):
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         run = self._get_run(
             session,
             uid,
@@ -438,7 +438,7 @@ class SQLDB(DBInterface):
         limit: typing.Optional[int] = None,
     ) -> RunList:
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         query = self._find_runs(session, uid, project, labels)
         if name is not None:
             query = self._add_run_name_query(query, name)
@@ -498,7 +498,7 @@ class SQLDB(DBInterface):
 
     def del_run(self, session, uid: str, project: str, iter: int = 0):
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         # We currently delete *all* iterations
         self._delete(session, Run, uid=uid, project=project)
 
@@ -513,7 +513,7 @@ class SQLDB(DBInterface):
         uids=None,
     ):
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         query = self._find_runs(session, None, project, labels)
         if days_ago:
             since = datetime.now(timezone.utc) - timedelta(days=days_ago)
@@ -662,7 +662,7 @@ class SQLDB(DBInterface):
         always_overwrite=False,
     ) -> str:
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
 
         # handle link artifacts separately
@@ -770,7 +770,7 @@ class SQLDB(DBInterface):
         best_iteration=False,
     ):
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         if not uid:
             uid = fill_artifact_object_hash(artifact, iteration, producer_id)
 
@@ -851,7 +851,7 @@ class SQLDB(DBInterface):
         ] = mlrun.common.schemas.OrderType.desc,
     ) -> typing.Union[list, ArtifactList]:
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
 
         if best_iteration and iter is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -905,7 +905,7 @@ class SQLDB(DBInterface):
         artifact_identifiers: list[tuple] = "",
     ) -> ArtifactList:
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         artifact_records = self._find_artifacts_for_producer_id(
             session,
             producer_id=producer_id,
@@ -935,7 +935,7 @@ class SQLDB(DBInterface):
         as_record: bool = False,
     ):
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         query = self._query(session, ArtifactV2, key=key, project=project)
         enrich_tag = False
 
@@ -1014,7 +1014,7 @@ class SQLDB(DBInterface):
         iter=None,
     ):
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         self._delete_tagged_object(
             session,
             ArtifactV2,
@@ -1037,7 +1037,7 @@ class SQLDB(DBInterface):
         producer_id=None,
     ):
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         distinct_keys_and_uids = self._find_artifacts(
             session=session,
             project=project,
@@ -2044,7 +2044,7 @@ class SQLDB(DBInterface):
                 pass
 
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         artifact = deepcopy(artifact)
         if is_legacy_artifact(artifact):
             updated, key, labels = self._process_legacy_artifact_v1_dict_to_store(
@@ -2106,7 +2106,7 @@ class SQLDB(DBInterface):
             return ids
 
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         ids = _resolve_tag(Artifact, project, tag)
         if iter:
             key = f"{iter}-{key}"
@@ -2369,7 +2369,7 @@ class SQLDB(DBInterface):
         versioned=False,
     ) -> str:
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         logger.debug(
             "Storing function to DB",
             name=name,
@@ -2448,7 +2448,7 @@ class SQLDB(DBInterface):
         until: typing.Optional[datetime] = None,
     ) -> list[dict]:
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         functions = []
         for function, function_tag in self._find_functions(
             session=session,
@@ -2503,7 +2503,7 @@ class SQLDB(DBInterface):
         if so, the retrieval will be repeated and the result (if it exists) returned.
         """
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         normalized_function_name = mlrun.utils.normalize_name(name)
         try:
             return self._get_function(
@@ -2554,7 +2554,7 @@ class SQLDB(DBInterface):
         hash_key: str = "",
     ):
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         query = self._query(session, Function, name=name, project=project)
         uid = self._get_function_uid(
             session=session, name=name, tag=tag, hash_key=hash_key, project=project
@@ -2589,7 +2589,7 @@ class SQLDB(DBInterface):
         either ADD or REMOVE of type :py:class:`~mlrun.types.Operation`
         """
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         normalized_function_name = mlrun.utils.normalize_name(name)
         function, _ = self._get_function_db_object(
             session,
@@ -7422,7 +7422,7 @@ class SQLDB(DBInterface):
         commit: bool = True,
     ):
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         run_id = None
         if run_uid:
             # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run

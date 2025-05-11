@@ -1820,7 +1820,7 @@ class BaseRuntimeHandler(ABC):
             .get(mlrun_constants.MLRunInternalLabels.project)
         )
         if not project:
-            raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+            raise mlrun.errors.MLRunMissingProjectError()
         uid = (
             runtime_resource.get("metadata", {})
             .get("labels", {})

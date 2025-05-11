@@ -214,7 +214,7 @@ async def list_artifacts(
     db_session: Session = Depends(deps.get_db_session),
 ):
     if not project:
-        raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+        raise mlrun.errors.MLRunMissingProjectError()
     await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
@@ -275,7 +275,7 @@ async def delete_artifacts(
     db_session: Session = Depends(deps.get_db_session),
 ):
     if not project:
-        raise mlrun.errors.MLRunMissingProjectError("Project must be provided")
+        raise mlrun.errors.MLRunMissingProjectError()
     return await _delete_artifacts(
         project=project,
         name=name,

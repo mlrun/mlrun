@@ -460,7 +460,7 @@ class BaseStep(ModelObj):
 
         root = self
         while root.parent is not None:
-            root = self.parent
+            root = root.parent
 
         if not isinstance(root, RootFlowStep):
             raise GraphError(

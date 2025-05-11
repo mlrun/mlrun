@@ -241,7 +241,9 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         client_python_version = runner.metadata.labels.get(
             mlrun_constants.MLRunInternalLabels.client_python_version
         )
-        # The runner always runs with python 3.9 therefore we need to explicitly specify the user client python version
+        # TODO: Remove this when KFP 1 support is removed
+        # Until KFP 2 - The runner always runs with python 3.9 therefore we need to explicitly
+        # specify the user client python version
         if client_python_version:
             runner.set_env("MLRUN_PYTHON_VERSION", client_python_version)
 

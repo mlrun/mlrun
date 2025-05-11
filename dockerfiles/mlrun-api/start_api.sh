@@ -32,11 +32,11 @@ MLRUN_MEMRAY_EXTRA_FLAGS=$(echo "${MLRUN_MEMRAY_EXTRA_FLAGS# }" | sed 's/^/ /')
 # Check if the mlrun memray is set to a true value
 if [[ -n "$MLRUN_MEMRAY_LOWER"  && ( "$MLRUN_MEMRAY_LOWER" == "1" || "$MLRUN_MEMRAY_LOWER" == "true" || "$MLRUN_MEMRAY_LOWER" == "yes" || "$MLRUN_MEMRAY_LOWER" == "on" )]]; then
     if [[ -n "$MLRUN_MEMRAY_OUTPUT_FILE" ]]; then
-        echo "Starting API with memray profiling output file $MLRUN_MEMRAY_OUTPUT_FILE..."
-        exec python -m memray run${MLRUN_MEMRAY_EXTRA_FLAGS% } --output "$MLRUN_MEMRAY_OUTPUT_FILE" --force -m services.api.main
+        echo "Starting service with memray profiling output file $MLRUN_MEMRAY_OUTPUT_FILE..."
+        exec python -m memray run${MLRUN_MEMRAY_EXTRA_FLAGS% } --output "$MLRUN_MEMRAY_OUTPUT_FILE" --force -m services."${MLRUN_SERVICES__SERVICE_NAME}".main
     else
-        echo "Starting API with memray profiling..."
-        exec python -m memray run${MLRUN_MEMRAY_EXTRA_FLAGS% } -m services.api.main
+        echo "Starting service with memray profiling..."
+        exec python -m memray run${MLRUN_MEMRAY_EXTRA_FLAGS% } -m services."${MLRUN_SERVICES__SERVICE_NAME}".main
     fi
 else
     exec uvicorn services."${MLRUN_SERVICES__SERVICE_NAME}".daemon:app \

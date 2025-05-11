@@ -17,6 +17,7 @@ from mlrun.model_monitoring.applications.evidently import (
 )
 
 if _HAS_EVIDENTLY:
+    from evidently.core.report import Snapshot
     from evidently.legacy.metrics import (
         ColumnDriftMetric,
         ColumnSummaryMetric,
@@ -119,16 +120,14 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
 
     def __init__(
         self,
-        evidently_workspace_path: str,
         evidently_project_id: "STR_UUID",
+        evidently_workspace_path: str,
     ) -> None:
-        super().__init__(evidently_workspace_path, evidently_project_id)
+        super().__init__(evidently_project_id, evidently_workspace_path)
         self._init_evidently_project()
         self.train_set = None
 
-    def _init_iris_data(
-        self, monitoring_context: mm_context.MonitoringApplicationContext
-    ) -> None:
+    def _init_iris_data(self) -> None:
         if self.train_set is None:
             iris = load_iris()
             self.columns = [norm_column_name(col) for col in iris.feature_names]
@@ -146,42 +145,30 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         self,
         monitoring_context: mm_context.MonitoringApplicationContext,
     ) -> ModelMonitoringApplicationResult:
-        self._init_iris_data(monitoring_context)
+        self._init_iris_data()
         monitoring_context.logger.info("Running evidently app")
 
         sample_df = monitoring_context.sample_df[self.columns]
 
-        data_drift_report = self.create_report(
+        data_drift_report_run = self.create_report_run(
             sample_df, monitoring_context.end_infer_time
         )
-        self.evidently_workspace.add_report(
-            self.evidently_project_id, data_drift_report
+        self.evidently_workspace.add_run(
+            self.evidently_project_id, data_drift_report_run
         )
-        data_drift_test_suite = self.create_test_suite(
+
+        data_drift_test_suite_run = self.create_test_suite_run(
             sample_df, monitoring_context.end_infer_time
         )
-        self.evidently_workspace.add_test_suite(
-            self.evidently_project_id, data_drift_test_suite
+        self.evidently_workspace.add_run(
+            self.evidently_project_id, data_drift_test_suite_run
         )
 
         self.log_evidently_object(
-            monitoring_context, data_drift_report, "evidently_report"
+            monitoring_context, data_drift_report_run, "evidently_report"
         )
         self.log_evidently_object(
-            monitoring_context, data_drift_test_suite, "evidently_suite"
-        )
-
-        window_start = monitoring_context.start_infer_time
-        window_end = monitoring_context.end_infer_time
-
-        # Note: the times for evidently are those of the next monitoring window.
-        evidently_start = window_end
-        evidently_end = window_end + (window_end - window_start)
-
-        self.log_project_dashboard(
-            monitoring_context,
-            timestamp_start=evidently_start,
-            timestamp_end=evidently_end,
+            monitoring_context, data_drift_test_suite_run, "evidently_suite"
         )
 
         monitoring_context.logger.info("Logged evidently objects")
@@ -192,9 +179,9 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
             status=ResultStatusApp.potential_detection,
         )
 
-    def create_report(
+    def create_report_run(
         self, sample_df: pd.DataFrame, schedule_time: pd.Timestamp
-    ) -> "Report":
+    ) -> "Snapshot":
         metrics = [
             DatasetDriftMetric(),
             DatasetMissingValuesMetric(),
@@ -212,16 +199,18 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
             timestamp=schedule_time,
         )
 
-        data_drift_report.run(reference_data=self.train_set, current_data=sample_df)
-        return data_drift_report
+        return data_drift_report.run(
+            reference_data=self.train_set, current_data=sample_df
+        )
 
-    def create_test_suite(
+    def create_test_suite_run(
         self, sample_df: pd.DataFrame, schedule_time: pd.Timestamp
-    ) -> "TestSuite":
+    ) -> "Snapshot":
         data_drift_test_suite = TestSuite(
             tests=[DataDriftTestPreset()],
             timestamp=schedule_time,
         )
 
-        data_drift_test_suite.run(reference_data=self.train_set, current_data=sample_df)
-        return data_drift_test_suite
+        return data_drift_test_suite.run(
+            reference_data=self.train_set, current_data=sample_df
+        )

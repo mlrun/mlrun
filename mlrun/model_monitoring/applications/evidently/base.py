@@ -14,12 +14,11 @@
 
 import json
 import posixpath
-import uuid
 import warnings
 from abc import ABC
+from tempfile import NamedTemporaryFile
 from typing import Optional
 
-import pandas as pd
 import semver
 
 import mlrun.model_monitoring.applications.base as mm_base
@@ -60,9 +59,8 @@ except ModuleNotFoundError:
 
 
 if _HAS_EVIDENTLY:
-    from evidently.legacy.suite.base_suite import Display
+    from evidently.core.report import Snapshot
     from evidently.legacy.ui.storage.local.base import METADATA_PATH, FSLocation
-    from evidently.legacy.utils.dashboard import TemplateParams, file_html_template
     from evidently.ui.workspace import (
         STR_UUID,
         CloudWorkspace,
@@ -158,7 +156,7 @@ class EvidentlyModelMonitoringApplicationBase(
     @staticmethod
     def log_evidently_object(
         monitoring_context: mm_context.MonitoringApplicationContext,
-        evidently_object: "Display",
+        evidently_object: "Snapshot",
         artifact_name: str,
         unique_per_endpoint: bool = True,
     ) -> None:
@@ -171,56 +169,15 @@ class EvidentlyModelMonitoringApplicationBase(
             This method should be called on special occasions only.
 
         :param monitoring_context:  (MonitoringApplicationContext) The monitoring context to process.
-        :param evidently_object:    (Display) The Evidently display to log, e.g. a report or a test suite object.
+        :param evidently_object:    (Snapshot) The Evidently run to log, e.g. a report run.
         :param artifact_name:       (str) The name for the logged artifact.
         :param unique_per_endpoint: by default ``True``, we will log different artifact for each model endpoint,
                                     set to ``False`` without changing item key will cause artifact override.
         """
-        evidently_object_html = evidently_object.get_html()
-        monitoring_context.log_artifact(
-            artifact_name,
-            body=evidently_object_html.encode("utf-8"),
-            format="html",
-            unique_per_endpoint=unique_per_endpoint,
-        )
-
-    def log_project_dashboard(
-        self,
-        monitoring_context: mm_context.MonitoringApplicationContext,
-        timestamp_start: pd.Timestamp,
-        timestamp_end: pd.Timestamp,
-        artifact_name: str = "dashboard",
-        unique_per_endpoint: bool = True,
-    ) -> None:
-        """
-        Logs an Evidently project dashboard.
-
-        .. caution::
-
-            Logging Evidently dashboards in every model monitoring window may cause scale issues.
-            This method should be called on special occasions only.
-
-        :param monitoring_context:  (MonitoringApplicationContext) The monitoring context to process.
-        :param timestamp_start:     (pd.Timestamp) The start timestamp for the dashboard data.
-        :param timestamp_end:       (pd.Timestamp) The end timestamp for the dashboard data.
-        :param artifact_name:       (str) The name for the logged artifact.
-        :param unique_per_endpoint: by default ``True``, we will log different artifact for each model endpoint,
-                                    set to ``False`` without changing item key will cause artifact override.
-        """
-
-        dashboard_info = self.evidently_project.build_dashboard_info(
-            timestamp_start, timestamp_end
-        )
-        template_params = TemplateParams(
-            dashboard_id="pd_" + str(uuid.uuid4()).replace("-", ""),
-            dashboard_info=dashboard_info,
-            additional_graphs={},
-        )
-
-        dashboard_html = file_html_template(params=template_params)
-        monitoring_context.log_artifact(
-            artifact_name,
-            body=dashboard_html.encode("utf-8"),
-            format="html",
-            unique_per_endpoint=unique_per_endpoint,
-        )
+        with NamedTemporaryFile(suffix=".html") as file:
+            evidently_object.save_html(filename=file.name)
+            monitoring_context.log_artifact(
+                artifact_name,
+                local_path=file.name,
+                unique_per_endpoint=unique_per_endpoint,
+            )

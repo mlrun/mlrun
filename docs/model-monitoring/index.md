@@ -139,6 +139,9 @@ When ramping up the scale of your model monitoring, take note of these limitatio
 - Up to 20 large projects (model endpoints per project between 1k and 5k)
 - Up to 100 medium projects (100 < model endpoints < 1k)
 - Up to 200 small projects (model endpoints < 100)
+- Up to 50,000 app results per project (V3IO). This can vary depending on the overall general load on the system and the number of nodes.
+- Up to 50,000 app results per project (TSDB). This can vary depending on the overall general load on the system and the number of nodes.
+- The maximum number of projects depends on the scalability of the storage system. In the case of TSDB, it also depends on the TSDB capacity for handling requests
 
 (upgrade-from-17)=
 ## How to upgrade from v1.7.x to v1.8.0 and higher

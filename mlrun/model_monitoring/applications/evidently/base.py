@@ -20,7 +20,6 @@ from abc import ABC
 
 import pandas as pd
 import semver
-from evidently.legacy.ui.storage.local.base import METADATA_PATH, FSLocation
 
 import mlrun.model_monitoring.applications.base as mm_base
 import mlrun.model_monitoring.applications.context as mm_context
@@ -60,6 +59,7 @@ except ModuleNotFoundError:
 
 
 if _HAS_EVIDENTLY:
+    from evidently.legacy.ui.storage.local.base import METADATA_PATH, FSLocation
     from evidently.legacy.suite.base_suite import Display
     from evidently.legacy.ui.type_aliases import STR_UUID
     from evidently.legacy.utils.dashboard import TemplateParams, file_html_template

@@ -39,13 +39,6 @@ if _HAS_EVIDENTLY:
     )
     from evidently.legacy.test_preset import DataDriftTestPreset
     from evidently.legacy.test_suite import TestSuite
-    from evidently.legacy.ui.dashboards import (
-        CounterAgg,
-        DashboardPanelCounter,
-        PanelValue,
-        PlotType,
-        ReportFilter,
-    )
     from evidently.sdk.models import PanelMetric
     from evidently.sdk.panels import DashboardPanelPlot
     from evidently.ui.workspace import (
@@ -70,58 +63,53 @@ if _HAS_EVIDENTLY:
             project = workspace.create_project(_PROJECT_NAME)
         project.description = _PROJECT_DESCRIPTION
         project.dashboard.add_panel(
-            DashboardPanelCounter(
-                filter=ReportFilter(metadata_values={}, tag_values=[]),
-                agg=CounterAgg.NONE,
+            DashboardPanelPlot(
                 title="Income Dataset (iris)",
-            )  # pyright: ignore[reportGeneralTypeIssues]
+                subtitle="The iris dataset.",
+                size="half",
+                values=[PanelMetric(legend="Row count", metric="RowCount")],
+                plot_params={"plot_type": "counter", "aggregation": "sum"},
+            ),
+            tab="tab 0",
         )
         project.dashboard.add_panel(
-            DashboardPanelCounter(
+            DashboardPanelPlot(
                 title="Model Calls",
-                filter=ReportFilter(metadata_values={}, tag_values=[]),
-                value=PanelValue(
-                    metric_id="DatasetMissingValuesMetric",
-                    field_path=DatasetMissingValuesMetric.fields.current.number_of_rows,
-                    legend="count",
-                ),
-                text="count",
-                agg=CounterAgg.SUM,
-                size=1,
-            )  # pyright: ignore[reportGeneralTypeIssues]
+                subtitle="Total number of predictions over time.",
+                size="half",
+                values=[PanelMetric(legend="count", metric="DatasetMissingValueCount")],
+                plot_params={"plot_type": "counter", "aggregation": "sum"},
+            ),
+            tab="tab 0",
         )
         project.dashboard.add_panel(
-            DashboardPanelCounter(
+            DashboardPanelPlot(
                 title="Share of Drifted Features",
-                filter=ReportFilter(metadata_values={}, tag_values=[]),
-                value=PanelValue(
-                    metric_id="DatasetDriftMetric",
-                    field_path="share_of_drifted_columns",
-                    legend="share",
-                ),
-                text="share",
-                agg=CounterAgg.LAST,
-                size=1,
-            )  # pyright: ignore[reportGeneralTypeIssues]
+                subtitle="Measure the drift of the features.",
+                size="full",
+                values=[PanelMetric(metric="DatasetDriftMetric", legend="share")],
+                plot_params={"plot_type": "counter", "aggregation": "last"},
+            ),
+            tab="tab 0",
         )
         project.dashboard.add_panel(
             DashboardPanelPlot(
                 title="Dataset Quality",
-                filter=ReportFilter(metadata_values={}, tag_values=[]),
+                subtitle="",
+                size="full",
                 values=[
-                    PanelValue(
-                        metric_id="DatasetDriftMetric",
-                        field_path="share_of_drifted_columns",
+                    PanelMetric(
+                        metric="DatasetDriftMetric",
                         legend="Drift Share",
                     ),
-                    PanelValue(
-                        metric_id="DatasetMissingValuesMetric",
-                        field_path=DatasetMissingValuesMetric.fields.current.share_of_missing_values,
+                    PanelMetric(
+                        metric="DatasetMissingValuesMetric",
                         legend="Missing Values Share",
                     ),
                 ],
-                plot_type=PlotType.LINE,
-            )  # pyright: ignore[reportGeneralTypeIssues]
+                plot_params={"plot_type": "line"},
+            ),
+            tab="tab 0",
         )
         project.save()
         return project
@@ -189,8 +177,8 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         self.log_evidently_object(
             monitoring_context, data_drift_test_suite_run, "evidently_suite"
         )
-
         monitoring_context.logger.info("Logged evidently objects")
+
         return ModelMonitoringApplicationResult(
             name="data_drift_test",
             value=0.5,

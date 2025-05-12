@@ -167,25 +167,6 @@ class FeatureStore(
             uid,
         )
 
-    # TODO: remove in 1.9.0
-    def list_features(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        project: str,
-        name: str,
-        tag: typing.Optional[str] = None,
-        entities: typing.Optional[list[str]] = None,
-        labels: typing.Optional[list[str]] = None,
-    ) -> mlrun.common.schemas.FeaturesOutput:
-        return framework.utils.singletons.db.get_db().list_features(
-            db_session,
-            project,
-            name,
-            tag,
-            entities,
-            labels,
-        )
-
     def list_features_v2(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -203,7 +184,6 @@ class FeatureStore(
             entities,
             labels,
         )
-
 
     def list_entities_v2(
         self,

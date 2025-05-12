@@ -1,3 +1,17 @@
+# Copyright 2025 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import Optional
 from uuid import UUID
 
@@ -9,7 +23,6 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
 )
-from mlrun.feature_store.api import norm_column_name
 from mlrun.model_monitoring.applications import ModelMonitoringApplicationResult
 from mlrun.model_monitoring.applications.evidently import (
     _HAS_EVIDENTLY,
@@ -17,42 +30,41 @@ from mlrun.model_monitoring.applications.evidently import (
 )
 
 if _HAS_EVIDENTLY:
-    from evidently.core.report import Snapshot
+    from evidently.core.report import Report, Snapshot
     from evidently.legacy.metrics import (
         ColumnDriftMetric,
         ColumnSummaryMetric,
         DatasetDriftMetric,
         DatasetMissingValuesMetric,
     )
-    from evidently.legacy.report import Report
     from evidently.legacy.test_preset import DataDriftTestPreset
     from evidently.legacy.test_suite import TestSuite
-    from evidently.legacy.ui.base import Project
     from evidently.legacy.ui.dashboards import (
         CounterAgg,
-        DashboardConfig,
         DashboardPanelCounter,
-        DashboardPanelPlot,
         PanelValue,
         PlotType,
         ReportFilter,
     )
-    from evidently.legacy.ui.type_aliases import STR_UUID
-    from evidently.ui.workspace import Workspace
+    from evidently.sdk.models import PanelMetric
+    from evidently.sdk.panels import DashboardPanelPlot
+    from evidently.ui.workspace import (
+        STR_UUID,
+        Project,
+        ProjectModel,
+        WorkspaceBase,
+    )
 
     _PROJECT_NAME = "Iris Monitoring"
     _PROJECT_DESCRIPTION = "Test project using iris dataset"
 
     def _create_evidently_project(
-        workspace: Workspace, id: Optional[UUID] = None
+        workspace: WorkspaceBase, id: Optional[UUID] = None
     ) -> Project:
         if id:
-            project = Project(
-                name=_PROJECT_NAME,
-                description=_PROJECT_DESCRIPTION,
-                dashboard=DashboardConfig(name=_PROJECT_NAME, panels=[]),
-                id=id,
-            )  # pyright: ignore[reportGeneralTypeIssues]
+            project = ProjectModel(
+                name=_PROJECT_NAME, description=_PROJECT_DESCRIPTION, id=id
+            )
             project = workspace.add_project(project)
         else:
             project = workspace.create_project(_PROJECT_NAME)
@@ -121,16 +133,23 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
     def __init__(
         self,
         evidently_project_id: "STR_UUID",
-        evidently_workspace_path: str,
+        evidently_workspace_path: Optional[str] = None,
+        cloud_workspace: bool = False,
     ) -> None:
-        super().__init__(evidently_project_id, evidently_workspace_path)
+        super().__init__(
+            evidently_project_id=evidently_project_id,
+            evidently_workspace_path=evidently_workspace_path,
+            cloud_workspace=cloud_workspace,
+        )
         self._init_evidently_project()
         self.train_set = None
 
-    def _init_iris_data(self) -> None:
+    def _init_iris_data(
+        self, monitoring_context: mm_context.MonitoringApplicationContext
+    ) -> None:
         if self.train_set is None:
             iris = load_iris()
-            self.columns = [norm_column_name(col) for col in iris.feature_names]
+            self.columns = monitoring_context.feature_names
             self.train_set = pd.DataFrame(iris.data, columns=self.columns)
 
     def _init_evidently_project(self) -> None:
@@ -145,7 +164,7 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         self,
         monitoring_context: mm_context.MonitoringApplicationContext,
     ) -> ModelMonitoringApplicationResult:
-        self._init_iris_data()
+        self._init_iris_data(monitoring_context)
         monitoring_context.logger.info("Running evidently app")
 
         sample_df = monitoring_context.sample_df[self.columns]
@@ -196,7 +215,7 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
 
         data_drift_report = Report(
             metrics=metrics,
-            timestamp=schedule_time,
+            metadata={"timestamp": str(schedule_time)},
         )
 
         return data_drift_report.run(

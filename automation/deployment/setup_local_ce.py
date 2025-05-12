@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import platform
@@ -111,7 +112,7 @@ def is_traefik_installed(debug: bool = False) -> bool:
 
 
 def clear_namespaces(namespace: str, debug: bool):
-    echo_color("Clearing Kubernetes namespace …")
+    echo_color("Clearing Kubernetes namespace ...")
     run_command(
         ["kubectl", "delete", "namespace", namespace], debug=debug, raise_on_error=False
     )
@@ -121,7 +122,7 @@ def ensure_namespace(namespace: str, debug: bool = False):
     try:
         run_command(["kubectl", "get", "namespace", namespace], debug=debug)
     except subprocess.CalledProcessError:
-        echo_color(f"Namespace '{namespace}' not found – creating …")
+        echo_color(f"Namespace '{namespace}' not found – creating ...")
         run_command(["kubectl", "create", "namespace", namespace], debug=debug)
 
 
@@ -129,7 +130,7 @@ def setup_ingress(debug: bool):
     if is_traefik_installed(debug):
         typer.echo("Traefik already present – skipping ingress‑nginx install")
         return
-    typer.echo("Installing ingress‑nginx controller …")
+    typer.echo("Installing ingress‑nginx controller ...")
     run_command(
         [
             "helm",
@@ -163,9 +164,9 @@ def setup_ingress(debug: bool):
         )
 
 
-def create_ingress(namespace: str, debug: bool):
+def create_ingress(namespace: str, debug: bool, ingress_host: str):
     ensure_namespace(namespace, debug)
-    typer.echo("Creating cluster‑internal Ingress …")
+    typer.echo("Creating Ingresses ...")
     ingress_class = "traefik" if is_traefik_installed(debug) else "nginx"
     ingress = {
         "apiVersion": "networking.k8s.io/v1",
@@ -182,38 +183,45 @@ def create_ingress(namespace: str, debug: bool):
         ("mlrun-jupyter", 8888, "jupyter"),
         ("minio-console", 9001, "minio"),
         ("grafana", 80, "grafana"),
-        ("ml-pipeline-ui", 80, "kfp"),
+        ("ml-pipeline-ui", 80, "kfp-ui"),
         ("ml-pipeline", 8888, "kfp"),
         ("metadata-envoy-service", 9090, "metadata-envoy"),
         ("workflow-controller-metrics", 9091, "workflow-metrics"),
     ]
-    for svc, port, host_prefix in service_matrix:
-        host = f"{host_prefix}.{namespace}.svc.cluster.local"
-        rule = {
-            "host": host,
-            "http": {
-                "paths": [
-                    {
-                        "path": "/",
-                        "pathType": "Prefix",
-                        "backend": {"service": {"name": svc, "port": {"number": port}}},
-                    }
-                ]
-            },
-        }
-        ingress["spec"]["rules"].append(rule)
-    subprocess.run(
-        ["kubectl", "apply", "-f", "-"],
-        input=yaml.dump(ingress, sort_keys=False),
-        text=True,
-    )
+    host_suffixes = [("internal", "svc.cluster.local")]
+    if ingress_host:
+        host_suffixes.append(("external", ingress_host))
+    for name, host_suffix in host_suffixes:
+        ingress_to_apply = copy.deepcopy(ingress)
+        ingress_to_apply["metadata"]["name"] += f"-{name}"
+        for svc, port, host_prefix in service_matrix:
+            host = f"{host_prefix}.{namespace}.{host_suffix}"
+            rule = {
+                "host": host,
+                "http": {
+                    "paths": [
+                        {
+                            "path": "/",
+                            "pathType": "Prefix",
+                            "backend": {
+                                "service": {"name": svc, "port": {"number": port}}
+                            },
+                        }
+                    ]
+                },
+            }
+            ingress_to_apply["spec"]["rules"].append(rule)
+        subprocess.run(
+            ["kubectl", "apply", "-f", "-"],
+            input=yaml.dump(ingress_to_apply, sort_keys=False),
+            text=True,
+        )
 
 
 def add_helm_repositories(debug: bool):
-    echo_color("Adding Helm repos …")
+    echo_color("Adding Helm repos ...")
     for name, url in HELM_REPOS.items():
-        run_command(["helm", "repo", "add", name, url], debug=debug)
-    run_command(["helm", "repo", "update"], debug=debug)
+        run_command(["helm", "repo", "add", "--force-update", name, url], debug=debug)
 
 
 def setup_registry_secret(
@@ -222,8 +230,8 @@ def setup_registry_secret(
     docker_registry: str,
     namespace: str,
     debug: bool,
-):
-    echo_color("Creating registry secret …")
+) -> str:
+    echo_color("Creating registry secret ...")
     ns_manifest = subprocess.run(
         ["kubectl", "create", "namespace", namespace, "--dry-run=client", "-o", "yaml"],
         capture_output=True,
@@ -232,9 +240,9 @@ def setup_registry_secret(
     run_command(
         ["kubectl", "apply", "-f", "-"], input_data=ns_manifest.stdout, debug=debug
     )
-
+    secret_name = "registry-credentials"
     res = subprocess.run(
-        ["kubectl", "-n", namespace, "get", "secret", "registry-credentials"],
+        ["kubectl", "-n", namespace, "get", "secret", secret_name],
         capture_output=True,
         text=True,
     )
@@ -247,7 +255,7 @@ def setup_registry_secret(
                 "create",
                 "secret",
                 "docker-registry",
-                "registry-credentials",
+                secret_name,
                 "--docker-username",
                 docker_user,
                 "--docker-password",
@@ -259,6 +267,7 @@ def setup_registry_secret(
             ],
             debug=debug,
         )
+    return secret_name
 
 
 SEMVER_RC_REGEX = re.compile(r"^\d+\.\d+\.\d+(?:-rc\d+)?$")
@@ -308,7 +317,13 @@ def get_latest_valid_version(repo_name: str) -> str:
 
 
 def setup_ce(
-    server: str, ce_version: str, namespace: str, ce_dir: Path, branch: str, debug: bool
+    server: str,
+    ce_version: str,
+    namespace: str,
+    ce_dir: Path,
+    branch: str,
+    docker_creds_secret_name: str | None,
+    debug: bool,
 ):
     if not ce_version:
         ce_version = get_latest_valid_version("mlrun/ce").replace("mlrun-ce-", "")
@@ -318,6 +333,10 @@ def setup_ce(
     if branch:
         run_command(["git", "checkout", branch], cwd=ce_dir, debug=debug)
         run_command(["git", "pull"], cwd=ce_dir, debug=debug)
+
+    run_command(
+        ["helm", "dependency", "build"], cwd=ce_dir / "charts" / "mlrun-ce", debug=debug
+    )
 
     res = subprocess.run(
         ["helm", "status", "mlrun-admin", "-n", namespace],
@@ -353,8 +372,6 @@ def setup_ce(
         "--set",
         f"global.registry.url={registry_url}",
         "--set",
-        "global.registry.secretName=registry-credentials",
-        "--set",
         "global.externalHostAddress=mlrun.svc.cluster.local",
         "--set",
         "mlrun.api.securityContext.readOnlyRootFilesystem=false",
@@ -379,6 +396,13 @@ def setup_ce(
         "--set",
         "argoWorkflows.controller.metricsConfig.enabled=false",
     ]
+    if docker_creds_secret_name:
+        base_values.extend(
+            [
+                "--set",
+                f"global.registry.secretName={docker_creds_secret_name}",
+            ]
+        )
     run_command(
         ["helm", "upgrade", "--install", "mlrun"] + base_values, debug=debug, cwd=ce_dir
     )
@@ -410,6 +434,10 @@ def upgrade_images(
         cwd=charts,
         debug=debug,
     )
+
+    # nuclio maps x86_64 to amd64
+    if arch == "x86_64":
+        arch = "amd64"
     run_command(
         [
             "helm",
@@ -451,7 +479,7 @@ def add_dns_entries_to_hosts(namespace: str, target_ip: str):
         f"jupyter.{namespace}.svc.cluster.local",
         f"minio.{namespace}.svc.cluster.local",
         f"grafana.{namespace}.svc.cluster.local",
-        f"kfp.{namespace}.svc.cluster.local",
+        f"kfp-ui.{namespace}.svc.cluster.local",
         f"metadata-envoy.{namespace}.svc.cluster.local",
         f"workflow-metrics.{namespace}.svc.cluster.local",
     ]
@@ -529,6 +557,7 @@ def install_ce(
     namespace: str,
     debug: bool,
     update_hosts: bool,
+    ingress_host: str,
 ):
     for cmd in REQUIRED_COMMANDS:
         check_command_exists(cmd)
@@ -538,9 +567,22 @@ def install_ce(
     (Path.home() / "mlrun-data").mkdir(exist_ok=True)
 
     setup_ingress(debug)
-    create_ingress(namespace, debug)
-    setup_registry_secret(user, passwd, docker_registry, namespace, debug)
-    setup_ce(docker_registry, ce_ver, namespace, ce_dir, branch, debug)
+    create_ingress(namespace, debug, ingress_host)
+    create_docker_secret = user and passwd
+    docker_creds_secret_name = None
+    if create_docker_secret:
+        docker_creds_secret_name = setup_registry_secret(
+            user, passwd, docker_registry, namespace, debug
+        )
+    setup_ce(
+        docker_registry,
+        ce_ver,
+        namespace,
+        ce_dir,
+        branch,
+        docker_creds_secret_name,
+        debug,
+    )
     upgrade_images(
         mlrun_ver, nuclio_ver, ce_dir, user, docker_registry, arch, namespace, debug
     )
@@ -555,9 +597,11 @@ def install_ce(
 
 @app.command()
 def install(
-    docker_user: str = typer.Option(..., help="Docker username"),
-    docker_password: str = typer.Option(..., help="Docker password / token"),
-    docker_registry: str = typer.Option(..., help="Docker registry (e.g. docker.io)"),
+    docker_user: str = typer.Option("", help="Docker username"),
+    docker_password: str = typer.Option("", help="Docker password / token"),
+    docker_registry: str = typer.Option(
+        ..., help="Docker registry (e.g. docker.io / registry.localhost)"
+    ),
     ce_folder: Path = typer.Option(
         Path.home() / "mlrun-ce", "--ce-folder", help="Clone destination for mlrun/ce"
     ),
@@ -578,6 +622,9 @@ def install(
     update_hosts: bool = typer.Option(
         False, "--update-hosts", help="Add hostnames to /etc/hosts"
     ),
+    ingress_host: str = typer.Option(
+        "", "--ingress-host", help="Ingress host suffix (e.g..platform.iguaz.io)"
+    ),
 ):
     """High‑level installation command."""
     install_ce(
@@ -594,6 +641,7 @@ def install(
         namespace,
         debug,
         update_hosts,
+        ingress_host,
     )
 
 

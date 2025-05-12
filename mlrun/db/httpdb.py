@@ -21,7 +21,7 @@ import typing
 import warnings
 from copy import deepcopy
 from datetime import datetime, timedelta
-from os import path, remove
+from os import environ, path, remove
 from typing import Literal, Optional, Union
 from urllib.parse import urlparse
 
@@ -129,7 +129,9 @@ class HTTPRunDB(RunDBInterface):
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
-        self.python_version = str(version.Version().get_python_version())
+        self.python_version = environ.get("MLRUN_PYTHON_VERSION") or str(
+            version.Version().get_python_version()
+        )
 
         self._enrich_and_validate(url)
 
@@ -3767,7 +3769,7 @@ class HTTPRunDB(RunDBInterface):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
@@ -3889,8 +3891,8 @@ class HTTPRunDB(RunDBInterface):
         attributes_keys = list(attributes.keys())
         attributes["name"] = name
         attributes["project"] = project
-        attributes["function-name"] = function_name or None
-        attributes["function-tag"] = function_tag or None
+        attributes["function_name"] = function_name or None
+        attributes["function_tag"] = function_tag or None
         attributes["uid"] = endpoint_id or None
         model_endpoint = mlrun.common.schemas.ModelEndpoint.from_flat_dict(attributes)
         path = f"projects/{project}/model-endpoints"

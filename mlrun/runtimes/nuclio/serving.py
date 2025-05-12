@@ -642,7 +642,7 @@ class ServingRuntime(RemoteRuntime):
         for step in self.spec.graph.steps.values():
             if isinstance(step, mlrun.serving.states.ModelRunnerStep):
                 error_step = step.to(
-                    "ModelRunnerErrorRaise",
+                    "mlrun.serving.states.ModelRunnerErrorRaise",
                     f"{step.name}_error_raise",
                     class_args={
                         "raise_exception": step._raise_error,

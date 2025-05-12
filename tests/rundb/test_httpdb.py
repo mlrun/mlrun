@@ -684,11 +684,11 @@ def test_feature_sets(create_server):
     # The feature-set with different labels also counts here
     assert len(features) == count + 1
     # Only count, since we modified the entity of the last feature-set - other name, no labels
-    entities = db.list_entities(project, "ticker")
+    entities = db.list_entities_v2(project, "ticker")
     assert len(entities) == count
-    entities = db.list_entities(project, labels=["type"])
+    entities = db.list_entities_v2(project, labels=["type"])
     assert len(entities) == count
-    entities = db.list_entities(project, labels=["type=prod"])
+    entities = db.list_entities_v2(project, labels=["type=prod"])
     assert len(entities) == count
 
 

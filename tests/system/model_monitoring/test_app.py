@@ -1299,7 +1299,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         futures = []
         with concurrent.futures.ThreadPoolExecutor() as executor:
             endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
-                project=self.project_name
+                project=self.project_name, tsdb_metrics=True
             )
             endpoints = endpoints_list.endpoints
             assert len(endpoints) == 7
@@ -1339,7 +1339,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             self._deploy_model_serving(**model_dict, enable_tracking=False)
 
         endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
-            project=self.project_name
+            project=self.project_name, tsdb_metrics=True
         )
         endpoints = endpoints_list.endpoints
         assert len(endpoints) == 1
@@ -1380,7 +1380,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             self._deploy_model_serving(**model_dict, enable_tracking=False)
 
         endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
-            project=self.project_name
+            project=self.project_name, tsdb_metrics=True
         )
         endpoints = endpoints_list.endpoints
         assert len(endpoints) == 1

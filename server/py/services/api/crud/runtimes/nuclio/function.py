@@ -278,7 +278,7 @@ def _compile_function_config(
     # resolve env vars before compiling the nuclio spec, as we need to set them in the spec
     env_dict, external_source_env_dict = _resolve_env_vars(function)
 
-    project = function.metadata.project or mlrun.mlconf.default_project
+    project = function.metadata.project
     tag = function.metadata.tag
 
     serving_spec_volume = None

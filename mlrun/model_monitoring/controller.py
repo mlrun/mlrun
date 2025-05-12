@@ -25,6 +25,7 @@ from types import TracebackType
 from typing import Any, NamedTuple, Optional, Union, cast
 
 import nuclio_sdk
+import pandas as pd
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
@@ -673,9 +674,15 @@ class MonitoringApplicationController:
         """
         logger.info("Starting monitoring controller chief")
         applications_names = []
-        endpoints = self.project_obj.list_model_endpoints(
-            metric_list=["last_request"]
-        ).endpoints
+        endpoints = self.project_obj.list_model_endpoints(tsdb_metrics=False).endpoints
+        last_request_dict = self.tsdb_connector.get_last_request(
+            endpoint_ids=[mep.metadata.uid for mep in endpoints]
+        )
+        if isinstance(last_request_dict, pd.DataFrame):
+            last_request_dict = last_request_dict.set_index(
+                mm_constants.EventFieldType.ENDPOINT_ID
+            )[mm_constants.ModelEndpointSchema.LAST_REQUEST].to_dict()
+
         if not endpoints:
             logger.info("No model endpoints found", project=self.project)
             return
@@ -721,16 +728,20 @@ class MonitoringApplicationController:
             with schedules.ModelMonitoringSchedulesFileChief(
                 self.project
             ) as schedule_file:
-                futures = {
-                    pool.submit(
-                        self.endpoint_to_regular_event,
-                        endpoint,
-                        policy,
-                        set(applications_names),
-                        schedule_file,
-                    ): endpoint
-                    for endpoint in endpoints
-                }
+                for endpoint in endpoints:
+                    last_request = last_request_dict.get(endpoint.metadata.uid, None)
+                    if isinstance(last_request, float):
+                        last_request = pd.to_datetime(last_request, unit="s", utc=True)
+                    endpoint.status.last_request = last_request
+                    futures = {
+                        pool.submit(
+                            self.endpoint_to_regular_event,
+                            endpoint,
+                            policy,
+                            set(applications_names),
+                            schedule_file,
+                        ): endpoint
+                    }
                 for future in concurrent.futures.as_completed(futures):
                     if future.exception():
                         exception = future.exception()

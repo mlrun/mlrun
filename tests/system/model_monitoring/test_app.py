@@ -373,7 +373,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                     "evidently_project_id": cls.evidently_project_id,
                 },
                 results={"data_drift_test"},
-                artifacts={"evidently_report", "evidently_suite", "dashboard"},
+                artifacts={"evidently_report"},
             ),
             _AppData(
                 class_=ErrApp,

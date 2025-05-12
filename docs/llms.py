@@ -95,7 +95,9 @@ def extract_md_first_title(md_path):
             match = re.match(r"^#\s+(.+)", line.strip())
             if match:
                 # Return the title without any extra formatting or HTML comments
-                return re.sub(r"\s*<!--.*?-->", "", match.group(1)).strip()
+                return re.sub(
+                    r"\s*<!--.*?-->", "", match.group(1), flags=re.DOTALL
+                ).strip()
     raise Exception(f"No title found in file {md_path}")
 
 
@@ -128,7 +130,9 @@ def extract_ipynb_first_title(nb_path):
             for line in lines:
                 line = line.strip()
                 if line.startswith("# "):
-                    return re.sub(r"\s*<!--.*?-->", "", line[2:]).strip()
+                    return re.sub(
+                        r"\s*<!--.*?-->", "", line[2:], flags=re.DOTALL
+                    ).strip()
     raise Exception(f"No title found in file {nb_path}")
 
 

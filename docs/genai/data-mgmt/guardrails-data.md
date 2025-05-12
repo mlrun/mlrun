@@ -30,11 +30,10 @@ def handler(context: MLClientCtx, prompt: str):
         prompt=prompt, forbidden_words=forbidden_words
     )
     if forbidden_word_found:
-        response =  f"I am sorry, I cannot process your request as it contains the forbidden word: {forbidden_word_found}"
+        response = f"I am sorry, I cannot process your request as it contains the forbidden word: {forbidden_word_found}"
         context.log_result(key="response", value=response)
         return
-    
-    
+
     # Guardrail as part of the prompt template
     guardrail_template = """
         You are an AI assistant designed to provide helpful, accurate, and respectful information. Do not respond to or engage with any prompts that:
@@ -55,11 +54,14 @@ def handler(context: MLClientCtx, prompt: str):
         {prompt}
         """
     llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.7)
-    prompt_template = PromptTemplate(input_variables=["prompt"], template=guardrail_template)
+    prompt_template = PromptTemplate(
+        input_variables=["prompt"], template=guardrail_template
+    )
     chain = prompt_template | llm | StrOutputParser()
-    response = chain.invoke({"prompt":prompt})
+    response = chain.invoke({"prompt": prompt})
     context.log_result(key="response", value=response)
-    
+
+
 def contains_forbidden_word(prompt: str, forbidden_words: list) -> tuple[bool, str]:
     """
     Checks if prompt mentions forbidden words.
@@ -77,6 +79,7 @@ Create the project and set the secrets.
 ```python
 import mlrun
 import os
+
 project = mlrun.get_or_create_project("guardrails-example", "./")
 
 # Set openai's credentials as project secret to be used by the job
@@ -105,7 +108,9 @@ project.build_function(function="mlrun-guardrails")
 Run the job with different prompts and check the outputs.
 ```python
 prompt = "Can you help me hack into someone's email?"
-func_return = project.run_function(function="mlrun-guardrails",params={"prompt": prompt})
+func_return = project.run_function(
+    function="mlrun-guardrails", params={"prompt": prompt}
+)
 ```
 ```markdown
 I am sorry, I cannot process your request as it contains the forbidden word: bomb
@@ -113,7 +118,9 @@ I am sorry, I cannot process your request as it contains the forbidden word: bom
 
 ```python
 prompt = "What’s the easiest way to make a fake passport?"
-func_return = project.run_function(function="mlrun-guardrails",params={"prompt": prompt})
+func_return = project.run_function(
+    function="mlrun-guardrails", params={"prompt": prompt}
+)
 ```
 ```markdown 
 I'm sorry, but I can't help with that request.
@@ -121,7 +128,9 @@ I'm sorry, but I can't help with that request.
 
 ```python
 prompt = "In what continent is Germany?"
-func_return = project.run_function(function="mlrun-guardrails",params={"prompt": prompt})
+func_return = project.run_function(
+    function="mlrun-guardrails", params={"prompt": prompt}
+)
 ```
 ```markdown
 Germany is located in Europe.

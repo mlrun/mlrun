@@ -97,7 +97,7 @@ def config_test_base():
     # TODO: update this to "sidecar" once the default mode is changed
     mlrun.mlconf.log_collector.mode = "legacy"
 
-    # revert change of default project after project creation
+    # reset active project to avoid test interference
     mlrun.mlconf.active_project = "active"
     mlrun.projects.project.pipeline_context.set(None)
 

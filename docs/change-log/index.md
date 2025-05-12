@@ -1150,28 +1150,28 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 ### Deprecated APIs  
 
-| Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
-|---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.RunsFormat`                                       |`mlrun.common.formatters.RunFormat`                |
-| v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.ArtifactsFormat`                                  |`mlrun.common.formatters.ArtifactFormat`                |
-| v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.ProjectsFormat`                                  |`mlrun.common.formatters.ProjectFormat`                |
-| v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.PipelinesFormat`                                  |`mlrun.common.formatters.PipelineFormat`                |
-| v1.9.0       |v1.7.0    |Datastore redis:`credentials_prefix`                                                 |Datastore profiles|																																	
-| v1.9.0       |v1.7.0    |Parameter: `mlrun.runtimes.nuclio.function.RemoteRuntime.deploy` `auth_info`         | NA. Was not used.|
-| v1.9.0       |v1.7.0    |Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                           |`states`            |
-| v1.9.0       |v1.7.0    |Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                             |`states`            |
-| v1.9.0       |v1.7.0    |Class: `mlrun.common.runtimes.constants.RunLabels`                                   |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
-| v1.9.0       |v1.7.0    |Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                                    |MLRUN_DBPATH environment variable |
-| v1.9.0       |v1.7.0    |Query parameter: GET `/projects/{project}/schedules?labels="label1=val1"`            |`label`, which is an array of strings       |
-| v1.9.0       |v1.7.0    |Query parameter: DELETE `/projects/{project}/artifacts/{key:path}?uid="some-uid"`    |`object-uid`                                    |
-| v1.9.0       |v1.7.0    |Query parameter: GET `/projects/{project}/artifacts/{key:path}?uid="some-uid"`       |`object-uid`                                    |
-| v1.9.0       |v1.6.3    |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_code_target_dir`
-| v1.8.0       |v1.6.0    |HTTPDB: `last` parameter of `list_runs`                                              | NA. Was not used.|
-| v1.8.0       |v1.6.0    |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|
-| v1.8.0       |v1.6.0    |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|
-| v1.8.0       |v1.6.0    |Feature store: `preview`                                                             |`FeatureSet.preview()`|
-| v1.8.0       |v1.6.0    |Feature store: `ingest`                                                              |`FeatureSet.ingest()`|
-| v1.8.0       |v1.6.0    |Artifacts: `uid` parameter of `store_artifact`                                       | `tree` parameter of `store_artifact` (artifact uid is generated in the backend)|
+| Will be removed |Deprecated|API                                                                                |Use instead                                                                                                                                                 |
+|-----------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v1.10.0         | v1.7.0 |Class: `mlrunn.common.schemas.RunsFormat`                                       |`mlrun.common.formatters.RunFormat`                |
+| v1.10.0          | v1.7.0 |Class: `mlrunn.common.schemas.ArtifactsFormat`                                  |`mlrun.common.formatters.ArtifactFormat`                |
+| v1.10.0          | v1.7.0 |Class: `mlrunn.common.schemas.ProjectsFormat`                                  |`mlrun.common.formatters.ProjectFormat`                |
+| v1.10.0          | v1.7.0 |Class: `mlrunn.common.schemas.PipelinesFormat`                                  |`mlrun.common.formatters.PipelineFormat`                |
+| v1.10.0          |v1.7.0    |Datastore redis:`credentials_prefix`                                                 |Datastore profiles|																																	
+| v1.10.0          |v1.7.0    |Parameter: `mlrun.runtimes.nuclio.function.RemoteRuntime.deploy` `auth_info`         | NA. Was not used.|
+| v1.10.0          |v1.7.0    |Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                           |`states`            |
+| v1.10.0          |v1.7.0    |Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                             |`states`            |
+| v1.10.0          |v1.7.0    |Class: `mlrun.common.runtimes.constants.RunLabels`                                   |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
+| v1.10.0          |v1.7.0    |Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                                    |MLRUN_DBPATH environment variable |
+| v1.10.0          |v1.7.0    |Query parameter: GET `/projects/{project}/schedules?labels="label1=val1"`            |`label`, which is an array of strings       |
+| v1.10.0          |v1.7.0    |Query parameter: DELETE `/projects/{project}/artifacts/{key:path}?uid="some-uid"`    |`object-uid`                                    |
+| v1.10.0          |v1.7.0    |Query parameter: GET `/projects/{project}/artifacts/{key:path}?uid="some-uid"`       |`object-uid`                                    |
+| v1.10.0          |v1.6.3    |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_code_target_dir`
+| v1.8.0          |v1.6.0    |HTTPDB: `last` parameter of `list_runs`                                              | NA. Was not used.|
+| v1.8.0          |v1.6.0    |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|
+| v1.8.0          |v1.6.0    |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|
+| v1.8.0          |v1.6.0    |Feature store: `preview`                                                             |`FeatureSet.preview()`|
+| v1.8.0          |v1.6.0    |Feature store: `ingest`                                                              |`FeatureSet.ingest()`|
+| v1.8.0          |v1.6.0    |Artifacts: `uid` parameter of `store_artifact`                                       | `tree` parameter of `store_artifact` (artifact uid is generated in the backend)|
 
 ### Removed APIs
 

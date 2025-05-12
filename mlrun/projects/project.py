@@ -756,10 +756,10 @@ def _project_instance_from_struct(struct, name, allow_cross_project):
         )
 
         if allow_cross_project is None:
-            # TODO: Remove this warning in version 1.9.0 and also fix cli to support allow_cross_project
+            # TODO: Remove this warning in version 1.10.0 and also fix cli to support allow_cross_project
             warnings.warn(
                 f"Project {name=} is different than specified on the context's project yaml. "
-                "This behavior is deprecated and will not be supported from version 1.9.0."
+                "This behavior is deprecated and will not be supported from version 1.10.0."
             )
             logger.warn(error_message)
         elif allow_cross_project:
@@ -2478,9 +2478,9 @@ class MlrunProject(ModelObj):
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         """
         if default_controller_image != "mlrun/mlrun":
-            # TODO: Remove this in 1.9.0
+            # TODO: Remove this in 1.10.0
             warnings.warn(
-                "'default_controller_image' is deprecated and will be removed in 1.9.0, "
+                "'default_controller_image' is deprecated in 1.7.0 and will be removed in 1.10.0, "
                 "use 'image' instead",
                 FutureWarning,
             )
@@ -2860,10 +2860,10 @@ class MlrunProject(ModelObj):
 
         self.spec.set_function(name, function_object, func)
 
-    # TODO: Remove this in 1.10.0
+    # TODO: Remove this in 1.11.0
     @deprecated.deprecated(
         version="1.8.0",
-        reason="'remove_function' is deprecated and will be removed in 1.10.0. "
+        reason="'remove_function' is deprecated and will be removed in 1.11.0. "
         "Please use `delete_function` instead.",
         category=FutureWarning,
     )
@@ -2891,9 +2891,9 @@ class MlrunProject(ModelObj):
 
         :param name: name of the model-monitoring-function/s (under the project)
         """
-        # TODO: Remove this in 1.9.0
+        # TODO: Remove this in 1.10.0
         warnings.warn(
-            "'remove_model_monitoring_function' is deprecated and will be removed in 1.9.0. "
+            "'remove_model_monitoring_function' is deprecated in 1.7.0 and will be removed in 1.10.0. "
             "Please use `delete_model_monitoring_function` instead.",
             FutureWarning,
         )
@@ -4064,9 +4064,9 @@ class MlrunProject(ModelObj):
             (by default `/home/mlrun_code`)
         """
         if not overwrite_build_params:
-            # TODO: change overwrite_build_params default to True in 1.9.0
+            # TODO: change overwrite_build_params default to True in 1.10.0
             warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.9.0.",
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.10.0.",
                 mlrun.utils.OverwriteBuildParamsWarning,
             )
         default_image_name = mlrun.mlconf.default_project_image_name.format(
@@ -4141,9 +4141,9 @@ class MlrunProject(ModelObj):
             )
 
         if not overwrite_build_params:
-            # TODO: change overwrite_build_params default to True in 1.9.0
+            # TODO: change overwrite_build_params default to True in 1.10.0
             warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.9.0.",
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.10.0.",
                 mlrun.utils.OverwriteBuildParamsWarning,
             )
 
@@ -4322,7 +4322,7 @@ class MlrunProject(ModelObj):
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
         :param tree: Return artifacts of the requested tree.
-        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.10.0).
+        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
         :param format_: The format in which to return the artifacts. Default is 'full'.
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
@@ -4335,9 +4335,9 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
 
         if limit:
-            # TODO: Remove this in 1.10.0
+            # TODO: Remove this in 1.11.0
             warnings.warn(
-                "'limit' is deprecated and will be removed in 1.10.0. Use 'page' and 'page_size' instead.",
+                "'limit' is deprecated and will be removed in 1.11.0. Use 'page' and 'page_size' instead.",
                 FutureWarning,
             )
 
@@ -4467,7 +4467,7 @@ class MlrunProject(ModelObj):
             artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         :param tree: Return artifacts of the requested tree.
-        :param limit: Maximum number of artifacts to return.
+        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
         :param format_: The format in which to return the artifacts. Default is 'full'.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
@@ -4734,7 +4734,7 @@ class MlrunProject(ModelObj):
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
-        :param last: Deprecated - currently not used (will be removed in 1.9.0).
+        :param last: Deprecated - currently not used (will be removed in 1.10.0).
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
@@ -4745,9 +4745,9 @@ class MlrunProject(ModelObj):
         :param end_time_to: Filter by run end time in ``[end_time_from, end_time_to]``.
         """
         if state:
-            # TODO: Remove this in 1.9.0
+            # TODO: Remove this in 1.10.0
             warnings.warn(
-                "'state' is deprecated and will be removed in 1.9.0. Use 'states' instead.",
+                "'state' is deprecated in 1.7.0 and will be removed in 1.10.0. Use 'states' instead.",
                 FutureWarning,
             )
 

@@ -165,7 +165,7 @@ async def list_artifacts(
     limit: int = Query(
         None,
         deprecated=True,
-        description="Use page and page_size, will be removed in the 1.10.0",
+        description="Use page and page_size, will be removed in the 1.11.0",
     ),
     since: Optional[str] = None,
     until: Optional[str] = None,
@@ -191,7 +191,7 @@ async def list_artifacts(
         auth_info,
     )
 
-    # TODO: deprecate the limit parameter in the list_artifacts method in 1.10.0
+    # TODO: remove the limit parameter in the list_artifacts method in 1.11.0
     if limit and (page_size or page):
         raise mlrun.errors.MLRunConflictError(
             "'page/page_size' and 'limit' are conflicting, only one can be specified."
@@ -248,12 +248,12 @@ async def get_artifact(
     tag: Optional[str] = None,
     iter: Optional[int] = None,
     object_uid: str = Query(None, alias="object-uid"),
-    # TODO: remove deprecated uid parameter in 1.9.0
+    # TODO: remove deprecated uid parameter in 1.10.0
     # we support both uid and object-uid for backward compatibility
     uid: str = Query(
         None,
         deprecated=True,
-        description="Use object-uid instead, will be removed in the 1.9.0",
+        description="Use object-uid instead, will be removed in the 1.10.0",
     ),
     format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
@@ -303,12 +303,12 @@ async def delete_artifact(
     tree: Optional[str] = None,
     tag: Optional[str] = None,
     object_uid: str = Query(None, alias="object-uid"),
-    # TODO: remove deprecated uid parameter in 1.9.0
+    # TODO: remove deprecated uid parameter in 1.10.0
     # we support both uid and object-uid for backward compatibility
     uid: str = Query(
         None,
         deprecated=True,
-        description="Use object-uid instead, will be removed in the 1.9.0",
+        description="Use object-uid instead, will be removed in the 1.10.0",
     ),
     iteration: int = Query(None, alias="iter"),
     deletion_strategy: ArtifactsDeletionStrategies = ArtifactsDeletionStrategies.metadata_only,

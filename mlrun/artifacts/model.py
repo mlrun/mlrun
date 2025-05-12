@@ -152,9 +152,9 @@ class ModelArtifact(Artifact):
     ):
         if key or body or format or target_path:
             warnings.warn(
-                "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
+                "Artifact constructor parameters are deprecated in 1.7.0 and will be removed in 1.10.0. "
                 "Use the metadata and spec parameters instead.",
-                DeprecationWarning,
+                FutureWarning,
             )
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         model_file = str(model_file or "")

@@ -37,9 +37,9 @@ class PlotArtifact(Artifact):
     ):
         if key or body or is_inline or target_path:
             warnings.warn(
-                "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
+                "Artifact constructor parameters are deprecated in 1.7.0 and will be removed in 1.10.0. "
                 "Use the metadata and spec parameters instead.",
-                DeprecationWarning,
+                FutureWarning,
             )
         super().__init__(key, body, format="html", target_path=target_path)
         self.metadata.description = title
@@ -96,9 +96,9 @@ class PlotlyArtifact(Artifact):
         """
         if key or target_path:
             warnings.warn(
-                "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
+                "Artifact constructor parameters are deprecated in 1.7.0 and will be removed in 1.10.0. "
                 "Use the metadata and spec parameters instead.",
-                DeprecationWarning,
+                FutureWarning,
             )
         # Validate the plotly package:
         try:

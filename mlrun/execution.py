@@ -976,7 +976,7 @@ class MLClientCtx:
     def get_cached_artifact(self, key):
         """Return a logged artifact from cache (for potential updates)"""
         warnings.warn(
-            "get_cached_artifact is deprecated in 1.8.0 and will be removed in 1.10.0. Use get_artifact instead.",
+            "get_cached_artifact is deprecated in 1.8.0 and will be removed in 1.11.0. Use get_artifact instead.",
             FutureWarning,
         )
         return self.get_artifact(key)

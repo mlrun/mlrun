@@ -118,7 +118,7 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
 
     def __init__(
         self,
-        evidently_project_id: "STR_UUID",
+        evidently_project_id: Optional["STR_UUID"] = None,
         evidently_workspace_path: Optional[str] = None,
         cloud_workspace: bool = False,
         evidently_organization_id: Optional["OrgID"] = None,
@@ -142,6 +142,7 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         self.evidently_project = _create_evidently_project(
             self.evidently_workspace, self.evidently_project_id, org_id=self.org_id
         )
+        self.evidently_project_id = self.evidently_project.id
 
     def do_tracking(
         self, monitoring_context: mm_context.MonitoringApplicationContext

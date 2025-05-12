@@ -17,6 +17,7 @@ import typing
 
 import mlrun.common.constants as mlrun_constants
 import mlrun_pipelines.common.models
+from deprecated import deprecated
 
 
 class PodPhases:
@@ -238,6 +239,11 @@ class RunStates:
 
 
 # TODO: remove this class in 1.10.0 - use only MlrunInternalLabels
+@deprecated(
+    version="1.7.0",
+    reason="This class is deprecated and will be removed in 1.10.0. Use MLRunInternalLabels instead.",
+    category=FutureWarning,
+)
 class RunLabels(enum.Enum):
     owner = mlrun_constants.MLRunInternalLabels.owner
     v3io_user = mlrun_constants.MLRunInternalLabels.v3io_user

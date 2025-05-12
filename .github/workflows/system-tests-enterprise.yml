@@ -14,9 +14,6 @@
 
 name: System Tests Enterprise
 
-permissions:
-  contents: read
-
 on:
   push:
     branches:

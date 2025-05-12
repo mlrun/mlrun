@@ -62,7 +62,6 @@ extensions = [
     "sphinx_reredirects",
     "versionwarning.extension",
     "sphinxcontrib.mermaid",
-    "sphinx_image_inverter",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -191,9 +190,6 @@ redirects = {
 }
 
 smartquotes = False
-
-# Do not invert all images by default in dark mode
-inverter_all = False
 
 linkcheck_ignore = [
     # Ignore all the links to local files

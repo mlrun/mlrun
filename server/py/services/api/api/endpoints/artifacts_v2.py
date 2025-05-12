@@ -165,7 +165,7 @@ async def list_artifacts(
     limit: int = Query(
         None,
         deprecated=True,
-        description="Use page and page_size, will be removed in the 1.11.0",
+        description="Use page and page_size, will be removed in the 1.10.0",
     ),
     since: Optional[str] = None,
     until: Optional[str] = None,
@@ -191,7 +191,7 @@ async def list_artifacts(
         auth_info,
     )
 
-    # TODO: remove the limit parameter in the list_artifacts method in 1.11.0
+    # TODO: deprecate the limit parameter in the list_artifacts method in 1.10.0
     if limit and (page_size or page):
         raise mlrun.errors.MLRunConflictError(
             "'page/page_size' and 'limit' are conflicting, only one can be specified."

@@ -105,7 +105,9 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         :param artifact_path:    Artifact path for the run.
         :return: RunObject with run metadata, results, and status.
         """
-        self._enrich_run_labels_and_env(labels, runner)
+        mlrun.runtimes.utils.enrich_run_labels(
+            labels, [mlrun.common.runtimes.constants.RunLabels.owner]
+        )
 
         run_object = self._prepare_run_object(
             project=project,
@@ -232,21 +234,6 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
             run_object = run_object.set_label(key, value)
         return run_object
 
-    @staticmethod
-    def _enrich_run_labels_and_env(labels: dict, runner: mlrun.run.KubejobRuntime):
-        mlrun.runtimes.utils.enrich_run_labels(
-            labels,
-            [mlrun_constants.MLRunInternalLabels.owner],
-        )
-        client_python_version = runner.metadata.labels.get(
-            mlrun_constants.MLRunInternalLabels.client_python_version
-        )
-        # TODO: Remove this when KFP 1 support is removed
-        # Until KFP 2 - The runner always runs with python 3.9 therefore we need to explicitly
-        # specify the user client python version
-        if client_python_version:
-            runner.set_env("MLRUN_PYTHON_VERSION", client_python_version)
-
 
 class LoadRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
     """
@@ -268,7 +255,7 @@ class LoadRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         :return: RunObject with run metadata, results, and status.
         """
         labels = {
-            mlrun_constants.MLRunInternalLabels.project: project.metadata.name,
+            "project": project.metadata.name,
             mlrun_constants.MLRunInternalLabels.job_type: JOB_TYPE_PROJECT_LOADER,
         }
 
@@ -369,7 +356,6 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             mlrun_constants.MLRunInternalLabels.job_type: JOB_TYPE_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: workflow_request.spec.name,
         }
-        self._enrich_run_labels_and_env(labels, runner)
 
         # Generate unique UID
         meta_uid = uuid.uuid4().hex
@@ -430,7 +416,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         :return: RunObject with run metadata, results, and status.
         """
         labels = {
-            mlrun_constants.MLRunInternalLabels.project: project.metadata.name,
+            "project": project.metadata.name,
             mlrun_constants.MLRunInternalLabels.job_type: JOB_TYPE_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: runner.metadata.name,
         }

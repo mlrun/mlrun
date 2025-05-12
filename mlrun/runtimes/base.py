@@ -499,7 +499,7 @@ class BaseRuntime(ModelObj):
     def _store_function(self, runspec, meta, db):
         meta.labels["kind"] = self.kind
         mlrun.runtimes.utils.enrich_run_labels(
-            meta.labels, [mlrun_constants.MLRunInternalLabels.owner]
+            meta.labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(

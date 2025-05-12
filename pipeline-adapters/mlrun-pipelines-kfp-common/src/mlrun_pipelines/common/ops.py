@@ -174,12 +174,11 @@ def mlrun_op(
     """
     from mlrun_pipelines.ops import generate_pipeline_node
 
-    # TODO: remove in 1.10.0
     if rundb:
         warnings.warn(
-            "rundb parameter is deprecated and will be removed in 1.10.0. "
+            "rundb parameter is deprecated and will be removed in 1.9.0. "
             "use 'MLRUN_DBPATH' env instead.",
-            FutureWarning,
+            DeprecationWarning,
         )
 
     secrets = [] if secrets is None else secrets

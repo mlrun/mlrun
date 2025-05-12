@@ -69,7 +69,7 @@ gen_func = code_to_function(
 train_iris_func = project.set_function(gen_func).apply(auto_mount())
 
 train_iris = train_iris_func.run(
-    name="train_iris", handler="train_iris", output_path=output_path
+    name="train_iris", handler="train_iris", artifact_path=artifact_path
 )
 ```
 
@@ -130,7 +130,7 @@ run = func.run(
         "models_path": train_iris.outputs["model"],
         "test_set": "https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv",
     },
-    output_path=output_path,
+    artifact_path=artifact_path,
 )
 ```
 

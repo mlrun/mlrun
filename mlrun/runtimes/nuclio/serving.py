@@ -685,6 +685,8 @@ class ServingRuntime(RemoteRuntime):
         if not self.spec.graph:
             raise ValueError("nothing to deploy, .spec.graph is none, use .add_model()")
 
+        self.add_model_runner_error_handler()
+
         if self.spec.graph.kind != StepKinds.router and not getattr(
             self, "_is_child_function", None
         ):

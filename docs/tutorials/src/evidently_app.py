@@ -38,6 +38,7 @@ if _HAS_EVIDENTLY:
     from evidently.sdk.panels import DashboardPanelPlot
     from evidently.ui.workspace import (
         STR_UUID,
+        OrgID,
         Project,
         ProjectModel,
         WorkspaceBase,
@@ -47,15 +48,17 @@ if _HAS_EVIDENTLY:
     _PROJECT_DESCRIPTION = "Test project using iris dataset"
 
     def _create_evidently_project(
-        workspace: WorkspaceBase, id: Optional[UUID] = None
+        workspace: WorkspaceBase,
+        id: Optional[UUID] = None,
+        org_id: Optional[OrgID] = None,
     ) -> Project:
         if id:
             project = ProjectModel(
                 name=_PROJECT_NAME, description=_PROJECT_DESCRIPTION, id=id
             )
-            project = workspace.add_project(project)
+            project = workspace.add_project(project, org_id=org_id)
         else:
-            project = workspace.create_project(_PROJECT_NAME)
+            project = workspace.create_project(_PROJECT_NAME, org_id=org_id)
         project.description = _PROJECT_DESCRIPTION
         project.dashboard.add_panel(
             DashboardPanelPlot(
@@ -118,7 +121,9 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         evidently_project_id: "STR_UUID",
         evidently_workspace_path: Optional[str] = None,
         cloud_workspace: bool = False,
+        evidently_organization_id: Optional["OrgID"] = None,
     ) -> None:
+        self.org_id = evidently_organization_id
         self._init_iris_data()
         super().__init__(
             evidently_project_id=evidently_project_id,
@@ -135,7 +140,7 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         if isinstance(self.evidently_project_id, str):
             self.evidently_project_id = UUID(self.evidently_project_id)
         self.evidently_project = _create_evidently_project(
-            self.evidently_workspace, self.evidently_project_id
+            self.evidently_workspace, self.evidently_project_id, org_id=self.org_id
         )
 
     def do_tracking(

@@ -19,3 +19,4 @@ def test_dummy_compiler_calls():
     expected_compiler = container.Compiler()
     result_compiler = expected_compiler()
     assert expected_compiler == result_compiler
+    result_compiler.compile(a="test")

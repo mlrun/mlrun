@@ -96,7 +96,9 @@ class _PushToMonitoringWriter(StepToDict):
             logger.debug(
                 "Pushing data to output stream", writer_event=str(writer_event)
             )
-            self.output_stream.push([writer_event])
+            self.output_stream.push(
+                [writer_event], partition_key=application_context.endpoint_id
+            )
             logger.debug("Pushed data to output stream successfully")
 
     def _lazy_init(self):

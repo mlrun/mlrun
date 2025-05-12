@@ -91,7 +91,7 @@ def test_local_context(rundb_mock):
         context.set_annotation("annotation-key", "annotation-value")
         context._set_input("input-key", "input-url")
 
-        artifact = context.get_cached_artifact("xx")
+        artifact = context.get_artifact("xx")
         artifact.format = "z"
         context.update_artifact(artifact)
 

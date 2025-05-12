@@ -51,6 +51,8 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
     ):
         command, args, extra_env = self._get_cmd_args(runtime, run)
         run_node_selector = run.spec.node_selector
+        run_tolerations = run.spec.tolerations
+        run_affinity = run.spec.affinity
 
         if run.metadata.iteration:
             runtime.store_run(run)
@@ -77,6 +79,8 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
             workdir,
             self._get_lifecycle(),
             node_selector=run_node_selector,
+            toleration=run_tolerations,
+            affinity=run_affinity,
         )
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
@@ -248,6 +252,8 @@ def func_to_pod(
     workdir=None,
     lifecycle=None,
     node_selector=None,
+    toleration=None,
+    affinity=None,
 ):
     container = client.V1Container(
         name="base",
@@ -263,7 +269,7 @@ def func_to_pod(
     )
 
     pod_spec = framework.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
-        runtime.spec, container, node_selector
+        runtime.spec, container, node_selector, toleration, affinity
     )
 
     if runtime.spec.image_pull_secret:

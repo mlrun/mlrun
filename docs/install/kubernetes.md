@@ -9,6 +9,7 @@ These instructions install the community edition, which currently includes MLRun
 - [Prerequisites](#prerequisites)
 - [Community Edition flavors](#community-edition-flavors)
 - [Installing the chart](#installing-the-chart)
+- [Configuring TDengine and Kafka for model monitoring](#configuring-tdengine-and-kafka-for-model-monitoring)
 - [Configuring the online features store](#configuring-the-online-feature-store)
 - [Usage](#usage)
 - [Start working](#start-working)
@@ -48,11 +49,11 @@ The MLRun CE (Community Edition) includes the following components:
 * MPI Operator - https://github.com/kubeflow/mpi-operator
 * MinIO - https://github.com/minio/minio/tree/master/helm/minio
 * Spark Operator - https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
-* Pipelines - https://github.com/kubeflow/pipelines
 * Prometheus stack - https://github.com/prometheus-community/helm-charts
   - Prometheus
   - Grafana
-
+  
+[KFP Pipelines](https://github.com/kubeflow/pipelines) is optional. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images).
 
 <a id="installing-the-chart"></a>
 ## Installing the chart
@@ -154,6 +155,54 @@ When the installation is complete, the helm command prints the URLs and ports of
 - An issue with Prometheus node selector. The workaround for now is to opt out of kube-prometheus-stack by installing the chart with the `--set kube-prometheus-stack.enabled=false`.
 ```
 
+## Configuring the user Jupyter conda environment
+
+Run this in your Jupyter terminal, where `myenv` is the name of your environment:
+
+```bash
+# Create the virtual environment
+conda create -n myenv python=3.9 -y
+
+# Activate the virtual environment
+conda activate myenv
+
+# Make sure that ipykernel is installed
+pip install --user ipykernel
+
+# Add the new virtual environment to Jupyter
+python -m ipykernel install --user --name myenv --display-name "Python (myenv)"
+```
+
+## Configuring TDengine and Kafka for model monitoring
+TDengine and Kafka are part of the default CE installations. These are the default TDengine and Kafka installation values. It's recommended to change the user/password.
+
+```py
+# Create and register TSDB profile
+tsdb_profile = DatastoreProfileTDEngine(
+    name="my-tdengine",
+    host="<tdengine-server-ip-address>",
+    port=6041,
+    user="username",
+    password="<tdengine-password>",
+)
+project.register_datastore_profile(tsdb_profile)
+
+# Create and register stream profile
+stream_profile = DatastoreProfileKafkaSource(
+    name="my-kafka",
+    brokers=["<kafka-broker-ip-address>:9094"],
+    topics=[],
+)
+
+# Set model monitoring credentials and enable the infrastructure
+project.set_model_monitoring_credentials(
+    tsdb_profile_name=tsdb_profile.name,
+    stream_profile_name=stream_profile.name,
+)
+```
+
+See more details, including additional configuration options, in {py:class}`mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
+
 ## Configuring the online feature store
 The MLRun Community Edition supports the online feature store. To enable it, you need to first deploy a Redis service that is accessible to your MLRun CE cluster.
 To deploy a Redis service, refer to the [Redis documentation](https://redis.io/learn/howtos/quick-start).
@@ -186,6 +235,10 @@ a minute for all services to start.
 You can change the ports by providing values to the helm install command.
 You can add and configure a Kubernetes ingress-controller for better security and control over external access.
 ```
+
+
+## Optional additional packages
+To run local Spark jobs on the MLRun CE Jupyter, install PySpark.
 
 ## Start working
     

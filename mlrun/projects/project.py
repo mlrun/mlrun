@@ -471,7 +471,7 @@ def get_or_create_project(
     allow_cross_project: Optional[bool] = None,
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if it does not exist.
-    The project will become the default project for the current session.
+    The project will become the active project for the current session.
 
     MLRun looks for a project.yaml file with project definition and objects in the project root path
     and use it to initialize the project, in addition it runs the project_setup.py file (if it exists)

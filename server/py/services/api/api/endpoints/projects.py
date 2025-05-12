@@ -464,7 +464,7 @@ async def load_project(
     )
 
     # We must create the project before we run the remote load_project function because
-    # we want this function will be running under the project itself instead of the default project.
+    # we want this function will be running under the project itself instead of the active project.
     project, _ = await fastapi.concurrency.run_in_threadpool(
         get_project_member().create_project,
         db_session=db_session,

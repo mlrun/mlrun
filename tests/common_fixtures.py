@@ -15,7 +15,6 @@
 import inspect
 import os
 import shutil
-import tempfile
 import unittest
 from datetime import datetime
 from http import HTTPStatus
@@ -785,17 +784,13 @@ def rundb_mock() -> RunDBMock:
     orig_db_path = config.dbpath
     config.dbpath = "http://localhost:12345"
 
-    # Create the default project to mimic real MLRun DB (the default project is always available for use):
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        mlrun.get_or_create_project("active", context=tmp_dir, allow_cross_project=True)
+    yield mock_object
 
-        yield mock_object
-
-        # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
-        mlrun.db.get_run_db = orig_get_run_db
-        mlrun.get_run_db = orig_get_run_db
-        BaseRuntime._get_db = orig_get_db
-        config.dbpath = orig_db_path
+    # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
+    mlrun.db.get_run_db = orig_get_run_db
+    mlrun.get_run_db = orig_get_run_db
+    BaseRuntime._get_db = orig_get_db
+    config.dbpath = orig_db_path
 
 
 class RemoteBuilderMock(RunDBMock):

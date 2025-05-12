@@ -3796,7 +3796,7 @@ class MlrunProject(ModelObj):
         top_level: bool = False,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """

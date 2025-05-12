@@ -14,19 +14,18 @@
 
 import json
 import posixpath
-import uuid
 import warnings
 from abc import ABC
+from tempfile import NamedTemporaryFile
+from typing import Optional
 
-import pandas as pd
 import semver
-from evidently.ui.storage.local.base import METADATA_PATH, FSLocation
 
 import mlrun.model_monitoring.applications.base as mm_base
 import mlrun.model_monitoring.applications.context as mm_context
-from mlrun.errors import MLRunIncompatibleVersionError
+from mlrun.errors import MLRunIncompatibleVersionError, MLRunValueError
 
-SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.6.0")
+SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.7.5")
 
 
 def _check_evidently_version(*, cur: semver.Version, ref: semver.Version) -> None:
@@ -60,36 +59,65 @@ except ModuleNotFoundError:
 
 
 if _HAS_EVIDENTLY:
-    from evidently.suite.base_suite import Display
-    from evidently.ui.type_aliases import STR_UUID
-    from evidently.ui.workspace import Workspace
-    from evidently.utils.dashboard import TemplateParams, file_html_template
+    from evidently.core.report import Snapshot
+    from evidently.legacy.ui.storage.local.base import METADATA_PATH, FSLocation
+    from evidently.ui.workspace import (
+        STR_UUID,
+        CloudWorkspace,
+        Workspace,
+        WorkspaceBase,
+    )
 
 
 class EvidentlyModelMonitoringApplicationBase(
     mm_base.ModelMonitoringApplicationBase, ABC
 ):
     def __init__(
-        self, evidently_workspace_path: str, evidently_project_id: "STR_UUID"
+        self,
+        evidently_project_id: "STR_UUID",
+        evidently_workspace_path: Optional[str] = None,
+        cloud_workspace: bool = False,
     ) -> None:
         """
-        A class for integrating Evidently for mlrun model monitoring within a monitoring application.
-        Note: evidently is not installed by default in the mlrun/mlrun image.
-        It must be installed separately to use this class.
+        A class for integrating Evidently for MLRun model monitoring within a monitoring application.
 
-        :param evidently_workspace_path:    (str) The path to the Evidently workspace.
+        .. note::
+
+            The ``evidently`` package is not installed by default in the mlrun/mlrun image.
+            It must be installed separately to use this class.
+
         :param evidently_project_id:        (str) The ID of the Evidently project.
+        :param evidently_workspace_path:    (str) The path to the Evidently workspace.
+        :param cloud_workspace:             (bool) Whether the workspace is an Evidently Cloud workspace.
         """
 
         # TODO : more then one project (mep -> project)
         if not _HAS_EVIDENTLY:
             raise ModuleNotFoundError("Evidently is not installed - the app cannot run")
-        self._log_location(evidently_workspace_path)
-        self.evidently_workspace = Workspace.create(evidently_workspace_path)
+        self.evidently_workspace_path = evidently_workspace_path
+        if cloud_workspace:
+            self.get_workspace = self.get_cloud_workspace
+        self.evidently_workspace = self.get_workspace()
         self.evidently_project_id = evidently_project_id
         self.evidently_project = self.evidently_workspace.get_project(
             evidently_project_id
         )
+
+    def get_workspace(self) -> WorkspaceBase:
+        """Get the Evidently workspace. Override this method for customize access to the workspace."""
+        if self.evidently_workspace_path:
+            self._log_location(self.evidently_workspace_path)
+            self.evidently_workspace = Workspace.create(self.evidently_workspace_path)
+        else:
+            raise MLRunValueError(
+                "A local workspace could not be created as `evidently_workspace_path` is not set.\n"
+                "If you intend to use a cloud workspace, please use `cloud_workspace=True` and set the "
+                "`EVIDENTLY_API_KEY` environment variable. In other cases, override this method."
+            )
+
+    def get_cloud_workspace(self) -> CloudWorkspace:
+        """Load the Evidently cloud workspace according to the `EVIDENTLY_API_KEY` environment variable."""
+        return CloudWorkspace()
 
     @staticmethod
     def _log_location(evidently_workspace_path):
@@ -128,7 +156,7 @@ class EvidentlyModelMonitoringApplicationBase(
     @staticmethod
     def log_evidently_object(
         monitoring_context: mm_context.MonitoringApplicationContext,
-        evidently_object: "Display",
+        evidently_object: "Snapshot",
         artifact_name: str,
         unique_per_endpoint: bool = True,
     ) -> None:
@@ -141,56 +169,15 @@ class EvidentlyModelMonitoringApplicationBase(
             This method should be called on special occasions only.
 
         :param monitoring_context:  (MonitoringApplicationContext) The monitoring context to process.
-        :param evidently_object:    (Display) The Evidently display to log, e.g. a report or a test suite object.
+        :param evidently_object:    (Snapshot) The Evidently run to log, e.g. a report run.
         :param artifact_name:       (str) The name for the logged artifact.
         :param unique_per_endpoint: by default ``True``, we will log different artifact for each model endpoint,
                                     set to ``False`` without changing item key will cause artifact override.
         """
-        evidently_object_html = evidently_object.get_html()
-        monitoring_context.log_artifact(
-            artifact_name,
-            body=evidently_object_html.encode("utf-8"),
-            format="html",
-            unique_per_endpoint=unique_per_endpoint,
-        )
-
-    def log_project_dashboard(
-        self,
-        monitoring_context: mm_context.MonitoringApplicationContext,
-        timestamp_start: pd.Timestamp,
-        timestamp_end: pd.Timestamp,
-        artifact_name: str = "dashboard",
-        unique_per_endpoint: bool = True,
-    ) -> None:
-        """
-        Logs an Evidently project dashboard.
-
-        .. caution::
-
-            Logging Evidently dashboards in every model monitoring window may cause scale issues.
-            This method should be called on special occasions only.
-
-        :param monitoring_context:  (MonitoringApplicationContext) The monitoring context to process.
-        :param timestamp_start:     (pd.Timestamp) The start timestamp for the dashboard data.
-        :param timestamp_end:       (pd.Timestamp) The end timestamp for the dashboard data.
-        :param artifact_name:       (str) The name for the logged artifact.
-        :param unique_per_endpoint: by default ``True``, we will log different artifact for each model endpoint,
-                                    set to ``False`` without changing item key will cause artifact override.
-        """
-
-        dashboard_info = self.evidently_project.build_dashboard_info(
-            timestamp_start, timestamp_end
-        )
-        template_params = TemplateParams(
-            dashboard_id="pd_" + str(uuid.uuid4()).replace("-", ""),
-            dashboard_info=dashboard_info,
-            additional_graphs={},
-        )
-
-        dashboard_html = file_html_template(params=template_params)
-        monitoring_context.log_artifact(
-            artifact_name,
-            body=dashboard_html.encode("utf-8"),
-            format="html",
-            unique_per_endpoint=unique_per_endpoint,
-        )
+        with NamedTemporaryFile(suffix=".html") as file:
+            evidently_object.save_html(filename=file.name)
+            monitoring_context.log_artifact(
+                artifact_name,
+                local_path=file.name,
+                unique_per_endpoint=unique_per_endpoint,
+            )

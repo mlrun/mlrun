@@ -119,26 +119,24 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         evidently_workspace_path: Optional[str] = None,
         cloud_workspace: bool = False,
     ) -> None:
+        self._init_iris_data()
         super().__init__(
             evidently_project_id=evidently_project_id,
             evidently_workspace_path=evidently_workspace_path,
             cloud_workspace=cloud_workspace,
         )
-        self._init_evidently_project()
-        self._init_iris_data()
 
     def _init_iris_data(self) -> None:
         iris = load_iris()
         self.columns = [norm_column_name(col) for col in iris.feature_names]
         self.train_set = pd.DataFrame(iris.data, columns=self.columns)
 
-    def _init_evidently_project(self) -> None:
-        if self.evidently_project is None:
-            if isinstance(self.evidently_project_id, str):
-                self.evidently_project_id = UUID(self.evidently_project_id)
-            self.evidently_project = _create_evidently_project(
-                self.evidently_workspace, self.evidently_project_id
-            )
+    def load_project(self) -> None:
+        if isinstance(self.evidently_project_id, str):
+            self.evidently_project_id = UUID(self.evidently_project_id)
+        self.evidently_project = _create_evidently_project(
+            self.evidently_workspace, self.evidently_project_id
+        )
 
     def do_tracking(
         self, monitoring_context: mm_context.MonitoringApplicationContext

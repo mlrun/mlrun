@@ -76,6 +76,11 @@ class DummyCompiler:
             self._warn_once_about_kfp()
             logger.debug("[NoOp] _create_workflow called.")
 
+        def __call__(
+            self, pipeline_func: Callable[..., Any], package_path: str
+        ) -> None:
+            raise NotImplementedError("KFP is not installed, cannot compile pipeline.")
+
 
 class DummyRunPipelineResult:
     def get_output_file(self, op_name: str, output: Optional[str] = None) -> str:

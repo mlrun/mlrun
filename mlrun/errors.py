@@ -256,6 +256,21 @@ class MLRunFatalFailureError(Exception):
         self.original_exception = original_exception
 
 
+class ModelRunnerException(MLRunBaseError):
+    def __init__(self, models_errors: dict[str:str], *args) -> None:
+        super().__init__(*args)
+        self.models_errors = models_errors
+
+    def __repr__(self):
+        return f"ModelRunnerException: {repr(self.models_errors)}"
+
+    def get_errors(self):
+        return self.models_errors
+
+    def get_model_error(self, model: str):
+        return self.models_errors.get(model)
+
+
 STATUS_ERRORS = {
     HTTPStatus.BAD_REQUEST.value: MLRunBadRequestError,
     HTTPStatus.UNAUTHORIZED.value: MLRunUnauthorizedError,

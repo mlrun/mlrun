@@ -637,6 +637,28 @@ class ServingRuntime(RemoteRuntime):
         self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 
+    def add_model_runner_error_handler(self):
+        model_runner_raisers = {}
+        for step in self.spec.graph.steps:
+            if isinstance(step, mlrun.serving.states.ModelRunnerStep):
+                error_step = step.to(
+                    "ModelRunnerErrorRaise",
+                    f"{step.name}_error_raise",
+                    class_args={
+                        "raise_exception": step._raise_error,
+                        "models_names": list(step.class_args["models"].keys()),
+                    },
+                )
+                model_runner_raisers[step.name] = error_step
+                error_step.on_error = step.on_error
+            if isinstance(step.after, list):
+                for i in range(len(step.after)):
+                    if step.after[i].name in model_runner_raisers:
+                        step.after[i] = model_runner_raisers[step.after[i].name]
+            else:
+                if step.after.name in model_runner_raisers:
+                    step.after = model_runner_raisers[step.after.name]
+
     @min_nuclio_versions("1.12.10")
     def deploy(
         self,

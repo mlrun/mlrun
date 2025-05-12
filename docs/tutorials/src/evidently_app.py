@@ -23,6 +23,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
 )
+from mlrun.feature_store.api import norm_column_name
 from mlrun.model_monitoring.applications import ModelMonitoringApplicationResult
 from mlrun.model_monitoring.applications.evidently import (
     _HAS_EVIDENTLY,
@@ -31,14 +32,8 @@ from mlrun.model_monitoring.applications.evidently import (
 
 if _HAS_EVIDENTLY:
     from evidently.core.report import Report, Snapshot
-    from evidently.legacy.metrics import (
-        ColumnDriftMetric,
-        ColumnSummaryMetric,
-        DatasetDriftMetric,
-        DatasetMissingValuesMetric,
-    )
-    from evidently.legacy.test_preset import DataDriftTestPreset
-    from evidently.legacy.test_suite import TestSuite
+    from evidently.metrics import DatasetMissingValueCount, ValueDrift
+    from evidently.presets import DataDriftPreset, DataSummaryPreset
     from evidently.sdk.models import PanelMetric
     from evidently.sdk.panels import DashboardPanelPlot
     from evidently.ui.workspace import (
@@ -87,7 +82,7 @@ if _HAS_EVIDENTLY:
                 title="Share of Drifted Features",
                 subtitle="Measure the drift of the features.",
                 size="full",
-                values=[PanelMetric(metric="DatasetDriftMetric", legend="share")],
+                values=[PanelMetric(metric="DataDriftPreset", legend="share")],
                 plot_params={"plot_type": "counter", "aggregation": "last"},
             ),
             tab="tab 0",
@@ -99,7 +94,7 @@ if _HAS_EVIDENTLY:
                 size="full",
                 values=[
                     PanelMetric(
-                        metric="DatasetDriftMetric",
+                        metric="DataDriftPreset",
                         legend="Drift Share",
                     ),
                     PanelMetric(
@@ -130,15 +125,12 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
             cloud_workspace=cloud_workspace,
         )
         self._init_evidently_project()
-        self.train_set = None
+        self._init_iris_data()
 
-    def _init_iris_data(
-        self, monitoring_context: mm_context.MonitoringApplicationContext
-    ) -> None:
-        if self.train_set is None:
-            iris = load_iris()
-            self.columns = monitoring_context.feature_names
-            self.train_set = pd.DataFrame(iris.data, columns=self.columns)
+    def _init_iris_data(self) -> None:
+        iris = load_iris()
+        self.columns = [norm_column_name(col) for col in iris.feature_names]
+        self.train_set = pd.DataFrame(iris.data, columns=self.columns)
 
     def _init_evidently_project(self) -> None:
         if self.evidently_project is None:
@@ -149,10 +141,8 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
             )
 
     def do_tracking(
-        self,
-        monitoring_context: mm_context.MonitoringApplicationContext,
+        self, monitoring_context: mm_context.MonitoringApplicationContext
     ) -> ModelMonitoringApplicationResult:
-        self._init_iris_data(monitoring_context)
         monitoring_context.logger.info("Running evidently app")
 
         sample_df = monitoring_context.sample_df[self.columns]
@@ -164,20 +154,10 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
             self.evidently_project_id, data_drift_report_run
         )
 
-        data_drift_test_suite_run = self.create_test_suite_run(
-            sample_df, monitoring_context.end_infer_time
-        )
-        self.evidently_workspace.add_run(
-            self.evidently_project_id, data_drift_test_suite_run
-        )
-
         self.log_evidently_object(
             monitoring_context, data_drift_report_run, "evidently_report"
         )
-        self.log_evidently_object(
-            monitoring_context, data_drift_test_suite_run, "evidently_suite"
-        )
-        monitoring_context.logger.info("Logged evidently objects")
+        monitoring_context.logger.info("Logged evidently object")
 
         return ModelMonitoringApplicationResult(
             name="data_drift_test",
@@ -190,34 +170,23 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         self, sample_df: pd.DataFrame, schedule_time: pd.Timestamp
     ) -> "Snapshot":
         metrics = [
-            DatasetDriftMetric(),
-            DatasetMissingValuesMetric(),
+            DataDriftPreset(),
+            DatasetMissingValueCount(),
+            DataSummaryPreset(),
         ]
-        for col_name in self.columns:
-            metrics.extend(
-                [
-                    ColumnDriftMetric(column_name=col_name, stattest="wasserstein"),
-                    ColumnSummaryMetric(column_name=col_name),
-                ]
-            )
+        metrics.extend(
+            [
+                ValueDrift(column=col_name, method="wasserstein")
+                for col_name in self.columns
+            ]
+        )
 
         data_drift_report = Report(
             metrics=metrics,
             metadata={"timestamp": str(schedule_time)},
+            include_tests=True,
         )
 
         return data_drift_report.run(
-            reference_data=self.train_set, current_data=sample_df
-        )
-
-    def create_test_suite_run(
-        self, sample_df: pd.DataFrame, schedule_time: pd.Timestamp
-    ) -> "Snapshot":
-        data_drift_test_suite = TestSuite(
-            tests=[DataDriftTestPreset()],
-            timestamp=schedule_time,
-        )
-
-        return data_drift_test_suite.run(
-            reference_data=self.train_set, current_data=sample_df
+            current_data=sample_df, reference_data=self.train_set
         )

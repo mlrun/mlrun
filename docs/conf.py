@@ -13,7 +13,7 @@
 
 import re
 import sys
-from os import path, environ
+from os import environ, path
 
 sys.path.insert(0, "..")
 

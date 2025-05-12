@@ -36,7 +36,7 @@ The MLRun client supports:
 
 1.  **Basic** <br> 
 Run ```pip install mlrun```
-<br>This installs MLRun locally with the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt).
+<br>This installs MLRun locally with the requirements in [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt).
 
 ```{admonition} Notes
 - See more about images in {ref}`images-usage`

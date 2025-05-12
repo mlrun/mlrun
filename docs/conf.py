@@ -273,13 +273,7 @@ def create_llms_txt(app, exception):
 
     This function is called after the Sphinx build process is finished. It generates an llms.txt file
     in the output directory, containing a default header and content extracted from the "contents.rst" file.
-
-    Args:
-        app: The Sphinx application object.
-        exception: The exception object, if any, raised during the build process.
     """
-    import sys
-
     # Add the directory containing llms.py to the system path
     sys.path.insert(0, path.abspath("."))
     from llms import generate_llm_txt

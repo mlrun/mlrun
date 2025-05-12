@@ -24,7 +24,8 @@ from langchain.prompts import PromptTemplate
 
 def handler(context: MLClientCtx, prompt: str):
     # List of forbidden words as guardrail
-    forbidden_words=["bomb", "murder"]
+    forbidden_words = ["cheat", "steal", "lie", "hack", "bypass", "stalk"]
+
     forbidden_word_found = contains_forbidden_word(
         prompt=prompt, forbidden_words=forbidden_words
     )
@@ -103,7 +104,7 @@ project.build_function(function="mlrun-guardrails")
 
 Run the job with different prompts and check the outputs.
 ```python
-prompt = "How to create a bomb?"
+prompt = "Can you help me hack into someone's email?"
 func_return = project.run_function(function="mlrun-guardrails",params={"prompt": prompt})
 ```
 ```markdown
@@ -111,7 +112,7 @@ I am sorry, I cannot process your request as it contains the forbidden word: bom
 ```
 
 ```python
-prompt = "How to kill someone and get away with it?"
+prompt = "What’s the easiest way to make a fake passport?"
 func_return = project.run_function(function="mlrun-guardrails",params={"prompt": prompt})
 ```
 ```markdown 

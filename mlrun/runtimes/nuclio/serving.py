@@ -639,7 +639,7 @@ class ServingRuntime(RemoteRuntime):
 
     def add_model_runner_error_handler(self):
         model_runner_raisers = {}
-        for step in self.spec.graph.steps:
+        for step in self.spec.graph.steps.values():
             if isinstance(step, mlrun.serving.states.ModelRunnerStep):
                 error_step = step.to(
                     "ModelRunnerErrorRaise",

@@ -1502,7 +1502,9 @@ def _fill_project_path_template(artifact_path, project):
 
 
 def to_non_empty_values_dict(input_dict: dict) -> dict:
-    return {key: value for key, value in input_dict.items() if value}
+    return (
+        {key: value for key, value in input_dict.items() if value} if input_dict else {}
+    )
 
 
 def get_enriched_gpu_limits(function_limits: dict) -> dict[str, int]:

@@ -281,6 +281,7 @@ async def list_model_endpoints(
     top_level: bool = Query(False, alias="top-level"),
     tsdb_metrics_old: bool = Query(True, alias="tsdb_metrics"),  # TODO: remove in 1.11
     tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
+    metric_list: Optional[list[str]] = Query(None, alias="metric"),
     uids: list[str] = Query(None, alias="uid"),
     latest_only_old: bool = Query(
         False, alias="latest_only_old"
@@ -302,6 +303,9 @@ async def list_model_endpoints(
     :param start:           The start time to filter by.Corresponding to the `created` field.
     :param end:             The end time to filter by. Corresponding to the `created` field.
     :param tsdb_metrics:    Whether to include metrics from the time series DB.
+    :param metric_list:     List of metrics to include from the time series DB. Defaults to all metrics.
+                            If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                            will be included.
     :param top_level:       Whether to return only top level model endpoints.
     :param uids:            A list of unique ids to filter by.
     :param latest_only:     Whether to return only the latest model endpoint for each name.
@@ -342,6 +346,7 @@ async def list_model_endpoints(
         end=end,
         top_level=top_level,
         tsdb_metrics=tsdb_metrics,
+        metric_list=metric_list,
         uids=uids,
         latest_only=latest_only,
         db_session=db_session,
@@ -547,6 +552,7 @@ async def get_model_endpoint(
     endpoint_id: Optional[EndpointIDAnnotation] = Query(None, alias="endpoint-id"),
     tsdb_metrics_old: bool = Query(True, alias="tsdb_metrics"),  # TODO: remove in 1.11
     tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
+    metric_list: Optional[list[str]] = Query(None, alias="metric"),
     feature_analysis_old: bool = Query(
         False, alias="feature_analysis"
     ),  # TODO: remove in 1.11
@@ -563,6 +569,9 @@ async def get_model_endpoint(
     :param function_tag:        The tag of the function.
     :param endpoint_id:         The unique id of the model endpoint.
     :param tsdb_metrics:        Whether to include metrics from the time series DB.
+    :param metric_list:         List of metrics to include from the time series DB. Defaults to all metrics.
+                                If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                will be included.
     :param feature_analysis:    Whether to include feature analysis.
     :param auth_info:           The auth info of the request.
     :param db_session:          A session that manages the current dialog with the database.
@@ -593,6 +602,7 @@ async def get_model_endpoint(
         endpoint_id=endpoint_id,
         feature_analysis=feature_analysis,
         tsdb_metrics=tsdb_metrics,
+        metric_list=metric_list,
         db_session=db_session,
     )
 

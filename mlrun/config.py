@@ -490,6 +490,7 @@ default_config = {
                 # Number of days back to include when calculating the project pipeline summary.
                 "list_pipelines_time_period_in_days": 7,
             },
+            "resource_deletion_batch_size": 10000,
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -591,17 +592,17 @@ default_config = {
         },
         "writer_stream_args": {
             "v3io": {
-                "shard_count": 1,
+                "shard_count": 4,
                 "retention_period_hours": 24,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
             "kafka": {
-                "partition_count": 1,
+                "partition_count": 4,
                 # TODO: add retention period configuration
                 "replication_factor": 1,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
@@ -634,12 +635,6 @@ default_config = {
         "offline_storage_path": "model-endpoints/{kind}",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
-        "tdengine": {
-            "run_directly": True,
-            # timeout and retry are ignored when run_directly is set to True
-            "timeout": 10,
-            "retries": 1,
-        },
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -1045,12 +1040,9 @@ class Config:
         )
 
     def is_preemption_nodes_configured(self):
-        if (
-            not self.get_preemptible_tolerations()
-            and not self.get_preemptible_node_selector()
-        ):
-            return False
-        return True
+        return (
+            self.get_preemptible_tolerations() or self.get_preemptible_node_selector()
+        )
 
     @staticmethod
     def get_valid_function_priority_class_names():

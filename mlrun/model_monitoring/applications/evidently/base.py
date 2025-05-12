@@ -85,7 +85,7 @@ class EvidentlyModelMonitoringApplicationBase(
         # TODO : more then one project (mep -> project)
         if not _HAS_EVIDENTLY:
             raise ModuleNotFoundError("Evidently is not installed - the app cannot run")
-        self._log_location(evidently_workspace_path)
+        self._log_location(evidently_workspace_path, evidently_project_id)
         self.evidently_workspace = Workspace.create(evidently_workspace_path)
         self.evidently_project_id = evidently_project_id
         self.evidently_project = self.evidently_workspace.get_project(
@@ -93,7 +93,7 @@ class EvidentlyModelMonitoringApplicationBase(
         )
 
     @staticmethod
-    def _log_location(evidently_workspace_path):
+    def _log_location(evidently_workspace_path, evidently_project_id):
         # TODO remove function + usage after solving issue ML-9530
         location = FSLocation(base_path=evidently_workspace_path)
         location.invalidate_cache("")
@@ -118,8 +118,9 @@ class EvidentlyModelMonitoringApplicationBase(
                 )
                 with location.open(metadata_path) as f:
                     content = f.read()
-                os.makedirs("/projects/evidently_json_issue", exist_ok=True)
-                broken_json_path = f"/projects/evidently_json_issue/{uuid.uuid4()}.json"
+                broken_json_dir = f"/projects/evidently_json_issue/{evidently_project_id}"
+                os.makedirs(broken_json_dir, exist_ok=True)
+                broken_json_path = f"{broken_json_dir}/{uuid.uuid4()}.json"
                 with location.open(broken_json_path, "w") as f:
                     f.write(content)
                 print(

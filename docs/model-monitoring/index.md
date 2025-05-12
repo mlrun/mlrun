@@ -144,10 +144,11 @@ When ramping up the scale of your model monitoring, take note of these limitatio
 - On each project and per 10 minute base-period:
   - Up to 50,000 results/metrics can be captured (V3IO-TSDB)
   - Up to 5,000 results/metrics can be captured (TDengine-TSDB)
-  These numbers can vary depending on the overall system "stress" level and the TSDB performance.
+  
+**These numbers can vary depending on the overall system stress level and the TSDB performance.**
 
-An example of a suitable V3IO-TSDB setup is a project with model-monitoring enabled with:
-- a 10 minute `base-period`
+An example of a suitable V3IO-TSDB-based setup would be one project with the following specifications:
+- Model monitoring enabled with a 10 minute `base-period`
 - Five serving functions, each with 1000 models
 - Two model monitoring apps each with 5 results
 

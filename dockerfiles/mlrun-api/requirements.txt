@@ -9,6 +9,7 @@ humanfriendly~=10.0
 fastapi~=0.115.6
 # in sqlalchemy>=2.0 there is breaking changes (such as in Table class autoload argument is removed)
 sqlalchemy~=1.4
+sqlalchemy-utils~=0.39.0
 pymysql~=1.1
 alembic~=1.14
 timelength~=1.1

@@ -14,6 +14,9 @@
 
 name: CI
 
+permissions:
+  contents: read
+
 on:
   pull_request:
     branches:
@@ -57,7 +60,7 @@ jobs:
       run: make lint
 
     # perform copyright check here, to avoid spinning up another runner needlessly
-    - uses: denoland/setup-deno@v2
+    - uses: denoland/setup-deno@909cc5acb0fdd60627fb858598759246509fa755 # 2.0.2
       with:
         deno-version: v1.x
     - name: Check

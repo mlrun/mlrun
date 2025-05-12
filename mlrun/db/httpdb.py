@@ -21,7 +21,7 @@ import typing
 import warnings
 from copy import deepcopy
 from datetime import datetime, timedelta
-from os import path, remove
+from os import environ, path, remove
 from typing import Literal, Optional, Union
 from urllib.parse import urlparse
 
@@ -129,7 +129,9 @@ class HTTPRunDB(RunDBInterface):
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
-        self.python_version = str(version.Version().get_python_version())
+        self.python_version = environ.get("MLRUN_PYTHON_VERSION") or str(
+            version.Version().get_python_version()
+        )
 
         self._enrich_and_validate(url)
 
@@ -1226,7 +1228,6 @@ class HTTPRunDB(RunDBInterface):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
-        limit: Optional[int] = None,
         partition_by: Optional[
             Union[mlrun.common.schemas.ArtifactPartitionByField, str]
         ] = None,
@@ -1276,8 +1277,7 @@ class HTTPRunDB(RunDBInterface):
         :param producer_uri:    Return artifacts produced by the requested producer URI. Producer URI usually
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
-        :param format_:         The format in which to return the artifacts. Default is 'full'.
-        :param limit:           Maximum number of artifacts to return.
+        :param format_: The format in which to return the artifacts. Default is 'full'.
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -1301,12 +1301,11 @@ class HTTPRunDB(RunDBInterface):
             tree=tree,
             producer_uri=producer_uri,
             format_=format_,
-            limit=limit,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
-            return_all=not limit,
+            return_all=True,
         )
         return artifacts
 
@@ -3767,7 +3766,7 @@ class HTTPRunDB(RunDBInterface):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
@@ -3889,8 +3888,8 @@ class HTTPRunDB(RunDBInterface):
         attributes_keys = list(attributes.keys())
         attributes["name"] = name
         attributes["project"] = project
-        attributes["function-name"] = function_name or None
-        attributes["function-tag"] = function_tag or None
+        attributes["function_name"] = function_name or None
+        attributes["function_tag"] = function_tag or None
         attributes["uid"] = endpoint_id or None
         model_endpoint = mlrun.common.schemas.ModelEndpoint.from_flat_dict(attributes)
         path = f"projects/{project}/model-endpoints"
@@ -3981,6 +3980,7 @@ class HTTPRunDB(RunDBInterface):
                 "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
                 "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
             },
+            timeout=300,  # 5 minutes
         )
 
     def disable_model_monitoring(
@@ -5078,7 +5078,6 @@ class HTTPRunDB(RunDBInterface):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
-        limit: Optional[int] = None,
         partition_by: Optional[
             Union[mlrun.common.schemas.ArtifactPartitionByField, str]
         ] = None,
@@ -5112,7 +5111,6 @@ class HTTPRunDB(RunDBInterface):
             "producer_uri": producer_uri,
             "since": datetime_to_iso(since),
             "until": datetime_to_iso(until),
-            "limit": limit,
             "page": page,
             "page-size": page_size,
             "page-token": page_token,
@@ -5370,7 +5368,8 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
-    def _resolve_page_params(self, params: typing.Optional[dict]) -> dict:
+    @staticmethod
+    def _resolve_page_params(params: typing.Optional[dict]) -> dict:
         """
         Resolve the page parameters, setting defaults where necessary.
         """
@@ -5378,23 +5377,7 @@ class HTTPRunDB(RunDBInterface):
         if page_params.get("page-token") is None and page_params.get("page") is None:
             page_params["page"] = 1
         if page_params.get("page-size") is None:
-            page_size = config.httpdb.pagination.default_page_size
-
-            if page_params.get("limit") is not None:
-                page_size = page_params["limit"]
-
-                # limit and page/page size are conflicting
-                page_params.pop("limit")
-            page_params["page-size"] = page_size
-
-        # this may happen only when page-size was explicitly set along with limit
-        # this is to ensure we will not get stopped by API on similar below validation
-        # but rather simply fallback to use page-size.
-        if page_params.get("page-size") and page_params.get("limit"):
-            logger.warning(
-                "Both 'limit' and 'page-size' are provided, using 'page-size'."
-            )
-            page_params.pop("limit")
+            page_params["page-size"] = config.httpdb.pagination.default_page_size
         return page_params
 
 

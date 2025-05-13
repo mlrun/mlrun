@@ -712,7 +712,6 @@ class HTTPRunDB(RunDBInterface):
     def store_run(self, struct, uid, project="", iter=0):
         """Store run details in the DB. This method is usually called from within other :py:mod:`mlrun` flows
         and not called directly by the user."""
-
         path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"store run {project}/{uid}"
@@ -5238,11 +5237,6 @@ class HTTPRunDB(RunDBInterface):
         """Handles list runs, both paginated and not."""
 
         project = project or config.default_project
-        if with_notifications:
-            logger.warning(
-                "Local run notifications are not persisted in the DB, therefore local runs will not be returned when "
-                "using the `with_notifications` flag."
-            )
 
         if state:
             # TODO: Remove this in 1.9.0

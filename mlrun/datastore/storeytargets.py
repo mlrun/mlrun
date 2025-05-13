@@ -152,9 +152,7 @@ class KafkaStoreyTarget(storey.KafkaTarget):
                 parsed.path.strip("/") if parsed.path else datastore_profile.get_topic()
             )
         else:
-            brokers = attributes.pop(
-                "brokers", attributes.pop("bootstrap_servers", None)
-            )
+            brokers = attributes.pop("brokers", None)
             topic, brokers = parse_kafka_url(path, brokers)
 
         if not topic:

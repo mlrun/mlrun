@@ -17,7 +17,6 @@ import os
 import random
 import sys
 import time
-import warnings
 from collections import Counter
 from copy import copy
 from typing import Any, Optional, Union
@@ -1648,7 +1647,6 @@ class KafkaTarget(BaseStoreTarget):
     :param path:                topic name e.g. "my_topic"
     :param after_step:          optional, after what step in the graph to add the target
     :param columns:             optional, which columns from data to write
-    :param bootstrap_servers:   Deprecated. Use the brokers parameter instead
     :param producer_options:    additional configurations for kafka producer
     :param brokers:             kafka broker as represented by a host:port pair, or a list of kafka brokers, e.g.
         "localhost:9092", or ["kafka-broker-1:9092", "kafka-broker-2:9092"]
@@ -1664,26 +1662,11 @@ class KafkaTarget(BaseStoreTarget):
     def __init__(
         self,
         *args,
-        bootstrap_servers=None,
         producer_options=None,
         brokers=None,
         **kwargs,
     ):
         attrs = {}
-
-        # TODO: Remove this in 1.10.0
-        if bootstrap_servers:
-            if brokers:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "KafkaTarget cannot be created with both the 'brokers' parameter and the deprecated "
-                    "'bootstrap_servers' parameter. Please use 'brokers' only."
-                )
-            warnings.warn(
-                "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.10.0, "
-                "use 'brokers' instead.",
-                FutureWarning,
-            )
-            brokers = bootstrap_servers
 
         if brokers:
             attrs["brokers"] = brokers

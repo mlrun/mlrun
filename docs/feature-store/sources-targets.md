@@ -65,7 +65,7 @@ Support for Confluent Kafka is currently in Tech Preview status.
 
 ```python
 profile = DatastoreProfileKafkaSource(
-    name="profile-name", bootstrap_servers="localhost", topic="topic_name"
+    name="profile-name", brokers="localhost", topic="topic_name"
 )
 target = KafkaSource(path="ds://profile-name")
 ```
@@ -203,14 +203,14 @@ NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 
 ```python
 profile = DatastoreProfileKafkaTarget(
-    name="profile-name", bootstrap_servers="localhost", topic="topic_name"
+    name="profile-name", brokers="localhost", topic="topic_name"
 )
 target = KafkaTarget(path="ds://profile-name")
 ```
 
 `DatastoreProfileKafkaTarget` class parameters:
 - `name` &mdash; Name of the profile
-- `bootstrap_servers` &mdash; A string representing the 'bootstrap servers' for Kafka. These are the initial contact points you use to discover the full set of servers in the Kafka cluster, typically provided in the format `host1:port1,host2:port2,...`.
+- `brokers` &mdash; A string representing the 'bootstrap servers' for Kafka. These are the initial contact points you use to discover the full set of servers in the Kafka cluster, typically provided in the format `host1:port1,host2:port2,...`.
 - `topic` &mdash; A string that denotes the Kafka topic to which data is sent or from which data is received.
 - `kwargs_public` &mdash; This is a dictionary (`Dict`) meant to hold a collection of key-value pairs that could represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. The default value for `kwargs_public` is `None`.
 - `kwargs_private` &mdash; This dictionary (`Dict`) is designed to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are also passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. It defaults to `None`.

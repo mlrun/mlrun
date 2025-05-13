@@ -780,9 +780,9 @@ filelock==3.18.0 \
     --hash=sha256:adbc88eabb99d2fec8c9c1b229b171f18afa655400173ddc653d5d01501fb9f2 \
     --hash=sha256:c401f4f8377c4464e6db25fff06205fd89bdd83b65eb0488ed1b160f780e21de
     # via snowflake-connector-python
-flask==3.1.0 \
-    --hash=sha256:5f873c5184c897c8d9d1b05df1e3d01b14910ce69607a117bd3277098a5836ac \
-    --hash=sha256:d667207822eb83f1c4b50949b1623c8fc8d51f2341d65f72e1a1815397551136
+flask==3.1.1 \
+    --hash=sha256:07aae2bb5eaf77993ef57e357491839f5fd9f4dc281593a81a9e4d79a24f295c \
+    --hash=sha256:284c7b8f2f58cb737f0cf1c30fd7eaf0ccfcde196099d24ecede3fc2005aa59e
     # via mlflow
 fonttools==4.58.0 \
     --hash=sha256:0154bd86d9a9e880f6e937e4d99c2139a624428dd9852072e12d7a85c79d611e \
@@ -1601,6 +1601,7 @@ markupsafe==3.0.2 \
     --hash=sha256:f8b3d067f2e40fe93e1ccdd6b2e1d16c43140e76f02fb1319a05cf2b79d99430 \
     --hash=sha256:fcabf5ff6eea076f859677f5f0b6b5c1a51e70a376b0579e0eadef8db48c6b50
     # via
+    #   flask
     #   jinja2
     #   mako
     #   nbconvert
@@ -3236,9 +3237,9 @@ sqlalchemy==2.0.40 \
     #   alembic
     #   mlflow
     #   sqlalchemy-utils
-sqlalchemy-utils==0.39.0 \
-    --hash=sha256:9da26a9b20c6979167772ba5dc2a1d01265648f18c82995f082279a399ea308b \
-    --hash=sha256:b37240917d81c14fe1b6e5096a402bace472b179121384e47c10d854dbf5af92
+sqlalchemy-utils==0.41.2 \
+    --hash=sha256:85cf3842da2bf060760f955f8467b87983fb2e30f1764fd0e24a48307dc8ec6e \
+    --hash=sha256:bc599c8c3b3319e53ce6c5c3c471120bd325d0071fb6f38a10e924e3d07b9990
     # via -r dockerfiles/mlrun-api/requirements.txt
 sqlparse==0.5.3 \
     --hash=sha256:09f67787f56a0b16ecdbde1bfc7f5d9c3371ca683cfeaa8e6ff60b4807ec9272 \

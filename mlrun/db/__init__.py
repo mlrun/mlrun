@@ -14,6 +14,7 @@
 from os import environ
 
 from ..config import config
+from . import sql_types
 from .base import RunDBError, RunDBInterface  # noqa
 
 

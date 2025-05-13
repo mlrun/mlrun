@@ -345,7 +345,9 @@ class SQLDB(DBInterface):
             query = query.filter(Run.state.in_(states))
 
         if last_update_time_from is not None:
-            query = query.filter(Run.updated >= last_update_time_from)
+            query = query.filter(
+                Run.updated >= self._ensure_datetime_obj(last_update_time_from)
+            )
 
         if requested_logs_modes is not None:
             query = query.filter(Run.requested_logs.in_(requested_logs_modes))
@@ -444,17 +446,27 @@ class SQLDB(DBInterface):
         if states is not None:
             query = query.filter(Run.state.in_(states))
         if start_time_from is not None:
-            query = query.filter(Run.start_time >= start_time_from)
+            query = query.filter(
+                Run.start_time >= self._ensure_datetime_obj(start_time_from)
+            )
         if start_time_to is not None:
-            query = query.filter(Run.start_time <= start_time_to)
+            query = query.filter(
+                Run.start_time <= self._ensure_datetime_obj(start_time_to)
+            )
         if last_update_time_from is not None:
-            query = query.filter(Run.updated >= last_update_time_from)
+            query = query.filter(
+                Run.updated >= self._ensure_datetime_obj(last_update_time_from)
+            )
         if last_update_time_to is not None:
-            query = query.filter(Run.updated <= last_update_time_to)
+            query = query.filter(
+                Run.updated <= self._ensure_datetime_obj(last_update_time_to)
+            )
         if end_time_from is not None:
-            query = query.filter(Run.end_time >= end_time_from)
+            query = query.filter(
+                Run.end_time >= self._ensure_datetime_obj(end_time_from)
+            )
         if end_time_to is not None:
-            query = query.filter(Run.end_time <= end_time_to)
+            query = query.filter(Run.end_time <= self._ensure_datetime_obj(end_time_to))
         if sort:
             # If the start_time fields are the same, we need a secondary field to sort by.
             query = query.order_by(Run.start_time.desc(), Run.id.desc())
@@ -8250,3 +8262,21 @@ class SQLDB(DBInterface):
         session.add(db_object)
         self._commit(session, db_object)
         session.flush()
+
+    def _ensure_datetime_obj(self, date: typing.Union[str, datetime]) -> datetime:
+        """
+        Ensure the input date is a datetime object. If it's a string, try to parse it as ISO 8601.
+        """
+        if isinstance(date, str):
+            try:
+                date = datetime.fromisoformat(date)
+
+            except ValueError:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Invalid date format: {date}. Expected ISO 8601 format."
+                )
+        elif not isinstance(date, datetime):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid date type: {type(date)}. Expected str or datetime."
+            )
+        return date

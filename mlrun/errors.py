@@ -230,6 +230,13 @@ class MLRunTSDBConnectionFailureError(MLRunHTTPStatusError, ValueError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
 
+class MLRunMissingProjectError(MLRunBadRequestError):
+    default_message = "Project must be provided"
+
+    def __init__(self, message=None):
+        super().__init__(message or self.default_message)
+
+
 class MLRunRetryExhaustedError(Exception):
     pass
 

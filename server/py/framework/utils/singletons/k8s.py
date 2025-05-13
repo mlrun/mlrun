@@ -1031,7 +1031,7 @@ class BasePod:
         self._mounts = []
         self.env = None
         self.node_selector = None
-        self.project = project or mlrun.mlconf.default_project
+        self.project = project
         self._labels = {
             mlrun_constants.MLRunInternalLabels.task_name: task_name,
             mlrun_constants.MLRunInternalLabels.mlrun_class: kind,

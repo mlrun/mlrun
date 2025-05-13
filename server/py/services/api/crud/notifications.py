@@ -37,8 +37,6 @@ class Notifications(
         project: typing.Optional[str] = None,
         mask_params: bool = True,
     ):
-        project = project or mlrun.mlconf.default_project
-
         # we don't mask the notification params when it's a status update as they are already masked
         notification_objects_to_store = notification_objects
         if mask_params:
@@ -60,8 +58,6 @@ class Notifications(
         project: typing.Optional[str] = None,
         mask_params: bool = True,
     ):
-        project = project or mlrun.mlconf.default_project
-
         # we don't mask the notification params when it's a status update as they are already masked
         notification_objects_to_store = notification_objects
         if mask_params:
@@ -81,7 +77,6 @@ class Notifications(
         run_uid: str,
         project: str = "",
     ) -> list[mlrun.model.Notification]:
-        project = project or mlrun.mlconf.default_project
         return framework.utils.singletons.db.get_db().list_run_notifications(
             session, run_uid, project
         )
@@ -93,8 +88,6 @@ class Notifications(
         run_uid: typing.Optional[str] = None,
         project: typing.Optional[str] = None,
     ):
-        project = project or mlrun.mlconf.default_project
-
         # Delete notification param project secret
         notifications = [
             notification
@@ -109,7 +102,7 @@ class Notifications(
             )
 
         framework.utils.singletons.db.get_db().delete_run_notifications(
-            session, name, run_uid, project
+            session, name=name, run_uid=run_uid, project=project
         )
 
     @staticmethod

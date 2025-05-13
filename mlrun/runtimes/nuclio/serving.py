@@ -29,7 +29,6 @@ from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.secrets import SecretsStore
 from mlrun.serving.server import GraphServer, create_graph_server
 from mlrun.serving.states import (
-    ModelRunnerErrorRaise,
     RootFlowStep,
     RouterStep,
     StepKinds,
@@ -643,16 +642,10 @@ class ServingRuntime(RemoteRuntime):
         for step in self.spec.graph.steps.values():
             if isinstance(step, mlrun.serving.states.ModelRunnerStep):
                 error_step = step.to(
-                    class_name=ModelRunnerErrorRaise(
-                        name=f"{step.name}_error_raise",
-                        raise_exception=step._raise_error,
-                        models_names=list(step.class_args["models"].keys()),
-                    ),
+                    class_name="mlrun.serving.states.ModelRunnerErrorRaise",
                     name=f"{step.name}_error_raise",
-                    class_args={
-                        "raise_exception": step._raise_error,
-                        "models_names": list(step.class_args["models"].keys()),
-                    },
+                    raise_exception = step._raise_exception,
+                    models_names = list(step.class_args["models"].keys()),
                 )
                 model_runner_raisers[step.name] = error_step
                 error_step.on_error = step.on_error

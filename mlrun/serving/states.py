@@ -1022,7 +1022,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
 
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
       event. Optional. If not passed, all models will be run.
-    :param raise_error:  bool if True error will be raised when model selection fails or if one of the models raised
+    :param raise_exception:  bool if True error will be raised when model selection fails or if one of the models raised
       error, if False error will be writen as part of the output event.
     """
 
@@ -1032,7 +1032,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
         self,
         *args,
         model_selector: Optional[Union[str, ModelSelector]] = None,
-        raise_error: bool = True,
+        raise_exception: bool = True,
         **kwargs,
     ):
         super().__init__(
@@ -1041,7 +1041,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
             class_args=dict(model_selector=model_selector),
             **kwargs,
         )
-        self._raise_error = raise_error
+        self._raise_exception = raise_exception
 
     def add_model(
         self,
@@ -1136,9 +1136,9 @@ class ModelRunnerStep(TaskStep, StepToDict):
         )
 
 
-class ModelRunnerErrorRaise(TaskStep, StepToDict):
-    def __init__(self, raise_exception: bool, models_names: list[str], *args, **kwargs):
-        super().__init__(*args, **kwargs)
+class ModelRunnerErrorRaiser(storey.MapClass):
+    def __init__(self, raise_exception: bool, models_names: list[str], **kwargs):
+        super().__init__(**kwargs)
         self._raise_exception = raise_exception
         self._models_names = models_names
 

@@ -14,7 +14,7 @@
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
 (v180)=
-## v1.8.0 (11 May 2025)
+## v1.8.0 (13 May 2025)
 
 ### Model monitoring
 

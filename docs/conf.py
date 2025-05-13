@@ -214,10 +214,11 @@ linkcheck_ignore = [
     "https://docs.databricks.com/aws/en/reference/jobs-2.0-api",
     # can be removed after v1.8.0 is released:
     "https://docs.mlrun.org/en/stable/api/mlrun.datastore/index.html#mlrun.datastore.datastore_profile.TDEngineDatastoreProfile",
-    # Mckinsey restricted
+    # Mckinsey restricted?
     "https://ollama.com/download",
     "https://ollama.com/library/llama3",
     "https://docs.confident-ai.com/docs/*",
+    "https://docs.tdengine.com/developer-guide/connecting-to-tdengine/#websocket-connection",
     # Can be deleted after v1.8.0 is GA
     "https://docs.mlrun.org/en/stable/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.get_vector_store_collection",
     "https://docs.mlrun.org/en/stable/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.log_document",

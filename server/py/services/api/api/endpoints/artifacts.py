@@ -21,7 +21,6 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
 import mlrun.common.schemas
-from mlrun.config import config
 from mlrun.utils import logger
 
 import framework.utils.auth.verifier
@@ -214,8 +213,8 @@ async def list_artifacts(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    if project is None:
-        project = config.default_project
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
@@ -275,8 +274,10 @@ async def delete_artifacts(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     return await _delete_artifacts(
-        project=project or mlrun.mlconf.default_project,
+        project=project,
         name=name,
         tag=tag,
         labels=labels,

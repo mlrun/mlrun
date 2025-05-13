@@ -202,6 +202,8 @@ async def list_runs(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     allowed_project_names = (
         await services.api.crud.Projects().list_allowed_project_names(
             db_session, auth_info, project=project
@@ -215,7 +217,7 @@ async def list_runs(
             mlrun.common.schemas.AuthorizationResourceTypes.run,
             _runs,
             lambda run: (
-                run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+                run.get("metadata", {}).get("project"),
                 run.get("metadata", {}).get("uid"),
             ),
             auth_info,
@@ -265,16 +267,18 @@ async def delete_runs(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     runs = []
 
     # TODO: handle project permissions like in the list endpoints
-    if not project or project != "*":
+    if project != "*":
         # Currently we don't differentiate between runs permissions inside a project.
         # Meaning there is no reason at the moment to query the permission for each run under the project
         # TODO check for every run when we will manage permission per run inside a project
         await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.run,
-            project or mlrun.mlconf.default_project,
+            project,
             "",
             mlrun.common.schemas.AuthorizationAction.delete,
             auth_info,
@@ -295,7 +299,7 @@ async def delete_runs(
             start_time_from=start_time_from,
             return_as_run_structs=False,
         )
-        projects = set(run.project or mlrun.mlconf.default_project for run in runs)
+        projects = set(run.project for run in runs)
         for run_project in projects:
             # currently we fail if the user doesn't has permissions to delete runs to one of the projects in the system
             # TODO: Delete only runs from projects that user has permissions to

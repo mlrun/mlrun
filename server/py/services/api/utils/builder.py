@@ -1093,7 +1093,7 @@ def _validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> lis
 
 
 def _resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:
-    project = function.metadata.project or config.default_project
+    project = function.metadata.project
     name = function.metadata.name
     tag = function.metadata.tag or "latest"
     if image:

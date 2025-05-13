@@ -978,9 +978,9 @@ dynaconf==3.2.11 \
     --hash=sha256:4cfc6a730c533bf1a1d0bf266ae202133a22236bb3227d23eff4b8542d4034a5 \
     --hash=sha256:660de90879d4da236f79195692a7d197957224d7acf922bcc6899187dc7b4a27
     # via evidently
-evidently==0.6.7 \
-    --hash=sha256:bcdab09630b6f2f2954ab77721e4723d891f83e6bba1161aebdcc2724f4c09b0 \
-    --hash=sha256:c12e140f682e8bd9cb1312275bfaf065f82e9d31eecd95a23e6941154db68f90
+evidently==0.7.5 \
+    --hash=sha256:d18164b19eda0c98157704110e97987a7a29a90cfe38028e54dbf9caee584bb3 \
+    --hash=sha256:e27a9591d7cb8514bf64bfde35a7227ad9f216f3c091d602fe209a7d03779ff5
     # via -r dev-requirements.txt
 exceptiongroup==1.3.0 ; python_full_version < '3.11' \
     --hash=sha256:4d111e6e0c13d0644cad6ddaa7ed0261a0b36971f6d23e7ec9b4b9097da78a10 \
@@ -1948,9 +1948,9 @@ jupyterlab-pygments==0.3.0 \
     --hash=sha256:721aca4d9029252b11cfa9d185e5b5af4d54772bb8072f9b7036f4170054d35d \
     --hash=sha256:841a89020971da1d8693f1a99997aefc5dc424bb1b251fd6322462a1b8842780
     # via nbconvert
-kafka-python==2.2.6 \
-    --hash=sha256:b18a15e614864afedd514cc75f203cc3555bb85b915326c9fce0e49a80ca441f \
-    --hash=sha256:bacc5b00ddcfd79a33d761553dbf3e262389865432b51310e12399fac66f3c99
+kafka-python==2.1.6 \
+    --hash=sha256:8a9e12694b687977cb8750b95eb060ce2907ec2d60fd5fa5c1616ab664ff5efb \
+    --hash=sha256:b967ffb5beeb16f3f04d7c08c549b3d1679f07c344e6323fa077e2667e1f3ab0
     # via
     #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt

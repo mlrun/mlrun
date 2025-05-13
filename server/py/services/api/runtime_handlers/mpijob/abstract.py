@@ -220,8 +220,8 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
             updates = {"status.host": launcher}
             run = db.update_run(
                 db_session,
-                updates,
-                uid,
-                project,
+                updates=updates,
+                uid=uid,
+                project=project,
             )
         return True, run_state, run

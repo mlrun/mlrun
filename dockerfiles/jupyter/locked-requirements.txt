@@ -1373,9 +1373,9 @@ jupyterlab-pygments==0.3.0 \
     --hash=sha256:721aca4d9029252b11cfa9d185e5b5af4d54772bb8072f9b7036f4170054d35d \
     --hash=sha256:841a89020971da1d8693f1a99997aefc5dc424bb1b251fd6322462a1b8842780
     # via nbconvert
-kafka-python==2.2.6 \
-    --hash=sha256:b18a15e614864afedd514cc75f203cc3555bb85b915326c9fce0e49a80ca441f \
-    --hash=sha256:bacc5b00ddcfd79a33d761553dbf3e262389865432b51310e12399fac66f3c99
+kafka-python==2.1.6 \
+    --hash=sha256:8a9e12694b687977cb8750b95eb060ce2907ec2d60fd5fa5c1616ab664ff5efb \
+    --hash=sha256:b967ffb5beeb16f3f04d7c08c549b3d1679f07c344e6323fa077e2667e1f3ab0
     # via -r extras-requirements.txt
 kfp-server-api==1.8.5 \
     --hash=sha256:482d71765ba57c003164dbb980a8cb1a18d234b578d064dc88dbeb3e4c7ab6de

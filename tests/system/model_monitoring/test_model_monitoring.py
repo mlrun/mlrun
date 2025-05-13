@@ -701,7 +701,9 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         # ensure we don't get metrics we didn't ask for (ML-9793)
         endpoint = (
             mlrun.get_run_db()
-            .list_model_endpoints(self.project_name, metric_list=["error_count"])
+            .list_model_endpoints(
+                self.project_name, metric_list=["error_count"], tsdb_metrics=True
+            )
             .endpoints[0]
         )
         assert endpoint.status.last_request is None
@@ -1071,7 +1073,9 @@ class TestVotingModelMonitoring(TestMLRunSystem):
             )
 
         # list model endpoints and perform analysis for each endpoint
-        endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
+        endpoints_list = mlrun.get_run_db().list_model_endpoints(
+            self.project_name, tsdb_metrics=True
+        )
 
         for endpoint in endpoints_list:
             # Validate that the model endpoint record has been updated through the stream process
@@ -1433,7 +1437,7 @@ class TestModelMonitoringKafka(TestMLRunSystemModelMonitoring):
 
         # Validate that the model endpoint metrics were updated as indication for the sanity of the flow
         model_endpoint = mlrun.get_run_db().list_model_endpoints(
-            project=self.project_name
+            project=self.project_name, tsdb_metrics=True
         )[0]
 
         assert model_endpoint.status.metrics["generic"]["latency_avg_5m"] > 0

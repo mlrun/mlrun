@@ -41,7 +41,7 @@ def test_list_schedules(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     project_names = [
-        mlrun.mlconf.default_project,
+        "some-project",
         "another-project",
         "yet-another-project",
     ]

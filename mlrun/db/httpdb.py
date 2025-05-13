@@ -2234,7 +2234,7 @@ class HTTPRunDB(RunDBInterface):
         with open(pipe_file, "rb") as fp:
             data = fp.read()
             if not data:
-                raise ValueError(f"File {pipe_file} is empty")
+                raise ValueError("The compiled pipe file is empty")
         if not isinstance(pipeline, str):
             remove(pipe_file)
 

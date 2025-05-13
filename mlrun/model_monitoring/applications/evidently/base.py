@@ -64,6 +64,7 @@ if _HAS_EVIDENTLY:
     from evidently.ui.workspace import (
         STR_UUID,
         CloudWorkspace,
+        Project,
         Workspace,
         WorkspaceBase,
     )
@@ -90,8 +91,6 @@ class EvidentlyModelMonitoringApplicationBase(
         :param evidently_workspace_path:    (str) The path to the Evidently workspace.
         :param cloud_workspace:             (bool) Whether the workspace is an Evidently Cloud workspace.
         """
-
-        # TODO : more then one project (mep -> project)
         if not _HAS_EVIDENTLY:
             raise ModuleNotFoundError("Evidently is not installed - the app cannot run")
         self.evidently_workspace_path = evidently_workspace_path
@@ -99,15 +98,17 @@ class EvidentlyModelMonitoringApplicationBase(
             self.get_workspace = self.get_cloud_workspace
         self.evidently_workspace = self.get_workspace()
         self.evidently_project_id = evidently_project_id
-        self.evidently_project = self.evidently_workspace.get_project(
-            evidently_project_id
-        )
+        self.evidently_project = self.load_project()
+
+    def load_project(self) -> Project:
+        """Load the Evidently project."""
+        return self.evidently_workspace.get_project(self.evidently_project_id)
 
     def get_workspace(self) -> WorkspaceBase:
         """Get the Evidently workspace. Override this method for customize access to the workspace."""
         if self.evidently_workspace_path:
             self._log_location(self.evidently_workspace_path)
-            self.evidently_workspace = Workspace.create(self.evidently_workspace_path)
+            return Workspace.create(self.evidently_workspace_path)
         else:
             raise MLRunValueError(
                 "A local workspace could not be created as `evidently_workspace_path` is not set.\n"

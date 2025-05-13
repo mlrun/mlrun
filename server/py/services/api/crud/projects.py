@@ -282,7 +282,6 @@ class Projects(
         project: typing.Optional[str] = None,
         **project_filters,
     ) -> list[str]:
-        project = project or mlrun.mlconf.default_project
         if project != "*":
             await (
                 framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -312,7 +311,6 @@ class Projects(
         project: typing.Optional[str] = None,
         **project_filters,
     ) -> list[tuple[str, datetime.datetime]]:
-        project = project or mlrun.mlconf.default_project
         if project != "*":
             await (
                 framework.utils.auth.verifier.AuthVerifier().query_project_permissions(

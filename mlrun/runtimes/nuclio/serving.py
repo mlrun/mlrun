@@ -644,6 +644,7 @@ class ServingRuntime(RemoteRuntime):
                 error_step = step.to(
                     class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
                     name=f"{step.name}_error_raise",
+                    full_event=True,
                     raise_exception = step._raise_exception,
                     models_names = list(step.class_args["models"].keys()),
                 )

@@ -68,8 +68,8 @@ class DummyCompiler:
 
         def compile(
             self,
-            pipeline_func: Callable[..., Any] = None,
-            package_path: str = None,
+            pipeline_func: Optional[Callable[..., Any]] = None,
+            package_path: Optional[str] = None,
             **kwargs: Any,
         ) -> None:
             self._warn_once_about_kfp()

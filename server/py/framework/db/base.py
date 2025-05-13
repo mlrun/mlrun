@@ -75,7 +75,7 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def update_run(self, session, updates: dict, uid, project="", iter=0):
+    def update_run(self, session, updates: dict, uid, project, iter=0):
         pass
 
     @abstractmethod
@@ -102,7 +102,7 @@ class DBInterface(ABC):
         self,
         session,
         uid: str,
-        project: Optional[str] = None,
+        project: str,
         iter: int = 0,
         with_notifications: bool = False,
         populate_existing: bool = False,
@@ -113,9 +113,9 @@ class DBInterface(ABC):
     def list_runs(
         self,
         session,
+        project: typing.Union[str, list[str]],
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
-        project: typing.Optional[typing.Union[str, list[str]]] = None,
         labels: Optional[Union[str, list[str]]] = None,
         states: Optional[list[str]] = None,
         sort: bool = True,
@@ -140,12 +140,12 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def del_run(self, session, uid, project="", iter=0):
+    def del_run(self, session, uid, project, iter=0):
         pass
 
     @abstractmethod
     def del_runs(
-        self, session, name="", project="", labels=None, state="", days_ago=0, uids=None
+        self, session, project, name="", labels=None, state="", days_ago=0, uids=None
     ):
         pass
 
@@ -182,10 +182,10 @@ class DBInterface(ABC):
         session,
         key,
         artifact,
+        project,
         uid=None,
         iter=None,
         tag="",
-        project="",
         producer_id=None,
         best_iteration=False,
         always_overwrite=False,
@@ -212,9 +212,9 @@ class DBInterface(ABC):
         self,
         session,
         key,
+        project,
         tag="",
         iter=None,
-        project="",
         producer_id: Optional[str] = None,
         uid: Optional[str] = None,
         raise_on_not_found: bool = True,
@@ -226,8 +226,8 @@ class DBInterface(ABC):
     def list_artifacts(
         self,
         session,
+        project,
         name="",
-        project="",
         tag="",
         labels=None,
         since: Optional[datetime.datetime] = None,
@@ -258,15 +258,22 @@ class DBInterface(ABC):
     def list_artifacts_for_producer_id(
         self,
         session,
-        producer_id: str,
         project: str,
+        producer_id: str,
         artifact_identifiers: list[tuple] = "",
     ):
         pass
 
     @abstractmethod
     def del_artifact(
-        self, session, key, tag="", project="", uid=None, producer_id=None, iter=None
+        self,
+        session,
+        key,
+        project,
+        tag="",
+        uid=None,
+        producer_id=None,
+        iter=None,
     ):
         pass
 
@@ -274,8 +281,8 @@ class DBInterface(ABC):
     def del_artifacts(
         self,
         session,
+        project,
         name="",
-        project="",
         tag="*",
         labels=None,
         ids=None,
@@ -292,9 +299,9 @@ class DBInterface(ABC):
         self,
         session,
         key: str,
+        project: str,
         tag: str = "",
         iter: Optional[str] = None,
-        project: str = "",
         producer_id: Optional[str] = None,
         uid: Optional[str] = None,
     ) -> Optional[dict[str, Any]]:
@@ -331,9 +338,9 @@ class DBInterface(ABC):
         key,
         artifact,
         uid,
+        project,
         iter=None,
         tag="",
-        project="",
         tag_artifact=True,
     ):
         """
@@ -349,7 +356,14 @@ class DBInterface(ABC):
         "'read_artifact' instead",
         category=FutureWarning,
     )
-    def read_artifact_v1(self, session, key, tag="", iter=None, project=""):
+    def read_artifact_v1(
+        self,
+        session,
+        key,
+        project,
+        tag="",
+        iter=None,
+    ):
         """
         Read artifact v1 from the DB, this is the deprecated legacy artifact format
         and is only left for testing purposes
@@ -362,7 +376,7 @@ class DBInterface(ABC):
         session,
         function,
         name,
-        project="",
+        project,
         tag="",
         versioned=False,
     ) -> str:
@@ -372,8 +386,8 @@ class DBInterface(ABC):
     def get_function(
         self,
         session,
+        project: str,
         name: Optional[str] = None,
-        project: Optional[str] = None,
         tag: Optional[str] = None,
         hash_key: Optional[str] = None,
         format_: Optional[str] = None,
@@ -394,8 +408,8 @@ class DBInterface(ABC):
     def list_functions(
         self,
         session,
+        project: Union[str, list[str]],
         name: Optional[str] = None,
-        project: Optional[Union[str, list[str]]] = None,
         tag: Optional[str] = None,
         kind: Optional[str] = None,
         labels: Optional[list[str]] = None,
@@ -415,7 +429,7 @@ class DBInterface(ABC):
         session,
         name,
         updates: dict,
-        project: Optional[str] = None,
+        project: str,
         tag: Optional[str] = None,
         hash_key: Optional[str] = None,
     ):
@@ -427,7 +441,7 @@ class DBInterface(ABC):
         session,
         name: str,
         url: str,
-        project: str = "",
+        project: str,
         tag: str = "",
         hash_key: str = "",
         operation: mlrun.common.types.Operation = mlrun.common.types.Operation.ADD,
@@ -1120,9 +1134,9 @@ class DBInterface(ABC):
     def delete_run_notifications(
         self,
         session,
+        project: str,
         name: Optional[str] = None,
         run_uid: Optional[str] = None,
-        project: Optional[str] = None,
         commit: bool = True,
     ):
         pass

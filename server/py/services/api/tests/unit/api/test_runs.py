@@ -27,7 +27,6 @@ from sqlalchemy.orm import Session
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
-from mlrun.config import config
 
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
@@ -220,6 +219,7 @@ def test_push_notifications(db: Session, client: TestClient) -> None:
 
 
 def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
+    project = "some-project"
     run_1_start_time = datetime.now(timezone.utc)
 
     time.sleep(0.1)
@@ -234,7 +234,7 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     run = Run(
         name=run_1_name,
         uid=run_1_uid,
-        project=config.default_project,
+        project=project,
         iteration=0,
         start_time=run_1_start_time,
         updated=run_1_update_time,
@@ -260,7 +260,7 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     run = Run(
         name=run_2_name,
         uid=run_2_uid,
-        project=config.default_project,
+        project=project,
         iteration=0,
         start_time=run_2_start_time,
         updated=run_2_update_time,
@@ -269,18 +269,18 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     get_db()._upsert(db, [run], ignore=True)
 
     # all start time range
-    assert_time_range_request(client, [run_1_uid, run_2_uid], config.default_project)
+    assert_time_range_request(client, [run_1_uid, run_2_uid], project)
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
-        config.default_project,
+        project,
         start_time_from=run_1_start_time.isoformat(),
         start_time_to=run_2_update_time.isoformat(),
     )
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
-        config.default_project,
+        project,
         start_time_from=run_1_start_time.isoformat(),
     )
 
@@ -288,20 +288,20 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
-        config.default_project,
+        project,
         last_update_time_from=run_1_update_time,
         last_update_time_to=run_2_update_time,
     )
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
-        config.default_project,
+        project,
         last_update_time_from=run_1_update_time,
     )
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
-        config.default_project,
+        project,
         last_update_time_to=run_2_update_time,
     )
 
@@ -309,20 +309,20 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     assert_time_range_request(
         client,
         [run_1_uid],
-        config.default_project,
+        project,
         start_time_from=run_1_start_time,
         start_time_to=between_run_1_and_2,
     )
     assert_time_range_request(
         client,
         [run_1_uid],
-        config.default_project,
+        project,
         start_time_to=between_run_1_and_2,
     )
     assert_time_range_request(
         client,
         [run_1_uid],
-        config.default_project,
+        project,
         last_update_time_from=run_1_update_time,
         last_update_time_to=run_2_start_time,
     )
@@ -331,14 +331,14 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     assert_time_range_request(
         client,
         [run_2_uid],
-        config.default_project,
+        project,
         start_time_from=run_2_start_time,
         start_time_to=run_2_update_time,
     )
     assert_time_range_request(
         client,
         [run_2_uid],
-        config.default_project,
+        project,
         last_update_time_from=run_2_start_time,
     )
 

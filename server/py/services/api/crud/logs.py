@@ -43,7 +43,6 @@ class Logs(
         uid: str,
         append: bool = True,
     ):
-        project = project or mlrun.mlconf.default_project
         log_file = framework.api.utils.log_path(project, uid)
         log_file.parent.mkdir(parents=True, exist_ok=True)
         mode = "ab" if append else "wb"
@@ -81,7 +80,6 @@ class Logs(
     def delete_project_logs_legacy(
         project: str,
     ):
-        project = project or mlrun.mlconf.default_project
         logs_path = framework.api.utils.project_logs_path(project)
         if logs_path.exists():
             shutil.rmtree(str(logs_path))
@@ -91,7 +89,6 @@ class Logs(
         project: str,
         run_uid: str,
     ):
-        project = project or mlrun.mlconf.default_project
         logs_path = framework.api.utils.log_path(project, run_uid)
         if logs_path.exists():
             shutil.rmtree(str(logs_path))
@@ -154,7 +151,6 @@ class Logs(
           if other than auto, it will fall back to legacy log_collector mode
         :return: run state and logs
         """
-        project = project or mlrun.mlconf.default_project
         run = await self._get_run_for_log(db_session, project, uid)
         run_state = run.get("status", {}).get("state", "")
         log_stream = None
@@ -241,11 +237,10 @@ class Logs(
         """
         :return: bytes of the logs themselves
         """
-        project = project or mlrun.mlconf.default_project
         log_contents = b""
         log_file_exists, log_file = self.log_file_exists_for_run_uid(project, uid)
         if not run:
-            run = get_db().read_run(db_session, uid, project)
+            run = get_db().read_run(db_session, uid=uid, project=project)
         if not run:
             framework.api.utils.log_and_raise(
                 HTTPStatus.NOT_FOUND.value, project=project, uid=uid
@@ -305,7 +300,9 @@ class Logs(
 
     @staticmethod
     async def _get_run_for_log(db_session: Session, project: str, uid: str) -> dict:
-        run = await run_in_threadpool(get_db().read_run, db_session, uid, project)
+        run = await run_in_threadpool(
+            get_db().read_run, db_session, uid=uid, project=project
+        )
         if not run:
             framework.api.utils.log_and_raise(
                 HTTPStatus.NOT_FOUND.value, project=project, uid=uid

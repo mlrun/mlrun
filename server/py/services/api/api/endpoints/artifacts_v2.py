@@ -363,7 +363,8 @@ async def delete_artifacts(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    project = project or mlrun.mlconf.default_project
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     artifacts = await run_in_threadpool(
         services.api.crud.Artifacts().list_artifacts,
         db_session,

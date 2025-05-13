@@ -210,29 +210,6 @@ class _V3IORecordsChecker:
             ).all(), "The endpoint IDs are different than expected"
 
     @classmethod
-    def _test_parquet(
-        cls, ep_id: str, inputs: set[str], outputs: set[str]
-    ) -> None:  # TODO : delete in 1.10.0  (V1 app deprecation)
-        parquet_apps_directory = (
-            mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
-                mlrun.get_or_create_project(cls.project_name, allow_cross_project=True),
-                kind=mm_constants.FileTargetKind.PARQUET,
-            )
-        )
-        df = ParquetTarget(
-            path=f"{parquet_apps_directory}/key={ep_id}",
-        ).as_df()
-
-        is_inputs_saved = inputs.issubset(df.columns)
-        assert is_inputs_saved, "Dataframe does not contain the input columns"
-        is_output_saved = outputs.issubset(df.columns)
-        assert is_output_saved, "Dataframe does not contain the output columns"
-        is_metadata_saved = set(mm_constants.FeatureSetFeatures.list()).issubset(
-            df.columns
-        )
-        assert is_metadata_saved, "Dataframe does not contain the metadata columns"
-
-    @classmethod
     def _test_v3io_records(
         cls,
         ep_id: str,
@@ -241,7 +218,6 @@ class _V3IORecordsChecker:
         last_request: typing.Optional[datetime] = None,
         error_count: typing.Optional[float] = None,
     ) -> None:
-        cls._test_parquet(ep_id, inputs, outputs)
         cls._test_tsdb_record(ep_id, last_request=last_request, error_count=error_count)
 
     @classmethod

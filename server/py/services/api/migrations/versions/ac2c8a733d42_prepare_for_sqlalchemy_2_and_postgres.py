@@ -22,7 +22,6 @@ Create Date: 2025-05-13 20:02:34.836350
 
 from alembic import op
 from sqlalchemy.dialects import mysql
-from sqlalchemy.dialects import mysql
 
 import mlrun
 

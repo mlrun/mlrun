@@ -31,7 +31,6 @@ import pytz
 import sqlalchemy
 from sqlalchemy import (
     Column,
-    MetaData,
     and_,
     case,
     delete,
@@ -3663,7 +3662,7 @@ class SQLDB(DBInterface):
             session.query(
                 Schedule.project.label("project_name"),
                 Schedule.name.label("schedule_name"),
-                case([(workflow_label_exists, True)], else_=False).label(
+                case((workflow_label_exists, True), else_=False).label(
                     "has_workflow_label"
                 ),
             )
@@ -3804,7 +3803,8 @@ class SQLDB(DBInterface):
                         AlertActivation.entity_kind
                         == mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
                         1,
-                    )
+                    ),
+                    else_=None,
                 )
             ).label("model_endpoint_alerts_count"),
             func.count(
@@ -3813,20 +3813,22 @@ class SQLDB(DBInterface):
                         AlertActivation.entity_kind
                         == mlrun.common.schemas.alert.EventEntityKind.JOB,
                         1,
-                    )
+                    ),
+                    else_=None,
                 )
             ).label("job_alerts_count"),
             func.count(
                 case(
                     (
-                        AlertActivation.entity_kind.not_in(
+                        AlertActivation.entity_kind.notin_(
                             [
                                 mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
                                 mlrun.common.schemas.alert.EventEntityKind.JOB,
                             ]
                         ),
                         1,
-                    )
+                    ),
+                    else_=None,
                 )
             ).label("other_alerts_count"),
         )
@@ -5391,11 +5393,19 @@ class SQLDB(DBInterface):
             session.query(ModelEndpoint)
             .options(
                 selectinload(ModelEndpoint.function).options(
-                    load_only("name", "state", "project", "uid"),
+                    load_only(
+                        Function.name, Function.state, Function.project, Function.uid
+                    ),
                     selectinload(Function.tags),
                 ),
                 selectinload(ModelEndpoint.model).options(
-                    load_only("key", "project", "iteration", "producer_id", "uid")
+                    load_only(
+                        ArtifactV2.key,
+                        ArtifactV2.project,
+                        ArtifactV2.iteration,
+                        ArtifactV2.producer_id,
+                        ArtifactV2.uid,
+                    )
                 ),
                 selectinload(ModelEndpoint.tags),
             )
@@ -8154,9 +8164,12 @@ class SQLDB(DBInterface):
         :param table_name: table name
         :return: True if the table exists, False otherwise
         """
-        metadata = MetaData(bind=session.bind)
-        metadata.reflect()
-        return table_name in metadata.tables.keys()
+        inspector = sqlalchemy.inspect(
+            subject=session.bind,
+        )
+        return inspector.has_table(
+            name=table_name,
+        )
 
     @staticmethod
     def _paginate_query(

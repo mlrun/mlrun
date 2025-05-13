@@ -24,10 +24,10 @@ from git import Repo
 repos = [
     {"url": "https://github.com/mlrun/demo-azure-ML.git", "name": "demo-azure-ML"},
     {"url": "https://github.com/mlrun/demo-fraud.git", "name": "demo-fraud"},
-    {
-        "url": "https://github.com/mlrun/demo-mask-detection.git",
-        "name": "demo-mask-detection",
-    },
+    {"url": "https://github.com/mlrun/demo-mask-detection.git", "name": "demo-mask-detection"},
+    {"url": "https://github.com/mlrun/demo-monitoring-and-feedback-loop.git", "name": "demo-monitoring-and-feedback-loop"},
+    {"url": "https://github.com/mlrun/demo-call-center.git", "name": "demo-call-center"},
+    {"url": "https://github.com/mlrun/demo-llm-tuning.git", "name": "demo-llm-tuning"},
     # Add more repositories as needed
 ]
 demos_files = {

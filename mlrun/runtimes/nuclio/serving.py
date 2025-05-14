@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import copy
 import json
 import os
 import warnings
@@ -27,7 +27,11 @@ from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.secrets import SecretsStore
-from mlrun.serving.server import GraphServer, create_graph_server
+from mlrun.serving.server import (
+    GraphServer,
+    add_system_steps_to_graph,
+    create_graph_server,
+)
 from mlrun.serving.states import (
     RootFlowStep,
     RouterStep,
@@ -637,27 +641,6 @@ class ServingRuntime(RemoteRuntime):
         self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 
-    def add_model_runner_error_handler(self):
-        model_runner_raisers = {}
-        for step in self.spec.graph.steps.values():
-            if isinstance(step, mlrun.serving.states.ModelRunnerStep):
-                error_step = step.to(
-                    class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
-                    name=f"{step.name}_error_raise",
-                    full_event=True,
-                    raise_exception = step._raise_exception,
-                    models_names = list(step.class_args["models"].keys()),
-                )
-                model_runner_raisers[step.name] = error_step
-                error_step.on_error = step.on_error
-            if isinstance(step.after, list):
-                for i in range(len(step.after)):
-                    if step.after[i].name in model_runner_raisers:
-                        step.after[i] = model_runner_raisers[step.after[i].name]
-            else:
-                if step.after.name in model_runner_raisers:
-                    step.after = model_runner_raisers[step.after.name]
-
     @min_nuclio_versions("1.12.10")
     def deploy(
         self,
@@ -683,8 +666,6 @@ class ServingRuntime(RemoteRuntime):
             raise ValueError(f"illegal model loading mode {load_mode}")
         if not self.spec.graph:
             raise ValueError("nothing to deploy, .spec.graph is none, use .add_model()")
-
-        self.add_model_runner_error_handler()
 
         if self.spec.graph.kind != StepKinds.router and not getattr(
             self, "_is_child_function", None
@@ -784,10 +765,13 @@ class ServingRuntime(RemoteRuntime):
             set_paths(workdir)
             os.chdir(workdir)
 
+        system_graph = None
+        if isinstance(self.spec.graph, RootFlowStep):
+            system_graph = add_system_steps_to_graph(copy.deepcopy(self.spec.graph))
         server = create_graph_server(
             parameters=self.spec.parameters,
             load_mode=self.spec.load_mode,
-            graph=self.spec.graph,
+            graph=system_graph or self.spec.graph,
             verbose=self.verbose,
             current_function=current_function,
             graph_initializer=self.spec.graph_initializer,

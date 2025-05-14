@@ -329,6 +329,7 @@ class GraphServer(ModelObj):
         """wait for async operation to complete"""
         return self.graph.wait_for_completion()
 
+
 def add_system_steps_to_graph(graph: RootFlowStep):
     model_runner_raisers = {}
     for step in graph.steps.values():
@@ -337,8 +338,8 @@ def add_system_steps_to_graph(graph: RootFlowStep):
                 class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
                 name=f"{step.name}_error_raise",
                 full_event=True,
-                raise_exception = step._raise_exception,
-                models_names = list(step.class_args["models"].keys()),
+                raise_exception=step._raise_exception,
+                models_names=list(step.class_args["models"].keys()),
             )
             if step.responder:
                 step.responder = False
@@ -353,6 +354,7 @@ def add_system_steps_to_graph(graph: RootFlowStep):
             if step.after.name in model_runner_raisers:
                 step.after = model_runner_raisers[step.after.name]
     return graph
+
 
 def v2_serving_init(context, namespace=None):
     """hook for nuclio init_context()"""

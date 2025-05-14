@@ -213,8 +213,6 @@ class _V3IORecordsChecker:
     def _test_v3io_records(
         cls,
         ep_id: str,
-        inputs: set[str],
-        outputs: set[str],
         last_request: typing.Optional[datetime] = None,
         error_count: typing.Optional[float] = None,
     ) -> None:
@@ -655,7 +653,6 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set: bool) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
-        inputs, outputs = self._log_model(with_training_set)
 
         for i in range(len(self.apps_data)):
             if "with_training_set" in self.apps_data[i].kwargs:
@@ -704,8 +701,6 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
         self._test_v3io_records(
             ep_id=mep.metadata.uid,
-            inputs=inputs,
-            outputs=outputs,
             last_request=mep.status.last_request,
             error_count=self.error_count,
         )

@@ -48,15 +48,15 @@ def test_normalize_retry_run(client, original_name, project, expected):
 @pytest.mark.parametrize(
     "raw,expected",
     [
-        ("simple", "simple"),                     # lowercase, already valid
-        ("MiXeD_CaSe", "mixed_case"),             # mixed case → lower-case kept
-        ("with space", "with_space"),             # spaces → underscore
-        ("double  space", "double_space"),        # condensed invalid runs → single _
-        ("leading-", "leading"),                  # leading invalid char stripped
-        ("trailing!", "trailing"),                # trailing invalid char stripped
-        ("--many!!bad$$chars--", "many_bad_chars"),# multiple invalid segments
-        ("___already_ok___", "already_ok"),       # leading/trailing underscores removed
-        ("", ""),                                 # empty string stays empty
+        ("simple", "simple"),  # lowercase, already valid
+        ("MiXeD_CaSe", "mixed_case"),  # mixed case → lower-case kept
+        ("with space", "with_space"),  # spaces → underscore
+        ("double  space", "double_space"),  # condensed invalid runs → single _
+        ("leading-", "leading"),  # leading invalid char stripped
+        ("trailing!", "trailing"),  # trailing invalid char stripped
+        ("--many!!bad$$chars--", "many_bad_chars"),  # multiple invalid segments
+        ("___already_ok___", "already_ok"),  # leading/trailing underscores removed
+        ("", ""),  # empty string stays empty
     ],
 )
 def test_sanitize_expected(raw, expected):
@@ -66,4 +66,9 @@ def test_sanitize_expected(raw, expected):
 def test_idempotent():
     """Calling the function twice should be a no-op."""
     name = "a__valid_name"
-    assert mlrun_pipelines.client.sanitize_input_name(mlrun_pipelines.client.sanitize_input_name(name)) == name
+    assert (
+        mlrun_pipelines.client.sanitize_input_name(
+            mlrun_pipelines.client.sanitize_input_name(name)
+        )
+        == name
+    )

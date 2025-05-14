@@ -41,7 +41,8 @@ ROOT_PARAMETER_NAME = "pipeline-root"
 
 INVALID_CHARACTERS_REGEX = re.compile(r"[^-0-9a-z]+")
 MULTIPLE_DASHES_REGEX = re.compile(r"-+")
-INPUT_NAME_REGEX = re.compile(r'[^_0-9a-z]+')
+INPUT_NAME_REGEX = re.compile(r"[^_0-9a-z]+")
+
 
 class ServiceAccountTokenVolumeCredentials:
     def __init__(
@@ -96,11 +97,15 @@ class JobConfig:
     ):
         self.spec = pipeline_spec
         self.resource_references = resource_references
-INPUT_NAME_REGEX = re.compile(r'[^_0-9a-z]+')
+
+
+INPUT_NAME_REGEX = re.compile(r"[^_0-9a-z]+")
+
+
 def sanitize_input_name(
     name: str,
 ) -> str:
-    return INPUT_NAME_REGEX.sub('_', name.lower()).lstrip('_').rstrip('_')
+    return INPUT_NAME_REGEX.sub("_", name.lower()).lstrip("_").rstrip("_")
 
 
 class Client(

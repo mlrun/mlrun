@@ -62,6 +62,10 @@ which is implemented by Iguazio during installation, and applied system-wide:
 - Override: Use the user id of the user that triggered the current run or use the `nogroupid` for group id. Requires Iguazio v3.5.1.
 - Disabled: Security context is not auto applied (the system applies the root user). (default)
 
+
+<br>
+<img class="dark-light" src="_static/images/maintenance_logo.svg" alt="Maintenance logo" width="250"/>
+
 ```{toctree}
 :hidden:
 :maxdepth: 1

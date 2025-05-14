@@ -12,7 +12,7 @@
 In addition to the examples in this section, see the:
 - [Distributed (multi-function) pipeline example](./distributed-graph.ipynb) that details how to run a pipeline that consists of multiple serverless functions (connected using streams).
 - [Advanced model serving graph notebook example](./graph-example.ipynb) that illustrates the flow, task, model, and ensemble router states; building tasks from custom handlers; classes and storey components; using custom error handlers; testing graphs locally; deploying a graph as a real-time serverless function.
-- [MLRun demos repository](https://github.com/mlrun/demos) for additional use cases and full end-to-end examples, including fraud prevention using the Iguazio feature store, a mask detection demo, and converting existing ML code to an MLRun project.
+- [MLRun demos repository](../tutorials/demos.md) for additional use cases and full end-to-end examples, including GenAI serving and using model monitoring.
 
 ## Data and feature engineering (using the feature store)
 

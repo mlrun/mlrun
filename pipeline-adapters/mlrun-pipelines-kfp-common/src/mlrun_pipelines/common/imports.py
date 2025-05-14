@@ -66,7 +66,12 @@ class DummyCompiler:
                 logger.warning("KFP is not installed; using a no-op compiler.")
                 self._has_warned = True
 
-        def compile(self, pipeline_func: Callable[..., Any], package_path: str) -> None:
+        def compile(
+            self,
+            pipeline_func: Optional[Callable[..., Any]] = None,
+            package_path: Optional[str] = None,
+            **kwargs: Any,
+        ) -> None:
             self._warn_once_about_kfp()
             logger.debug(
                 f"[NoOp] Compiling pipeline for func '{pipeline_func}' -> '{package_path}'"
@@ -75,6 +80,9 @@ class DummyCompiler:
         def _create_workflow(self, *args: Any, **kwargs: Any) -> None:
             self._warn_once_about_kfp()
             logger.debug("[NoOp] _create_workflow called.")
+
+        def __call__(self) -> "DummyCompiler.Compiler":
+            return self
 
 
 class DummyRunPipelineResult:

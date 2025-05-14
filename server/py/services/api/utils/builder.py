@@ -839,6 +839,7 @@ def is_mlrun_image(base_image):
         "mlrun/mlrun",
         "mlrun/mlrun-gpu",
         "mlrun/ml-base",
+        "mlrun/mlrun-kfp",
     ]
     return any([image in base_image for image in mlrun_images])
 
@@ -1116,7 +1117,7 @@ def _validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> lis
 
 
 def _resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:
-    project = function.metadata.project or config.default_project
+    project = function.metadata.project
     name = function.metadata.name
     tag = function.metadata.tag or "latest"
     if image:

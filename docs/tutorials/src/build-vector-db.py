@@ -35,7 +35,7 @@ def handler_chroma(
     # Get or create collection
     collection_name = "my_news"
     print(f"Creating collection: '{collection_name}'")
-    
+
     if chroma_client.count_collections() > 0:
         chroma_client.delete_collection(name=collection_name)
 

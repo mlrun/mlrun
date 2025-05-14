@@ -274,6 +274,49 @@ jobs:
           cd head/mlrun
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-backward-compatibility-dockerized
 
+check-locks:
+  name: Check dependency lock files
+  runs-on: ubuntu-latest
+  strategy:
+    matrix:
+      python-version: ["3.9"]
+
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Needed to compare with base branch
+
+    - name: Set up Git
+      run: |
+        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+
+    - name: Install uv
+      run: pip install uv
+
+    - name: Check if requirements.txt changed
+      id: req_changed
+      run: |
+        if git diff --name-only ${{ github.base_ref }}...HEAD | grep -q '^requirements\.txt$'; then
+          echo "changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "changed=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Verify lock files are up to date
+      if: steps.req_changed.outputs.changed == 'true'
+      run: |
+        cp requirements.txt requirements.temp.txt
+        uv pip compile requirements.temp.txt --output mlrun-deps.temp.lock
+
+        if ! cmp -s mlrun-deps.temp.lock mlrun-deps.lock; then
+          echo "❌ Lock file is outdated. Please run: make upgrade-mlrun-deps-lock"
+          exit 1
+        fi
+
+    - name: Cleanup
+      if: always()
+      run: rm -f requirements.temp.txt mlrun-deps.temp.lock
+
   verify-compatible-requirements-one-after-one:
     name: Verify compatible requirements (one after one)
     runs-on: ubuntu-latest

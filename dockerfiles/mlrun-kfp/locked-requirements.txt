@@ -225,9 +225,9 @@ azure-datalake-store==0.0.53 \
     --hash=sha256:05b6de62ee3f2a0a6e6941e6933b792b800c3e7f6ffce2fc324bc19875757393 \
     --hash=sha256:a30c902a6e360aa47d7f69f086b426729784e71c536f330b691647a51dc42b2b
     # via adlfs
-azure-identity==1.22.0 \
-    --hash=sha256:26d6c63f2ca453c77c3e74be8613941ad074e05d0c8be135247573752c249ad8 \
-    --hash=sha256:c8f5ef23e5295c2fa300c984dd9f5e1fe43503fc25c121c37ff6a15e39b800b9
+azure-identity==1.23.0 \
+    --hash=sha256:d9cdcad39adb49d4bb2953a217f62aec1f65bbb3c63c9076da2be2a47e53dde4 \
+    --hash=sha256:dbbeb64b8e5eaa81c44c565f264b519ff2de7ff0e02271c49f3cb492762a50b0
     # via
     #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   adlfs

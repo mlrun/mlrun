@@ -1,3 +1,17 @@
+# Copyright 2025 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import Optional
 from uuid import UUID
 
@@ -17,98 +31,83 @@ from mlrun.model_monitoring.applications.evidently import (
 )
 
 if _HAS_EVIDENTLY:
-    from evidently.metrics import (
-        ColumnDriftMetric,
-        ColumnSummaryMetric,
-        DatasetDriftMetric,
-        DatasetMissingValuesMetric,
+    from evidently.core.report import Report, Snapshot
+    from evidently.metrics import DatasetMissingValueCount, ValueDrift
+    from evidently.presets import DataDriftPreset, DataSummaryPreset
+    from evidently.sdk.models import PanelMetric
+    from evidently.sdk.panels import DashboardPanelPlot
+    from evidently.ui.workspace import (
+        STR_UUID,
+        OrgID,
+        Project,
+        ProjectModel,
+        WorkspaceBase,
     )
-    from evidently.report import Report
-    from evidently.test_preset import DataDriftTestPreset
-    from evidently.test_suite import TestSuite
-    from evidently.ui.base import Project
-    from evidently.ui.dashboards import (
-        CounterAgg,
-        DashboardConfig,
-        DashboardPanelCounter,
-        DashboardPanelPlot,
-        PanelValue,
-        PlotType,
-        ReportFilter,
-    )
-    from evidently.ui.type_aliases import STR_UUID
-    from evidently.ui.workspace import Workspace
 
     _PROJECT_NAME = "Iris Monitoring"
     _PROJECT_DESCRIPTION = "Test project using iris dataset"
 
     def _create_evidently_project(
-        workspace: Workspace, id: Optional[UUID] = None
+        workspace: WorkspaceBase,
+        id: Optional[UUID] = None,
+        org_id: Optional[OrgID] = None,
     ) -> Project:
         if id:
-            project = Project(
-                name=_PROJECT_NAME,
-                description=_PROJECT_DESCRIPTION,
-                dashboard=DashboardConfig(name=_PROJECT_NAME, panels=[]),
-                id=id,
-            )  # pyright: ignore[reportGeneralTypeIssues]
-            project = workspace.add_project(project)
+            project = ProjectModel(
+                name=_PROJECT_NAME, description=_PROJECT_DESCRIPTION, id=id
+            )
+            project = workspace.add_project(project, org_id=org_id)
         else:
-            project = workspace.create_project(_PROJECT_NAME)
+            project = workspace.create_project(_PROJECT_NAME, org_id=org_id)
         project.description = _PROJECT_DESCRIPTION
         project.dashboard.add_panel(
-            DashboardPanelCounter(
-                filter=ReportFilter(metadata_values={}, tag_values=[]),
-                agg=CounterAgg.NONE,
+            DashboardPanelPlot(
                 title="Income Dataset (iris)",
-            )  # pyright: ignore[reportGeneralTypeIssues]
+                subtitle="The iris dataset.",
+                size="half",
+                values=[PanelMetric(legend="Row count", metric="RowCount")],
+                plot_params={"plot_type": "counter", "aggregation": "sum"},
+            ),
+            tab="tab 0",
         )
         project.dashboard.add_panel(
-            DashboardPanelCounter(
+            DashboardPanelPlot(
                 title="Model Calls",
-                filter=ReportFilter(metadata_values={}, tag_values=[]),
-                value=PanelValue(
-                    metric_id="DatasetMissingValuesMetric",
-                    field_path=DatasetMissingValuesMetric.fields.current.number_of_rows,
-                    legend="count",
-                ),
-                text="count",
-                agg=CounterAgg.SUM,
-                size=1,
-            )  # pyright: ignore[reportGeneralTypeIssues]
+                subtitle="Total number of predictions over time.",
+                size="half",
+                values=[PanelMetric(legend="count", metric="DatasetMissingValueCount")],
+                plot_params={"plot_type": "counter", "aggregation": "sum"},
+            ),
+            tab="tab 0",
         )
         project.dashboard.add_panel(
-            DashboardPanelCounter(
+            DashboardPanelPlot(
                 title="Share of Drifted Features",
-                filter=ReportFilter(metadata_values={}, tag_values=[]),
-                value=PanelValue(
-                    metric_id="DatasetDriftMetric",
-                    field_path="share_of_drifted_columns",
-                    legend="share",
-                ),
-                text="share",
-                agg=CounterAgg.LAST,
-                size=1,
-            )  # pyright: ignore[reportGeneralTypeIssues]
+                subtitle="Measure the drift of the features.",
+                size="full",
+                values=[PanelMetric(metric="DataDriftPreset", legend="share")],
+                plot_params={"plot_type": "counter", "aggregation": "last"},
+            ),
+            tab="tab 0",
         )
         project.dashboard.add_panel(
             DashboardPanelPlot(
                 title="Dataset Quality",
-                filter=ReportFilter(metadata_values={}, tag_values=[]),
+                subtitle="",
+                size="full",
                 values=[
-                    PanelValue(
-                        metric_id="DatasetDriftMetric",
-                        field_path="share_of_drifted_columns",
+                    PanelMetric(
+                        metric="DataDriftPreset",
                         legend="Drift Share",
                     ),
-                    PanelValue(
-                        metric_id="DatasetMissingValuesMetric",
-                        field_path=DatasetMissingValuesMetric.fields.current.share_of_missing_values,
+                    PanelMetric(
+                        metric="DatasetMissingValuesMetric",
                         legend="Missing Values Share",
                     ),
                 ],
-                plot_type=PlotType.LINE,
-            )  # pyright: ignore[reportGeneralTypeIssues]
+                plot_params={"plot_type": "line"},
+            ),
+            tab="tab 0",
         )
         project.save()
         return project
@@ -119,72 +118,51 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
 
     def __init__(
         self,
-        evidently_workspace_path: str,
-        evidently_project_id: "STR_UUID",
+        evidently_project_id: Optional["STR_UUID"] = None,
+        evidently_workspace_path: Optional[str] = None,
+        cloud_workspace: bool = False,
+        evidently_organization_id: Optional["OrgID"] = None,
     ) -> None:
-        super().__init__(evidently_workspace_path, evidently_project_id)
-        self._init_evidently_project()
-        self.train_set = None
+        self.org_id = evidently_organization_id
+        self._init_iris_data()
+        super().__init__(
+            evidently_project_id=evidently_project_id,
+            evidently_workspace_path=evidently_workspace_path,
+            cloud_workspace=cloud_workspace,
+        )
 
-    def _init_iris_data(
-        self, monitoring_context: mm_context.MonitoringApplicationContext
-    ) -> None:
-        if self.train_set is None:
-            iris = load_iris()
-            self.columns = [norm_column_name(col) for col in iris.feature_names]
-            self.train_set = pd.DataFrame(iris.data, columns=self.columns)
+    def _init_iris_data(self) -> None:
+        iris = load_iris()
+        self.columns = [norm_column_name(col) for col in iris.feature_names]
+        self.train_set = pd.DataFrame(iris.data, columns=self.columns)
 
-    def _init_evidently_project(self) -> None:
-        if self.evidently_project is None:
-            if isinstance(self.evidently_project_id, str):
-                self.evidently_project_id = UUID(self.evidently_project_id)
-            self.evidently_project = _create_evidently_project(
-                self.evidently_workspace, self.evidently_project_id
-            )
+    def load_project(self) -> None:
+        if isinstance(self.evidently_project_id, str):
+            self.evidently_project_id = UUID(self.evidently_project_id)
+        self.evidently_project = _create_evidently_project(
+            self.evidently_workspace, self.evidently_project_id, org_id=self.org_id
+        )
+        self.evidently_project_id = self.evidently_project.id
 
     def do_tracking(
-        self,
-        monitoring_context: mm_context.MonitoringApplicationContext,
+        self, monitoring_context: mm_context.MonitoringApplicationContext
     ) -> ModelMonitoringApplicationResult:
-        self._init_iris_data(monitoring_context)
         monitoring_context.logger.info("Running evidently app")
 
         sample_df = monitoring_context.sample_df[self.columns]
 
-        data_drift_report = self.create_report(
+        data_drift_report_run = self.create_report_run(
             sample_df, monitoring_context.end_infer_time
         )
-        self.evidently_workspace.add_report(
-            self.evidently_project_id, data_drift_report
-        )
-        data_drift_test_suite = self.create_test_suite(
-            sample_df, monitoring_context.end_infer_time
-        )
-        self.evidently_workspace.add_test_suite(
-            self.evidently_project_id, data_drift_test_suite
+        self.evidently_workspace.add_run(
+            self.evidently_project_id, data_drift_report_run
         )
 
         self.log_evidently_object(
-            monitoring_context, data_drift_report, "evidently_report"
+            monitoring_context, data_drift_report_run, "evidently_report"
         )
-        self.log_evidently_object(
-            monitoring_context, data_drift_test_suite, "evidently_suite"
-        )
+        monitoring_context.logger.info("Logged evidently object")
 
-        window_start = monitoring_context.start_infer_time
-        window_end = monitoring_context.end_infer_time
-
-        # Note: the times for evidently are those of the next monitoring window.
-        evidently_start = window_end
-        evidently_end = window_end + (window_end - window_start)
-
-        self.log_project_dashboard(
-            monitoring_context,
-            timestamp_start=evidently_start,
-            timestamp_end=evidently_end,
-        )
-
-        monitoring_context.logger.info("Logged evidently objects")
         return ModelMonitoringApplicationResult(
             name="data_drift_test",
             value=0.5,
@@ -192,36 +170,27 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
             status=ResultStatusApp.potential_detection,
         )
 
-    def create_report(
+    def create_report_run(
         self, sample_df: pd.DataFrame, schedule_time: pd.Timestamp
-    ) -> "Report":
+    ) -> "Snapshot":
         metrics = [
-            DatasetDriftMetric(),
-            DatasetMissingValuesMetric(),
+            DataDriftPreset(),
+            DatasetMissingValueCount(),
+            DataSummaryPreset(),
         ]
-        for col_name in self.columns:
-            metrics.extend(
-                [
-                    ColumnDriftMetric(column_name=col_name, stattest="wasserstein"),
-                    ColumnSummaryMetric(column_name=col_name),
-                ]
-            )
+        metrics.extend(
+            [
+                ValueDrift(column=col_name, method="wasserstein")
+                for col_name in self.columns
+            ]
+        )
 
         data_drift_report = Report(
             metrics=metrics,
-            timestamp=schedule_time,
+            metadata={"timestamp": str(schedule_time)},
+            include_tests=True,
         )
 
-        data_drift_report.run(reference_data=self.train_set, current_data=sample_df)
-        return data_drift_report
-
-    def create_test_suite(
-        self, sample_df: pd.DataFrame, schedule_time: pd.Timestamp
-    ) -> "TestSuite":
-        data_drift_test_suite = TestSuite(
-            tests=[DataDriftTestPreset()],
-            timestamp=schedule_time,
+        return data_drift_report.run(
+            current_data=sample_df, reference_data=self.train_set
         )
-
-        data_drift_test_suite.run(reference_data=self.train_set, current_data=sample_df)
-        return data_drift_test_suite

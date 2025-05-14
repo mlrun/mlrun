@@ -1310,10 +1310,10 @@ def _create_resources_of_all_kinds(
                 function["spec"]["index"] = index
                 functions_hashes.append(
                     db.store_function(
-                        db_session,
-                        function,
-                        function_name,
-                        project,
+                        session=db_session,
+                        function=function,
+                        name=function_name,
+                        project=project,
                         tag=function_tag,
                         versioned=True,
                     )
@@ -1344,8 +1344,8 @@ def _create_resources_of_all_kinds(
                     artifact_uids.append(
                         db.store_artifact(
                             db_session,
-                            artifact_key,
-                            artifact,
+                            key=artifact_key,
+                            artifact=artifact,
                             iter=artifact_iter,
                             tag=artifact_tag,
                             project=project,

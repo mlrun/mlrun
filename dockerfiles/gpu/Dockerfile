@@ -11,14 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG MLRUN_PYTHON_VERSION=3.11
-
 ARG MLRUN_GPU_BASE_IMAGE=quay.io/mlrun/prebaked-cuda:12.8.1-cudnn-devel-ubuntu22.04
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
 
 FROM ${MLRUN_GPU_BASE_IMAGE}
+
+ARG MLRUN_PYTHON_VERSION=3.11
 
 # Update OS packages:
 RUN apt-get update && \
@@ -48,7 +48,7 @@ ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/gpu/locked-requirements.txt,target=locked-requirements.txt \
-    uv pip install --verify-hashes -r locked-requirements.txt
+    uv pip install --verify-hashes -r locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
 
 COPY . .
 
@@ -56,4 +56,4 @@ RUN rm -rf ./server/go
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete]
+    uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION}

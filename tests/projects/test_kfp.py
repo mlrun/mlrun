@@ -200,16 +200,14 @@ def _generate_task(p1, out_path):
 
 
 def test_merge_node_selectors_from_function_and_project_on_kfp_pod(
-    ensure_active_project,
+    ensure_project,
 ):
-    function = new_function(
-        kfp=True, kind="job", project=ensure_active_project.metadata.name
-    )
+    function = new_function(kfp=True, kind="job", project=ensure_project.metadata.name)
     function_node_selector, function_val = "ns1", "val1"
     function.spec.node_selector = {function_node_selector: function_val}
 
     project_node_selector, project_val = "ns2", "val2"
-    ensure_active_project.spec.default_function_node_selector = {
+    ensure_project.spec.default_function_node_selector = {
         project_node_selector: project_val
     }
 
@@ -226,11 +224,9 @@ def test_merge_node_selectors_from_function_and_project_on_kfp_pod(
 
 
 def test_kfp_pod_sets_gpu_resources_to_zero_when_gpu_requested(
-    ensure_active_project,
+    ensure_project,
 ):
-    function = new_function(
-        kfp=True, kind="job", project=ensure_active_project.metadata.name
-    )
+    function = new_function(kfp=True, kind="job", project=ensure_project.metadata.name)
     gpu_type = "nvidia.com/gpu"
     function.with_limits(gpus=1, gpu_type=gpu_type)
     cop = function.as_step()

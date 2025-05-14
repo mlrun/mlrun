@@ -464,7 +464,7 @@ def new_function(
            f = new_function().run(task, handler=myfunction)
 
     :param name:     function name
-    :param project:  function project (none for 'active')
+    :param project:  function project (none for the active project)
     :param tag:      function version tag (none for 'latest')
 
     :param kind:     runtime type (local, job, nuclio, spark, mpijob, dask, ..)
@@ -640,7 +640,7 @@ def code_to_function(
     Learn more about :doc:`../../concepts/functions-overview`
 
     :param name:         function name, typically best to use hyphen-case
-    :param project:      project used to namespace the function, defaults to 'active'
+    :param project:      project used to namespace the function, defaults to the active project
     :param tag:          function tag to track multiple versions of the same function, defaults to 'latest'
     :param filename:     path to .py/.ipynb file, defaults to current jupyter notebook
     :param handler:      The default function handler to call for the job or nuclio function, in batch functions

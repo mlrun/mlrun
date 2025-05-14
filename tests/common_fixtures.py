@@ -97,8 +97,6 @@ def config_test_base():
     # TODO: update this to "sidecar" once the default mode is changed
     mlrun.mlconf.log_collector.mode = "legacy"
 
-    # reset active project to avoid test interference
-    mlrun.mlconf.active_project = "active"
     mlrun.projects.project.pipeline_context.set(None)
 
     # reset factory container overrides
@@ -117,8 +115,8 @@ def aioresponses_mock():
 
 
 @pytest.fixture
-def ensure_active_project() -> mlrun.projects.project.MlrunProject:
-    return mlrun.get_or_create_project("active", allow_cross_project=True)
+def ensure_project() -> mlrun.projects.project.MlrunProject:
+    return mlrun.get_or_create_project("test-project", allow_cross_project=True)
 
 
 @pytest.fixture()
@@ -447,11 +445,6 @@ class RunDBMock:
         if self._project_name and name == self._project_name:
             return self._project
 
-        elif name == config.active_project and not self._project:
-            project = mlrun.projects.MlrunProject(mlrun.ProjectMetadata(name))
-            self.store_project(name, project)
-            return project
-
         raise mlrun.errors.MLRunNotFoundError(f"Project '{name}' not found")
 
     def remote_builder(
@@ -736,7 +729,7 @@ class RunDBMock:
 
     def list_model_endpoints(
         self,
-        project: str = "active",
+        project: str = "project",
         names: Optional[Union[str, list[str]]] = None,
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,

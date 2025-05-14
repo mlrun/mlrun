@@ -88,9 +88,9 @@ class HTTPRunDB(RunDBInterface):
 
     - Every object in MLRun exists in the context of a project (except projects themselves). When referencing an object
       through any API, a project name must be provided. The default for most APIs is for an empty project name, which
-      will be replaced by the name of the active project (usually ``active``). Therefore, if performing an API to
+      will be replaced by the name of the active project (if set). Therefore, if performing an API to
       list functions, for example, and not providing a project name - the result will not be functions from all
-      projects but rather from the ``active`` project.
+      projects but rather from the active project.
     - Many objects can be assigned labels, and listed/queried by label. The label parameter for query APIs allows for
       listing objects that:
 

@@ -21,7 +21,7 @@ import typing
 import warnings
 from copy import deepcopy
 from datetime import datetime, timedelta
-from os import path, remove
+from os import environ, path, remove
 from typing import Literal, Optional, Union
 from urllib.parse import urlparse
 
@@ -129,7 +129,9 @@ class HTTPRunDB(RunDBInterface):
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
-        self.python_version = str(version.Version().get_python_version())
+        self.python_version = environ.get("MLRUN_PYTHON_VERSION") or str(
+            version.Version().get_python_version()
+        )
 
         self._enrich_and_validate(url)
 
@@ -2221,18 +2223,20 @@ class HTTPRunDB(RunDBInterface):
         elif pipe_file.endswith(".zip"):
             headers = {"content-type": "application/zip"}
         else:
-            raise ValueError("pipeline file must be .yaml or .zip")
+            raise ValueError("'pipeline' file must be .yaml or .zip")
         if arguments:
             if not isinstance(arguments, dict):
-                raise ValueError("arguments must be dict type")
+                raise ValueError("'arguments' must be dict type")
             headers[mlrun.common.schemas.HeaderNames.pipeline_arguments] = str(
                 arguments
             )
 
         if not path.isfile(pipe_file):
-            raise OSError(f"file {pipe_file} doesnt exist")
+            raise OSError(f"File {pipe_file} doesnt exist")
         with open(pipe_file, "rb") as fp:
             data = fp.read()
+            if not data:
+                raise ValueError("The compiled pipe file is empty")
         if not isinstance(pipeline, str):
             remove(pipe_file)
 

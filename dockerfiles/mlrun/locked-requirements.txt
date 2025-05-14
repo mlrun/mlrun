@@ -221,9 +221,9 @@ azure-datalake-store==0.0.53 \
     --hash=sha256:05b6de62ee3f2a0a6e6941e6933b792b800c3e7f6ffce2fc324bc19875757393 \
     --hash=sha256:a30c902a6e360aa47d7f69f086b426729784e71c536f330b691647a51dc42b2b
     # via adlfs
-azure-identity==1.23.0 \
-    --hash=sha256:d9cdcad39adb49d4bb2953a217f62aec1f65bbb3c63c9076da2be2a47e53dde4 \
-    --hash=sha256:dbbeb64b8e5eaa81c44c565f264b519ff2de7ff0e02271c49f3cb492762a50b0
+azure-identity==1.22.0 \
+    --hash=sha256:26d6c63f2ca453c77c3e74be8613941ad074e05d0c8be135247573752c249ad8 \
+    --hash=sha256:c8f5ef23e5295c2fa300c984dd9f5e1fe43503fc25c121c37ff6a15e39b800b9
     # via
     #   -r extras-requirements.txt
     #   adlfs
@@ -1532,9 +1532,9 @@ jupyterlab-pygments==0.3.0 \
     --hash=sha256:721aca4d9029252b11cfa9d185e5b5af4d54772bb8072f9b7036f4170054d35d \
     --hash=sha256:841a89020971da1d8693f1a99997aefc5dc424bb1b251fd6322462a1b8842780
     # via nbconvert
-kafka-python==2.2.7 \
-    --hash=sha256:b3d5e094b06a6e0755f30feb8f164b290a646256e9d4f302e385121ba3312bc1 \
-    --hash=sha256:c3527d3543c5c932c8cec86726d2f7625c4cb059e9a6ad483088d007a6f66913
+kafka-python==2.1.6 \
+    --hash=sha256:8a9e12694b687977cb8750b95eb060ce2907ec2d60fd5fa5c1616ab664ff5efb \
+    --hash=sha256:b967ffb5beeb16f3f04d7c08c549b3d1679f07c344e6323fa077e2667e1f3ab0
     # via -r extras-requirements.txt
 kfp-server-api==1.8.5 \
     --hash=sha256:482d71765ba57c003164dbb980a8cb1a18d234b578d064dc88dbeb3e4c7ab6de

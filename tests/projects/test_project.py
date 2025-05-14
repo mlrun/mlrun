@@ -1470,6 +1470,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
     assert run1.spec.output_path == mlrun.mlconf.artifact_path
     rundb_mock.reset()
 
+    mlrun.get_run_db().store_project("proj1", proj1)
     proj1.spec.artifact_path = "/var"
 
     run2 = proj1.run_function("f1", local=True)

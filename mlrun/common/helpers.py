@@ -44,3 +44,27 @@ def generate_api_gateway_name(project: str, name: str) -> str:
     :return: the resolved api gateway name
     """
     return f"{project}-{name}" if project else name
+
+
+def dummy_function(x, y, operation="add"):
+    """
+    A dummy function that performs basic operations on x and y.
+    """
+    if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        print("Both x and y must be numbers.")
+        return None
+
+    if operation == "add":
+        return x + y
+    elif operation == "subtract":
+        return x - y
+    elif operation == "multiply":
+        return x * y
+    elif operation == "divide":
+        if y == 0:
+            print("Cannot divide by zero.")
+            return None
+        return x / y
+    else:
+        print(f"Unsupported operation: {operation}")
+        return None

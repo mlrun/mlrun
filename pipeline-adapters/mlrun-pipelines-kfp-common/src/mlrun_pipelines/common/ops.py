@@ -178,7 +178,7 @@ def mlrun_op(
         warnings.warn(
             "rundb parameter is deprecated in 1.7.0 and will be removed in 1.10.0. "
             "use 'MLRUN_DBPATH' env instead.",
-            FutureWarning,
+            DeprecationWarning,
         )
 
     secrets = [] if secrets is None else secrets

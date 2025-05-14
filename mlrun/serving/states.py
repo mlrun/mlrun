@@ -1155,7 +1155,7 @@ class ModelRunnerErrorRaiser(storey.MapClass):
                     if errors[model] is not None:
                         should_raise = True
             if should_raise:
-                raise ModelRunnerException(errors)
+                raise ModelRunnerException(models_errors=errors)
         return event
 
 

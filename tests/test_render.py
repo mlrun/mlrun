@@ -52,6 +52,7 @@ def test_list_runs(rundb_mock, generate_artifact_hash_mode, expected_target_path
     mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = (
         generate_artifact_hash_mode
     )
+    mlrun.mlconf.ui.url = "http://mlrun-ui:8080"
     func = mlrun.code_to_function(
         filename=function_path, kind="job", handler="log_dataset"
     )
@@ -60,6 +61,15 @@ def test_list_runs(rundb_mock, generate_artifact_hash_mode, expected_target_path
     # Verify target path in enriched run list
     runs = mlrun.lists.RunList([run.to_dict()])
     html = runs.show(display=False)
+    assert (
+        f"{mlrun.mlconf.ui.url}/"
+        f"projects/"
+        f"{run.metadata.project}/"
+        f"jobs/monitor-jobs/"
+        f"{run.metadata.name}/"
+        f"{run.metadata.uid}/"
+        f"overview" in html
+    )
     for expected_target_path in expected_target_paths:
         expected_link, _ = mlrun.render.link_to_ipython(expected_target_path)
         assert expected_link in html
@@ -72,17 +82,3 @@ def test_list_runs(rundb_mock, generate_artifact_hash_mode, expected_target_path
     dataset_0_uri = list(runs[0]["status"]["artifact_uris"].values())[0]
     assert dataset_0_uri
     assert dataset_0_uri in html
-
-
-# FIXME: this test was counting on the fact it's running after some test (I think test_httpdb) which leaves runs and
-#  artifacts in the `results` dir, it should generate its own stuff, skipping for now
-@pytest.mark.skip("FIX_ME")
-def test_list_artifacts():
-    db = get_db()
-    artifacts = db.list_artifacts()
-    assert artifacts, "empty artifacts result"
-
-    html = artifacts.show(display=False)
-
-    with open(f"{results}/artifacts.html", "w") as fp:
-        fp.write(html)

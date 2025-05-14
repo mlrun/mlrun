@@ -89,7 +89,6 @@ class TestDaskRuntime(TestRuntimeBase):
         mlconf.remote_host = "http://remote_host"
         os.environ["V3IO_USERNAME"] = self.v3io_user
         os.environ["V3IO_ACCESS_KEY"] = self.v3io_access_key
-        mlconf.default_project = self.project
         mlconf.artifact_path = self.artifact_path
 
         dask_cluster = mlrun.new_function(
@@ -472,7 +471,6 @@ class TestDaskRuntime(TestRuntimeBase):
 
         function.generate_runtime_k8s_env = unittest.mock.Mock(
             return_value=[
-                {"name": "MLRUN_DEFAULT_PROJECT", "value": self.project},
                 {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
             ]
         )
@@ -487,7 +485,6 @@ class TestDaskRuntime(TestRuntimeBase):
             "requests": {},
         }
         expected_env = [
-            {"name": "MLRUN_DEFAULT_PROJECT", "value": self.project},
             {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
             k8s_client.V1EnvVar(name="MLRUN_TAG", value="latest"),
             {"name": "TEST_DUP", "value": "A"},

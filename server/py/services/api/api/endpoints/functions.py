@@ -226,6 +226,8 @@ async def list_functions(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     allowed_project_names = (
         await services.api.crud.Projects().list_allowed_project_names(
             db_session, auth_info, project=project
@@ -239,9 +241,7 @@ async def list_functions(
             mlrun.common.schemas.AuthorizationResourceTypes.function,
             _functions,
             lambda function: (
-                function.get("metadata", {}).get(
-                    "project", mlrun.mlconf.default_project
-                ),
+                function.get("metadata", {}).get("project"),
                 function["metadata"]["name"],
             ),
             auth_info,
@@ -296,7 +296,9 @@ async def build_function(
 
     logger.info("Building function", data=data)
     function = data.get("function")
-    project = function.get("metadata", {}).get("project", mlrun.mlconf.default_project)
+    project = function.get("metadata", {}).get("project")
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     function_name = function.get("metadata", {}).get("name")
     await run_in_threadpool(
         framework.utils.singletons.project_member.get_project_member().ensure_project,
@@ -458,9 +460,11 @@ async def build_status(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
 ):
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
-        project or mlrun.mlconf.default_project,
+        project,
         name,
         # store since with the current mechanism we update the status (and store the function) in the DB when a client
         # query for the status

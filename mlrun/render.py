@@ -361,9 +361,6 @@ def get_tblframe(df, display, classes=None):
     return ipython_display(html, display)
 
 
-uid_template = '<div title="{}"><a href="{}/{}/{}/jobs/monitor/{}/overview" target="_blank" >...{}</a></div>'
-
-
 def runs_to_html(
     df: pd.DataFrame,
     display: bool = True,
@@ -379,15 +376,14 @@ def runs_to_html(
     df["results"] = df["results"].apply(dict_html)
     df["start"] = df["start"].apply(time_str)
     df["parameters"] = df["parameters"].apply(dict_html)
+    uid_template = '<div title="{}"><a href="{}" target="_blank" >...{}</a></div>'
+
     if config.resolve_ui_url():
         df["uid"] = df.apply(
             lambda x: uid_template.format(
-                x.uid,
-                config.resolve_ui_url(),
-                config.ui.projects_prefix,
-                x.project,
-                x.uid,
-                x.uid[-8:],
+                x["uid"],
+                mlrun.utils.get_run_url(x["project"], x["uid"], x["name"]),
+                x["uid"][-8:],
             ),
             axis=1,
         )

@@ -15,6 +15,7 @@
 __all__ = ["GraphServer", "create_graph_server", "GraphContext", "MockEvent"]
 
 import asyncio
+import copy
 import json
 import os
 import socket
@@ -363,7 +364,7 @@ def v2_serving_init(context, namespace=None):
     spec = mlrun.utils.get_serving_spec()
     server = GraphServer.from_dict(spec)
     if isinstance(server.graph, RootFlowStep):
-        server.graph = add_system_steps_to_graph(server.graph)
+        server.graph = add_system_steps_to_graph(copy.deepcopy(server.graph))
 
     if config.log_level.lower() == "debug":
         server.verbose = True

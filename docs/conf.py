@@ -157,7 +157,7 @@ myst_xref_missing = "ignore"
 # These substitutions point to the relevant mlrun docs for the current CE version
 myst_substitutions = {
     "version": "version",
-    "ceversion": "v1.7.2",
+    "ceversion": "v1.8.0",
     "releasedocumentation": "docs.mlrun.org/en/stable/index.html",
 }
 

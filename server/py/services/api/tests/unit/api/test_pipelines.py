@@ -63,7 +63,7 @@ def test_list_pipelines_empty_list(
     kfp_client_mock: mlrun_pipelines.client.Client,
 ) -> None:
     framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
-        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
+        unittest.mock.AsyncMock(return_value=["some-project", "another"])
     )
     runs = []
     _mock_list_runs(kfp_client_mock, runs)
@@ -80,7 +80,7 @@ def test_list_pipelines_formats(
     kfp_client_mock: mlrun_pipelines.client.Client,
 ) -> None:
     framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
-        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
+        unittest.mock.AsyncMock(return_value=["some-project", "another"])
     )
     for format_ in [
         mlrun.common.formatters.PipelineFormat.full,
@@ -193,7 +193,7 @@ def test_list_pipelines_time_fields_default(
     kfp_client_mock: mlrun_pipelines.client.Client,
 ) -> None:
     framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
-        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
+        unittest.mock.AsyncMock(return_value=["some-project", "another"])
     )
     created_at = datetime.datetime.now()
     workflow_manifest = _generate_workflow_manifest()
@@ -615,7 +615,7 @@ def _generate_workflow_manifest(with_status=False):
                             "mlrun/function-uri": "default/hedi-simple-func@a5b181289c7ee40f7fba2a31ed73ff65043dfd2"
                             "7",
                             "mlrun/pipeline-step-type": "run",
-                            "mlrun/project": "default",
+                            "mlrun/project": "some-project",
                             "sidecar.istio.io/inject": "false",
                         },
                         "labels": {"pipelines.kubeflow.org/cache_enabled": "true"},

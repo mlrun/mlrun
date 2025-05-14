@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import json
 import operator
 import os
@@ -18,7 +19,7 @@ import warnings
 from base64 import b64encode
 from copy import copy
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 import pandas as pd
 import semver
@@ -1063,16 +1064,17 @@ class KafkaSource(OnlineSource):
 
     def __init__(
         self,
-        brokers=None,
-        topics=None,
-        group="serving",
-        initial_offset="earliest",
-        partitions=None,
-        sasl_user=None,
-        sasl_pass=None,
-        attributes=None,
+        brokers: Optional[list[str]] = None,
+        topics: Optional[list[str]] = None,
+        group: str = "serving",
+        initial_offset: Literal["earliest", "latest"] = "earliest",
+        partitions: Optional[list[int]] = None,
+        sasl_user: Optional[str] = None,
+        sasl_pass: Optional[str] = None,
+        tls_enable: Optional[bool] = None,
+        attributes: Optional[dict] = None,
         **kwargs,
-    ):
+    ) -> None:
         """Sets kafka source for the flow
 
         :param brokers: list of broker IP addresses
@@ -1082,6 +1084,7 @@ class KafkaSource(OnlineSource):
         :param partitions: Optional, A list of partitions numbers for which the function receives events.
         :param sasl_user: Optional, user name to use for sasl authentications
         :param sasl_pass: Optional, password to use for sasl authentications
+        :param tls_enable: Optional, if set - whether to enable TLS or not.
         :param attributes: Optional, extra attributes to be passed to kafka trigger
         """
         if isinstance(topics, str):
@@ -1095,10 +1098,15 @@ class KafkaSource(OnlineSource):
         attributes["initial_offset"] = initial_offset
         if partitions is not None:
             attributes["partitions"] = partitions
-        if sasl := mlrun.datastore.utils.KafkaParameters(attributes).sasl(
-            usr=sasl_user, pwd=sasl_pass
-        ):
+
+        kafka_params = mlrun.datastore.utils.KafkaParameters(attributes)
+
+        if sasl := kafka_params.sasl(usr=sasl_user, pwd=sasl_pass):
             attributes["sasl"] = sasl
+
+        if tls := kafka_params.tls(tls_enable=tls_enable):
+            attributes["tls"] = tls
+
         super().__init__(attributes=attributes, **kwargs)
 
     def to_dataframe(

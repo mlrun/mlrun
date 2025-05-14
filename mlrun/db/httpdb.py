@@ -21,7 +21,7 @@ import typing
 import warnings
 from copy import deepcopy
 from datetime import datetime, timedelta
-from os import path, remove
+from os import environ, path, remove
 from typing import Literal, Optional, Union
 from urllib.parse import urlparse
 
@@ -129,7 +129,9 @@ class HTTPRunDB(RunDBInterface):
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
-        self.python_version = str(version.Version().get_python_version())
+        self.python_version = environ.get("MLRUN_PYTHON_VERSION") or str(
+            version.Version().get_python_version()
+        )
 
         self._enrich_and_validate(url)
 
@@ -1276,8 +1278,8 @@ class HTTPRunDB(RunDBInterface):
         :param producer_uri:    Return artifacts produced by the requested producer URI. Producer URI usually
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
-        :param format_:         The format in which to return the artifacts. Default is 'full'.
-        :param limit:           Maximum number of artifacts to return.
+        :param format_: The format in which to return the artifacts. Default is 'full'.
+        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -2221,18 +2223,20 @@ class HTTPRunDB(RunDBInterface):
         elif pipe_file.endswith(".zip"):
             headers = {"content-type": "application/zip"}
         else:
-            raise ValueError("pipeline file must be .yaml or .zip")
+            raise ValueError("'pipeline' file must be .yaml or .zip")
         if arguments:
             if not isinstance(arguments, dict):
-                raise ValueError("arguments must be dict type")
+                raise ValueError("'arguments' must be dict type")
             headers[mlrun.common.schemas.HeaderNames.pipeline_arguments] = str(
                 arguments
             )
 
         if not path.isfile(pipe_file):
-            raise OSError(f"file {pipe_file} doesnt exist")
+            raise OSError(f"File {pipe_file} doesnt exist")
         with open(pipe_file, "rb") as fp:
             data = fp.read()
+            if not data:
+                raise ValueError("The compiled pipe file is empty")
         if not isinstance(pipeline, str):
             remove(pipe_file)
 
@@ -3767,7 +3771,7 @@ class HTTPRunDB(RunDBInterface):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
@@ -3889,8 +3893,8 @@ class HTTPRunDB(RunDBInterface):
         attributes_keys = list(attributes.keys())
         attributes["name"] = name
         attributes["project"] = project
-        attributes["function-name"] = function_name or None
-        attributes["function-tag"] = function_tag or None
+        attributes["function_name"] = function_name or None
+        attributes["function_tag"] = function_tag or None
         attributes["uid"] = endpoint_id or None
         model_endpoint = mlrun.common.schemas.ModelEndpoint.from_flat_dict(attributes)
         path = f"projects/{project}/model-endpoints"
@@ -3981,6 +3985,7 @@ class HTTPRunDB(RunDBInterface):
                 "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
                 "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
             },
+            timeout=300,  # 5 minutes
         )
 
     def disable_model_monitoring(
@@ -5098,6 +5103,13 @@ class HTTPRunDB(RunDBInterface):
 
         project = project or config.default_project
         labels = self._parse_labels(labels)
+
+        if limit:
+            # TODO: Remove this in 1.11.0
+            warnings.warn(
+                "'limit' is deprecated and will be removed in 1.11.0. Use 'page' and 'page_size' instead.",
+                FutureWarning,
+            )
 
         params = {
             "name": name,

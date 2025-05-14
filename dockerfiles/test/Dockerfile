@@ -69,3 +69,8 @@ RUN rm -rf ./server/go
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION}
+
+
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8

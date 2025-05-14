@@ -41,7 +41,7 @@ ROOT_PARAMETER_NAME = "pipeline-root"
 
 INVALID_CHARACTERS_REGEX = re.compile(r"[^-0-9a-z]+")
 MULTIPLE_DASHES_REGEX = re.compile(r"-+")
-
+INPUT_NAME_REGEX = re.compile(r'[^_0-9a-z]+')
 
 class ServiceAccountTokenVolumeCredentials:
     def __init__(
@@ -96,31 +96,11 @@ class JobConfig:
     ):
         self.spec = pipeline_spec
         self.resource_references = resource_references
-
-
-def sanitize_k8s_name(
+INPUT_NAME_REGEX = re.compile(r'[^_0-9a-z]+')
+def sanitize_input_name(
     name: str,
 ) -> str:
-    """
-    Sanitize a Kubernetes resource name.
-
-    This function converts the name to lowercase, replaces invalid characters with dashes,
-    and removes any leading or trailing dashes.
-
-    :param name: The original name to be sanitized.
-    :return: A sanitized Kubernetes resource name.
-    """
-    max_k8s_name_length = 63
-    name = name.lower()
-    cleaned_name = INVALID_CHARACTERS_REGEX.sub("-", name)
-    cleaned_name = MULTIPLE_DASHES_REGEX.sub("-", cleaned_name)
-    cleaned_name = cleaned_name.lstrip("-").rstrip("-")
-    if len(cleaned_name) > max_k8s_name_length:
-        raise ValueError(
-            f"Kubernetes resource name '{cleaned_name}' is too long. "
-            f"Max length is {max_k8s_name_length} characters."
-        )
-    return cleaned_name
+    return INPUT_NAME_REGEX.sub('_', name.lower()).lstrip('_').rstrip('_')
 
 
 class Client(
@@ -694,7 +674,7 @@ class Client(
 
         api_params: list[kfp_server_api.ApiParameter] = [
             kfp_server_api.ApiParameter(
-                name=sanitize_k8s_name(key),
+                name=sanitize_input_name(key),
                 value=(
                     str(value)
                     if not isinstance(value, (list, dict))

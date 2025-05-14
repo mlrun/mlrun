@@ -350,11 +350,11 @@ def add_system_steps_to_graph(graph: RootFlowStep):
             error_step.on_error = step.on_error
         if isinstance(step.after, list):
             for i in range(len(step.after)):
-                if step.after[i].name in model_runner_raisers:
-                    step.after[i] = model_runner_raisers[step.after[i].name]
+                if step.after[i] in model_runner_raisers:
+                    step.after[i] = model_runner_raisers[step.after[i]]
         else:
-            if step.after.name in model_runner_raisers:
-                step.after = model_runner_raisers[step.after.name]
+            if step.after in model_runner_raisers:
+                step.after = model_runner_raisers[step.after]
     return graph
 
 

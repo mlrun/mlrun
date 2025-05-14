@@ -329,9 +329,9 @@ azure-datalake-store==0.0.53 \
     --hash=sha256:05b6de62ee3f2a0a6e6941e6933b792b800c3e7f6ffce2fc324bc19875757393 \
     --hash=sha256:a30c902a6e360aa47d7f69f086b426729784e71c536f330b691647a51dc42b2b
     # via adlfs
-azure-identity==1.22.0 \
-    --hash=sha256:26d6c63f2ca453c77c3e74be8613941ad074e05d0c8be135247573752c249ad8 \
-    --hash=sha256:c8f5ef23e5295c2fa300c984dd9f5e1fe43503fc25c121c37ff6a15e39b800b9
+azure-identity==1.23.0 \
+    --hash=sha256:d9cdcad39adb49d4bb2953a217f62aec1f65bbb3c63c9076da2be2a47e53dde4 \
+    --hash=sha256:dbbeb64b8e5eaa81c44c565f264b519ff2de7ff0e02271c49f3cb492762a50b0
     # via
     #   -r extras-requirements.txt
     #   adlfs
@@ -1155,9 +1155,9 @@ filelock==3.18.0 \
     # via
     #   snowflake-connector-python
     #   vaex-core
-flask==3.1.0 \
-    --hash=sha256:5f873c5184c897c8d9d1b05df1e3d01b14910ce69607a117bd3277098a5836ac \
-    --hash=sha256:d667207822eb83f1c4b50949b1623c8fc8d51f2341d65f72e1a1815397551136
+flask==3.1.1 \
+    --hash=sha256:07aae2bb5eaf77993ef57e357491839f5fd9f4dc281593a81a9e4d79a24f295c \
+    --hash=sha256:284c7b8f2f58cb737f0cf1c30fd7eaf0ccfcde196099d24ecede3fc2005aa59e
     # via mlflow
 fonttools==4.58.0 \
     --hash=sha256:0154bd86d9a9e880f6e937e4d99c2139a624428dd9852072e12d7a85c79d611e \
@@ -2422,6 +2422,7 @@ markupsafe==3.0.2 \
     --hash=sha256:f8b3d067f2e40fe93e1ccdd6b2e1d16c43140e76f02fb1319a05cf2b79d99430 \
     --hash=sha256:fcabf5ff6eea076f859677f5f0b6b5c1a51e70a376b0579e0eadef8db48c6b50
     # via
+    #   flask
     #   jinja2
     #   mako
     #   nbconvert
@@ -2545,9 +2546,9 @@ mlflow-skinny==2.22.0 \
     --hash=sha256:774b58970038990650486cd934d46b7038fc390682c3bde70b4e5106f6857cce \
     --hash=sha256:9efc39454f6cc3433e7d804c3df8dab4fbba1abe504c52c05f00ef1d0696fef5
     # via mlflow
-mlrun-pipelines-kfp-common==0.3.14 \
-    --hash=sha256:12cd8f0d55ad763c73b9f5f3901848a8823938f484ec74b445d8347251b6f07b \
-    --hash=sha256:5d5110f75da8e19c23fcd0bd6879156f7f26e1b624f1be3fa8dd0ff9aec714eb
+mlrun-pipelines-kfp-common==0.3.15 \
+    --hash=sha256:067c010512c286aaf6523127cd4fc407cc81b067b6b9d4eebb93ecbed406202d \
+    --hash=sha256:112c8830d3e406e2bb236bc3c1d956604e6d4359e6418a4a5ea8a1fabd19b033
     # via -r requirements.txt
 mlrun-pipelines-kfp-v1-8==0.3.10 ; python_full_version < '3.11' \
     --hash=sha256:69bccaf12b327fdf11bcc6466785403b5badb5387cd994ffb6bd090da50f7c83 \

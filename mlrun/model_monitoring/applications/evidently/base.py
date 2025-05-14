@@ -109,7 +109,6 @@ class EvidentlyModelMonitoringApplicationBase(
     def get_workspace(self) -> WorkspaceBase:
         """Get the Evidently workspace. Override this method for customize access to the workspace."""
         if self.evidently_workspace_path:
-            self._log_location(self.evidently_workspace_path)
             return Workspace.create(self.evidently_workspace_path)
         else:
             raise MLRunValueError(

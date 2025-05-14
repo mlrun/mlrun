@@ -329,6 +329,30 @@ class GraphServer(ModelObj):
         """wait for async operation to complete"""
         return self.graph.wait_for_completion()
 
+def add_system_steps_to_graph(graph: RootFlowStep):
+    model_runner_raisers = {}
+    for step in graph.steps.values():
+        if isinstance(step, mlrun.serving.states.ModelRunnerStep):
+            error_step = step.to(
+                class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
+                name=f"{step.name}_error_raise",
+                full_event=True,
+                raise_exception = step._raise_exception,
+                models_names = list(step.class_args["models"].keys()),
+            )
+            if step.responder:
+                step.responder = False
+                error_step.respond()
+            model_runner_raisers[step.name] = error_step
+            error_step.on_error = step.on_error
+        if isinstance(step.after, list):
+            for i in range(len(step.after)):
+                if step.after[i].name in model_runner_raisers:
+                    step.after[i] = model_runner_raisers[step.after[i].name]
+        else:
+            if step.after.name in model_runner_raisers:
+                step.after = model_runner_raisers[step.after.name]
+    return graph
 
 def v2_serving_init(context, namespace=None):
     """hook for nuclio init_context()"""
@@ -336,6 +360,8 @@ def v2_serving_init(context, namespace=None):
     context.logger.info("Initializing server from spec")
     spec = mlrun.utils.get_serving_spec()
     server = GraphServer.from_dict(spec)
+    if isinstance(server.graph, RootFlowStep):
+        server.graph = add_system_steps_to_graph(server.graph)
 
     if config.log_level.lower() == "debug":
         server.verbose = True

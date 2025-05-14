@@ -31,7 +31,7 @@ __all__ = [
 ]
 
 from .routers import ModelRouter, VotingEnsemble  # noqa
-from .server import GraphContext, GraphServer, create_graph_server  # noqa
+from .server import GraphContext, GraphServer, create_graph_server, add_system_steps_to_graph # noqa
 from .states import (
     ErrorStep,
     QueueStep,

@@ -113,12 +113,12 @@ async def enable_model_monitoring(
     base_period: int = 10,
     image: str = "mlrun/mlrun",
     deploy_histogram_data_drift_app: bool = True,
-    # TODO: remove this in 1.10.0
+    # TODO: remove this in 1.11.0
     rebuild_images: bool = Query(
         False,
         deprecated=True,
         description=(
-            "`rebuild_images` is deprecated as of 1.8.0 and will be removed in 1.10.0. "
+            "`rebuild_images` is deprecated as of 1.8.0 and will be removed in 1.11.0. "
             "To rebuild images, first send a DELETE request to `/projects/{project}/model-monitoring`, "
             "then send a PUT request to the same endpoint with the updated image."
         ),

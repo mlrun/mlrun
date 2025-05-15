@@ -154,7 +154,7 @@ class ModelArtifact(Artifact):
             warnings.warn(
                 "Artifact constructor parameters are deprecated in 1.7.0 and will be removed in 1.10.0. "
                 "Use the metadata and spec parameters instead.",
-                FutureWarning,
+                DeprecationWarning,
             )
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         model_file = str(model_file or "")

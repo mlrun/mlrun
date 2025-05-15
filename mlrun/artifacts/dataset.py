@@ -165,7 +165,7 @@ class DatasetArtifact(Artifact):
             warnings.warn(
                 "Artifact constructor parameters are deprecated in 1.7.0 and will be removed in 1.10.0. "
                 "Use the metadata and spec parameters instead.",
-                FutureWarning,
+                DeprecationWarning,
             )
 
         format = (format or "").lower()

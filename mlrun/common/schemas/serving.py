@@ -14,9 +14,26 @@
 
 from pydantic.v1 import BaseModel
 
+from mlrun.common.types import StrEnum
+
 from .background_task import BackgroundTaskList
 
 
 class DeployResponse(BaseModel):
     data: dict
     background_tasks: BackgroundTaskList
+
+
+class ModelRunnerStepData(StrEnum):
+    MODELS = "models"
+    MONITORING_DATA = "monitoring_data"
+
+
+class MonitoringData(StrEnum):
+    INPUTS = "inputs"
+    OUTPUTS = "outputs"
+    INPUT_PATH = "input_path"
+    CREATION_STRATEGY = "creation_strategy"
+    LABELS = "labels"
+    MODEL_PATH = "model_path"
+    MODEL_ENDPOINT_UID = "model_endpoint_uid"

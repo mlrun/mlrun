@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import os
 import string
 import tempfile
@@ -176,6 +176,7 @@ def test_kafka_source_without_attributes():
     assert attributes["consumerGroup"] == "mygroup"
     assert attributes["sasl"] == {
         "enable": True,
+        "handshake": True,
         "user": "myuser",
         "password": "mypassword",
         "mechanism": "PLAIN",

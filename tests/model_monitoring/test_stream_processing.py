@@ -19,8 +19,8 @@ import mlrun.model_monitoring
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfileKafkaSource,
+    DatastoreProfileTDEngine,
     DatastoreProfileV3io,
-    TDEngineDatastoreProfile,
 )
 from mlrun.model_monitoring.stream_processing import EventStreamProcessor
 
@@ -29,7 +29,7 @@ from mlrun.model_monitoring.stream_processing import EventStreamProcessor
     "tsdb_profile",
     [
         DatastoreProfileV3io(name="v3io-tsdb-test"),
-        TDEngineDatastoreProfile(
+        DatastoreProfileTDEngine(
             name="tdengine-test", user="root", host="localhost", port=6041
         ),
     ],

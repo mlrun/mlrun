@@ -1,0 +1,104 @@
+# We use global values scope to multiplex the docker-registry details to both mlrun and nuclio
+global:
+  externalHostAddress: ${SYSTEM_FQDN}
+  registry:
+    url: ${ECR_REPO_NAME}
+  infrastructure:
+    kind: aws
+    provider: eks
+    inboundCidrs: ${INBOUND_CIDRS}
+    loadBalancerName: ~
+    aws:
+      bucketName: ${BUCKET_NAME}
+      s3NonAnonymous: true
+      domainNameCertificate:
+
+nuclio:
+  platform:
+    kube:
+      # This SA bears the required permissions to access AWS services
+      defaultFunctionServiceAccount: mlrun-main-sa
+  registry:
+      pushPullUrl: ${ECR_REPO_NAME}
+  dashboard:
+    ingress:
+      enabled: false
+    imageNamePrefixTemplate: "${SYSTEM_NAME}-{{ .ProjectName }}-{{ .FunctionName }}-"
+    defaultHTTPIngressHostTemplate: '"{ .ResourceName }.{ .Namespace }.${SYSTEM_FQDN}"'
+    kaniko:
+      containerBuilderKind: kaniko
+      defaultServiceAccount: mlrun-main-sa
+
+mlrun:
+  storageAutoMountParams: "non_anonymous=True"
+  api:
+    service:
+      type: ClusterIP
+      nodePort: ""
+    functionSpecServiceAccountDefault: mlrun-main-sa
+
+  nuclio:
+    uiURL: "nuclio.${SYSTEM_FQDN}"
+  serviceAccounts:
+    api:
+      create: false
+      name: mlrun-main-sa
+  v3io:
+    enabled: false
+  ui:
+    service:
+      type: "ClusterIP"
+    ingress:
+      enabled: false
+  db:
+    persistence:
+      size: "16Gi"
+
+jupyterNotebook:
+  enabled: true
+  extraEnv:
+    - name: MLRUN_CE
+      value: "true"
+  service:
+    type: "ClusterIP"
+    port: 80
+    targetPort: 80
+  serviceAccount:
+    create: false
+    name: mlrun-main-sa
+
+  # use this to override mlrunUIURL, by default it will be auto-resolved to externalHostAddress and
+  # mlrun UI's node port
+  mlrunUIURL: mlrun.${SYSTEM_FQDN}
+  persistence:
+    size: "16Gi"
+
+minio:
+  service:
+    type: "ClusterIP"
+    port: 9000
+    nodePort: ""
+  consoleService:
+    type: "ClusterIP"
+    port: 9001
+    nodePort: ""
+
+pipelines:
+  persistence:
+    storageClass: ~
+
+kube-prometheus-stack:
+  grafana:
+    service:
+      type: ClusterIP
+  prometheus:
+    service:
+      type: ClusterIP
+    prometheusSpec:
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: ~
+            resources:
+              requests:
+                storage: "16Gi"

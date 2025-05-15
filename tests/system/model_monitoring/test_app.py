@@ -43,7 +43,6 @@ import mlrun.feature_store
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
 import mlrun.model_monitoring.api
-import mlrun.model_monitoring.applications.histogram_data_drift
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfileKafkaSource,
@@ -60,6 +59,7 @@ from mlrun.utils.v3io_clients import get_v3io_client
 from tests.system.base import TestMLRunSystem
 
 from . import TestMLRunSystemModelMonitoring
+from .assets import histogram_app_with_artifacts
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     CountApp,
@@ -67,7 +67,7 @@ from .assets.application import (
     ErrApp,
     NoCheckDemoMonitoringApp,
 )
-from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
+from .assets.custom_evidently_app import DemoEvidentlyMonitoringApp
 
 
 @dataclass
@@ -96,7 +96,6 @@ _DefaultDataDriftAppData = _AppData(
     deploy=False,
     results={"general_drift"},
     metrics={"hellinger_mean", "kld_mean", "tvd_mean"},
-    artifacts={"features_drift_results"},
 )
 
 
@@ -145,7 +144,14 @@ class _V3IORecordsChecker:
         if last_request:
             cls._logger.debug("Checking the MEP last_request")
             lr_tsdb = cls._tsdb_storage.get_last_request(endpoint_ids=ep_id)
-            cls._check_valid_tsdb_result(lr_tsdb, ep_id, "last_request", last_request)
+            if isinstance(lr_tsdb, pd.DataFrame):
+                cls._check_valid_tsdb_result(
+                    lr_tsdb, ep_id, "last_request", pd.Timestamp(last_request)
+                )
+            else:
+                cls._check_last_request_dict(
+                    lr_tsdb, ep_id, "last_request", last_request
+                )
 
         if error_count:
             cls._logger.debug("Checking the MEP error_count")
@@ -160,19 +166,25 @@ class _V3IORecordsChecker:
         assert (
             df.endpoint_id == ep_id
         ).all(), "The endpoint IDs are different than expected"
-        if isinstance(result_value, datetime) or isinstance(result_value, pd.Timestamp):
-            # Note: We check for differences in time is less than 1 ms because this is the highest resolution we get
-            # from TDEngine
-            assert abs(
-                df[df["endpoint_id"] == ep_id][result_name].item() - result_value
-            ) < np.timedelta64(1, "ms"), (
-                f"The {result_name} is different than expected for {ep_id}, "
-                f"for timestamp we use TDEngine resolution that is 1 ms"
-            )
-        else:
-            assert (
-                df[df["endpoint_id"] == ep_id][result_name].item() == result_value
-            ), f"The {result_name} is different than expected for {ep_id}"
+        assert (
+            df[df["endpoint_id"] == ep_id][result_name].item() == result_value
+        ), f"The {result_name} is different than expected for {ep_id}"
+
+    @classmethod
+    def _check_last_request_dict(
+        cls,
+        data: dict[str, float],
+        ep_id: str,
+        result_name: str,
+        result_value: datetime,
+    ):
+        assert data, "No last request data"
+        assert (
+            list(data.keys())[0] == ep_id
+        ), "The endpoint IDs are different than expected"
+        assert (
+            data[ep_id] == result_value.timestamp()
+        ), f"The {result_name} is different than expected for {ep_id}"
 
     @classmethod
     def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:
@@ -353,7 +365,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 results={"data_drift_test", "model_perf"},
             ),
             _AppData(
-                class_=CustomEvidentlyMonitoringApp,
+                class_=DemoEvidentlyMonitoringApp,
                 rel_path="assets/custom_evidently_app.py",
                 requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
                 kwargs={
@@ -361,7 +373,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                     "evidently_project_id": cls.evidently_project_id,
                 },
                 results={"data_drift_test"},
-                artifacts={"evidently_report", "evidently_suite", "dashboard"},
+                artifacts={"evidently_report"},
             ),
             _AppData(
                 class_=ErrApp,
@@ -373,6 +385,14 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
     def custom_setup(self) -> None:
         self.set_mm_credentials()
+        self._external_stream_delay = 0
+        if isinstance(
+            self.mm_stream_profile, DatastoreProfileKafkaSource
+        ) and self.mm_stream_profile.attributes()["brokers"][0].endswith(
+            ".confluent.cloud:9092"
+        ):
+            # external Confluent Cloud degrades the streams latency
+            self._external_stream_delay = 90  # seconds
         super(TestMLRunSystem, self).custom_setup(project_name=self.project_name)
 
     def custom_teardown(self) -> None:
@@ -408,7 +428,13 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 )
 
         elif isinstance(stream_profile, DatastoreProfileKafkaSource):
-            consumer = kafka.KafkaConsumer(bootstrap_servers=stream_profile.brokers)
+            kafka_profile_attributes = stream_profile.attributes()
+            kafka_consumer_kwargs = mlrun.datastore.utils.KafkaParameters(
+                kafka_profile_attributes
+            ).consumer()
+            consumer = kafka.KafkaConsumer(
+                bootstrap_servers=stream_profile.brokers, **kafka_consumer_kwargs
+            )
             topics = consumer.topics()
 
             project_topics_list = [
@@ -578,15 +604,16 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 self._logger.debug("Checking app artifacts", app_name=app_name)
                 for key in app_data.artifacts:
                     self._logger.debug("Checking artifact existence", key=key)
-                    artifact = self.project.get_artifact(key)
-                    self._logger.debug("Checking artifact labels", key=key)
+                    artifact = self.project.get_artifact(f"{key}-{ep_id}")
+                    self._logger.debug("Checking artifact labels", key=f"{key}-{ep_id}")
                     assert {
                         "mlrun/producer-type": "model-monitoring-app",
                         "mlrun/app-name": app_name,
                         "mlrun/endpoint-id": ep_id,
                     }.items() <= artifact.labels.items()
                     self._logger.debug(
-                        "Test the artifact can be fetched from the store", key=key
+                        "Test the artifact can be fetched from the store",
+                        key=f"{key}-{ep_id}",
                     )
                     artifact.to_dataitem().get()
 
@@ -679,10 +706,11 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         )
 
         self._infer_with_error(serving_fn, with_training_set=with_training_set)
-        # mark the first window as "done" with another request
+        # wait for the NO-OP event to close the window
         time.sleep(
             2 * self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + self._external_stream_delay
         )
 
         mep = mlrun.db.get_run_db().get_model_endpoint(
@@ -694,11 +722,15 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             tsdb_metrics=True,
         )
 
+        assert (
+            mep.status.last_request == last_request
+        ), "The saved `last_request` in the model endpoint is different than the last result timestamp"
+
         self._test_v3io_records(
             ep_id=mep.metadata.uid,
             inputs=inputs,
             outputs=outputs,
-            last_request=last_request,
+            last_request=mep.status.last_request,
             error_count=self.error_count,
         )
         self._test_predictions_table(mep.metadata.uid)
@@ -788,6 +820,7 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             **self.app_data.kwargs,
         )
         self.project.deploy_function(fn)
+        return fn
 
     def _record_results(self) -> str:
         model_endpoint = mlrun.model_monitoring.api.record_results(
@@ -813,8 +846,11 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
         self._log_model()
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(self._deploy_monitoring_app)
+            monitoring_app = executor.submit(self._deploy_monitoring_app)
             executor.submit(self._deploy_monitoring_infra)
+
+        fn = monitoring_app.result()
+        self._assert_replicas(fn)
 
         endpoint_id = self._record_results()
 
@@ -831,6 +867,16 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             mep.metadata.uid, inputs=set(self.columns), outputs=set(self.y_name)
         )
         self._test_predictions_table(mep.metadata.uid, should_be_empty=True)
+
+    @staticmethod
+    def _assert_replicas(fn):
+        """
+        Validate that the 'min_replicas' and 'max_replicas' values in the function's spec are correct after deployment.
+        This check ensures that the replica settings, which are modified on the server side during deployment, are
+        properly reflected on the client side.
+        """
+        assert fn.spec.min_replicas == 1
+        assert fn.spec.max_replicas == 1
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
@@ -1253,7 +1299,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         futures = []
         with concurrent.futures.ThreadPoolExecutor() as executor:
             endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
-                project=self.project_name
+                project=self.project_name, tsdb_metrics=True
             )
             endpoints = endpoints_list.endpoints
             assert len(endpoints) == 7
@@ -1293,7 +1339,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             self._deploy_model_serving(**model_dict, enable_tracking=False)
 
         endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
-            project=self.project_name
+            project=self.project_name, tsdb_metrics=True
         )
         endpoints = endpoints_list.endpoints
         assert len(endpoints) == 1
@@ -1334,7 +1380,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             self._deploy_model_serving(**model_dict, enable_tracking=False)
 
         endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
-            project=self.project_name
+            project=self.project_name, tsdb_metrics=True
         )
         endpoints = endpoints_list.endpoints
         assert len(endpoints) == 1
@@ -1402,8 +1448,8 @@ class TestAppJob(TestMLRunSystem):
         reference_data = pd.DataFrame({"a": [12, 13], "b": [3.12, 4.12]})
 
         # Call `.evaluate(...)`
-        run_result = HistogramDataDriftApplication.evaluate(
-            func_path=mlrun.model_monitoring.applications.histogram_data_drift.__file__,
+        run_result = histogram_app_with_artifacts.HistogramDataDriftApplicationWithArtifacts.evaluate(
+            func_path=histogram_app_with_artifacts.__file__,
             sample_data=sample_data,
             reference_data=reference_data,
             run_local=run_local,
@@ -1438,7 +1484,7 @@ class TestAppJob(TestMLRunSystem):
             2:4
         ], "The returned metrics are different than the expected ones"
         # Test the artifacts
-        for artifact_name in _DefaultDataDriftAppData.artifacts:
+        for artifact_name in {"features_drift_results", "drift_table_plot"}:
             assert run_result.output(
                 artifact_name
             ), f"The artifact '{artifact_name}' is not listed in the run's output"
@@ -1492,8 +1538,8 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
     def _setup_resources(self) -> None:
         self.set_mm_credentials()
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(self._deploy_model_serving)
             executor.submit(self._set_infra)
+            executor.submit(self._deploy_model_serving)
 
     @pytest.mark.parametrize("run_local", [False, True])
     def test_count_app(self, run_local: bool) -> None:
@@ -1538,8 +1584,7 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
         # To include the first request, make a small offset
         start = model_endpoint.status.first_request - timedelta(microseconds=1)
 
-        # Adjust the end time - ML-9067
-        end = model_endpoint.status.last_request + timedelta(milliseconds=3)
+        end = model_endpoint.status.last_request
 
         endpoints_params = [
             [(model_endpoint.metadata.name, model_endpoint.metadata.uid)],

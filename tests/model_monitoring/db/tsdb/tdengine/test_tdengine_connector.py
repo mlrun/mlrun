@@ -19,14 +19,14 @@ from datetime import datetime, timezone
 
 import pytest
 import taosws
-import taoswswrap.tdengine_connection
 
 from mlrun.common.schemas.model_monitoring import (
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricType,
 )
-from mlrun.datastore.datastore_profile import TDEngineDatastoreProfile
+from mlrun.datastore.datastore_profile import DatastoreProfileTDEngine
 from mlrun.model_monitoring.db.tsdb.tdengine import TDEngineConnector
+from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import TDEngineError
 
 project = "test-tdengine-connector"
 connection_string = os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION")
@@ -45,7 +45,7 @@ def is_tdengine_defined() -> bool:
 def connector() -> Iterator[TDEngineConnector]:
     connection = taosws.connect(connection_string)
     drop_database(connection)
-    profile = TDEngineDatastoreProfile.from_dsn(
+    profile = DatastoreProfileTDEngine.from_dsn(
         profile_name="mm-profile", dsn=connection_string
     )
     conn = TDEngineConnector(project, profile=profile, database=database)
@@ -80,9 +80,7 @@ def test_write_application_event(
         "result_extra_data": """{"question": "Who wrote 'To Kill a Mockingbird'?"}""",
         "result_value": result_value,
     }
-    with pytest.raises(
-        taoswswrap.tdengine_connection.TDEngineError, match="Database not exist"
-    ):
+    with pytest.raises(TDEngineError, match="Database not exist"):
         connector.write_application_event(data)
     connector.create_tables()  # DB is created here
     connector.write_application_event(data)
@@ -132,5 +130,5 @@ def test_write_application_event(
     # Delete database
     connector.delete_tsdb_resources()
 
-    with pytest.raises(taoswswrap.tdengine_connection.TDEngineError):
+    with pytest.raises(TDEngineError):
         connector.read_metrics_data(**read_data_kwargs)

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 linters:
   disable-all: true
@@ -55,7 +54,9 @@ linters-settings:
   gci:
     sections:
       - standard
-      - prefix(github.com/mlrun/mlrun)
+      - prefix(github.com/mlrun/framework)
+      - prefix(github.com/mlrun/proto)
+      - prefix(github.com/mlrun/services)
       - default
       - blank
       - dot

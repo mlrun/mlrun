@@ -165,7 +165,7 @@ mlrun.deploy_function(
         {
             "key": model_name,
             "model_path": train.outputs["model"],
-            "class_name": "mlrun.frameworks.sklearn.SklearnModelServer",
+            "class_name": "mlrun.frameworks.sklearn.SKLearnModelServer",
         }
     ],
 )

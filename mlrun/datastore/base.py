@@ -705,7 +705,7 @@ class HttpStore(DataStore):
 
     def get(self, key, size=None, offset=0):
         headers = self._headers
-        if self.url.startswith("https://api.github.com"):
+        if urlparse(self.url).hostname == "api.github.com":
             headers = copy(self._headers)
             headers["Accept"] = headers.get("Accept", "application/vnd.github.raw")
         data = self._http_get(self.url + self._join(key), headers, self.auth)

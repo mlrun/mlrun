@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import typing
 
 if typing.TYPE_CHECKING:
@@ -174,11 +174,12 @@ def mlrun_op(
     """
     from mlrun_pipelines.ops import generate_pipeline_node
 
+    # TODO: remove in 1.10.0
     if rundb:
         warnings.warn(
-            "rundb parameter is deprecated and will be removed in 1.9.0. "
+            "rundb parameter is deprecated and will be removed in 1.10.0. "
             "use 'MLRUN_DBPATH' env instead.",
-            DeprecationWarning,
+            FutureWarning,
         )
 
     secrets = [] if secrets is None else secrets

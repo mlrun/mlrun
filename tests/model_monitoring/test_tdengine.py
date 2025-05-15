@@ -22,7 +22,7 @@ import pytest
 from dateutil import parser
 
 import mlrun.common.schemas
-from mlrun.datastore.datastore_profile import TDEngineDatastoreProfile
+from mlrun.datastore.datastore_profile import DatastoreProfileTDEngine
 from mlrun.model_monitoring.db.tsdb.tdengine import TDEngineConnector
 from mlrun.model_monitoring.db.tsdb.tdengine.schemas import (
     _MODEL_MONITORING_DATABASE,
@@ -501,7 +501,7 @@ class TestTDEngineSchema:
 class TestTDEngineConnector:
     @pytest.fixture
     def connector(self):
-        profile = TDEngineDatastoreProfile(
+        profile = DatastoreProfileTDEngine(
             name="mm-profile", host="localhost", port=6041, user="root"
         )
         return TDEngineConnector(project="test-project", profile=profile)

@@ -12,7 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
+COVERAGE_ADDITION=${COVERAGE_ADDITION:-}
 
 set -e
 
@@ -51,9 +52,11 @@ done
 
 export PYTHONPATH=${ROOT}/server/py
 
-python -m pytest -v \
-		--capture=no \
-		--disable-warnings \
-		--durations=100 \
-		-rf \
-		"${ROOT_DIR}"/server/py/services/api/migrations/tests/*
+# shellcheck disable=SC2086
+python ${COVERAGE_ADDITION} \
+  -m pytest -v \
+  --capture=no \
+  --disable-warnings \
+  --durations=100 \
+  -rf \
+  "${ROOT_DIR}"/server/py/services/api/migrations/tests/*

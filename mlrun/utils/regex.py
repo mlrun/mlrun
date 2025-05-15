@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 # pipeline param format which is passed when running a pipeline (e.g. {{pipelineparam:op=;name=mem}})
 # https://github.com/kubeflow/pipelines/blob/16edebf4eaf84cd7478e2601ef4878ab339a7854/sdk/python/kfp/dsl/_pipeline_param.py#L213

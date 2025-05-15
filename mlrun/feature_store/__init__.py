@@ -43,6 +43,8 @@ from .feature_set import FeatureSet
 from .feature_vector import (
     FeatureVector,
     FixedWindowType,
+)
+from .feature_vector_utils import (
     JoinGraph,
     OfflineVectorResponse,
     OnlineVectorService,

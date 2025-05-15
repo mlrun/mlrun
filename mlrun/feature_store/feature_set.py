@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import warnings
 from datetime import datetime
 from typing import Optional, Union
 
@@ -447,7 +446,6 @@ class FeatureSet(ModelObj):
         targets=None,
         with_defaults=True,
         default_final_step=None,
-        default_final_state=None,
     ):
         """set the desired target list or defaults
 
@@ -457,17 +455,7 @@ class FeatureSet(ModelObj):
         :param default_final_step: the final graph step after which we add the
                                     target writers, used when the graph branches and
                                     the end cant be determined automatically
-        :param default_final_state: *Deprecated* - use default_final_step instead
         """
-        if default_final_state:
-            warnings.warn(
-                "The 'default_final_state' parameter is deprecated in 1.3.0 and will be remove in 1.5.0. "
-                "Use 'default_final_step' instead.",
-                # TODO: remove in 1.5.0
-                FutureWarning,
-            )
-            default_final_step = default_final_step or default_final_state
-
         if targets is not None and not isinstance(targets, list):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "targets can only be None or a list of kinds or DataTargetBase derivatives"

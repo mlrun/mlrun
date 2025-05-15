@@ -57,6 +57,7 @@ class BaseLauncher(abc.ABC):
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
+        output_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[
             Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
@@ -234,8 +235,7 @@ class BaseLauncher(abc.ABC):
         hyper_param_options=None,
         verbose=None,
         scrape_metrics=None,
-        out_path=None,
-        artifact_path=None,
+        output_path=None,
         workdir=None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
@@ -301,7 +301,7 @@ class BaseLauncher(abc.ABC):
         meta = run.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
 
-        run.spec.output_path = out_path or artifact_path or run.spec.output_path
+        run.spec.output_path = output_path or run.spec.output_path
 
         if not run.spec.output_path:
             if run.metadata.project:

@@ -495,6 +495,7 @@ class DaskCluster(KubejobRuntime):
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
+        output_path: Optional[str] = "",
         **launcher_kwargs,
     ) -> RunObject:
         if state_thresholds:
@@ -510,7 +511,7 @@ class DaskCluster(KubejobRuntime):
             inputs=inputs,
             out_path=out_path,
             workdir=workdir,
-            artifact_path=artifact_path,
+            output_path=output_path,
             watch=watch,
             schedule=schedule,
             hyperparams=hyperparams,

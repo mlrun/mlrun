@@ -637,7 +637,7 @@ def code_to_function(
     - databricks: run code on Databricks cluster (python scripts, Spark etc.)
     - application: run a long living application (e.g. a web server, UI, etc.)
 
-    Learn more about [Kinds of function (runtimes)](../concepts/functions-overview.html).
+    Learn more about :doc:`../../concepts/functions-overview`
 
     :param name:         function name, typically best to use hyphen-case
     :param project:      project used to namespace the function, defaults to 'default'

@@ -25,8 +25,8 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfile2Json,
     DatastoreProfileKafkaTarget,
+    DatastoreProfileTDEngine,
     DatastoreProfileV3io,
-    TDEngineDatastoreProfile,
     datastore_profile_read,
     register_temporary_client_datastore_profile,
     remove_temporary_client_datastore_profile,
@@ -40,22 +40,6 @@ def test_kafka_target_datastore():
     assert profile.name == "my_target"
     assert profile.topic == "my-topic"
     assert profile.brokers == "localhost:9092"
-    assert profile.bootstrap_servers is None
-
-
-def test_kafka_target_datastore_bootstrap_servers_bwc():
-    with pytest.warns(
-        FutureWarning,
-        match="'bootstrap_servers' parameter is deprecated in 1.7.0 "
-        "and will be removed in 1.9.0, use 'brokers' instead.",
-    ):
-        profile = DatastoreProfileKafkaTarget(
-            name="my_target", topic="my-topic", bootstrap_servers="localhost:9092"
-        )
-    assert profile.name == "my_target"
-    assert profile.topic == "my-topic"
-    assert profile.brokers == "localhost:9092"
-    assert profile.bootstrap_servers is None
 
 
 def test_kafka_target_datastore_no_brokers():
@@ -64,19 +48,6 @@ def test_kafka_target_datastore_no_brokers():
         match="DatastoreProfileKafkaTarget requires the 'brokers' field to be set",
     ):
         DatastoreProfileKafkaTarget(name="my_target", topic="my-topic")
-
-
-def test_kafka_target_datastore_brokers_and_bootstrap_servers():
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match="DatastoreProfileKafkaTarget cannot be created with both 'brokers' and 'bootstrap_servers'",
-    ):
-        DatastoreProfileKafkaTarget(
-            name="my_target",
-            topic="my-topic",
-            brokers="localhost:9092",
-            bootstrap_servers="localhost:9092",
-        )
 
 
 @pytest.fixture
@@ -110,7 +81,7 @@ class TestTDEngineProfile:
     def test_from_dsn() -> None:
         dsn = "taosws://root:taosdata@localhost:6041"
         profile_name = "test-taosws"
-        profile = TDEngineDatastoreProfile.from_dsn(dsn=dsn, profile_name=profile_name)
+        profile = DatastoreProfileTDEngine.from_dsn(dsn=dsn, profile_name=profile_name)
         assert profile.type == "taosws"
         assert profile.user == "root"
         assert profile.password == "taosdata"

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import http
 import json
@@ -20,6 +20,7 @@ import pytest
 
 import mlrun
 import mlrun.common.helpers
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import tests.integration.sdk_api.base
 from tests.conftest import examples_path
@@ -221,6 +222,151 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             local_fn["spec"]["build"]["functionSourceCode"]
             == fn.spec.build.functionSourceCode
         ), "code was not copied to local function"
+
+    def test_list_runs_with_end_time(self):
+        project_name = "project-1"
+        mlrun.new_project(project_name)
+        # Create 5 runs with different states
+        # Run 1, is completed, runs 2 and 3 start as running and move to completed
+        updated_to_completed_uids = []
+        statuses = [
+            {
+                "state": mlrun.common.runtimes.constants.RunStates.completed,
+                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(days=1),
+                "end_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(hours=5),
+            },
+            {
+                "state": mlrun.common.runtimes.constants.RunStates.running,
+                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(hours=5),
+            },
+            {
+                "state": mlrun.common.runtimes.constants.RunStates.running,
+                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(days=1),
+            },
+            {
+                "state": mlrun.common.runtimes.constants.RunStates.running,
+                "start_time": datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(hours=5),
+            },
+            {
+                "state": mlrun.common.runtimes.constants.RunStates.pending,
+            },
+        ]
+        for i, status in enumerate(statuses):
+            name = f"run-name-{i}"
+            run = {
+                "metadata": {
+                    "name": name,
+                    "uid": f"{name}-uid",
+                    "project": project_name,
+                },
+                "status": status,
+            }
+            self._logger.debug("Storing run", run=run)
+            mlrun.get_run_db().store_run(run, run["metadata"]["uid"], project_name)
+
+        runs = _list_and_assert_objects(
+            expected_number_of_runs=5,
+            project=project_name,
+        )
+        # The elements are not ordered as they were originally stored because some of the elements
+        # have a start_time from the previous day, which affects their sorting order.
+        expected_names = [
+            "run-name-4",
+            "run-name-3",
+            "run-name-1",
+            "run-name-2",
+            "run-name-0",
+        ]
+        for i, expected_name in enumerate(expected_names):
+            assert (
+                runs[i]["metadata"]["name"] == expected_name
+            ), f"Expected '{expected_name}', but got '{runs[i]['metadata']['name']}' at index {i}"
+
+        # Move 2nd and 3rd run to completed
+        updates = {
+            "status.state": mlrun.common.runtimes.constants.RunStates.completed,
+        }
+        for i in range(1, 3):
+            uid = f"run-name-{i}-uid"
+            self._logger.debug("Updating run to completed", uid=uid)
+            mlrun.get_run_db().update_run(
+                updates=updates,
+                uid=uid,
+                project=project_name,
+            )
+            updated_to_completed_uids.append(uid)
+
+        run_1_start_time = statuses[0]["start_time"]
+        run_2_start_time = statuses[1]["start_time"]
+
+        # list runs with end_time filter
+        runs = _list_and_assert_objects(
+            expected_number_of_runs=3,
+            project=project_name,
+            end_time_from=run_1_start_time,
+        )
+        runs_by_end_time = _list_and_assert_objects(
+            expected_number_of_runs=3,
+            project=project_name,
+            end_time_from=statuses[0]["end_time"],
+        )
+        assert runs == runs_by_end_time
+        stored_run = runs[0]
+        assert stored_run["status"]["end_time"] > stored_run["status"]["start_time"]
+        assert stored_run["status"]["end_time"].endswith("+00:00")
+        assert stored_run["status"]["start_time"].endswith("+00:00")
+
+        # 2nd run is 1st in order because it started last
+        self._logger.debug("Checking order of runs", runs=runs)
+        assert runs[0]["metadata"]["name"] == "run-name-1"
+        assert runs[1]["metadata"]["name"] == "run-name-2"
+        assert runs[2]["metadata"]["name"] == "run-name-0"
+        assert runs[2]["status"]["end_time"] == statuses[0]["end_time"].isoformat()
+
+        _list_and_assert_objects(
+            expected_number_of_runs=1,
+            project=project_name,
+            end_time_from=run_1_start_time,
+            end_time_to=run_2_start_time,
+        )
+
+        runs = _list_and_assert_objects(
+            expected_number_of_runs=2,
+            project=project_name,
+            end_time_from=run_2_start_time,
+        )
+        assert runs[0]["metadata"]["name"] == "run-name-1"
+        assert runs[1]["metadata"]["name"] == "run-name-2"
+
+        updates = {
+            "status.state": mlrun.common.runtimes.constants.RunStates.completed,
+        }
+        uid = "run-name-4-uid"
+        self._logger.debug("Updating run to completed", uid=uid)
+        mlrun.get_run_db().update_run(
+            updates=updates,
+            uid=uid,
+            project=project_name,
+        )
+        updated_to_completed_uids.append(uid)
+
+        # Assert fsp 6 for updated runs (uses `NOW()` in DB for end_time)
+        runs = _list_and_assert_objects(
+            expected_number_of_runs=5,
+            project=project_name,
+        )
+        # Assert with any for the slight chance that some may have been saved at a round second
+        assert any(
+            datetime.datetime.fromisoformat(run["status"]["end_time"]).microsecond
+            if run["metadata"]["uid"] in updated_to_completed_uids
+            else False
+            for run in runs
+        )
 
 
 def _list_and_assert_objects(expected_number_of_runs: int, **kwargs):

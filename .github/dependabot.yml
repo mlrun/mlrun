@@ -36,8 +36,7 @@ updates:
   # go modules
   - package-ecosystem: gomod
     directories:
-      - "server/go/services/**/*"
-      - "server/go/mlrun-go/**/*"
+      - "server/go/**/*"
     schedule:
       interval: daily
     commit-message:

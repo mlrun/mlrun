@@ -204,25 +204,6 @@ async def update_model_monitoring_controller(
     )
 
 
-@router.put("/histogram-data-drift-app")
-def deploy_histogram_data_drift_app(
-    commons: Annotated[_CommonParams, Depends(_common_parameters)],
-    image: str = "mlrun/mlrun",
-) -> None:
-    """
-    Deploy the histogram data drift app on the go.
-
-    :param commons: The common parameters of the request.
-    :param image:   The image of the application, defaults to "mlrun/mlrun".
-    """
-    MonitoringDeployment(
-        project=commons.project,
-        auth_info=commons.auth_info,
-        db_session=commons.db_session,
-        model_monitoring_access_key=commons.model_monitoring_access_key,
-    ).deploy_histogram_data_drift_app(image=image)
-
-
 @router.delete(
     "/",
     responses={

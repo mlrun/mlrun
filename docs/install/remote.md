@@ -36,10 +36,11 @@ The MLRun client supports:
 
 1.  **Basic** <br> 
 Run ```pip install mlrun```
-<br>This installs MLRun locally with the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt).
+<br>This installs MLRun locally with the requirements in [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt).
 
-```{admonition} Note
-To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number.
+```{admonition} Notes
+- See more about images in {ref}`images-usage`
+- To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number.
 ```
 
 ## Note for ARM64 (Apple Silicon) Users
@@ -109,7 +110,7 @@ MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it
 **Note:** Only relevant if your remote service is on an instance of the Iguazio AI Platform (**not MLRun CE**). <br>
 Run this command in MLRun CLI:
  ```
- mlrun config set -a https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com -u joe -k mykey -e 
+ mlrun config set -a https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com -u joe -k mykey
  ```
 
 It creates the following environment file:
@@ -158,8 +159,7 @@ mlrun.set_environment("http://localhost:8080", artifact_path="./")
 mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
 ```
 
-For more explanations read the documentation [mlrun.set_environment](https://docs.mlrun.org/en/latest/api/mlrun.html?highlight=set_env_from_file()#mlrun.set_environment).
-
+For more explanations read the documentation [mlrun.set_environment](https://docs.mlrun.org/en/stable/api/mlrun.html#mlrun.set_environment).
 (using-your-ide-e-g-pycharm-or-vscode)=
 ### Using your IDE (e.g. PyCharm or VSCode)
 

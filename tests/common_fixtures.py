@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import inspect
 import os
 import shutil
@@ -401,15 +401,38 @@ class RunDBMock:
         self,
         project,
         pipeline,
-        arguments,
-        experiment,
-        run,
-        namespace,
-        ops,
-        artifact_path,
+        arguments=None,
+        experiment=None,
+        run=None,
+        namespace=None,
+        artifact_path=None,
+        ops=None,
+        cleanup_ttl=None,
+        timeout=60,
     ):
         self._pipeline = pipeline
         return True
+
+    def push_pipeline_notifications(
+        self,
+        pipeline_id,
+        project="",
+        notifications=None,
+        timeout=45,
+    ):
+        pass
+
+    def get_pipeline(
+        self,
+        run_id: str,
+        namespace: Optional[str] = None,
+        timeout: int = 30,
+        format_: Union[
+            str, mlrun.common.formatters.PipelineFormat
+        ] = mlrun.common.formatters.PipelineFormat.summary,
+        project: Optional[str] = None,
+    ):
+        pass
 
     def store_project(self, name, project):
         return self.create_project(project)
@@ -684,6 +707,7 @@ class RunDBMock:
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
         self._get_model_endpoint_calls += 1
@@ -722,7 +746,8 @@ class RunDBMock:
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: bool = False,
+        metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
@@ -786,13 +811,32 @@ class RemoteBuilderMock(RunDBMock):
         ):
             # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
             # it overrides the mock args - this way the value will remain as it was.
+            image = f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest"
             return {
                 "ready": True,
                 "data": {
                     "spec": {
                         "clone_target_dir": func.spec.clone_target_dir,
                         "build": {
-                            "image": f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest",
+                            "image": image,
+                        },
+                        "env": [
+                            {"name": "SIDECAR_PORT", "value": "8050"},
+                        ],
+                        "config": {
+                            "spec.sidecars": [
+                                {
+                                    "image": image,
+                                    "name": "application-test-sidecar",
+                                    "ports": [
+                                        {
+                                            "containerPort": 8050,
+                                            "name": "application-t-0",
+                                            "protocol": "TCP",
+                                        }
+                                    ],
+                                }
+                            ],
                         },
                     },
                     "status": {

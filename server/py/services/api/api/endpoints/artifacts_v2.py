@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 from http import HTTPStatus
 from typing import Optional
 
@@ -165,7 +165,7 @@ async def list_artifacts(
     limit: int = Query(
         None,
         deprecated=True,
-        description="Use page and page_size, will be removed in the 1.10.0",
+        description="Use page and page_size, will be removed in the 1.11.0",
     ),
     since: Optional[str] = None,
     until: Optional[str] = None,
@@ -191,7 +191,7 @@ async def list_artifacts(
         auth_info,
     )
 
-    # TODO: deprecate the limit parameter in the list_artifacts method in 1.10.0
+    # TODO: remove the limit parameter in the list_artifacts method in 1.11.0
     if limit and (page_size or page):
         raise mlrun.errors.MLRunConflictError(
             "'page/page_size' and 'limit' are conflicting, only one can be specified."
@@ -363,7 +363,8 @@ async def delete_artifacts(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    project = project or mlrun.mlconf.default_project
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     artifacts = await run_in_threadpool(
         services.api.crud.Artifacts().list_artifacts,
         db_session,

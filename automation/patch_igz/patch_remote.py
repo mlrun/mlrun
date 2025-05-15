@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import io
 import json
@@ -293,6 +293,7 @@ class MLRunPatcher:
                     future.result()
                 except Exception as exc:
                     logger.error(f"Error pushing image {image}: {exc}")
+                    raise
 
     def _patch_deployment_from_file(self):
         for deployment in self._deployments:

@@ -21,7 +21,7 @@ import typing
 import warnings
 from copy import deepcopy
 from datetime import datetime, timedelta
-from os import path, remove
+from os import environ, path, remove
 from typing import Literal, Optional, Union
 from urllib.parse import urlparse
 
@@ -129,7 +129,9 @@ class HTTPRunDB(RunDBInterface):
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
-        self.python_version = str(version.Version().get_python_version())
+        self.python_version = environ.get("MLRUN_PYTHON_VERSION") or str(
+            version.Version().get_python_version()
+        )
 
         self._enrich_and_validate(url)
 
@@ -937,7 +939,7 @@ class HTTPRunDB(RunDBInterface):
 
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run, or a list of run UIDs.
-        :param project: Project that the runs belongs to.
+        :param project: Project that the runs belongs to. If not specified, the default project will be used.
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
             or `{"label": None}` to check for key existence.
@@ -1276,8 +1278,8 @@ class HTTPRunDB(RunDBInterface):
         :param producer_uri:    Return artifacts produced by the requested producer URI. Producer URI usually
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
-        :param format_:         The format in which to return the artifacts. Default is 'full'.
-        :param limit:           Maximum number of artifacts to return.
+        :param format_: The format in which to return the artifacts. Default is 'full'.
+        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -2221,18 +2223,20 @@ class HTTPRunDB(RunDBInterface):
         elif pipe_file.endswith(".zip"):
             headers = {"content-type": "application/zip"}
         else:
-            raise ValueError("pipeline file must be .yaml or .zip")
+            raise ValueError("'pipeline' file must be .yaml or .zip")
         if arguments:
             if not isinstance(arguments, dict):
-                raise ValueError("arguments must be dict type")
+                raise ValueError("'arguments' must be dict type")
             headers[mlrun.common.schemas.HeaderNames.pipeline_arguments] = str(
                 arguments
             )
 
         if not path.isfile(pipe_file):
-            raise OSError(f"file {pipe_file} doesnt exist")
+            raise OSError(f"File {pipe_file} doesnt exist")
         with open(pipe_file, "rb") as fp:
             data = fp.read()
+            if not data:
+                raise ValueError("The compiled pipe file is empty")
         if not isinstance(pipeline, str):
             remove(pipe_file)
 
@@ -3584,7 +3588,7 @@ class HTTPRunDB(RunDBInterface):
         params = {
             "type": type,
             "endpoint-id": endpoint_ids,
-            "events_format": events_format,
+            "events-format": events_format,
         }
         error_message = (
             f"Failed to get model monitoring metrics,"
@@ -3720,7 +3724,7 @@ class HTTPRunDB(RunDBInterface):
             path=path,
             body=model_endpoint.json(),
             params={
-                "creation_strategy": creation_strategy,
+                "creation-strategy": creation_strategy,
             },
         )
         return mlrun.common.schemas.ModelEndpoint(**response.json())
@@ -3750,9 +3754,9 @@ class HTTPRunDB(RunDBInterface):
             method=mlrun.common.types.HTTPMethod.DELETE,
             path=path,
             params={
-                "function_name": function_name,
-                "function_tag": function_tag,
-                "endpoint_id": endpoint_id,
+                "function-name": function_name,
+                "function-tag": function_tag,
+                "endpoint-id": endpoint_id,
             },
         )
 
@@ -3767,7 +3771,8 @@ class HTTPRunDB(RunDBInterface):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: bool = False,
+        metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
@@ -3785,6 +3790,9 @@ class HTTPRunDB(RunDBInterface):
         :param start:           The start time to filter by.Corresponding to the `created` field.
         :param end:             The end time to filter by. Corresponding to the `created` field.
         :param tsdb_metrics:    Whether to include metrics from the time series DB.
+        :param metric_list:     List of metrics to include from the time series DB. Defaults to all metrics.
+                                If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                will be included.
         :param top_level:       Whether to return only top level model endpoints.
         :param uids:            A list of unique ids to filter by.
         :param latest_only:     Whether to return only the latest model endpoint version.
@@ -3799,17 +3807,18 @@ class HTTPRunDB(RunDBInterface):
             path=path,
             params={
                 "name": names,
-                "model_name": model_name,
-                "model_tag": model_tag,
-                "function_name": function_name,
-                "function_tag": function_tag,
+                "model-name": model_name,
+                "model-tag": model_tag,
+                "function-name": function_name,
+                "function-tag": function_tag,
                 "label": labels,
                 "start": datetime_to_iso(start),
                 "end": datetime_to_iso(end),
-                "tsdb_metrics": tsdb_metrics,
+                "tsdb-metrics": tsdb_metrics,
+                "metric": metric_list,
                 "top-level": top_level,
                 "uid": uids,
-                "latest_only": latest_only,
+                "latest-only": latest_only,
             },
         )
 
@@ -3823,6 +3832,7 @@ class HTTPRunDB(RunDBInterface):
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
@@ -3834,6 +3844,9 @@ class HTTPRunDB(RunDBInterface):
         :param function_tag:               The tag of the function
         :param endpoint_id:                The id of the endpoint
         :param tsdb_metrics:               Whether to include metrics from the time series DB.
+        :param metric_list:                List of metrics to include from the time series DB. Defaults to all metrics.
+                                           If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
+                                           will be included.
         :param feature_analysis:           Whether to include feature analysis data (feature_stats,
                                             current_stats & drift_measures).
 
@@ -3847,11 +3860,12 @@ class HTTPRunDB(RunDBInterface):
             method=mlrun.common.types.HTTPMethod.GET,
             path=path,
             params={
-                "function_name": function_name,
-                "function_tag": function_tag,
-                "endpoint_id": endpoint_id,
-                "tsdb_metrics": tsdb_metrics,
-                "feature_analysis": feature_analysis,
+                "function-name": function_name,
+                "function-tag": function_tag,
+                "endpoint-id": endpoint_id,
+                "tsdb-metrics": tsdb_metrics,
+                "metric": metric_list,
+                "feature-analysis": feature_analysis,
             },
         )
 
@@ -3971,6 +3985,7 @@ class HTTPRunDB(RunDBInterface):
                 "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
                 "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
             },
+            timeout=300,  # 5 minutes
         )
 
     def disable_model_monitoring(
@@ -4079,21 +4094,6 @@ class HTTPRunDB(RunDBInterface):
                 ):
                     deletion_failed = True
         return not deletion_failed
-
-    def deploy_histogram_data_drift_app(
-        self, project: str, image: str = "mlrun/mlrun"
-    ) -> None:
-        """
-        Deploy the histogram data drift application.
-
-        :param project: Project name.
-        :param image:   The image on which the application will run.
-        """
-        self.api_call(
-            method=mlrun.common.types.HTTPMethod.PUT,
-            path=f"projects/{project}/model-monitoring/histogram-data-drift-app",
-            params={"image": image},
-        )
 
     def set_model_monitoring_credentials(
         self,
@@ -4818,20 +4818,33 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", endpoint_path, error_message)
         return AlertConfig.from_dict(response.json())
 
-    def list_alerts_configs(self, project="") -> list[AlertConfig]:
+    def list_alerts_configs(
+        self, project="", limit: Optional[int] = None, offset: Optional[int] = None
+    ) -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
 
         :param project: The project name.
+        :param limit: The maximum number of alerts to return.
+            Defaults to `mlconf.alerts.default_list_alert_configs_limit` if not provided.
+        :param offset: The number of alerts to skip.
 
         :returns: All the alerts objects of the project.
         """
         project = project or config.default_project
         endpoint_path = f"projects/{project}/alerts"
         error_message = f"get alerts {project}/alerts"
-        response = self.api_call("GET", endpoint_path, error_message).json()
+        params = {}
+        # TODO: Deprecate limit and offset when pagination is implemented
+        if limit:
+            params["page-size"] = limit
+        if offset:
+            params["offset"] = offset
+        response = self.api_call(
+            "GET", endpoint_path, error_message, params=params
+        ).json()
         results = []
-        for item in response:
+        for item in response.get("alerts", []):
             results.append(AlertConfig(**item))
         return results
 
@@ -5090,6 +5103,13 @@ class HTTPRunDB(RunDBInterface):
 
         project = project or config.default_project
         labels = self._parse_labels(labels)
+
+        if limit:
+            # TODO: Remove this in 1.11.0
+            warnings.warn(
+                "'limit' is deprecated and will be removed in 1.11.0. Use 'page' and 'page_size' instead.",
+                FutureWarning,
+            )
 
         params = {
             "name": name,

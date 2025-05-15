@@ -40,14 +40,18 @@ from mlrun.utils import Logger, logger
 
 class TestEventPreparation:
     ENDPOINT_ID = "test-ep-id"
+    ENDPOINT_NAME = "test-ep-name"
     APPLICATION_NAME = "test-app"
+    ENDPOINT_UPDATED = mlrun.utils.now_date().isoformat()
 
     @classmethod
     @pytest.fixture
     def controller_event(cls) -> dict[str, typing.Any]:
         return {
             mm_constants.ApplicationEvent.ENDPOINT_ID: cls.ENDPOINT_ID,
+            mm_constants.ApplicationEvent.ENDPOINT_NAME: cls.ENDPOINT_NAME,
             mm_constants.ApplicationEvent.APPLICATION_NAME: cls.APPLICATION_NAME,
+            mm_constants.ApplicationEvent.ENDPOINT_UPDATED: cls.ENDPOINT_UPDATED,
         }
 
     @classmethod
@@ -55,7 +59,24 @@ class TestEventPreparation:
         cls, controller_event: dict[str, typing.Any], tmp_path: Path
     ) -> None:
         with patch.object(
-            mlrun.db.get_run_db(), "get_model_endpoint"
+            mlrun.db.get_run_db(),
+            "get_model_endpoint",
+            Mock(
+                return_value=mlrun.common.schemas.model_monitoring.ModelEndpoint(
+                    metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
+                        project="my-proj",
+                        name="my-endpoint",
+                    ),
+                    spec=mlrun.common.schemas.ModelEndpointSpec(
+                        function_name="my-func",
+                        function_tag="my-tag",
+                        monitoring_feature_set_uri=mlrun.utils.generate_object_uri(
+                            project="my-proj", name="my-serving"
+                        ),
+                    ),
+                    status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(),
+                )
+            ),
         ) as patch_get_model_endpoint:
             with patch.object(
                 mlrun.db.get_run_db(),
@@ -110,8 +131,27 @@ class TestEventPreparation:
                     "mlrun/producer-type": "model-monitoring-app",
                     "mlrun/app-name": cls.APPLICATION_NAME,
                     "mlrun/endpoint-id": cls.ENDPOINT_ID,
+                    "mlrun/endpoint-name": cls.ENDPOINT_NAME,
                 }.items() <= artifact.labels.items()
+                assert (
+                    artifact.key == f"my-app-data-{cls.ENDPOINT_ID}"
+                ), "By default monitoring context concat endpoint id to artifact key"
 
+                dataset = monitoring_context.log_dataset(
+                    key="my-app-df",
+                    df=pd.DataFrame({"a": [1, 2, 3]}),
+                    labels={"framework": "deepeval"},
+                )
+                assert {
+                    "framework": "deepeval",
+                    "mlrun/producer-type": "model-monitoring-app",
+                    "mlrun/app-name": cls.APPLICATION_NAME,
+                    "mlrun/endpoint-id": cls.ENDPOINT_ID,
+                    "mlrun/endpoint-name": cls.ENDPOINT_NAME,
+                }.items() <= dataset.labels.items()
+                assert (
+                    dataset.key == f"my-app-df-{cls.ENDPOINT_ID}"
+                ), "By default monitoring context concat endpoint id to dataset key"
                 server.wait_for_completion()
                 monitoring_context.logger.debug("I'm done")
 
@@ -120,7 +160,7 @@ class Pusher:
     def __init__(self, filename: str) -> None:
         self.stream_filename = filename
 
-    def push(self, data: list[dict[str, typing.Any]]) -> None:
+    def push(self, data: list[dict[str, typing.Any]], partition_key: str) -> None:
         data = data[0]
         with open(self.stream_filename, "w") as json_file:
             json.dump(data, json_file)

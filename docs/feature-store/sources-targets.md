@@ -96,13 +96,13 @@ kafka_source = KafkaSource(
     group="my_group",
     attributes={
         "sasl": {
-            "enable": True,
+            "enabled": True,
             "password": "pword",
             "user": "user",
             "handshake": True,
             "mechanism": "SCRAM-SHA-256",
         },
-        "tls": {"enable": True, "insecureSkipVerify": False},
+        "tls": {"enabled": True, "insecureSkipVerify": False},
         "caCert": caCert,
     },
 )

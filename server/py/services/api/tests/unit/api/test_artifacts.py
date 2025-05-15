@@ -1309,7 +1309,7 @@ def test_failed_to_delete_artifact_with_referenced_model_endpoint(
 
     creation_strategy = mlrun.common.schemas.ModelEndpointCreationStrategy.INPLACE
     response = unversioned_client.post(
-        f"/projects/{PROJECT}/model-endpoints?creation_strategy={creation_strategy}",
+        f"/projects/{PROJECT}/model-endpoints?creation-strategy={creation_strategy}",
         json=model_endpoint.dict(),
     )
     assert (

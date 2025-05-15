@@ -103,11 +103,11 @@ class EvidentlyModelMonitoringApplicationBase(
         self.evidently_project_id = evidently_project_id
         self.evidently_project = self.load_project()
 
-    def load_project(self) -> Project:
+    def load_project(self) -> "Project":
         """Load the Evidently project."""
         return self.evidently_workspace.get_project(self.evidently_project_id)
 
-    def get_workspace(self) -> WorkspaceBase:
+    def get_workspace(self) -> "WorkspaceBase":
         """Get the Evidently workspace. Override this method for customize access to the workspace."""
         if self.evidently_workspace_path:
             return Workspace.create(self.evidently_workspace_path)
@@ -118,7 +118,7 @@ class EvidentlyModelMonitoringApplicationBase(
                 "`EVIDENTLY_API_KEY` environment variable. In other cases, override this method."
             )
 
-    def get_cloud_workspace(self) -> CloudWorkspace:
+    def get_cloud_workspace(self) -> "CloudWorkspace":
         """Load the Evidently cloud workspace according to the `EVIDENTLY_API_KEY` environment variable."""
         return CloudWorkspace()
 

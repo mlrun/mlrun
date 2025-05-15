@@ -56,8 +56,3 @@ kubeconfig*
 # this is just a template
 !dockerfiles/jupyter/mlrun.env
 **/hack/*.env
-
-# Coverage reports
-*.coverage
-**/coverage_reports/*.xml
-**/coverage_reports/*.html

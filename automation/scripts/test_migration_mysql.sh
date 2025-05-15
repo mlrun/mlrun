@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-COVERAGE_ADDITION=${COVERAGE_ADDITION:-}
-
 set -e
 
 function cleanup {
@@ -52,11 +50,9 @@ done
 
 export PYTHONPATH=${ROOT}/server/py
 
-# shellcheck disable=SC2086
-python ${COVERAGE_ADDITION} \
-  -m pytest -v \
-  --capture=no \
-  --disable-warnings \
-  --durations=100 \
-  -rf \
-  "${ROOT_DIR}"/server/py/services/api/migrations/tests/*
+python -m pytest -v \
+		--capture=no \
+		--disable-warnings \
+		--durations=100 \
+		-rf \
+		"${ROOT_DIR}"/server/py/services/api/migrations/tests/*

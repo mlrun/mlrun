@@ -1319,7 +1319,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.6.2 |`dashboard` parameter of the RemoteRuntime `invoke`                             |NA. The parameter was ignored. |
 | v1.6.0 |`dashboard` parameter of `project.deploy_function`, `RemoteRuntime.deploy`, `RemoteRuntime.get_nuclio_deploy_status`, `ServingRuntime.with_secrets`| NA. The parameter was ignored.         |
 | v1.6.0 |`MLRunProject.clear_context()`                                                      |NA |
-|v1.6.0  |Runtimes: `with_requirements` &mdash; `requirements` param as a requirements file    |`requirements_file` param  |
+| v1.6.0  |Runtimes: `with_requirements` &mdash; `requirements` param as a requirements file    |`requirements_file` param  |
 | v1.6.0 |MLRunProject object legacy parameters                                              |metadata and spec                                                                                                                                           |
 | v1.6.0 |`BaseRuntime.with_commands` and `KubejobRuntime.build_config` `verify_base_image` param|`prepare_image_for_deploy`                                                                                                                                 |
 | v1.6.0 |`run_local`                                                                          |`function.run(local=True)`                                                                                                                                   |

@@ -482,7 +482,7 @@ default_config = {
             "project_owners_cache_ttl": "30 seconds",
             # access key to be used when the leader is iguazio and polling is done from it
             "iguazio_access_key": "",
-            "iguazio_list_projects_default_page_size": 200,
+            "iguazio_list_projects_default_page_size": 500,
             "iguazio_client_job_cache_ttl": "20 minutes",
             "nuclio_project_deletion_verification_timeout": "300 seconds",
             "nuclio_project_deletion_verification_interval": "5 seconds",

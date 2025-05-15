@@ -235,11 +235,9 @@ def test_kfp_pod_sets_gpu_resources_to_zero_when_gpu_requested(
 
 
 def test_enrich_node_selector_with_preemption_mode_prevent_on_kfp_pod(
-    ensure_default_project,
+    ensure_project,
 ):
-    function = new_function(
-        kfp=True, kind="job", project=ensure_default_project.metadata.name
-    )
+    function = new_function(kfp=True, kind="job", project=ensure_project.metadata.name)
 
     # Set preemption mode to 'prevent'
     function.with_preemption_mode("prevent")
@@ -249,7 +247,7 @@ def test_enrich_node_selector_with_preemption_mode_prevent_on_kfp_pod(
 
     # Set project-level node selector
     project_node_selector, project_val = "ns2", "val2"
-    ensure_default_project.spec.default_function_node_selector = {
+    ensure_project.spec.default_function_node_selector = {
         project_node_selector: project_val
     }
 

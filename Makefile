@@ -682,10 +682,10 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 
 .PHONY: test-migrations
 test-migrations: clean ## Run mlrun db migrations tests
-	COVERAGE_FILE=$(COVERAGE_FILE); \
-	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/migration_tests.coverage"}; \
+	COVERAGE_FILE=$(COVERAGE_FILE) && \
+	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/migration_tests.coverage"} && \
 	$(SETUP_COVERAGE) \
-	COVERAGE_ADDITION="$(COVERAGE_ADDITION)" ./automation/scripts/test_migration_mysql.sh ;\
+	COVERAGE_ADDITION="$(COVERAGE_ADDITION)" ./automation/scripts/test_migration_mysql.sh && \
 	$(PRINT_COVERAGE_REPORT)
 
 

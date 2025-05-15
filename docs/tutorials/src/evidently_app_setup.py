@@ -26,6 +26,7 @@ if _HAS_EVIDENTLY:
         ProjectModel,
         Workspace,
         WorkspaceBase,
+        OrgID
     )
 
 _PROJECT_NAME = "Iris Monitoring"
@@ -35,14 +36,15 @@ _PROJECT_DESCRIPTION = "Test project using iris dataset"
 def create_evidently_project(
     workspace: WorkspaceBase,
     id: Optional[UUID] = None,
-) -> Project:
+    org_id: Optional[OrgID] = None,
+):
     if id:
         project = ProjectModel(
             name=_PROJECT_NAME, description=_PROJECT_DESCRIPTION, id=id
         )
-        project = workspace.add_project(project)
+        project = workspace.add_project(project, org_id=org_id)
     else:
-        project = workspace.create_project(_PROJECT_NAME)
+        project = workspace.create_project(_PROJECT_NAME, org_id=org_id)
     project.description = _PROJECT_DESCRIPTION
     project.dashboard.add_panel(
         DashboardPanelPlot(

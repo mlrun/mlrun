@@ -947,7 +947,7 @@ class HTTPRunDB(RunDBInterface):
             or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
-        :param state: Deprecated - List only runs whose state is specified (will be removed in 1.9.0)
+        :param state: Deprecated - List only runs whose state is specified (will be removed in 1.10.0)
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -5247,9 +5247,9 @@ class HTTPRunDB(RunDBInterface):
             )
 
         if state:
-            # TODO: Remove this in 1.9.0
+            # TODO: Remove this in 1.10.0
             warnings.warn(
-                "'state' is deprecated and will be removed in 1.9.0. Use 'states' instead.",
+                "'state' is deprecated in 1.7.0 and will be removed in 1.10.0. Use 'states' instead.",
                 FutureWarning,
             )
 

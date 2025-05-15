@@ -261,7 +261,7 @@ def get_or_create_ctx(
     """
     if labels:
         warnings.warn(
-            "The `labels` argument is deprecated and will be removed in 1.9.0. "
+            "The `labels` argument is deprecated in 1.7.0 and will be removed in 1.10.0. "
             "Please use `spec` instead, e.g.:\n"
             "spec={'metadata': {'labels': {'key': 'value'}}}",
             FutureWarning,

@@ -333,10 +333,14 @@ class FeatureVector(ModelObj):
     @property
     def uri(self):
         """fully qualified feature vector uri"""
-        uri = f"{self._metadata.project or mlconf.active_project}/{self._metadata.name}"
-        uri = get_store_uri(StorePrefix.FeatureVector, uri)
+        project = self._metadata.project or mlconf.active_project
+        name = self._metadata.name
+
+        base = name if not project else f"{project}/{name}"
+        uri = get_store_uri(StorePrefix.FeatureVector, base)
+
         if self._metadata.tag:
-            uri += ":" + self._metadata.tag
+            uri += f":{self._metadata.tag}"
         return uri
 
     def link_analysis(self, name, uri):

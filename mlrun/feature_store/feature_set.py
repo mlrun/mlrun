@@ -413,11 +413,15 @@ class FeatureSet(ModelObj):
     @property
     def fullname(self) -> str:
         """full name in the form ``{project}/{name}[:{tag}]``"""
-        fullname = (
-            f"{self._metadata.project or mlconf.active_project}/{self._metadata.name}"
-        )
-        if self._metadata.tag:
-            fullname += ":" + self._metadata.tag
+        project = self._metadata.project or mlconf.active_project
+        name = self._metadata.name
+        tag = self._metadata.tag
+
+        fullname = name
+        if project:
+            fullname = f"{project}/{fullname}"
+        if tag:
+            fullname += f":{tag}"
         return fullname
 
     def _get_run_db(self):

@@ -333,8 +333,12 @@ class GraphServer(ModelObj):
 
 def add_system_steps_to_graph(graph: RootFlowStep):
     model_runner_raisers = {}
-    for step in graph.steps.values():
-        if isinstance(step, mlrun.serving.states.ModelRunnerStep):
+    steps = list(graph.steps.values())
+    for step in steps:
+        if (
+            isinstance(step, mlrun.serving.states.ModelRunnerStep)
+            and step._raise_exception
+        ):
             error_step = graph.add_step(
                 class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
                 name=f"{step.name}_error_raise",
@@ -346,7 +350,7 @@ def add_system_steps_to_graph(graph: RootFlowStep):
             if step.responder:
                 step.responder = False
                 error_step.respond()
-            model_runner_raisers[step.name] = error_step
+            model_runner_raisers[step.name] = error_step.name
             error_step.on_error = step.on_error
         if isinstance(step.after, list):
             for i in range(len(step.after)):
@@ -366,7 +370,10 @@ def v2_serving_init(context, namespace=None):
     server = GraphServer.from_dict(spec)
     if isinstance(server.graph, RootFlowStep):
         server.graph = add_system_steps_to_graph(copy.deepcopy(server.graph))
-        context.logger.info_with("Server graph before deployment after adding system steps.", graph=server.graph.steps)
+        context.logger.info_with(
+            "Server graph before deployment after adding system steps.",
+            graph=str(server.graph.steps),
+        )
 
     if config.log_level.lower() == "debug":
         server.verbose = True

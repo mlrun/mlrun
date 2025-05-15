@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import posixpath
-import uuid
 import warnings
 from abc import ABC
 from tempfile import NamedTemporaryFile
@@ -61,7 +58,6 @@ except ModuleNotFoundError:
 
 if _HAS_EVIDENTLY:
     from evidently.core.report import Snapshot
-    from evidently.legacy.ui.storage.local.base import METADATA_PATH, FSLocation
     from evidently.ui.workspace import (
         STR_UUID,
         CloudWorkspace,

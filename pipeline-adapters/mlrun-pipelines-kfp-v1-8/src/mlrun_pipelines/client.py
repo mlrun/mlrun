@@ -105,7 +105,7 @@ INPUT_NAME_REGEX = re.compile(r"[^_0-9a-z]+")
 def sanitize_input_name(
     name: str,
 ) -> str:
-    return INPUT_NAME_REGEX.sub("_", name.lower()).lstrip("_").rstrip("_")
+    return INPUT_NAME_REGEX.sub("_", name.lower()).strip("_")
 
 
 class Client(

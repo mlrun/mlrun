@@ -148,7 +148,9 @@ class EvidentlyModelMonitoringApplicationBase(
                 )
                 with location.open(metadata_path) as f:
                     content = f.read()
-                broken_json_dir = f"/projects/evidently_json_issue/{evidently_project_id}"
+                broken_json_dir = (
+                    f"/projects/evidently_json_issue/{evidently_project_id}"
+                )
                 os.makedirs(broken_json_dir, exist_ok=True)
                 broken_json_path = f"{broken_json_dir}/{uuid.uuid4()}.json"
                 with location.open(broken_json_path, "w") as f:

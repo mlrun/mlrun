@@ -945,7 +945,7 @@ class HTTPRunDB(RunDBInterface):
             or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
-        :param state: Deprecated - List only runs whose state is specified (will be removed in 1.9.0)
+        :param state: Deprecated - List only runs whose state is specified (will be removed in 1.10.0)
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -1277,7 +1277,7 @@ class HTTPRunDB(RunDBInterface):
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
         :param format_: The format in which to return the artifacts. Default is 'full'.
-        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.10.0).
+        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -2221,18 +2221,20 @@ class HTTPRunDB(RunDBInterface):
         elif pipe_file.endswith(".zip"):
             headers = {"content-type": "application/zip"}
         else:
-            raise ValueError("pipeline file must be .yaml or .zip")
+            raise ValueError("'pipeline' file must be .yaml or .zip")
         if arguments:
             if not isinstance(arguments, dict):
-                raise ValueError("arguments must be dict type")
+                raise ValueError("'arguments' must be dict type")
             headers[mlrun.common.schemas.HeaderNames.pipeline_arguments] = str(
                 arguments
             )
 
         if not path.isfile(pipe_file):
-            raise OSError(f"file {pipe_file} doesnt exist")
+            raise OSError(f"File {pipe_file} doesnt exist")
         with open(pipe_file, "rb") as fp:
             data = fp.read()
+            if not data:
+                raise ValueError("The compiled pipe file is empty")
         if not isinstance(pipeline, str):
             remove(pipe_file)
 
@@ -3767,7 +3769,7 @@ class HTTPRunDB(RunDBInterface):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
@@ -3889,8 +3891,8 @@ class HTTPRunDB(RunDBInterface):
         attributes_keys = list(attributes.keys())
         attributes["name"] = name
         attributes["project"] = project
-        attributes["function-name"] = function_name or None
-        attributes["function-tag"] = function_tag or None
+        attributes["function_name"] = function_name or None
+        attributes["function_tag"] = function_tag or None
         attributes["uid"] = endpoint_id or None
         model_endpoint = mlrun.common.schemas.ModelEndpoint.from_flat_dict(attributes)
         path = f"projects/{project}/model-endpoints"
@@ -5100,9 +5102,9 @@ class HTTPRunDB(RunDBInterface):
         labels = self._parse_labels(labels)
 
         if limit:
-            # TODO: Remove this in 1.10.0
+            # TODO: Remove this in 1.11.0
             warnings.warn(
-                "'limit' is deprecated and will be removed in 1.10.0. Use 'page' and 'page_size' instead.",
+                "'limit' is deprecated and will be removed in 1.11.0. Use 'page' and 'page_size' instead.",
                 FutureWarning,
             )
 
@@ -5242,9 +5244,9 @@ class HTTPRunDB(RunDBInterface):
             )
 
         if state:
-            # TODO: Remove this in 1.9.0
+            # TODO: Remove this in 1.10.0
             warnings.warn(
-                "'state' is deprecated and will be removed in 1.9.0. Use 'states' instead.",
+                "'state' is deprecated in 1.7.0 and will be removed in 1.10.0. Use 'states' instead.",
                 FutureWarning,
             )
 

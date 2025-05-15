@@ -57,7 +57,7 @@ class TrackingPolicy(mlrun.model.ModelObj):
         """
         warnings.warn(
             "The `TrackingPolicy` class is deprecated from version 1.7.0 and is not "
-            "used anymore. It will be removed in 1.9.0.",
+            "used anymore. It will be removed in 1.10.0.",
             FutureWarning,
         )
 

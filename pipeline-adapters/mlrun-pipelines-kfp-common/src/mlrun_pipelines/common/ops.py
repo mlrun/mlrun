@@ -176,7 +176,7 @@ def mlrun_op(
 
     if rundb:
         warnings.warn(
-            "rundb parameter is deprecated and will be removed in 1.9.0. "
+            "rundb parameter is deprecated in 1.7.0 and will be removed in 1.10.0. "
             "use 'MLRUN_DBPATH' env instead.",
             DeprecationWarning,
         )

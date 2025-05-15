@@ -219,7 +219,7 @@ class Artifact(ModelObj):
         project=None,
         src_path: typing.Optional[str] = None,
         # All params up until here are legacy params for compatibility with legacy artifacts.
-        # TODO: remove them in 1.9.0.
+        # TODO: remove them in 1.10.0.
         metadata: ArtifactMetadata = None,
         spec: ArtifactSpec = None,
     ):
@@ -235,7 +235,7 @@ class Artifact(ModelObj):
             or src_path
         ):
             warnings.warn(
-                "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
+                "Artifact constructor parameters are deprecated in 1.7.0 and will be removed in 1.10.0. "
                 "Use the metadata and spec parameters instead.",
                 DeprecationWarning,
             )
@@ -758,13 +758,13 @@ class LinkArtifact(Artifact):
         link_tree=None,
         project=None,
         # All params up until here are legacy params for compatibility with legacy artifacts.
-        # TODO: remove them in 1.9.0.
+        # TODO: remove them in 1.10.0.
         metadata: ArtifactMetadata = None,
         spec: LinkArtifactSpec = None,
     ):
         if key or target_path or link_iteration or link_key or link_tree or project:
             warnings.warn(
-                "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
+                "Artifact constructor parameters are deprecated in 1.7.0 and will be removed in 1.10.0. "
                 "Use the metadata and spec parameters instead.",
                 DeprecationWarning,
             )
@@ -907,7 +907,7 @@ def convert_legacy_artifact_to_new_format(
         artifact_key = f"{artifact_key}:{artifact_tag}"
     # TODO: Remove once data migration v5 is obsolete
     warnings.warn(
-        f"Converting legacy artifact '{artifact_key}' to new format. This will not be supported in MLRun 1.9.0. "
+        f"Converting legacy artifact '{artifact_key}' to new format. This will not be supported in MLRun 1.10.0. "
         f"Make sure to save the artifact/project in the new format.",
         FutureWarning,
     )

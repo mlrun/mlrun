@@ -52,7 +52,7 @@ def _query_param_hyphen_warning(condition: typing.Any, param_name: str):
         warnings.warn(
             f"{param_name} query parameter is deprecated and will be removed in 1.11.0. "
             f"Use {new_param_name} instead.",
-            DeprecationWarning,
+            FutureWarning,
         )
 
 

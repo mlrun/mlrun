@@ -168,7 +168,7 @@ class FeatureStore(
             uid,
         )
 
-    # TODO: remove in 1.9.0
+    # TODO: remove in 1.10.0
     def list_features(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -207,7 +207,7 @@ class FeatureStore(
             labels,
         )
 
-    # TODO: remove in 1.9.0
+    # TODO: remove in 1.10.0
     def list_entities(
         self,
         db_session: sqlalchemy.orm.Session,

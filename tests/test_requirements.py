@@ -121,7 +121,6 @@ def test_requirement_specifiers_convention():
         "storey": {"~=1.10.0"},
         "pydantic": {">=1.10.15", ">=1,<2"},
         "nuclio-sdk": {">=0.5"},
-        "sphinx-book-theme": {"~=1.0.1"},
         "scipy": {"~=1.13.0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
@@ -134,7 +133,7 @@ def test_requirement_specifiers_convention():
         "databricks-sdk": {"~=0.20.0"},
         "docstring_parser": {"~=0.16"},
         "gitpython": {"~=3.1, >=3.1.41"},
-        "jinja2": {"~=3.1, >=3.1.3"},
+        "jinja2": {"~=3.1, >=3.1.6"},
         "pyopenssl": {">=23"},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
         # due to a bug in apscheduler with python 3.9 https://github.com/agronholm/apscheduler/issues/770

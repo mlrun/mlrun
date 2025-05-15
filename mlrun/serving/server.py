@@ -366,6 +366,7 @@ def v2_serving_init(context, namespace=None):
     server = GraphServer.from_dict(spec)
     if isinstance(server.graph, RootFlowStep):
         server.graph = add_system_steps_to_graph(copy.deepcopy(server.graph))
+        context.logger.info_with("Server graph before deployment after adding system steps.", graph=server.graph.steps)
 
     if config.log_level.lower() == "debug":
         server.verbose = True

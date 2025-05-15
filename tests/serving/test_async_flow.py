@@ -254,6 +254,23 @@ def test_model_runner_add_model_failure(method: str):
         )
 
 
+@pytest.mark.parametrize("with_error", [True, False])
+def test_model_runner_error_raiser(with_error: bool):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=with_error)
+    model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model", raise_error=False, inc=1)
+    graph.to(model_runner_step).respond()
+
+    server = function.to_mock_server()
+    if with_error:
+        with pytest.raises(RuntimeError):
+            server.test(body={"n": "1"})
+    else:
+        assert "error" in server.test(body={"n": "1"}), "Expected error field in body"
+    server.wait_for_completion()
+
+
 class MyModelSelector(ModelSelector):
     def select(self, event, available_models: list[Model]) -> Optional[list[str]]:
         return event.body.get("models")

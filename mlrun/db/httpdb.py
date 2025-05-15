@@ -2223,18 +2223,20 @@ class HTTPRunDB(RunDBInterface):
         elif pipe_file.endswith(".zip"):
             headers = {"content-type": "application/zip"}
         else:
-            raise ValueError("pipeline file must be .yaml or .zip")
+            raise ValueError("'pipeline' file must be .yaml or .zip")
         if arguments:
             if not isinstance(arguments, dict):
-                raise ValueError("arguments must be dict type")
+                raise ValueError("'arguments' must be dict type")
             headers[mlrun.common.schemas.HeaderNames.pipeline_arguments] = str(
                 arguments
             )
 
         if not path.isfile(pipe_file):
-            raise OSError(f"file {pipe_file} doesnt exist")
+            raise OSError(f"File {pipe_file} doesnt exist")
         with open(pipe_file, "rb") as fp:
             data = fp.read()
+            if not data:
+                raise ValueError("The compiled pipe file is empty")
         if not isinstance(pipeline, str):
             remove(pipe_file)
 
@@ -3769,7 +3771,7 @@ class HTTPRunDB(RunDBInterface):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
@@ -3891,8 +3893,8 @@ class HTTPRunDB(RunDBInterface):
         attributes_keys = list(attributes.keys())
         attributes["name"] = name
         attributes["project"] = project
-        attributes["function-name"] = function_name or None
-        attributes["function-tag"] = function_tag or None
+        attributes["function_name"] = function_name or None
+        attributes["function_tag"] = function_tag or None
         attributes["uid"] = endpoint_id or None
         model_endpoint = mlrun.common.schemas.ModelEndpoint.from_flat_dict(attributes)
         path = f"projects/{project}/model-endpoints"

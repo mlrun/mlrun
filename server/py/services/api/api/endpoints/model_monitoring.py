@@ -22,7 +22,6 @@ from fastapi import APIRouter, Depends, Header, Path, Query
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
-from mlrun.utils import logger
 
 import framework.api.utils
 import framework.utils.auth.verifier
@@ -114,7 +113,16 @@ async def enable_model_monitoring(
     base_period: int = 10,
     image: str = "mlrun/mlrun",
     deploy_histogram_data_drift_app: bool = True,
-    rebuild_images: bool = False,
+    # TODO: remove this in 1.11.0
+    rebuild_images: bool = Query(
+        False,
+        deprecated=True,
+        description=(
+            "`rebuild_images` is deprecated as of 1.8.0 and will be removed in 1.11.0. "
+            "To rebuild images, first send a DELETE request to `/projects/{project}/model-monitoring`, "
+            "then send a PUT request to the same endpoint with the updated image."
+        ),
+    ),
     fetch_credentials_from_sys_config: bool = False,
 ):
     """
@@ -137,16 +145,6 @@ async def enable_model_monitoring(
     :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
 
     """
-
-    if rebuild_images:
-        logger.warn(
-            "The `rebuild_images` is no longer supported. "
-            "If you need to rebuild the images, `please call disable_model_monitoring()`, "
-            "followed by `enable_model_monitoring()` with the new image",
-            # TODO: Remove this in 1.11
-            FutureWarning,
-        )
-
     MonitoringDeployment(
         project=commons.project,
         auth_info=commons.auth_info,

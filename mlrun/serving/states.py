@@ -47,7 +47,7 @@ from ..datastore.utils import (
     get_kafka_brokers_from_dict,
     parse_kafka_url,
 )
-from ..errors import MLRunInvalidArgumentError, ModelRunnerException, err_to_str
+from ..errors import MLRunInvalidArgumentError, ModelRunnerError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, get_function, is_explicit_ack_supported
@@ -1156,7 +1156,7 @@ class ModelRunnerErrorRaiser(storey.MapClass):
                     if errors[model] is not None:
                         should_raise = True
             if should_raise:
-                raise ModelRunnerException(models_errors=errors)
+                raise ModelRunnerError(models_errors=errors)
         return event
 
 

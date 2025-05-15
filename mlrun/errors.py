@@ -263,13 +263,13 @@ class MLRunFatalFailureError(Exception):
         self.original_exception = original_exception
 
 
-class ModelRunnerException(MLRunBaseError):
+class ModelRunnerError(MLRunBaseError):
     def __init__(self, models_errors: dict[str:str], *args) -> None:
         super().__init__(*args)
         self.models_errors = models_errors
 
     def __repr__(self):
-        return f"ModelRunnerException: {repr(self.models_errors)}"
+        return f"ModelRunnerError: {repr(self.models_errors)}"
 
     def __copy__(self):
         return type(self)(models_errors=self.models_errors)

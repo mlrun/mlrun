@@ -337,6 +337,7 @@ def test_subclasses_packing_and_unpacking(rundb_mock, a: int, b: str):
     project.add_custom_packager(
         packager="tests.package.test_usage.BaseClassPackager", is_mandatory=True
     )
+    project.save()
 
     # Create the function:
     mlrun_function = project.set_function(

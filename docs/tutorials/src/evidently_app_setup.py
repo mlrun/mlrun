@@ -22,11 +22,10 @@ if _HAS_EVIDENTLY:
     from evidently.sdk.panels import DashboardPanelPlot
     from evidently.ui.workspace import (
         STR_UUID,
-        Project,
+        OrgID,
         ProjectModel,
         Workspace,
         WorkspaceBase,
-        OrgID
     )
 
 _PROJECT_NAME = "Iris Monitoring"

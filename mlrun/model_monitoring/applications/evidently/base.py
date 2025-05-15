@@ -15,6 +15,7 @@
 import json
 import os
 import posixpath
+import uuid
 import warnings
 from abc import ABC
 from tempfile import NamedTemporaryFile

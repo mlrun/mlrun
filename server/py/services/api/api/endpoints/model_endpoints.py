@@ -183,7 +183,7 @@ async def delete_model_endpoint(
         None,
         alias="endpoint_id",
         deprecated=True,
-        description="endpoint_id query parameter is deprecated and will be removed in 1.11.0. "
+        description="'endpoint_id' query parameter is deprecated in 1.8.0 and will be removed in 1.11.0."
         "Use endpoint-id instead.",
     ),
     endpoint_id: typing.Optional[EndpointIDAnnotation] = Query(
@@ -481,7 +481,7 @@ async def get_model_endpoint(
         None,
         alias="endpoint_id",
         deprecated=True,
-        description="endpoint_id query parameter is deprecated and will be removed in 1.11.0. "
+        description="'endpoint_id' query parameter is deprecated in 1.8.0 and will be removed in 1.11.0. "
         "Use endpoint-id instead.",
     ),
     endpoint_id: Optional[EndpointIDAnnotation] = Query(None, alias="endpoint-id"),
@@ -492,7 +492,7 @@ async def get_model_endpoint(
         False,
         alias="feature_analysis",
         deprecated=True,
-        description="feature_analysis query parameter is deprecated and will be removed in 1.11.0. "
+        description="'feature_analysis' query parameter is deprecated in 1.8.0 and will be removed in 1.11.0. "
         "Use feature-analysis instead.",
     ),
     feature_analysis: bool = Query(False, alias="feature-analysis"),

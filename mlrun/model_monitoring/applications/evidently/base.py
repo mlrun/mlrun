@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import os
-import posixpath
-import uuid
 import warnings
 from abc import ABC
 from tempfile import NamedTemporaryFile
@@ -62,7 +58,6 @@ except ModuleNotFoundError:
 
 if _HAS_EVIDENTLY:
     from evidently.core.report import Snapshot
-    from evidently.legacy.ui.storage.local.base import METADATA_PATH, FSLocation
     from evidently.ui.workspace import (
         STR_UUID,
         CloudWorkspace,
@@ -95,7 +90,6 @@ class EvidentlyModelMonitoringApplicationBase(
         """
         if not _HAS_EVIDENTLY:
             raise ModuleNotFoundError("Evidently is not installed - the app cannot run")
-        self._log_location(evidently_workspace_path, evidently_project_id)
         self.evidently_workspace_path = evidently_workspace_path
         if cloud_workspace:
             self.get_workspace = self.get_cloud_workspace
@@ -121,50 +115,6 @@ class EvidentlyModelMonitoringApplicationBase(
     def get_cloud_workspace(self) -> "CloudWorkspace":
         """Load the Evidently cloud workspace according to the `EVIDENTLY_API_KEY` environment variable."""
         return CloudWorkspace()
-
-    @staticmethod
-    def _log_location(evidently_workspace_path, evidently_project_id):
-        # TODO remove function + usage after solving issue ML-9530
-        location = FSLocation(base_path=evidently_workspace_path)
-        location.invalidate_cache("")
-        paths = [p for p in location.listdir("") if location.isdir(p)]
-
-        for path in paths:
-            metadata_path = posixpath.join(path, METADATA_PATH)
-            full_path = posixpath.join(location.path, metadata_path)
-            print(f"evidently json issue, working on path: {full_path}")
-            try:
-                with location.open(metadata_path) as f:
-                    content = json.load(f)
-                    print(
-                        f"evidently json issue, successful load path: {full_path}, content: {content}"
-                    )
-            except FileNotFoundError:
-                print(f"evidently json issue, path not found: {full_path}")
-                continue
-            except json.decoder.JSONDecodeError as json_error:
-                print(
-                    f"evidently json issue, path got json error, path:{full_path}, error: {json_error}"
-                )
-                with location.open(metadata_path) as f:
-                    content = f.read()
-                broken_json_dir = (
-                    f"/projects/evidently_json_issue/{evidently_project_id}"
-                )
-                os.makedirs(broken_json_dir, exist_ok=True)
-                broken_json_path = f"{broken_json_dir}/{uuid.uuid4()}.json"
-                with location.open(broken_json_path, "w") as f:
-                    f.write(content)
-                print(
-                    f"evidently json issue, file content: \n{content}\n\n, available in {broken_json_path}"
-                )
-
-                continue
-            except Exception as error:
-                print(
-                    f"evidently json issue, path got general error, path:{full_path}, error: {error}"
-                )
-                continue
 
     @staticmethod
     def log_evidently_object(

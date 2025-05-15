@@ -141,7 +141,7 @@ class ConfigProfile(DatastoreProfile):
 class DatastoreProfileKafkaTarget(DatastoreProfile):
     type: str = pydantic.v1.Field("kafka_target")
     _private_attributes = "kwargs_private"
-    brokers: typing.Optional[str] = None
+    brokers: str
     topic: str
     kwargs_public: typing.Optional[dict]
     kwargs_private: typing.Optional[dict]

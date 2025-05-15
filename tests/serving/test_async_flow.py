@@ -254,6 +254,57 @@ def test_model_runner_add_model_failure(method: str):
         )
 
 
+@pytest.mark.parametrize(
+    "raise_error, with_error",
+    ((True, True), (True, False), (False, True), (False, False)),
+)
+def test_model_runner_error_raiser(raise_error: bool, with_error: bool):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner", raise_exception=raise_error
+    )
+    model_runner_step.add_model(
+        model_class="MyModel", endpoint_name="my_model", raise_error=False, inc=1
+    )
+    graph.to(model_runner_step).respond()
+    _test_model_runner_raise_error_output(function, raise_error, with_error)
+
+
+@pytest.mark.parametrize(
+    "raise_error, with_error",
+    ((True, True), (True, False), (False, True), (False, False)),
+)
+def test_model_runner_multiple_targets(raise_error: bool, with_error: bool):
+    function = mlrun.new_function("tests-1", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner", raise_exception=raise_error
+    )
+    model_runner_step.add_model(
+        model_class="MyModel", endpoint_name="my_model", raise_error=False, inc=1
+    )
+    step = graph.to(model_runner_step)
+    for i in range(5):
+        echo = step.to(name=f"echo-{i}", class_name="Echo")
+        if i == 4:
+            echo.respond()
+
+    _test_model_runner_raise_error_output(function, raise_error, with_error)
+
+
+def _test_model_runner_raise_error_output(function, raise_error, with_error):
+    server = function.to_mock_server()
+    if raise_error and with_error:
+        with pytest.raises(RuntimeError):
+            server.test(body={"n": "1"})
+    elif not raise_error and with_error:
+        assert "error" in server.test(body={"n": "1"}), "Expected error field in body"
+    elif not with_error:
+        assert server.test(body={"n": 1}) == {"n": 2}
+    server.wait_for_completion()
+
+
 class MyModelSelector(ModelSelector):
     def select(self, event, available_models: list[Model]) -> Optional[list[str]]:
         return event.body.get("models")

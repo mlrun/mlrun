@@ -2223,18 +2223,20 @@ class HTTPRunDB(RunDBInterface):
         elif pipe_file.endswith(".zip"):
             headers = {"content-type": "application/zip"}
         else:
-            raise ValueError("pipeline file must be .yaml or .zip")
+            raise ValueError("'pipeline' file must be .yaml or .zip")
         if arguments:
             if not isinstance(arguments, dict):
-                raise ValueError("arguments must be dict type")
+                raise ValueError("'arguments' must be dict type")
             headers[mlrun.common.schemas.HeaderNames.pipeline_arguments] = str(
                 arguments
             )
 
         if not path.isfile(pipe_file):
-            raise OSError(f"file {pipe_file} doesnt exist")
+            raise OSError(f"File {pipe_file} doesnt exist")
         with open(pipe_file, "rb") as fp:
             data = fp.read()
+            if not data:
+                raise ValueError("The compiled pipe file is empty")
         if not isinstance(pipeline, str):
             remove(pipe_file)
 

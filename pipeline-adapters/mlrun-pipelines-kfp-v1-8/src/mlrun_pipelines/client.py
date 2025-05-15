@@ -99,9 +99,6 @@ class JobConfig:
         self.resource_references = resource_references
 
 
-INPUT_NAME_REGEX = re.compile(r"[^_0-9a-z]+")
-
-
 def sanitize_input_name(
     name: str,
 ) -> str:

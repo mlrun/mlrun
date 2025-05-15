@@ -102,9 +102,11 @@ def get_local_workspace(evidently_workspace_path: str) -> "Workspace":
 
 
 def setup_evidently_project(
-    evidently_project_id: "STR_UUID", evidently_workspace_path: str
+    evidently_project_id: "STR_UUID",
+    evidently_workspace_path: str,
+    org_id: Optional[OrgID] = None,
 ) -> None:
     if isinstance(evidently_project_id, str):
         evidently_project_id = UUID(evidently_project_id)
     workspace = get_local_workspace(evidently_workspace_path)
-    create_evidently_project(workspace, evidently_project_id)
+    create_evidently_project(workspace, evidently_project_id, org_id=org_id)

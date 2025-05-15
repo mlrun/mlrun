@@ -15,6 +15,8 @@
 import warnings
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
+from pathlib import Path
+from uuid import uuid4
 
 import pytest
 import semver
@@ -23,6 +25,8 @@ from mlrun.errors import MLRunIncompatibleVersionError
 from mlrun.model_monitoring.applications.evidently.base import (
     _check_evidently_version,
 )
+
+from .assets.custom_evidently_app import DemoEvidentlyMonitoringApp
 
 
 @pytest.mark.parametrize(
@@ -49,3 +53,19 @@ def test_version_check(
             _check_evidently_version(
                 cur=semver.Version.parse(cur), ref=semver.Version.parse(ref)
             )
+
+
+def test_demo_evidently_app(tmpdir: Path) -> None:
+    """Test that the workspace and the project's dashboards are created"""
+    evidently_app = DemoEvidentlyMonitoringApp(
+        evidently_project_id=uuid4(), evidently_workspace_path=str(tmpdir)
+    )
+    run = evidently_app.create_report_run(
+        sample_df=evidently_app.train_set, schedule_time=None
+    )
+    added_run_uid = evidently_app.evidently_workspace.add_run(
+        project_id=evidently_app.evidently_project_id, run=run
+    )
+    assert evidently_app.evidently_workspace.list_runs(
+        project_id=evidently_app.evidently_project_id
+    ) == [added_run_uid], "Different project runs than expected"

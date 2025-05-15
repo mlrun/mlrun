@@ -607,7 +607,7 @@ def write_kfpmeta(struct):
 
     struct = deepcopy(struct)
     uid = struct["metadata"].get("uid")
-    project = struct["metadata"].get("project", config.default_project)
+    project = struct["metadata"].get("project")
     output_artifacts, out_dict = get_kfp_outputs(
         struct["status"].get(run_keys.artifacts, []),
         struct["metadata"].get("labels", {}),

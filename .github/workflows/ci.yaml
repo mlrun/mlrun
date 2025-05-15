@@ -123,7 +123,9 @@ jobs:
           else
             echo "UNIT_TESTS_IGNORE_PATH=\"server/\"" >> $GITHUB_ENV
           fi
-
+    - name: Set RUN_COVERAGE environment variable
+      if: matrix.python-version == '3.9'
+      run: echo "RUN_COVERAGE=true" >> $GITHUB_ENV
     - name: Run Dockerized tests
       run: |
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
@@ -131,8 +133,18 @@ jobs:
         MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
         UNIT_TESTS_PATH=$UNIT_TESTS_PATH \
         UNIT_TESTS_IGNORE_PATH=$UNIT_TESTS_IGNORE_PATH \
-        make test-dockerized 
-    
+        RUN_COVERAGE=$RUN_COVERAGE \
+        COVERAGE_DIR_SUFFIX="_${{ matrix.test-suite }}" \
+        COVERAGE_FILE="tests/coverage_reports/unit_tests_${{ matrix.test-suite }}.coverage" \
+        make test-dockerized
+    - name: Upload coverage report
+      if: env.RUN_COVERAGE == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_${{ matrix.test-suite }}.coverage
+        path: /tmp/coverage_reports/unit_tests_${{ matrix.test-suite }}/unit_tests_${{ matrix.test-suite }}.coverage
+        retention-days: 30
+
 
   integration-tests:
     name: Run Dockerized Integration Tests
@@ -172,13 +184,26 @@ jobs:
     - name: Install automation scripts dependencies
       run: pip install -r automation/requirements.txt
 
+    - name: Set RUN_COVERAGE environment variable
+      if: matrix.python-version == '3.9'
+      run: echo "RUN_COVERAGE=true" >> $GITHUB_ENV
+
     - name: Run Dockerized tests
       run: |
           MLRUN_DOCKER_REGISTRY=ghcr.io/ \
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
           MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-          make test-integration-dockerized
+          RUN_COVERAGE=$RUN_COVERAGE \
+          make test-integration-dockerized RUN_COVERAGE=$RUN_COVERAGE
       timeout-minutes: 90
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      if: env.RUN_COVERAGE == 'true'
+      with:
+         name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
+         path: /tmp/coverage_reports/integration_tests/integration_tests.coverage
+         retention-days: 30
 
   migrations-tests:
     name: Run Dockerized Migrations Tests
@@ -197,7 +222,13 @@ jobs:
           export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
           echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
       - name: Run Dockerized DB Migration tests
-        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized
+        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized RUN_COVERAGE=true
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage_migration_tests_report-${{ github.run_id }}.coverage
+          path: /tmp/coverage_reports/migration_tests/migration_tests.coverage
+          retention-days: 30
 
   package-tests:
     name: Run package tests (Python ${{ matrix.python-version }}, Pipelines ${{ matrix.pipeline-adapter }})
@@ -307,3 +338,66 @@ jobs:
       run: make install-complete-requirements
     - name: Install All Requirements ${{ matrix.python-version }}
       run: make install-all-requirements
+
+  coverage:
+    name: Full coverage
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ "3.9"]  # Coverage runs on Python 3.9 due to skipped unit tests in 3.11.
+    needs: [tests, integration-tests, migrations-tests]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install dependencies
+        # To save time, install only pytest and coverage-related packages, without mlrun and its dependencies.
+        run: make install-dev-requirements
+      - name: Download server unit tests coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_server.coverage
+          path: tests/coverage_reports/
+      - name: Download client unit tests coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_client.coverage
+          path: tests/coverage_reports/
+      - name: Download integration coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ github.run_id }}.coverage
+          
+          path: tests/coverage_reports/
+
+      - name: Download migration coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage_migration_tests_report-${{ github.run_id }}.coverage
+          path: tests/coverage_reports/
+      - name: Combine coverage
+        run: make coverage-combine UNIT_TEST_COVERAGE_PATHS="tests/coverage_reports/unit_tests_client.coverage tests/coverage_reports/unit_tests_server.coverage"
+        # Save it as an artifact:
+      - name: Upload coverage combined report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage_combined_report-${{ github.run_id }}.coverage
+          path: tests/coverage_reports/combined.coverage
+          retention-days: 30
+      - name: Create diff coverage report
+        run: |
+          diff-cover tests/coverage_reports/combined.xml \
+          --compare-branch origin/development \
+          --show-uncovered \
+          --html-report tests/coverage_reports/combined_diff.html
+      - name: Upload coverage diff report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage_combined_diff_report_${{ matrix.python-version }}_${{ github.run_id }}.html
+          path: tests/coverage_reports/combined_diff.html
+          retention-days: 30

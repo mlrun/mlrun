@@ -37,7 +37,7 @@ def handler_chroma(
     collection_name = collection_name
     print(f"Creating collection: '{collection_name}'")
 
-    if collection_name in chroma_client.list_collections():
+    if collection_name in [c.name for c in chroma_client.list_collections()]:
         chroma_client.delete_collection(name=collection_name)
 
     collection = chroma_client.create_collection(name=collection_name)

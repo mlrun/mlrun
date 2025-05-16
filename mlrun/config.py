@@ -94,7 +94,6 @@ default_config = {
     "default_base_image": "mlrun/mlrun",  # default base image when doing .deploy()
     # template for project default image name. Parameter {name} will be replaced with project name
     "default_project_image_name": ".mlrun-project-image-{name}",
-    "default_project": "default",  # default project name
     "active_project": "",  # active project name
     "default_archive": "",  # default remote archive URL (for build tar.gz)
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)

@@ -52,9 +52,9 @@ def test_in_memory(in_mem_store: InMemoryStore) -> None:
     assert len(in_mem_store._items) == 1, "data not written properly to in mem store"
     assert in_mem_store.get("aa") == "123", "in mem store failed to get/put"
     assert len(new_df) == 5, "in mem store failed dataframe test"
-    assert (
-        mlrun.run.get_dataitem(k1.get_target_path()).get() == "abc"
-    ), "failed to log in mem artifact"
+    assert mlrun.run.get_dataitem(k1.get_target_path()).get() == "abc", (
+        "failed to log in mem artifact"
+    )
 
 
 def test_file(rundb_mock, tmpdir: Path) -> None:
@@ -71,9 +71,9 @@ def test_file(rundb_mock, tmpdir: Path) -> None:
     # test that we can get the artifact as dataitem
     assert k1.to_dataitem().get(encoding="utf-8") == "abc", "wrong .dataitem result"
 
-    assert (
-        "test1.txt" in mlrun.run.get_dataitem(str(tmpdir)).listdir()
-    ), "failed listdir"
+    assert "test1.txt" in mlrun.run.get_dataitem(str(tmpdir)).listdir(), (
+        "failed listdir"
+    )
 
     expected = [
         str(tmpdir / "test1.txt"),
@@ -81,16 +81,16 @@ def test_file(rundb_mock, tmpdir: Path) -> None:
         k1.get_target_path(),
     ]
     for a in expected:
-        assert os.path.isfile(a) and a.startswith(
-            str(tmpdir)
-        ), f"artifact {a} was not generated"
+        assert os.path.isfile(a) and a.startswith(str(tmpdir)), (
+            f"artifact {a} was not generated"
+        )
 
     new_fd = mlrun.run.get_dataitem(k2.get_target_path()).as_df()
 
     assert len(new_fd) == 5, "failed dataframe test"
-    assert (
-        mlrun.run.get_dataitem(k1.get_target_path()).get() == b"abc"
-    ), "failed to log in file artifact"
+    assert mlrun.run.get_dataitem(k1.get_target_path()).get() == b"abc", (
+        "failed to log in file artifact"
+    )
 
     name = k2.uri
     artifact, _ = mlrun.artifacts.get_artifact_meta(name)
@@ -359,9 +359,9 @@ def test_fsspec(tmpdir: Path) -> None:
     files = file_system.ls(tmpdir)
     assert len(files) == 2, "2 test files were not written"
     assert files[0].endswith("x.txt"), "wrong file name"
-    assert (
-        file_system.open(tmpdir / "1x.txt", "r").read() == "123"
-    ), "wrong file content"
+    assert file_system.open(tmpdir / "1x.txt", "r").read() == "123", (
+        "wrong file content"
+    )
 
 
 @pytest.mark.parametrize(

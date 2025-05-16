@@ -77,9 +77,9 @@ def test_api_states(
     response = client.get("projects")
     expected_message = mlrun.common.schemas.APIStates.description(state)
     assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
-    assert (
-        expected_message in response.text
-    ), f"Expected message: {expected_message}, actual: {response.text}"
+    assert expected_message in response.text, (
+        f"Expected message: {expected_message}, actual: {response.text}"
+    )
 
 
 @pytest.mark.parametrize("schema_migration", [True, False])

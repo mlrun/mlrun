@@ -606,9 +606,9 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             .endpoints
         )
 
-        assert (
-            len(model_endpoints) == 2
-        ), f"Expected 2 endpoints, got {len(model_endpoints)}"
+        assert len(model_endpoints) == 2, (
+            f"Expected 2 endpoints, got {len(model_endpoints)}"
+        )
         assert (
             model_endpoints[0].metadata.name == "my-model-1"
             and model_endpoints[1].metadata.name == "my-model-2"
@@ -1596,12 +1596,12 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
         )
 
         assert not df.empty, "No TSDB data"
-        assert (
-            len(df) == 1
-        ), "Expects a single result from the histogram data drift app in the TSDB"
-        assert set(df.application_name) == {
-            "histogram-data-drift"
-        }, "The application name is different than expected"
+        assert len(df) == 1, (
+            "Expects a single result from the histogram data drift app in the TSDB"
+        )
+        assert set(df.application_name) == {"histogram-data-drift"}, (
+            "The application name is different than expected"
+        )
         assert df.endpoint_id.nunique() == 1, "Expects a single model endpoint"
         assert set(df.result_name) == {
             "general_drift",

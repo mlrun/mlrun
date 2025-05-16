@@ -87,9 +87,9 @@ class TestTDEngineProfile:
         assert profile.password == "taosdata"
         assert profile.host == "localhost"
         assert profile.port == 6041
-        assert (
-            profile.dsn() == dsn
-        ), "Converting the profile back to DSN did not work as expected"
+        assert profile.dsn() == dsn, (
+            "Converting the profile back to DSN did not work as expected"
+        )
 
     @staticmethod
     def test_datastore_profile_read_from_env(monkeypatch: pytest.MonkeyPatch) -> None:

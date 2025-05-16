@@ -317,7 +317,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         return [
             key[len("pack_") :]
             for key in dir(self)
-            if key.startswith("pack_") and f"unpack_{key[len('pack_'):]}" in dir(self)
+            if key.startswith("pack_") and f"unpack_{key[len('pack_') :]}" in dir(self)
         ] + ["result"]
 
     def pack(

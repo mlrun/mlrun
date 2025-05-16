@@ -120,13 +120,13 @@ def test_on_error():
     resp = server.test(body=[])
     server.wait_for_completion()
     if isinstance(resp, dict):
-        assert (
-            resp["error"] and resp["origin_state"] == "Raiser"
-        ), f"error wasn't caught, resp={resp}"
+        assert resp["error"] and resp["origin_state"] == "Raiser", (
+            f"error wasn't caught, resp={resp}"
+        )
     else:
-        assert (
-            resp.error and resp.origin_state == "Raiser"
-        ), f"error wasn't caught, resp={resp}"
+        assert resp.error and resp.origin_state == "Raiser", (
+            f"error wasn't caught, resp={resp}"
+        )
 
 
 def test_push_error():

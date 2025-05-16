@@ -259,7 +259,7 @@ class V3ioStreamClient:
         seek_to = seek_to or "LATEST"
         seek_to = seek_to.upper()
         if seek_to not in seek_options:
-            raise ValueError(f'seek_to must be one of {", ".join(seek_options)}')
+            raise ValueError(f"seek_to must be one of {', '.join(seek_options)}")
 
         self._url = url
         self._container, self._stream_path = split_path(stream_path)

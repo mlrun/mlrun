@@ -51,9 +51,9 @@ class TestModelMonitoringSchedulesFileEndpoint:
             project="abc", endpoint_id="reoko1220a"
         )
         file.create()
-        assert (
-            file._item.get().decode() == "{}"
-        ), "The newly created schedules file is different than expected"
+        assert file._item.get().decode() == "{}", (
+            "The newly created schedules file is different than expected"
+        )
 
     def test_delete_non_existent_file(self) -> None:
         ModelMonitoringSchedulesFileEndpoint(
@@ -139,9 +139,9 @@ class TestModelMonitoringSchedulesFileChief:
             project="abc",
         )
         file.create()
-        assert (
-            file._item.get().decode() == "{}"
-        ), "The newly created schedules file is different than expected"
+        assert file._item.get().decode() == "{}", (
+            "The newly created schedules file is different than expected"
+        )
 
     def test_delete_non_existent_file(self) -> None:
         ModelMonitoringSchedulesFileChief(
@@ -228,6 +228,6 @@ def test_delete_folder() -> None:
         filesystem = file._fs
 
     delete_model_monitoring_schedules_folder(project)
-    assert not filesystem.exists(
-        _get_monitoring_schedules_folder_path(project)
-    ), "Schedules folder should have been removed"
+    assert not filesystem.exists(_get_monitoring_schedules_folder_path(project)), (
+        "Schedules folder should have been removed"
+    )

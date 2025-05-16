@@ -446,7 +446,9 @@ def create_graph_server(
 
         server = create_graph_server(graph=RouterStep(), parameters={})
         server.init(None, globals())
-        server.graph.add_route("my", class_name=MyModelClass, model_path="{path}", z=100)
+        server.graph.add_route(
+            "my", class_name=MyModelClass, model_path="{path}", z=100
+        )
         print(server.test("/v2/models/my/infer", testdata))
     """
     parameters = parameters or {}

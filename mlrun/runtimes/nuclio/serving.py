@@ -331,7 +331,9 @@ class ServingRuntime(RemoteRuntime):
         Example::
 
             # initialize a new serving function
-            serving_fn = mlrun.import_function("hub://v2-model-server", new_name="serving")
+            serving_fn = mlrun.import_function(
+                "hub://v2-model-server", new_name="serving"
+            )
             # apply model monitoring
             serving_fn.set_tracking()
 
@@ -796,7 +798,9 @@ class ServingRuntime(RemoteRuntime):
 
         example::
 
-            serving_fn = mlrun.new_function("serving", image="mlrun/mlrun", kind="serving")
+            serving_fn = mlrun.new_function(
+                "serving", image="mlrun/mlrun", kind="serving"
+            )
             serving_fn.add_model(
                 "my-classifier",
                 model_path=model_path,

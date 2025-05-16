@@ -206,13 +206,13 @@ class EventStreamProcessor:
             "storey.Filter",
             "FilterNOP",
             after="MapFeatureNames",
-            _fn="(event.get('kind', " ") != 'nop_event')",
+            _fn="(event.get('kind', ) != 'nop_event')",
         )
         graph.add_step(
             "storey.Filter",
             "ForwardNOP",
             after="MapFeatureNames",
-            _fn="(event.get('kind', " ") == 'nop_event')",
+            _fn="(event.get('kind', ) == 'nop_event')",
         )
 
         tsdb_connector.apply_monitoring_stream_steps(

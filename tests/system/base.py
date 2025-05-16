@@ -204,7 +204,7 @@ class TestMLRunSystem:
 
         return pytest.mark.skipif(
             len(missing_env_vars) > 0,
-            reason=f"This is a system test, add the needed environment variables {*mandatory_env_vars,} "
+            reason=f"This is a system test, add the needed environment variables {(*mandatory_env_vars,)} "
             f"in tests/system/env.yml. You are missing: {missing_env_vars}",
         )(test)
 

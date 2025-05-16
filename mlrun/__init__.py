@@ -157,7 +157,7 @@ def set_environment(
             artifact_path = path.abspath(artifact_path)
         elif not artifact_path.startswith("/") and "://" not in artifact_path:
             raise ValueError(
-                "artifact_path must refer to an absolute path" " or a valid url"
+                "artifact_path must refer to an absolute path or a valid url"
             )
         mlconf.artifact_path = artifact_path
 

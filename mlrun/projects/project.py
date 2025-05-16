@@ -199,7 +199,10 @@ def new_project(
 
             def setup(project):
                 project.set_function(
-                    "prep_data.py", "prep-data", image="mlrun/mlrun", handler="prep_data"
+                    "prep_data.py",
+                    "prep-data",
+                    image="mlrun/mlrun",
+                    handler="prep_data",
                 )
                 project.set_function("hub://auto-trainer", "train")
                 project.set_artifact("data", Artifact(target_path=data_url))
@@ -1292,7 +1295,9 @@ class MlrunProject(ModelObj):
 
         example::
 
-            uri = project.get_artifact_uri("my_model", category="model", tag="prod", iter=0)
+            uri = project.get_artifact_uri(
+                "my_model", category="model", tag="prod", iter=0
+            )
 
         :param key:  artifact key/name
         :param category:  artifact category (artifact, model, feature-vector, ..)
@@ -1471,7 +1476,9 @@ class MlrunProject(ModelObj):
             project.set_artifact("data", target_path=data_url)
             # register a model artifact
             project.set_artifact(
-                "model", ModelArtifact(model_file="model.pkl"), target_path=model_dir_url
+                "model",
+                ModelArtifact(model_file="model.pkl"),
+                target_path=model_dir_url,
             )
 
             # register a path to artifact package (will be imported on project load)
@@ -4433,7 +4440,9 @@ class MlrunProject(ModelObj):
             # Fetch first page of artifacts with page size of 5
             artifacts, token = project.paginated_list_artifacts("results", page_size=5)
             # Fetch next page using the pagination token from the previous response
-            artifacts, token = project.paginated_list_artifacts("results", page_token=token)
+            artifacts, token = project.paginated_list_artifacts(
+                "results", page_token=token
+            )
             # Fetch artifacts for a specific page (e.g., page 3)
             artifacts, token = project.paginated_list_artifacts(
                 "results", page=3, page_size=5
@@ -4557,9 +4566,13 @@ class MlrunProject(ModelObj):
             # Fetch first page of artifacts with page size of 5
             artifacts, token = project.paginated_list_models("results", page_size=5)
             # Fetch next page using the pagination token from the previous response
-            artifacts, token = project.paginated_list_models("results", page_token=token)
+            artifacts, token = project.paginated_list_models(
+                "results", page_token=token
+            )
             # Fetch artifacts for a specific page (e.g., page 3)
-            artifacts, token = project.paginated_list_models("results", page=3, page_size=5)
+            artifacts, token = project.paginated_list_models(
+                "results", page=3, page_size=5
+            )
 
             # Automatically iterate over all pages without explicitly specifying the page number
             artifacts = []
@@ -4768,7 +4781,9 @@ class MlrunProject(ModelObj):
             runs.compare()
 
             # multi-label filter can also be provided
-            runs = project.list_runs(name="download", labels=["kind=job", "owner=admin"])
+            runs = project.list_runs(
+                name="download", labels=["kind=job", "owner=admin"]
+            )
 
             # If running in Jupyter, can use the .show() function to display the results
             project.list_runs(name="").show()
@@ -5236,7 +5251,9 @@ class MlrunProject(ModelObj):
         Examples::
 
             # Fetch first page of alert activations with page size of 5
-            alert_activations, token = project.paginated_list_alert_activations(page_size=5)
+            alert_activations, token = project.paginated_list_alert_activations(
+                page_size=5
+            )
             # Fetch next page using the pagination token from the previous response
             alert_activations, token = project.paginated_list_alert_activations(
                 page_token=token
@@ -5250,8 +5267,10 @@ class MlrunProject(ModelObj):
             alert_activations = []
             token = None
             while True:
-                page_alert_activations, token = project.paginated_list_alert_activations(
-                    page_token=token, page_size=5
+                page_alert_activations, token = (
+                    project.paginated_list_alert_activations(
+                        page_token=token, page_size=5
+                    )
                 )
                 alert_activations.extend(page_alert_activations)
 

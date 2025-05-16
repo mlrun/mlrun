@@ -310,9 +310,9 @@ def test_watch_logs_continue():
         # the first log line is printed with a newline
         assert newprint.getvalue() == "Firstrow\nSecondrowThirdrowSmiley😆�LastRow"
 
-    assert (
-        adapter.call_count == len(log_lines) + 1
-    ), "should have called the adapter once per log line, and one more time at the end of log"
+    assert adapter.call_count == len(log_lines) + 1, (
+        "should have called the adapter once per log line, and one more time at the end of log"
+    )
 
 
 @pytest.mark.parametrize(

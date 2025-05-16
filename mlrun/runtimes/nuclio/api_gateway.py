@@ -319,8 +319,7 @@ class APIGatewaySpec(ModelObj):
                 )
             if func.metadata.project != project:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"input function {function_name} "
-                    f"does not belong to this project"
+                    f"input function {function_name} does not belong to this project"
                 )
             function_uri = mlrun.utils.generate_object_uri(
                 project,
@@ -417,7 +416,7 @@ class APIGateway(ModelObj):
                 )
         if not self.is_ready():
             raise mlrun.errors.MLRunPreconditionFailedError(
-                f"API gateway is not ready. " f"Current state: {self.status.state}"
+                f"API gateway is not ready. Current state: {self.status.state}"
             )
 
         auth = None

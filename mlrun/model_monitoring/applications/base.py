@@ -325,7 +325,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             job = ModelMonitoringApplicationBase.to_job(
                 class_handler="package.module.AppClass"
             )
-            job.run(inputs={}, params={}, local=False)  # Add the relevant inputs and params
+            job.run(
+                inputs={}, params={}, local=False
+            )  # Add the relevant inputs and params
 
         Optional inputs:
 

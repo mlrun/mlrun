@@ -260,7 +260,7 @@ class TestModelEndpoint(TestDatabaseBase):
         for i in range(2):
             model_endpoint.metadata.labels = {
                 "label1": f"value_{i}",
-                "label2": f"value_{i+1}",
+                "label2": f"value_{i + 1}",
                 "label": "value",
             }
             uid = self._db.store_model_endpoint(

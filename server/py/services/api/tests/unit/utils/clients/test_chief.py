@@ -299,12 +299,12 @@ async def test_do_not_escape_cookie(
     chief_client, session_cookie, expected_cookie_header
 ):
     async def handler(request):
-        assert (
-            request.headers["cookie"] == f"session={expected_cookie_header}"
-        ), "Cookie header escaping is malfunctioning"
-        assert (
-            request.cookies["session"] == expected_cookie_header
-        ), "Cookie session escaping is malfunctioning"
+        assert request.headers["cookie"] == f"session={expected_cookie_header}", (
+            "Cookie header escaping is malfunctioning"
+        )
+        assert request.cookies["session"] == expected_cookie_header, (
+            "Cookie session escaping is malfunctioning"
+        )
         assert request.headers["x-request-id"] == "test-request-id"
         return aiohttp.web.Response(status=200)
 

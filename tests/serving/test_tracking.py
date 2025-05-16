@@ -147,9 +147,9 @@ def test_tracked_function(rundb_mock, enable_tracking):
         server.test("/v2/models/m1/infer", testdata)
         dummy_stream = server.context.stream.output_stream
         if enable_tracking:
-            assert (
-                len(dummy_stream.event_list) == 1
-            ), "expected stream to get one message"
+            assert len(dummy_stream.event_list) == 1, (
+                "expected stream to get one message"
+            )
         else:
             assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 

@@ -142,7 +142,7 @@ class BaseLauncher(abc.ABC):
         )
 
         if runtime.spec.mode and runtime.spec.mode not in run_modes:
-            raise ValueError(f'run mode can only be {",".join(run_modes)}')
+            raise ValueError(f"run mode can only be {','.join(run_modes)}")
 
         self._validate_run_params(run.spec.parameters)
         self._validate_output_path(runtime, run)

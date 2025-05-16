@@ -156,9 +156,9 @@ class TestAutoMount:
         encoded = self._generate_runtime().spec.build._resolve_requirements(
             requirements, requirements_file
         )
-        assert (
-            encoded == encoded_requirements
-        ), f"Failed to encode {requirements.extend(requirements_in_file)} as file {requirements_file}"
+        assert encoded == encoded_requirements, (
+            f"Failed to encode {requirements.extend(requirements_in_file)} as file {requirements_file}"
+        )
 
     def test_fill_credentials(self, rundb_mock):
         """

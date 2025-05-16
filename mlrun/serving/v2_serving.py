@@ -76,7 +76,9 @@ class V2ModelServer(StepToDict):
             # adding a model to a serving graph using the subclass MyClass
             # MyClass will be initialized with the name "my", the model_path, and an arg called my_param
             graph = fn.set_topology("router")
-            fn.add_model("my", class_name="MyClass", model_path="<model-uri>>", my_param=5)
+            fn.add_model(
+                "my", class_name="MyClass", model_path="<model-uri>>", my_param=5
+            )
 
         :param context:    for internal use (passed in init)
         :param name:       step name

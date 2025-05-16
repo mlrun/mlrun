@@ -144,9 +144,9 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         :param produce_plotly_artifact: Whether to produce the Plotly artifact or not, ``False`` by default.
         """
         self._value_classifier = value_classifier or DataDriftClassifier()
-        assert self._REQUIRED_METRICS <= set(
-            self.metrics
-        ), "TVD and Hellinger distance are required for the general data drift result"
+        assert self._REQUIRED_METRICS <= set(self.metrics), (
+            "TVD and Hellinger distance are required for the general data drift result"
+        )
 
         self._produce_json_artifact = produce_json_artifact
         self._produce_plotly_artifact = produce_plotly_artifact

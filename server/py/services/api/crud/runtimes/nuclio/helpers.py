@@ -270,7 +270,7 @@ def compile_nuclio_archive_config(
             if not parsed_url.netloc:
                 source = mlrun.mlconf.v3io_api + parsed_url.path
             else:
-                source = f"http{source[len('v3io'):]}"
+                source = f"http{source[len('v3io') :]}"
             if auth_info and not v3io_access_key:
                 v3io_access_key = auth_info.data_session or auth_info.access_key
 

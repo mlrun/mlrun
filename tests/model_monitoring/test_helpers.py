@@ -302,18 +302,18 @@ class TestBatchInterval:
     def test_intervals(
         intervals: list[_Interval], expected_intervals: list[_Interval]
     ) -> None:
-        assert len(intervals) == len(
-            expected_intervals
-        ), "The number of intervals is not as expected"
+        assert len(intervals) == len(expected_intervals), (
+            "The number of intervals is not as expected"
+        )
         assert intervals == expected_intervals, "The intervals are not as expected"
 
     @staticmethod
     def test_last_interval_does_not_overflow(
         intervals: list[_Interval], last_updated: int
     ) -> None:
-        assert (
-            intervals[-1][1].timestamp() <= last_updated
-        ), "The last interval should be after last_updated"
+        assert intervals[-1][1].timestamp() <= last_updated, (
+            "The last interval should be after last_updated"
+        )
 
     @staticmethod
     @pytest.mark.parametrize(
@@ -370,9 +370,9 @@ class TestBatchInterval:
         assert len(intervals) == 1, "There should be exactly one interval"
         assert timedelta_seconds == datetime.datetime.timestamp(
             intervals[0][1]
-        ) - datetime.datetime.timestamp(
-            intervals[0][0]
-        ), "The time slot should be equal to timedelta_seconds (6 days)"
+        ) - datetime.datetime.timestamp(intervals[0][0]), (
+            "The time slot should be equal to timedelta_seconds (6 days)"
+        )
 
 
 class TestBatchWindowGenerator:
@@ -383,9 +383,9 @@ class TestBatchWindowGenerator:
             last_request=last_request, not_batch_endpoint=True
         )
         assert last_updated
-        assert (
-            last_updated < last_request.timestamp()
-        ), "The last updated time should be before the last request"
+        assert last_updated < last_request.timestamp(), (
+            "The last updated time should be before the last request"
+        )
 
 
 class TestBumpModelEndpointLastRequest:
@@ -583,9 +583,9 @@ def test_get_output_stream(
         monkeypatch.setenv("V3IO_API", mlrun.mlconf.v3io_api)
 
     output_stream = get_output_stream(profile=profile, project="test-proj", mock=True)
-    assert isinstance(
-        output_stream, expected_output_stream_type
-    ), "The output stream is of an unexpected type"
+    assert isinstance(output_stream, expected_output_stream_type), (
+        "The output stream is of an unexpected type"
+    )
 
     output_stream.push(2 * [{"k1": 0, "jump": "high"}])
     output_stream.push([{"k1": 1, "jump": "mid"}])

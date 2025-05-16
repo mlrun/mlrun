@@ -1734,13 +1734,13 @@ def _assert_db_resources_in_project(
                 "You excluded an object from the regular handling but forgot to add special handling"
             )
         if assert_no_resources:
-            assert (
-                number_of_cls_records == 0
-            ), f"Table {cls.__tablename__} records were found"
+            assert number_of_cls_records == 0, (
+                f"Table {cls.__tablename__} records were found"
+            )
         else:
-            assert (
-                number_of_cls_records > 0
-            ), f"Table {cls.__tablename__} records were not found"
+            assert number_of_cls_records > 0, (
+                f"Table {cls.__tablename__} records were not found"
+            )
         table_name_records_count_map[cls.__tablename__] = number_of_cls_records
     return table_name_records_count_map
 

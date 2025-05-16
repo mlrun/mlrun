@@ -202,7 +202,7 @@ class PackagersManager:
                     f"'**' prefix from the key."
                 )
             objects_to_pack = {
-                f"{log_hint_key[len('**'):]}{dict_key}": dict_obj
+                f"{log_hint_key[len('**') :]}{dict_key}": dict_obj
                 for dict_key, dict_obj in obj.items()
             }
         elif log_hint_key.startswith("*"):
@@ -222,7 +222,7 @@ class PackagersManager:
                     f"please remove the '*' prefix from the key."
                 )
             objects_to_pack = {
-                f"{log_hint_key[len('*'):]}{i}": obj_i for i, obj_i in enumerate(obj)
+                f"{log_hint_key[len('*') :]}{i}": obj_i for i, obj_i in enumerate(obj)
             }
         else:
             # A single object is required to be packaged:

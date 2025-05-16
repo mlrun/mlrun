@@ -688,9 +688,9 @@ def test_ensure_latest_tag_for_artifacts():
     artifacts = db.list_artifacts(
         db_session, project=project1, name=key1, tag="latest", as_records=True
     )
-    assert (
-        len(artifacts) == 3
-    ), f"Expected 3 artifacts with latest tag, found {len(artifacts)}"
+    assert len(artifacts) == 3, (
+        f"Expected 3 artifacts with latest tag, found {len(artifacts)}"
+    )
 
     # Verify that artifact from the previous run (run1) wasn't tagged as latest
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
@@ -707,9 +707,9 @@ def test_ensure_latest_tag_for_artifacts():
     assert artifact.tags[0].obj_id == artifact_2_id
 
 
-def _initialize_db_without_migrations() -> (
-    tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
-):
+def _initialize_db_without_migrations() -> tuple[
+    framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session
+]:
     dsn = "sqlite:///:memory:?check_same_thread=false"
     mlrun.mlconf.httpdb.dsn = dsn
     mlrun.common.db.sql_session._init_engine(dsn=dsn)

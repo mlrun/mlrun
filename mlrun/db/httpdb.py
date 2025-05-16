@@ -1019,7 +1019,9 @@ class HTTPRunDB(RunDBInterface):
             # Fetch next page using the pagination token from the previous response
             runs, token = db.paginated_list_runs(project="my-project", page_token=token)
             # Fetch runs for a specific page (e.g., page 3)
-            runs, token = db.paginated_list_runs(project="my-project", page=3, page_size=5)
+            runs, token = db.paginated_list_runs(
+                project="my-project", page=3, page_size=5
+            )
 
             # Automatically iterate over all pages without explicitly specifying the page number
             runs = []

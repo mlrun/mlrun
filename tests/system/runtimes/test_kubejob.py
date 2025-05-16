@@ -495,9 +495,9 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         exec_cli(args)
         end_time = datetime.now()
 
-        assert (
-            end_time - start_time
-        ).seconds >= time_to_sleep, "run did not wait for completion"
+        assert (end_time - start_time).seconds >= time_to_sleep, (
+            "run did not wait for completion"
+        )
 
         runs = mlrun.get_run_db().list_runs(project=self.project_name, name=run_name)
         assert len(runs) == 1

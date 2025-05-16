@@ -164,9 +164,9 @@ class TestEvaluate:
             not in captured.out
         ), "The captured error was not expected"
 
-        assert (
-            "Read the sample data" in captured.out
-        ), "The expected log message was not found in the captured output"
+        assert "Read the sample data" in captured.out, (
+            "The expected log message was not found in the captured output"
+        )
 
 
 @pytest.mark.parametrize(

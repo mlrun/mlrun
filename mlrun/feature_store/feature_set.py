@@ -148,16 +148,14 @@ class FeatureSetSpec(ModelObj):
                     entities[i] = Entity(entity)
                 elif isinstance(entity, Entity) and entity.name is None:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        "You have to provide an "
-                        "Entity with valid name of string type"
+                        "You have to provide an Entity with valid name of string type"
                     )
                 elif isinstance(entity, dict) and (
                     "name" not in entity
                     or ("name" in entity and entity["name"] is None)
                 ):
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        "You have to provide an "
-                        "Entity with valid name of string type"
+                        "You have to provide an Entity with valid name of string type"
                     )
         self._entities = ObjectList.from_list(Entity, entities)
 
@@ -622,7 +620,9 @@ class FeatureSet(ModelObj):
                 "ticks", entities=["stock"], timestamp_key="timestamp"
             )
             ticks.add_entity(
-                "country", mlrun.data_types.ValueType.STRING, description="stock country"
+                "country",
+                mlrun.data_types.ValueType.STRING,
+                description="stock country",
             )
             ticks.add_entity("year", mlrun.data_types.ValueType.INT16)
             ticks.save()

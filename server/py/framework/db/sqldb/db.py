@@ -285,8 +285,9 @@ class SQLDB(DBInterface):
             return self.read_run(session, uid=uid, project=project, iter=iter)
         return run_data
 
-    def update_run(self, session, updates: dict, uid, project="", iter=0):
-        project = project or config.default_project
+    def update_run(self, session, updates: dict, uid: str, project: str, iter: int = 0):
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         run = self._get_run(session, uid, project, iter, with_for_update=True)
         if not run:
             run_uri = RunObject.create_uri(project, uid, iter)
@@ -385,12 +386,13 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         uid: str,
-        project: typing.Optional[str] = None,
+        project: str,
         iter: int = 0,
         with_notifications: bool = False,
         populate_existing: bool = False,
     ):
-        project = project or config.default_project
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         run = self._get_run(
             session,
             uid,
@@ -411,9 +413,9 @@ class SQLDB(DBInterface):
     def list_runs(
         self,
         session,
+        project: typing.Union[str, list[str]],
         name: typing.Optional[str] = None,
         uid: typing.Optional[typing.Union[str, list[str]]] = None,
-        project: typing.Optional[typing.Union[str, list[str]]] = None,
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
@@ -435,7 +437,8 @@ class SQLDB(DBInterface):
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
     ) -> RunList:
-        project = project or config.default_project
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         query = self._find_runs(session, uid, project, labels)
         if name is not None:
             query = self._add_run_name_query(query, name)
@@ -493,22 +496,24 @@ class SQLDB(DBInterface):
 
         return runs
 
-    def del_run(self, session, uid, project=None, iter=0):
-        project = project or config.default_project
+    def del_run(self, session, uid: str, project: str, iter: int = 0):
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         # We currently delete *all* iterations
         self._delete(session, Run, uid=uid, project=project)
 
     def del_runs(
         self,
         session,
+        project: str,
         name=None,
-        project=None,
         labels=None,
         state=None,
         days_ago=0,
         uids=None,
     ):
-        project = project or config.default_project
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         query = self._find_runs(session, None, project, labels)
         if days_ago:
             since = datetime.now(timezone.utc) - timedelta(days=days_ago)
@@ -648,15 +653,16 @@ class SQLDB(DBInterface):
         session,
         key,
         artifact,
+        project,
         uid=None,
         iter=None,
         tag="",
-        project="",
         producer_id="",
         best_iteration=False,
         always_overwrite=False,
     ) -> str:
-        project = project or config.default_project
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
 
         # handle link artifacts separately
@@ -763,6 +769,8 @@ class SQLDB(DBInterface):
         producer_id="",
         best_iteration=False,
     ):
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         if not uid:
             uid = fill_artifact_object_hash(artifact, iteration, producer_id)
 
@@ -813,8 +821,8 @@ class SQLDB(DBInterface):
     def list_artifacts(
         self,
         session,
+        project,
         name=None,
-        project=None,
         tag=None,
         labels=None,
         since: typing.Optional[datetime] = None,
@@ -842,7 +850,8 @@ class SQLDB(DBInterface):
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
     ) -> typing.Union[list, ArtifactList]:
-        project = project or config.default_project
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
 
         if best_iteration and iter is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -891,11 +900,12 @@ class SQLDB(DBInterface):
     def list_artifacts_for_producer_id(
         self,
         session,
+        project: str,
         producer_id: str,
-        project: typing.Optional[str] = None,
         artifact_identifiers: list[tuple] = "",
     ) -> ArtifactList:
-        project = project or mlrun.mlconf.default_project
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         artifact_records = self._find_artifacts_for_producer_id(
             session,
             producer_id=producer_id,
@@ -915,15 +925,17 @@ class SQLDB(DBInterface):
         self,
         session,
         key: str,
+        project: str,
         tag: typing.Optional[str] = None,
         iter: typing.Optional[int] = None,
-        project: typing.Optional[str] = None,
         producer_id: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
         raise_on_not_found: bool = True,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         as_record: bool = False,
     ):
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         query = self._query(session, ArtifactV2, key=key, project=project)
         enrich_tag = False
 
@@ -992,9 +1004,17 @@ class SQLDB(DBInterface):
         return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 
     def del_artifact(
-        self, session, key, tag="", project="", uid=None, producer_id=None, iter=None
+        self,
+        session,
+        key,
+        project,
+        tag="",
+        uid=None,
+        producer_id=None,
+        iter=None,
     ):
-        project = project or config.default_project
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         self._delete_tagged_object(
             session,
             ArtifactV2,
@@ -1009,14 +1029,15 @@ class SQLDB(DBInterface):
     def del_artifacts(
         self,
         session,
+        project,
         name="",
-        project="",
         tag="*",
         labels=None,
         ids=None,
         producer_id=None,
     ):
-        project = project or config.default_project
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         distinct_keys_and_uids = self._find_artifacts(
             session=session,
             project=project,
@@ -1119,9 +1140,9 @@ class SQLDB(DBInterface):
         self,
         session,
         key: str,
+        project: str,
         tag: str = "",
         iter: Optional[str] = None,
-        project: str = "",
         producer_id: Optional[str] = None,
         uid: Optional[str] = None,
     ) -> Optional[dict[str, Any]]:
@@ -2003,9 +2024,9 @@ class SQLDB(DBInterface):
         key,
         artifact,
         uid,
+        project,
         iter=None,
         tag="",
-        project="",
         tag_artifact=True,
     ):
         """
@@ -2022,7 +2043,8 @@ class SQLDB(DBInterface):
             finally:
                 pass
 
-        project = project or config.default_project
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         artifact = deepcopy(artifact)
         if is_legacy_artifact(artifact):
             updated, key, labels = self._process_legacy_artifact_v1_dict_to_store(
@@ -2063,7 +2085,14 @@ class SQLDB(DBInterface):
                     mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
                 )
 
-    def read_artifact_v1(self, session, key, tag="", iter=None, project=""):
+    def read_artifact_v1(
+        self,
+        session,
+        key,
+        project,
+        tag="",
+        iter=None,
+    ):
         """
         Read artifact v1 from the DB, this is the deprecated legacy artifact format
         """
@@ -2076,7 +2105,8 @@ class SQLDB(DBInterface):
                 return name  # Not found, return original uid
             return ids
 
-        project = project or config.default_project
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         ids = _resolve_tag(Artifact, project, tag)
         if iter:
             key = f"{iter}-{key}"
@@ -2334,10 +2364,12 @@ class SQLDB(DBInterface):
         session,
         function,
         name,
-        project="",
+        project: str,
         tag="",
         versioned=False,
     ) -> str:
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         logger.debug(
             "Storing function to DB",
             name=name,
@@ -2347,7 +2379,6 @@ class SQLDB(DBInterface):
             metadata=function.get("metadata"),
         )
         function = deepcopy(function)
-        project = project or config.default_project
         tag = (
             tag
             or get_in(function, "metadata.tag")
@@ -2403,8 +2434,8 @@ class SQLDB(DBInterface):
     def list_functions(
         self,
         session: Session,
+        project: typing.Union[str, list[str]],
         name: typing.Optional[str] = None,
-        project: typing.Optional[typing.Union[str, list[str]]] = None,
         tag: typing.Optional[str] = None,
         kind: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
@@ -2416,7 +2447,8 @@ class SQLDB(DBInterface):
         since: typing.Optional[datetime] = None,
         until: typing.Optional[datetime] = None,
     ) -> list[dict]:
-        project = project or mlrun.mlconf.default_project
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         functions = []
         for function, function_tag in self._find_functions(
             session=session,
@@ -2456,8 +2488,8 @@ class SQLDB(DBInterface):
     def get_function(
         self,
         session,
+        project: str,
         name: typing.Optional[str] = None,
-        project: typing.Optional[str] = None,
         tag: typing.Optional[str] = None,
         hash_key: typing.Optional[str] = None,
         format_: typing.Optional[str] = None,
@@ -2470,6 +2502,8 @@ class SQLDB(DBInterface):
         If no answer is received, we will check to see if the original name contained underscores,
         if so, the retrieval will be repeated and the result (if it exists) returned.
         """
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         normalized_function_name = mlrun.utils.normalize_name(name)
         try:
             return self._get_function(
@@ -2515,11 +2549,12 @@ class SQLDB(DBInterface):
         session,
         name,
         updates: dict,
-        project: typing.Optional[str] = None,
+        project: str,
         tag: str = "",
         hash_key: str = "",
     ):
-        project = project or config.default_project
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         query = self._query(session, Function, name=name, project=project)
         uid = self._get_function_uid(
             session=session, name=name, tag=tag, hash_key=hash_key, project=project
@@ -2543,7 +2578,7 @@ class SQLDB(DBInterface):
         session,
         name: str,
         url: str,
-        project: str = "",
+        project: str,
         tag: str = "",
         hash_key: str = "",
         operation: mlrun.common.types.Operation = mlrun.common.types.Operation.ADD,
@@ -2553,7 +2588,8 @@ class SQLDB(DBInterface):
         It can add or remove URLs based on the specified `operation` which can be
         either ADD or REMOVE of type :py:class:`~mlrun.types.Operation`
         """
-        project = project or config.default_project
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         normalized_function_name = mlrun.utils.normalize_name(name)
         function, _ = self._get_function_db_object(
             session,
@@ -2617,7 +2653,6 @@ class SQLDB(DBInterface):
         hash_key: typing.Optional[str] = None,
         format_: str = mlrun.common.formatters.FunctionFormat.full,
     ):
-        project = project or config.default_project
         tag, computed_tag = self._compute_function_tag(tag, hash_key)
 
         obj, uid = self._get_function_db_object(session, name, project, tag, hash_key)
@@ -7381,11 +7416,13 @@ class SQLDB(DBInterface):
     def delete_run_notifications(
         self,
         session,
+        project: str,
         name: typing.Optional[str] = None,
         run_uid: typing.Optional[str] = None,
-        project: typing.Optional[str] = None,
         commit: bool = True,
     ):
+        if not project:
+            raise mlrun.errors.MLRunMissingProjectError()
         run_id = None
         if run_uid:
             # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
@@ -7397,7 +7434,6 @@ class SQLDB(DBInterface):
             run_id = run.id
 
         # TODO: add project permissions handling like in the list methods
-        project = project or config.default_project
         if project == "*":
             project = None
 
@@ -7460,7 +7496,6 @@ class SQLDB(DBInterface):
         :param info: datastore profile
         :returns: None
         """
-        info.project = info.project or config.default_project
         profile = self._query(
             session, DatastoreProfile, name=info.name, project=info.project
         ).one_or_none()
@@ -7490,7 +7525,6 @@ class SQLDB(DBInterface):
         :param project: Name of the project
         :returns: None
         """
-        project = project or config.default_project
         res = self._query(session, DatastoreProfile, name=profile, project=project)
         if res.first():
             return self._transform_datastore_profile_model_to_schema(res.first())
@@ -7505,7 +7539,6 @@ class SQLDB(DBInterface):
         profile: str,
         project: str,
     ):
-        project = project or config.default_project
         res = self._query(session, DatastoreProfile, name=profile, project=project)
         if res.first():
             session.delete(res.first())
@@ -7526,7 +7559,6 @@ class SQLDB(DBInterface):
         :param project: Name of the project
         :returns: List of DatatoreProfile objects (only the public portion of it)
         """
-        project = project or config.default_project
         datastore_records = self._query(session, DatastoreProfile, project=project)
         return [
             self._transform_datastore_profile_model_to_schema(datastore_record)
@@ -7544,7 +7576,6 @@ class SQLDB(DBInterface):
         :param project: Name of the project
         :returns: None
         """
-        project = project or config.default_project
         logger.debug("Removing project datastore profiles from db", project=project)
         self._delete_multi_objects(
             session=session,
@@ -8176,13 +8207,13 @@ class SQLDB(DBInterface):
                 model_uri, mep_record.project
             )
             db_artifact = self.read_artifact(
-                session,
-                key,
-                tag,
-                iteration,
-                project,
-                tree,
-                uid,
+                session=session,
+                key=key,
+                tag=tag,
+                iter=iteration,
+                project=project,
+                producer_id=tree,
+                uid=uid,
                 as_record=True,
             )
             mep_record.model_id = db_artifact.id

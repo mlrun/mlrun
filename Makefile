@@ -53,7 +53,44 @@ MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
 MLRUN_SYSTEM_TEST_MARKERS ?=
 MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL ?=
 MLRUN_GPU_CUDA_VERSION ?= 12.8.1-cudnn-devel-ubuntu22.04
+RUN_COVERAGE ?= false
+COVERAGE_FILE ?=
+COVERAGE_MOUNT_PATH ?=
+ifeq ("$(RUN_COVERAGE)","true")
+    COVERAGE_ADDITION = -m coverage run --data-file=$$COVERAGE_FILE
+else
+    COVERAGE_ADDITION =
+endif
 
+SETUP_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
+	case "$$COVERAGE_FILE" in *.coverage) \
+		rm -rf $$COVERAGE_FILE && \
+		mkdir -p $$(dirname $$COVERAGE_FILE) ;\
+		;; \
+	  *) \
+		echo "Error: COVERAGE_FILE must end with .coverage" >&2; \
+		exit 1; \
+		;; \
+	esac \
+fi; \
+
+PRINT_COVERAGE_REPORT = if [ "$(RUN_COVERAGE)" = "true" ]; then \
+    	echo "coverage report $$COVERAGE_FILE :"; \
+		COVERAGE_FILE=$$COVERAGE_FILE coverage report; \
+	fi;
+
+# Verify the mount point to avoid deleting essential paths
+SETUP_COVERAGE_MOUNTING = if [[ "$(RUN_COVERAGE)" == "true" ]]; then \
+		case "$$COVERAGE_MOUNT_PATH" in /tmp/coverage_reports/*) \
+			rm -rf $$COVERAGE_MOUNT_PATH && \
+			mkdir -p $$COVERAGE_MOUNT_PATH; \
+			;; \
+	  	*) \
+			echo "Error: COVERAGE_MOUNT_PATH is invalid, must be under /tmp/coverage_reports/*" >&2 ; \
+			exit 1; \
+			;; \
+		esac \
+	fi;
 # THIS BLOCK IS FOR COMPUTED VARIABLES
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 MLRUN_CACHE_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_CACHE_FROM_REGISTRY),$(strip $(MLRUN_DOCKER_CACHE_FROM_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
@@ -73,7 +110,6 @@ MLRUN_PIPELINES_KFP_VERSION := $(if $(filter 3.9,$(MLRUN_PYTHON_VERSION)),1-8,2)
 
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
 MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
-
 # if MLRUN_SYSTEM_TESTS_COMPONENT isn't set, we'll run all system tests
 # if MLRUN_SYSTEM_TESTS_COMPONENT is set, we'll run only the system tests for the given component
 # if MLRUN_SYSTEM_TESTS_COMPONENT starts with "no_", we'll ignore that component in the system tests
@@ -103,6 +139,7 @@ MLRUN_UV_UPGRADE_FLAG ?= --upgrade
 help: ## Display available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
+
 .PHONY: all
 all:
 	$(error please pick a target)
@@ -120,6 +157,17 @@ install-requirements: ## Install all requirements needed for development
 		-r extras-requirements.txt \
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt
+
+.PHONY: install-dev-requirements
+install-dev-requirements: ## Install dev-requirements relevant for pytest and coverage.
+	# relevant for pip package installer only
+	@if [ "$(MLRUN_PYTHON_PACKAGE_INSTALLER)" = "pip" ]; then \
+		$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION); \
+	fi
+
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) \
+		$(MLRUN_PIP_NO_CACHE_FLAG) \
+		-r dev-requirements.txt
 
 .PHONY: install-docs-requirements
 install-docs-requirements: ## Install all requirements needed for compiling mlrun docs
@@ -528,25 +576,31 @@ clean: ## Clean python package build artifacts
 
 .PHONY: test-dockerized
 test-dockerized: build-test ## Run mlrun tests in docker container
+	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX)" ;\
+	$(SETUP_COVERAGE_MOUNTING) \
 	docker run \
 		-t \
 		--rm \
 		--network='host' \
 		-e MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		-v /tmp:/tmp \
+		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test  UNIT_TESTS_IGNORE_PATH="$(UNIT_TESTS_IGNORE_PATH)" \
-		UNIT_TESTS_PATH="$(UNIT_TESTS_PATH)"
+		UNIT_TESTS_PATH="$(UNIT_TESTS_PATH)" \
+		RUN_COVERAGE=$(RUN_COVERAGE) \
+		COVERAGE_FILE="$(COVERAGE_FILE)"
+
 
 .PHONY: test
 test: clean ## Run mlrun tests
 	# TODO: Remove ignored tests for Python 3.11 compatibility with KFP 2
-	set -e ;\
+	set -e ; \
 	COMMON_IGNORE_TEST_FLAGS=$$(echo "\
-		--ignore=tests/integration \
-		--ignore=tests/system \
-		--ignore=tests/rundb/test_httpdb.py \
-		--ignore=server/py/services/api/migrations \
+	--ignore=tests/integration \
+	--ignore=tests/system \
+	--ignore=tests/rundb/test_httpdb.py \
+	--ignore=server/py/services/api/migrations \
 	");\
 	PER_PYTHON_VERSION_IGNORE_TEST_FLAGS=$(if $(filter $(MLRUN_PYTHON_VERSION),3.11),$$(echo "\
 		--ignore=server/py/services/api/tests/unit/api/test_pipelines.py \
@@ -561,8 +615,12 @@ test: clean ## Run mlrun tests
 	else \
 		IGNORE_ADDITION=""; \
 	fi; \
+	COVERAGE_FILE=$(COVERAGE_FILE); \
+	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/unit_tests.coverage"}; \
+	$(SETUP_COVERAGE) \
 	python \
 		-X faulthandler \
+		$(COVERAGE_ADDITION) \
 		-m pytest -v \
 		--capture=no \
 		--disable-warnings \
@@ -572,30 +630,45 @@ test: clean ## Run mlrun tests
 		$$IGNORE_ADDITION \
 		--forked \
 		-rf \
-		$$UNIT_TESTS_PATH
+		$$UNIT_TESTS_PATH ;\
+	$(PRINT_COVERAGE_REPORT)
+
+
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test ## Run mlrun integration tests in docker container
+	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/integration_tests" ;\
+	$(SETUP_COVERAGE_MOUNTING) \
 	docker run \
 		-t \
 		--rm \
 		--network='host' \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
+		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
+		-e RUN_COVERAGE=$(RUN_COVERAGE) \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
 
 .PHONY: test-integration
 test-integration: clean ## Run mlrun integration tests
-	python -m pytest -v \
+	set -e; \
+	COVERAGE_FILE=$(COVERAGE_FILE); \
+	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/integration_tests.coverage"}; \
+	$(SETUP_COVERAGE) \
+	python $(COVERAGE_ADDITION) \
+		-m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
 		-rf \
 		tests/integration \
-		tests/rundb/test_httpdb.py
+		tests/rundb/test_httpdb.py; \
+	$(PRINT_COVERAGE_REPORT)
 
 .PHONY: test-migrations-dockerized
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
+	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/migration_tests" ;\
+	$(SETUP_COVERAGE_MOUNTING) \
 	docker run \
 		-t \
 		--rm \
@@ -603,11 +676,18 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		-v $(shell pwd):/mlrun \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
+		-e RUN_COVERAGE=$(RUN_COVERAGE) \
+		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-migrations
 
 .PHONY: test-migrations
 test-migrations: clean ## Run mlrun db migrations tests
-	./automation/scripts/test_migration_mysql.sh
+	COVERAGE_FILE=$(COVERAGE_FILE); \
+	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/migration_tests.coverage"}; \
+	$(SETUP_COVERAGE) \
+	COVERAGE_ADDITION="$(COVERAGE_ADDITION)" ./automation/scripts/test_migration_mysql.sh ;\
+	$(PRINT_COVERAGE_REPORT)
+
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
@@ -623,7 +703,8 @@ test-system-dockerized: build-test-system ## Run mlrun system tests in docker co
 test-system: ## Run mlrun system tests
 	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) \
 	MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL=$(MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL) \
-	python -m pytest -v \
+	python  \
+		-m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
@@ -972,3 +1053,15 @@ upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirement
 		upgrade-mlrun-kfp-deps-lock \
 		upgrade-mlrun-test-deps-lock \
 		upgrade-mlrun-system-test-deps-lock
+
+.PHONY: coverage-combine
+coverage-combine: ## Combine all coverage reports, ignoring errors like missing or corrupted source files
+	rm -f tests/coverage_reports/combined.coverage; \
+	UNIT_TEST_COVERAGE_PATHS=$${UNIT_TEST_COVERAGE_PATHS:-"tests/coverage_reports/unit_tests.coverage"}; \
+	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage combine --keep \
+	$$UNIT_TEST_COVERAGE_PATHS \
+	tests/coverage_reports/integration_tests.coverage \
+	tests/coverage_reports/migration_tests.coverage; \
+	python -m coverage xml --ignore-errors --data-file=tests/coverage_reports/combined.coverage -o tests/coverage_reports/combined.xml; \
+	echo "Full coverage report:"; \
+	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage report -i

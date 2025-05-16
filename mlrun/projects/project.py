@@ -30,6 +30,7 @@ from copy import deepcopy
 from os import environ, makedirs, path
 from typing import Callable, Optional, Union, cast
 
+import deprecated
 import dotenv
 import git
 import git.exc
@@ -2860,6 +2861,20 @@ class MlrunProject(ModelObj):
 
         self.spec.set_function(name, function_object, func)
 
+    # TODO: Remove this in 1.11.0
+    @deprecated.deprecated(
+        version="1.8.0",
+        reason="'remove_function' is deprecated and will be removed in 1.11.0. "
+        "Please use `delete_function` instead.",
+        category=FutureWarning,
+    )
+    def remove_function(self, name):
+        """remove the specified function from the project
+
+        :param name:    name of the function (under the project)
+        """
+        self.spec.remove_function(name)
+
     def delete_function(self, name, delete_from_db=False):
         """deletes the specified function from the project
 
@@ -3804,7 +3819,7 @@ class MlrunProject(ModelObj):
         top_level: bool = False,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
@@ -4026,8 +4041,10 @@ class MlrunProject(ModelObj):
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
             requirements and commands)
+
             * False: The new params are merged with the existing
             * True: The existing params are replaced by the new ones
+
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
         :param force_build:  force building the image, even when no changes were made
@@ -4078,8 +4095,10 @@ class MlrunProject(ModelObj):
         :param requirements_file: requirements file to install on the built image
         :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
             requirements and commands)
+
             * False: The new params are merged with the existing
             * True: The existing params are replaced by the new ones
+
         :param builder_env: Kaniko builder pod env vars dict (for config/credentials)
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
@@ -4151,8 +4170,10 @@ class MlrunProject(ModelObj):
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
             requirements and commands)
+
             * False: The new params are merged with the existing
             * True: The existing params are replaced by the new ones
+
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
         :param target_dir: Path on the image where source code would be extracted (by default `/home/mlrun_code`)
@@ -4330,12 +4351,14 @@ class MlrunProject(ModelObj):
             ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
         :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -4346,7 +4369,7 @@ class MlrunProject(ModelObj):
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
         :param tree: Return artifacts of the requested tree.
-        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.10.0).
+        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
         :param format_: The format in which to return the artifacts. Default is 'full'.
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
@@ -4359,9 +4382,9 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
 
         if limit:
-            # TODO: Remove this in 1.10.0
+            # TODO: Remove this in 1.11.0
             warnings.warn(
-                "'limit' is deprecated and will be removed in 1.10.0. Use 'page' and 'page_size' instead.",
+                "'limit' is deprecated and will be removed in 1.11.0. Use 'page' and 'page_size' instead.",
                 FutureWarning,
             )
 
@@ -4477,12 +4500,14 @@ class MlrunProject(ModelObj):
             ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
         :param labels: Filter model artifacts by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -4588,12 +4613,14 @@ class MlrunProject(ModelObj):
         :param name: Return only functions with a specific name.
         :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
         :param labels: Filter functions by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param kind: Return functions of the specified kind. If not provided, all function kinds will be returned.
         :param format_: The format in which to return the functions. Default is 'full'.
         :returns: List of function objects.
@@ -4687,12 +4714,14 @@ class MlrunProject(ModelObj):
         :param name:    Return only functions with a specific name.
         :param tag:     Return function versions with specific tags.
         :param labels: Filter functions by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :returns: List of function objects.
         """
 
@@ -4748,12 +4777,14 @@ class MlrunProject(ModelObj):
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run.
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param state: Deprecated - List only runs whose state is specified.
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be

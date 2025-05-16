@@ -15,6 +15,7 @@
 import time
 import uuid
 
+import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas.artifact
@@ -69,6 +70,40 @@ class TestArtifacts:
                 artifacts[i]["metadata"]["updated"]
                 <= artifacts[i - 1]["metadata"]["updated"]
             ), "bad ordering"
+
+    def test_store_and_get_artifact_missing_project(self, db: sqlalchemy.orm.Session):
+        key = "artifact-key"
+        tree = "artifact-tree"
+        project = "project-name"
+
+        artifact = self._generate_artifact(project, tree, key)
+
+        # store with missing project should raise error
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            services.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                project=None,
+            )
+
+        # store with valid project
+        services.api.crud.Artifacts().store_artifact(
+            db,
+            artifact["spec"]["db_key"],
+            artifact,
+            project=project,
+        )
+
+        # get with missing project should raise error
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            services.api.crud.Artifacts().get_artifact(
+                db, key=key, tag="latest", project=None
+            )
+
+        # list with missing project should raise error
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            services.api.crud.Artifacts().list_artifacts(db, project=None, tag="*")
 
     @staticmethod
     def _generate_artifact(

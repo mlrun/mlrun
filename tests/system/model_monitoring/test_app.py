@@ -67,7 +67,7 @@ from .assets.application import (
     ErrApp,
     NoCheckDemoMonitoringApp,
 )
-from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
+from .assets.custom_evidently_app import DemoEvidentlyMonitoringApp
 
 
 @dataclass
@@ -365,7 +365,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 results={"data_drift_test", "model_perf"},
             ),
             _AppData(
-                class_=CustomEvidentlyMonitoringApp,
+                class_=DemoEvidentlyMonitoringApp,
                 rel_path="assets/custom_evidently_app.py",
                 requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
                 kwargs={
@@ -373,7 +373,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                     "evidently_project_id": cls.evidently_project_id,
                 },
                 results={"data_drift_test"},
-                artifacts={"evidently_report", "evidently_suite", "dashboard"},
+                artifacts={"evidently_report"},
             ),
             _AppData(
                 class_=ErrApp,
@@ -1299,7 +1299,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         futures = []
         with concurrent.futures.ThreadPoolExecutor() as executor:
             endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
-                project=self.project_name
+                project=self.project_name, tsdb_metrics=True
             )
             endpoints = endpoints_list.endpoints
             assert len(endpoints) == 7
@@ -1339,7 +1339,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             self._deploy_model_serving(**model_dict, enable_tracking=False)
 
         endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
-            project=self.project_name
+            project=self.project_name, tsdb_metrics=True
         )
         endpoints = endpoints_list.endpoints
         assert len(endpoints) == 1
@@ -1380,7 +1380,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             self._deploy_model_serving(**model_dict, enable_tracking=False)
 
         endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
-            project=self.project_name
+            project=self.project_name, tsdb_metrics=True
         )
         endpoints = endpoints_list.endpoints
         assert len(endpoints) == 1

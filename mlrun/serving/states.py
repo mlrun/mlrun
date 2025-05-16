@@ -30,6 +30,7 @@ from typing import Any, Optional, Union, cast
 import storey.utils
 
 import mlrun
+import mlrun.artifacts
 import mlrun.common.schemas as schemas
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaSource,
@@ -402,6 +403,9 @@ class BaseStep(ModelObj):
             class_args=class_args,
             model_endpoint_creation_strategy=model_endpoint_creation_strategy,
         )
+
+        self.verify_model_runner_step(step)
+
         step = parent._steps.update(name, step)
         step.set_parent(parent)
         if not hasattr(self, "steps"):
@@ -445,6 +449,36 @@ class BaseStep(ModelObj):
 
     def supports_termination(self):
         return False
+
+    def verify_model_runner_step(self, step: "ModelRunnerStep"):
+        """
+        Verify ModelRunnerStep, can be part of Flow graph and models can not repeat in graph.
+        :param step: ModelRunnerStep to verify
+        """
+        if not isinstance(step, ModelRunnerStep):
+            return
+
+        root = self
+        while root.parent is not None:
+            root = root.parent
+
+        if not isinstance(root, RootFlowStep):
+            raise GraphError(
+                "ModelRunnerStep can be added to 'Flow' topology graph only"
+            )
+        step_model_endpoints_names = list(
+            step.class_args[schemas.ModelRunnerStepData.MODELS].keys()
+        )
+        # Get all model_endpoints names that are in both lists
+        common_endpoints_names = list(
+            set(root.model_endpoints_names) & set(step_model_endpoints_names)
+        )
+        if common_endpoints_names:
+            raise GraphError(
+                f"The graph already contains the model endpoints named - {common_endpoints_names}."
+            )
+        else:
+            root.extend_model_endpoints_names(step_model_endpoints_names)
 
 
 class TaskStep(BaseStep):
@@ -1005,24 +1039,87 @@ class ModelRunnerStep(TaskStep, StepToDict):
             **kwargs,
         )
 
-    def add_model(self, model: Union[str, Model], **model_parameters) -> None:
+    def add_model(
+        self,
+        endpoint_name: str,
+        model_class: str,
+        model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
+        labels: Optional[Union[list[str], dict[str, str]]] = None,
+        creation_strategy: Optional[
+            schemas.ModelEndpointCreationStrategy
+        ] = schemas.ModelEndpointCreationStrategy.INPLACE,
+        inputs: Optional[list[str]] = None,
+        outputs: Optional[list[str]] = None,
+        input_path: Optional[str] = None,
+        override: bool = False,
+        **model_parameters,
+    ) -> None:
         """
         Add a Model to this ModelRunner.
 
-        :param model: Model class name or object
-        :param model_parameters: Parameters for model instantiation
+        :param endpoint_name:       str, will identify the model in the ModelRunnerStep, and assign model endpoint name
+        :param model_class:         Model class name
+        :param model_artifact:      model artifact or mlrun model artifact uri
+        :param labels:              model endpoint labels, should be list of str or mapping of str:str
+        :param creation_strategy:   Strategy for creating or updating the model endpoint:
+            * **overwrite**:
+            1. If model endpoints with the same name exist, delete the `latest` one.
+            2. Create a new model endpoint entry and set it as `latest`.
+            * **inplace** (default):
+            1. If model endpoints with the same name exist, update the `latest` entry.
+            2. Otherwise, create a new entry.
+            * **archive**:
+            1. If model endpoints with the same name exist, preserve them.
+            2. Create a new model endpoint with the same name and set it to `latest`.
+        :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs that
+                                    been configured in the model artifact, please note that those inputs need to be
+                                    equal in length and order to the inputs that model_class predict method expects
+        :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs that
+                                    been configured in the model artifact, please note that those outputs need to be
+                                    equal to the model_class predict method outputs (length, and order)
+        :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
+                                    (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
+        :param override:            bool allow override existing model on the current ModelRunnerStep.
+        :param model_parameters:    Parameters for model instantiation
         """
-        models = self.class_args.get("models", [])
-        models.append((model, model_parameters))
-        self.class_args["models"] = models
+        # TODO allow model_class as Model object as part of ML-9924
+        model_parameters = model_parameters or {}
+        if model_parameters.get("name", endpoint_name) != endpoint_name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Inconsistent name for model added to ModelRunnerStep."
+            )
+
+        models = self.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
+        if endpoint_name in models and not override:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Model with name {endpoint_name} already exists in this ModelRunnerStep."
+            )
+
+        model_parameters["name"] = endpoint_name
+        monitoring_data = self.class_args.get(
+            schemas.ModelRunnerStepData.MONITORING_DATA, {}
+        )
+        models[endpoint_name] = (model_class, model_parameters)
+        monitoring_data[endpoint_name] = {
+            schemas.MonitoringData.INPUTS: inputs,
+            schemas.MonitoringData.OUTPUTS: outputs,
+            schemas.MonitoringData.INPUT_PATH: input_path,
+            schemas.MonitoringData.CREATION_STRATEGY: creation_strategy,
+            schemas.MonitoringData.LABELS: labels,
+            schemas.MonitoringData.MODEL_PATH: model_artifact.uri
+            if isinstance(model_artifact, mlrun.artifacts.Artifact)
+            else model_artifact,
+        }
+        self.class_args[schemas.ModelRunnerStepData.MODELS] = models
+        self.class_args[schemas.ModelRunnerStepData.MONITORING_DATA] = monitoring_data
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         model_selector = self.class_args.get("model_selector")
-        models = self.class_args.get("models")
+        models = self.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
         if isinstance(model_selector, str):
             model_selector = get_class(model_selector, namespace)()
         model_objects = []
-        for model, model_params in models:
+        for model, model_params in models.values():
             if not isinstance(model, Model):
                 model = get_class(model, namespace)(**model_params)
             model_objects.append(model)
@@ -1255,6 +1352,8 @@ class FlowStep(BaseStep):
             model_endpoint_creation_strategy=model_endpoint_creation_strategy,
             class_args=class_args,
         )
+
+        self.verify_model_runner_step(step)
 
         after_list = after if isinstance(after, list) else [after]
         for after in after_list:
@@ -1676,7 +1775,41 @@ class RootFlowStep(FlowStep):
     """root flow step"""
 
     kind = "root"
-    _dict_fields = ["steps", "engine", "final_step", "on_error"]
+    _dict_fields = [
+        "steps",
+        "engine",
+        "final_step",
+        "on_error",
+        "model_endpoints_names",
+    ]
+
+    def __init__(
+        self,
+        name=None,
+        steps=None,
+        after: Optional[list] = None,
+        engine=None,
+        final_step=None,
+    ):
+        super().__init__(
+            name,
+            steps,
+            after,
+            engine,
+            final_step,
+        )
+        self._models = []
+
+    @property
+    def model_endpoints_names(self) -> list[str]:
+        return self._models
+
+    @model_endpoints_names.setter
+    def model_endpoints_names(self, models: list[str]):
+        self._models = models
+
+    def extend_model_endpoints_names(self, model_endpoints_names: list):
+        self._models.extend(model_endpoints_names)
 
 
 classes_map = {

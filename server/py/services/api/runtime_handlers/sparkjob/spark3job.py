@@ -531,7 +531,7 @@ with ctx:
 
         run.setdefault("status", {})["ui_url"] = ui_url
         run_updates = {"status.ui_url": ui_url}
-        db.update_run(db_session, run_updates, uid, project)
+        db.update_run(db_session, updates=run_updates, uid=uid, project=project)
 
     @staticmethod
     def are_resources_coupled_to_run_object() -> bool:

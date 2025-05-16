@@ -1,10 +1,11 @@
+
 import pandas as pd
 from sklearn.datasets import load_breast_cancer
 
 
 def breast_cancer_generator():
     """
-    A function which generates the breast cancer dataset
+    A function that generates the breast cancer dataset
     """
     breast_cancer = load_breast_cancer()
     breast_cancer_dataset = pd.DataFrame(

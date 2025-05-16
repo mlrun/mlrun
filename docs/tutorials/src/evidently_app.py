@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from typing import Optional
-from uuid import UUID
 
 import pandas as pd
 from sklearn.datasets import load_iris
@@ -34,83 +33,13 @@ if _HAS_EVIDENTLY:
     from evidently.core.report import Report, Snapshot
     from evidently.metrics import DatasetMissingValueCount, ValueDrift
     from evidently.presets import DataDriftPreset, DataSummaryPreset
-    from evidently.sdk.models import PanelMetric
-    from evidently.sdk.panels import DashboardPanelPlot
     from evidently.ui.workspace import (
         STR_UUID,
         OrgID,
-        Project,
-        ProjectModel,
-        WorkspaceBase,
     )
 
     _PROJECT_NAME = "Iris Monitoring"
     _PROJECT_DESCRIPTION = "Test project using iris dataset"
-
-    def _create_evidently_project(
-        workspace: WorkspaceBase,
-        id: Optional[UUID] = None,
-        org_id: Optional[OrgID] = None,
-    ) -> Project:
-        if id:
-            project = ProjectModel(
-                name=_PROJECT_NAME, description=_PROJECT_DESCRIPTION, id=id
-            )
-            project = workspace.add_project(project, org_id=org_id)
-        else:
-            project = workspace.create_project(_PROJECT_NAME, org_id=org_id)
-        project.description = _PROJECT_DESCRIPTION
-        project.dashboard.add_panel(
-            DashboardPanelPlot(
-                title="Income Dataset (iris)",
-                subtitle="The iris dataset.",
-                size="half",
-                values=[PanelMetric(legend="Row count", metric="RowCount")],
-                plot_params={"plot_type": "counter", "aggregation": "sum"},
-            ),
-            tab="tab 0",
-        )
-        project.dashboard.add_panel(
-            DashboardPanelPlot(
-                title="Model Calls",
-                subtitle="Total number of predictions over time.",
-                size="half",
-                values=[PanelMetric(legend="count", metric="DatasetMissingValueCount")],
-                plot_params={"plot_type": "counter", "aggregation": "sum"},
-            ),
-            tab="tab 0",
-        )
-        project.dashboard.add_panel(
-            DashboardPanelPlot(
-                title="Share of Drifted Features",
-                subtitle="Measure the drift of the features.",
-                size="full",
-                values=[PanelMetric(metric="DataDriftPreset", legend="share")],
-                plot_params={"plot_type": "counter", "aggregation": "last"},
-            ),
-            tab="tab 0",
-        )
-        project.dashboard.add_panel(
-            DashboardPanelPlot(
-                title="Dataset Quality",
-                subtitle="",
-                size="full",
-                values=[
-                    PanelMetric(
-                        metric="DataDriftPreset",
-                        legend="Drift Share",
-                    ),
-                    PanelMetric(
-                        metric="DatasetMissingValuesMetric",
-                        legend="Missing Values Share",
-                    ),
-                ],
-                plot_params={"plot_type": "line"},
-            ),
-            tab="tab 0",
-        )
-        project.save()
-        return project
 
 
 class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
@@ -135,14 +64,6 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         iris = load_iris()
         self.columns = [norm_column_name(col) for col in iris.feature_names]
         self.train_set = pd.DataFrame(iris.data, columns=self.columns)
-
-    def load_project(self) -> None:
-        if isinstance(self.evidently_project_id, str):
-            self.evidently_project_id = UUID(self.evidently_project_id)
-        self.evidently_project = _create_evidently_project(
-            self.evidently_workspace, self.evidently_project_id, org_id=self.org_id
-        )
-        self.evidently_project_id = self.evidently_project.id
 
     def do_tracking(
         self, monitoring_context: mm_context.MonitoringApplicationContext

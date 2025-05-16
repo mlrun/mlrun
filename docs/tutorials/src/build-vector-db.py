@@ -20,6 +20,7 @@ def handler_chroma(
     cache_dir: str,
     chunk_size: int = 500,
     chunk_overlap: int = 0,
+    collection_name: str = "my_news",
 ):
     # project = mlrun.get_current_project()
 
@@ -33,7 +34,7 @@ def handler_chroma(
     chroma_client = chromadb.PersistentClient(path=cache_dir)
 
     # Get or create collection
-    collection_name = "my_news"
+    collection_name = collection_name
     print(f"Creating collection: '{collection_name}'")
 
     if collection_name in chroma_client.list_collections():

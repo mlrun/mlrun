@@ -268,7 +268,6 @@ class ModelRunnerError(MLRunBaseError):
         self.models_errors = models_errors
         super().__init__(self.__repr__(), *args)
 
-
     def __repr__(self):
         return f"ModelRunnerError: {repr(self.models_errors)}"
 

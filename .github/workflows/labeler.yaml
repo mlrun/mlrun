@@ -14,7 +14,9 @@
 
 name: Label PRs by Path
 
-on: pull_request_target
+on:
+    pull_request:
+        types: [opened, synchronize, reopened]
 
 jobs:
   label:

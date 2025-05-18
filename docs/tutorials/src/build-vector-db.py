@@ -36,10 +36,10 @@ def handler_chroma(
     collection_name = "my_news"
     print(f"Creating collection: '{collection_name}'")
 
-    if collection_name in chroma_client.list_collections():
+    if chroma_client.count_collections() > 0:
         chroma_client.delete_collection(name=collection_name)
 
-    collection = chroma_client.create_collection(name=collection_name)
+    collection = chroma_client.get_or_create_collection(name=collection_name)
 
     # Format and split docunments
     documents = df.pop("page_content").to_list()

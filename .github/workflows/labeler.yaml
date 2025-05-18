@@ -30,3 +30,4 @@ jobs:
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
           sync-labels: true
+          configuration-path: '/home/runner/work/mlrun/mlrun/.github/labeler.yml'

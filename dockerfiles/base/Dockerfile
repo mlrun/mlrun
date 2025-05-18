@@ -72,7 +72,7 @@ RUN /usr/local/bin/python -m pip install --upgrade setuptools pip~=${MLRUN_PIP_V
     conda install -y python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
     conda clean -aqy
 
-ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 
 # do not require hashes as PyHive is installed via remote repo
 # and do not have a hash set in the locked-requirements.txt

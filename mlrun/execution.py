@@ -808,6 +808,8 @@ class MLClientCtx:
         label_column: Optional[Union[str, list]] = None,
         extra_data=None,
         db_key=None,
+        model_url: Optional[str] = None,
+        default_config=None,
         **kwargs,
     ) -> ModelArtifact:
         """Log a model artifact and optionally upload it to datastore
@@ -850,6 +852,9 @@ class MLClientCtx:
                                 value can be absolute path | relative path (to model dir) | bytes | artifact object
         :param db_key:          The key to use in the artifact DB table, by default its run name + '_' + key
                                 db_key=False will not register it in the artifacts table
+        :param model_url:       Remote model url.
+        :param default_config:  Default configuration for client building when 'model_url' is used.
+                                Saved as a sub-dictionary under the parameter.
 
         :returns: Model artifact object
         """
@@ -873,6 +878,8 @@ class MLClientCtx:
             feature_vector=feature_vector,
             feature_weights=feature_weights,
             extra_data=extra_data,
+            model_url=model_url,
+            default_config=default_config,
             **kwargs,
         )
         if training_set is not None:

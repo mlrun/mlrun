@@ -170,9 +170,9 @@ class ModelArtifact(Artifact):
         :param feature_weights: List of feature weights, one per input column
         :param extra_data:
         :param model_dir:       Path to the local dir holding the model file and extra files
-        :param model_url:       remote model url.
-        :param default_config:  default config for client building if model_url
-                                is used. Saved under parameter as a sub dict.
+        :param model_url:       Remote model url.
+        :param default_config:  Default configuration for client building when 'model_url' is used.
+                                Saved as a sub-dictionary under the parameter.
         :param kwargs:
         """
         if key or body or format or target_path:

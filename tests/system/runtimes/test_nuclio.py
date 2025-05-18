@@ -69,7 +69,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
             kind="serving",
             project=self.project_name,
             filename=code_path,
-            image="artifactory.iguazeng.com:10557/roys/mlrun:1.10.0",
+            image="mlrun/mlrun",
         )
 
         graph = function.set_topology("flow", engine="async")

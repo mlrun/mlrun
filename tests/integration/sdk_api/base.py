@@ -112,7 +112,7 @@ class TestMLRunIntegration:
 
             if value:
                 os.environ[env_var] = value
-        # reload the config so changes to the env vars will take affect
+        # reload the config so changes to the env vars will take effect
         mlrun.mlconf.reload()
 
     def _teardown_env(self):
@@ -121,7 +121,7 @@ class TestMLRunIntegration:
             if env_var in os.environ:
                 del os.environ[env_var]
         os.environ.update(self._old_env)
-        # reload the config so changes to the env vars will take affect
+        # reload the config so changes to the env vars will take effect
         mlrun.mlconf.reload()
 
     @classmethod

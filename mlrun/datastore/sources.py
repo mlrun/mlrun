@@ -795,12 +795,12 @@ class SnowflakeSource(BaseSourceDriver):
         warehouse: Optional[str] = None,
         **kwargs,
     ):
-        # TODO: Remove in 1.9.0
+        # TODO: Remove in 1.10.0
         if schema:
             warnings.warn(
-                "schema is deprecated in 1.7.0, and will be removed in 1.9.0, please use db_schema"
+                "schema is deprecated in 1.7.0, and will be removed in 1.10.0, please use db_schema"
             )
-        db_schema = db_schema or schema  # TODO: Remove in 1.9.0
+        db_schema = db_schema or schema  # TODO: Remove in 1.10.0
 
         attributes = attributes or {}
         if url:

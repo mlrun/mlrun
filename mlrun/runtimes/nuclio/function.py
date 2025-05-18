@@ -623,9 +623,9 @@ class RemoteRuntime(KubeResource):
         :param force_build: set True for force building the image
         """
         if auth_info:
-            # TODO: remove in 1.9.0
+            # TODO: remove in 1.10.0
             warnings.warn(
-                "'auth_info' is deprecated for nuclio runtimes in 1.7.0 and will be removed in 1.9.0",
+                "'auth_info' is deprecated for nuclio runtimes in 1.7.0 and will be removed in 1.10.0",
                 FutureWarning,
             )
 
@@ -833,7 +833,7 @@ class RemoteRuntime(KubeResource):
     def _get_runtime_env(self):
         # for runtime specific env var enrichment (before deploy)
         runtime_env = {
-            "MLRUN_DEFAULT_PROJECT": self.metadata.project or mlconf.default_project,
+            "MLRUN_ACTIVE_PROJECT": self.metadata.project or mlconf.active_project,
         }
         if mlconf.httpdb.api_url:
             runtime_env["MLRUN_DBPATH"] = mlconf.httpdb.api_url

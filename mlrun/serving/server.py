@@ -71,7 +71,7 @@ class _StreamContext:
         if (enabled or log_stream) and function_uri:
             self.enabled = True
             project, _, _, _ = parse_versioned_object_uri(
-                function_uri, config.default_project
+                function_uri, config.active_project
             )
 
             stream_args = parameters.get("stream_args", {})

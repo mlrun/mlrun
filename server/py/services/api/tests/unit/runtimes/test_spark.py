@@ -1107,11 +1107,13 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         client: fastapi.testclient.TestClient,
         k8s_secrets_mock,
     ):
+        self.project = "test-project3"
         # TODO - this test needs to be moved outside of the api runtimes tests and into the spark runtime sdk tests
         #   once moved, the `watch=False` can be removed
         import mlrun.feature_store as fstore
 
         fv = fstore.FeatureVector("my-vector", features=[])
+        fv.metadata.project = self.project
         fv.save = unittest.mock.Mock()
 
         runtime = self._generate_runtime()
@@ -1139,7 +1141,6 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
                 target=ParquetTarget(),
             )
 
-        self.project = "default"
         self.project_default_function_node_selector = {}
         self._create_project(client)
 
@@ -1154,7 +1155,7 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         runspec = resp.run.spec.to_dict()
         expected_runspec = {
             "parameters": {
-                "vector_uri": "store://feature-vectors/default/my-vector",
+                "vector_uri": f"store://feature-vectors/{self.project}/my-vector",
                 "target": {
                     "name": "parquet",
                     "kind": "parquet",

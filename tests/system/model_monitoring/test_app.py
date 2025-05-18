@@ -212,7 +212,7 @@ class _V3IORecordsChecker:
     @classmethod
     def _test_parquet(
         cls, ep_id: str, inputs: set[str], outputs: set[str]
-    ) -> None:  # TODO : delete in 1.9.0  (V1 app deprecation)
+    ) -> None:  # TODO : delete in 1.10.0  (V1 app deprecation)
         parquet_apps_directory = (
             mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
                 mlrun.get_or_create_project(cls.project_name, allow_cross_project=True),

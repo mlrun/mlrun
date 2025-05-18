@@ -441,10 +441,10 @@ class RunDBInterface(ABC):
     ) -> dict:
         pass
 
-    # TODO: remove in 1.9.0
+    # TODO: remove in 1.10.0
     @deprecated(
-        version="1.9.0",
-        reason="'list_features' will be removed in 1.9.0, use 'list_features_v2' instead",
+        version="1.7.0",
+        reason="'list_features' will be removed in 1.10.0, use 'list_features_v2' instead",
         category=FutureWarning,
     )
     @abstractmethod
@@ -469,10 +469,10 @@ class RunDBInterface(ABC):
     ) -> mlrun.common.schemas.FeaturesOutputV2:
         pass
 
-    # TODO: remove in 1.9.0
+    # TODO: remove in 1.10.0
     @deprecated(
-        version="1.9.0",
-        reason="'list_entities' will be removed in 1.9.0, use 'list_entities_v2' instead",
+        version="1.7.0",
+        reason="'list_entities' will be removed in 1.10.0, use 'list_entities_v2' instead",
         category=FutureWarning,
     )
     @abstractmethod

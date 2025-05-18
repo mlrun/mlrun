@@ -214,7 +214,7 @@ def test_requirement_specifiers_inconsistencies():
             '~=2024.12.1; python_version >= "3.11"',
             '~=2023.12.1; python_version < "3.11"',
         },
-        "mlrun-pipelines-kfp-v1-8": {"~=0.4.0", '~=0.4.0; python_version < "3.11"'},
+        "mlrun-pipelines-kfp-v1-8": {"~=0.4.2", '~=0.4.2; python_version < "3.11"'},
     }
 
     all_keys_verified = set(ignored_inconsistencies_map.keys())

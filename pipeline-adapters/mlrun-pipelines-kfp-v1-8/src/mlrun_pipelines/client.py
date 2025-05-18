@@ -603,9 +603,12 @@ class Client(
                 workflow_manifest_path = temp_file.name
 
         # KFP server API may return pipeline parameters as a list containing a single dict
-        pipeline_parameters: Any = pipeline_spec.parameters
-        if isinstance(pipeline_parameters, list) and pipeline_parameters:
-            pipeline_parameters = pipeline_parameters[0]
+        pipeline_parameters = pipeline_spec.parameters
+        if isinstance(pipeline_spec.parameters, list):
+            pipeline_parameters = {
+                getattr(param, "name"): getattr(param, "value")
+                for param in pipeline_spec.parameters
+            }
 
         current_name: str = existing_run_details.name.strip()
         desired_prefix: str = f"{project}-Retry of "

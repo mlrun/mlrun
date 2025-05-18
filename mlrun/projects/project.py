@@ -30,6 +30,7 @@ from copy import deepcopy
 from os import environ, makedirs, path
 from typing import Callable, Optional, Union, cast
 
+import deprecated
 import dotenv
 import git
 import git.exc
@@ -277,7 +278,7 @@ def new_project(
         for key, val in parameters.items():
             project.spec.params[key] = val
 
-    _set_as_current_default_project(project)
+    _set_as_current_active_project(project)
 
     if save and mlrun.mlconf.dbpath:
         if overwrite:
@@ -450,7 +451,7 @@ def load_project(
     if sync_functions:
         project.sync_functions(save=to_save)
 
-    _set_as_current_default_project(project)
+    _set_as_current_active_project(project)
 
     return project
 
@@ -470,7 +471,7 @@ def get_or_create_project(
     allow_cross_project: Optional[bool] = None,
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if it does not exist.
-    The project will become the default project for the current session.
+    The project will become the active project for the current session.
 
     MLRun looks for a project.yaml file with project definition and objects in the project root path
     and use it to initialize the project, in addition it runs the project_setup.py file (if it exists)
@@ -756,10 +757,10 @@ def _project_instance_from_struct(struct, name, allow_cross_project):
         )
 
         if allow_cross_project is None:
-            # TODO: Remove this warning in version 1.9.0 and also fix cli to support allow_cross_project
+            # TODO: Remove this warning in version 1.10.0 and also fix cli to support allow_cross_project
             warnings.warn(
                 f"Project {name=} is different than specified on the context's project yaml. "
-                "This behavior is deprecated and will not be supported from version 1.9.0."
+                "This behavior is deprecated and will not be supported from version 1.10.0."
             )
             logger.warn(error_message)
         elif allow_cross_project:
@@ -2478,9 +2479,9 @@ class MlrunProject(ModelObj):
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         """
         if default_controller_image != "mlrun/mlrun":
-            # TODO: Remove this in 1.9.0
+            # TODO: Remove this in 1.10.0
             warnings.warn(
-                "'default_controller_image' is deprecated and will be removed in 1.9.0, "
+                "'default_controller_image' is deprecated in 1.7.0 and will be removed in 1.10.0, "
                 "use 'image' instead",
                 FutureWarning,
             )
@@ -2860,6 +2861,20 @@ class MlrunProject(ModelObj):
 
         self.spec.set_function(name, function_object, func)
 
+    # TODO: Remove this in 1.11.0
+    @deprecated.deprecated(
+        version="1.8.0",
+        reason="'remove_function' is deprecated and will be removed in 1.11.0. "
+        "Please use `delete_function` instead.",
+        category=FutureWarning,
+    )
+    def remove_function(self, name):
+        """remove the specified function from the project
+
+        :param name:    name of the function (under the project)
+        """
+        self.spec.remove_function(name)
+
     def delete_function(self, name, delete_from_db=False):
         """deletes the specified function from the project
 
@@ -2877,9 +2892,9 @@ class MlrunProject(ModelObj):
 
         :param name: name of the model-monitoring-function/s (under the project)
         """
-        # TODO: Remove this in 1.9.0
+        # TODO: Remove this in 1.10.0
         warnings.warn(
-            "'remove_model_monitoring_function' is deprecated and will be removed in 1.9.0. "
+            "'remove_model_monitoring_function' is deprecated in 1.7.0 and will be removed in 1.10.0. "
             "Please use `delete_model_monitoring_function` instead.",
             FutureWarning,
         )
@@ -3695,7 +3710,7 @@ class MlrunProject(ModelObj):
                 brokers=["<kafka-broker-ip-address>:9094"],
                 topics=[],  # Keep the topics list empty
                 ## SASL is supported
-                # sasl_user="user1",
+                # sasl_user="<kafka-sasl-user>",
                 # sasl_pass="<kafka-sasl-password>",
             )
             project.register_datastore_profile(stream_profile)
@@ -3727,6 +3742,29 @@ class MlrunProject(ModelObj):
             project.register_datastore_profile(stream_profile)
 
         In the V3IO datastore, you must provide an explicit access key to the stream, but not to the TSDB.
+
+        An external Confluent Kafka stream is also supported. Here is an example:
+
+        .. code-block:: python
+
+            from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
+
+            stream_profile = DatastoreProfileKafkaSource(
+                name="confluent-kafka",
+                brokers=["<server-domain-start>.confluent.cloud:9092"],
+                topics=[],
+                sasl_user="<API-key>",
+                sasl_pass="<API-secret>",
+                kwargs_public={
+                    "security_protocol": "SASL_SSL",
+                    "api_version_auto_timeout_ms": 15_000,  # 15 seconds
+                    "tls": {"enable": True},
+                    "new_topic": {"replication_factor": 3},
+                },
+            )
+
+        The replication factor and timeout configuration might need to be adjusted according to your Confluent cluster
+        type and settings.
 
         :param tsdb_profile_name:         The datastore profile name of the time-series database to be used in model
                                           monitoring. The supported profiles are:
@@ -3781,7 +3819,7 @@ class MlrunProject(ModelObj):
         top_level: bool = False,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
@@ -4003,8 +4041,10 @@ class MlrunProject(ModelObj):
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
             requirements and commands)
+
             * False: The new params are merged with the existing
             * True: The existing params are replaced by the new ones
+
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
         :param force_build:  force building the image, even when no changes were made
@@ -4055,8 +4095,10 @@ class MlrunProject(ModelObj):
         :param requirements_file: requirements file to install on the built image
         :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
             requirements and commands)
+
             * False: The new params are merged with the existing
             * True: The existing params are replaced by the new ones
+
         :param builder_env: Kaniko builder pod env vars dict (for config/credentials)
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
@@ -4065,9 +4107,9 @@ class MlrunProject(ModelObj):
             (by default `/home/mlrun_code`)
         """
         if not overwrite_build_params:
-            # TODO: change overwrite_build_params default to True in 1.9.0
+            # TODO: change overwrite_build_params default to True in 1.10.0
             warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.9.0.",
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.10.0.",
                 mlrun.utils.OverwriteBuildParamsWarning,
             )
         default_image_name = mlrun.mlconf.default_project_image_name.format(
@@ -4128,8 +4170,10 @@ class MlrunProject(ModelObj):
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
             requirements and commands)
+
             * False: The new params are merged with the existing
             * True: The existing params are replaced by the new ones
+
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
         :param target_dir: Path on the image where source code would be extracted (by default `/home/mlrun_code`)
@@ -4142,9 +4186,9 @@ class MlrunProject(ModelObj):
             )
 
         if not overwrite_build_params:
-            # TODO: change overwrite_build_params default to True in 1.9.0
+            # TODO: change overwrite_build_params default to True in 1.10.0
             warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.9.0.",
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.10.0.",
                 mlrun.utils.OverwriteBuildParamsWarning,
             )
 
@@ -4307,12 +4351,14 @@ class MlrunProject(ModelObj):
             ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
         :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -4323,7 +4369,7 @@ class MlrunProject(ModelObj):
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
         :param tree: Return artifacts of the requested tree.
-        :param limit: Maximum number of artifacts to return.
+        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
         :param format_: The format in which to return the artifacts. Default is 'full'.
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
@@ -4334,6 +4380,14 @@ class MlrunProject(ModelObj):
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
+
+        if limit:
+            # TODO: Remove this in 1.11.0
+            warnings.warn(
+                "'limit' is deprecated and will be removed in 1.11.0. Use 'page' and 'page_size' instead.",
+                FutureWarning,
+            )
+
         return db.list_artifacts(
             name,
             self.metadata.name,
@@ -4446,12 +4500,14 @@ class MlrunProject(ModelObj):
             ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
         :param labels: Filter model artifacts by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -4460,7 +4516,7 @@ class MlrunProject(ModelObj):
             artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         :param tree: Return artifacts of the requested tree.
-        :param limit: Maximum number of artifacts to return.
+        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
         :param format_: The format in which to return the artifacts. Default is 'full'.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
@@ -4557,12 +4613,14 @@ class MlrunProject(ModelObj):
         :param name: Return only functions with a specific name.
         :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
         :param labels: Filter functions by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param kind: Return functions of the specified kind. If not provided, all function kinds will be returned.
         :param format_: The format in which to return the functions. Default is 'full'.
         :returns: List of function objects.
@@ -4656,12 +4714,14 @@ class MlrunProject(ModelObj):
         :param name:    Return only functions with a specific name.
         :param tag:     Return function versions with specific tags.
         :param labels: Filter functions by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :returns: List of function objects.
         """
 
@@ -4717,17 +4777,19 @@ class MlrunProject(ModelObj):
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run.
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param state: Deprecated - List only runs whose state is specified.
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
-        :param last: Deprecated - currently not used (will be removed in 1.9.0).
+        :param last: Deprecated - currently not used (will be removed in 1.10.0).
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
@@ -4738,9 +4800,9 @@ class MlrunProject(ModelObj):
         :param end_time_to: Filter by run end time in ``[end_time_from, end_time_to]``.
         """
         if state:
-            # TODO: Remove this in 1.9.0
+            # TODO: Remove this in 1.10.0
             warnings.warn(
-                "'state' is deprecated and will be removed in 1.9.0. Use 'states' instead.",
+                "'state' is deprecated in 1.7.0 and will be removed in 1.10.0. Use 'states' instead.",
                 FutureWarning,
             )
 
@@ -5398,8 +5460,8 @@ class MlrunProject(ModelObj):
         return os.getenv("V3IO_USERNAME") or self.spec.owner
 
 
-def _set_as_current_default_project(project: MlrunProject):
-    mlrun.mlconf.default_project = project.metadata.name
+def _set_as_current_active_project(project: MlrunProject):
+    mlrun.mlconf.active_project = project.metadata.name
     pipeline_context.set(project)
 
 

@@ -13,7 +13,7 @@
 
 import re
 import sys
-from os import path
+from os import environ, path
 
 sys.path.insert(0, "..")
 
@@ -62,6 +62,7 @@ extensions = [
     "sphinx_reredirects",
     "versionwarning.extension",
     "sphinxcontrib.mermaid",
+    "sphinx_image_inverter",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -134,7 +135,7 @@ html_theme_options = {
 }
 
 html_sidebars = {
-    "**": ["navbar-logo.html", "search-field.html", "sbt-sidebar-nav.html"]
+    "**": ["navbar-logo.html", "search-button-field.html", "sbt-sidebar-nav.html"]
 }
 
 copybutton_selector = "div:not(.output) > div.highlight pre"
@@ -156,7 +157,7 @@ myst_xref_missing = "ignore"
 # These substitutions point to the relevant mlrun docs for the current CE version
 myst_substitutions = {
     "version": "version",
-    "ceversion": "v1.7.2",
+    "ceversion": "v1.8.0",
     "releasedocumentation": "docs.mlrun.org/en/stable/index.html",
 }
 
@@ -191,6 +192,9 @@ redirects = {
 
 smartquotes = False
 
+# Do not invert all images by default in dark mode
+inverter_all = False
+
 linkcheck_ignore = [
     # Ignore all the links to local files
     r"^(?!https?://).*",
@@ -208,6 +212,8 @@ linkcheck_ignore = [
     "http://localhost:30040",
     "https://dev.mysql.com/doc/refman/8.0/en/keywords.html",
     "https://www.kaggle.com/code/jsylas/python-version-of-top-ten-rank-r-22-m-2-88/data?select=train.csv",
+    "http://test-milvus.milvus.svc.cluster.local:19530",
+    "https://docs.confident-ai.com/docs/",
     # Returns 404 though link is valid
     "https://docs.databricks.com/aws/en/reference/jobs-2.0-api",
     # can be removed after v1.8.0 is released:
@@ -215,6 +221,15 @@ linkcheck_ignore = [
     # Mckinsey restricted
     "https://ollama.com/download",
     "https://ollama.com/library/llama3",
+    # Can be deleted after v1.8.0 is GA
+    "https://docs.mlrun.org/en/stable/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.get_vector_store_collection",
+    "https://docs.mlrun.org/en/stable/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.log_document",
+    "https://docs.mlrun.org/en/stable/api/mlrun.datastore/index.html#mlrun.datastore.vectorstore.VectorStoreCollection.add_artifacts",
+    "https://docs.mlrun.org/en/stable/api/mlrun.datastore/index.html#mlrun.datastore.datastore_profile.ConfigProfile",
+    "https://docs.mlrun.org/en/stable/api/mlrun.artifacts/mlrun.artifacts.document.html#mlrun.artifacts.document.MLRunLoader",
+    "https://docs.mlrun.org/en/stable/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.get_config_profile_attributes",
+    "https://docs.mlrun.org/en/stable/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.get_config_profile_attributes",
+    "https://docs.mlrun.org/en/stable/api/mlrun.artifacts/mlrun.artifacts.document.html#mlrun.artifacts.document.DocumentLoaderSpec",
     "https://docs.confident-ai.com/docs/getting-started",
     "https://docs.confident-ai.com/docs/metrics-contextual-recall",
     "https://docs.confident-ai.com/docs/metrics-answer-relevancy",
@@ -241,7 +256,34 @@ def copy_doc(src, dest, title=""):
 
 
 def setup(app):
-    pass
+    # Only connect the hook for the "latest" version on Read the Docs
+    # to avoid generating llms.txt for every version build
+    # TODO: change to stable (before releasing 1.8.0)
+    if environ.get("READTHEDOCS_VERSION") == "latest":
+        app.connect("build-finished", create_llms_txt)
+
+
+# default header for llms.txt file
+default_prefix = """# MLRun
+MLRun is an open source AI orchestration platform for quickly building and managing continuous (gen) AI applications
+across their lifecycle.
+
+"""
+
+
+def create_llms_txt(app, exception):
+    """
+    Generate the llms.txt file with a default header and content from the specified source file.
+
+    This function is called after the Sphinx build process is finished. It generates an llms.txt file
+    in the output directory, containing a default header and content extracted from the "contents.rst" file.
+    """
+    # Add the directory containing llms.py to the system path
+    sys.path.insert(0, path.abspath("."))
+    from llms import generate_llm_txt
+
+    output_path = path.join(app.outdir, "llms.txt")
+    generate_llm_txt(".", prefix=default_prefix, output_path=output_path)
 
 
 #   project_root = path.dirname(path.dirname(path.abspath(__file__)))

@@ -13,6 +13,12 @@
 # limitations under the License.
 
 name: "PR Title Checker"
+
+permissions:
+  contents: read
+
+  pull-requests: write  # Needed so pr-title-checker can post a comment or set a PR status when title doesn't match rules
+
 on:
 
   # when opening PRs from forks
@@ -28,7 +34,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: thehanimo/pr-title-checker@v1.4.3
+      - uses: thehanimo/pr-title-checker@7fbfe05602bdd86f926d3fb3bccb6f3aed43bc70 # 1.4.3
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           configuration_path: .github/pr-title-validation-config.json

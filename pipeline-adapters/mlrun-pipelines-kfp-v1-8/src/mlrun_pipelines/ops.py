@@ -259,14 +259,19 @@ def add_function_node_selection_attributes(
         enriched_node_selector = mlrun_pipelines.common.ops._enrich_node_selector(
             function
         )
+        enriched_node_selector, enriched_tolerations, enriched_affinity = (
+            mlrun_pipelines.common.ops._enrich_preemption_mode(
+                function, enriched_node_selector
+            )
+        )
         if enriched_node_selector:
             container_op.node_selector = enriched_node_selector
 
-        if getattr(function.spec, "tolerations"):
-            container_op.tolerations = function.spec.tolerations
+        if enriched_tolerations:
+            container_op.tolerations = enriched_tolerations
 
-        if getattr(function.spec, "affinity"):
-            container_op.affinity = function.spec.affinity
+        if enriched_affinity:
+            container_op.affinity = enriched_affinity
 
     return container_op
 

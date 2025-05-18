@@ -28,7 +28,7 @@ class RunIdentifier(pydantic.v1.BaseModel):
 
 @deprecated(
     version="1.7.0",
-    reason="mlrun.common.schemas.RunsFormat is deprecated and will be removed in 1.9.0. "
+    reason="mlrun.common.schemas.RunsFormat is deprecated and will be removed in 1.10.0. "
     "Use mlrun.common.formatters.RunFormat instead.",
     category=FutureWarning,
 )

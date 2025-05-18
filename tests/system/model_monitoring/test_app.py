@@ -43,7 +43,6 @@ import mlrun.feature_store
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
 import mlrun.model_monitoring.api
-import mlrun.model_monitoring.applications.histogram_data_drift
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfileKafkaSource,
@@ -68,7 +67,7 @@ from .assets.application import (
     ErrApp,
     NoCheckDemoMonitoringApp,
 )
-from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
+from .assets.custom_evidently_app import DemoEvidentlyMonitoringApp
 
 
 @dataclass
@@ -213,7 +212,7 @@ class _V3IORecordsChecker:
     @classmethod
     def _test_parquet(
         cls, ep_id: str, inputs: set[str], outputs: set[str]
-    ) -> None:  # TODO : delete in 1.9.0  (V1 app deprecation)
+    ) -> None:  # TODO : delete in 1.10.0  (V1 app deprecation)
         parquet_apps_directory = (
             mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
                 mlrun.get_or_create_project(cls.project_name, allow_cross_project=True),
@@ -366,7 +365,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 results={"data_drift_test", "model_perf"},
             ),
             _AppData(
-                class_=CustomEvidentlyMonitoringApp,
+                class_=DemoEvidentlyMonitoringApp,
                 rel_path="assets/custom_evidently_app.py",
                 requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
                 kwargs={
@@ -374,7 +373,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                     "evidently_project_id": cls.evidently_project_id,
                 },
                 results={"data_drift_test"},
-                artifacts={"evidently_report", "evidently_suite", "dashboard"},
+                artifacts={"evidently_report"},
             ),
             _AppData(
                 class_=ErrApp,
@@ -386,6 +385,14 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
     def custom_setup(self) -> None:
         self.set_mm_credentials()
+        self._external_stream_delay = 0
+        if isinstance(
+            self.mm_stream_profile, DatastoreProfileKafkaSource
+        ) and self.mm_stream_profile.attributes()["brokers"][0].endswith(
+            ".confluent.cloud:9092"
+        ):
+            # external Confluent Cloud degrades the streams latency
+            self._external_stream_delay = 90  # seconds
         super(TestMLRunSystem, self).custom_setup(project_name=self.project_name)
 
     def custom_teardown(self) -> None:
@@ -421,7 +428,13 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 )
 
         elif isinstance(stream_profile, DatastoreProfileKafkaSource):
-            consumer = kafka.KafkaConsumer(bootstrap_servers=stream_profile.brokers)
+            kafka_profile_attributes = stream_profile.attributes()
+            kafka_consumer_kwargs = mlrun.datastore.utils.KafkaParameters(
+                kafka_profile_attributes
+            ).consumer()
+            consumer = kafka.KafkaConsumer(
+                bootstrap_servers=stream_profile.brokers, **kafka_consumer_kwargs
+            )
             topics = consumer.topics()
 
             project_topics_list = [
@@ -693,10 +706,11 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         )
 
         self._infer_with_error(serving_fn, with_training_set=with_training_set)
-        # mark the first window as "done" with another request
+        # wait for the NO-OP event to close the window
         time.sleep(
             2 * self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + self._external_stream_delay
         )
 
         mep = mlrun.db.get_run_db().get_model_endpoint(
@@ -708,11 +722,15 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             tsdb_metrics=True,
         )
 
+        assert (
+            mep.status.last_request == last_request
+        ), "The saved `last_request` in the model endpoint is different than the last result timestamp"
+
         self._test_v3io_records(
             ep_id=mep.metadata.uid,
             inputs=inputs,
             outputs=outputs,
-            last_request=last_request,
+            last_request=mep.status.last_request,
             error_count=self.error_count,
         )
         self._test_predictions_table(mep.metadata.uid)
@@ -1281,7 +1299,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         futures = []
         with concurrent.futures.ThreadPoolExecutor() as executor:
             endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
-                project=self.project_name
+                project=self.project_name, tsdb_metrics=True
             )
             endpoints = endpoints_list.endpoints
             assert len(endpoints) == 7
@@ -1321,7 +1339,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             self._deploy_model_serving(**model_dict, enable_tracking=False)
 
         endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
-            project=self.project_name
+            project=self.project_name, tsdb_metrics=True
         )
         endpoints = endpoints_list.endpoints
         assert len(endpoints) == 1
@@ -1362,7 +1380,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             self._deploy_model_serving(**model_dict, enable_tracking=False)
 
         endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
-            project=self.project_name
+            project=self.project_name, tsdb_metrics=True
         )
         endpoints = endpoints_list.endpoints
         assert len(endpoints) == 1

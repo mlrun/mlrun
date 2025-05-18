@@ -120,7 +120,7 @@ def set_environment(
     :param mock_functions: set to True to create local/mock functions instead of real containers,
                            set to "auto" to auto determine based on the presence of k8s/Nuclio
     :returns:
-        default project name
+        active project name
         actual artifact path/url, can be used to create subpaths per task or group of artifacts
     """
     if env_file:
@@ -161,7 +161,7 @@ def set_environment(
             )
         mlconf.artifact_path = artifact_path
 
-    return mlconf.default_project, mlconf.artifact_path
+    return mlconf.active_project, mlconf.artifact_path
 
 
 def get_current_project(silent: bool = False) -> Optional[MlrunProject]:

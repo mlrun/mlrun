@@ -14,9 +14,7 @@
 
 name: Label PRs by Path
 
-on:
-    pull_request:
-        types: [opened, synchronize, reopened]
+on: pull_request_target
 
 jobs:
   label:
@@ -24,10 +22,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      issues: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/labeler@v4
+      - uses: actions/labeler@v5
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
-          sync-labels: true

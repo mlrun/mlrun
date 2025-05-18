@@ -148,8 +148,32 @@ class ModelArtifact(Artifact):
         feature_weights=None,
         extra_data=None,
         model_dir=None,
+        model_url: Optional[str] = None,
+        default_config: Optional[dict] = None,
         **kwargs,
     ):
+        """
+        :param key:             Artifact key or artifact class ()
+        :param body:            Will use the body as the artifact content
+        :param format:          Optional, format to use (e.g. csv, parquet, ..)
+        :param model_file:      Path to the local model file we upload (see also model_dir)
+                                or to a model file data url (e.g. `http://host/path/model.pkl`)
+        :param metrics:
+        :param target_path:
+        :param parameters:      Key/value dict of model parameters
+        :param inputs:          Ordered list of model input features (name, type, ..)
+        :param outputs:         Ordered list of model output/result elements (name, type, ..)
+        :param framework:       Name of the ML framework
+        :param algorithm:       Training algorithm name
+        :param feature_vector:  Feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
+        :param feature_weights: List of feature weights, one per input column
+        :param extra_data:
+        :param model_dir:       Path to the local dir holding the model file and extra files
+        :param model_url:       remote model url.
+        :param default_config:  default config for client building if model_url
+                                is used. Saved under parameter as a sub dict.
+        :param kwargs:
+        """
         if key or body or format or target_path:
             warnings.warn(
                 "Artifact constructor parameters are deprecated in 1.7.0 and will be removed in 1.10.0. "
@@ -174,6 +198,8 @@ class ModelArtifact(Artifact):
         self.spec.feature_vector = feature_vector
         self.spec.feature_weights = feature_weights
         self.spec.feature_stats = None
+        self.model_url = model_url
+        self.default_config = default_config
 
     @property
     def spec(self) -> ModelArtifactSpec:
@@ -218,6 +244,18 @@ class ModelArtifact(Artifact):
     @parameters.setter
     def parameters(self, parameters):
         self.spec.parameters = parameters
+
+    @property
+    def default_config(self):
+        return self.spec.parameters.get("default_config", {})
+
+    @default_config.setter
+    def default_config(self, default_config):
+        # skip storing 'default_config' if value is empty or unset
+        if default_config:
+            self.spec.parameters["default_config"] = default_config
+        else:
+            self.spec.parameters.pop("default_config", None)
 
     @property
     def metrics(self):

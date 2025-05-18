@@ -22,6 +22,7 @@ import yaml
 
 import mlrun
 import mlrun.datastore
+from mlrun import MLRunInvalidArgumentError
 
 from ..data_types import InferOptions, get_infer_interface
 from ..features import Feature
@@ -185,7 +186,11 @@ class ModelArtifact(Artifact):
         if model_file and "/" in model_file:
             model_dir = path.dirname(model_file)
             model_file = path.basename(model_file)
-
+        if (model_file or model_dir) and model_url:
+            raise MLRunInvalidArgumentError(
+                "Arguments 'model_file' and 'model_dir' cannot be"
+                " used together with 'model_url'."
+            )
         self.spec.model_file = model_file
         self.spec.src_path = model_dir
         self.spec.parameters = parameters or {}

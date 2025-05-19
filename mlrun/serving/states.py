@@ -1126,9 +1126,11 @@ class ModelRunnerStep(TaskStep, StepToDict):
         model_objects = []
         for model, model_params in models.values():
             if not isinstance(model, Model):
+                # Prevent model predict to raise error inside storey.
                 model_params["raise_exception"] = False
                 model = get_class(model, namespace)(**model_params)
             else:
+                # Prevent model predict to raise error inside storey.
                 model._raise_exception = False
             model_objects.append(model)
         self._async_object = ModelRunner(

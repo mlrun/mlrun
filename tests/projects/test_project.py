@@ -1314,6 +1314,7 @@ def test_function_receives_project_artifact_path(rundb_mock):
     rundb_mock.reset()
 
     proj1.spec.artifact_path = "/var"
+    mlrun.get_run_db().store_project("proj1", proj1)
 
     func2 = mlrun.code_to_function(
         "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
@@ -1332,13 +1333,6 @@ def test_function_receives_project_artifact_path(rundb_mock):
 
     rundb_mock.reset()
     mlrun.pipeline_context.clear(with_project=True)
-
-    func3 = mlrun.code_to_function(
-        "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
-    )
-    # expected to call `get_project`, but the project wasn't saved yet, so it will use the default artifact path
-    run5 = func3.run(local=True, project="proj1")
-    assert run5.spec.output_path == mlrun.mlconf.artifact_path
 
     proj1.set_function(func_path, "func", kind="job", image="mlrun/mlrun")
     run = proj1.run_function("func", local=True)
@@ -1476,6 +1470,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
     assert run1.spec.output_path == mlrun.mlconf.artifact_path
     rundb_mock.reset()
 
+    mlrun.get_run_db().store_project("proj1", proj1)
     proj1.spec.artifact_path = "/var"
 
     run2 = proj1.run_function("f1", local=True)
@@ -1646,10 +1641,9 @@ def test_validating_large_int_params(
     rundb_mock, parameters, hyperparameters, expectation, run_saved
 ):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
-    proj1 = mlrun.new_project("proj1", save=False)
+    proj1 = mlrun.new_project("proj1")
     proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
 
-    rundb_mock.reset()
     with expectation:
         proj1.run_function(
             "f1",

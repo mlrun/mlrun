@@ -223,7 +223,7 @@ def get_or_create_ctx(
     :param spec:     dictionary holding run spec
     :param with_env: look for context in environment vars, default True
     :param rundb:    path/url to the metadata and artifact database
-    :param project:  project to initiate the context in (by default `mlrun.mlconf.default_project`)
+    :param project:  project to initiate the context in (by default `mlrun.mlconf.active_project`)
     :param upload_artifacts:  when using local context (not as part of a job/run), upload artifacts to the
                               system default artifact path location
     :param labels: (deprecated - use spec instead) dict of the context labels.
@@ -261,7 +261,7 @@ def get_or_create_ctx(
     """
     if labels:
         warnings.warn(
-            "The `labels` argument is deprecated and will be removed in 1.9.0. "
+            "The `labels` argument is deprecated in 1.7.0 and will be removed in 1.10.0. "
             "Please use `spec` instead, e.g.:\n"
             "spec={'metadata': {'labels': {'key': 'value'}}}",
             FutureWarning,
@@ -298,7 +298,7 @@ def get_or_create_ctx(
         newspec = {}
         if upload_artifacts:
             artifact_path = mlrun.utils.helpers.template_artifact_path(
-                mlconf.artifact_path, project or mlconf.default_project
+                mlconf.artifact_path, project or mlconf.active_project
             )
             update_in(newspec, ["spec", RunKeys.output_path], artifact_path)
 
@@ -312,7 +312,7 @@ def get_or_create_ctx(
         logger.info(f"Logging run results to: {out}")
 
     newspec["metadata"]["project"] = (
-        newspec["metadata"].get("project") or project or mlconf.default_project
+        newspec["metadata"].get("project") or project or mlconf.active_project
     )
 
     newspec["metadata"].setdefault("labels", {})
@@ -369,9 +369,9 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
         url, is_hub_uri = extend_hub_uri_if_needed(url)
         runtime = import_function_to_dict(url, secrets)
     function = new_function(runtime=runtime)
-    project = project or mlrun.mlconf.default_project
+    project = project or mlrun.mlconf.active_project
     # When we're importing from the hub we want to assign to a target project, otherwise any store on it will
-    # simply default to the default project
+    # simply default to the active project
     if project and is_hub_uri:
         function.metadata.project = project
     if new_name:
@@ -464,7 +464,7 @@ def new_function(
            f = new_function().run(task, handler=myfunction)
 
     :param name:     function name
-    :param project:  function project (none for 'default')
+    :param project:  function project (none for the active project)
     :param tag:      function version tag (none for 'latest')
 
     :param kind:     runtime type (local, job, nuclio, spark, mpijob, dask, ..)
@@ -523,7 +523,7 @@ def new_function(
 
     runner.metadata.name = name
     runner.metadata.project = (
-        runner.metadata.project or project or mlconf.default_project
+        runner.metadata.project or project or mlconf.active_project
     )
     if tag:
         runner.metadata.tag = tag
@@ -640,7 +640,7 @@ def code_to_function(
     Learn more about :doc:`../../concepts/functions-overview`
 
     :param name:         function name, typically best to use hyphen-case
-    :param project:      project used to namespace the function, defaults to 'default'
+    :param project:      project used to namespace the function, defaults to the active project
     :param tag:          function tag to track multiple versions of the same function, defaults to 'latest'
     :param filename:     path to .py/.ipynb file, defaults to current jupyter notebook
     :param handler:      The default function handler to call for the job or nuclio function, in batch functions
@@ -729,7 +729,7 @@ def code_to_function(
                 fn.spec.volume_mounts.append(vol.get("volumeMount"))
 
         fn.spec.description = description
-        fn.metadata.project = project or mlconf.default_project
+        fn.metadata.project = project or mlconf.active_project
         fn.metadata.tag = tag
         fn.metadata.categories = categories
         fn.metadata.labels = labels or fn.metadata.labels

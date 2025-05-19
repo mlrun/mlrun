@@ -2723,6 +2723,7 @@ class SQLDB(DBInterface):
         self, function: Function, function_struct: dict
     ):
         function_struct["kind"] = function.kind
+        function_struct["metadata"]["project"] = function.project
 
         # updated field is saved in struct as timestamps with fsp=6, while the corresponding column
         # in the database have fsp=3. Since 'ORDER BY' is applied to the column, we return the value from

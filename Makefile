@@ -72,12 +72,12 @@ SETUP_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		exit 1; \
 		;; \
 	esac \
-fi; \
+fi
 
 PRINT_COVERAGE_REPORT = if [ "$(RUN_COVERAGE)" = "true" ]; then \
     	echo "coverage report $$COVERAGE_FILE :"; \
 		COVERAGE_FILE=$$COVERAGE_FILE coverage report; \
-	fi;
+	fi
 
 # Verify the mount point to avoid deleting essential paths
 SETUP_COVERAGE_MOUNTING = if [[ "$(RUN_COVERAGE)" == "true" ]]; then \
@@ -90,7 +90,7 @@ SETUP_COVERAGE_MOUNTING = if [[ "$(RUN_COVERAGE)" == "true" ]]; then \
 			exit 1; \
 			;; \
 		esac \
-	fi;
+	fi
 # THIS BLOCK IS FOR COMPUTED VARIABLES
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 MLRUN_CACHE_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_CACHE_FROM_REGISTRY),$(strip $(MLRUN_DOCKER_CACHE_FROM_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
@@ -577,7 +577,7 @@ clean: ## Clean python package build artifacts
 .PHONY: test-dockerized
 test-dockerized: build-test ## Run mlrun tests in docker container
 	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/unit_tests$(COVERAGE_DIR_SUFFIX)" ;\
-	$(SETUP_COVERAGE_MOUNTING) \
+	$(SETUP_COVERAGE_MOUNTING) && \
 	docker run \
 		-t \
 		--rm \
@@ -601,7 +601,7 @@ test: clean ## Run mlrun tests
 	--ignore=tests/system \
 	--ignore=tests/rundb/test_httpdb.py \
 	--ignore=server/py/services/api/migrations \
-	");\
+	") && \
 	PER_PYTHON_VERSION_IGNORE_TEST_FLAGS=$(if $(filter $(MLRUN_PYTHON_VERSION),3.11),$$(echo "\
 		--ignore=server/py/services/api/tests/unit/api/test_pipelines.py \
 		--ignore=tests/projects/test_kfp.py \
@@ -609,15 +609,15 @@ test: clean ## Run mlrun tests
 		--ignore=tests/serving/test_remote.py \
 		--ignore=tests/projects/test_remote_pipeline.py \
 		--ignore=pipeline-adapters/mlrun-pipelines-kfp-v1-8/tests \
-		"),);\
+		"),) && \
 	if [ "$(UNIT_TESTS_IGNORE_PATH)" != "" ]; then \
   		IGNORE_ADDITION="--ignore=$(UNIT_TESTS_IGNORE_PATH)"; \
 	else \
 		IGNORE_ADDITION=""; \
-	fi; \
-	COVERAGE_FILE=$(COVERAGE_FILE); \
-	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/unit_tests.coverage"}; \
-	$(SETUP_COVERAGE) \
+	fi && \
+	COVERAGE_FILE=$(COVERAGE_FILE) && \
+	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/unit_tests.coverage"} && \
+	$(SETUP_COVERAGE) && \
 	python \
 		-X faulthandler \
 		$(COVERAGE_ADDITION) \
@@ -630,15 +630,15 @@ test: clean ## Run mlrun tests
 		$$IGNORE_ADDITION \
 		--forked \
 		-rf \
-		$$UNIT_TESTS_PATH ;\
-	$(PRINT_COVERAGE_REPORT)
+		$$UNIT_TESTS_PATH && \
+	$(PRINT_COVERAGE_REPORT) ;
 
 
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test ## Run mlrun integration tests in docker container
 	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/integration_tests" ;\
-	$(SETUP_COVERAGE_MOUNTING) \
+	$(SETUP_COVERAGE_MOUNTING)  && \
 	docker run \
 		-t \
 		--rm \
@@ -652,9 +652,9 @@ test-integration-dockerized: build-test ## Run mlrun integration tests in docker
 .PHONY: test-integration
 test-integration: clean ## Run mlrun integration tests
 	set -e; \
-	COVERAGE_FILE=$(COVERAGE_FILE); \
-	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/integration_tests.coverage"}; \
-	$(SETUP_COVERAGE) \
+	COVERAGE_FILE=$(COVERAGE_FILE) && \
+	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/integration_tests.coverage"} && \
+	$(SETUP_COVERAGE) && \
 	python $(COVERAGE_ADDITION) \
 		-m pytest -v \
 		--capture=no \
@@ -662,13 +662,13 @@ test-integration: clean ## Run mlrun integration tests
 		--durations=100 \
 		-rf \
 		tests/integration \
-		tests/rundb/test_httpdb.py; \
-	$(PRINT_COVERAGE_REPORT)
+		tests/rundb/test_httpdb.py && \
+	$(PRINT_COVERAGE_REPORT);
 
 .PHONY: test-migrations-dockerized
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container
 	COVERAGE_MOUNT_PATH="/tmp/coverage_reports/migration_tests" ;\
-	$(SETUP_COVERAGE_MOUNTING) \
+	$(SETUP_COVERAGE_MOUNTING) && \
 	docker run \
 		-t \
 		--rm \
@@ -682,11 +682,11 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 
 .PHONY: test-migrations
 test-migrations: clean ## Run mlrun db migrations tests
-	COVERAGE_FILE=$(COVERAGE_FILE); \
-	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/migration_tests.coverage"}; \
-	$(SETUP_COVERAGE) \
-	COVERAGE_ADDITION="$(COVERAGE_ADDITION)" ./automation/scripts/test_migration_mysql.sh ;\
-	$(PRINT_COVERAGE_REPORT)
+	COVERAGE_FILE=$(COVERAGE_FILE) && \
+	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/migration_tests.coverage"} && \
+	$(SETUP_COVERAGE) && \
+	COVERAGE_ADDITION="$(COVERAGE_ADDITION)" ./automation/scripts/test_migration_mysql.sh && \
+	$(PRINT_COVERAGE_REPORT) ;
 
 
 .PHONY: test-system-dockerized

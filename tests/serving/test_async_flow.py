@@ -318,15 +318,13 @@ def _test_model_runner_raise_error_output(
             with pytest.raises(RuntimeError):
                 server.test(body={"n": "This should fail"})
         else:
+            body = server.test(body={"n": "This should fail"})
             if models is None or len(models) == 1:
-                assert "error" in server.test(
-                    body={"n": "This should fail"}
-                ), "Expected error field in body"
+                assert "error" in body, f"Expected error field in body got {body}"
             else:
                 assert all(
-                    "error" in server.test(body={"n": "This should fail"}).get(model)
-                    for model in models
-                ), "Expected error field in body"
+                    "error" in body.get(model) for model in models
+                ), f"Expected error field for each model in body got {body}"
     else:
         if models is None or len(models) == 1:
             assert server.test(body={"n": 1}) == {"n": 2}

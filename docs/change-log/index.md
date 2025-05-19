@@ -1277,6 +1277,19 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.11.0      | v1.8.0 |`mlrun.platforms.mount_v3io`                                                  |.mounts.mount_v3io|
 | v1.11.0      | v1.8.0 |`mlrun.platforms.set_env_variables`                                                  |.mounts.set_env_variables|
 | v1.11.0      | v1.8.0 |`mlrun.platforms.v3io_cred`                                                  |.mounts.v3io_cred instead"|
+| v1.10.0      | v1.8.0 |`key`, `body`, `viewer`, `is_inline`, `format`, `size`, `target_path`, `project` and `src_path` in `mlrun.artifacts.base.Artifact`|`metadata and `spec`|
+| v1.10.0      | v1.8.0 |`key`, `body`, `viewer`, `is_inline`, `format`, `size`, `target_path`, `project` and `src_path` in `mlrun.artifacts.base.LinkArtifact`|`metadata and `spec`|
+| v1.11.0      | v1.8.0 |`key`, `format`, and `target_path` in `mlrun.artifacts.datasets.DatasetArtifact` |`metadata and `spec` |
+| v1.11.0      | v1.8.0 |`key`, `body`, `format`, and `target_path` in `mlrun.artifacts.model.ModelArtifact`|`metadata and `spec` |
+| v1.11.0      | v1.8.0 |`key`, `body`, `is_inline`, and `target_path` in `mlrun.artifacts.plots.PlotArtifact` |`metadata and `spec` |
+| v1.11.0      | v1.8.0 |`key`, and `target_path` in `mlrun.artifacts.plots.PlotlyArtifact`  |`metadata and `spec` |
+| v1.11.0      | v1.8.0 |`labels` in`get_or_create_ctx` |`spec` |
+| v1.11.0      | v1.8.0 |`/v1/projects/{project}/functions/{name}` |`/v2/projects/{project}/functions/{name}` |
+| v1.11.0      | v1.8.0 |`overwrite_build_params` in `MlrunProject.build_function` | |
+| v1.11.0      | v1.8.0 |`overwrite_build_params` in `MlrunProject.build_config` | |
+| v1.11.0      | v1.8.0 |`overwrite_build_params` in `MlrunProject.build_image` | |
+| v1.11.0      | v1.8.0 |`overwrite_build_params` in `mlrun.projects.operations.build_function` | |
+| v1.11.0      | v1.8.0 |`overwrite` in `KubejobRuntime.build_config` | |
 | v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.RunsFormat`                                       |`mlrun.common.formatters.RunFormat`                |
 | v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.ArtifactsFormat`                                  |`mlrun.common.formatters.ArtifactFormat`                |
 | v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.ProjectsFormat`                                  |`mlrun.common.formatters.ProjectFormat`                |

@@ -8,10 +8,18 @@
 ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/mlrun/mlrun?sort=semver)
 [![Join MLOps Live](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://mlopslive.slack.com)
 
-<p>
-  <img src="./docs/_static/images/MLRun-logo.png" alt="MLRun logo" width="150" style="vertical-align: middle; margin-right: 250px;">
-  <img src="./docs/_static/images/maintenance_logo.svg" alt="Maintenance logo" width="250" style="vertical-align: middle;">
-</p>
+<table width="100%" style="border: none; background: none;"><tr>
+  <td align="left" style="border: none; background: none;">
+    <picture>
+      <img src="./docs/_static/images/MLRun-logo.png" alt="MLRun logo" width="150"/>
+    </picture>
+  </td>
+  <td align="right" style="border: none; background: none;">
+    <picture>
+      <img src="./docs/_static/images/maintenance_logo.svg" alt="Maintenance logo" width="250"/>
+    </picture>
+  </td>
+</tr></table>
 
 # Using MLRun 
 

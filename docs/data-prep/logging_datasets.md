@@ -14,7 +14,7 @@ context.log_dataset(key="my_data", df=df)
 Where `key` is the name of the artifact and `df` is the DataFrame. By default, MLRun stores a short preview of 20 lines.
 You can change the number of lines by changing the value of the `preview` parameter.
 
-MLRun also calculates statistics on the DataFrame on all numeric fields. You can enable statistics regardless to the 
+MLRun also calculates statistics on the DataFrame on all numeric fields. You can enable statistics regardless of the 
 DataFrame size by setting the `stats` parameter to `True`.
 
 ## Logging a dataset from a job

@@ -1,6 +1,8 @@
 (ingesting_data)=
 # Using data sources and items
 
+Learn how to access data by using the DataIem object, and how it is used to process data.
+
 **In this section**
 - [Connecting to data sources](#connecting-to-data-sources)
 - [Data processing](#data-processing)

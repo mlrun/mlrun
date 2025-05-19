@@ -1,6 +1,8 @@
 (install-on-kubernetes)=
 # Install MLRun CE on Kubernetes
 
+These instructions install the community edition (CE) on your Kubernetes cluster. This procedure installs an EKS cluster, an EBS volume, an S3 bucket, load balancing, etc. When you complete this procedure, you'll have the Community Edition of MLRun running on your EKS cluster.
+
 ```{admonition} Note
 These instructions install the community edition, which currently includes MLRun {{ ceversion }}. 
 ```

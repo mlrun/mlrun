@@ -271,6 +271,26 @@ def test_model_runner_error_raiser(raise_error: bool, with_error: bool):
 
 @pytest.mark.parametrize("raise_error", (True, False))
 @pytest.mark.parametrize("with_error", (True, False))
+def test_model_runner_error_raiser_multiple_models(raise_error: bool, with_error: bool):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner", raise_exception=raise_error
+    )
+    model_runner_step.add_model(
+        model_class="MyModel", endpoint_name="my_model_0", raise_error=False, inc=1
+    )
+    model_runner_step.add_model(
+        model_class="MyModel", endpoint_name="my_model_1", raise_error=False, inc=1
+    )
+    graph.to(model_runner_step).respond()
+    _test_model_runner_raise_error_output(
+        function, raise_error, with_error, models=["my_model_0", "my_model_1"]
+    )
+
+
+@pytest.mark.parametrize("raise_error", (True, False))
+@pytest.mark.parametrize("with_error", (True, False))
 def test_model_runner_multiple_downstream_steps(raise_error: bool, with_error: bool):
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
@@ -289,18 +309,29 @@ def test_model_runner_multiple_downstream_steps(raise_error: bool, with_error: b
     _test_model_runner_raise_error_output(function, raise_error, with_error)
 
 
-def _test_model_runner_raise_error_output(function, raise_error, with_error):
+def _test_model_runner_raise_error_output(
+    function, raise_error, with_error, models=None
+):
     server = function.to_mock_server()
     if with_error:
         if raise_error:
             with pytest.raises(RuntimeError):
                 server.test(body={"n": "This should fail"})
         else:
-            assert "error" in server.test(
-                body={"n": "This should fail"}
-            ), "Expected error field in body"
+            if models is None or len(models) == 1:
+                assert "error" in server.test(
+                    body={"n": "This should fail"}
+                ), "Expected error field in body"
+            else:
+                assert all(
+                    "error" in server.test(body={"n": "This should fail"}).get(model)
+                    for model in models
+                ), "Expected error field in body"
     else:
-        assert server.test(body={"n": 1}) == {"n": 2}
+        if models is None or len(models) == 1:
+            assert server.test(body={"n": 1}) == {"n": 2}
+        else:
+            assert server.test(body={"n": 1}) == {model: {"n": 2} for model in models}
     server.wait_for_completion()
 
 

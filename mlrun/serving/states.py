@@ -1022,8 +1022,8 @@ class ModelRunnerStep(TaskStep, StepToDict):
 
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
       event. Optional. If not passed, all models will be run.
-    :param raise_exception:  bool if True error will be raised when model selection fails or if one of the models raised
-      error, if False error will be writen as part of the output event.
+    :param raise_exception:  If True, an error will be raised when model selection fails or if one of the models raised
+      an error. If False, the error will appear in the output event.
     """
 
     kind = "model_runner"
@@ -1042,7 +1042,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
             class_args=dict(model_selector=model_selector),
             **kwargs,
         )
-        self._raise_exception = raise_exception
+        self.raise_exception = raise_exception
 
     def add_model(
         self,

@@ -337,14 +337,14 @@ def add_system_steps_to_graph(graph: RootFlowStep):
     for step in steps:
         if (
             isinstance(step, mlrun.serving.states.ModelRunnerStep)
-            and step._raise_exception
+            and step.raise_exception
         ):
             error_step = graph.add_step(
                 class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
                 name=f"{step.name}_error_raise",
                 after=step.name,
                 full_event=True,
-                raise_exception=step._raise_exception,
+                raise_exception=step.raise_exception,
                 models_names=list(step.class_args["models"].keys()),
             )
             if step.responder:

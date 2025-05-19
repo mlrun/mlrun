@@ -88,7 +88,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         resp = function.invoke("/", {"x": "y"})
         assert resp == {"x": "y", "extra": 123}
 
-    @pytest.mark.parametrize("raise_exception", [True])
+    @pytest.mark.parametrize("raise_exception", [True, False])
     def test_deploy_model_runner_error_handler(self, raise_exception: bool):
         code_path = str(self.assets_path / "function-with-catcher.py")
 

@@ -9,12 +9,12 @@
 [![Join MLOps Live](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://mlopslive.slack.com)
 
 <table width="100%" style="border: none; background: none;"><tr>
-  <td align="left" style="border: none; background: none;">
+  <td align="left" style="border: none; background: none; width: 50%;">
     <picture>
       <img src="./docs/_static/images/MLRun-logo.png" alt="MLRun logo" width="150"/>
     </picture>
   </td>
-  <td align="right" style="border: none; background: none;">
+  <td align="right" style="border: none; background: none; width: 50%;">
     <picture>
       <img src="./docs/_static/images/maintenance_logo.svg" alt="Maintenance logo" width="250"/>
     </picture>

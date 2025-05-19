@@ -294,10 +294,10 @@ def _test_model_runner_raise_error_output(function, raise_error, with_error):
     if with_error:
         if raise_error:
             with pytest.raises(RuntimeError):
-                server.test(body={"n": "1"})
+                server.test(body={"n": "This should fail"})
         else:
             assert "error" in server.test(
-                body={"n": "1"}
+                body={"n": "This should fail"}
             ), "Expected error field in body"
     else:
         assert server.test(body={"n": 1}) == {"n": 2}

@@ -1027,7 +1027,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
     """
 
     kind = "model_runner"
-    _dict_fields = TaskStep._dict_fields + ["_raise_exception"]
+    _dict_fields = TaskStep._dict_fields + ["raise_exception"]
 
     def __init__(
         self,

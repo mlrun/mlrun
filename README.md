@@ -9,14 +9,14 @@
 [![Join MLOps Live](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://mlopslive.slack.com)
 
 <div>
-  <span style="float: left;">
+  <span>
     <picture>
-      <img src="./docs/_static/images/MLRun-logo.png" alt="MLRun logo" width="150"/>
+      <img img align="left" src="./docs/_static/images/MLRun-logo.png" alt="MLRun logo" width="150"/>
     </picture>
   </span>
-  <span style="float: right;">
+  <span>
     <picture>
-      <img src="./docs/_static/images/maintenance_logo.svg" alt="Maintenance logo" width="250"/>
+      <img img align="right" src="./docs/_static/images/maintenance_logo.svg" alt="Maintenance logo" width="250"/>
     </picture>
   </span>
   <br clear="all"/>

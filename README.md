@@ -14,9 +14,9 @@
       <picture>
         <img src="./docs/_static/images/MLRun-logo.png" alt="MLRun logo" width="150"/>
       </picture>
-      &nbsp;
     </td>
-    <td align="right" valign="middle">
+    <td width="100%"></td>
+    <td width="250" align="right" valign="middle">
       <picture>
         <img src="./docs/_static/images/maintenance_logo.svg" alt="Maintenance logo" width="250"/>
       </picture>

@@ -32,12 +32,14 @@ import storey.utils
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas as schemas
+from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaSource,
     DatastoreProfileKafkaTarget,
     DatastoreProfileV3io,
     datastore_profile_read,
 )
+from mlrun.datastore.store_resources import get_store_resource
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import logger
 
@@ -955,6 +957,32 @@ class RouterStep(TaskStep):
 
 
 class Model(storey.ParallelExecutionRunnable):
+    def __init__(
+        self,
+        name: str,
+        raise_exception: bool = True,
+        artifact: Union[
+            ModelArtifact, Any, str
+        ] = None,  # TODO: Replace Any with LLMPromptArtifact when ready
+        **kwargs,
+    ):
+        super().__init__(name=name, raise_exception=raise_exception)
+        if isinstance(artifact, str):
+            if mlrun.datastore.is_store_uri(artifact):
+                artifact = get_store_resource(artifact)
+            else:
+                raise ValueError(
+                    "When passing artifact as a string, it must be a valid artifact store URI."
+                )
+        # TODO: Add LLMPromptArtifact when ready
+        if artifact is not None and not isinstance(artifact, ModelArtifact):
+            raise ValueError(
+                "Model support only ModelArtifact or LLMPromptArtifact as model artifact."
+            )
+        self.artifact = artifact
+        self._kwargs = kwargs
+        self.model = None
+
     def load(self) -> None:
         """Override to load model if needed."""
         pass

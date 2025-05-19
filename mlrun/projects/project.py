@@ -1868,7 +1868,7 @@ class MlrunProject(ModelObj):
             feature_vector=feature_vector,
             feature_weights=feature_weights,
             extra_data=extra_data,
-            model_url= model_url,
+            model_url=model_url,
             default_config=default_config,
             **kwargs,
         )

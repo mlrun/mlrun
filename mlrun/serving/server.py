@@ -371,7 +371,7 @@ def v2_serving_init(context, namespace=None):
     if isinstance(server.graph, RootFlowStep):
         server.graph = add_system_steps_to_graph(copy.deepcopy(server.graph))
         context.logger.info_with(
-            "Server graph after adding system steps.",
+            "Server graph after adding system steps",
             graph=str(server.graph.steps),
         )
 

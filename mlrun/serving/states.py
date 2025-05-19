@@ -1126,11 +1126,11 @@ class ModelRunnerStep(TaskStep, StepToDict):
         model_objects = []
         for model, model_params in models.values():
             if not isinstance(model, Model):
-                # Prevent model predict to raise error inside storey.
+                # prevent model predict to raise error inside storey
                 model_params["raise_exception"] = False
                 model = get_class(model, namespace)(**model_params)
             else:
-                # Prevent model predict to raise error inside storey.
+                # prevent model predict to raise error inside storey
                 model._raise_exception = False
             model_objects.append(model)
         self._async_object = ModelRunner(
@@ -1150,7 +1150,7 @@ class ModelRunnerErrorRaiser(storey.MapClass):
             errors = {}
             should_raise = False
             if len(self._models_names) == 1:
-                should_raise = True if event.body.get("error") is not None else False
+                should_raise = event.body.get("error") is not None
                 errors[self._models_names[0]] = event.body.get("error")
             else:
                 for model in event.body:

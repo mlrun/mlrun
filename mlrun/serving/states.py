@@ -966,7 +966,7 @@ class Model(storey.ParallelExecutionRunnable):
         ] = None,  # TODO: Replace Any with LLMPromptArtifact when ready
         **kwargs,
     ):
-        super().__init__(name=name, raise_exception=raise_exception)
+        super().__init__(name=name, raise_exception=raise_exception, **kwargs)
         if isinstance(artifact, str):
             if mlrun.datastore.is_store_uri(artifact):
                 artifact = get_store_resource(artifact)

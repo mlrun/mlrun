@@ -158,8 +158,8 @@ class ModelArtifact(Artifact):
         :param format:          Optional, format to use (e.g. csv, parquet, ..)
         :param model_file:      Path to the local model file we upload (see also model_dir)
                                 or to a model file data url (e.g. `http://host/path/model.pkl`)
-        :param metrics:
-        :param target_path:
+        :param metrics:         The key/value dict of model metrics
+        :param target_path:     Absolute target path (instead of using artifact_path + local_path)
         :param parameters:      Key/value dict of model parameters
         :param inputs:          Ordered list of model input features (name, type, ..)
         :param outputs:         Ordered list of model output/result elements (name, type, ..)

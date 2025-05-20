@@ -1011,7 +1011,8 @@ class ModelRunner(storey.ParallelExecution):
 
     async def _do(self, event):
         event = await super()._do(event)
-        event.metadata["model_runner_name"] = self.name
+        if event is not None:
+            event.metadata["model_runner_name"] = self.name
         return event
 
 

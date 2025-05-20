@@ -18,6 +18,7 @@ import storey
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.serving
+from mlrun.serving import ModelRunnerStep
 from mlrun.serving.remote import RemoteStep
 from mlrun.utils import logger
 
@@ -31,8 +32,29 @@ class MonitoringPreProcessor(storey.MapClass):  # TODO Roy is this necessary
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.model_endpoints = model_endpoints
-        self.labels = labels
+        self.model_endpoints: dict[str, dict[str, dict[str, str]]] = {}
+        self.labels: dict[str, dict[str, str]] = {}
+        server: mlrun.serving.GraphServer = getattr(
+            self.context, "_server", None
+        ) or getattr(self.context, "server", None)
+        for step in server.graph:
+            if isinstance(step, ModelRunnerStep):
+                model_endpoints[step.name] = {}
+                monitoring_data = step.class_args.get(
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                )
+                for model in step.class_args.get(
+                    mlrun.common.schemas.ModelRunnerStepData.MODELS, {}
+                ).keys():
+                    model_endpoints[step.name][
+                        mm_schemas.StreamProcessingEvent.MODEL
+                    ] = model
+                    model_endpoints[step.name][
+                        mm_schemas.StreamProcessingEvent.ENDPOINT_ID
+                    ] = monitoring_data[model][
+                        mm_schemas.StreamProcessingEvent.ENDPOINT_ID
+                    ]
+                    labels[model] = monitoring_data[model].get(mlrun.common.schemas.MonitoringData.OUTPUTS)
         self.context = context
 
     def _do(self, event):
@@ -124,10 +146,15 @@ class BackgroundTaskStatus(RemoteStep):
         self._background_task_status = mlrun.common.schemas.BackgroundTaskState.running
 
         path = f"projects/{self.server.project}/background-tasks/{self.server.model_endpoint_creation_task_name}"
-        super().__init__(url=self.context.get_run_db().get_base_api_url(path), method="GET" ,**kwargs)
+        super().__init__(
+            url=self.context.get_run_db().get_base_api_url(path), method="GET", **kwargs
+        )
 
     async def _process_event(self, event):
-        if self._background_task_status == mlrun.common.schemas.BackgroundTaskState.running:
+        if (
+            self._background_task_status
+            == mlrun.common.schemas.BackgroundTaskState.running
+        ):
             response = await super()._process_event(event)
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
             self._background_task_check_timestamp = mlrun.utils.now_date()
@@ -135,19 +162,24 @@ class BackgroundTaskStatus(RemoteStep):
                 return event
             else:
                 return None
-        elif self._background_task_status == mlrun.common.schemas.BackgroundTaskState.failed:
+        elif (
+            self._background_task_status
+            == mlrun.common.schemas.BackgroundTaskState.failed
+        ):
             return None
         return event
 
-    def _background_task_succeeded(self, background_task: mlrun.common.schemas.BackgroundTask):
+    def _background_task_succeeded(
+        self, background_task: mlrun.common.schemas.BackgroundTask
+    ):
         logger.debug(
             "Checking model endpoint creation task status",
             task_name=self.server.model_endpoint_creation_task_name,
         )
         self._background_task_status = background_task.status.state
         if (
-                background_task.status.state
-                in mlrun.common.schemas.BackgroundTaskState.terminal_states()
+            background_task.status.state
+            in mlrun.common.schemas.BackgroundTaskState.terminal_states()
         ):
             logger.debug(
                 f"Model endpoint creation task completed with state {background_task.status.state}"
@@ -159,44 +191,68 @@ class BackgroundTaskStatus(RemoteStep):
                 name=self.name,
                 background_task_check_timestamp=self._background_task_check_timestamp.isoformat(),
             )
-        return background_task.status.state == mlrun.common.schemas.BackgroundTaskState.succeeded
+        return (
+            background_task.status.state
+            == mlrun.common.schemas.BackgroundTaskState.succeeded
+        )
 
 
 class SamplingStep(storey.MapClass):
     def __init__(
-        self, sampling_rate: float, inputs_path: str, result_path: str, **kwargs
+        self,
+        context,
+        sampling_percentage: float,
+        **kwargs,
     ):
         super().__init__(**kwargs)
-        self.sampling_rate = sampling_rate
-        self.inputs_path = inputs_path
-        self.result_path = result_path
+        server: mlrun.serving.GraphServer = getattr(
+            self.context, "_server", None
+        ) or getattr(context, "server", None)
+        self.sampling_percentage = sampling_percentage
+        self.input_path: dict[str, str] = {}
+        self.result_path = dict[str, str] = {}
+        for step in server.graph:
+            if isinstance(step, ModelRunnerStep):
+                monitoring_data = step.class_args.get(
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {})
+                self.input_path[step.name] = monitoring_data.get(mlrun.common.schemas.MonitoringData.INPUT_PATH)
+                self.result_path[step.name] = monitoring_data.get("result_path")
+
+
 
     def do(self, event):
-        sampled_requests_indices = self._pick_random_requests(
-            len(event[mm_schemas.StreamProcessingEvent.REQUEST].get(self.inputs_path)),
-            self.sampling_rate,
-        )
-
-        event[mm_schemas.StreamProcessingEvent.REQUEST][self.inputs_path] = [
-            event[mm_schemas.StreamProcessingEvent.REQUEST][self.inputs_path][i]
-            for i in sampled_requests_indices
-        ]
-
-        if (
-            event
-            and self.result_path in event[mm_schemas.StreamProcessingEvent.REQUEST]
-            and isinstance(
-                event[mm_schemas.StreamProcessingEvent.REQUEST][self.result_path], list
+        model_input_path = self.input_path.get(event.get(mm_schemas.StreamProcessingEvent.MODEL))
+        model_result_path = self.result_path.get(event.get(mm_schemas.StreamProcessingEvent.MODEL))
+        if model_input_path:
+            sampled_requests_indices = self._pick_random_requests(
+                len(
+                    event[mm_schemas.StreamProcessingEvent.REQUEST].get(
+                        model_input_path
+                    )
+                ),
+                self.sampling_percentage,
             )
-        ):
-            event[mm_schemas.StreamProcessingEvent.REQUEST][self.result_path] = [
-                event[mm_schemas.StreamProcessingEvent.REQUEST][self.result_path][i]
+
+            event[mm_schemas.StreamProcessingEvent.REQUEST][model_input_path] = [
+                event[mm_schemas.StreamProcessingEvent.REQUEST][model_input_path][i]
                 for i in sampled_requests_indices
             ]
-        event[mm_schemas.EventFieldType.SAMPLING_PERCENTAGE] = self.sampling_rate
-        event[mm_schemas.EventFieldType.EFFECTIVE_SAMPLE_COUNT] = len(
-            event.get(self.inputs_path)
-        )
+
+            if (
+                event
+                and self.result_path in event[mm_schemas.StreamProcessingEvent.REQUEST]
+                and isinstance(
+                    event[mm_schemas.StreamProcessingEvent.REQUEST][model_result_path], list
+                )
+            ):
+                event[mm_schemas.StreamProcessingEvent.REQUEST][model_result_path] = [
+                    event[mm_schemas.StreamProcessingEvent.REQUEST][model_result_path][i]
+                    for i in sampled_requests_indices
+                ]
+            event[mm_schemas.EventFieldType.SAMPLING_PERCENTAGE] = self.sampling_percentage
+            event[mm_schemas.EventFieldType.EFFECTIVE_SAMPLE_COUNT] = len(
+                event.get(model_input_path)
+            )
         return event
 
     @staticmethod

@@ -767,7 +767,9 @@ class ServingRuntime(RemoteRuntime):
 
         system_graph = None
         if isinstance(self.spec.graph, RootFlowStep):
-            system_graph = add_system_steps_to_graph(copy.deepcopy(self.spec.graph))
+            system_graph = add_system_steps_to_graph(
+                copy.deepcopy(self.spec.graph), self.spec.track_models
+            )
         server = create_graph_server(
             parameters=self.spec.parameters,
             load_mode=self.spec.load_mode,

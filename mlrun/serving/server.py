@@ -29,6 +29,7 @@ from nuclio.request import Logger as NuclioLogger
 import mlrun
 import mlrun.common.constants
 import mlrun.common.helpers
+import mlrun.common.schemas
 import mlrun.model_monitoring
 import mlrun.utils
 from mlrun.config import config
@@ -42,7 +43,14 @@ from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
 from ..utils import get_caller_globals
-from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
+from .states import (
+    FlowStep,
+    GraphError,
+    RootFlowStep,
+    RouterStep,
+    get_function,
+    graph_root_setter,
+)
 from .utils import event_id_key, event_path_key
 
 DUMMY_STREAM = "dummy://"
@@ -331,7 +339,7 @@ class GraphServer(ModelObj):
         return self.graph.wait_for_completion()
 
 
-def add_error_raiser_step(graph: RootFlowStep):
+def add_error_raiser_step(graph: RootFlowStep) -> RootFlowStep:
     model_runner_raisers = {}
     steps = list(graph.steps.values())
     for step in steps:
@@ -362,14 +370,84 @@ def add_error_raiser_step(graph: RootFlowStep):
     return graph
 
 
-def add_monitoring_pre_process_steps(graph: RootFlowStep):
+def apply_monitoring_general_steps(
+    graph: RootFlowStep,
+    context,
+    serving_spec,
+) -> tuple[RootFlowStep, FlowStep]:
+    monitor_flow_step = graph.add_step(
+        "mlrun.serving.system_steps.BackgroundTaskStatus",
+        "background_task_status_step",
+        full_event=True,
+        context=context,
+    )
+    graph.add_step(
+        "storey.Filter",
+        "filter_none",
+        _fn="(event is not None)",
+        after="background_task_status_step",
+    )
+    graph.add_step(
+        "mlrun.serving.system_steps.MonitoringPreProcessor",
+        "monitoring_pre_processor_step",
+        after="filter_none",
+        context=context,
+    )
+    graph.add_step(
+        "mlrun.serving.system_steps.SamplingStep",
+        "sampling_step",
+        after="monitoring_pre_processor_step",
+        context=context,
+        sampling_percentage=serving_spec.get("parameters", {}).get(
+            "sampling_percentage"
+        )
+        if isinstance(serving_spec, dict)
+        else serving_spec.parameters.sampling_percentage,
+    )
+    server: mlrun.serving.GraphServer = getattr(context, "_server", None) or getattr(
+        context, "server", None
+    )
+    stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
+        project=server.project,
+        kind=mlrun.common.schemas.model_monitoring.constants.FileTargetKind.STREAM,
+        target="online",
+        function_name=server.function_name,
+    )
+    graph.add_step(
+        ">>",
+        "controller_stream",
+        path=stream_uri,
+        sharding_func=mlrun.common.schemas.model_monitoring.constants.StreamProcessingEvent.ENDPOINT_ID,
+        after="sampling_step",
+    )
+    return graph, monitor_flow_step
+
+
+def add_monitoring_pre_process_steps(graph: RootFlowStep, context):
+    graph, monitor_flow_step = apply_monitoring_general_steps(graph, context)
+    model_runner_steps_names = {
+        step.name: step
+        for step in graph.steps.values()
+        if isinstance(step, mlrun.serving.states.ModelRunnerStep)
+    }
+    for step_name, step in model_runner_steps_names.items():
+        if isinstance(step.after, list):
+            step.after.append(monitor_flow_step.name)
+        elif isinstance(step.after, str):
+            step.after = step.after = [step.after, monitor_flow_step.name]
+        else:
+            raise GraphError(
+                "Expected model runner step to be followed by error raiser step"
+            )
     return graph
 
 
-def add_system_steps_to_graph(graph: RootFlowStep, track_models: bool):
+def add_system_steps_to_graph(
+    graph: RootFlowStep, track_models: bool, context=None
+) -> RootFlowStep:
     graph = add_error_raiser_step(graph)
     if track_models:
-        graph = add_monitoring_pre_process_steps(graph)
+        graph = add_monitoring_pre_process_steps(graph, context)
     return graph
 
 
@@ -381,7 +459,7 @@ def v2_serving_init(context, namespace=None):
     server = GraphServer.from_dict(spec)
     if isinstance(server.graph, RootFlowStep):
         server.graph = add_system_steps_to_graph(
-            copy.deepcopy(server.graph), spec.get("track_models")
+            copy.deepcopy(server.graph), spec.get("track_models"), context
         )
         context.logger.info_with(
             "Server graph after adding system steps",

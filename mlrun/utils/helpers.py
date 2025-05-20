@@ -96,6 +96,7 @@ class StorePrefix:
     Model = "models"
     Dataset = "datasets"
     Document = "documents"
+    LLMPrompt = "llm-prompts"
 
     @classmethod
     def is_artifact(cls, prefix):
@@ -107,6 +108,7 @@ class StorePrefix:
             "model": cls.Model,
             "dataset": cls.Dataset,
             "document": cls.Document,
+            "llm-prompt": cls.LLMPrompt,
         }
         return kind_map.get(kind, cls.Artifact)
 
@@ -119,6 +121,7 @@ class StorePrefix:
             cls.FeatureSet,
             cls.FeatureVector,
             cls.Document,
+            cls.LLMPrompt,
         ]
 
 
@@ -131,7 +134,7 @@ def get_artifact_target(item: dict, project=None):
     kind = item.get("kind")
     uid = item["metadata"].get("uid")
 
-    if kind in {"dataset", "model", "artifact"} and db_key:
+    if kind in {"dataset", "model", "artifact", "llm-prompt"} and db_key:
         target = (
             f"{DB_SCHEMA}://{StorePrefix.kind_to_prefix(kind)}/{project_str}/{db_key}"
         )

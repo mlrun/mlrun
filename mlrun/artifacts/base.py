@@ -106,6 +106,8 @@ class ArtifactSpec(ModelObj):
         "extra_data",
         "unpackaging_instructions",
         "producer",
+        "parent_uri",
+        "have_children",
     ]
 
     _extra_fields = ["annotations", "sources", "license", "encoding"]
@@ -128,6 +130,7 @@ class ArtifactSpec(ModelObj):
         extra_data=None,
         body=None,
         unpackaging_instructions: typing.Optional[dict] = None,
+        parent_uri: typing.Optional[str] = None,
     ):
         self.src_path = src_path
         self.target_path = target_path
@@ -138,6 +141,8 @@ class ArtifactSpec(ModelObj):
         self.db_key = db_key
         self.extra_data = extra_data or {}
         self.unpackaging_instructions = unpackaging_instructions
+        self.parent_uri = parent_uri
+        self.have_children = None
 
         self._body = body
         self.encoding = None
@@ -253,7 +258,7 @@ class Artifact(ModelObj):
         self.spec.target_path = target_path or self.spec.target_path
         self.spec.format = format or self.spec.format
         self.spec.viewer = viewer or self.spec.viewer
-        self.spec.src_path = src_path
+        self.spec.src_path = src_path or self.spec.src_path
 
         if body:
             self.spec._body = body

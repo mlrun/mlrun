@@ -31,6 +31,8 @@ from mlrun.artifacts import (
     DatasetArtifact,
     DocumentArtifact,
     DocumentLoaderSpec,
+    LLMPromptArtifact,
+    LLMPromptArtifactSpec,
     ModelArtifact,
 )
 from mlrun.datastore.store_resources import get_store_resource
@@ -887,6 +889,57 @@ class MLClientCtx:
                 tag=tag,
                 upload=upload,
                 db_key=db_key,
+                labels=labels,
+            ),
+        )
+        self._update_run()
+        return item
+
+    def log_llm_prompt(
+        self,
+        key,
+        prompt_string: Optional[str] = None,
+        prompt_file: Optional[str] = None,
+        prompt_legend: dict = None,
+        model_artifact: Union[ModelArtifact, str] = None,
+        generation_configuration: Optional[dict] = None,
+        description: Optional[str] = None,
+        target_path=None,
+        artifact_path=None,
+        tag=None,
+        labels: Union[list[str], str] = None,
+        upload: Optional[bool] = None,
+        **kwargs,
+    ) -> LLMPromptArtifact:
+        if prompt_string and prompt_file:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot specify prompt_string and prompt_path together"
+            )
+
+        llm_prompt_spec = LLMPromptArtifactSpec(
+            prompt_string=prompt_string,
+            prompt_path=prompt_file,
+            prompt_legend=prompt_legend,
+            parent_uri=model_artifact.uri
+            if isinstance(model_artifact, ModelArtifact)
+            else model_artifact,
+            generation_configuration=generation_configuration,
+            target_path=target_path,
+            description=description,
+        )
+        llm_prompt = LLMPromptArtifact(
+            key=key,
+            spec=llm_prompt_spec,
+            **kwargs,
+        )
+
+        item = cast(
+            LLMPromptArtifact,
+            self.log_artifact(
+                llm_prompt,
+                artifact_path=artifact_path,
+                tag=tag,
+                upload=upload,
                 labels=labels,
             ),
         )

@@ -82,6 +82,8 @@ from ..artifacts import (
     DatasetArtifact,
     DocumentArtifact,
     DocumentLoaderSpec,
+    LLMPromptArtifact,
+    LLMPromptArtifactSpec,
     ModelArtifact,
 )
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
@@ -1873,6 +1875,56 @@ class MlrunProject(ModelObj):
             ModelArtifact,
             self.log_artifact(
                 model,
+                artifact_path=artifact_path,
+                tag=tag,
+                upload=upload,
+                labels=labels,
+            ),
+        )
+        return item
+
+    def log_llm_prompt(
+        self,
+        key,
+        prompt_string: Optional[str] = None,
+        prompt_file: Optional[str] = None,
+        prompt_legend: dict = None,
+        model_artifact: Union[ModelArtifact, str] = None,
+        generation_configuration: Optional[dict] = None,
+        description: Optional[str] = None,
+        target_path=None,
+        artifact_path=None,
+        tag=None,
+        labels: Union[list[str], str] = None,
+        upload: Optional[bool] = None,
+        **kwargs,
+    ) -> LLMPromptArtifact:
+        if prompt_string and prompt_file:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot specify prompt_string and prompt_path together"
+            )
+
+        llm_prompt_spec = LLMPromptArtifactSpec(
+            prompt_string=prompt_string,
+            prompt_path=prompt_file,
+            prompt_legend=prompt_legend,
+            parent_uri=model_artifact.uri
+            if isinstance(model_artifact, ModelArtifact)
+            else model_artifact,
+            generation_configuration=generation_configuration,
+            target_path=target_path,
+            description=description,
+        )
+        llm_prompt = LLMPromptArtifact(
+            key=key,
+            spec=llm_prompt_spec,
+            **kwargs,
+        )
+
+        item = cast(
+            LLMPromptArtifact,
+            self.log_artifact(
+                llm_prompt,
                 artifact_path=artifact_path,
                 tag=tag,
                 upload=upload,
@@ -4589,6 +4641,99 @@ class MlrunProject(ModelObj):
             *args,
             project=self.metadata.name,
             kind=mlrun.artifacts.model.ModelArtifact.kind,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
+            **kwargs,
+        )
+
+    def list_llm_prompts(
+        self,
+        name=None,
+        tag=None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        since=None,
+        until=None,
+        iter: Optional[int] = None,
+        best_iteration: bool = False,
+        tree: Optional[str] = None,
+        limit: Optional[int] = None,
+        model: Optional[Union[str, Artifact]] = None,
+        format_: Optional[
+            mlrun.common.formatters.ArtifactFormat
+        ] = mlrun.common.formatters.ArtifactFormat.full,
+    ):
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.list_artifacts(
+            name,
+            self.metadata.name,
+            tag,
+            labels=labels,
+            since=since,
+            until=until,
+            iter=iter,
+            best_iteration=best_iteration,
+            kind=mlrun.artifacts.llm_prompt.LLMPromptArtifact.kind,
+            tree=tree,
+            parent=model.uri if isinstance(model, Artifact) else model,
+            limit=limit,
+            format_=format_,
+        ).to_objects()
+
+    def paginated_list_llm_prompts(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ) -> tuple[mlrun.lists.ArtifactList, Optional[str]]:
+        """List models in project with support for pagination and various filtering options.
+
+        This method retrieves a paginated list of artifacts based on the specified filter parameters.
+        Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
+        will return a list of artifacts that match the filtering criteria provided.
+
+        For detailed information about the parameters, refer to the list_models method:
+            See :py:func:`~list_models` for more details.
+
+        Examples::
+
+            # Fetch first page of artifacts with page size of 5
+            artifacts, token = project.paginated_list_models("results", page_size=5)
+            # Fetch next page using the pagination token from the previous response
+            artifacts, token = project.paginated_list_models("results", page_token=token)
+            # Fetch artifacts for a specific page (e.g., page 3)
+            artifacts, token = project.paginated_list_models("results", page=3, page_size=5)
+
+            # Automatically iterate over all pages without explicitly specifying the page number
+            artifacts = []
+            token = None
+            while True:
+                page_artifacts, token = project.paginated_list_models(
+                    page_token=token, page_size=5
+                )
+                artifacts.extend(page_artifacts)
+
+                # If token is None and page_artifacts is empty, we've reached the end (no more artifacts).
+                # If token is None and page_artifacts is not empty, we've fetched the last page of artifacts.
+                if not token:
+                    break
+            print(f"Total artifacts retrieved: {len(artifacts)}")
+
+        :param page: The page number to retrieve. If not provided, the next page will be retrieved.
+        :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+            Defaults to `mlrun.mlconf.httpdb.pagination.default_page_size` if not provided.
+        :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
+            for the first request.
+
+        :returns: A tuple containing the list of artifacts and an optional `page_token` for pagination.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.paginated_list_artifacts(
+            *args,
+            project=self.metadata.name,
+            kind=mlrun.artifacts.llm_prompt.LLMPromptArtifact.kind,
             page=page,
             page_size=page_size,
             page_token=page_token,

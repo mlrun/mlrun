@@ -161,6 +161,7 @@ async def list_artifacts(
     tree: Optional[str] = None,
     producer_uri: Optional[str] = None,
     best_iteration: bool = Query(False, alias="best-iteration"),
+    parent: Optional[str] = Query(None, alias="parent"),
     format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
     limit: int = Query(
         None,
@@ -223,6 +224,7 @@ async def list_artifacts(
         until=mlrun.utils.datetime_from_iso(until),
         kind=kind,
         category=category,
+        parent=parent,
         iter=iter,
         best_iteration=best_iteration,
         format_=format_,

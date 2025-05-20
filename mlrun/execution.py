@@ -863,7 +863,12 @@ class MLClientCtx:
             raise MLRunInvalidArgumentError(
                 "Cannot specify inputs and training set together"
             )
-
+        if model_url:
+            if upload:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "cannot specify upload and model_url together"
+                )
+            upload = False
         model = ModelArtifact(
             key,
             body,

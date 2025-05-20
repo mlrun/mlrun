@@ -1005,7 +1005,7 @@ class Model(storey.ParallelExecutionRunnable):
         return self.predict(body)
 
     def get_local_model_path(self, suffix="") -> (str, dict):
-        """ get local model file(s) and extra data items by using artifact
+        """get local model file(s) and extra data items by using artifact
 
         Examples
         --------
@@ -1030,9 +1030,7 @@ class Model(storey.ParallelExecutionRunnable):
         """
 
         if self.artifact:
-            model_file, _, extra_dataitem = mlrun.artifacts.get_model(
-                 suffix=suffix
-            )
+            model_file, _, extra_dataitem = mlrun.artifacts.get_model(suffix=suffix)
             return model_file, extra_dataitem
         return None, None
 

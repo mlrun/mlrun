@@ -46,6 +46,7 @@ class ModelArtifactSpec(ArtifactSpec):
         "feature_weights",
         "feature_stats",
         "model_target_file",
+        "model_url"
     ]
     _exclude_fields_from_uid_hash = ArtifactSpec._exclude_fields_from_uid_hash + [
         "metrics",
@@ -79,6 +80,7 @@ class ModelArtifactSpec(ArtifactSpec):
         feature_weights=None,
         feature_stats=None,
         model_target_file=None,
+        model_url=None
     ):
         super().__init__(
             src_path,
@@ -102,6 +104,7 @@ class ModelArtifactSpec(ArtifactSpec):
         self.feature_weights = feature_weights
         self.feature_stats = feature_stats
         self.model_target_file = model_target_file
+        self.model_url = model_url
 
     @property
     def inputs(self) -> ObjectList:
@@ -202,7 +205,7 @@ class ModelArtifact(Artifact):
         self.spec.feature_vector = feature_vector
         self.spec.feature_weights = feature_weights
         self.spec.feature_stats = None
-        self.model_url = model_url
+        self.spec.model_url = model_url
         self.default_config = default_config
 
     @property
@@ -240,6 +243,14 @@ class ModelArtifact(Artifact):
     @model_file.setter
     def model_file(self, model_file):
         self.spec.model_file = model_file
+
+    @property
+    def model_url(self):
+        return self.spec.model_url
+
+    @model_url.setter
+    def model_url(self, model_url):
+        self.spec.model_url = model_url
 
     @property
     def parameters(self):
@@ -341,8 +352,8 @@ class ModelArtifact(Artifact):
         return True
 
     def before_log(self):
-        if not self.spec.model_file:
-            raise ValueError("model_file attr must be specified")
+        if not self.spec.model_file and not self.spec.model_url:
+            raise ValueError("model_file or model_url attributes must be specified")
 
         super().before_log()
 

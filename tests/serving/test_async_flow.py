@@ -17,7 +17,6 @@ from typing import Optional
 import pytest
 
 import mlrun
-from mlrun.artifacts.model import ModelArtifact
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.serving import Model, ModelRunnerStep, ModelSelector
 from mlrun.utils import logger
@@ -188,6 +187,7 @@ class MyRemoteModelWithModelArtifact(Model):
     async def predict_async(self, body):
         return self.predict(body)
 
+
 def test_model_runner():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
@@ -341,7 +341,9 @@ def test_model_runner_with_gpu_allocation():
 
 
 def test_model_runner_with_model_artifact():
-    model_artifact = ModelArtifact(
+    project = mlrun.new_project("model-runner-project", save=False)
+    model_artifact = project.log_model(
+        "my_model",
         model_url="http://localhost:8080/v2/models/mymodel/infer",
         default_config={"model_version": "4"},
     )

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import copy
 import json
 import os
 import warnings
@@ -27,7 +27,11 @@ from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.secrets import SecretsStore
-from mlrun.serving.server import GraphServer, create_graph_server
+from mlrun.serving.server import (
+    GraphServer,
+    add_system_steps_to_graph,
+    create_graph_server,
+)
 from mlrun.serving.states import (
     RootFlowStep,
     RouterStep,
@@ -44,7 +48,7 @@ from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions
 serving_subkind = "serving_v2"
 
 if TYPE_CHECKING:
-    # remove this block in 1.9.0
+    # remove this block in 1.10.0
     from mlrun.model_monitoring import TrackingPolicy
 
 
@@ -361,8 +365,8 @@ class ServingRuntime(RemoteRuntime):
         if batch:
             warnings.warn(
                 "The `batch` size parameter was deprecated in version 1.8.0 and is no longer used. "
-                "It will be removed in 1.10.",
-                # TODO: Remove this in 1.10
+                "It will be removed in 1.11.",
+                # TODO: Remove this in 1.11
                 FutureWarning,
             )
         if stream_args:
@@ -370,7 +374,7 @@ class ServingRuntime(RemoteRuntime):
         if tracking_policy is not None:
             warnings.warn(
                 "The `tracking_policy` argument is deprecated from version 1.7.0 "
-                "and has no effect. It will be removed in 1.9.0.\n"
+                "and has no effect. It will be removed in 1.10.0.\n"
                 "To set the desired model monitoring time window and schedule, use "
                 "the `base_period` argument in `project.enable_model_monitoring()`.",
                 FutureWarning,
@@ -761,10 +765,13 @@ class ServingRuntime(RemoteRuntime):
             set_paths(workdir)
             os.chdir(workdir)
 
+        system_graph = None
+        if isinstance(self.spec.graph, RootFlowStep):
+            system_graph = add_system_steps_to_graph(copy.deepcopy(self.spec.graph))
         server = create_graph_server(
             parameters=self.spec.parameters,
             load_mode=self.spec.load_mode,
-            graph=self.spec.graph,
+            graph=system_graph or self.spec.graph,
             verbose=self.verbose,
             current_function=current_function,
             graph_initializer=self.spec.graph_initializer,

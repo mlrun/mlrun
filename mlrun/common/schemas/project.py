@@ -26,7 +26,7 @@ from .object import ObjectKind, ObjectStatus
 
 @deprecated(
     version="1.7.0",
-    reason="mlrun.common.schemas.ProjectsFormat is deprecated and will be removed in 1.9.0. "
+    reason="mlrun.common.schemas.ProjectsFormat is deprecated and will be removed in 1.10.0. "
     "Use mlrun.common.formatters.ProjectFormat instead.",
     category=FutureWarning,
 )

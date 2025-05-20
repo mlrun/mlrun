@@ -555,7 +555,7 @@ def datastore_profile_read(url, project_name="", secrets: typing.Optional[dict] 
         url (str): A URL with 'ds' scheme pointing to the datastore profile
             (e.g., 'ds://profile-name').
         project_name (str, optional): The project name where the profile is stored.
-            Defaults to MLRun's default project.
+            Defaults to MLRun's active project.
         secrets (dict, optional): Dictionary containing secrets needed for profile retrieval.
 
     Returns:
@@ -580,7 +580,7 @@ def datastore_profile_read(url, project_name="", secrets: typing.Optional[dict] 
         )
 
     profile_name = parsed_url.hostname
-    project_name = project_name or mlrun.mlconf.default_project
+    project_name = project_name or mlrun.mlconf.active_project
     datastore = TemporaryClientDatastoreProfiles().get(profile_name)
     if datastore:
         return datastore

@@ -190,7 +190,7 @@ class MLRunLoader:
 
                 # Resolve the producer
                 if not self.producer:
-                    self.producer = mlrun.mlconf.default_project
+                    self.producer = mlrun.mlconf.active_project
                 if isinstance(self.producer, str):
                     self.producer = mlrun.get_or_create_project(self.producer)
 

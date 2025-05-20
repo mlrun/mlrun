@@ -15,7 +15,6 @@
 import inspect
 import os
 import shutil
-import tempfile
 import unittest
 from datetime import datetime
 from http import HTTPStatus
@@ -98,8 +97,6 @@ def config_test_base():
     # TODO: update this to "sidecar" once the default mode is changed
     mlrun.mlconf.log_collector.mode = "legacy"
 
-    # revert change of default project after project creation
-    mlrun.mlconf.default_project = "default"
     mlrun.projects.project.pipeline_context.set(None)
 
     # reset factory container overrides
@@ -118,8 +115,8 @@ def aioresponses_mock():
 
 
 @pytest.fixture
-def ensure_default_project() -> mlrun.projects.project.MlrunProject:
-    return mlrun.get_or_create_project("default", allow_cross_project=True)
+def ensure_project() -> mlrun.projects.project.MlrunProject:
+    return mlrun.get_or_create_project("test-project", allow_cross_project=True)
 
 
 @pytest.fixture()
@@ -448,11 +445,6 @@ class RunDBMock:
         if self._project_name and name == self._project_name:
             return self._project
 
-        elif name == config.default_project and not self._project:
-            project = mlrun.projects.MlrunProject(mlrun.ProjectMetadata(name))
-            self.store_project(name, project)
-            return project
-
         raise mlrun.errors.MLRunNotFoundError(f"Project '{name}' not found")
 
     def remote_builder(
@@ -737,7 +729,7 @@ class RunDBMock:
 
     def list_model_endpoints(
         self,
-        project: str = "default",
+        project: str = "project",
         names: Optional[Union[str, list[str]]] = None,
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
@@ -785,19 +777,13 @@ def rundb_mock() -> RunDBMock:
     orig_db_path = config.dbpath
     config.dbpath = "http://localhost:12345"
 
-    # Create the default project to mimic real MLRun DB (the default project is always available for use):
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        mlrun.get_or_create_project(
-            "default", context=tmp_dir, allow_cross_project=True
-        )
+    yield mock_object
 
-        yield mock_object
-
-        # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
-        mlrun.db.get_run_db = orig_get_run_db
-        mlrun.get_run_db = orig_get_run_db
-        BaseRuntime._get_db = orig_get_db
-        config.dbpath = orig_db_path
+    # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
+    mlrun.db.get_run_db = orig_get_run_db
+    mlrun.get_run_db = orig_get_run_db
+    BaseRuntime._get_db = orig_get_db
+    config.dbpath = orig_db_path
 
 
 class RemoteBuilderMock(RunDBMock):

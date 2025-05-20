@@ -176,8 +176,8 @@ def get_kafka_brokers_from_dict(options: dict, pop=False) -> typing.Optional[str
     kafka_bootstrap_servers = get_or_pop("kafka_bootstrap_servers", None)
     if kafka_bootstrap_servers:
         warnings.warn(
-            "The 'kafka_bootstrap_servers' parameter is deprecated and will be removed in "
-            "1.9.0. Please pass the 'kafka_brokers' parameter instead.",
+            "The 'kafka_bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in "
+            "1.10.0. Please pass the 'kafka_brokers' parameter instead.",
             FutureWarning,
         )
     return kafka_bootstrap_servers

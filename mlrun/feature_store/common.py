@@ -63,7 +63,7 @@ def parse_project_name_from_feature_string(feature):
 
 def parse_feature_set_uri(uri, project=None):
     """get feature set object from db by uri"""
-    default_project = project or config.default_project
+    active_project = project or config.active_project
 
     # parse store://.. uri
     if mlrun.datastore.is_store_uri(uri):
@@ -74,7 +74,7 @@ def parse_feature_set_uri(uri, project=None):
             )
         uri = new_uri
 
-    return parse_versioned_object_uri(uri, default_project)
+    return parse_versioned_object_uri(uri, active_project)
 
 
 def get_feature_set_by_uri(uri, project=None):
@@ -98,7 +98,7 @@ def get_feature_set_by_uri(uri, project=None):
 def get_feature_vector_by_uri(uri, project=None, update=True):
     """get feature vector object from db by uri"""
     db = mlrun.get_run_db()
-    default_project = project or config.default_project
+    active_project = project or config.active_project
 
     # parse store://.. uri
     if mlrun.datastore.is_store_uri(uri):
@@ -109,7 +109,7 @@ def get_feature_vector_by_uri(uri, project=None, update=True):
             )
         uri = new_uri
 
-    project, name, tag, uid = parse_versioned_object_uri(uri, default_project)
+    project, name, tag, uid = parse_versioned_object_uri(uri, active_project)
 
     resource = mlrun.common.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
         project, "feature-vector"
@@ -161,7 +161,7 @@ def verify_feature_set_exists(feature_set):
 def verify_feature_vector_permissions(
     feature_vector, action: mlrun.common.schemas.AuthorizationAction
 ):
-    project = feature_vector._metadata.project or config.default_project
+    project = feature_vector._metadata.project or config.active_project
 
     resource = mlrun.common.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
         project, "feature-vector"

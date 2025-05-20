@@ -60,7 +60,7 @@ jobs:
       run: make lint
 
     # perform copyright check here, to avoid spinning up another runner needlessly
-    - uses: denoland/setup-deno@909cc5acb0fdd60627fb858598759246509fa755 # 2.0.2
+    - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb # 2.0.3
       with:
         deno-version: v1.x
     - name: Check
@@ -351,7 +351,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip

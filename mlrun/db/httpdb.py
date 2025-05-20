@@ -88,9 +88,9 @@ class HTTPRunDB(RunDBInterface):
 
     - Every object in MLRun exists in the context of a project (except projects themselves). When referencing an object
       through any API, a project name must be provided. The default for most APIs is for an empty project name, which
-      will be replaced by the name of the default project (usually ``default``). Therefore, if performing an API to
+      will be replaced by the name of the active project (if set). Therefore, if performing an API to
       list functions, for example, and not providing a project name - the result will not be functions from all
-      projects but rather from the ``default`` project.
+      projects but rather from the active project.
     - Many objects can be assigned labels, and listed/queried by label. The label parameter for query APIs allows for
       listing objects that:
 
@@ -398,7 +398,7 @@ class HTTPRunDB(RunDBInterface):
         )
 
     def _path_of(self, resource, project, uid=None):
-        project = project or config.default_project
+        project = project or config.active_project
         _path = f"projects/{project}/{resource}"
         if uid:
             _path += f"/{uid}"
@@ -733,7 +733,7 @@ class HTTPRunDB(RunDBInterface):
         Abort a running run - will remove the run's runtime resources and mark its state as aborted.
         :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         params = {"iter": iter}
         updates = {}
         if status_text:
@@ -768,7 +768,7 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project that the run belongs to.
         :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         response = self.api_call(
             "POST",
             path=f"projects/{project}/runs/{uid}/push-notifications",
@@ -821,7 +821,7 @@ class HTTPRunDB(RunDBInterface):
                 "The 'notifications' parameter must be a list."
             )
 
-        project = project or config.default_project
+        project = project or config.active_project
 
         response = self.api_call(
             "POST",
@@ -939,7 +939,7 @@ class HTTPRunDB(RunDBInterface):
 
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run, or a list of run UIDs.
-        :param project: Project that the runs belongs to. If not specified, the default project will be used.
+        :param project: Project that the runs belongs to. If not specified, the active project will be used.
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
             or `{"label": None}` to check for key existence.
@@ -947,7 +947,7 @@ class HTTPRunDB(RunDBInterface):
             or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
-        :param state: Deprecated - List only runs whose state is specified (will be removed in 1.9.0)
+        :param state: Deprecated - List only runs whose state is specified (will be removed in 1.10.0)
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -1080,7 +1080,7 @@ class HTTPRunDB(RunDBInterface):
         :param days_ago: Filter runs whose start time is newer than this parameter.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
         params = {
             "name": name,
@@ -1113,7 +1113,7 @@ class HTTPRunDB(RunDBInterface):
         :param tree: The tree (producer id) which generated this artifact.
         :returns: The stored artifact dictionary.
         """
-        project = project or mlrun.mlconf.default_project
+        project = project or mlrun.mlconf.active_project
         endpoint_path = f"projects/{project}/artifacts/{key}"
 
         error = f"store artifact {project}/{key}"
@@ -1153,7 +1153,7 @@ class HTTPRunDB(RunDBInterface):
         :param format_: The format in which to return the artifact. Default is 'full'.
         """
 
-        project = project or mlrun.mlconf.default_project
+        project = project or mlrun.mlconf.active_project
         tag = tag or "latest"
         endpoint_path = f"projects/{project}/artifacts/{key}"
         error = f"read artifact {project}/{key}"
@@ -1191,7 +1191,7 @@ class HTTPRunDB(RunDBInterface):
         :param deletion_strategy: The artifact deletion strategy types.
         :param secrets: Credentials needed to access the artifact data.
         """
-        project = project or mlrun.mlconf.default_project
+        project = project or mlrun.mlconf.active_project
         endpoint_path = f"projects/{project}/artifacts/{key}"
         params = {
             "key": key,
@@ -1402,7 +1402,7 @@ class HTTPRunDB(RunDBInterface):
         :param days_ago: This parameter is deprecated and not used.
         :param tree: Delete artifacts filtered by tree.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
 
         params = {
@@ -1423,7 +1423,7 @@ class HTTPRunDB(RunDBInterface):
     ) -> list[str]:
         """Return a list of all the tags assigned to artifacts in the scope of the given project."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         error_message = f"Failed listing artifact tags. project={project}"
         params = {"category": category} if category else {}
 
@@ -1446,7 +1446,7 @@ class HTTPRunDB(RunDBInterface):
             function = function.to_dict()
 
         params = {"tag": tag, "versioned": versioned}
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/functions/{name}"
 
         error = f"store function {project}/{name}"
@@ -1461,7 +1461,7 @@ class HTTPRunDB(RunDBInterface):
         """Retrieve details of a specific function, identified by its name and potentially a tag or function hash."""
 
         params = {"tag": tag, "hash_key": hash_key}
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/functions/{name}"
         error = f"get function {project}/{name}"
         resp = self.api_call("GET", path, error, params=params)
@@ -1470,7 +1470,7 @@ class HTTPRunDB(RunDBInterface):
     def delete_function(self, name: str, project: str = ""):
         """Delete a function belonging to a specific project."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/functions/{name}"
         error_message = f"Failed deleting function {project}/{name}"
         response = self.api_call("DELETE", path, error_message, version="v2")
@@ -1515,7 +1515,7 @@ class HTTPRunDB(RunDBInterface):
         """Retrieve a list of functions, filtered by specific criteria.
 
         :param name: Return only functions with a specific name.
-        :param project: Return functions belonging to this project. If not specified, the default project is used.
+        :param project: Return functions belonging to this project. If not specified, the active project is used.
         :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
         :param labels: Filter functions by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
@@ -1740,7 +1740,7 @@ class HTTPRunDB(RunDBInterface):
     ):
         """Update an existing schedule, replace it with the details contained in the schedule object."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/schedules/{name}"
 
         error_message = f"Failed updating schedule {project}/{name}"
@@ -1758,7 +1758,7 @@ class HTTPRunDB(RunDBInterface):
         :param include_last_run: Whether to include the results of the schedule's last run in the response.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/schedules/{name}"
         error_message = f"Failed getting schedule for {project}/{name}"
         resp = self.api_call(
@@ -1786,7 +1786,7 @@ class HTTPRunDB(RunDBInterface):
         :param next_run_time_until: Return only schedules with next run time before this date.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         params = {
             "kind": kind,
             "name": name,
@@ -1802,7 +1802,7 @@ class HTTPRunDB(RunDBInterface):
     def delete_schedule(self, project: str, name: str):
         """Delete a specific schedule by name."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/schedules/{name}"
         error_message = f"Failed deleting schedule {project}/{name}"
         self.api_call("DELETE", path, error_message)
@@ -1810,7 +1810,7 @@ class HTTPRunDB(RunDBInterface):
     def invoke_schedule(self, project: str, name: str):
         """Execute the object referenced by the schedule immediately."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/schedules/{name}/invoke"
         error_message = f"Failed invoking schedule {project}/{name}"
         self.api_call("POST", path, error_message)
@@ -1871,7 +1871,7 @@ class HTTPRunDB(RunDBInterface):
         :param func:            Function to build.
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
         """
-        func.metadata.project = func.metadata.project or config.default_project
+        func.metadata.project = func.metadata.project or config.active_project
         self.warn_on_s3_and_ecr_permissions_conflict(func)
         try:
             req = {
@@ -2057,7 +2057,7 @@ class HTTPRunDB(RunDBInterface):
     ) -> mlrun.common.schemas.BackgroundTask:
         """Retrieve updated information on a project background task being executed."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/background-tasks/{name}"
         error_message = (
             f"Failed getting project background task. project={project}, name={name}"
@@ -2078,7 +2078,7 @@ class HTTPRunDB(RunDBInterface):
         Retrieve updated information on project background tasks being executed.
         If no filter is provided, will return background tasks from the last week.
 
-        :param project: Project name (defaults to mlrun.mlconf.default_project).
+        :param project: Project name (defaults to mlrun.mlconf.active_project).
         :param state:   List only background tasks whose state is specified.
         :param created_from: Filter by background task created time in ``[created_from, created_to]``.
         :param created_to:  Filter by background task created time in ``[created_from, created_to]``.
@@ -2087,7 +2087,7 @@ class HTTPRunDB(RunDBInterface):
         :param last_update_time_to: Filter by background task last update time in
             ``(last_update_time_from, last_update_time_to)``.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         if (
             not state
             and not created_from
@@ -2439,7 +2439,7 @@ class HTTPRunDB(RunDBInterface):
         project = (
             project
             or feature_set["metadata"].get("project", None)
-            or config.default_project
+            or config.active_project
         )
         path = f"projects/{project}/feature-sets"
         params = {"versioned": versioned}
@@ -2471,7 +2471,7 @@ class HTTPRunDB(RunDBInterface):
         :param uid: uid of the object to retrieve (can only be used for versioned objects).
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         reference = self._resolve_reference(tag, uid)
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-set {project}/{name}"
@@ -2507,7 +2507,7 @@ class HTTPRunDB(RunDBInterface):
             of the feature-set.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
         params = {
             "name": name,
@@ -2549,7 +2549,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: A list of features, and a list of their corresponding feature sets.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
         params = {
             "name": name,
@@ -2588,7 +2588,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: A list of entities.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
         params = {
             "name": name,
@@ -2626,7 +2626,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: A list of entities.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
         params = {
             "name": name,
@@ -2707,7 +2707,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: List of matching :py:class:`~mlrun.feature_store.FeatureSet` objects.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
         params = {
             "name": name,
@@ -2772,7 +2772,7 @@ class HTTPRunDB(RunDBInterface):
 
         name = name or feature_set["metadata"]["name"]
         project = (
-            project or feature_set["metadata"].get("project") or config.default_project
+            project or feature_set["metadata"].get("project") or config.active_project
         )
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed storing feature-set {project}/{name}"
@@ -2811,7 +2811,7 @@ class HTTPRunDB(RunDBInterface):
         :param patch_mode: The strategy for merging the changes with the existing object. Can be either ``replace``
             or ``additive``.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         reference = self._resolve_reference(tag, uid)
         headers = {mlrun.common.schemas.HeaderNames.patch_mode: patch_mode}
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
@@ -2830,7 +2830,7 @@ class HTTPRunDB(RunDBInterface):
         is not allowed.
         If none are specified, then all instances of the object whose name is ``name`` will be deleted.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/feature-sets/{name}"
 
         if tag or uid:
@@ -2862,7 +2862,7 @@ class HTTPRunDB(RunDBInterface):
         project = (
             project
             or feature_vector["metadata"].get("project", None)
-            or config.default_project
+            or config.active_project
         )
         path = f"projects/{project}/feature-vectors"
         params = {"versioned": versioned}
@@ -2888,7 +2888,7 @@ class HTTPRunDB(RunDBInterface):
         """Return a specific feature-vector referenced by its tag or uid. If none are provided, ``latest`` tag will
         be used."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         reference = self._resolve_reference(tag, uid)
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed retrieving feature-vector {project}/{name}"
@@ -2934,7 +2934,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: List of matching :py:class:`~mlrun.feature_store.FeatureVector` objects.
         """
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
         params = {
             "name": name,
@@ -2998,7 +2998,7 @@ class HTTPRunDB(RunDBInterface):
         project = (
             project
             or feature_vector["metadata"].get("project")
-            or config.default_project
+            or config.active_project
         )
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed storing feature-vector {project}/{name}"
@@ -3033,7 +3033,7 @@ class HTTPRunDB(RunDBInterface):
             or ``additive``.
         """
         reference = self._resolve_reference(tag, uid)
-        project = project or config.default_project
+        project = project or config.active_project
         headers = {mlrun.common.schemas.HeaderNames.patch_mode: patch_mode}
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed updating feature-vector {project}/{name}"
@@ -3051,7 +3051,7 @@ class HTTPRunDB(RunDBInterface):
         is not allowed.
         If none are specified, then all instances of the object whose name is ``name`` will be deleted.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         path = f"projects/{project}/feature-vectors/{name}"
         if tag or uid:
             reference = self._resolve_reference(tag, uid)
@@ -4358,11 +4358,11 @@ class HTTPRunDB(RunDBInterface):
         """
         Returns a list of Nuclio api gateways
 
-        :param project: optional str parameter to filter by project, if not passed, default project value is taken
+        :param project: optional str parameter to filter by project, if not passed, active project value is taken
 
         :returns: :py:class:`~mlrun.common.schemas.APIGateways`.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         error = "list api gateways"
         endpoint_path = f"projects/{project}/api-gateways"
         response = self.api_call("GET", endpoint_path, error)
@@ -4373,11 +4373,11 @@ class HTTPRunDB(RunDBInterface):
         Returns an API gateway
 
         :param name: API gateway name
-        :param project: optional str parameter to filter by project, if not passed, default project value is taken
+        :param project: optional str parameter to filter by project, if not passed, active project value is taken
 
         :returns:  :py:class:`~mlrun.common.schemas.APIGateway`.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         error = "get api gateway"
         endpoint_path = f"projects/{project}/api-gateways/{name}"
         response = self.api_call("GET", endpoint_path, error)
@@ -4390,7 +4390,7 @@ class HTTPRunDB(RunDBInterface):
         :param name: API gateway name
         :param project: Project name
         """
-        project = project or config.default_project
+        project = project or config.active_project
         error = "delete api gateway"
         endpoint_path = f"projects/{project}/api-gateways/{name}"
         self.api_call("DELETE", endpoint_path, error)
@@ -4674,7 +4674,7 @@ class HTTPRunDB(RunDBInterface):
     def get_datastore_profile(
         self, name: str, project: str
     ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
-        project = project or config.default_project
+        project = project or config.active_project
         _path = self._path_of("datastore-profiles", project, name)
 
         res = self.api_call(method="GET", path=_path)
@@ -4687,7 +4687,7 @@ class HTTPRunDB(RunDBInterface):
         return None
 
     def delete_datastore_profile(self, name: str, project: str):
-        project = project or config.default_project
+        project = project or config.active_project
         _path = self._path_of("datastore-profiles", project, name)
         self.api_call(method="DELETE", path=_path)
         return None
@@ -4695,7 +4695,7 @@ class HTTPRunDB(RunDBInterface):
     def list_datastore_profiles(
         self, project: str
     ) -> list[mlrun.common.schemas.DatastoreProfile]:
-        project = project or config.default_project
+        project = project or config.active_project
         _path = self._path_of("datastore-profiles", project)
 
         res = self.api_call(method="GET", path=_path)
@@ -4715,7 +4715,7 @@ class HTTPRunDB(RunDBInterface):
         Create or replace a datastore profile.
         :returns: None
         """
-        project = project or config.default_project
+        project = project or config.active_project
         _path = self._path_of("datastore-profiles", project)
 
         self.api_call(method="PUT", path=_path, json=profile.dict())
@@ -4750,7 +4750,7 @@ class HTTPRunDB(RunDBInterface):
         if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.disabled:
             logger.warning("Alerts are disabled, event will not be generated")
 
-        project = project or config.default_project
+        project = project or config.active_project
         endpoint_path = f"projects/{project}/events/{name}"
         error_message = f"post event {project}/events/{name}"
         if isinstance(event_data, mlrun.common.schemas.Event):
@@ -4783,7 +4783,7 @@ class HTTPRunDB(RunDBInterface):
                 "Alerts are disabled, alert will still be stored but will not be triggered"
             )
 
-        project = project or config.default_project
+        project = project or config.active_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}"
         error_message = f"put alert {project}/alerts/{alert_name}"
         alert_instance = (
@@ -4812,7 +4812,7 @@ class HTTPRunDB(RunDBInterface):
 
         :returns:           The alert object.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}"
         error_message = f"get alert {project}/alerts/{alert_name}"
         response = self.api_call("GET", endpoint_path, error_message)
@@ -4831,7 +4831,7 @@ class HTTPRunDB(RunDBInterface):
 
         :returns: All the alerts objects of the project.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         endpoint_path = f"projects/{project}/alerts"
         error_message = f"get alerts {project}/alerts"
         params = {}
@@ -4854,7 +4854,7 @@ class HTTPRunDB(RunDBInterface):
         :param alert_name: The name of the alert to delete.
         :param project: The project that the alert belongs to.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}"
         error_message = f"delete alert {project}/alerts/{alert_name}"
         self.api_call("DELETE", endpoint_path, error_message)
@@ -4866,7 +4866,7 @@ class HTTPRunDB(RunDBInterface):
         :param alert_name: The name of the alert to reset.
         :param project: The project that the alert belongs to.
         """
-        project = project or config.default_project
+        project = project or config.active_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}/reset"
         error_message = f"post alert {project}/alerts/{alert_name}/reset"
         self.api_call("POST", endpoint_path, error_message)
@@ -5019,7 +5019,7 @@ class HTTPRunDB(RunDBInterface):
         :param activation_id: alert activation id.
         :returns: alert activation object.
         """
-        project = project or config.default_project
+        project = project or config.active_project
 
         error = "get alert activation"
         path = f"projects/{project}/alert-activations/{activation_id}"
@@ -5037,7 +5037,7 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project name for which the summary belongs.
         :returns: A summary of the project.
         """
-        project = project or config.default_project
+        project = project or config.active_project
 
         endpoint_path = f"project-summaries/{project}"
         error_message = f"Failed retrieving project summary for {project}"
@@ -5101,7 +5101,7 @@ class HTTPRunDB(RunDBInterface):
     ) -> tuple[ArtifactList, Optional[str]]:
         """Handles list artifacts, both paginated and not."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
 
         if limit:
@@ -5177,7 +5177,7 @@ class HTTPRunDB(RunDBInterface):
     ) -> tuple[list, Optional[str]]:
         """Handles list functions, both paginated and not."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         labels = self._parse_labels(labels)
         params = {
             "name": name,
@@ -5239,7 +5239,7 @@ class HTTPRunDB(RunDBInterface):
     ) -> tuple[RunList, Optional[str]]:
         """Handles list runs, both paginated and not."""
 
-        project = project or config.default_project
+        project = project or config.active_project
         if with_notifications:
             logger.warning(
                 "Local run notifications are not persisted in the DB, therefore local runs will not be returned when "
@@ -5247,9 +5247,9 @@ class HTTPRunDB(RunDBInterface):
             )
 
         if state:
-            # TODO: Remove this in 1.9.0
+            # TODO: Remove this in 1.10.0
             warnings.warn(
-                "'state' is deprecated and will be removed in 1.9.0. Use 'states' instead.",
+                "'state' is deprecated in 1.7.0 and will be removed in 1.10.0. Use 'states' instead.",
                 FutureWarning,
             )
 
@@ -5342,7 +5342,7 @@ class HTTPRunDB(RunDBInterface):
         page_token: Optional[str] = None,
         return_all: bool = False,
     ) -> tuple[mlrun.common.schemas.AlertActivations, Optional[str]]:
-        project = project or config.default_project
+        project = project or config.active_project
         params = {
             "name": name,
             "since": datetime_to_iso(since),

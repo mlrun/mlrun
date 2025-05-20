@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,24 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.serving import Model
+name: Label PRs by Path
 
+on: pull_request_target
 
-class ErrorModel(Model):
-    execution_mechanism = "naive"
-
-    def predict(self, body):
-        raise RuntimeError
-
-
-def inc(x):
-    return x + 1
-
-
-def catcher(event):
-    print(event.origin_state)
-
-
-def catcher_echo(event):
-    event.body["error"] = "catcher_echo"
-    return event
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"

@@ -40,7 +40,7 @@ def handler_chroma(
     if collection_name in [c.name for c in chroma_client.list_collections()]:
         chroma_client.delete_collection(name=collection_name)
 
-    collection = chroma_client.create_collection(name=collection_name)
+    collection = chroma_client.get_or_create_collection(name=collection_name)
 
     # Format and split docunments
     documents = df.pop("page_content").to_list()

@@ -17,6 +17,7 @@ from typing import Optional
 import pytest
 
 import mlrun
+from mlrun.artifacts.model import ModelArtifact
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.serving import Model, ModelRunnerStep, ModelSelector
 from mlrun.utils import logger
@@ -158,6 +159,18 @@ class MyModel(Model):
         body.pop("models", None)
         if self.gpu_number is not None:
             body["gpu"] = self.gpu_number
+        return body
+
+    async def predict_async(self, body):
+        return self.predict(body)
+
+
+class MyModelWithModelArtifact(Model):
+    execution_mechanism = "naive"
+
+    def predict(self, body):
+        body["url"] = self.artifact.model_url
+        body["default_config"] = self.artifact.default_config
         return body
 
     async def predict_async(self, body):
@@ -312,5 +325,31 @@ def test_model_runner_with_gpu_allocation():
         for n in range(10):
             resp = server.test(body={"n": n})
             assert resp == {"m1": {"n": n + 1, "gpu": 1}, "m2": {"n": n + 2, "gpu": 2}}
+    finally:
+        server.wait_for_completion()
+
+
+def test_model_runner_with_model_artifact():
+    model_artifact = ModelArtifact(
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(
+        model_class="MyModelWithModelArtifact",
+        endpoint_name="my_endpoint",
+        model_artifact=model_artifact,
+    )
+    graph.to(model_runner_step).respond()
+    assert (
+        "my_endpoint" in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body={})
+        assert resp["default_config"] == {"model_version": "4"}
+        assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
     finally:
         server.wait_for_completion()

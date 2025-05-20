@@ -1112,6 +1112,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
         """
         # TODO allow model_class as Model object as part of ML-9924
         model_parameters = model_parameters or {}
+        model_parameters["artifact"] = model_parameters.get("artifact", model_artifact)
         if model_parameters.get("name", endpoint_name) != endpoint_name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Inconsistent name for model added to ModelRunnerStep."

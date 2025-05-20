@@ -331,7 +331,7 @@ class GraphServer(ModelObj):
         return self.graph.wait_for_completion()
 
 
-def add_system_steps_to_graph(graph: RootFlowStep):
+def add_error_raiser_step(graph: RootFlowStep):
     model_runner_raisers = {}
     steps = list(graph.steps.values())
     for step in steps:
@@ -362,6 +362,17 @@ def add_system_steps_to_graph(graph: RootFlowStep):
     return graph
 
 
+def add_monitoring_pre_process_steps(graph: RootFlowStep):
+    return graph
+
+
+def add_system_steps_to_graph(graph: RootFlowStep, track_models: bool):
+    graph = add_error_raiser_step(graph)
+    if track_models:
+        graph = add_monitoring_pre_process_steps(graph)
+    return graph
+
+
 def v2_serving_init(context, namespace=None):
     """hook for nuclio init_context()"""
 
@@ -369,7 +380,9 @@ def v2_serving_init(context, namespace=None):
     spec = mlrun.utils.get_serving_spec()
     server = GraphServer.from_dict(spec)
     if isinstance(server.graph, RootFlowStep):
-        server.graph = add_system_steps_to_graph(copy.deepcopy(server.graph))
+        server.graph = add_system_steps_to_graph(
+            copy.deepcopy(server.graph), spec.get("track_models")
+        )
         context.logger.info_with(
             "Server graph after adding system steps",
             graph=str(server.graph.steps),

@@ -142,6 +142,21 @@ class EventFieldType:
     EFFECTIVE_SAMPLE_COUNT = "effective_sample_count"
 
 
+class StreamProcessingEvent:
+    MODEL = "model"
+    MODEL_CLASS = "model_class"
+    MICROSEC = "microsec"
+    WHEN = "when"
+    ERROR = "error"
+    ENDPOINT_ID = "endpoint_id"
+    SAMPLING_PERCENTAGE = "sampling_percentage"
+    EFFECTIVE_SAMPLE_COUNT = "effective_sample_count"
+    LABELS = "labels"
+    FUNCTION_URI = "function_uri"
+    REQUEST = "request"
+    METRICS = "metrics"
+
+
 class FeatureSetFeatures(MonitoringStrEnum):
     LATENCY = EventFieldType.LATENCY
     METRICS = EventFieldType.METRICS

@@ -1009,6 +1009,11 @@ class ModelRunner(storey.ParallelExecution):
         models = cast(list[Model], self.runnables)
         return self.model_selector.select(event, models)
 
+    async def _do(self, event):
+        event = await super()._do(event)
+        event.metadata["model_runner_name"] = self.name
+        return event
+
 
 class ModelRunnerStep(TaskStep, StepToDict):
     """
@@ -1136,6 +1141,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
         self._async_object = ModelRunner(
             model_selector=model_selector,
             runnables=model_objects,
+            name=self.name,
         )
 
 

@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import pathlib
+from types import SimpleNamespace
 from typing import Optional
 
 import pytest
@@ -176,12 +177,18 @@ class MyRemoteModelWithModelArtifact(Model):
         return self.predict(body)
 
 
-class MyRemoteModelWithModelArtifact(Model):
+class MyModelWithModelArtifact(Model):
     execution_mechanism = "naive"
 
+    def load(self) -> None:
+        model_path, _ = self.get_local_model_path()
+        with open(model_path) as f:
+            data = f.read()
+        # Create a simple mock model object with a .predict method
+        self.model = SimpleNamespace(predict=lambda x=None: data)
+
     def predict(self, body):
-        body["url"] = self.artifact.model_url
-        body["default_config"] = self.artifact.default_config
+        body["result"] = self.model.predict(body)
         return body
 
     async def predict_async(self, body):
@@ -364,5 +371,28 @@ def test_model_runner_with_model_artifact():
         resp = server.test(body={})
         assert resp["default_config"] == {"model_version": "4"}
         assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
+    finally:
+        server.wait_for_completion()
+
+
+def test_get_local_model_path():
+    project = mlrun.new_project("get-model-path-project", save=False)
+    model_dir = str(pathlib.Path(__file__).parent / "assets")
+    model_artifact = project.log_model(
+        "my_model", target_path=model_dir, model_file="model.pkl", upload=False
+    )
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(
+        model_class="MyModelWithModelArtifact",
+        endpoint_name="my_endpoint",
+        model_artifact=model_artifact,
+    )
+    graph.to(model_runner_step).respond()
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body={})
+        assert resp["result"] == "123"
     finally:
         server.wait_for_completion()

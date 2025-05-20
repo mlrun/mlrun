@@ -46,7 +46,7 @@ class ModelArtifactSpec(ArtifactSpec):
         "feature_weights",
         "feature_stats",
         "model_target_file",
-        "model_url"
+        "model_url",
     ]
     _exclude_fields_from_uid_hash = ArtifactSpec._exclude_fields_from_uid_hash + [
         "metrics",
@@ -80,7 +80,7 @@ class ModelArtifactSpec(ArtifactSpec):
         feature_weights=None,
         feature_stats=None,
         model_target_file=None,
-        model_url=None
+        model_url=None,
     ):
         super().__init__(
             src_path,
@@ -505,15 +505,17 @@ def get_model(
 
     if hasattr(model_dir, "artifact_url"):
         model_dir = model_dir.artifact_url
-
-    alternative_suffix = next(
-        (
-            optional_suffix
-            for optional_suffix in MODEL_OPTIONAL_SUFFIXES
-            if model_dir.lower().endswith(optional_suffix)
-        ),
-        None,
-    )
+    if model_dir:
+        alternative_suffix = next(
+            (
+                optional_suffix
+                for optional_suffix in MODEL_OPTIONAL_SUFFIXES
+                if model_dir.lower().endswith(optional_suffix)
+            ),
+            None,
+        )
+    else:
+        alternative_suffix = None
     is_store_uri = mlrun.datastore.is_store_uri(model_dir)
     if is_store_uri or artifact:
         if is_store_uri:

@@ -167,7 +167,7 @@ class ModelArtifact(Artifact):
         :param algorithm:       Training algorithm name
         :param feature_vector:  Feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
         :param feature_weights: List of feature weights, one per input column
-        :param extra_data:
+        :param extra_data:      Extra artifacts and files to log with the model.
         :param model_dir:       Path to the local dir holding the model file and extra files
         :param model_url:       Remote model url.
         :param default_config:  Default configuration for client building when 'model_url' is used.
@@ -448,7 +448,9 @@ class ModelArtifact(Artifact):
         return mlrun.get_dataitem(target_model_path).get()
 
 
-def get_model(model_dir, suffix="") -> (str, ModelArtifact, dict):
+def get_model(
+    model_dir: Optional[str] = None, suffix="", artifact: Optional[ModelArtifact] = None
+) -> (str, ModelArtifact, dict):
     """return model file, model spec object, and list of extra data items
 
     this function will get the model file, metadata, and extra data
@@ -466,14 +468,29 @@ def get_model(model_dir, suffix="") -> (str, ModelArtifact, dict):
 
     :param model_dir:       model dir or artifact path (store://..) or DataItem
     :param suffix:          model filename suffix (when using a dir)
+    :param artifact         artifact used to retrieve a model_path
 
     :returns: model filename, model artifact object, extra data dict
 
     """
+    # TODO support LLMPromptArtifact
     model_file = ""
     model_spec = None
     extra_dataitems = {}
     default_suffix = ".pkl"
+
+    if artifact and model_dir:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Arguments 'model_dir' and 'artifact' cannot be used together"
+        )
+    elif not artifact and not model_dir:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Either 'artifact' or 'model_dir' must be provided"
+        )
+    if artifact is not None and not isinstance(artifact, ModelArtifact):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "'artifact' must be ModelArtifact or LLMPromptArtifact"
+        )
 
     if hasattr(model_dir, "artifact_url"):
         model_dir = model_dir.artifact_url
@@ -486,9 +503,14 @@ def get_model(model_dir, suffix="") -> (str, ModelArtifact, dict):
         ),
         None,
     )
-
-    if mlrun.datastore.is_store_uri(model_dir):
-        model_spec, target = mlrun.datastore.store_manager.get_store_artifact(model_dir)
+    is_store_uri = mlrun.datastore.is_store_uri(model_dir)
+    if is_store_uri or artifact:
+        if is_store_uri:
+            model_spec, target = mlrun.datastore.store_manager.get_store_artifact(
+                model_dir
+            )
+        else:
+            model_spec, target = artifact, artifact.get_target_path()
         if not model_spec or model_spec.kind != "model":
             raise ValueError(f"store artifact ({model_dir}) is not model kind")
         # in case model_target_file is specified, use it, because that means that the actual model target path

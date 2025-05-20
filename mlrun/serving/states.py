@@ -1004,6 +1004,38 @@ class Model(storey.ParallelExecutionRunnable):
     async def run_async(self, body: Any, path: str) -> Any:
         return self.predict(body)
 
+    def get_local_model_path(self, suffix="") -> (str, dict):
+        """ get local model file(s) and extra data items by using artifact
+
+        Examples
+        --------
+        ::
+
+            def load(self):
+                model_file, extra_data = self.get_model(suffix=".pkl")
+                self.model = load(open(model_file, "rb"))
+                categories = extra_data["categories"].as_df()
+
+        Parameters
+        ----------
+        suffix : str
+            optional, model file suffix (when the model_path is a directory)
+
+        Returns
+        -------
+        str
+            (local) model file
+        dict
+            extra dataitems dictionary
+        """
+
+        if self.artifact:
+            model_file, _, extra_dataitem = mlrun.artifacts.get_model(
+                 suffix=suffix
+            )
+            return model_file, extra_dataitem
+        return None, None
+
 
 class ModelSelector:
     """Used to select which models to run on each event."""

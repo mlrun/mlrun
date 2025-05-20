@@ -165,7 +165,7 @@ class MyModel(Model):
         return self.predict(body)
 
 
-class MyModelWithModelArtifact(Model):
+class MyRemoteModelWithModelArtifact(Model):
     execution_mechanism = "naive"
 
     def predict(self, body):
@@ -176,6 +176,17 @@ class MyModelWithModelArtifact(Model):
     async def predict_async(self, body):
         return self.predict(body)
 
+
+class MyRemoteModelWithModelArtifact(Model):
+    execution_mechanism = "naive"
+
+    def predict(self, body):
+        body["url"] = self.artifact.model_url
+        body["default_config"] = self.artifact.default_config
+        return body
+
+    async def predict_async(self, body):
+        return self.predict(body)
 
 def test_model_runner():
     function = mlrun.new_function("tests", kind="serving")
@@ -338,7 +349,7 @@ def test_model_runner_with_model_artifact():
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
-        model_class="MyModelWithModelArtifact",
+        model_class="MyRemoteModelWithModelArtifact",
         endpoint_name="my_endpoint",
         model_artifact=model_artifact,
     )

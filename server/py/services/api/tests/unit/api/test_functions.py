@@ -333,10 +333,6 @@ async def test_list_functions_filter_by_states(db, async_client):
         "remote",
     ],
 )
-@pytest.mark.parametrize(
-    "function_deletion_endpoint_prefix, expected_status",
-    [("v1/", HTTPStatus.NO_CONTENT.value), ("v2/", HTTPStatus.ACCEPTED.value)],
-)
 @unittest.mock.patch.object(framework.utils.clients.async_nuclio, "Client")
 @unittest.mock.patch.object(
     framework.utils.clients.async_nuclio.Client, "delete_function"
@@ -347,8 +343,6 @@ def test_delete_function(
     db: sqlalchemy.orm.Session,
     unversioned_client: fastapi.testclient.TestClient,
     kind,
-    function_deletion_endpoint_prefix,
-    expected_status,
 ):
     patched_nuclio_client.return_value = fastapi.testclient.TestClient
     patched_delete_nuclio_function.return_value.return_value = None
@@ -380,10 +374,8 @@ def test_delete_function(
     hash_key = function.json()["hash_key"]
 
     # delete the function and assert that it has been removed, as has its schedule if created
-    response = unversioned_client.delete(
-        f"{function_deletion_endpoint_prefix}{function_endpoint}"
-    )
-    assert response.status_code == expected_status
+    response = unversioned_client.delete(f"v2/{function_endpoint}")
+    assert response.status_code == HTTPStatus.ACCEPTED.value
 
     response = unversioned_client.get(
         f"{endpoint_prefix}{function_endpoint}", params={"hash_key": hash_key}

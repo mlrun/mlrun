@@ -4706,7 +4706,7 @@ class MlrunProject(ModelObj):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
-    ) -> mlrun.lists.ArtifactList:
+    ) -> list[mlrun.artifacts.llm_prompt.LLMPromptArtifact]:
         """List LLM prompt artifacts in the project with support for filtering.
 
         This method returns a list of LLM prompt artifacts, filtered by parameters such as name, tag, labels,

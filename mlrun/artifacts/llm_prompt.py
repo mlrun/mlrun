@@ -21,30 +21,6 @@ from mlrun.utils import StorePrefix, logger
 MAX_PROMPT_LENGTH = 1000
 
 
-class LLMPromptArtifact(Artifact):
-    """
-    LLM Prompt Artifact
-
-    This artifact is used to store and manage LLM prompts.
-    Stores the prompt string/path and a link to the related model artifact.
-    """
-
-    kind = "llm-prompt"
-    _store_prefix = StorePrefix.LLMPrompt
-
-    def read_prompt(self) -> str:
-        """
-        Read the prompt string from the artifact.
-        """
-        if self.spec.prompt_string:
-            return self.spec.prompt_string
-        if self.spec.target_path:
-            with mlrun.datastore.store_manager.object(url=self.spec.target_path).open(
-                mode="r"
-            ) as p_file:
-                return p_file.read()
-
-
 class LLMPromptArtifactSpec(ArtifactSpec):
     _dict_fields = ArtifactSpec._dict_fields + [
         "prompt_string",
@@ -107,3 +83,35 @@ class LLMPromptArtifactSpec(ArtifactSpec):
 
     def get_body(self):
         return self.prompt_string
+
+
+class LLMPromptArtifact(Artifact):
+    """
+    LLM Prompt Artifact
+
+    This artifact is used to store and manage LLM prompts.
+    Stores the prompt string/path and a link to the related model artifact.
+    """
+
+    kind = "llm-prompt"
+    _store_prefix = StorePrefix.LLMPrompt
+
+    @property
+    def spec(self) -> LLMPromptArtifactSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec: LLMPromptArtifactSpec):
+        self._spec = self._verify_dict(spec, "spec", LLMPromptArtifactSpec)
+
+    def read_prompt(self) -> str:
+        """
+        Read the prompt string from the artifact.
+        """
+        if self.spec.prompt_string:
+            return self.spec.prompt_string
+        if self.spec.target_path:
+            with mlrun.datastore.store_manager.object(url=self.spec.target_path).open(
+                mode="r"
+            ) as p_file:
+                return p_file.read()

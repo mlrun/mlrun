@@ -262,7 +262,10 @@ with warnings.catch_warnings():
         best_iteration = Column(BOOLEAN, default=False, index=True)
         uid = Column(String(255, collation=SQLTypesUtil.collation()))
         parent_id = Column(
-            Integer, ForeignKey("artifacts_v2.id"), nullable=True, index=True
+            Integer,
+            ForeignKey("artifacts_v2.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
         )
         created = Column(
             SQLTypesUtil.timestamp(),
@@ -288,8 +291,9 @@ with warnings.catch_warnings():
         )
         parent = relationship(
             "ArtifactV2",
-            remote_side="ArtifactV2.id",
+            remote_side=[id],
             backref="child_artifacts",
+            passive_deletes=True,
         )
 
         @property

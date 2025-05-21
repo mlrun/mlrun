@@ -3259,6 +3259,7 @@ class SQLDB(DBInterface):
                 .filter(where_clause, table.id > last_id)
                 .order_by(table.id)
                 .limit(batch_size)
+                .with_for_update(skip_locked=True)
                 .all()
             )
 

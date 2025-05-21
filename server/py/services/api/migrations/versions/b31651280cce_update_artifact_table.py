@@ -37,7 +37,12 @@ def upgrade():
         op.f("ix_artifacts_v2_parent_id"), "artifacts_v2", ["parent_id"], unique=False
     )
     op.create_foreign_key(
-        "parent_id_key", "artifacts_v2", "artifacts_v2", ["parent_id"], ["id"]
+        "parent_id_key",
+        "artifacts_v2",
+        "artifacts_v2",
+        ["parent_id"],
+        ["id"],
+        ondelete="SET NULL",
     )
     # ### end Alembic commands ###
 

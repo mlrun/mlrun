@@ -42,6 +42,7 @@ from .dataset import (
     TableArtifact,
 )
 from .document import DocumentArtifact
+from .llm_prompt import LLMPromptArtifact
 from .model import ModelArtifact
 from .plots import (
     PlotArtifact,
@@ -59,6 +60,7 @@ artifact_types = {
     "dataset": DatasetArtifact,
     "plotly": PlotlyArtifact,
     "document": DocumentArtifact,
+    "llm-prompt": LLMPromptArtifact,
 }
 
 

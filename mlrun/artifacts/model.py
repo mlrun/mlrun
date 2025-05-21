@@ -513,17 +513,14 @@ def get_model(
 
     if hasattr(model_dir, "artifact_url"):
         model_dir = model_dir.artifact_url
-    if model_dir:
-        alternative_suffix = next(
-            (
-                optional_suffix
-                for optional_suffix in MODEL_OPTIONAL_SUFFIXES
-                if model_dir.lower().endswith(optional_suffix)
-            ),
-            None,
-        )
-    else:
-        alternative_suffix = None
+    alternative_suffix = next(
+        (
+            optional_suffix
+            for optional_suffix in MODEL_OPTIONAL_SUFFIXES
+            if model_dir and model_dir.lower().endswith(optional_suffix)
+        ),
+        None,
+    )
     is_store_uri = mlrun.datastore.is_store_uri(model_dir)
     if is_store_uri or artifact:
         if is_store_uri:

@@ -17,6 +17,7 @@ import typing
 import mlrun
 from mlrun.artifacts import Artifact, ArtifactSpec
 from mlrun.utils import StorePrefix, logger
+import mlrun.artifacts.model as model_artifact
 
 MAX_PROMPT_LENGTH = 1000
 
@@ -115,3 +116,13 @@ class LLMPromptArtifact(Artifact):
                 mode="r"
             ) as p_file:
                 return p_file.read()
+
+    @property
+    def model_artifact(self) -> typing.Optional[model_artifact.ModelArtifact]:
+        """
+        Get the model artifact linked to this prompt artifact.
+        """
+        if self.spec.model_uri:
+            model_spec, target = mlrun.datastore.store_manager.get_store_artifact(self.spec.model_uri)
+            return model_spec
+        return None

@@ -120,3 +120,7 @@ class TestAPIArtifacts(TestMLRunSystem):
 
         llm_0 = self.project.list_llm_prompts(name=f"{llm_key}-0")[0]
         assert llm_0.read_prompt() == "Q : {question}"
+
+        model_ref = llm_0.model_artifact
+        assert model_ref.key == model.key
+

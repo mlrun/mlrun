@@ -765,15 +765,11 @@ class ServingRuntime(RemoteRuntime):
             set_paths(workdir)
             os.chdir(workdir)
 
-        system_graph = None
-        if isinstance(self.spec.graph, RootFlowStep):
-            system_graph = add_system_steps_to_graph(
-                copy.deepcopy(self.spec.graph), self.spec.track_models
-            )
+
         server = create_graph_server(
             parameters=self.spec.parameters,
             load_mode=self.spec.load_mode,
-            graph=system_graph or self.spec.graph,
+            graph=self.spec.graph,
             verbose=self.verbose,
             current_function=current_function,
             graph_initializer=self.spec.graph_initializer,
@@ -793,6 +789,11 @@ class ServingRuntime(RemoteRuntime):
             is_mock=True,
             monitoring_mock=self.spec.track_models,
         )
+
+        if isinstance(self.spec.graph, RootFlowStep):
+            server.graph = add_system_steps_to_graph(
+                copy.deepcopy(self.spec.graph), self.spec.track_models, server.context
+            )
 
         if workdir:
             os.chdir(old_workdir)

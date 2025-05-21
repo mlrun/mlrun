@@ -404,6 +404,13 @@ def apply_monitoring_general_steps(
         if isinstance(serving_spec, dict)
         else serving_spec.parameters.sampling_percentage,
     )
+    graph.add_step(
+        "storey.Filter",
+        "filter_none",
+        _fn="(event is not None)",
+        after="sampling_step",
+    )
+
     server: mlrun.serving.GraphServer = getattr(context, "_server", None) or getattr(
         context, "server", None
     )

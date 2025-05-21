@@ -33,6 +33,7 @@ class MonitoringData(StrEnum):
     INPUTS = "inputs"
     OUTPUTS = "outputs"
     INPUT_PATH = "input_path"
+    RESULT_PATH = "result_path"
     CREATION_STRATEGY = "creation_strategy"
     LABELS = "labels"
     MODEL_PATH = "model_path"

@@ -1010,9 +1010,11 @@ class ModelRunner(storey.ParallelExecution):
         return self.model_selector.select(event, models)
 
     async def _do(self, event):
+        input_body = event
         event = await super()._do(event)
         if event is not None:
             event.metadata["model_runner_name"] = self.name
+            event.metadata["inputs"] = input_body
         return event
 
 
@@ -1030,6 +1032,19 @@ class ModelRunnerStep(TaskStep, StepToDict):
       event. Optional. If not passed, all models will be run.
     :param raise_exception:  If True, an error will be raised when model selection fails or if one of the models raised
       an error. If False, the error will appear in the output event.
+
+    :raise ModelRunnerError - when a model raise an error the ModelRunnerStep will handle it, collect errors and outputs
+                              from all models, If raise_exception is True will raise ModelRunnerError Else will add the
+                              error msg as part of the event body: {
+                                                                    "model_0" :
+                                                                        {
+                                                                            "error": "exception"
+                                                                        }
+                                                                    "model_1" :
+                                                                        {
+                                                                            "output": [1,2,3]
+                                                                        }
+                                                                    }
     """
 
     kind = "model_runner"
@@ -1062,6 +1077,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
         inputs: Optional[list[str]] = None,
         outputs: Optional[list[str]] = None,
         input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
         override: bool = False,
         **model_parameters,
     ) -> None:
@@ -1090,6 +1106,9 @@ class ModelRunnerStep(TaskStep, StepToDict):
                                     equal to the model_class predict method outputs (length, and order)
         :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
                                     (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
+        :param result_path:         result path inside the user output event, expect scopes to be defined by dot
+                                    notation (e.g "outputs.my_model_outputs") expects list or dictionary type object in
+                                    path.
         :param override:            bool allow override existing model on the current ModelRunnerStep.
         :param model_parameters:    Parameters for model instantiation
         """
@@ -1115,6 +1134,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
             schemas.MonitoringData.INPUTS: inputs,
             schemas.MonitoringData.OUTPUTS: outputs,
             schemas.MonitoringData.INPUT_PATH: input_path,
+            schemas.MonitoringData.RESULT_PATH: result_path,
             schemas.MonitoringData.CREATION_STRATEGY: creation_strategy,
             schemas.MonitoringData.LABELS: labels,
             schemas.MonitoringData.MODEL_PATH: model_artifact.uri

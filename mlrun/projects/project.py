@@ -4582,7 +4582,7 @@ class MlrunProject(ModelObj):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
-    ):
+    ) -> list[ModelArtifact]:
         """List models in project, filtered by various parameters.
 
         Examples::

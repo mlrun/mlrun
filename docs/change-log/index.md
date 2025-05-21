@@ -1248,6 +1248,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-8699|After upgrade/restart there may be some lost notifications due to restart of the chief.|NA| v1.8.0|
 |ML-8996|Occasionally, deleting projects fails with 'Fail to delete project in MLRun' | Try deleting the project again.| v1.8.0|
 |ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.| NA|v1.8.0|
+
 ## Deprecations and removed code
 
 | In    |ID     |Description                                                                                                                                                                                                                         |
@@ -1284,11 +1285,11 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.11.0      | v1.7.0 |`key`, `body`, `is_inline`, and `target_path` in `mlrun.artifacts.plots.PlotArtifact` |`metadata and `spec` |
 | v1.11.0      | v1.7.0 |`key`, and `target_path` in `mlrun.artifacts.plots.PlotlyArtifact`  |`metadata and `spec` |
 | v1.11.0      | v1.7.0 |`labels` in`get_or_create_ctx` |`spec` |
-| v1.11.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_function` |Default value changes to `True` |
-| v1.11.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_config` |Default value changes to `True` |
-| v1.11.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_image` |Default value changes to `True` |
-| v1.11.0      | v1.7.0 |`overwrite_build_params` in `mlrun.projects.operations.build_function` |Default value changes to `True` |
-| v1.11.0      | v1.7.0 |`overwrite` in `KubejobRuntime.build_config` |Default value changes to `True` |
+| v1.11.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_function` |Default value changed to `True` |
+| v1.11.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_config` |Default value changed to `True` |
+| v1.11.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_image` |Default value changed to `True` |
+| v1.11.0      | v1.7.0 |`overwrite_build_params` in `mlrun.projects.operations.build_function` |Default value changed to `True` |
+| v1.11.0      | v1.7.0 |`overwrite` in `KubejobRuntime.build_config` |Default value changed to `True` |
 | v1.11.0      | v1.7.0 |`mlrun.utils.helpers.is_legacy_artifact`                                       |NA|
 | v1.11.0      | v1.7.0 |`mlrun.artifacts.base.convert_legacy_artifact_to_new_format`                 |NA. Make sure to save the artifact/project in the new format.|
 | v1.11.0      | v1.7.0 |`allow_cross_project` in `mlrun.load_project`                                 |Project name differs from the name specified in the context's project YAML. This functionality is no longer supported. If you want to enable this behavior, you can take one of the following actions:<ul><li>Set `allow_cross_project=True` when loading the project. (Previously, when `allow_cross_project` was not set (`None`), it implicitly behaved as if it were `True`, with a warning. Now, if you want this functionality, you must explicitly set `allow_cross_project=True`.)</li><li>Delete the existing project YAML, or ensure its `name` field matches the actual project name.</li><li>Use a different project context directory.</li></ul>

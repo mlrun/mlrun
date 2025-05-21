@@ -426,7 +426,7 @@ def test_model_runner_with_gpu_allocation():
         server.wait_for_completion()
 
 
-def test_model_runner_with_model_artifact():
+def test_model_runner_with_remote_model():
     project = mlrun.new_project("model-runner-project", save=False)
     model_artifact = project.log_model(
         "my_model",

@@ -1607,8 +1607,9 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _set_parent_uri(artifact: dict, parent: ArtifactV2):
+        artifact_spec = artifact.setdefault("spec", {})
         if parent:
-            artifact["spec"]["parent_uri"] = mlrun.datastore.get_store_uri(
+            artifact_spec["parent_uri"] = mlrun.datastore.get_store_uri(
                 kind=f"{parent.kind}s",
                 uri=generate_artifact_uri(
                     project=parent.project,
@@ -1619,7 +1620,7 @@ class SQLDB(DBInterface):
                 ),
             )
         else:
-            artifact["spec"]["parent_uri"] = None
+            artifact_spec["parent_uri"] = None
 
     def _get_link_artifacts_by_keys_and_uids(self, session, project, identifiers):
         # identifiers are tuples of (key, uid)

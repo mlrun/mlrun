@@ -91,7 +91,7 @@ class TestAPIArtifacts(TestMLRunSystem):
 
         mlrun.get_dataitem(output_uri)
 
-    def test_llm_prompt_artifact_with_model(self):
+    def test_llm_prompt_artifact(self):
         model_name = "model"
         model_file = "./assets/model.pkl"
         model = self.project.log_model(

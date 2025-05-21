@@ -1844,7 +1844,7 @@ class SQLDB(DBInterface):
             ref_alias = aliased(ArtifactV2)
 
             # Join on reference_artifact_id -> ArtifactV2.id
-            query = query.outerjoin(ref_alias, ArtifactV2.parent_id == ref_alias.id)
+            query = query.join(ref_alias, ArtifactV2.parent_id == ref_alias.id)
 
             if parent_key:
                 query = query.filter(ref_alias.key == parent_key)
@@ -1909,7 +1909,9 @@ class SQLDB(DBInterface):
             outer_query = self._paginate_query(outer_query, offset, limit=None)
 
         if not with_entities:
+            # egarly load the parent artifact
             outer_query = outer_query.options(selectinload(ArtifactV2.parent))
+
         results = outer_query.all()
         if not attach_tags:
             # we might have duplicate records due to the tagging mechanism, so we need to deduplicate

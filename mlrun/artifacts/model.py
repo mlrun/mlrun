@@ -124,6 +124,18 @@ class ModelArtifactSpec(ArtifactSpec):
     def outputs(self, outputs: list[Feature]) -> None:
         self._outputs = ObjectList.from_list(Feature, outputs)
 
+    @property
+    def default_config(self):
+        return self.parameters.get("default_config", {})
+
+    @default_config.setter
+    def default_config(self, default_config):
+        # skip storing 'default_config' if value is empty or unset
+        if default_config:
+            self.parameters["default_config"] = default_config
+        else:
+            self.parameters.pop("default_config", None)
+
 
 class ModelArtifact(Artifact):
     """ML Model artifact
@@ -262,15 +274,11 @@ class ModelArtifact(Artifact):
 
     @property
     def default_config(self):
-        return self.spec.parameters.get("default_config", {})
+        return self.spec.default_config
 
     @default_config.setter
     def default_config(self, default_config):
-        # skip storing 'default_config' if value is empty or unset
-        if default_config:
-            self.spec.parameters["default_config"] = default_config
-        else:
-            self.spec.parameters.pop("default_config", None)
+        self.spec.default_config = default_config
 
     @property
     def metrics(self):

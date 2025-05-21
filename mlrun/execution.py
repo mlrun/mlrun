@@ -899,7 +899,7 @@ class MLClientCtx:
         self,
         key,
         prompt_string: Optional[str] = None,
-        prompt_file: Optional[str] = None,
+        prompt_path: Optional[str] = None,
         prompt_legend: Optional[dict] = None,
         model_artifact: Union[ModelArtifact, str] = None,
         generation_configuration: Optional[dict] = None,
@@ -932,13 +932,13 @@ class MLClientCtx:
             # Log from a file
             project.log_llm_prompt(
                 key="summarization-prompt",
-                prompt_file="prompts/summarize.txt",
+                prompt_path="prompts/summarize.txt",
                 labels=["task=summarization"],
             )
 
         :param key: Unique name of the artifact.
-        :param prompt_string: Raw prompt text as a string. Cannot be used with `prompt_file`.
-        :param prompt_file: Path to a file containing the prompt content. Cannot be used with `prompt_string`.
+        :param prompt_string: Raw prompt text as a string. Cannot be used with `prompt_path`.
+        :param prompt_path: Path to a file containing the prompt content. Cannot be used with `prompt_string`.
         :param prompt_legend: A dictionary that maps variables used in the prompt to their expected context keys.
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
         :param generation_configuration: Dictionary of generation parameters (e.g., temperature, max_tokens).
@@ -953,14 +953,9 @@ class MLClientCtx:
         :returns: The logged `LLMPromptArtifact` object.
         """
 
-        if prompt_string and prompt_file:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "cannot specify prompt_string and prompt_path together"
-            )
-
         llm_prompt_spec = LLMPromptArtifactSpec(
             prompt_string=prompt_string,
-            prompt_path=prompt_file,
+            prompt_path=prompt_path,
             prompt_legend=prompt_legend,
             parent_uri=model_artifact.uri
             if isinstance(model_artifact, ModelArtifact)

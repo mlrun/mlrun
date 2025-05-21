@@ -48,6 +48,11 @@ class LLMPromptArtifactSpec(ArtifactSpec):
         generation_configuration: typing.Optional[dict] = None,
         description: typing.Optional[str] = None,
     ):
+        if prompt_string and prompt_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot specify prompt_string and prompt_path together"
+            )
+
         if prompt_string and len(prompt_string) > MAX_PROMPT_LENGTH:
             logger.info("prompt_string is too long, creating a temp file")
             with tempfile.NamedTemporaryFile(

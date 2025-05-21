@@ -1887,7 +1887,7 @@ class MlrunProject(ModelObj):
         self,
         key,
         prompt_string: Optional[str] = None,
-        prompt_file: Optional[str] = None,
+        prompt_path: Optional[str] = None,
         prompt_legend: Optional[dict] = None,
         model_artifact: Union[ModelArtifact, str] = None,
         generation_configuration: Optional[dict] = None,
@@ -1919,15 +1919,15 @@ class MlrunProject(ModelObj):
             # Log a prompt from file
             project.log_llm_prompt(
                 key="qa-prompt",
-                prompt_file="prompts/qa_template.txt",
+                prompt_path="prompts/qa_template.txt",
                 prompt_legend={"question": "user_question"},
                 model_artifact=model_1,
                 tag="v2",
             )
 
         :param key: Unique key for the prompt artifact.
-        :param prompt_string: Raw prompt text. Mutually exclusive with `prompt_file`.
-        :param prompt_file: Path to a file containing the prompt. Mutually exclusive with `prompt_string`.
+        :param prompt_string: Raw prompt text. Mutually exclusive with `prompt_path`.
+        :param prompt_path: Path to a file containing the prompt. Mutually exclusive with `prompt_string`.
         :param prompt_legend: A dictionary for formatting variables in the prompt (e.g., placeholders for user inputs).
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
         :param generation_configuration: Configuration dictionary for model generation parameters
@@ -1942,15 +1942,9 @@ class MlrunProject(ModelObj):
 
         :returns: The logged `LLMPromptArtifact` object.
         """
-
-        if prompt_string and prompt_file:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "cannot specify prompt_string and prompt_path together"
-            )
-
         llm_prompt_spec = LLMPromptArtifactSpec(
             prompt_string=prompt_string,
-            prompt_path=prompt_file,
+            prompt_path=prompt_path,
             prompt_legend=prompt_legend,
             parent_uri=model_artifact.uri
             if isinstance(model_artifact, ModelArtifact)

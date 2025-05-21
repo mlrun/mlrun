@@ -47,7 +47,7 @@ def test_prompt_target_paths(generate_target_path_from_artifact_hash, from_file)
         llm_prompt = context.log_llm_prompt(
             llm_key,
             artifact_path=artifact_path,
-            prompt_file=str(llm_file),
+            prompt_path=str(llm_file),
             description="best-prompt",
         )
     else:

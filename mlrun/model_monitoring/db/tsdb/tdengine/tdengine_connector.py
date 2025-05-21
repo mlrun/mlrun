@@ -741,6 +741,16 @@ class TDEngineConnector(TSDBConnector):
             df.dropna(inplace=True)
         return df
 
+    def read_results_by_status(
+        self,
+        start: Union[datetime, str] = None,
+        end: Union[datetime, str] = None,
+        endpoint_ids: Union[str, list[str]] = None,
+        application_names: Union[str, list[str]] = None,
+        result_status_list: Optional[list[int]] = None,
+    ) -> dict[tuple[str, int], int]:
+        pass
+
     def get_metrics_metadata(
         self,
         endpoint_id: Union[str, list[str]],

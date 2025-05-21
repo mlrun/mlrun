@@ -334,7 +334,7 @@ echo "Using branch ${branch} to download demos"
 temp_dir=$(mktemp -d /tmp/temp-get-demos.XXXXXXXXXX)
 
 # demos introduced to mlrun in 1.7.0
-if (( major > 1 )) || (( major == 1 && minor > 7 )); then
+if (( major > 1 )) || (( major == 1 && minor > 6 )); then
     tar_url="${git_base_url}/releases/download/${branch}/mlrun-demos.tar"
     download_tar_to_temp_dir "$tar_url" "$temp_dir"
     verify_update_demos "${temp_dir}" "${branch}"

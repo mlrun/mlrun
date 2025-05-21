@@ -331,10 +331,10 @@ class TSDBConnector(ABC):
     @abstractmethod
     def read_results_by_status(
         self,
-        start: Union[datetime, str] = None,
-        end: Union[datetime, str] = None,
-        endpoint_ids: Union[str, list[str]] = None,
-        application_names: Union[str, list[str]] = None,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        endpoint_ids: Optional[Union[str, list[str]]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
         result_status_list: Optional[list[int]] = None,
     ) -> dict[tuple[str, int], int]:
         """

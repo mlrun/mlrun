@@ -834,9 +834,7 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             feature_analysis=True,
             tsdb_metrics=True,
         )
-        self._test_v3io_records(
-            mep.metadata.uid, inputs=set(self.columns), outputs=set(self.y_name)
-        )
+        self._test_v3io_records(mep.metadata.uid)
         self._test_predictions_table(mep.metadata.uid, should_be_empty=True)
 
     @staticmethod

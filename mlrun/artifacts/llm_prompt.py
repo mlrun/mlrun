@@ -80,6 +80,7 @@ class LLMPromptArtifactSpec(ArtifactSpec):
         self.prompt_legend = prompt_legend
         self.generation_configuration = generation_configuration
         self.description = description
+        self._model_artifact = None
 
     @property
     def model_uri(self):
@@ -108,6 +109,20 @@ class LLMPromptArtifact(Artifact):
     def spec(self, spec: LLMPromptArtifactSpec):
         self._spec = self._verify_dict(spec, "spec", LLMPromptArtifactSpec)
 
+    @property
+    def model_artifact(self) -> typing.Optional[model_artifact.ModelArtifact]:
+        """
+        Get the model artifact linked to this prompt artifact.
+        """
+        if self.spec._model_artifact:
+            return self.spec._model_artifact
+        if self.spec.model_uri:
+            self.spec._model_artifact, target = (
+                mlrun.datastore.store_manager.get_store_artifact(self.spec.model_uri)
+            )
+            return self.spec._model_artifact
+        return None
+
     def read_prompt(self) -> str:
         """
         Read the prompt string from the artifact.
@@ -119,15 +134,3 @@ class LLMPromptArtifact(Artifact):
                 mode="r"
             ) as p_file:
                 return p_file.read()
-
-    @property
-    def model_artifact(self) -> typing.Optional[model_artifact.ModelArtifact]:
-        """
-        Get the model artifact linked to this prompt artifact.
-        """
-        if self.spec.model_uri:
-            model_spec, target = mlrun.datastore.store_manager.get_store_artifact(
-                self.spec.model_uri
-            )
-            return model_spec
-        return None

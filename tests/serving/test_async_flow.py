@@ -427,7 +427,7 @@ def test_model_runner_with_gpu_allocation():
 
 
 def test_model_runner_with_remote_model():
-    project = mlrun.new_project("model-runner-project", save=False)
+    project = mlrun.new_project("remote-model-project", save=False)
     model_artifact = project.log_model(
         "my_model",
         model_url="http://localhost:8080/v2/models/mymodel/infer",

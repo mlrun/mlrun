@@ -47,7 +47,7 @@ from ..datastore.utils import (
     get_kafka_brokers_from_dict,
     parse_kafka_url,
 )
-from ..errors import MLRunInvalidArgumentError, err_to_str
+from ..errors import MLRunInvalidArgumentError, ModelRunnerError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, get_function, is_explicit_ack_supported
@@ -1022,14 +1022,18 @@ class ModelRunnerStep(TaskStep, StepToDict):
 
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
       event. Optional. If not passed, all models will be run.
+    :param raise_exception:  If True, an error will be raised when model selection fails or if one of the models raised
+      an error. If False, the error will appear in the output event.
     """
 
     kind = "model_runner"
+    _dict_fields = TaskStep._dict_fields + ["raise_exception"]
 
     def __init__(
         self,
         *args,
         model_selector: Optional[Union[str, ModelSelector]] = None,
+        raise_exception: bool = True,
         **kwargs,
     ):
         super().__init__(
@@ -1038,6 +1042,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
             class_args=dict(model_selector=model_selector),
             **kwargs,
         )
+        self.raise_exception = raise_exception
 
     def add_model(
         self,
@@ -1121,12 +1126,40 @@ class ModelRunnerStep(TaskStep, StepToDict):
         model_objects = []
         for model, model_params in models.values():
             if not isinstance(model, Model):
+                # prevent model predict from raising error
+                model_params["raise_exception"] = False
                 model = get_class(model, namespace)(**model_params)
+            else:
+                # prevent model predict from raising error
+                model._raise_exception = False
             model_objects.append(model)
         self._async_object = ModelRunner(
             model_selector=model_selector,
             runnables=model_objects,
         )
+
+
+class ModelRunnerErrorRaiser(storey.MapClass):
+    def __init__(self, raise_exception: bool, models_names: list[str], **kwargs):
+        super().__init__(**kwargs)
+        self._raise_exception = raise_exception
+        self._models_names = models_names
+
+    def do(self, event):
+        if self._raise_exception:
+            errors = {}
+            should_raise = False
+            if len(self._models_names) == 1:
+                should_raise = event.body.get("error") is not None
+                errors[self._models_names[0]] = event.body.get("error")
+            else:
+                for model in event.body:
+                    errors[model] = event.body.get(model).get("error")
+                    if errors[model] is not None:
+                        should_raise = True
+            if should_raise:
+                raise ModelRunnerError(models_errors=errors)
+        return event
 
 
 class QueueStep(BaseStep, StepToDict):

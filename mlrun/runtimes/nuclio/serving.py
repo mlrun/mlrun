@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import copy
 import json
 import os
 import warnings
@@ -27,7 +27,11 @@ from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.secrets import SecretsStore
-from mlrun.serving.server import GraphServer, create_graph_server
+from mlrun.serving.server import (
+    GraphServer,
+    add_system_steps_to_graph,
+    create_graph_server,
+)
 from mlrun.serving.states import (
     RootFlowStep,
     RouterStep,
@@ -761,10 +765,13 @@ class ServingRuntime(RemoteRuntime):
             set_paths(workdir)
             os.chdir(workdir)
 
+        system_graph = None
+        if isinstance(self.spec.graph, RootFlowStep):
+            system_graph = add_system_steps_to_graph(copy.deepcopy(self.spec.graph))
         server = create_graph_server(
             parameters=self.spec.parameters,
             load_mode=self.spec.load_mode,
-            graph=self.spec.graph,
+            graph=system_graph or self.spec.graph,
             verbose=self.verbose,
             current_function=current_function,
             graph_initializer=self.spec.graph_initializer,

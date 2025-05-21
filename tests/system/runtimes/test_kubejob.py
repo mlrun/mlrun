@@ -533,6 +533,8 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "--name",
             "test",
             function,
+            "--project",
+            self.project_name,
         ]
         out, _, _ = exec_cli(args, action="build")
         assert "Function built, state=ready" in out
@@ -546,6 +548,8 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "test",
             "--runtime",
             json.dumps(runtime),
+            "--project",
+            self.project_name,
         ]
         out, _, _ = exec_cli(args, action="build")
         assert "Function built, state=ready" in out

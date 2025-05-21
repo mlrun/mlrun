@@ -146,14 +146,6 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
     kwargs_public: typing.Optional[dict]
     kwargs_private: typing.Optional[dict]
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        if not self.brokers:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "DatastoreProfileKafkaTarget requires the 'brokers' field to be set"
-            )
-
     def get_topic(self) -> typing.Optional[str]:
         return self.topic
 

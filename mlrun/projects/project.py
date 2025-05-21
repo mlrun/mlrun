@@ -1888,7 +1888,7 @@ class MlrunProject(ModelObj):
         key,
         prompt_string: Optional[str] = None,
         prompt_file: Optional[str] = None,
-        prompt_legend: dict = None,
+        prompt_legend: Optional[dict] = None,
         model_artifact: Union[ModelArtifact, str] = None,
         generation_configuration: Optional[dict] = None,
         description: Optional[str] = None,

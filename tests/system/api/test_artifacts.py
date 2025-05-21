@@ -26,7 +26,7 @@ function_path = str(pathlib.Path(__file__).parent / "assets" / "function.py")
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestAPIArtifacts(TestMLRunSystem):
-    project_name = "db-system-test-project-3"
+    project_name = "test-project-artifacts"
 
     @pytest.mark.enterprise
     def test_import_artifact(self):
@@ -92,7 +92,6 @@ class TestAPIArtifacts(TestMLRunSystem):
         mlrun.get_dataitem(output_uri)
 
     def test_llm_prompt_artifact_with_model(self):
-        # Log a model artifact
         model_name = "model"
         model_file = "./assets/model.pkl"
         model = self.project.log_model(
@@ -100,9 +99,7 @@ class TestAPIArtifacts(TestMLRunSystem):
             model_file=model_file,
             upload=True,
         )
-        # Create a project and log an LLM prompt artifact
         llm_key = "llm-prompt"
-
         for i in range(3):
             self.project.log_llm_prompt(
                 f"{llm_key}-{i}",
@@ -111,7 +108,6 @@ class TestAPIArtifacts(TestMLRunSystem):
                 model_artifact=model if i <= 1 else None,
             )
 
-        # Verify the model artifact is set correctly
         llm_list = self.project.list_llm_prompts()
         assert len(llm_list) == 3, "Expected 3 LLM prompts"
 

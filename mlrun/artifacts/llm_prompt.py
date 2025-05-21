@@ -50,12 +50,10 @@ class LLMPromptArtifactSpec(ArtifactSpec):
     ):
         if prompt_string and len(prompt_string) > MAX_PROMPT_LENGTH:
             logger.info("prompt_string is too long, creating a temp file")
-            temp_file = tempfile.NamedTemporaryFile(
+            with tempfile.NamedTemporaryFile(
                 delete=False, mode="w", suffix=".txt"
-            )
-            temp_file.write(prompt_string)
-            temp_file.flush()
-            temp_file.close()
+            ) as temp_file:
+                temp_file.write(prompt_string)
             prompt_path = temp_file.name
             prompt_string = None
 

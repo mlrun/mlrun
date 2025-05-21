@@ -88,7 +88,7 @@ def test_extend_artifact_path():
         assert extend_artifact_path(test, "yz") == expected[i]
 
 
-def test_validators():
+def test_model_artifact_validators():
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
         match="Arguments 'model_file' and 'model_dir' cannot be"
@@ -98,6 +98,16 @@ def test_validators():
             model_dir="y",
             model_file="model.pkl",
             model_url="http://localhost:8080/v2/models/mymodel/infer",
+        )
+    project = mlrun.new_project("test-project", save=False)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="cannot specify upload and model_url together",
+    ):
+        project.log_model(
+            key="test_model",
+            model_url="http://localhost:8080/v2/models/mymodel/infer",
+            upload=True,
         )
 
 

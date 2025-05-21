@@ -369,10 +369,21 @@ if [ -z "${latest_tag}" ]; then
      error_exit "Couldn't locate a Git tag with prefix 'v${mlrun_version}.*'."
 fi
 branch=${latest_tag#refs/tags/}
+
+# Remove the 'v' prefix and suffixes like '-rc2'
+version="${branch#v}"               # remove leading 'v'
+version="${version%%-*}"           # remove suffix after '-' (e.g., '0-rc2' → '0')
+IFS='.' read -r major minor _ <<< "$version"
+echo "branch is ${branch}, parsed major : ${major}, parsed minor : ${minor}"
+
+# Convert to integers
+major=$((major))
+minor=$((minor))
+
 # tutorials are introduced to mlrun in 1.4.0
-if [[ "${branch}">"v1.4" ]]; then
+if (( major > 1 )) || (( major == 1 && minor > 4 )); then
     tar_url="${git_base_url}/releases/download/${branch}/mlrun-tutorials.tar"
-    if [[ "${branch}"<"v1.5" ]]; then # Folder name changed in 1.5.0
+    if (( major < 1 )) || (( major == 1 && minor < 5 )); then # Folder name changed in 1.5.0
         folder_name="tutorial"
     else
         folder_name="tutorials"

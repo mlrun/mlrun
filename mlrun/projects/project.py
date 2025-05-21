@@ -4570,8 +4570,8 @@ class MlrunProject(ModelObj):
 
     def list_models(
         self,
-        name=None,
-        tag=None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since=None,
         until=None,
@@ -4693,8 +4693,8 @@ class MlrunProject(ModelObj):
 
     def list_llm_prompts(
         self,
-        name=None,
-        tag=None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since=None,
         until=None,

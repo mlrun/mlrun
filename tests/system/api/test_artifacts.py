@@ -124,4 +124,3 @@ class TestAPIArtifacts(TestMLRunSystem):
         model_ref = llm_0.model_artifact
         assert model_ref.key == model.key
         assert model_ref.spec.have_children
-

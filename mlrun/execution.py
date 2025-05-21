@@ -940,7 +940,7 @@ class MLClientCtx:
         :param prompt_string: Raw prompt text as a string. Cannot be used with `prompt_file`.
         :param prompt_file: Path to a file containing the prompt content. Cannot be used with `prompt_string`.
         :param prompt_legend: A dictionary that maps variables used in the prompt to their expected context keys.
-        :param model_artifact: A reference to the model associated with the prompt. Can be a `ModelArtifact` or model URI.
+        :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
         :param generation_configuration: Dictionary of generation parameters (e.g., temperature, max_tokens).
         :param description: Optional description of the prompt.
         :param target_path: Path to write the artifact locally.

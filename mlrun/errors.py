@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import copy
 import typing
 from http import HTTPStatus
 
@@ -261,6 +261,27 @@ class MLRunFatalFailureError(Exception):
     ) -> None:
         super().__init__(*args, **kwargs)
         self.original_exception = original_exception
+
+
+class ModelRunnerError(MLRunBaseError):
+    def __init__(self, models_errors: dict[str:str], *args) -> None:
+        self.models_errors = models_errors
+        super().__init__(self.__repr__(), *args)
+
+    def __repr__(self):
+        return f"ModelRunnerError: {repr(self.models_errors)}"
+
+    def __copy__(self):
+        return type(self)(models_errors=self.models_errors)
+
+    def __deepcopy__(self, memo):
+        return type(self)(copy.deepcopy(self.models_errors, memo))
+
+    def get_errors(self):
+        return self.models_errors
+
+    def get_model_error(self, model: str):
+        return self.models_errors.get(model)
 
 
 STATUS_ERRORS = {

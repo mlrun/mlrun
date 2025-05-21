@@ -21,7 +21,8 @@ Create Date: 2025-03-02 17:54:28.738705
 """
 
 from alembic import op
-from sqlalchemy.dialects import mysql
+
+from mlrun.db.sql_types import DateTime, MicroSecondDateTime
 
 # revision identifiers, used by Alembic.
 revision = "22dd9f3bdc66"
@@ -35,22 +36,22 @@ def upgrade():
     op.alter_column(
         "project_summaries",
         "updated",
-        existing_type=mysql.DATETIME(fsp=3),
-        type_=mysql.DATETIME(timezone=True, fsp=6),
+        existing_type=DateTime(),
+        type_=MicroSecondDateTime(),
         existing_nullable=True,
     )
     op.alter_column(
         "runs",
         "end_time",
-        existing_type=mysql.DATETIME(fsp=3),
-        type_=mysql.DATETIME(timezone=True, fsp=6),
+        existing_type=DateTime(),
+        type_=MicroSecondDateTime(),
         existing_nullable=True,
     )
     op.alter_column(
         "time_window_trackers",
         "timestamp",
-        existing_type=mysql.DATETIME(fsp=3),
-        type_=mysql.DATETIME(timezone=True, fsp=6),
+        existing_type=DateTime(),
+        type_=MicroSecondDateTime(),
         existing_nullable=False,
     )
     # ### end Alembic commands ###
@@ -61,22 +62,22 @@ def downgrade():
     op.alter_column(
         "time_window_trackers",
         "timestamp",
-        existing_type=mysql.DATETIME(timezone=True, fsp=6),
-        type_=mysql.DATETIME(fsp=3),
+        existing_type=MicroSecondDateTime(),
+        type_=DateTime(),
         existing_nullable=False,
     )
     op.alter_column(
         "runs",
         "end_time",
-        existing_type=mysql.DATETIME(timezone=True, fsp=6),
-        type_=mysql.DATETIME(fsp=3),
+        existing_type=MicroSecondDateTime(),
+        type_=DateTime(),
         existing_nullable=True,
     )
     op.alter_column(
         "project_summaries",
         "updated",
-        existing_type=mysql.DATETIME(timezone=True, fsp=6),
-        type_=mysql.DATETIME(fsp=3),
+        existing_type=MicroSecondDateTime(),
+        type_=DateTime(),
         existing_nullable=True,
     )
     # ### end Alembic commands ###

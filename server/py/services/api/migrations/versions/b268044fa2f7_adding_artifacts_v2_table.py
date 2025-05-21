@@ -24,7 +24,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import mysql
 
-from framework.utils.db.sql_types import SQLTypesUtil
+from mlrun.db.sql_types import Blob
 
 # revision identifiers, used by Alembic.
 revision = "b268044fa2f7"
@@ -40,33 +40,33 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "uid",
-            sa.String(length=255, collation=SQLTypesUtil.collation()),
+            sa.String(length=255),
             nullable=True,
         ),
         sa.Column(
             "project",
-            sa.String(length=255, collation=SQLTypesUtil.collation()),
+            sa.String(length=255),
             nullable=True,
         ),
         sa.Column(
             "key",
-            sa.String(length=255, collation=SQLTypesUtil.collation()),
+            sa.String(length=255),
             nullable=True,
         ),
         sa.Column(
             "kind",
-            sa.String(length=255, collation=SQLTypesUtil.collation()),
+            sa.String(length=255),
             nullable=True,
             index=True,
         ),
         sa.Column(
             "producer_id",
-            sa.String(length=255, collation=SQLTypesUtil.collation()),
+            sa.String(length=255),
             nullable=True,
         ),
         sa.Column("iteration", sa.Integer(), nullable=True),
         sa.Column("best_iteration", sa.BOOLEAN(), nullable=True, index=True),
-        sa.Column("object", mysql.MEDIUMBLOB(), nullable=True),
+        sa.Column("object", Blob(), nullable=True),
         sa.Column("created", mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.Column("updated", mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.PrimaryKeyConstraint("id"),
@@ -77,12 +77,12 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(255, collation=SQLTypesUtil.collation()),
+            sa.String(255),
             nullable=True,
         ),
         sa.Column(
             "value",
-            sa.String(255, collation=SQLTypesUtil.collation()),
+            sa.String(255),
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
@@ -98,18 +98,18 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "project",
-            sa.String(255, collation=SQLTypesUtil.collation()),
+            sa.String(255),
             nullable=True,
         ),
         sa.Column(
             "name",
-            sa.String(255, collation=SQLTypesUtil.collation()),
+            sa.String(255),
             nullable=True,
         ),
         sa.Column("obj_id", sa.Integer(), nullable=True),
         sa.Column(
             "obj_name",
-            sa.String(255, collation=SQLTypesUtil.collation()),
+            sa.String(255),
             nullable=True,
         ),
         sa.ForeignKeyConstraint(

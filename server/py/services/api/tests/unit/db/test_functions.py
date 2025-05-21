@@ -273,7 +273,7 @@ class TestFunctions(TestDatabaseBase):
             )
 
     def test_get_and_list_functions_columns_enrichment(self):
-        function_1 = self._generate_function()
+        function_1 = self._generate_function(project=self.project)
         # Enrich status to ensure it is retained
         function_1.status.state = "test"
         function_1.status.build_pod = "test-build-pod"

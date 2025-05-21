@@ -23,6 +23,8 @@ Create Date: 2022-01-16 19:32:08.676120
 import sqlalchemy.dialects.mysql
 from alembic import op
 
+from mlrun.db.sql_types import DateTime
+
 # revision identifiers, used by Alembic.
 revision = "32bae1b0e29c"
 down_revision = "b86f5b53f3d7"
@@ -35,67 +37,67 @@ def upgrade():
     op.alter_column(
         table_name="artifacts",
         column_name="updated",
-        type_=sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+        type_=DateTime(),
     )
     op.alter_column(
         table_name="functions",
         column_name="updated",
-        type_=sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+        type_=DateTime(),
     )
     op.alter_column(
         table_name="runs",
         column_name="start_time",
-        type_=sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+        type_=DateTime(),
     )
     op.alter_column(
         table_name="runs",
         column_name="updated",
-        type_=sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+        type_=DateTime(),
     )
     op.alter_column(
         table_name="schedules_v2",
         column_name="creation_time",
-        type_=sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+        type_=DateTime(),
     )
     op.alter_column(
         table_name="projects",
         column_name="created",
-        type_=sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+        type_=DateTime(),
     )
     op.alter_column(
         table_name="feature_sets",
         column_name="created",
-        type_=sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+        type_=DateTime(),
     )
     op.alter_column(
         table_name="feature_sets",
         column_name="updated",
-        type_=sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+        type_=DateTime(),
     )
     op.alter_column(
         table_name="feature_vectors",
         column_name="created",
-        type_=sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+        type_=DateTime(),
     )
     op.alter_column(
         table_name="feature_vectors",
         column_name="updated",
-        type_=sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+        type_=DateTime(),
     )
     op.alter_column(
         table_name="marketplace_sources",
         column_name="created",
-        type_=sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+        type_=DateTime(),
     )
     op.alter_column(
         table_name="marketplace_sources",
         column_name="updated",
-        type_=sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+        type_=DateTime(),
     )
     op.alter_column(
         table_name="data_versions",
         column_name="created",
-        type_=sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+        type_=DateTime(),
     )
     # ### end Alembic commands ###
 

@@ -35,12 +35,34 @@ def upgrade():
     op.create_table(
         "datastore_profiles",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(length=255, collation="utf8_bin"), nullable=True),
         sa.Column(
-            "project", sa.String(length=255, collation="utf8_bin"), nullable=True
+            "name",
+            sa.String(
+                length=255,
+            ),
+            nullable=True,
         ),
-        sa.Column("type", sa.String(length=255, collation="utf8_bin"), nullable=True),
-        sa.Column("body", sa.String(length=1024, collation="utf8_bin"), nullable=True),
+        sa.Column(
+            "project",
+            sa.String(
+                length=255,
+            ),
+            nullable=True,
+        ),
+        sa.Column(
+            "type",
+            sa.String(
+                length=255,
+            ),
+            nullable=True,
+        ),
+        sa.Column(
+            "body",
+            sa.String(
+                length=1024,
+            ),
+            nullable=True,
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", "project", name="_datastore_profiles_uc"),
     )

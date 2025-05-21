@@ -325,9 +325,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
         framework.api.utils.mask_function_sensitive_data(runtime, self._auth_info)
 
         # ensure the runtime has a project before we enrich it with the project's spec
-        runtime.metadata.project = (
-            project_name or runtime.metadata.project or mlrun.mlconf.default_project
-        )
+        runtime.metadata.project = project_name or runtime.metadata.project
+        if not runtime.metadata.project:
+            raise mlrun.errors.MLRunMissingProjectError("Runtime must have a project")
         project = runtime._get_db().get_project(runtime.metadata.project)
         # this is mainly for tests with nop db
         # in normal use cases if no project is found we will get an error

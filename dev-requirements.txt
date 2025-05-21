@@ -28,6 +28,7 @@ matplotlib~=3.5
 graphviz~=0.20.0
 nuclio-sdk>=0.5
 avro~=1.11
+sqlalchemy~=2.0
 sqlalchemy-utils~=0.41.2
 
 # frameworks tests
@@ -37,4 +38,7 @@ xgboost~=1.1
 cryptography~=44.0
 
 # install to verify it doesn't cause a warning (ML-8951)
-evidently~=0.6.2
+evidently~=0.7.5
+
+coverage[toml]~=7.8
+diff-cover~=9.2

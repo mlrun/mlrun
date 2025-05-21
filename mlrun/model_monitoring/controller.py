@@ -251,7 +251,7 @@ class MonitoringApplicationController:
 
     def __init__(self) -> None:
         """Initialize Monitoring Application Controller"""
-        self.project = cast(str, mlrun.mlconf.default_project)
+        self.project = cast(str, mlrun.mlconf.active_project)
         self.project_obj = mlrun.get_run_db().get_project(name=self.project)
         logger.debug(f"Initializing {self.__class__.__name__}", project=self.project)
 
@@ -732,7 +732,9 @@ class MonitoringApplicationController:
                     last_request = last_request_dict.get(endpoint.metadata.uid, None)
                     if isinstance(last_request, float):
                         last_request = pd.to_datetime(last_request, unit="s", utc=True)
-                    endpoint.status.last_request = last_request
+                    endpoint.status.last_request = (
+                        last_request or endpoint.status.last_request
+                    )
                     futures = {
                         pool.submit(
                             self.endpoint_to_regular_event,

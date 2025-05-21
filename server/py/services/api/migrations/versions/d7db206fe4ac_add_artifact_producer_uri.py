@@ -36,7 +36,7 @@ def upgrade():
         "artifacts_v2",
         sa.Column(
             "producer_uri",
-            sa.String(length=255, collation="utf8mb3_bin"),
+            sa.String(length=255),
             nullable=True,
         ),
     )

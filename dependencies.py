@@ -65,7 +65,7 @@ def extra_requirements() -> dict[str, list[str]]:
             "avro~=1.11",
         ],
         "redis": ["redis~=4.3"],
-        "mlflow": ["mlflow~=2.16"],
+        "mlflow": ["mlflow~=2.22"],
         "databricks-sdk": ["databricks-sdk~=0.20.0"],
         "sqlalchemy": ["sqlalchemy~=2.0"],
         "dask": [

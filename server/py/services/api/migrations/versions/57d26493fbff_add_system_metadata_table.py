@@ -35,12 +35,8 @@ def upgrade():
     op.create_table(
         "system_metadata",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column(
-            "key", sa.String(length=255, collation="utf8mb3_bin"), nullable=False
-        ),
-        sa.Column(
-            "value", sa.String(length=255, collation="utf8mb3_bin"), nullable=False
-        ),
+        sa.Column("key", sa.String(length=255), nullable=False),
+        sa.Column("value", sa.String(length=255), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("key", name="_system_metadata_uc"),
     )

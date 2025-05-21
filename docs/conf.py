@@ -135,7 +135,7 @@ html_theme_options = {
 }
 
 html_sidebars = {
-    "**": ["navbar-logo.html", "search-field.html", "sbt-sidebar-nav.html"]
+    "**": ["navbar-logo.html", "search-button-field.html", "sbt-sidebar-nav.html"]
 }
 
 copybutton_selector = "div:not(.output) > div.highlight pre"
@@ -157,7 +157,7 @@ myst_xref_missing = "ignore"
 # These substitutions point to the relevant mlrun docs for the current CE version
 myst_substitutions = {
     "version": "version",
-    "ceversion": "v1.7.2",
+    "ceversion": "v1.8.0",
     "releasedocumentation": "docs.mlrun.org/en/stable/index.html",
 }
 

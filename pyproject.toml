@@ -157,3 +157,17 @@ ignore_imports = [
     "server.py.framework.tests.unit.common_fixtures -> services",
     "server.py.framework.tests.unit.db.common_fixtures -> services",
 ]
+
+[tool.coverage.run]
+# TODO Files in 'pipeline-adapters' are excluded from coverage unless imported directly. See issue ML-9729.
+source=["mlrun", "server/py", "pipeline-adapters"]
+
+omit = [
+    "test_*.py" ,
+    "**/tests/*" ,
+    "**/conftest.py" ,
+    "server/py/schemas/proto/*"
+    ]
+
+relative_files = true
+

@@ -13,19 +13,18 @@
 # limitations under the License.
 from logging.config import fileConfig
 
+import alembic
 import sqlalchemy
 import sqlalchemy.exc
-from alembic import context
-from sqlalchemy import engine_from_config, pool
+import sqlalchemy.pool
 
-from mlrun import mlconf
-from mlrun.utils import logger
+import mlrun.utils
 
-from framework.db.sqldb import models
+import framework.db.sqldb.models
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
-config = context.config
+config = alembic.context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -33,7 +32,7 @@ fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-target_metadata = models.Base.metadata
+target_metadata = framework.db.sqldb.models.Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -42,7 +41,7 @@ target_metadata = models.Base.metadata
 
 # this will overwrite the ini-file sqlalchemy.url path
 # with the path given in the mlconf
-config.set_main_option("sqlalchemy.url", mlconf.httpdb.dsn)
+config.set_main_option("sqlalchemy.url", mlrun.mlconf.httpdb.dsn)
 
 
 def run_migrations_offline():
@@ -58,7 +57,7 @@ def run_migrations_offline():
 
     """
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(
+    alembic.context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
@@ -66,8 +65,8 @@ def run_migrations_offline():
         render_as_batch=True,
     )
 
-    with context.begin_transaction():
-        context.run_migrations()
+    with alembic.context.begin_transaction():
+        alembic.context.run_migrations()
 
 
 def run_migrations_online():
@@ -77,13 +76,15 @@ def run_migrations_online():
     and associate a connection with the context.
 
     """
-    connectable = context.config.attributes.get("connection", None)
+    connectable = alembic.context.config.attributes.get("connection", None)
 
     if connectable is None:
-        connectable = engine_from_config(
+        connect_args = {}
+        connectable = sqlalchemy.engine_from_config(
             config.get_section(config.config_ini_section),
             prefix="sqlalchemy.",
-            poolclass=pool.NullPool,
+            poolclass=sqlalchemy.pool.NullPool,
+            connect_args=connect_args,
         )
 
     with connectable.connect() as connection:
@@ -119,7 +120,7 @@ def run_migrations_online():
                 )
             ).fetchall()
             for connection_id, user, host, locked_objects in connection_ids:
-                logger.warning(
+                mlrun.utils.logger.warning(
                     "Killing DB connection with acquired lock.",
                     connection_id=connection_id,
                     user=user,
@@ -131,7 +132,7 @@ def run_migrations_online():
                     connection.execute(sqlalchemy.sql.text(f"KILL {connection_id};"))
                 except sqlalchemy.exc.OperationalError as exc:
                     if "Unknown thread id" in str(exc):
-                        logger.warning(
+                        mlrun.utils.logger.warning(
                             "DB connection already closed.",
                             connection_id=connection_id,
                             user=user,
@@ -141,13 +142,16 @@ def run_migrations_online():
                     else:
                         raise exc
 
-        context.configure(connection=connection, target_metadata=target_metadata)
+        alembic.context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+        )
 
-        with context.begin_transaction():
-            context.run_migrations()
+        with alembic.context.begin_transaction():
+            alembic.context.run_migrations()
 
 
-if context.is_offline_mode():
+if alembic.context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()

@@ -23,6 +23,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   graphviz \
   make \
   curl \
+  libpq-dev \
+  python3-dev \
  && rm -rf /var/lib/apt/lists/*
 
 ARG MLRUN_PIP_VERSION=25.0
@@ -40,7 +42,7 @@ RUN curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/
 
 WORKDIR /tmp/mlrun
 
-ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/test-system/locked-requirements.txt,target=locked-requirements.txt \

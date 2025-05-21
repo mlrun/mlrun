@@ -1899,6 +1899,50 @@ class MlrunProject(ModelObj):
         upload: Optional[bool] = None,
         **kwargs,
     ) -> LLMPromptArtifact:
+        """Log an LLM prompt artifact to the project.
+
+        This method creates and logs an `LLMPromptArtifact` which captures a prompt definition for large language model
+        (LLM) interactions. The prompt can be provided as a string or a file, and may include metadata like generation
+        parameters, a legend for variable injection, and references to a parent model artifact.
+
+        If the prompt content exceeds a certain length, it may be stored in a temporary file and logged accordingly.
+
+        Examples::
+
+            # Log a simple prompt string
+            project.log_llm_prompt(
+                key="summarization-prompt",
+                prompt_string="Summarize the following text:\n{text}",
+                model_artifact=model_1,
+            )
+
+            # Log a prompt from file
+            project.log_llm_prompt(
+                key="qa-prompt",
+                prompt_file="prompts/qa_template.txt",
+                prompt_legend={"question": "user_question"},
+                model_artifact=model_1,
+                tag="v2",
+            )
+
+        :param key: Unique key for the prompt artifact.
+        :param prompt_string: Raw prompt text. Mutually exclusive with `prompt_file`.
+        :param prompt_file: Path to a file containing the prompt. Mutually exclusive with `prompt_string`.
+        :param prompt_legend: A dictionary for formatting variables in the prompt (e.g., placeholders for user inputs).
+        :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
+        :param generation_configuration: Configuration dictionary for model generation parameters
+                                         (e.g., temperature, max tokens).
+        :param description: Optional description of the prompt.
+        :param target_path: Optional local target path for saving prompt content.
+        :param artifact_path: Storage path for the logged artifact.
+        :param tag: Version tag for the artifact (e.g., "v1", "latest").
+        :param labels: Labels to tag the artifact for filtering and organization.
+        :param upload: Whether to upload the artifact to a remote datastore. Defaults to True.
+        :param kwargs: Additional attributes to pass into the `LLMPromptArtifact`.
+
+        :returns: The logged `LLMPromptArtifact` object.
+        """
+
         if prompt_string and prompt_file:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify prompt_string and prompt_path together"
@@ -4662,7 +4706,44 @@ class MlrunProject(ModelObj):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
-    ):
+    ) -> mlrun.lists.ArtifactList:
+        """List LLM prompt artifacts in the project with support for filtering.
+
+        This method returns a list of LLM prompt artifacts, filtered by parameters such as name, tag, labels,
+        model association, iteration, and more. It can be used to retrieve the latest, best, or specific versions
+        of prompts tied to a model or general project context.
+
+        Examples::
+
+            # Get all latest tagged prompts
+            prompts = project.list_llm_prompts(tag="latest")
+
+            # Get prompts associated with a specific model
+            prompts = project.list_llm_prompts(model=ModelArtifact("m1"))
+
+            # Get prompts filtered by label
+            prompts = project.list_llm_prompts(labels={"use_case": "chatbot"})
+
+            # Get prompts using a name wildcard
+            prompts = project.list_llm_prompts(name="~chat")
+
+        :param name: Name of the prompt artifact. Prefix with '~' for wildcard search (case-insensitive).
+        :param tag: Filter artifacts by this tag (e.g., 'latest', 'prod').
+        :param labels: Filter by label key-value pairs or key presence. Can be:
+                       - Dict: {"key": "value"}, {"key": None}
+                       - List: ["key=value", "key"]
+                       - Comma-separated string: "key=value,key2"
+        :param since: (Unused)
+        :param until: (Unused)
+        :param iter: Retrieve a specific iteration. Use `0` for root; `None` for all.
+        :param best_iteration: Return artifacts from the best iteration (used with hyperparameter runs).
+        :param tree: Filter by artifact tree ID (e.g., for lineage filtering).
+        :param limit: (Deprecated) Max number of results to return.
+        :param model: Return prompts associated with this model (can be `Artifact` URI or `Artifact` object).
+        :param format_: Output format: one of `full`, `metadata`, or `name_only`.
+
+        :returns: A list of filtered `LLMPromptArtifact` objects matching the given parameters.
+        """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
             name,
@@ -4688,46 +4769,40 @@ class MlrunProject(ModelObj):
         page_token: Optional[str] = None,
         **kwargs,
     ) -> tuple[mlrun.lists.ArtifactList, Optional[str]]:
-        """List models in project with support for pagination and various filtering options.
+        """Retrieve a paginated list of LLM prompt artifacts for the current project.
 
-        This method retrieves a paginated list of artifacts based on the specified filter parameters.
-        Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
-        will return a list of artifacts that match the filtering criteria provided.
-
-        For detailed information about the parameters, refer to the list_models method:
-            See :py:func:`~list_models` for more details.
+        This method returns a list of LLM prompt artifacts, supporting both token-based and page-number-based
+        pagination. You can filter and navigate through the results using the optional `page`, `page_size`, and
+        `page_token` parameters.
 
         Examples::
 
-            # Fetch first page of artifacts with page size of 5
-            artifacts, token = project.paginated_list_models("results", page_size=5)
-            # Fetch next page using the pagination token from the previous response
-            artifacts, token = project.paginated_list_models("results", page_token=token)
-            # Fetch artifacts for a specific page (e.g., page 3)
-            artifacts, token = project.paginated_list_models("results", page=3, page_size=5)
+            # Fetch the first page with up to 5 prompt artifacts
+            prompts, token = project.paginated_list_llm_prompts(page_size=5)
 
-            # Automatically iterate over all pages without explicitly specifying the page number
-            artifacts = []
+            # Fetch the next page using the page token
+            prompts, token = project.paginated_list_llm_prompts(page_token=token)
+
+            # Fetch a specific page (e.g., page 3)
+            prompts, token = project.paginated_list_llm_prompts(page=3, page_size=5)
+
+            # Retrieve all prompt artifacts across pages
+            all_prompts = []
             token = None
             while True:
-                page_artifacts, token = project.paginated_list_models(
+                page_prompts, token = project.paginated_list_llm_prompts(
                     page_token=token, page_size=5
                 )
-                artifacts.extend(page_artifacts)
-
-                # If token is None and page_artifacts is empty, we've reached the end (no more artifacts).
-                # If token is None and page_artifacts is not empty, we've fetched the last page of artifacts.
+                all_prompts.extend(page_prompts)
                 if not token:
                     break
-            print(f"Total artifacts retrieved: {len(artifacts)}")
+            print(f"Total retrieved prompts: {len(all_prompts)}")
 
-        :param page: The page number to retrieve. If not provided, the next page will be retrieved.
-        :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
-            Defaults to `mlrun.mlconf.httpdb.pagination.default_page_size` if not provided.
-        :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
-            for the first request.
+        :param page: Page number to retrieve (alternative to page_token).
+        :param page_size: Number of items per page. Defaults to `mlrun.mlconf.httpdb.pagination.default_page_size`.
+        :param page_token: Token for retrieving the next page of results (used for continuous iteration).
 
-        :returns: A tuple containing the list of artifacts and an optional `page_token` for pagination.
+        :returns: A tuple of (ArtifactList of LLM prompts, next page_token or None if no more pages).
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.paginated_list_artifacts(

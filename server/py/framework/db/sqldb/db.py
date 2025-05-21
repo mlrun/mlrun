@@ -1558,7 +1558,7 @@ class SQLDB(DBInterface):
         # remove the tag from the metadata, as it is stored in a separate table
         artifact_dict["metadata"].pop("tag", None)
 
-        # add reference id and pop the parent uri brfore saving to db
+        # add reference id and pop the parent uri berfore saving to db
         parent_uri = artifact_dict.get("spec", {}).pop("parent_uri", None)
         parent_id = self._get_parent_artifact_id(session, parent_uri)
         artifact_record.parent_id = parent_id
@@ -1907,7 +1907,8 @@ class SQLDB(DBInterface):
         if not limit:
             outer_query = self._paginate_query(outer_query, offset, limit=None)
 
-        outer_query = outer_query.options(selectinload(ArtifactV2.parent))
+        if not with_entities:
+            outer_query = outer_query.options(selectinload(ArtifactV2.parent))
         results = outer_query.all()
         if not attach_tags:
             # we might have duplicate records due to the tagging mechanism, so we need to deduplicate

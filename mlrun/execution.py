@@ -911,6 +911,48 @@ class MLClientCtx:
         upload: Optional[bool] = None,
         **kwargs,
     ) -> LLMPromptArtifact:
+        """Log an LLM prompt artifact and optionally upload it to the artifact store.
+
+        This function allows you to log a prompt artifact for large language model (LLM) usage. Prompts can be defined
+        as a string or by referencing a file path. Optionally, you can link the prompt to a parent model artifact and
+        provide metadata like a prompt legend (e.g., input variable mapping) and generation configuration.
+
+        Examples::
+
+            # Log an inline prompt
+            context.log_llm_prompt(
+                key="qa-prompt",
+                prompt_string="Q: {question}\nA:",
+                model_artifact="model:latest",
+                prompt_legend={"question": "user_input"},
+                generation_configuration={"temperature": 0.7, "max_tokens": 128},
+                tag="latest",
+            )
+
+            # Log from a file
+            project.log_llm_prompt(
+                key="summarization-prompt",
+                prompt_file="prompts/summarize.txt",
+                labels=["task=summarization"],
+            )
+
+        :param key: Unique name of the artifact.
+        :param prompt_string: Raw prompt text as a string. Cannot be used with `prompt_file`.
+        :param prompt_file: Path to a file containing the prompt content. Cannot be used with `prompt_string`.
+        :param prompt_legend: A dictionary that maps variables used in the prompt to their expected context keys.
+        :param model_artifact: A reference to the model associated with the prompt. Can be a `ModelArtifact` or model URI.
+        :param generation_configuration: Dictionary of generation parameters (e.g., temperature, max_tokens).
+        :param description: Optional description of the prompt.
+        :param target_path: Path to write the artifact locally.
+        :param artifact_path: Path in the artifact store (defaults to project artifact path).
+        :param tag: Tag/version to assign to the prompt artifact.
+        :param labels: Labels to tag the artifact (e.g., list or dict of key-value pairs).
+        :param upload: Whether to upload the artifact to the store (defaults to True).
+        :param kwargs: Additional fields to pass to the `LLMPromptArtifact` constructor.
+
+        :returns: The logged `LLMPromptArtifact` object.
+        """
+
         if prompt_string and prompt_file:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify prompt_string and prompt_path together"

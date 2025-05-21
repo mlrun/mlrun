@@ -2948,15 +2948,17 @@ class TestArtifacts(TestDatabaseBase):
         kwargs.update(ignored_params)
         assert self._db._is_default_list_artifacts_query(**kwargs) == expected
 
-    def test_list_artifact_references_filters(self):
+    def test_list_artifact_parent_filter(self):
         # Create referenced artifact
         parent_artifact_name = "parent-artifact"
         child_artifact_name = "child-artifact"
+        project = "test-project"
         parent_artifact = self._generate_artifact(parent_artifact_name)
         self._db.store_artifact(
             self._db_session,
             parent_artifact_name,
             parent_artifact,
+            project,
             tag="ref-tag",
         )
         parent_artifact_db = Artifact.from_dict(
@@ -2964,6 +2966,7 @@ class TestArtifacts(TestDatabaseBase):
                 self._db_session,
                 key=parent_artifact_name,
                 tag="ref-tag",
+                project=project,
             )
         )
 
@@ -2975,17 +2978,20 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session,
             child_artifact_name,
             child_artifact,
+            project,
         )
 
-        # Filter using references_key
+        # Filter using parent_key
         artifacts = self._db.list_artifacts(
-            self._db_session, parent_key=parent_artifact_name
+            self._db_session, parent_key=parent_artifact_name, project=project
         )
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["key"] == child_artifact_name
 
-        # Filter using references_tag
-        artifacts = self._db.list_artifacts(self._db_session, parent_tag="ref-tag")
+        # Filter using parent_tag
+        artifacts = self._db.list_artifacts(
+            self._db_session, parent_tag="ref-tag", project=project
+        )
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["key"] == child_artifact_name
 
@@ -2994,19 +3000,26 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session,
             parent_key=parent_artifact_name,
             parent_tag="ref-tag",
+            project=project,
         )
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["key"] == child_artifact_name
 
         # Negative case
-        artifacts = self._db.list_artifacts(self._db_session, parent_key="nonexistent")
+        artifacts = self._db.list_artifacts(
+            self._db_session, parent_key="nonexistent", project=project
+        )
         assert len(artifacts) == 0
 
-        artifact = self._db.read_artifact(self._db_session, key=parent_artifact_name)
+        artifact = self._db.read_artifact(
+            self._db_session, key=parent_artifact_name, project=project
+        )
 
         assert artifact["spec"]["have_children"]
 
-        c_artifact = self._db.read_artifact(self._db_session, key=child_artifact_name)
+        c_artifact = self._db.read_artifact(
+            self._db_session, key=child_artifact_name, project=project
+        )
 
         assert c_artifact["spec"]["parent_uri"] == parent_artifact_db.get_store_url(
             with_tag=False

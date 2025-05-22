@@ -31,7 +31,8 @@ from sqlalchemy import (
     Table,
     UniqueConstraint,
     Uuid,
-    event, text,
+    event,
+    text,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -1006,7 +1007,6 @@ def _create_utf8_bin_collation(metadata, connection, **kw):
         )
 
 
-
 @event.listens_for(AlertActivation.__table__, "after_create")
 def _add_auto_increment(target, connection, **kw):
     if connection.dialect.name != "sqlite":
@@ -1016,6 +1016,7 @@ def _add_auto_increment(target, connection, **kw):
                 "MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT"
             )
         )
+
 
 # Must be after all table definitions
 post_table_definitions(base_cls=Base)

@@ -398,50 +398,44 @@ def apply_monitoring_general_steps(
         "sampling_step",
         after="monitoring_pre_processor_step",
         context=context,
-        sampling_percentage=serving_spec.get("parameters", {}).get(
+        sampling_percentage=serving_spec.parameters.get(
             "sampling_percentage"
         )
-        if isinstance(serving_spec, dict)
-        else serving_spec.parameters.sampling_percentage,
+        if isinstance(serving_spec.parameters, dict)
+        else serving_spec.get("parameters", {}).get("sampling_percentage", 100),
     )
     graph.add_step(
         "storey.Filter",
-        "filter_none",
+        "filter_none_2",
         _fn="(event is not None)",
         after="sampling_step",
     )
 
-    server: mlrun.serving.GraphServer = getattr(context, "_server", None) or getattr(
-        context, "server", None
-    )
-    stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
-        project=server.project,
-        kind=mlrun.common.schemas.model_monitoring.constants.FileTargetKind.STREAM,
-        target="online",
-        function_name=server.function_name,
-    )
+    profile_name = mlrun.get_secret_or_env(
+        key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME)
+    stream_uri = f"ds://{profile_name}" if not context.is_mock else DUMMY_STREAM
     graph.add_step(
         ">>",
-        "controller_stream",
+        "model_monitoring_stream",
         path=stream_uri,
         sharding_func=mlrun.common.schemas.model_monitoring.constants.StreamProcessingEvent.ENDPOINT_ID,
-        after="sampling_step",
+        after="filter_none_2",
     )
     return graph, monitor_flow_step
 
 
-def add_monitoring_pre_process_steps(graph: RootFlowStep, context):
-    graph, monitor_flow_step = apply_monitoring_general_steps(graph, context)
+def add_monitoring_pre_process_steps(graph: RootFlowStep, context, serving_spec) -> RootFlowStep:
+    graph, monitor_flow_step = apply_monitoring_general_steps(graph, context, serving_spec)
     model_runner_steps_names = {
         step.name: step
         for step in graph.steps.values()
         if isinstance(step, mlrun.serving.states.ModelRunnerStep)
     }
     for step_name, step in model_runner_steps_names.items():
-        if isinstance(step.after, list):
-            step.after.append(monitor_flow_step.name)
-        elif isinstance(step.after, str):
-            step.after = step.after = [step.after, monitor_flow_step.name]
+        if isinstance(monitor_flow_step.after, list):
+            monitor_flow_step.after.append(step_name)
+        elif isinstance(monitor_flow_step.after, str):
+            monitor_flow_step.after = [monitor_flow_step.after, step_name]
         else:
             raise GraphError(
                 "Expected model runner step to be followed by error raiser step"
@@ -450,11 +444,11 @@ def add_monitoring_pre_process_steps(graph: RootFlowStep, context):
 
 
 def add_system_steps_to_graph(
-    graph: RootFlowStep, track_models: bool, context=None
+    graph: RootFlowStep, track_models: bool, context, serving_spec
 ) -> RootFlowStep:
     graph = add_error_raiser_step(graph)
     if track_models:
-        graph = add_monitoring_pre_process_steps(graph, context)
+        graph = add_monitoring_pre_process_steps(graph, context, serving_spec)
     return graph
 
 
@@ -466,7 +460,7 @@ def v2_serving_init(context, namespace=None):
     server = GraphServer.from_dict(spec)
     if isinstance(server.graph, RootFlowStep):
         server.graph = add_system_steps_to_graph(
-            copy.deepcopy(server.graph), spec.get("track_models"), context
+            copy.deepcopy(server.graph), spec.get("track_models"), context, spec
         )
         context.logger.info_with(
             "Server graph after adding system steps",

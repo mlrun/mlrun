@@ -149,6 +149,8 @@ class MonitoringPreProcessor(storey.MapClass):  # TODO Roy is this necessary
         }
 
     def _do(self, event):
+        if self.context is not None and self.context.is_mock:
+            return event
         monitoring_event_list = []
         server: mlrun.serving.GraphServer = getattr(
             self.context, "_server", None
@@ -241,12 +243,17 @@ class BackgroundTaskStatus(RemoteStep):
         self._background_task_status = mlrun.common.schemas.BackgroundTaskState.running
 
         path = f"projects/{self.server.project}/background-tasks/{self.server.model_endpoint_creation_task_name}"
-        super().__init__(
-            url=self.context.get_run_db().get_base_api_url(path), method="GET", **kwargs
-        )
+        if not self.context.is_mock:
+            super().__init__(
+                url=self.context.get_run_db().get_base_api_url(path), method="GET", **kwargs
+            )
+        else:
+            super().__init__(
+                url=path, method="GET", **kwargs
+            )
 
     async def _process_event(self, event):
-        if not self.context.is_mock or self.context.monitoring_mock:
+        if self.context is not None and (not self.context.is_mock or self.context.monitoring_mock):
             if (
                 self._background_task_status
                 == mlrun.common.schemas.BackgroundTaskState.running
@@ -264,6 +271,28 @@ class BackgroundTaskStatus(RemoteStep):
             ):
                 return None
         return event
+
+    def do_event(self, event):
+        if self.context is not None and (not self.context.is_mock or self.context.monitoring_mock):
+            if (
+                self._background_task_status
+                == mlrun.common.schemas.BackgroundTaskState.running
+            ):
+                response = super().do_event(event)
+                background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+                self._background_task_check_timestamp = mlrun.utils.now_date()
+                if self._background_task_succeeded(background_task):
+                    return event
+                else:
+                    return None
+            elif (
+                self._background_task_status
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            ):
+                return None
+        return event
+
+
 
     def _background_task_succeeded(
         self, background_task: mlrun.common.schemas.BackgroundTask
@@ -306,7 +335,7 @@ class SamplingStep(storey.MapClass):
         ) or getattr(context, "server", None)
         self.sampling_percentage = sampling_percentage
         self.input_path: dict[str, str] = {}
-        self.result_path = dict[str, str] = {}
+        self.result_path : dict[str, str] = {}
         monitoring_data = {}
         for step in server.graph:
             if isinstance(step, ModelRunnerStep):
@@ -324,6 +353,8 @@ class SamplingStep(storey.MapClass):
             )
 
     def do(self, event):
+        if self.context is not None and self.context.is_mock:
+            return event
         if self.sampling_percentage != 100:
             request = event[mm_schemas.StreamProcessingEvent.REQUEST]
             num_of_inputs = len(request["inputs"])

@@ -504,11 +504,14 @@ def get_model(
         (
             optional_suffix
             for optional_suffix in MODEL_OPTIONAL_SUFFIXES
-            if isinstance(model_dir, str) and model_dir.lower().endswith(optional_suffix)
+            if isinstance(model_dir, str)
+            and model_dir.lower().endswith(optional_suffix)
         ),
         None,
     )
-    is_store_uri = isinstance(model_dir, str) and mlrun.datastore.is_store_uri(model_dir)
+    is_store_uri = isinstance(model_dir, str) and mlrun.datastore.is_store_uri(
+        model_dir
+    )
     if is_store_uri or isinstance(model_dir, ModelArtifact):
         if is_store_uri:
             model_spec, target = mlrun.datastore.store_manager.get_store_artifact(

@@ -91,7 +91,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
     project_name = "mm-app-project"
-    image = "mlrun/mlrun"
+    image = "artifactory.iguazeng.com:10557/tomerm/mlrun:remote_models"
 
     def setup_method(self, method):
         super().setup_method(method)
@@ -617,10 +617,12 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
     def test_mep_with_remote_model(self):
         #  from runnner
         model_name = "my_model"
+        model_url = "http://localhost:8080/v2/models/mymodel/infer"
+        default_config = {"model_version": "4"}
         model_artifact = self.project.log_model(
             model_name,
-            model_url="http://localhost:8080/v2/models/mymodel/infer",
-            default_config={"model_version": "4"},
+            model_url=model_url,
+            default_config=default_config,
         )
         function = mlrun.code_to_function(
             name="function_with_model",
@@ -635,7 +637,9 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         graph = function.set_topology("flow", engine="async")
         model_runner_step = mlrun.serving.states.ModelRunnerStep(name="model-runner")
         model_runner_step.add_model(
-            model_class="MyRemoteModel", endpoint_name="my-model-1", model_artifact=model_artifact
+            model_class="MyRemoteModel",
+            endpoint_name="my-model-1",
+            model_artifact=model_artifact.uri,
         )
         graph.to(model_runner_step, "runner").respond()
 
@@ -643,9 +647,12 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         function.deploy()
 
         response = function.invoke(
-            f"v2/models/{model_name}/infer", json.dumps({"prompt": "What is the capital of france?"})
+            f"v2/models/{model_name}/infer",
+            json.dumps({"prompt": "What is the capital of france?"}),
         )
-        print(response)
+        assert response["default_config"] == default_config
+        assert response["url"] == model_url
+
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise

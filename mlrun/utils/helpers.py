@@ -2219,9 +2219,9 @@ class Workflow:
     ) -> typing.Optional[mlrun_pipelines.models.PipelineManifest]:
         kfp_client = mlrun_pipelines.utils.get_client(mlrun.mlconf.kfp_url)
 
-        # arbitrary timeout of 60 seconds, the workflow should be done by now, however sometimes kfp takes a few
+        # arbitrary timeout of 30 seconds, the workflow should be done by now, however sometimes kfp takes a few
         # seconds to update the workflow status
-        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 60)
+        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 30)
         if not kfp_run:
             return None
 

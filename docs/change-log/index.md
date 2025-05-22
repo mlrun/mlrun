@@ -1296,7 +1296,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.11.0      | v1.7.0 |`bootstrap_servers` in `mlrun.datastore.targets.KafkaTarget`                  |`brokers`|
 | v1.11.0      | v1.7.0 |`schema` in `mlrun.datastore.sources.SnowflakeSource`                         |`db_schema`|
 | v1.11.0      | v1.7.0 |`credentials_prefix` in `mlrun.datastore.targets.BaseStoreTarget`             |datastore profiles|
-| v1.11.0      | v1.7.0 |`kafka_bootstrap_servers`                         |`kafka_brokers`|
+| v1.11.0      | v1.7.0 |`kafka_bootstrap_servers` in `get_kafka_brokers_from_dict()`                |`kafka_brokers`|
 | v1.11.0      | v1.7.0 |`drift_threshold`, `possible_drift_threshold` and `trigger_monitoring_job` in `mlrun.model_monitoring.api.record_results`|Enable the default histogram data drift application with `project.enable_model_monitoring()`|
 | v1.11.0      | v1.7.0 |`artifacts_tag`, `default_batch_image` in `mlrun.model_monitoring.api.record_results`  |NA|
 | v1.11.0      | v1.7.0 |`mlrun.model_monitoring.tracking_policy.TrackingPolicy`                                |NA| 
@@ -1307,15 +1307,12 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.ArtifactsFormat`                                  |`mlrun.common.formatters.ArtifactFormat`                |
 | v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.ProjectsFormat`                                  |`mlrun.common.formatters.ProjectFormat`                |
 | v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.PipelinesFormat`                                  |`mlrun.common.formatters.PipelineFormat`                |
-| v1.10.0       | v1.7.0 |Datastore redis:`credentials_prefix`                                                 |Datastore profiles|
+| v1.10.0       | v1.7.0 |Datastore redis:`credentials_prefix`                                                 |Use datastore profiles for managing credentials|
 | v1.10.0       | v1.7.0 |Parameter: `mlrun.runtimes.nuclio.function.RemoteRuntime.deploy` `auth_info`         | NA. Was not used.|
 | v1.10.0       | v1.7.0 |Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                           |`states`            |
 | v1.10.0       | v1.7.0 |Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                             |`states`            |
 | v1.10.0       | v1.7.0 |Class: `mlrun.common.runtimes.constants.RunLabels`                                   |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
 | v1.10.0       | v1.7.0 |Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                                    |MLRUN_DBPATH environment variable |
-| v1.10.0       | v1.7.0 |Query parameter: GET `/projects/{project}/schedules?labels="label1=val1"`            |`label`, which is an array of strings       |
-| v1.10.0       | v1.7.0 |Query parameter: DELETE `/projects/{project}/artifacts/{key:path}?uid="some-uid"`    |`object-uid`                                    |
-| v1.10.0       | v1.7.0 |Query parameter: GET `/projects/{project}/artifacts/{key:path}?uid="some-uid"`       |`object-uid`                                    |
 | v1.10.0       | v1.6.3 |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_code_target_dir`
 
 

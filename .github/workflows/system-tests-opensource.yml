@@ -16,6 +16,7 @@ name: System Tests Open Source
 
 permissions:
   contents: read
+  packages: write
 
 on:
   push:

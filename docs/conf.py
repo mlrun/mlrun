@@ -254,8 +254,7 @@ def copy_doc(src, dest, title=""):
 def setup(app):
     # Only connect the hook for the "latest" version on Read the Docs
     # to avoid generating llms.txt for every version build
-    # TODO: change to stable (before releasing 1.8.0)
-    if environ.get("READTHEDOCS_VERSION") == "latest":
+    if environ.get("READTHEDOCS_VERSION") == "stable":
         app.connect("build-finished", create_llms_txt)
 
 

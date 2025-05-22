@@ -98,7 +98,11 @@ class SparkHadoopTestBase(TestMLRunSystem):
             from mlrun import get_run_db
             from mlrun.run import new_function
 
-            sj = new_function(kind="remote-spark", name=cls.remote_function_name)
+            sj = new_function(
+                kind="remote-spark",
+                project=cls.project_name,
+                name=cls.remote_function_name,
+            )
             if additional_pip_packages:
                 sj.spec.build.commands = [f"pip install {additional_pip_packages}"]
             sj.spec.build.image = RemoteSparkRuntime.default_image

@@ -1032,7 +1032,7 @@ class Model(storey.ParallelExecutionRunnable):
 
         if self.artifact:
             model_file, _, extra_dataitem = mlrun.artifacts.get_model(
-                suffix=suffix, artifact=self.artifact
+                suffix=suffix, model_dir=self.artifact
             )
             return model_file, extra_dataitem
         return None, None

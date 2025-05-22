@@ -15,7 +15,7 @@
 import tempfile
 import warnings
 from os import path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import pandas as pd
 import yaml
@@ -468,7 +468,7 @@ class ModelArtifact(Artifact):
 
 
 def get_model(
-    model_dir: Optional[str] = None, suffix="", artifact: Optional[ModelArtifact] = None
+    model_dir: Optional[Union[str, ModelArtifact]] = None, suffix=""
 ) -> (str, ModelArtifact, dict):
     """return model file, model spec object, and list of extra data items
 
@@ -498,37 +498,24 @@ def get_model(
     extra_dataitems = {}
     default_suffix = ".pkl"
 
-    if artifact and model_dir:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Arguments 'model_dir' and 'artifact' cannot be used together"
-        )
-    elif not artifact and not model_dir:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Either 'artifact' or 'model_dir' must be provided"
-        )
-    if artifact is not None and not isinstance(artifact, ModelArtifact):
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "'artifact' must be ModelArtifact or LLMPromptArtifact"
-        )
-
     if hasattr(model_dir, "artifact_url"):
         model_dir = model_dir.artifact_url
     alternative_suffix = next(
         (
             optional_suffix
             for optional_suffix in MODEL_OPTIONAL_SUFFIXES
-            if model_dir and model_dir.lower().endswith(optional_suffix)
+            if isinstance(model_dir, str) and model_dir.lower().endswith(optional_suffix)
         ),
         None,
     )
-    is_store_uri = mlrun.datastore.is_store_uri(model_dir)
-    if is_store_uri or artifact:
+    is_store_uri = isinstance(model_dir, str) and mlrun.datastore.is_store_uri(model_dir)
+    if is_store_uri or isinstance(model_dir, ModelArtifact):
         if is_store_uri:
             model_spec, target = mlrun.datastore.store_manager.get_store_artifact(
                 model_dir
             )
         else:
-            model_spec, target = artifact, artifact.get_target_path()
+            model_spec, target = model_dir, model_dir.get_target_path()
         if not model_spec or model_spec.kind != "model":
             raise ValueError(f"store artifact ({model_dir}) is not model kind")
         # in case model_target_file is specified, use it, because that means that the actual model target path

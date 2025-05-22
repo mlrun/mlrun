@@ -133,7 +133,7 @@ class TestKFPNotificationPusher:
 
         kfp_notification_pusher = (
             framework.utils.notifications.notification_pusher.KFPNotificationPusher(
-                project, run_id, notifications, {}
+                None, project, run_id, notifications, {}
             )
         )
         assert len(kfp_notification_pusher._sync_notifications) == 1

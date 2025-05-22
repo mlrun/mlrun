@@ -18,6 +18,7 @@ import datetime
 import traceback
 import typing
 
+import sqlalchemy.orm
 from kubernetes.client import ApiException
 
 import mlrun.common.schemas
@@ -365,12 +366,14 @@ class AlertNotificationPusher(_NotificationPusherBase):
 class KFPNotificationPusher(NotificationPusher):
     def __init__(
         self,
+        db_session: sqlalchemy.orm.Session,
         project: str,
         workflow_id: str,
         notifications: list[mlrun.common.schemas.Notification],
         default_params: typing.Optional[dict] = None,
     ):
         self._project = project
+        self._db_session = db_session
         self._default_params = default_params or {}
         self._workflow_id = workflow_id
         self._notifications = notifications
@@ -509,7 +512,12 @@ class KFPNotificationPusher(NotificationPusher):
         )
 
         message = f" (workflow: {self._workflow_id}){custom_message}"
-        runs = Workflow.get_workflow_steps(self._workflow_id, self._project)
+        runs = Workflow.get_workflow_steps(
+            # sql session to rundb
+            framework.api.utils.get_run_db_instance(self._db_session),
+            self._workflow_id,
+            self._project,
+        )
 
         severity = (
             notification_object.severity

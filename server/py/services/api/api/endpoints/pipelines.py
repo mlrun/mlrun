@@ -200,6 +200,7 @@ async def push_notifications(
         framework.utils.background_tasks.BackgroundTaskKinds.push_kfp_notification.format(
             project, run_id, time.time()
         ),
+        db_session,
         run_id,
         project,
         notifications,
@@ -357,7 +358,12 @@ def _try_resolve_project_from_body(
     )
 
 
-def _push_notifications(run_id, project, notifications):
+def _push_notifications(
+    db_session: Session,
+    run_id: str,
+    project: str,
+    notifications: typing.Optional[list[mlrun.common.schemas.Notification]] = None,
+):
     if not notifications:
         return
     unmasked_notifications = []
@@ -379,5 +385,5 @@ def _push_notifications(run_id, project, notifications):
     )
     default_params = run_notification_pusher.resolve_notifications_default_params()
     framework.utils.notifications.notification_pusher.KFPNotificationPusher(
-        project, run_id, unmasked_notifications, default_params
+        db_session, project, run_id, unmasked_notifications, default_params
     ).push()

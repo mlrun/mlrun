@@ -2088,9 +2088,10 @@ def join_urls(base_url: Optional[str], path: Optional[str]) -> str:
 
 class Workflow:
     @staticmethod
-    def get_workflow_steps(workflow_id: str, project: str) -> list:
+    def get_workflow_steps(
+        db, workflow_id: str, project: str
+    ) -> list:
         steps = []
-        db = mlrun.get_run_db()
 
         def _add_run_step(_step: mlrun_pipelines.models.PipelineStep):
             try:

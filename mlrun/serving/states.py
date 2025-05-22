@@ -967,17 +967,10 @@ class Model(storey.ParallelExecutionRunnable):
         **kwargs,
     ):
         super().__init__(name=name, raise_exception=raise_exception, **kwargs)
-        if isinstance(artifact, str):
-            if mlrun.datastore.is_store_uri(artifact):
-                artifact = get_store_resource(artifact)
-            else:
-                raise ValueError(
-                    "When passing artifact as a string, it must be a valid artifact store URI."
-                )
         # TODO: Add LLMPromptArtifact when ready
-        if artifact is not None and not isinstance(artifact, ModelArtifact):
+        if artifact is not None and not isinstance(artifact, (ModelArtifact, str)):
             raise ValueError(
-                "Model support only ModelArtifact or LLMPromptArtifact as model artifact."
+                "Model support only ModelArtifact, LLMPromptArtifact or artifact uri(str) as model artifact."
             )
         self.artifact = artifact
         self._kwargs = kwargs
@@ -985,7 +978,13 @@ class Model(storey.ParallelExecutionRunnable):
 
     def load(self) -> None:
         """Override to load model if needed."""
-        pass
+        if isinstance(self.artifact, str):
+            if mlrun.datastore.is_store_uri(self.artifact):
+                self.artifact = get_store_resource(self.artifact)
+            else:
+                raise ValueError(
+                    "When passing artifact as a string, it must be a valid artifact store URI."
+                )
 
     def init(self):
         self.load()

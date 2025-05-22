@@ -165,7 +165,7 @@ class MyModel(Model):
         return self.predict(body)
 
 
-class MyRemoteModelWithModelArtifact(Model):
+class MyRemoteModel(Model):
     execution_mechanism = "naive"
 
     def predict(self, body):
@@ -174,10 +174,11 @@ class MyRemoteModelWithModelArtifact(Model):
         return body
 
 
-class MyModelWithModelArtifact(Model):
+class MyPklModel(Model):
     execution_mechanism = "naive"
 
     def load(self) -> None:
+        super().load()
         model_path, _ = self.get_local_model_path()
         with open(model_path) as f:
             data = f.read()
@@ -431,7 +432,7 @@ def test_model_runner_with_remote_model():
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
-        model_class="MyRemoteModelWithModelArtifact",
+        model_class="MyRemoteModel",
         endpoint_name="my_endpoint",
         model_artifact=model_artifact,
     )
@@ -458,7 +459,7 @@ def test_get_local_model_path():
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
-        model_class="MyModelWithModelArtifact",
+        model_class="MyPklModel",
         endpoint_name="my_endpoint",
         model_artifact=model_artifact,
     )

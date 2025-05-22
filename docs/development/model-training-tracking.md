@@ -1,6 +1,8 @@
 (model-training-tracking)=
 # Model training and tracking
 
+Learn how to create a model training job, to work with the input data and the model artifacts, use an MLRun function to automate the tracking, use a function from the function hub to train the model, to optimize hyperparameter tuing, and to use he feature store to train your model.  
+
 **In this section**
 
 ```{toctree}

@@ -3,7 +3,7 @@
 
 MLRun automates the MLOps workflow end-to-end, simplifying and accelerating the time to production, in a scalable and reproducible way.
 
-The basic stages are:
+**In this section**
 
 1. [Ingest and process data](#ingest-and-process-data)
 2. [Develop and train models](#develop-and-train-models)

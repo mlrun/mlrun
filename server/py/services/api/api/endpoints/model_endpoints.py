@@ -283,10 +283,7 @@ async def list_model_endpoints(
     tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
     metric_list: Optional[list[str]] = Query(None, alias="metric"),
     uids: list[str] = Query(None, alias="uid"),
-    latest_only_old: bool = Query(
-        False, alias="latest_only_old"
-    ),  # TODO: remove in 1.11
-    latest_only: bool = Query(False, alias="latest-only-old"),
+    latest_only: bool = Query(False, alias="latest-only"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ) -> schemas.ModelEndpointList:

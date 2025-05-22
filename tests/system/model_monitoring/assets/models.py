@@ -80,6 +80,15 @@ class IncModel(mlrun.serving.states.Model):
         return self.predict(body)
 
 
+class MyRemoteModel(mlrun.serving.states.Model):
+    execution_mechanism = "naive"
+
+    def predict(self, body):
+        body["url"] = self.artifact.model_url
+        body["default_config"] = self.artifact.default_config
+        return body
+
+
 class Echo:
     def __init__(self, name=None):
         self.name = name

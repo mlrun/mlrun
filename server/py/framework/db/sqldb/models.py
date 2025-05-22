@@ -876,7 +876,7 @@ with warnings.catch_warnings():
             },
         )
 
-        id = Column(Integer, autoincrement=True, primary_key=True)
+        id = Column(Integer, primary_key=True)
         # Keep fsp=3 for activation_time as it is part of the primary key and partitioning logic,
         # ensuring stable indexing and avoiding potential inconsistencies.
         # This must remain unchanged to maintain compatibility with existing logic

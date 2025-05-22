@@ -221,7 +221,12 @@ class ArtifactManager:
         else:
             key = item.key
             target_path = target_path or item.target_path
-
+        if isinstance(item, ModelArtifact) and item.model_url:
+            if upload:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "cannot specify upload and model_url together"
+                )
+            upload = False
         validate_artifact_key_name(key, "artifact.key")
         validate_inline_artifact_body_size(item.spec.inline)
         src_path = local_path or item.src_path  # TODO: remove src_path

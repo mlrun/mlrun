@@ -80,7 +80,7 @@ PRINT_COVERAGE_REPORT = if [ "$(RUN_COVERAGE)" = "true" ]; then \
 	fi
 
 # Verify the mount point to avoid deleting essential paths
-SETUP_COVERAGE_MOUNTING = if [[ "$(RUN_COVERAGE)" == "true" ]]; then \
+SETUP_COVERAGE_MOUNTING = if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		case "$$COVERAGE_MOUNT_PATH" in /tmp/coverage_reports/*) \
 			rm -rf $$COVERAGE_MOUNT_PATH && \
 			mkdir -p $$COVERAGE_MOUNT_PATH; \
@@ -683,15 +683,15 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-e RUN_COVERAGE=$(RUN_COVERAGE) \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-migrations
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make RUN_COVERAGE=true test-migrations
 
 .PHONY: test-migrations
 test-migrations: clean ## Run mlrun db migrations tests
-	set -e; \
+	set -xe; \
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/migration_tests.coverage"} && \
 	$(SETUP_COVERAGE) && \
-	python -u $${COVERAGE_ADDITION} -m pytest -vvv \
+	python -u $(COVERAGE_ADDITION) -m pytest -vvv \
 	  --capture=no \
 	  --disable-warnings \
 	  --durations=100 \

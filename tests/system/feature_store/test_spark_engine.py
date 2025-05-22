@@ -187,7 +187,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 RemoteSparkRuntime.deploy_default_image()
             else:
                 sj = new_function(
-                    kind="remote-spark", name="remote-spark-default-image-deploy-temp"
+                    kind="remote-spark",
+                    project=cls.project_name,
+                    name="remote-spark-default-image-deploy-temp",
                 )
 
                 sj.spec.build.image = RemoteSparkRuntime.default_image

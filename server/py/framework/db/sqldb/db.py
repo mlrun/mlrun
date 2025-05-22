@@ -916,7 +916,7 @@ class SQLDB(DBInterface):
             artifact_struct = artifact.full_object
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
             self._set_parent_uri(artifact_struct, artifact.parent)
-            artifact_struct["spec"]["have_children"] = bool(artifact.child_artifacts)
+            artifact_struct["spec"]["has_children"] = bool(artifact.child_artifacts)
             artifacts.append(
                 mlrun.common.formatters.ArtifactFormat.format_obj(
                     artifact_struct, format_
@@ -946,7 +946,7 @@ class SQLDB(DBInterface):
             artifact_struct = artifact.full_object
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
             self._set_parent_uri(artifact_struct, artifact.parent)
-            artifact_struct["spec"]["have_children"] = bool(artifact.child_artifacts)
+            artifact_struct["spec"]["has_children"] = bool(artifact.child_artifacts)
             artifacts.append(artifact_struct)
 
         return artifacts
@@ -1026,7 +1026,7 @@ class SQLDB(DBInterface):
             return db_artifact
 
         artifact = db_artifact.full_object
-        artifact["spec"]["have_children"] = bool(db_artifact.child_artifacts)
+        artifact["spec"]["has_children"] = bool(db_artifact.child_artifacts)
         self._set_parent_uri(artifact, db_artifact.parent)
 
         # If connected to a tag add it to metadata

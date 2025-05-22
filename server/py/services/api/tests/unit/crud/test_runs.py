@@ -964,7 +964,7 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
                     exclude_paths=[
                         "root['metadata']['tag']",
                         "root['spec']['parent_uri']",
-                        "root['spec']['have_children']",
+                        "root['spec']['has_children']",
                     ],
                 )
                 == {}

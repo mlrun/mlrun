@@ -37,11 +37,11 @@ def test_prompt_target_paths(generate_target_path_from_artifact_hash, from_file)
     mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = (
         generate_target_path_from_artifact_hash
     )
-    project_name = "model-target-path-test"
+    project_name = "project-test"
     artifact_path = results_dir / project_name
     llm_key = "llm-prompt"
 
-    context = mlrun.get_or_create_ctx("test")
+    context = mlrun.get_or_create_ctx("test", project=project_name)
     # we use log artifact and not log model as it should handle models as well
     if from_file:
         llm_prompt = context.log_llm_prompt(
@@ -64,11 +64,11 @@ def test_prompt_target_paths(generate_target_path_from_artifact_hash, from_file)
 
 
 def test_prompt_limitation():
-    project_name = "model-target-path-test"
+    project_name = "project-test"
     artifact_path = results_dir / project_name
     llm_key = "llm-prompt"
 
-    context = mlrun.get_or_create_ctx("test")
+    context = mlrun.get_or_create_ctx("test", project=project_name)
     # we use log artifact and not log model as it should handle models as well
 
     llm_prompt = context.log_llm_prompt(

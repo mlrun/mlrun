@@ -83,7 +83,6 @@ from ..artifacts import (
     DocumentArtifact,
     DocumentLoaderSpec,
     LLMPromptArtifact,
-    LLMPromptArtifactSpec,
     ModelArtifact,
 )
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
@@ -1890,7 +1889,7 @@ class MlrunProject(ModelObj):
         prompt_path: Optional[str] = None,
         prompt_legend: Optional[dict] = None,
         model_artifact: Union[ModelArtifact, str] = None,
-        generation_configuration: Optional[dict] = None,
+        model_configuration: Optional[dict] = None,
         description: Optional[str] = None,
         target_path: Optional[str] = None,
         artifact_path: Optional[str] = None,
@@ -1930,7 +1929,7 @@ class MlrunProject(ModelObj):
         :param prompt_path: Path to a file containing the prompt. Mutually exclusive with `prompt_string`.
         :param prompt_legend: A dictionary for formatting variables in the prompt (e.g., placeholders for user inputs).
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
-        :param generation_configuration: Configuration dictionary for model generation parameters
+        :param model_configuration: Configuration dictionary for model generation parameters
                                          (e.g., temperature, max tokens).
         :param description: Optional description of the prompt.
         :param target_path: Optional local target path for saving prompt content.
@@ -1942,20 +1941,16 @@ class MlrunProject(ModelObj):
 
         :returns: The logged `LLMPromptArtifact` object.
         """
-        llm_prompt_spec = LLMPromptArtifactSpec(
+        llm_prompt = LLMPromptArtifact(
+            key=key,
+            project=self.name,
             prompt_string=prompt_string,
             prompt_path=prompt_path,
             prompt_legend=prompt_legend,
-            parent_uri=model_artifact.uri
-            if isinstance(model_artifact, ModelArtifact)
-            else model_artifact,
-            generation_configuration=generation_configuration,
+            model_artifact=model_artifact,
+            model_configuration=model_configuration,
             target_path=target_path,
             description=description,
-        )
-        llm_prompt = LLMPromptArtifact(
-            key=key,
-            spec=llm_prompt_spec,
             **kwargs,
         )
 
@@ -1969,6 +1964,7 @@ class MlrunProject(ModelObj):
                 labels=labels,
             ),
         )
+        self._update_run()
         return item
 
     def get_vector_store_collection(

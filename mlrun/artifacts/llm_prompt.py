@@ -12,45 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import tempfile
-import typing
+from typing import Optional, Union
 
 import mlrun
-import mlrun.artifacts.model as model_artifact
-from mlrun.artifacts import Artifact, ArtifactSpec
+import mlrun.artifacts.model as model_art
+from mlrun.artifacts import Artifact, ArtifactMetadata, ArtifactSpec
 from mlrun.utils import StorePrefix, logger
 
-MAX_PROMPT_LENGTH = 1000
+MAX_PROMPT_LENGTH = 1024
 
 
 class LLMPromptArtifactSpec(ArtifactSpec):
     _dict_fields = ArtifactSpec._dict_fields + [
         "prompt_string",
         "prompt_legend",
-        "generation_configuration",
+        "model_configuration",
         "description",
     ]
 
     def __init__(
         self,
-        target_path=None,
-        viewer=None,
-        is_inline=False,
-        format=None,
-        size=None,
-        db_key=None,
-        extra_data=None,
-        body=None,
-        unpackaging_instructions: typing.Optional[dict] = None,
-        parent_uri: typing.Optional[str] = None,
-        prompt_string: typing.Optional[str] = None,
-        prompt_path: typing.Optional[str] = None,
-        prompt_legend: typing.Optional[dict] = None,
-        generation_configuration: typing.Optional[dict] = None,
-        description: typing.Optional[str] = None,
+        model_artifact: Union[model_art.ModelArtifact, str] = None,
+        prompt_string: Optional[str] = None,
+        prompt_path: Optional[str] = None,
+        prompt_legend: Optional[dict] = None,
+        model_configuration: Optional[dict] = None,
+        description: Optional[str] = None,
+        target_path: Optional[str] = None,
+        **kwargs,
     ):
         if prompt_string and prompt_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "cannot specify prompt_string and prompt_path together"
+                "cannot specify both prompt_string and prompt_path"
             )
 
         if prompt_string and len(prompt_string) > MAX_PROMPT_LENGTH:
@@ -65,29 +58,22 @@ class LLMPromptArtifactSpec(ArtifactSpec):
         super().__init__(
             src_path=prompt_path,
             target_path=target_path,
-            viewer=viewer,
-            is_inline=is_inline,
-            format=format,
-            size=size,
-            db_key=db_key,
-            extra_data=extra_data,
-            body=body,
-            unpackaging_instructions=unpackaging_instructions,
-            parent_uri=parent_uri,
+            parent_uri=model_artifact.uri
+            if isinstance(model_artifact, model_art.ModelArtifact)
+            else model_artifact,
+            body=prompt_string,
+            **kwargs,
         )
 
         self.prompt_string = prompt_string
         self.prompt_legend = prompt_legend
-        self.generation_configuration = generation_configuration
+        self.model_configuration = model_configuration
         self.description = description
         self._model_artifact = None
 
     @property
     def model_uri(self):
         return self.parent_uri
-
-    def get_body(self):
-        return self.prompt_string
 
 
 class LLMPromptArtifact(Artifact):
@@ -101,6 +87,40 @@ class LLMPromptArtifact(Artifact):
     kind = "llm-prompt"
     _store_prefix = StorePrefix.LLMPrompt
 
+    def __init__(
+        self,
+        key: Optional[str] = None,
+        project: Optional[str] = None,
+        model_artifact: Union[model_art.ModelArtifact, str] = None,
+        prompt_string: Optional[str] = None,
+        prompt_path: Optional[str] = None,
+        prompt_legend: Optional[dict] = None,
+        model_configuration: Optional[dict] = None,
+        description: Optional[str] = None,
+        target_path=None,
+        **kwargs,
+    ):
+        llm_prompt_spec = LLMPromptArtifactSpec(
+            prompt_string=prompt_string,
+            prompt_path=prompt_path,
+            prompt_legend=prompt_legend,
+            model_artifact=model_artifact,
+            model_configuration=model_configuration,
+            target_path=target_path,
+            description=description,
+        )
+
+        llm_metadata = (
+            ArtifactMetadata(
+                key=key,
+                project=project,
+            )
+            if key and project
+            else None
+        )
+
+        super().__init__(spec=llm_prompt_spec, metadata=llm_metadata, **kwargs)
+
     @property
     def spec(self) -> LLMPromptArtifactSpec:
         return self._spec
@@ -110,7 +130,7 @@ class LLMPromptArtifact(Artifact):
         self._spec = self._verify_dict(spec, "spec", LLMPromptArtifactSpec)
 
     @property
-    def model_artifact(self) -> typing.Optional[model_artifact.ModelArtifact]:
+    def model_artifact(self) -> Optional[model_art.ModelArtifact]:
         """
         Get the model artifact linked to this prompt artifact.
         """

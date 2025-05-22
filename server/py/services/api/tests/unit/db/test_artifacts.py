@@ -3015,7 +3015,7 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, key=parent_artifact_name, project=project
         )
 
-        assert artifact["spec"]["have_children"]
+        assert artifact["spec"]["has_children"]
 
         c_artifact = self._db.read_artifact(
             self._db_session, key=child_artifact_name, project=project

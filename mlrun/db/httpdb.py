@@ -1243,53 +1243,53 @@ class HTTPRunDB(RunDBInterface):
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
-        Examples::
+                Examples::
 
-            # Show latest version of all artifacts in project
-            latest_artifacts = db.list_artifacts(tag="latest", project="iris")
-            # check different artifact versions for a specific artifact
-            result_versions = db.list_artifacts("results", tag="*", project="iris")
-            # Show artifacts with label filters - both uploaded and of binary type
-            result_labels = db.list_artifacts(
-                "results", tag="*", project="iris", labels=["uploaded", "type=binary"]
-            )
+                    # Show latest version of all artifacts in project
+                    latest_artifacts = db.list_artifacts(tag="latest", project="iris")
+                    # check different artifact versions for a specific artifact
+                    result_versions = db.list_artifacts("results", tag="*", project="iris")
+                    # Show artifacts with label filters - both uploaded and of binary type
+                    result_labels = db.list_artifacts(
+                        "results", tag="*", project="iris", labels=["uploaded", "type=binary"]
+                    )
 
-        :param parent: The parent artifact uri. This is used to filter artifacts that
-                        are children of a specific artifact.
-        :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
-            case-sensitive. This means that querying for ``~name`` may return artifacts named
-            ``my_Name_1`` or ``surname``.
-        :param project: Project name.
-        :param tag: Return artifacts assigned this tag.
-        :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
-        :param since: Return artifacts updated after this date (as datetime object).
-        :param until: Return artifacts updated before this date (as datetime object).
-        :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
-            ``None`` (default) return artifacts from all iterations.
-        :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
-            artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
-            from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
-        :param kind:            Return artifacts of the requested kind.
-        :param category:        Return artifacts of the requested category.
-        :param tree:            Return artifacts of the requested tree.
-        :param producer_uri:    Return artifacts produced by the requested producer URI. Producer URI usually
-            points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
-            is a workflow id (artifact was created as part of a workflow).
-        :param format_: The format in which to return the artifacts. Default is 'full'.
-        :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
-        :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
-            parameter must be provided as well.
-        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
-            to return per group. Default value is 1.
-        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
-            Currently, the only allowed values are `created` and `updated`.
-        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
+        :param parent: The URI or <parent_name>:<parent_tag> string of the parent artifact.
+                        Used to filter and return only artifacts that are direct children of the specified parent.
+                :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
+                    case-sensitive. This means that querying for ``~name`` may return artifacts named
+                    ``my_Name_1`` or ``surname``.
+                :param project: Project name.
+                :param tag: Return artifacts assigned this tag.
+                :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
+                    - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                    or `{"label": None}` to check for key existence.
+                    - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                    or just `"label"` for key existence.
+                    - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                    the specified key-value pairs or key existence.
+                :param since: Return artifacts updated after this date (as datetime object).
+                :param until: Return artifacts updated before this date (as datetime object).
+                :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
+                    ``None`` (default) return artifacts from all iterations.
+                :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
+                    artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
+                    from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
+                :param kind:            Return artifacts of the requested kind.
+                :param category:        Return artifacts of the requested category.
+                :param tree:            Return artifacts of the requested tree.
+                :param producer_uri:    Return artifacts produced by the requested producer URI. Producer URI usually
+                    points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
+                    is a workflow id (artifact was created as part of a workflow).
+                :param format_: The format in which to return the artifacts. Default is 'full'.
+                :param limit: Deprecated - Maximum number of artifacts to return (will be removed in 1.11.0).
+                :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
+                    parameter must be provided as well.
+                :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+                    to return per group. Default value is 1.
+                :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+                    Currently, the only allowed values are `created` and `updated`.
+                :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         """
 
         artifacts, _ = self._list_artifacts(

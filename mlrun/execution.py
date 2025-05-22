@@ -32,7 +32,6 @@ from mlrun.artifacts import (
     DocumentArtifact,
     DocumentLoaderSpec,
     LLMPromptArtifact,
-    LLMPromptArtifactSpec,
     ModelArtifact,
 )
 from mlrun.datastore.store_resources import get_store_resource
@@ -902,7 +901,7 @@ class MLClientCtx:
         prompt_path: Optional[str] = None,
         prompt_legend: Optional[dict] = None,
         model_artifact: Union[ModelArtifact, str] = None,
-        generation_configuration: Optional[dict] = None,
+        model_configuration: Optional[dict] = None,
         description: Optional[str] = None,
         target_path: Optional[str] = None,
         artifact_path: Optional[str] = None,
@@ -925,7 +924,7 @@ class MLClientCtx:
                 prompt_string="Q: {question}\nA:",
                 model_artifact="model:latest",
                 prompt_legend={"question": "user_input"},
-                generation_configuration={"temperature": 0.7, "max_tokens": 128},
+                model_configuration={"temperature": 0.7, "max_tokens": 128},
                 tag="latest",
             )
 
@@ -941,7 +940,7 @@ class MLClientCtx:
         :param prompt_path: Path to a file containing the prompt content. Cannot be used with `prompt_string`.
         :param prompt_legend: A dictionary that maps variables used in the prompt to their expected context keys.
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
-        :param generation_configuration: Dictionary of generation parameters (e.g., temperature, max_tokens).
+        :param model_configuration: Dictionary of generation parameters (e.g., temperature, max_tokens).
         :param description: Optional description of the prompt.
         :param target_path: Path to write the artifact locally.
         :param artifact_path: Path in the artifact store (defaults to project artifact path).
@@ -953,20 +952,16 @@ class MLClientCtx:
         :returns: The logged `LLMPromptArtifact` object.
         """
 
-        llm_prompt_spec = LLMPromptArtifactSpec(
+        llm_prompt = LLMPromptArtifact(
+            key=key,
+            project=self._project or "",
             prompt_string=prompt_string,
             prompt_path=prompt_path,
             prompt_legend=prompt_legend,
-            parent_uri=model_artifact.uri
-            if isinstance(model_artifact, ModelArtifact)
-            else model_artifact,
-            generation_configuration=generation_configuration,
+            model_artifact=model_artifact,
+            model_configuration=model_configuration,
             target_path=target_path,
             description=description,
-        )
-        llm_prompt = LLMPromptArtifact(
-            key=key,
-            spec=llm_prompt_spec,
             **kwargs,
         )
 

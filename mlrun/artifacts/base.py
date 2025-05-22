@@ -107,7 +107,7 @@ class ArtifactSpec(ModelObj):
         "unpackaging_instructions",
         "producer",
         "parent_uri",
-        "have_children",
+        "has_children",
     ]
 
     _extra_fields = ["annotations", "sources", "license", "encoding"]
@@ -142,7 +142,7 @@ class ArtifactSpec(ModelObj):
         self.extra_data = extra_data or {}
         self.unpackaging_instructions = unpackaging_instructions
         self.parent_uri = parent_uri
-        self.have_children = None
+        self.has_children = False
 
         self._body = body
         self.encoding = None

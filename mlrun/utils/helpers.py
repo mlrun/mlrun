@@ -878,7 +878,7 @@ def enrich_image_url(
 ) -> str:
     image_url = image_url.strip()
 
-    # New logic for 'python' image
+    # Add python version tag if needed
     if image_url == "python" and ":" not in image_url and client_python_version:
         image_url = f"python:{client_python_version}"
 
@@ -887,7 +887,7 @@ def enrich_image_url(
         mlrun.utils.version.Version().get()["version"]
     )
     mlrun_version = config.images_tag or client_version or server_version
-    tag = mlrun_version
+    tag = mlrun_version or ""
 
     # TODO: Remove condition when mlrun/mlrun-kfp image is also supported
     if "mlrun-kfp" not in image_url:

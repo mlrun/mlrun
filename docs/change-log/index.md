@@ -1281,29 +1281,29 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.11.0      | v1.8.0 |`mlrun.platforms.v3io_cred`                                                  |`.mounts.v3io_cred`|
 | v1.10.0      | v1.7.0 |`key`, `body`, `viewer`, `is_inline`, `format`, `size`, `target_path`, `project` and `src_path` in `mlrun.artifacts.base.Artifact`|`metadata` and `spec`|
 | v1.10.0      | v1.7.0 |`key`, `body`, `viewer`, `is_inline`, `format`, `size`, `target_path`, `project` and `src_path` in `mlrun.artifacts.base.LinkArtifact`|`metadata` and `spec`|
-| v1.11.0      | v1.7.0 |`key`, `format`, and `target_path` in `mlrun.artifacts.datasets.DatasetArtifact` |`metadata` and `spec` |
-| v1.11.0      | v1.7.0 |`key`, `body`, `format`, and `target_path` in `mlrun.artifacts.model.ModelArtifact`|`metadata` and `spec` |
-| v1.11.0      | v1.7.0 |`key`, `body`, `is_inline`, and `target_path` in `mlrun.artifacts.plots.PlotArtifact` |`metadata` and `spec` |
-| v1.11.0      | v1.7.0 |`key`, and `target_path` in `mlrun.artifacts.plots.PlotlyArtifact`  |`metadata` and `spec` |
-| v1.11.0      | v1.7.0 |`labels` in`get_or_create_ctx` |`spec` |
-| v1.11.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_function` |Default value changed to `True` |
-| v1.11.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_config` |Default value changed to `True` |
-| v1.11.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_image` |Default value changed to `True` |
-| v1.11.0      | v1.7.0 |`overwrite_build_params` in `mlrun.projects.operations.build_function` |Default value changed to `True` |
-| v1.11.0      | v1.7.0 |`overwrite` in `KubejobRuntime.build_config` |Default value changed to `True` |
-| v1.11.0      | v1.7.0 |`mlrun.utils.helpers.is_legacy_artifact`                                       |NA|
-| v1.11.0      | v1.7.0 |`mlrun.artifacts.base.convert_legacy_artifact_to_new_format`                 |NA. Make sure to save the artifact/project in the new format.|
-| v1.11.0      | v1.7.0 |`allow_cross_project` in `mlrun.load_project`                                 |Project name differs from the name specified in the context's project YAML. This functionality is no longer supported. If you want to enable this behavior, take one of the following actions:<ul><li>Set `allow_cross_project=True` when loading the project. (Previously, when `allow_cross_project` was not set (`None`), it implicitly behaved as if it were `True`, with a warning. Now, if you want this functionality, you must explicitly set `allow_cross_project=True`.)</li><li>Delete the existing project YAML, or ensure its `name` field matches the actual project name.</li><li>Use a different project context directory.</li></ul>
-| v1.11.0      | v1.7.0 |`bootstrap_servers` in `mlrun.datastore.targets.KafkaTarget`                  |`brokers`|
-| v1.11.0      | v1.7.0 |`schema` in `mlrun.datastore.sources.SnowflakeSource`                         |`db_schema`|
-| v1.11.0      | v1.7.0 |`credentials_prefix` in `mlrun.datastore.targets.BaseStoreTarget`             |Use datastore profiles for managing credentials|
-| v1.11.0      | v1.7.0 |`kafka_bootstrap_servers` in `get_kafka_brokers_from_dict()`                |`kafka_brokers`|
-| v1.11.0      | v1.7.0 |`drift_threshold`, `possible_drift_threshold` and `trigger_monitoring_job` in `mlrun.model_monitoring.api.record_results`|Enable the default histogram data drift application with `project.enable_model_monitoring()`|
-| v1.11.0      | v1.7.0 |`artifacts_tag`, `default_batch_image` in `mlrun.model_monitoring.api.record_results`  |NA|
-| v1.11.0      | v1.7.0 |`mlrun.model_monitoring.tracking_policy.TrackingPolicy`                                |NA| 
-| v1.11.0      | v1.7.0 |`default_controller_image` in `MlrunProject.enable_model_monitoring()`                  |`image`|
-| v1.11.0      | v1.7.0 |`MlrunProject.remove_model_monitoring_function()`                                     |`MlrunProject.delete_model_monitoring_function()`|
-| v1.11.0      | v1.7.0 |`tracking_policy` in `mlrun.runtimes.nuclio.serving.set_tracking`                      |Set the model monitoring time window and schedule with the `base_period` argument in `project.enable_model_monitoring()`|
+| v1.10.0      | v1.7.0 |`key`, `format`, and `target_path` in `mlrun.artifacts.datasets.DatasetArtifact` |`metadata` and `spec` |
+| v1.10.0      | v1.7.0 |`key`, `body`, `format`, and `target_path` in `mlrun.artifacts.model.ModelArtifact`|`metadata` and `spec` |
+| v1.10.0      | v1.7.0 |`key`, `body`, `is_inline`, and `target_path` in `mlrun.artifacts.plots.PlotArtifact` |`metadata` and `spec` |
+| v1.10.0      | v1.7.0 |`key`, and `target_path` in `mlrun.artifacts.plots.PlotlyArtifact`  |`metadata` and `spec` |
+| v1.10.0      | v1.7.0 |`labels` in`get_or_create_ctx` |`spec` |
+| v1.10.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_function` |Default value changed to `True` |
+| v1.10.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_config` |Default value changed to `True` |
+| v1.10.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_image` |Default value changed to `True` |
+| v1.10.0      | v1.7.0 |`overwrite_build_params` in `mlrun.projects.operations.build_function` |Default value changed to `True` |
+| v1.10.0      | v1.7.0 |`overwrite` in `KubejobRuntime.build_config` |Default value changed to `True` |
+| v1.10.0      | v1.7.0 |`mlrun.utils.helpers.is_legacy_artifact`                                       |NA|
+| v1.10.0      | v1.7.0 |`mlrun.artifacts.base.convert_legacy_artifact_to_new_format`                 |NA. Make sure to save the artifact/project in the new format.|
+| v1.10.0      | v1.7.0 |`allow_cross_project` in `mlrun.load_project`                                 |Project name differs from the name specified in the context's project YAML. This functionality is no longer supported. If you want to enable this behavior, take one of the following actions:<ul><li>Set `allow_cross_project=True` when loading the project. (Previously, when `allow_cross_project` was not set (`None`), it implicitly behaved as if it were `True`, with a warning. Now, if you want this functionality, you must explicitly set `allow_cross_project=True`.)</li><li>Delete the existing project YAML, or ensure its `name` field matches the actual project name.</li><li>Use a different project context directory.</li></ul>
+| v1.10.0      | v1.7.0 |`bootstrap_servers` in `mlrun.datastore.targets.KafkaTarget`                  |`brokers`|
+| v1.10.0      | v1.7.0 |`schema` in `mlrun.datastore.sources.SnowflakeSource`                         |`db_schema`|
+| v1.10.0      | v1.7.0 |`credentials_prefix` in `mlrun.datastore.targets.BaseStoreTarget`             |Use datastore profiles for managing credentials|
+| v1.10.0      | v1.7.0 |`kafka_bootstrap_servers` in `get_kafka_brokers_from_dict()`                |`kafka_brokers`|
+| v1.10.0      | v1.7.0 |`drift_threshold`, `possible_drift_threshold` and `trigger_monitoring_job` in `mlrun.model_monitoring.api.record_results`|Enable the default histogram data drift application with `project.enable_model_monitoring()`|
+| v1.10.0      | v1.7.0 |`artifacts_tag`, `default_batch_image` in `mlrun.model_monitoring.api.record_results`  |NA|
+| v1.10.0      | v1.7.0 |`mlrun.model_monitoring.tracking_policy.TrackingPolicy`                                |NA| 
+| v1.10.0      | v1.7.0 |`default_controller_image` in `MlrunProject.enable_model_monitoring()`                  |`image`|
+| v1.10.0      | v1.7.0 |`MlrunProject.remove_model_monitoring_function()`                                     |`MlrunProject.delete_model_monitoring_function()`|
+| v1.10.0      | v1.7.0 |`tracking_policy` in `mlrun.runtimes.nuclio.serving.set_tracking`                      |Set the model monitoring time window and schedule with the `base_period` argument in `project.enable_model_monitoring()`|
 | v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.RunsFormat`                                       |`mlrun.common.formatters.RunFormat`                |
 | v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.ArtifactsFormat`                                  |`mlrun.common.formatters.ArtifactFormat`                |
 | v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.ProjectsFormat`                                  |`mlrun.common.formatters.ProjectFormat`                |

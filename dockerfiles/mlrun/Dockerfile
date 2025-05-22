@@ -31,8 +31,6 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   wget \
   git-core \
   unzip \
-  libpq-dev \
-  python3-dev \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /mlrun

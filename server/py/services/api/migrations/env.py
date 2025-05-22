@@ -12,13 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from logging.config import fileConfig
+from typing import Any, Optional
 
 import alembic
 import sqlalchemy
+import sqlalchemy.dialects.mysql
+import sqlalchemy.dialects.postgresql
 import sqlalchemy.exc
 import sqlalchemy.pool
+from alembic.runtime.migration import MigrationContext
+from sqlalchemy import Column, Uuid
+from sqlalchemy.dialects import mysql, postgresql
+from sqlalchemy.sql.type_api import TypeEngine
 
 import mlrun.utils
+from mlrun.db.sql_types import DateTime, MicroSecondDateTime, Utf8BinText
 
 import framework.db.sqldb.models
 
@@ -44,6 +52,54 @@ target_metadata = framework.db.sqldb.models.Base.metadata
 config.set_main_option("sqlalchemy.url", mlrun.mlconf.httpdb.dsn)
 
 
+# This function was added as part of the migration to SQLAlchemy 2.0 and is intended
+# to suppress redundant alembic migrations
+def compare_type(
+    context: MigrationContext,
+    inspected_column: Column[Any],
+    metadata_column: Column[Any],
+    inspected_type: TypeEngine[Any],
+    metadata_type: TypeEngine[Any],
+) -> Optional[bool]:
+    """Custom compare_type that:
+    1. checks mysql.VARCHAR→Utf8BinText by length+collation (utf8mb3_bin≈utf8_bin),
+    2. suppresses VARCHAR→Uuid when collation is binary,
+    3. flags DATETIME/TIMESTAMP→DateTime/MicroSecondDateTime only on fsp mismatch,
+    4. flags PostgreSQL TIMESTAMP precision mismatches,
+    otherwise defers to Alembic default."""
+    if isinstance(inspected_type, mysql.VARCHAR):
+        coll = (inspected_type.collation or "").lower()
+        if coll in ("utf8mb3_bin", "utf8_bin"):
+            if isinstance(metadata_column.type, Utf8BinText):
+                dialect = context.dialect
+                meta_impl = metadata_column.type.load_dialect_impl(dialect)
+                if getattr(inspected_type, "length", None) == getattr(
+                    meta_impl, "length", None
+                ):
+                    return False
+                else:
+                    return True
+            # Uuid case
+            if isinstance(metadata_column.type, Uuid):
+                return False
+
+    if isinstance(inspected_type, (mysql.DATETIME, mysql.TIMESTAMP)) and isinstance(
+        metadata_column.type, (DateTime, MicroSecondDateTime)
+    ):
+        if getattr(inspected_type, "fsp", None) == metadata_column.type.precision:
+            return False
+        return True
+
+    if isinstance(inspected_type, postgresql.TIMESTAMP) and isinstance(
+        metadata_column.type, (DateTime, MicroSecondDateTime)
+    ):
+        if getattr(inspected_type, "precision", None) == metadata_column.type.precision:
+            return False
+        return True
+
+    return None
+
+
 def run_migrations_offline():
     """Run migrations in 'offline' mode.
 
@@ -63,6 +119,7 @@ def run_migrations_offline():
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         render_as_batch=True,
+        compare_type=compare_type,
     )
 
     with alembic.context.begin_transaction():
@@ -145,6 +202,7 @@ def run_migrations_online():
         alembic.context.configure(
             connection=connection,
             target_metadata=target_metadata,
+            compare_type=compare_type,
         )
 
         with alembic.context.begin_transaction():

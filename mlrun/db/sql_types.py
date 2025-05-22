@@ -15,6 +15,7 @@
 import sqlalchemy.dialects.mysql
 import sqlalchemy.dialects.postgresql
 import sqlalchemy.types
+from sqlalchemy import Text
 
 
 class DateTime(sqlalchemy.types.TypeDecorator):
@@ -56,4 +57,25 @@ class Blob(sqlalchemy.types.TypeDecorator):
         elif dialect.name == "postgresql":
             return dialect.type_descriptor(sqlalchemy.dialects.postgresql.BYTEA)
         else:
+            return dialect.type_descriptor(self.impl)
+
+
+class Utf8BinText(sqlalchemy.types.TypeDecorator):
+    impl = Text
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "mysql":
+            # MySQL: full‐Unicode TEXT with utf8_bin collation
+            return dialect.type_descriptor(
+                sqlalchemy.dialects.mysql.VARCHAR(collation="utf8_bin", length=255)
+            )
+        elif dialect.name == "postgresql":
+            # PostgreSQL: TEXT with a binary‐style collation: utf8_bin is created via sqlalchemy
+            return dialect.type_descriptor(Text(collation="utf8_bin"))
+        elif dialect.name == "sqlite":
+            # SQLite: default TEXT with BINARY collation (case-sensitive)
+            return dialect.type_descriptor(Text(collation="BINARY"))
+        else:
+            # fallback: plain TEXT
             return dialect.type_descriptor(self.impl)

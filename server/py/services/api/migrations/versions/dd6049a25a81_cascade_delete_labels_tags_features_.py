@@ -50,14 +50,11 @@ def upgrade():
         ondelete="CASCADE",
     )
     logger.info("Finished dropping and creating constraint: _artifacts_labels_paren_fk")
-    bind = op.get_bind()
-    dialect = bind.dialect.name
-    if dialect == "mysql":
-        logger.info("Dropping constraint: artifacts_v2_labels_ibfk_1")
-        op.drop_constraint(
-            "artifacts_v2_labels_ibfk_1", "artifacts_v2_labels", type_="foreignkey"
-        )
-        logger.info("Creating constraint: artifacts_v2_labels_ibfk_1")
+    logger.info("Dropping constraint: artifacts_v2_labels_ibfk_1")
+    op.drop_constraint(
+        "artifacts_v2_labels_ibfk_1", "artifacts_v2_labels", type_="foreignkey"
+    )
+    logger.info("Creating constraint: artifacts_v2_labels_ibfk_1")
     op.create_foreign_key(
         "artifacts_v2_labels_ibfk_1",
         "artifacts_v2_labels",
@@ -67,11 +64,10 @@ def upgrade():
         ondelete="CASCADE",
     )
     logger.info("Finished dropping and creating constraint: artifacts_v2_labels_ibfk_1")
-    if dialect == "mysql":
-        logger.info("Dropping constraint: artifacts_v2_tags_ibfk_1")
-        op.drop_constraint(
-            "artifacts_v2_tags_ibfk_1", "artifacts_v2_tags", type_="foreignkey"
-        )
+    logger.info("Dropping constraint: artifacts_v2_tags_ibfk_1")
+    op.drop_constraint(
+        "artifacts_v2_tags_ibfk_1", "artifacts_v2_tags", type_="foreignkey"
+    )
     logger.info("Creating constraint: artifacts_v2_tags_ibfk_1")
     op.create_foreign_key(
         "artifacts_v2_tags_ibfk_1",

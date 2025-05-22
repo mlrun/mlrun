@@ -36,53 +36,18 @@ def upgrade():
     op.create_table(
         "runs_notifications",
         sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("project", sa.String(length=255, collation="utf8_bin")),
+        sa.Column("name", sa.String(length=255, collation="utf8_bin"), nullable=False),
+        sa.Column("kind", sa.String(length=255, collation="utf8_bin"), nullable=False),
         sa.Column(
-            "project",
-            sa.String(
-                length=255,
-            ),
+            "message", sa.String(length=255, collation="utf8_bin"), nullable=False
         ),
         sa.Column(
-            "name",
-            sa.String(
-                length=255,
-            ),
-            nullable=False,
+            "severity", sa.String(length=255, collation="utf8_bin"), nullable=False
         ),
+        sa.Column("when", sa.String(length=255, collation="utf8_bin"), nullable=False),
         sa.Column(
-            "kind",
-            sa.String(
-                length=255,
-            ),
-            nullable=False,
-        ),
-        sa.Column(
-            "message",
-            sa.String(
-                length=255,
-            ),
-            nullable=False,
-        ),
-        sa.Column(
-            "severity",
-            sa.String(
-                length=255,
-            ),
-            nullable=False,
-        ),
-        sa.Column(
-            "when",
-            sa.String(
-                length=255,
-            ),
-            nullable=False,
-        ),
-        sa.Column(
-            "condition",
-            sa.String(
-                length=255,
-            ),
-            nullable=False,
+            "condition", sa.String(length=255, collation="utf8_bin"), nullable=False
         ),
         sa.Column("params", sa.JSON(), nullable=True),
         # A generic parent_id rather than run_id since notification table is standard across objects, see the
@@ -90,11 +55,7 @@ def upgrade():
         sa.Column("parent_id", sa.Integer(), nullable=True),
         sa.Column("sent_time", mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.Column(
-            "status",
-            sa.String(
-                length=255,
-            ),
-            nullable=False,
+            "status", sa.String(length=255, collation="utf8_bin"), nullable=False
         ),
         sa.ForeignKeyConstraint(
             ["parent_id"],

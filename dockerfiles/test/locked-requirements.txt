@@ -137,9 +137,9 @@ aiosmtplib==3.0.2 \
     # via
     #   -r dockerfiles/mlrun-api/requirements.txt
     #   -r requirements.txt
-alembic==1.15.2 \
-    --hash=sha256:1c72391bbdeffccfe317eefba686cb9a3c078005478885413b95c3b26c57a8a7 \
-    --hash=sha256:2e76bd916d547f6900ec4bb5a90aeac1485d2c92536923d0b138c02b126edc53
+alembic==1.16.1 \
+    --hash=sha256:0cdd48acada30d93aa1035767d67dff25702f8de74d7c3919f2e8492c8db2e67 \
+    --hash=sha256:43d37ba24b3d17bc1eb1024fe0f51cd1dc95aeb5464594a02c6bb9ca9864bfa4
     # via
     #   -r dockerfiles/mlrun-api/requirements.txt
     #   mlflow
@@ -1287,9 +1287,9 @@ google-api-python-client==1.12.11 ; python_full_version < '3.11' \
     --hash=sha256:1b4bd42a46321e13c0542a9e4d96fa05d73626f07b39f83a73a947d70ca706a9 \
     --hash=sha256:7e0a1a265c8d3088ee1987778c72683fcb376e32bada8d7767162bd9c503fd9b
     # via kfp
-google-auth==2.40.1 \
-    --hash=sha256:58f0e8416a9814c1d86c9b7f6acf6816b51aba167b2c76821965271bac275540 \
-    --hash=sha256:ed4cae4f5c46b41bae1d19c036e06f6c371926e97b19e816fc854eff811974ee
+google-auth==2.40.2 \
+    --hash=sha256:a33cde547a2134273226fa4b853883559947ebe9207521f7afc707efbf690f58 \
+    --hash=sha256:f7e568d42eedfded58734f6a60c58321896a621f7c116c411550a4b4a13da90b
     # via
     #   databricks-sdk
     #   gcsfs
@@ -2506,9 +2506,9 @@ mlflow-skinny==2.22.0 \
     --hash=sha256:774b58970038990650486cd934d46b7038fc390682c3bde70b4e5106f6857cce \
     --hash=sha256:9efc39454f6cc3433e7d804c3df8dab4fbba1abe504c52c05f00ef1d0696fef5
     # via mlflow
-mlrun-pipelines-kfp-common==0.5.3 \
-    --hash=sha256:0464aae1b54a37c6579312f1fa252fe063cbbc983ccd03f3d6acc1d53cef646e \
-    --hash=sha256:935a0229709f6d18b0ab10cd25014ea775dac727994c0ddf7518d0a83eeac772
+mlrun-pipelines-kfp-common==0.5.5 \
+    --hash=sha256:57439162b2c94c245b987196bb33e2bb232692ea36632212e0ba87a2b95ea5e7 \
+    --hash=sha256:fbd07c3c16857c854a2755bde2210de720f77dc6153bf8b1dc5b53d433e2c6fe
     # via -r requirements.txt
 mlrun-pipelines-kfp-v1-8==0.5.2 \
     --hash=sha256:710da9cac69a128fc197a73573efcabd366e74f15952b4fdf89e8b62bd878ab9 \
@@ -3375,6 +3375,18 @@ psutil==7.0.0 \
     # via
     #   distributed
     #   ipykernel
+psycopg2==2.9.10 \
+    --hash=sha256:0435034157049f6846e95103bd8f5a668788dd913a7c30162ca9503fdf542cb4 \
+    --hash=sha256:12ec0b40b0273f95296233e8750441339298e6a572f7039da5b260e3c8b60e11 \
+    --hash=sha256:47c4f9875125344f4c2b870e41b6aad585901318068acd01de93f3677a6522c2 \
+    --hash=sha256:4a579d6243da40a7b3182e0430493dbd55950c493d8c68f4eec0b302f6bbf20e \
+    --hash=sha256:5df2b672140f95adb453af93a7d669d7a7bf0a56bcd26f1502329166f4a61716 \
+    --hash=sha256:65a63d7ab0e067e2cdb3cf266de39663203d38d6a8ed97f5ca0cb315c73fe067 \
+    --hash=sha256:88138c8dedcbfa96408023ea2b0c369eda40fe5d75002c0964c78f46f11fa442 \
+    --hash=sha256:91fd603a2155da8d0cfcdbf8ab24a2d54bca72795b90d2a3ed2b6da8d979dee2 \
+    --hash=sha256:9d5b3b94b79a844a986d029eee38998232451119ad653aea42bb9220a8c5066b \
+    --hash=sha256:c6f7b8561225f9e711a9c47087388a97fdc948211c10a4bccbf0ba68ab7b3b5a
+    # via pytest-mock-resources
 psycopg2-binary==2.9.10 \
     --hash=sha256:04392983d0bb89a8717772a193cfaac58871321e3ec69514e1c4e0d4957b5aff \
     --hash=sha256:056470c3dc57904bbf63d6f534988bafc4e970ffd50f6271fc4ee7daad9498a5 \
@@ -3691,7 +3703,7 @@ pytest-httpserver==1.1.3 \
 pytest-mock-resources==2.12.2 \
     --hash=sha256:2077c0ee799b13438722cf86f64dd0c45b63ff924908be30d29e031c373111e1 \
     --hash=sha256:523cce5d3621d42d1e90b5cc91c5f70c699798bf148410fe7edc0dde8f25115f
-    # via -r dockerfiles/test/requirements.txt
+    # via -r dev-requirements.txt
 pytest-rerunfailures==14.0 \
     --hash=sha256:4197bdd2eaeffdbf50b5ea6e7236f47ff0e44d1def8dae08e409f536d84e7b32 \
     --hash=sha256:4a400bcbcd3c7a4ad151ab8afac123d90eca3abe27f98725dc4d9702887d2e92
@@ -4688,6 +4700,7 @@ tomli==2.2.1 ; python_full_version <= '3.11' \
     --hash=sha256:ece47d672db52ac607a3d9599a9d48dcb2f2f735c6c2d1f34130085bb12b112a \
     --hash=sha256:f4039b9cbc3048b2416cc57ab3bda989a6fcf9b36cf8937f01a6e731b64f80d7
     # via
+    #   alembic
     #   black
     #   build
     #   coverage
@@ -4704,19 +4717,19 @@ toolz==1.0.0 \
     #   dask
     #   distributed
     #   partd
-tornado==6.5 \
-    --hash=sha256:007f036f7b661e899bd9ef3fa5f87eb2cb4d1b2e7d67368e778e140a2f101a7a \
-    --hash=sha256:03576ab51e9b1677e4cdaae620d6700d9823568b7939277e4690fe4085886c55 \
-    --hash=sha256:119c03f440a832128820e87add8a175d211b7f36e7ee161c631780877c28f4fb \
-    --hash=sha256:231f2193bb4c28db2bdee9e57bc6ca0cd491f345cd307c57d79613b058e807e0 \
-    --hash=sha256:542e380658dcec911215c4820654662810c06ad872eefe10def6a5e9b20e9633 \
-    --hash=sha256:7c625b9d03f1fb4d64149c47d0135227f0434ebb803e2008040eb92906b0105a \
-    --hash=sha256:9a0d8d2309faf015903080fb5bdd969ecf9aa5ff893290845cf3fd5b2dd101bc \
-    --hash=sha256:9ac1cbe1db860b3cbb251e795c701c41d343f06a96049d6274e7c77559117e41 \
-    --hash=sha256:ab75fe43d0e1b3a5e3ceddb2a611cb40090dd116a84fc216a07a298d9e000471 \
-    --hash=sha256:c70c0a26d5b2d85440e4debd14a8d0b463a0cf35d92d3af05f5f1ffa8675c826 \
-    --hash=sha256:f81067dad2e4443b015368b24e802d0083fecada4f0a4572fdb72fc06e54a9a6 \
-    --hash=sha256:fd20c816e31be1bbff1f7681f970bbbd0bb241c364220140228ba24242bcdc59
+tornado==6.5.1 \
+    --hash=sha256:02420a0eb7bf617257b9935e2b754d1b63897525d8a289c9d65690d580b4dcf7 \
+    --hash=sha256:13ce6e3396c24e2808774741331638ee6c2f50b114b97a55c5b442df65fd9692 \
+    --hash=sha256:253b76040ee3bab8bcf7ba9feb136436a3787208717a1fb9f2c16b744fba7331 \
+    --hash=sha256:308473f4cc5a76227157cdf904de33ac268af770b2c5f05ca6c1161d82fdd95e \
+    --hash=sha256:5cae6145f4cdf5ab24744526cc0f55a17d76f02c98f4cff9daa08ae9a217448a \
+    --hash=sha256:84ceece391e8eb9b2b95578db65e920d2a61070260594819589609ba9bc6308c \
+    --hash=sha256:908e7d64567cecd4c2b458075589a775063453aeb1d2a1853eedb806922f568b \
+    --hash=sha256:9e9ca370f717997cb85606d074b0e5b247282cf5e2e1611568b8821afe0342d6 \
+    --hash=sha256:b77e9dfa7ed69754a54c89d82ef746398be82f749df69c4d3abe75c4d1ff4888 \
+    --hash=sha256:caec6314ce8a81cf69bd89909f4b633b9f523834dc1a352021775d45e51d9401 \
+    --hash=sha256:d50065ba7fd11d3bd41bcad0825227cc9a95154bad83239357094c36708001f7 \
+    --hash=sha256:e0a36e1bc684dca10b1aa75a31df8bdfed656831489bc1e6a6ebed05dc1ec365
     # via
     #   distributed
     #   ipykernel

@@ -125,9 +125,9 @@ aiosmtplib==3.0.2 \
     --hash=sha256:08fd840f9dbc23258025dca229e8a8f04d2ccf3ecb1319585615bfc7933f7f47 \
     --hash=sha256:8783059603a34834c7c90ca51103c3aa129d5922003b5ce98dbaa6d4440f10fc
     # via -r requirements.txt
-alembic==1.15.2 \
-    --hash=sha256:1c72391bbdeffccfe317eefba686cb9a3c078005478885413b95c3b26c57a8a7 \
-    --hash=sha256:2e76bd916d547f6900ec4bb5a90aeac1485d2c92536923d0b138c02b126edc53
+alembic==1.16.1 \
+    --hash=sha256:0cdd48acada30d93aa1035767d67dff25702f8de74d7c3919f2e8492c8db2e67 \
+    --hash=sha256:43d37ba24b3d17bc1eb1024fe0f51cd1dc95aeb5464594a02c6bb9ca9864bfa4
     # via mlflow
 aliyun-python-sdk-core==2.16.0 \
     --hash=sha256:651caad597eb39d4fad6cf85133dffe92837d53bdf62db9d8f37dab6508bb8f9
@@ -961,9 +961,9 @@ google-api-core==2.24.2 \
     #   google-cloud-bigquery-storage
     #   google-cloud-core
     #   google-cloud-storage
-google-auth==2.40.1 \
-    --hash=sha256:58f0e8416a9814c1d86c9b7f6acf6816b51aba167b2c76821965271bac275540 \
-    --hash=sha256:ed4cae4f5c46b41bae1d19c036e06f6c371926e97b19e816fc854eff811974ee
+google-auth==2.40.2 \
+    --hash=sha256:a33cde547a2134273226fa4b853883559947ebe9207521f7afc707efbf690f58 \
+    --hash=sha256:f7e568d42eedfded58734f6a60c58321896a621f7c116c411550a4b4a13da90b
     # via
     #   databricks-sdk
     #   gcsfs
@@ -1612,9 +1612,9 @@ mlflow-skinny==2.22.0 \
     --hash=sha256:774b58970038990650486cd934d46b7038fc390682c3bde70b4e5106f6857cce \
     --hash=sha256:9efc39454f6cc3433e7d804c3df8dab4fbba1abe504c52c05f00ef1d0696fef5
     # via mlflow
-mlrun-pipelines-kfp-common==0.5.3 \
-    --hash=sha256:0464aae1b54a37c6579312f1fa252fe063cbbc983ccd03f3d6acc1d53cef646e \
-    --hash=sha256:935a0229709f6d18b0ab10cd25014ea775dac727994c0ddf7518d0a83eeac772
+mlrun-pipelines-kfp-common==0.5.5 \
+    --hash=sha256:57439162b2c94c245b987196bb33e2bb232692ea36632212e0ba87a2b95ea5e7 \
+    --hash=sha256:fbd07c3c16857c854a2755bde2210de720f77dc6153bf8b1dc5b53d433e2c6fe
     # via -r requirements.txt
 mlrun-pipelines-kfp-v1-8==0.5.2 \
     --hash=sha256:710da9cac69a128fc197a73573efcabd366e74f15952b4fdf89e8b62bd878ab9 \
@@ -3224,19 +3224,19 @@ toolz==1.0.0 \
     #   dask
     #   distributed
     #   partd
-tornado==6.5 \
-    --hash=sha256:007f036f7b661e899bd9ef3fa5f87eb2cb4d1b2e7d67368e778e140a2f101a7a \
-    --hash=sha256:03576ab51e9b1677e4cdaae620d6700d9823568b7939277e4690fe4085886c55 \
-    --hash=sha256:119c03f440a832128820e87add8a175d211b7f36e7ee161c631780877c28f4fb \
-    --hash=sha256:231f2193bb4c28db2bdee9e57bc6ca0cd491f345cd307c57d79613b058e807e0 \
-    --hash=sha256:542e380658dcec911215c4820654662810c06ad872eefe10def6a5e9b20e9633 \
-    --hash=sha256:7c625b9d03f1fb4d64149c47d0135227f0434ebb803e2008040eb92906b0105a \
-    --hash=sha256:9a0d8d2309faf015903080fb5bdd969ecf9aa5ff893290845cf3fd5b2dd101bc \
-    --hash=sha256:9ac1cbe1db860b3cbb251e795c701c41d343f06a96049d6274e7c77559117e41 \
-    --hash=sha256:ab75fe43d0e1b3a5e3ceddb2a611cb40090dd116a84fc216a07a298d9e000471 \
-    --hash=sha256:c70c0a26d5b2d85440e4debd14a8d0b463a0cf35d92d3af05f5f1ffa8675c826 \
-    --hash=sha256:f81067dad2e4443b015368b24e802d0083fecada4f0a4572fdb72fc06e54a9a6 \
-    --hash=sha256:fd20c816e31be1bbff1f7681f970bbbd0bb241c364220140228ba24242bcdc59
+tornado==6.5.1 \
+    --hash=sha256:02420a0eb7bf617257b9935e2b754d1b63897525d8a289c9d65690d580b4dcf7 \
+    --hash=sha256:13ce6e3396c24e2808774741331638ee6c2f50b114b97a55c5b442df65fd9692 \
+    --hash=sha256:253b76040ee3bab8bcf7ba9feb136436a3787208717a1fb9f2c16b744fba7331 \
+    --hash=sha256:308473f4cc5a76227157cdf904de33ac268af770b2c5f05ca6c1161d82fdd95e \
+    --hash=sha256:5cae6145f4cdf5ab24744526cc0f55a17d76f02c98f4cff9daa08ae9a217448a \
+    --hash=sha256:84ceece391e8eb9b2b95578db65e920d2a61070260594819589609ba9bc6308c \
+    --hash=sha256:908e7d64567cecd4c2b458075589a775063453aeb1d2a1853eedb806922f568b \
+    --hash=sha256:9e9ca370f717997cb85606d074b0e5b247282cf5e2e1611568b8821afe0342d6 \
+    --hash=sha256:b77e9dfa7ed69754a54c89d82ef746398be82f749df69c4d3abe75c4d1ff4888 \
+    --hash=sha256:caec6314ce8a81cf69bd89909f4b633b9f523834dc1a352021775d45e51d9401 \
+    --hash=sha256:d50065ba7fd11d3bd41bcad0825227cc9a95154bad83239357094c36708001f7 \
+    --hash=sha256:e0a36e1bc684dca10b1aa75a31df8bdfed656831489bc1e6a6ebed05dc1ec365
     # via
     #   distributed
     #   ipykernel
@@ -3289,9 +3289,9 @@ typing-extensions==4.13.2 \
     #   snowflake-connector-python
     #   sqlalchemy
     #   typing-inspection
-typing-inspection==0.4.0 \
-    --hash=sha256:50e72559fcd2a6367a19f7a7e610e6afcb9fac940c650290eed893d61386832f \
-    --hash=sha256:9765c87de36671694a67904bf2c96e395be9c6439bb6c87b5142569dcdd65122
+typing-inspection==0.4.1 \
+    --hash=sha256:389055682238f53b04f7badcb49b989835495a96700ced5dab2d8feae4b26f51 \
+    --hash=sha256:6ae134cc0203c33377d43188d4064e9b357dba58cff3185f22924610e70a9d28
     # via pydantic
 tzdata==2025.2 \
     --hash=sha256:1a403fada01ff9221ca8044d701868fa132215d84beb92242d9acd2147f667a8 \

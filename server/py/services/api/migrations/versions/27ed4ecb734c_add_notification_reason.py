@@ -23,6 +23,8 @@ Create Date: 2023-09-10 12:55:27.620429
 import sqlalchemy as sa
 from alembic import op
 
+from framework.utils.db.sql_types import SQLTypesUtil
+
 # revision identifiers, used by Alembic.
 revision = "27ed4ecb734c"
 down_revision = "eefc169f7633"
@@ -36,7 +38,7 @@ def upgrade():
         "runs_notifications",
         sa.Column(
             "reason",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
     )

@@ -24,8 +24,6 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import mysql
 
-from mlrun.db.sql_types import Blob
-
 # revision identifiers, used by Alembic.
 revision = "6925effc8fb1"
 down_revision = "22dd9f3bdc66"
@@ -39,10 +37,14 @@ def upgrade():
         "model_endpoints",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("uid", sa.String(length=32), nullable=True),
-        sa.Column("name", sa.String(length=255), nullable=True),
+        sa.Column(
+            "name", sa.String(length=255, collation="utf8mb3_bin"), nullable=True
+        ),
         sa.Column("endpoint_type", sa.Integer(), nullable=False),
-        sa.Column("project", sa.String(length=255), nullable=True),
-        sa.Column("body", Blob(), nullable=True),
+        sa.Column(
+            "project", sa.String(length=255, collation="utf8mb3_bin"), nullable=True
+        ),
+        sa.Column("body", mysql.MEDIUMBLOB(), nullable=True),
         sa.Column("created", mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.Column("updated", mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.Column("function_id", sa.Integer(), nullable=True),
@@ -62,8 +64,12 @@ def upgrade():
     op.create_table(
         "model_endpoints_labels",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(length=255), nullable=True),
-        sa.Column("value", sa.String(length=255), nullable=True),
+        sa.Column(
+            "name", sa.String(length=255, collation="utf8mb3_bin"), nullable=True
+        ),
+        sa.Column(
+            "value", sa.String(length=255, collation="utf8mb3_bin"), nullable=True
+        ),
         sa.Column("parent", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(["parent"], ["model_endpoints.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
@@ -78,10 +84,16 @@ def upgrade():
     op.create_table(
         "model_endpoints_tags",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("project", sa.String(length=255), nullable=True),
-        sa.Column("name", sa.String(length=255), nullable=True),
+        sa.Column(
+            "project", sa.String(length=255, collation="utf8mb3_bin"), nullable=True
+        ),
+        sa.Column(
+            "name", sa.String(length=255, collation="utf8mb3_bin"), nullable=True
+        ),
         sa.Column("obj_id", sa.Integer(), nullable=True),
-        sa.Column("obj_name", sa.String(length=255), nullable=True),
+        sa.Column(
+            "obj_name", sa.String(length=255, collation="utf8mb3_bin"), nullable=True
+        ),
         sa.ForeignKeyConstraint(["obj_id"], ["model_endpoints.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(

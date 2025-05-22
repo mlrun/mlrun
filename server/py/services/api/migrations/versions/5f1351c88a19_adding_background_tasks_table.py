@@ -36,29 +36,13 @@ def upgrade():
     op.create_table(
         "background_tasks",
         sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(length=255, collation="utf8_bin"), nullable=False),
         sa.Column(
-            "name",
-            sa.String(
-                length=255,
-            ),
-            nullable=False,
-        ),
-        sa.Column(
-            "project",
-            sa.String(
-                length=255,
-            ),
-            nullable=False,
+            "project", sa.String(length=255, collation="utf8_bin"), nullable=False
         ),
         sa.Column("created", mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.Column("updated", mysql.TIMESTAMP(fsp=3), nullable=True),
-        sa.Column(
-            "state",
-            sa.String(
-                length=255,
-            ),
-            nullable=True,
-        ),
+        sa.Column("state", sa.String(length=255, collation="utf8_bin"), nullable=True),
         sa.Column("timeout", sa.Integer(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", "project", name="_background_tasks_uc"),

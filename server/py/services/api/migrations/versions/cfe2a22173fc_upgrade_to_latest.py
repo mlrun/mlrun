@@ -37,30 +37,12 @@ def upgrade():
         ["name", "value"],
         unique=False,
     )
-    bind = op.get_bind()
-    dialect = bind.dialect.name
-    if_exists = dialect == "postgresql"
-    op.drop_index("name", table_name="functions", if_exists=if_exists)
-    op.drop_index("name", table_name="feature_sets", if_exists=if_exists)
-    op.drop_index("name", table_name="feature_vectors", if_exists=if_exists)
+    op.drop_index("_feature_sets_tags_obj_name_fk", table_name="feature_sets_tags")
     op.drop_index(
-        "_feature_sets_tags_obj_name_fk",
-        table_name="feature_sets_tags",
-        if_exists=if_exists,
+        "_feature_vectors_tags_obj_name_fk", table_name="feature_vectors_tags"
     )
-    op.drop_index(
-        "_feature_vectors_tags_obj_name_fk",
-        table_name="feature_vectors_tags",
-        if_exists=if_exists,
-    )
-    op.drop_index(
-        "_functions_tags_obj_name_fk", table_name="functions_tags", if_exists=if_exists
-    )
-    op.drop_constraint(
-        "_marketplace_sources_uc",
-        table_name="hub_sources",
-        type_="unique",
-    )
+    op.drop_index("_functions_tags_obj_name_fk", table_name="functions_tags")
+    op.drop_index("_marketplace_sources_uc", table_name="hub_sources")
     op.create_unique_constraint("_hub_sources_uc", "hub_sources", ["name"])
     # ### end Alembic commands ###
 

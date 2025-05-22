@@ -24,8 +24,6 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import mysql
 
-from mlrun.db.sql_types import Blob
-
 # revision identifiers, used by Alembic.
 revision = "aaa213106ec5"
 down_revision = "b103e4740e88"
@@ -46,15 +44,15 @@ def downgrade():
         sa.Column("id", mysql.INTEGER(), autoincrement=True, nullable=False),
         sa.Column(
             "uid",
-            mysql.VARCHAR(charset="utf8mb3", length=255),
+            mysql.VARCHAR(charset="utf8mb3", collation="utf8mb3_bin", length=255),
             nullable=True,
         ),
         sa.Column(
             "project",
-            mysql.VARCHAR(charset="utf8mb3", length=255),
+            mysql.VARCHAR(charset="utf8mb3", collation="utf8mb3_bin", length=255),
             nullable=True,
         ),
-        sa.Column("body", Blob(), nullable=True),
+        sa.Column("body", mysql.MEDIUMBLOB(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         mysql_collate="utf8mb3_bin",
         mysql_default_charset="utf8mb3",

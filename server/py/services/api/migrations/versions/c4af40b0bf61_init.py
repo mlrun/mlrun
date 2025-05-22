@@ -21,9 +21,10 @@ Create Date: 2021-09-30 10:55:51.956636
 """
 
 import sqlalchemy as sa
+import sqlalchemy.dialects.mysql
 from alembic import op
 
-from mlrun.db.sql_types import Blob
+from framework.utils.db.sql_types import SQLTypesUtil
 
 # revision identifiers, used by Alembic.
 revision = "c4af40b0bf61"
@@ -39,21 +40,21 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "key",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "project",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "uid",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("updated", sa.TIMESTAMP(), nullable=True),
-        sa.Column("body", Blob(), nullable=True),
+        sa.Column("body", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
         sa.PrimaryKeyConstraint("id", name="_artifacts_pk"),
         sa.UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),
     )
@@ -62,25 +63,24 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
-            unique=True,
         ),
         sa.Column(
             "project",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("created", sa.TIMESTAMP(), nullable=True),
         sa.Column("updated", sa.TIMESTAMP(), nullable=True),
         sa.Column(
             "state",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "uid",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("object", sa.JSON(), nullable=True),
@@ -92,25 +92,24 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
-            unique=True,
         ),
         sa.Column(
             "project",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("created", sa.TIMESTAMP(), nullable=True),
         sa.Column("updated", sa.TIMESTAMP(), nullable=True),
         sa.Column(
             "state",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "uid",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("object", sa.JSON(), nullable=True),
@@ -122,21 +121,20 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
-            unique=True,
         ),
         sa.Column(
             "project",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "uid",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
-        sa.Column("body", Blob(), nullable=True),
+        sa.Column("body", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
         sa.Column("updated", sa.TIMESTAMP(), nullable=True),
         sa.PrimaryKeyConstraint("id", name="_functions_pk"),
         sa.UniqueConstraint("name", "project", "uid", name="_functions_uc"),
@@ -146,15 +144,15 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "uid",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "project",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
-        sa.Column("body", Blob(), nullable=True),
+        sa.Column("body", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
         sa.PrimaryKeyConstraint("id", name="_logs_pk"),
     )
     op.create_table(
@@ -162,7 +160,7 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("index", sa.Integer(), nullable=True),
@@ -177,29 +175,29 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "description",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "owner",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "source",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
-        sa.Column("spec", Blob(), nullable=True),
+        sa.Column("spec", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
         sa.Column("created", sa.TIMESTAMP(), nullable=True),
         sa.Column(
             "state",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.PrimaryKeyConstraint("id", name="_projects_pk"),
@@ -210,21 +208,21 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "uid",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "project",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("iteration", sa.Integer(), nullable=True),
         sa.Column(
             "state",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
-        sa.Column("body", Blob(), nullable=True),
+        sa.Column("body", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
         sa.Column("start_time", sa.TIMESTAMP(), nullable=True),
         sa.PrimaryKeyConstraint("id", name="_runs_pk"),
         sa.UniqueConstraint("uid", "project", "iteration", name="_runs_uc"),
@@ -234,41 +232,41 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "project",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=False,
         ),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=False,
         ),
         sa.Column(
             "kind",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "desired_state",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "state",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("creation_time", sa.TIMESTAMP(), nullable=True),
         sa.Column(
             "cron_trigger_str",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "last_run_uri",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
-        sa.Column("struct", Blob(), nullable=True),
+        sa.Column("struct", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
         sa.Column("concurrency_limit", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint("id", name="_schedules_v2_pk"),
         sa.UniqueConstraint("project", "name", name="_schedules_v2_uc"),
@@ -278,7 +276,7 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.PrimaryKeyConstraint("id", name="_users_pk"),
@@ -289,12 +287,12 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "value",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
@@ -309,12 +307,12 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "project",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("obj_id", sa.Integer(), nullable=True),
@@ -330,12 +328,12 @@ def upgrade():
         sa.Column("feature_set_id", sa.Integer(), nullable=True),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "value_type",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.ForeignKeyConstraint(
@@ -348,12 +346,12 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "value",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
@@ -368,18 +366,18 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "project",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("obj_id", sa.Integer(), nullable=True),
         sa.Column(
             "obj_name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.ForeignKeyConstraint(
@@ -398,12 +396,12 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "value",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
@@ -418,18 +416,18 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "project",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("obj_id", sa.Integer(), nullable=True),
         sa.Column(
             "obj_name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.ForeignKeyConstraint(
@@ -451,12 +449,12 @@ def upgrade():
         sa.Column("feature_set_id", sa.Integer(), nullable=True),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "value_type",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.ForeignKeyConstraint(
@@ -469,12 +467,12 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "value",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
@@ -489,18 +487,18 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "project",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("obj_id", sa.Integer(), nullable=True),
         sa.Column(
             "obj_name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.ForeignKeyConstraint(
@@ -528,12 +526,12 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "value",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
@@ -548,12 +546,12 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "value",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
@@ -566,12 +564,12 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "project",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("obj_id", sa.Integer(), nullable=True),
@@ -584,12 +582,12 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "value",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
@@ -604,12 +602,12 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "value",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
@@ -624,12 +622,12 @@ def upgrade():
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "name",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column(
             "value",
-            sa.String(length=255),
+            sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import tempfile
 import unittest.mock
 import uuid
@@ -1309,7 +1309,7 @@ def test_failed_to_delete_artifact_with_referenced_model_endpoint(
 
     creation_strategy = mlrun.common.schemas.ModelEndpointCreationStrategy.INPLACE
     response = unversioned_client.post(
-        f"/projects/{PROJECT}/model-endpoints?creation_strategy={creation_strategy}",
+        f"/projects/{PROJECT}/model-endpoints?creation-strategy={creation_strategy}",
         json=model_endpoint.dict(),
     )
     assert (

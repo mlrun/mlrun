@@ -879,7 +879,7 @@ def enrich_image_url(
     image_url = image_url.strip()
 
     # Add python version tag if needed
-    if image_url == "python" and ":" not in image_url and client_python_version:
+    if image_url == "python" and client_python_version:
         image_url = f"python:{client_python_version}"
 
     client_version = _convert_python_package_version_to_image_tag(client_version)

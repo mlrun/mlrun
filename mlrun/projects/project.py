@@ -1927,7 +1927,9 @@ class MlrunProject(ModelObj):
         :param key: Unique key for the prompt artifact.
         :param prompt_string: Raw prompt text. Mutually exclusive with `prompt_path`.
         :param prompt_path: Path to a file containing the prompt. Mutually exclusive with `prompt_string`.
-        :param prompt_legend: A dictionary for formatting variables in the prompt (e.g., placeholders for user inputs).
+        :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., {user_name})
+                              and the value is a description or explanation of what that placeholder represents.
+                              Useful for documenting and clarifying dynamic parts of the prompt.
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
         :param model_configuration: Configuration dictionary for model generation parameters
                                          (e.g., temperature, max tokens).

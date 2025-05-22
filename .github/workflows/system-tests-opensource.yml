@@ -247,7 +247,7 @@ jobs:
         sleep 30
 
         # create the docker-registry namespace and deploy the registry
-        kubectl create namespace docker-registry
+	kubectl create namespace docker-registry --dry-run=client -o yaml | kubectl apply -f -
         kubectl apply -f automation/system_test/k3s_docker_registry.yaml
 
         # restart coredns to apply the changes

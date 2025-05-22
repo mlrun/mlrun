@@ -173,9 +173,6 @@ class MyRemoteModelWithModelArtifact(Model):
         body["default_config"] = self.artifact.default_config
         return body
 
-    async def predict_async(self, body):
-        return self.predict(body)
-
 
 class MyModelWithModelArtifact(Model):
     execution_mechanism = "naive"
@@ -190,9 +187,6 @@ class MyModelWithModelArtifact(Model):
     def predict(self, body):
         body["result"] = self.model.predict(body)
         return body
-
-    async def predict_async(self, body):
-        return self.predict(body)
 
 
 def test_model_runner():

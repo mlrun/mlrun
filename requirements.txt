@@ -18,7 +18,7 @@ pyyaml>=6.0.2, <7
 requests~=2.32
 # >=0.8.6 from kfp 1.6.0 (and still up until 1.8.10)
 tabulate~=0.8.6
-v3io~=0.6.9
+v3io~=0.7.0
 # kfp 1.8 blocks pydantic 2
 # pydantic 1.10.15 introduces the v1 namespace, so we can later upgrade to pydantic 2 without breaking the code
 pydantic>=1.10.15

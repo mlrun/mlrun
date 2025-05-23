@@ -2092,17 +2092,43 @@ class Workflow:
         steps = []
 
         def _add_run_step(_step: mlrun_pipelines.models.PipelineStep):
+            # on kfp 1.8 argo sets the pod hostname differentaly than what we have with kfp 2.5
+            # therefor, the heuristic needs to change. what we do here is first trying against 1.8 conventions
+            # and if we can't find it then falling back to 2.5
             try:
-                _run = db.list_runs(
+                # runner_pod = x-y-N
+                _runs = db.list_runs(
                     project=project,
                     labels=f"{mlrun_constants.MLRunInternalLabels.runner_pod}={_step.node_name}",
-                )[0]
+                )
+                if not _runs:
+                    # x-y-N -> x-y, N
+                    node_name_initials, node_name_generated_id = _step.node_name.rsplit(
+                        "-", 1
+                    )
+                    # x-y, Y, N -> x-y-Y-N
+                    # runner_pod = x-y-Y-N
+                    runner_pod_value = "-".join(
+                        [node_name_initials, _step.display_name, node_name_generated_id]
+                    )
+                    logger.debug(
+                        "No run found for step, trying with different node name",
+                        step_node_name=runner_pod_value,
+                    )
+                    _runs = db.list_runs(
+                        project=project,
+                        labels=f"{mlrun_constants.MLRunInternalLabels.runner_pod}={runner_pod_value}",
+                    )
+
+                _run = _runs[0]
             except IndexError:
+                logger.warn("No run found for step", step_external_Data=_step.to_dict())
                 _run = {
                     "metadata": {
                         "name": _step.display_name,
                         "project": project,
                     },
+                    "status": {},
                 }
             _run["step_kind"] = _step.step_type
             if _step.skipped:

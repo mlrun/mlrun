@@ -997,11 +997,13 @@ def get_partitioned_table_names():
         AlertActivation.__tablename__,
     ]
 
+
 @event.listens_for(Base.metadata, "before_create")
 def _disable_autoinc_on_sqlite(metadata, connection, **kw):
     if connection.dialect.name == "sqlite":
         tbl = AlertActivation.__table__
         tbl.columns.id._autoincrement = False
+
 
 @event.listens_for(AlertActivation, "before_insert")
 def _sqlite_autoincrement(mapper, connection, target):

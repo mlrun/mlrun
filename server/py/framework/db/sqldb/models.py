@@ -18,6 +18,7 @@ import pickle
 import uuid
 import warnings
 from datetime import datetime, timezone
+from typing import Optional
 
 import orjson
 from sqlalchemy import (
@@ -77,6 +78,16 @@ def post_table_definitions(base_cls):
         _tagged_cls.Tag.parent_rel = relationship(_tagged_cls, back_populates="tags")
 
 
+def get_model_by_tablename(tablename: str) -> Optional[type]:
+    """
+    Scan base.registry.mappers to find the mapped class whose table name matches.
+    """
+    for mapper in Base.registry.mappers:
+        if mapper.local_table.name == tablename:
+            return mapper.class_
+    return None
+
+
 def make_label(table):
     class Label(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_labels"
@@ -89,6 +100,13 @@ def make_label(table):
         name = Column(Utf8BinText)
         value = Column(Utf8BinText)
         parent = Column(Integer, ForeignKey(f"{table}.id", ondelete="CASCADE"))
+        parent_cls = get_model_by_tablename(table)
+        parent_rel = relationship(
+            parent_cls,
+            back_populates="labels",
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.parent}/{self.name}/{self.value}"
@@ -107,6 +125,14 @@ def make_tag(table):
         project = Column(Utf8BinText)
         name = Column(Utf8BinText)
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
+
+        parent_cls = get_model_by_tablename(table)
+        parent_rel = relationship(
+            parent_cls,
+            back_populates="labels",
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        )
 
     return Tag
 

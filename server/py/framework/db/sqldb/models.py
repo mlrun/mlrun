@@ -997,30 +997,16 @@ def get_partitioned_table_names():
         AlertActivation.__tablename__,
     ]
 
-
 @event.listens_for(Base.metadata, "before_create")
-def _create_utf8_bin_collation(metadata, connection, **kw):
-    if connection.dialect.name == "postgresql":
-        connection.exec_driver_sql(
-            """
-            CREATE COLLATION IF NOT EXISTS utf8_bin (
-              PROVIDER = icu,
-              LOCALE   = 'und-u-ks-level4',
-              DETERMINISTIC = true
-            );
-            """
-        )
+def _disable_autoinc_on_sqlite(metadata, connection, **kw):
+    if connection.dialect.name == "sqlite":
+        tbl = AlertActivation.__table__
+        tbl.columns.id._autoincrement = False
 
-
-# --- before_insert: SQLite fallback (max(id)+1) ---
 @event.listens_for(AlertActivation, "before_insert")
-def _sqlite_pk(mapper, connection, target):
+def _sqlite_autoincrement(mapper, connection, target):
     if connection.dialect.name == "sqlite" and target.id is None:
         next_id = connection.execute(
-            text("SELECT COALESCE(MAX(id), 0) + 1 FROM alert_activations")
+            text("SELECT COALESCE(MAX(id),0) + 1 FROM alert_activations")
         ).scalar_one()
         target.id = next_id
-
-
-# Must be after all table definitions
-post_table_definitions(base_cls=Base)

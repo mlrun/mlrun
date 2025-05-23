@@ -881,7 +881,7 @@ with warnings.catch_warnings():
             },
         )
 
-        id = Column(Integer, primary_key=True)
+        id = Column(Integer, autoincrement=True, primary_key=True)
         # Keep fsp=3 for activation_time as it is part of the primary key and partitioning logic,
         # ensuring stable indexing and avoiding potential inconsistencies.
         # This must remain unchanged to maintain compatibility with existing logic
@@ -1011,17 +1011,14 @@ def _create_utf8_bin_collation(metadata, connection, **kw):
             """
         )
 
-
-@event.listens_for(AlertActivation.__table__, "after_create")
-def _add_auto_increment(target, connection, **kw):
-    if connection.dialect.name != "sqlite":
-        connection.execute(
-            text(
-                "ALTER TABLE alert_activation "
-                "MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT"
-            )
-        )
-
+# --- before_insert: SQLite fallback (max(id)+1) ---
+@event.listens_for(AlertActivation, "before_insert")
+def _sqlite_pk(mapper, connection, target):
+    if connection.dialect.name == "sqlite" and target.id is None:
+        next_id = connection.execute(
+            text("SELECT COALESCE(MAX(id), 0) + 1 FROM alert_activations")
+        ).scalar_one()
+        target.id = next_id
 
 # Must be after all table definitions
 post_table_definitions(base_cls=Base)

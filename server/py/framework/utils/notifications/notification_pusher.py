@@ -408,7 +408,9 @@ class KFPNotificationPusher(NotificationPusher):
                 )
 
     def push(self, sync_push_callback=None, async_push_callback=None):
-        def sync_push(runs_):
+        def sync_push(
+            runs_: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
+        ):
             for notification_data in self._sync_notifications:
                 try:
                     self._push_workflow_notification_sync(
@@ -422,7 +424,9 @@ class KFPNotificationPusher(NotificationPusher):
                         error=mlrun.errors.err_to_str(exc),
                     )
 
-        async def async_push(runs_):
+        async def async_push(
+            runs_: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
+        ):
             tasks = []
             for notification_data in self._async_notifications:
                 tasks.append(

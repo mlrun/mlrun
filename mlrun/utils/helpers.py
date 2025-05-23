@@ -2088,7 +2088,9 @@ def join_urls(base_url: Optional[str], path: Optional[str]) -> str:
 
 class Workflow:
     @staticmethod
-    def get_workflow_steps(db, workflow_id: str, project: str) -> list:
+    def get_workflow_steps(
+        db: "mlrun.db.RunDBInterface", workflow_id: str, project: str
+    ) -> list:
         steps = []
 
         def _add_run_step(_step: mlrun_pipelines.models.PipelineStep):
@@ -2106,8 +2108,8 @@ class Workflow:
                     node_name_initials, node_name_generated_id = _step.node_name.rsplit(
                         "-", 1
                     )
-                    # x-y, Z, N -> x-y-Z-N
-                    # runner_pod = x-y-Z-N
+                    # compile the expected runner pod hostname as per kfp >= 2.4
+                    # x-y, Z, N -> runner_pod = x-y-Z-N
                     runner_pod_value = "-".join(
                         [node_name_initials, _step.display_name, node_name_generated_id]
                     )

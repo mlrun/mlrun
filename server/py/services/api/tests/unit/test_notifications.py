@@ -130,11 +130,12 @@ def test_push_kfp_notification(monkeypatch):
         ),
     ]
 
-    kfp_notification_pusher = (
-        framework.utils.notifications.notification_pusher.KFPNotificationPusher(
-            unittest.mock.Mock(), project, run_id, notifications, {}
+    with unittest.mock.patch("framework.api.utils.get_run_db_instance"):
+        kfp_notification_pusher = (
+            framework.utils.notifications.notification_pusher.KFPNotificationPusher(
+                unittest.mock.Mock(), project, run_id, notifications, {}
+            )
         )
-    )
     kfp_notification_pusher._push_workflow_notification_async = (
         unittest.mock.AsyncMock()
     )
@@ -145,7 +146,6 @@ def test_push_kfp_notification(monkeypatch):
         unittest.mock.patch(
             "mlrun.utils.Workflow.get_workflow_steps"
         ) as get_workflow_steps_mock,
-        unittest.mock.patch("framework.api.utils.get_run_db_instance"),
         unittest.mock.patch("mlrun.config.is_running_as_api", return_value=False),
     ):
         kfp_notification_pusher.push()

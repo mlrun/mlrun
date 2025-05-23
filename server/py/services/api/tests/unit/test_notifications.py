@@ -103,7 +103,7 @@ def test_notification_params_unmasking_on_run(monkeypatch):
     assert args[1][0].status == mlrun.common.schemas.NotificationStatus.ERROR
 
 
-def test_push_kfp_notification(monkeypatch):
+def test_push_kfp_notification():
     project = "test-project"
     run_id = "test-run-id"
     notifications = [

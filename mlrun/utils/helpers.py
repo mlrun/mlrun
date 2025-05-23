@@ -2124,7 +2124,9 @@ class Workflow:
 
                 _run = _runs[0]
             except IndexError:
-                logger.warn("No run found for step", step_external_Data=_step.to_dict())
+                logger.warning(
+                    "No run found for step", step_external_Data=_step.to_dict()
+                )
                 _run = {
                     "metadata": {
                         "name": _step.display_name,

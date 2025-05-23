@@ -42,6 +42,7 @@ pytest_plugins = ["tests.common_fixtures"]
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%f%z"
 logging.getLogger("faker.factory").setLevel(logging.WARNING)
 
+
 def check_docker():
     if not platform.startswith("linux"):
         return False

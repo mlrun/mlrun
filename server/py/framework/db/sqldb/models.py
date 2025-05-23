@@ -1011,6 +1011,7 @@ def _create_utf8_bin_collation(metadata, connection, **kw):
             """
         )
 
+
 # --- before_insert: SQLite fallback (max(id)+1) ---
 @event.listens_for(AlertActivation, "before_insert")
 def _sqlite_pk(mapper, connection, target):
@@ -1019,6 +1020,7 @@ def _sqlite_pk(mapper, connection, target):
             text("SELECT COALESCE(MAX(id), 0) + 1 FROM alert_activations")
         ).scalar_one()
         target.id = next_id
+
 
 # Must be after all table definitions
 post_table_definitions(base_cls=Base)

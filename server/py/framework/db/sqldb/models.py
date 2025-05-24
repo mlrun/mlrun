@@ -68,14 +68,6 @@ def post_table_definitions(base_cls):
         cls for cls in base_cls.__subclasses__() if hasattr(cls, "Notification")
     ]
     _classes = [cls for cls in base_cls.__subclasses__()]
-    # Add a relationship from labels/tags to parents to enable the foreign key cascade delete on the ORM level
-    for _labeled_cls in _labeled:
-        # Unfortunately parent is already taken and changing to parent_id requires data migration
-        _labeled_cls.Label.parent_rel = relationship(
-            _labeled_cls, back_populates="labels"
-        )
-    for _tagged_cls in _tagged:
-        _tagged_cls.Tag.parent_rel = relationship(_tagged_cls, back_populates="tags")
 
 
 def get_model_by_tablename(tablename: str) -> Optional[type]:
@@ -964,12 +956,6 @@ with warnings.catch_warnings():
             return f"{self.key}"
 
 
-def get_partitioned_table_names():
-    return [
-        AlertActivation.__tablename__,
-    ]
-
-
 @event.listens_for(Base.MetaData, "before_create")
 def _disable_autoinc_on_sqlite(
     metadata: MetaData, connection: Connection, **kw: Any
@@ -988,3 +974,13 @@ def _sqlite_autoincrement(
             text("SELECT COALESCE(MAX(id),0) + 1 FROM alert_activations")
         ).scalar_one()
         target.id = next_id
+
+
+def get_partitioned_table_names():
+    return [
+        AlertActivation.__tablename__,
+    ]
+
+
+# Must be after all table definitions
+post_table_definitions(base_cls=Base)

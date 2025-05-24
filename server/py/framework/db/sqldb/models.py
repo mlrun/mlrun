@@ -238,7 +238,7 @@ def make_artifact_tag(cls):
 
         parent_rel = relationship(
             cls,
-            back_populates="artifact_tags",
+            back_populates="tags",
             passive_deletes=True,
         )
 

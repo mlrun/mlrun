@@ -2095,7 +2095,7 @@ class Workflow:
 
         def _add_run_step(_step: mlrun_pipelines.models.PipelineStep):
             # on kfp 1.8 argo sets the pod hostname differently than what we have with kfp 2.5
-            # therefor, the heuristic needs to change. what we do here is first trying against 1.8 conventions
+            # therefore, the heuristic needs to change. what we do here is first trying against 1.8 conventions
             # and if we can't find it then falling back to 2.5
             try:
                 # runner_pod = x-y-N

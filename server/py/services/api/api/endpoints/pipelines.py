@@ -23,7 +23,6 @@ import fastapi.concurrency
 import sqlalchemy.orm
 import yaml
 from fastapi import BackgroundTasks, Depends
-from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
 import mlrun.common.schemas
@@ -174,7 +173,7 @@ async def push_notifications(
     project: str,
     run_id: str,
     background_tasks: BackgroundTasks,
-    db_session: Session = Depends(framework.api.deps.get_db_session),
+    db_session: sqlalchemy.orm.Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
@@ -359,7 +358,7 @@ def _try_resolve_project_from_body(
 
 
 def _push_notifications(
-    db_session: Session,
+    db_session: sqlalchemy.orm.Session,
     run_id: str,
     project: str,
     notifications: typing.Optional[list[mlrun.common.schemas.Notification]] = None,

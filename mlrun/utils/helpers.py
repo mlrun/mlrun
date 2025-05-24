@@ -2104,15 +2104,26 @@ class Workflow:
                     labels=f"{mlrun_constants.MLRunInternalLabels.runner_pod}={_step.node_name}",
                 )
                 if not _runs:
-                    # x-y-N -> x-y, N
-                    node_name_initials, node_name_generated_id = _step.node_name.rsplit(
-                        "-", 1
-                    )
+                    try:
+                        # x-y-N -> x-y, N
+                        node_name_initials, node_name_generated_id = (
+                            _step.node_name.rsplit("-", 1)
+                        )
+
+                    except ValueError:
+                        # defensive programming, if the node name is not in the expected format
+                        node_name_initials = _step.node_name
+                        node_name_generated_id = ""
+
                     # compile the expected runner pod hostname as per kfp >= 2.4
                     # x-y, Z, N -> runner_pod = x-y-Z-N
                     runner_pod_value = "-".join(
-                        [node_name_initials, _step.display_name, node_name_generated_id]
-                    )
+                        [
+                            node_name_initials,
+                            _step.display_name,
+                            node_name_generated_id,
+                        ]
+                    ).rstrip("-")
                     logger.debug(
                         "No run found for step, trying with different node name",
                         step_node_name=runner_pod_value,

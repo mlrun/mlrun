@@ -198,22 +198,18 @@ class TagV2Mixin:
         )
 
 
-def make_artifact_tag(table):
+def make_artifact_tag(cls):
     """
     For artifacts, we cannot use tag_v2 because different artifacts with the same key can have the same tag.
     therefore we need to use the obj_id as the unique constraint.
     """
+    table = cls.__tablename__
 
     class ArtifactTag(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_tags"
         __table_args__ = (
             UniqueConstraint("project", "name", "obj_id", name=f"_{table}_tags_uc"),
-            Index(
-                f"idx_{__tablename__}_project_name_obj_name",
-                "project",
-                "name",
-                "obj_name",
-            ),
+            Index(f"idx_{table}_project_name_obj_name", "project", "name", "obj_name"),
         )
 
         id = Column(Integer, primary_key=True)
@@ -222,10 +218,27 @@ def make_artifact_tag(table):
         obj_id = Column(Integer, ForeignKey(f"{table}.id", ondelete="CASCADE"))
         obj_name = Column(Utf8BinText)
 
+        parent_rel = relationship(cls, back_populates="artifact_tags")
+
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
 
     return ArtifactTag
+
+
+class ArtifactTagMixin:
+    @declared_attr
+    def ArtifactTag(cls):  # noqa: N805 N802
+        return make_artifact_tag(cls)
+
+    @declared_attr
+    def artifact_tags(cls):  # noqa: N805
+        return relationship(
+            cls.ArtifactTag,
+            back_populates="parent_rel",
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        )
 
 
 def make_notification(cls):
@@ -315,7 +328,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"
 
-    class ArtifactV2(Base, LabelMixin, TagMixin, mlrun.utils.db.BaseModel):
+    class ArtifactV2(Base, LabelMixin, ArtifactTagMixin, mlrun.utils.db.BaseModel):
         __tablename__ = "artifacts_v2"
         __table_args__ = (
             UniqueConstraint("uid", "project", "key", name="_artifacts_v2_uc"),

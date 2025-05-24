@@ -250,13 +250,13 @@ def make_artifact_tag(cls):
 
 class ArtifactTagMixin:
     @declared_attr
-    def ArtifactTag(cls):  # noqa: N805 N802
+    def Tag(cls):  # noqa: N805 N802
         return make_artifact_tag(cls)
 
     @declared_attr
-    def artifact_tags(cls):  # noqa: N805
+    def tags(cls):  # noqa: N805
         return relationship(
-            cls.ArtifactTag,
+            cls.Tag,
             back_populates="parent_rel",
             cascade="all, delete-orphan",
             passive_deletes=True,

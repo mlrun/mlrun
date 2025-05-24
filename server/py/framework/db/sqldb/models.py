@@ -135,7 +135,9 @@ def make_tag(parent_cls):
             ForeignKey(
                 f"{table}.id",
                 name=f"_{table}_tags_obj_id_fk",
+                ondelete="CASCADE",
             ),
+            nullable=True,
         )
 
         parent_rel = relationship(
@@ -174,13 +176,16 @@ def make_tag_v2(parent_cls):
         id = Column(Integer, primary_key=True)
         project = Column(Utf8BinText)
         name = Column(Utf8BinText)
-        obj_id = Column(Integer, ForeignKey(f"{table}.id", ondelete="CASCADE"))
+        obj_id = Column(
+            Integer,
+            ForeignKey(f"{table}.id", ondelete="CASCADE"),
+            nullable=True,
+        )
         obj_name = Column(Utf8BinText)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
 
-        # relationship back to parent, matching the "tags_v2" side
         parent_rel = relationship(
             parent_cls,
             back_populates="tags",
@@ -233,7 +238,10 @@ def make_artifact_tag(cls):
         id = Column(Integer, primary_key=True)
         project = Column(Utf8BinText)
         name = Column(Utf8BinText)
-        obj_id = Column(Integer)
+        obj_id = Column(
+            Integer,
+            nullable=True,
+        )
         obj_name = Column(Utf8BinText)
 
         parent_rel = relationship(
@@ -282,7 +290,11 @@ def make_notification(cls):
         condition = Column(Utf8BinText, nullable=False)
         secret_params = Column("secret_params", JSON)
         params = Column("params", JSON)
-        parent_id = Column(Integer, ForeignKey(f"{table}.id"))
+        parent_id = Column(
+            Integer,
+            ForeignKey(f"{table}.id", ondelete="CASCADE"),
+            nullable=False,
+        )
         parent_rel = relationship(cls, back_populates="notifications")
 
         # TODO: Separate table for notification state.

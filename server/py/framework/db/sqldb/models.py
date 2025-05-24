@@ -27,6 +27,7 @@ from sqlalchemy import (
     Column,
     Connection,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     MetaData,
@@ -93,10 +94,15 @@ def make_label(parent_cls):
         id = Column(Integer, primary_key=True)
         name = Column(Utf8BinText)
         value = Column(Utf8BinText)
+
         parent = Column(
             Integer,
-            ForeignKey(f"{table}.id", ondelete="CASCADE"),
-            nullable=False,
+            ForeignKey(
+                f"{table}.id",
+                name=f"_{table}_labels_parent_fk",
+                ondelete="CASCADE",
+            ),
+            nullable=True,
         )
 
         parent_rel = relationship(
@@ -107,6 +113,8 @@ def make_label(parent_cls):
 
         def get_identifier_string(self) -> str:
             return f"{self.parent}/{self.name}/{self.value}"
+
+    return Label
 
 
 def make_tag(parent_cls):
@@ -121,7 +129,14 @@ def make_tag(parent_cls):
         id = Column(Integer, primary_key=True)
         project = Column(Utf8BinText)
         name = Column(Utf8BinText)
-        obj_id = Column(Integer, ForeignKey(f"{table}.id", ondelete="CASCADE"))
+
+        obj_id = Column(
+            Integer,
+            ForeignKey(
+                f"{table}.id",
+                name=f"_{table}_tags_obj_id_fk",
+            ),
+        )
 
         parent_rel = relationship(
             parent_cls,
@@ -195,22 +210,37 @@ def make_artifact_tag(cls):
     For artifacts, we cannot use tag_v2 because different artifacts with the same key can have the same tag.
     therefore we need to use the obj_id as the unique constraint.
     """
-    table = cls.__tablename__
+    table = cls.__tablename__  # "artifacts_v2"
 
     class ArtifactTag(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_tags"
         __table_args__ = (
             UniqueConstraint("project", "name", "obj_id", name=f"_{table}_tags_uc"),
-            Index(f"idx_{table}_project_name_obj_name", "project", "name", "obj_name"),
+            Index(
+                f"idx_{table}_tags_project_name_obj_name",
+                "project",
+                "name",
+                "obj_name",
+            ),
+            ForeignKeyConstraint(
+                ["obj_id"],
+                [f"{table}.id"],
+                name="artifacts_v2_tags_ibfk_1",
+                ondelete="CASCADE",
+            ),
         )
 
         id = Column(Integer, primary_key=True)
         project = Column(Utf8BinText)
         name = Column(Utf8BinText)
-        obj_id = Column(Integer, ForeignKey(f"{table}.id", ondelete="CASCADE"))
+        obj_id = Column(Integer)
         obj_name = Column(Utf8BinText)
 
-        parent_rel = relationship(cls, back_populates="artifact_tags")
+        parent_rel = relationship(
+            cls,
+            back_populates="artifact_tags",
+            passive_deletes=True,
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
@@ -956,7 +986,7 @@ with warnings.catch_warnings():
             return f"{self.key}"
 
 
-@event.listens_for(Base.MetaData, "before_create")
+@event.listens_for(Base.metadata, "before_create")
 def _disable_autoinc_on_sqlite(
     metadata: MetaData, connection: Connection, **kw: Any
 ) -> None:

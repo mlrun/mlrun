@@ -26,7 +26,7 @@ from sqlalchemy.dialects import mysql, postgresql
 from sqlalchemy.sql.type_api import TypeEngine
 
 import mlrun.utils
-from mlrun.db.sql_types import DateTime, MicroSecondDateTime, Utf8BinText
+from mlrun.db.sql_types import DateTime, MicroSecondDateTime, Utf8BinText, UuidType
 
 import framework.db.sqldb.models
 
@@ -63,11 +63,18 @@ def compare_type(
 ) -> Optional[bool]:
     """Custom compare_type that:
     1. checks mysql.VARCHAR→Utf8BinText by length+collation (utf8mb3_bin≈utf8_bin),
-    2. suppresses VARCHAR→Uuid when collation is binary,
+    2. suppresses VARCHAR→Uuid/UuidType only if length matches,
     3. flags DATETIME/TIMESTAMP→DateTime/MicroSecondDateTime only on fsp mismatch,
     4. flags PostgreSQL TIMESTAMP precision mismatches,
     otherwise defers to Alembic default."""
     if isinstance(inspected_type, mysql.VARCHAR):
+        # suppress VARCHAR→Uuid/UuidType only if lengths are equal
+        if isinstance(metadata_column.type, (Uuid, UuidType)):
+            inspected_len = getattr(inspected_type, "length", None)
+            meta_len = getattr(metadata_column.type, "length", None)
+            return False if inspected_len == meta_len else True
+
+        # handle Utf8BinText by collation + length
         coll = (inspected_type.collation or "").lower()
         if coll in ("utf8mb3_bin", "utf8_bin"):
             if isinstance(metadata_column.type, Utf8BinText):
@@ -77,12 +84,9 @@ def compare_type(
                     meta_impl, "length", None
                 ):
                     return False
-                else:
-                    return True
-            # Uuid case
-            if isinstance(metadata_column.type, Uuid):
-                return False
+                return True
 
+    # DATETIME/TIMESTAMP → DateTime/MicroSecondDateTime (MySQL)
     if isinstance(inspected_type, (mysql.DATETIME, mysql.TIMESTAMP)) and isinstance(
         metadata_column.type, (DateTime, MicroSecondDateTime)
     ):
@@ -90,6 +94,7 @@ def compare_type(
             return False
         return True
 
+    # TIMESTAMP precision mismatches (PostgreSQL)
     if isinstance(inspected_type, postgresql.TIMESTAMP) and isinstance(
         metadata_column.type, (DateTime, MicroSecondDateTime)
     ):

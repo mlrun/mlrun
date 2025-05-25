@@ -1149,6 +1149,11 @@ class ModelRunnerStep(TaskStep, StepToDict):
         """
         # TODO allow model_class as Model object as part of ML-9924
         model_parameters = model_parameters or {}
+        model_artifact = (
+            model_artifact.uri
+            if isinstance(model_artifact, mlrun.artifacts.Artifact)
+            else model_artifact
+        )
         model_parameters["artifact"] = model_parameters.get("artifact", model_artifact)
         if model_parameters.get("name", endpoint_name) != endpoint_name:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -1172,9 +1177,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
             schemas.MonitoringData.INPUT_PATH: input_path,
             schemas.MonitoringData.CREATION_STRATEGY: creation_strategy,
             schemas.MonitoringData.LABELS: labels,
-            schemas.MonitoringData.MODEL_PATH: model_artifact.uri
-            if isinstance(model_artifact, mlrun.artifacts.Artifact)
-            else model_artifact,
+            schemas.MonitoringData.MODEL_PATH: model_artifact,
         }
         self.class_args[schemas.ModelRunnerStepData.MODELS] = models
         self.class_args[schemas.ModelRunnerStepData.MONITORING_DATA] = monitoring_data

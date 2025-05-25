@@ -91,7 +91,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
     project_name = "mm-app-project"
-    image = "artifactory.iguazeng.com:10557/tomerm/mlrun:remote_models"
+    image = "mlrun/mlrun"
 
     def setup_method(self, method):
         super().setup_method(method)
@@ -615,7 +615,6 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         ), "expected model endpoints with the names my-model-1 and my-model-2"
 
     def test_mep_with_remote_model(self):
-        #  from runnner
         model_name = "my_model"
         model_url = "http://localhost:8080/v2/models/mymodel/infer"
         default_config = {"model_version": "4"}
@@ -635,7 +634,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         function.save(versioned=False)
 
         graph = function.set_topology("flow", engine="async")
-        model_runner_step = mlrun.serving.states.ModelRunnerStep(name="model-runner")
+        model_runner_step = mlrun.serving.states.ModelRunnerStep(name="model-runner-step")
         model_runner_step.add_model(
             model_class="MyRemoteModel",
             endpoint_name="my-model-1",

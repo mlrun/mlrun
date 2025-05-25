@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import unittest.mock
 from types import SimpleNamespace
 from typing import Optional
 
@@ -29,6 +30,16 @@ from .demo_states import *  # noqa
 class _DummyStreamRaiser:
     def push(self, data):
         raise ValueError("DummyStreamRaiser raises an error")
+
+
+def create_mocked_get_store_resource(model_artifact):
+    def mocked_get_store_resource(uri, **kwargs):
+        if uri == model_artifact.uri:
+            return model_artifact
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
+
+    return mocked_get_store_resource
 
 
 def test_async_basic():
@@ -440,7 +451,14 @@ def test_model_runner_with_remote_model():
     assert (
         "my_endpoint" in graph.model_endpoints_names
     ), "model endpoint name not in graph"
-    server = function.to_mock_server()
+    # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
+    # Mocked function used to verify artifact URI is passed correctly.
+
+    with unittest.mock.patch(
+        "mlrun.serving.states.get_store_resource",
+        side_effect=create_mocked_get_store_resource(model_artifact=model_artifact),
+    ):
+        server = function.to_mock_server()
     try:
         resp = server.test(body={})
         assert resp["default_config"] == {"model_version": "4"}
@@ -464,7 +482,11 @@ def test_get_local_model_path():
         model_artifact=model_artifact,
     )
     graph.to(model_runner_step).respond()
-    server = function.to_mock_server()
+    with unittest.mock.patch(
+        "mlrun.serving.states.get_store_resource",
+        side_effect=create_mocked_get_store_resource(model_artifact=model_artifact),
+    ):
+        server = function.to_mock_server()
     try:
         resp = server.test(body={})
         assert resp["result"] == "123"

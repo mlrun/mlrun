@@ -17,6 +17,8 @@ from typing import Callable, Optional, Union
 import numpy as np
 import tensorflow as tf
 from tensorflow import Tensor, Variable
+from tensorflow.keras import KerasTensor
+from tensorflow.keras import Variable as TFKerasVariable
 from tensorflow.python.keras.callbacks import Callback
 
 import mlrun
@@ -70,7 +72,7 @@ class LoggingCallback(Callback):
                                         {
                                             "epochs": 7
                                         }
-        :param auto_log:                Whether or not to enable auto logging, trying to track common static and dynamic
+        :param auto_log:                Whether to enable auto logging, trying to track common static and dynamic
                                         hyperparameters.
         """
         super().__init__()
@@ -385,18 +387,24 @@ class LoggingCallback(Callback):
             self._logger.log_context_parameters()
 
         # Add learning rate:
-        learning_rate_key = "lr"
-        learning_rate_key_chain = ["optimizer", "lr"]
-        if learning_rate_key not in self._dynamic_hyperparameters_keys and hasattr(
-            self.model, "optimizer"
-        ):
-            try:
-                self._get_hyperparameter(key_chain=learning_rate_key_chain)
+        learning_rate_keys = [
+            "learning_rate",
+            "lr",
+        ]  # "lr" is for backward compatibility in older keras versions.
+        if all(
+            learning_rate_key not in self._dynamic_hyperparameters_keys
+            for learning_rate_key in learning_rate_keys
+        ) and hasattr(self.model, "optimizer"):
+            for learning_rate_key in learning_rate_keys:
+                learning_rate_key_chain = ["optimizer", learning_rate_key]
+                try:
+                    self._get_hyperparameter(key_chain=learning_rate_key_chain)
+                except (KeyError, IndexError, AttributeError, ValueError):
+                    continue
                 self._dynamic_hyperparameters_keys[learning_rate_key] = (
                     learning_rate_key_chain
                 )
-            except (KeyError, IndexError, ValueError):
-                pass
+                break
 
     def _get_hyperparameter(
         self,
@@ -427,7 +435,7 @@ class LoggingCallback(Callback):
                         value = value[key]
                     else:
                         value = getattr(value, key)
-                except KeyError or IndexError as KeyChainError:
+                except KeyError or IndexError or AttributeError as KeyChainError:
                     raise KeyChainError(
                         f"Error during getting a hyperparameter value with the key chain {key_chain}. "
                         f"The {value.__class__} in it does not have the following key/index from the key provided: "
@@ -435,7 +443,7 @@ class LoggingCallback(Callback):
                     )
 
         # Parse the value:
-        if isinstance(value, Tensor) or isinstance(value, Variable):
+        if isinstance(value, (KerasTensor, TFKerasVariable, Tensor, Variable)):
             if int(tf.size(value)) == 1:
                 value = float(value)
             else:
@@ -451,12 +459,7 @@ class LoggingCallback(Callback):
                     f"The parameter with the following key chain: {key_chain} is a numpy.ndarray with {value.size} "
                     f"elements. numpy arrays are trackable only if they have 1 element."
                 )
-        elif not (
-            isinstance(value, float)
-            or isinstance(value, int)
-            or isinstance(value, str)
-            or isinstance(value, bool)
-        ):
+        elif not (isinstance(value, (float, int, str, bool))):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"The parameter with the following key chain: {key_chain} is of type '{type(value)}'. The only "
                 f"trackable types are: float, int, str and bool."

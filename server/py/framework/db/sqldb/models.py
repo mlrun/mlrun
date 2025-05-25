@@ -24,6 +24,7 @@ from sqlalchemy import (
     JSON,
     Column,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     PrimaryKeyConstraint,
@@ -32,7 +33,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 import mlrun.common.schemas
 import mlrun.utils.db
@@ -415,6 +416,36 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
+
+    class BackgroundTaskLabel(Base):
+        __tablename__ = "background_task_labels"
+        __table_args__ = (
+            ForeignKeyConstraint(
+                ["parent"],
+                ["background_tasks.id"],
+                ondelete="CASCADE",
+            ),
+        )
+
+        id: Mapped[int] = mapped_column(
+            Integer,
+            primary_key=True,
+            doc="Label identifier",
+        )
+        name: Mapped[str] = mapped_column(
+            String(255, collation=SQLTypesUtil.collation()),
+            nullable=False,
+            doc="Label name",
+        )
+        value: Mapped[str] = mapped_column(
+            String(255, collation=SQLTypesUtil.collation()),
+            doc="Label value",
+        )
+        parent: Mapped[int] = mapped_column(
+            Integer,
+            nullable=False,
+            doc="Associated background task ID",
+        )
 
     class Schedule(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "schedules_v2"

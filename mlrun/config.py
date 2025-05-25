@@ -233,6 +233,7 @@ default_config = {
                 "delete_function": "900",
                 "model_endpoint_creation": "600",
                 "model_endpoint_tsdb_leftovers": "900",
+                "terminate_pipeline": "120",
             },
             "runtimes": {"dask": "600"},
             "push_notifications": "60",

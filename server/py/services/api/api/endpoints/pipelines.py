@@ -41,6 +41,7 @@ import framework.utils.background_tasks
 import framework.utils.notifications
 import framework.utils.singletons.k8s
 import services.api.crud
+from framework.db.sqldb.models import BackgroundTaskLabel
 
 router = fastapi.APIRouter(prefix="/projects/{project}/pipelines")
 
@@ -158,6 +159,39 @@ async def retry_pipeline(
     )
     run_id = await fastapi.concurrency.run_in_threadpool(
         services.api.crud.Pipelines().retry_pipeline,
+        db_session,
+        run_id,
+        project,
+        namespace,
+    )
+    return run_id
+
+
+@router.post("/{run_id}/terminate")
+async def terminate_pipeline(
+    run_id: str,
+    project: str,
+    background_tasks: BackgroundTasks,
+    namespace: str = fastapi.Query(mlrun.config.config.namespace),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        framework.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        framework.api.deps.get_db_session
+    ),
+):
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
+            project,
+            run_id,
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )
+    )
+
+    run_id = await fastapi.concurrency.run_in_threadpool(
+        services.api.crud.Pipelines().terminate_pipeline,
         db_session,
         run_id,
         project,
@@ -357,7 +391,9 @@ def _try_resolve_project_from_body(
     )
 
 
-def _push_notifications(run_id, project, notifications):
+def _push_notifications(
+    run_id: str, project: str, notifications: list[mlrun.model.Notification]
+) -> None:
     if not notifications:
         return
     unmasked_notifications = []
@@ -381,3 +417,40 @@ def _push_notifications(run_id, project, notifications):
     framework.utils.notifications.notification_pusher.KFPNotificationPusher(
         project, run_id, unmasked_notifications, default_params
     ).push()
+
+
+async def _terminate_pipeline(
+    db_session: sqlalchemy.orm.Session,
+    background_tasks: BackgroundTasks,
+    run_id: str,
+    project: str,
+) -> None:
+    existing_background_task_label = (
+        db_session.query(BackgroundTaskLabel)
+        .filter(
+            BackgroundTaskLabel.name
+            == "pipeline_id",
+            BackgroundTaskLabel.value == run_id,
+        )
+        .one_or_none()
+    )
+    if existing_background_task_label:
+        # If the background task already exists, we don't need to create a new one
+        return existing_background_task_label.parent.id
+    else:
+        # If the background task does not exist, we create a new one
+        _terminate_pipeline_task = await fastapi.concurrency.run_in_threadpool(
+            framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
+            db_session,
+            project,
+            background_tasks,
+            services.api.crud.pipelines.Pipelines.terminate_pipeline,
+            mlrun.mlconf.background_tasks.default_timeouts.terminate_pipeline,
+            framework.utils.background_tasks.BackgroundTaskKinds.terminate_pipeline.format(
+                project,
+                run_id,
+                time.time(),
+            ),
+            run_id,
+            project,
+        )

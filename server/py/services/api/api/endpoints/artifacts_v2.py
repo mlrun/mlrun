@@ -19,8 +19,8 @@ from fastapi import APIRouter, Depends, Query, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.artifacts.helpers
 import mlrun.common.formatters
-import mlrun.common.helpers
 import mlrun.common.schemas
 from mlrun.common.schemas.artifact import ArtifactsDeletionStrategies
 from mlrun.utils import logger
@@ -66,7 +66,7 @@ async def create_artifact(
 
     if artifact.spec.parent_uri:
         run_in_threadpool(
-            mlrun.common.helpers.check_artifact_parent,
+            mlrun.artifacts.helpers.check_artifact_parent,
             artifact_project=project,
             expected_parent_uri=artifact.spec.parent_uri,
         )

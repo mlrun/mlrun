@@ -17,7 +17,7 @@ import typing
 from os.path import exists, isdir
 from urllib.parse import urlparse
 
-import mlrun.common.helpers
+import mlrun.artifacts.helpers
 import mlrun.common.schemas.artifact
 import mlrun.config
 import mlrun.utils.regex
@@ -266,7 +266,7 @@ class ArtifactManager:
         project = project or producer.project
         item.project = project
         if item.spec.parent_uri:
-            mlrun.common.helpers.check_artifact_parent(
+            mlrun.artifacts.helpers.check_artifact_parent(
                 artifact_project=item.project, expected_parent_uri=item.spec.parent_uri
             )
         if is_retained_producer:

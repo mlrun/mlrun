@@ -21,7 +21,6 @@ import mlrun.errors
 from mlrun.config import config
 from mlrun.runtimes.mounts import mount_v3io, mount_v3iod
 
-from ..errors import MLRunMissingProjectError
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
 
@@ -105,7 +104,7 @@ class RemoteSparkRuntime(KubejobRuntime):
     @classmethod
     def deploy_default_image(cls):
         if not mlrun.get_current_project(silent=True):
-            raise MLRunMissingProjectError(
+            raise mlrun.errors.MLRunMissingProjectError(
                 "An active project is required to run deploy_default_image(). "
                 "This can be set by calling get_or_create_project()."
             )

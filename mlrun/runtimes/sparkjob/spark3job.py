@@ -25,7 +25,6 @@ from mlrun.runtimes.mounts import mount_v3io, mount_v3iod
 from ...execution import MLClientCtx
 from ...model import RunObject
 from ...utils import update_in, verify_field_regex
-from ..errors import MLRunMissingProjectError
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
 from ..utils import (
@@ -806,7 +805,7 @@ class Spark3Runtime(KubejobRuntime):
     @classmethod
     def deploy_default_image(cls, with_gpu=False):
         if not mlrun.get_current_project(silent=True):
-            raise MLRunMissingProjectError(
+            raise mlrun.errors.MLRunMissingProjectError(
                 "An active project is required to run deploy_default_image(). "
                 "This can be set by calling get_or_create_project()."
             )

@@ -54,10 +54,12 @@ class TFKerasModelHandler(DLModelHandler):
         JSON_ARCHITECTURE_H5_WEIGHTS = "json_h5"
 
         # Set the default model format according to the available keras version:
+        # Note: Only keras (imported from tensorflow) version 3.0.0 and above has the `__version__` attribute.
         DEFAULT = (
-            SAVED_MODEL
-            if version.parse(keras.__version__) < version.parse("3.0.0")
-            else KERAS
+            KERAS
+            if hasattr(keras, "__version__")
+            and version.parse(keras.__version__) >= version.parse("3.0.0")
+            else SAVED_MODEL
         )
 
     class _LabelKeys:

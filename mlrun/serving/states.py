@@ -983,7 +983,7 @@ class Model(storey.ParallelExecutionRunnable):
     def _get_artifact_object(self) -> ModelArtifact:
         if isinstance(self.artifact, str):
             if mlrun.datastore.is_store_uri(self.artifact):
-                self.artifact = get_store_resource(self.artifact)
+                return get_store_resource(self.artifact)
             else:
                 raise ValueError(
                     "When passing artifact as a string, it must be a valid artifact store URI."

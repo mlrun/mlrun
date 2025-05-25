@@ -735,27 +735,118 @@ def test_validate_v3io_consumer_group(value, expected):
             "expected_output": "mlrun/mlrun:1.2.0",
             "images_to_enrich_registry": "",
         },
+        # image_url is "python", client_python_version is "3.9".
+        {
+            "image": "python",
+            "client_python_version": "3.9",
+            "expected_output": "dummy-repo/python:3.9",
+        },
+        # image_url is " python " (with spaces), client_python_version is "3.9".
+        {
+            "image": " python ",
+            "client_python_version": "3.9",
+            "expected_output": "dummy-repo/python:3.9",
+        },
+        # image_url is "python:3.8" (tag already provided), and not in "images_to_enrich_registry".
+        {
+            "image": "python:3.8",
+            "client_python_version": "3.9",
+            "expected_output": "python:3.8",
+        },
+        # image_url is "python", client_python_version is None.
+        {
+            "image": "python",
+            "client_python_version": None,
+            "expected_output": "python",
+        },
+        # image_url is "python", client_python_version is "" (empty string).
+        {
+            "image": "python",
+            "client_python_version": "",
+            "expected_output": "python",
+            "images_tag": None,
+            "version": None,
+            "client_version": None,
+        },
+        {
+            "image": "myimage",
+            "client_python_version": "3.9",
+            "expected_output": "myimage",
+        },
+        {
+            "image": "another/python",
+            "client_python_version": "3.9",
+            "expected_output": "another/python",
+        },
+        {
+            "image": "python-something",
+            "client_python_version": "3.9",
+            "expected_output": "python-something",
+        },
+        # Test with an mlrun image like "mlrun/mlrun", client_python_version="3.9", client_version="1.6.0".
+        # resolve_image_tag_suffix for 1.6.0 and py3.9 returns ""
+        {
+            "image": "mlrun/mlrun",
+            "client_python_version": "3.9",
+            "client_version": "1.6.0",
+            "version": "1.6.0",  # Mock server version
+            "images_tag": None,
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:1.6.0",
+        },
+        {
+            "image": "mlrun/mlrun:customtag",
+            "client_python_version": "3.9",
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:customtag",
+        },
     ],
 )
 def test_enrich_image(case):
-    default_images_to_enrich_registry = config.images_to_enrich_registry
-    config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
-    config.images_registry = case.get("images_registry", "ghcr.io/")
-    config.vendor_images_registry = case.get("vendor_images_registry", "dummy-repo/")
-    config.images_to_enrich_registry = case.get(
-        "images_to_enrich_registry", default_images_to_enrich_registry
-    )
-    if case.get("version") is not None:
-        mlrun.utils.version.Version().get = unittest.mock.Mock(
-            return_value={"version": case["version"]}
+    # Preserve original values
+    original_images_tag = config.images_tag
+    original_images_registry = config.images_registry
+    original_vendor_images_registry = config.vendor_images_registry
+    original_images_to_enrich_registry = config.images_to_enrich_registry
+    original_version_get = mlrun.utils.version.Version().get
+
+    try:
+        # Set values from case or use defaults
+        config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
+        config.images_registry = case.get("images_registry", "ghcr.io/")
+        config.vendor_images_registry = case.get(
+            "vendor_images_registry", "dummy-repo/"
         )
-    config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
-    image = case["image"]
-    expected_output = case["expected_output"]
-    client_version = case.get("client_version")
-    client_python_version = case.get("client_python_version")
-    output = enrich_image_url(image, client_version, client_python_version)
-    assert output == expected_output
+        config.images_to_enrich_registry = case.get(
+            "images_to_enrich_registry", original_images_to_enrich_registry
+        )
+
+        if "version" in case:  # Allows explicitly setting version to None for mock
+            mlrun.utils.version.Version().get = unittest.mock.Mock(
+                return_value={"version": case.get("version")}
+            )
+        elif (
+            "client_version" not in case and "images_tag" not in case
+        ):  # if no versions are set, ensure server is also None
+            mlrun.utils.version.Version().get = unittest.mock.Mock(
+                return_value={"version": None}
+            )
+
+        image = case["image"]
+        expected_output = case["expected_output"]
+        client_version = case.get("client_version")
+        client_python_version = case.get("client_python_version")
+
+        output = enrich_image_url(image, client_version, client_python_version)
+        assert output == expected_output
+
+    finally:
+        # Restore original values
+        config.images_tag = original_images_tag
+        config.images_registry = original_images_registry
+        config.vendor_images_registry = original_vendor_images_registry
+        config.images_to_enrich_registry = original_images_to_enrich_registry
+        mlrun.utils.version.Version().get = original_version_get
 
 
 @pytest.mark.parametrize(

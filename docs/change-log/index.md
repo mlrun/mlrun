@@ -1172,8 +1172,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-2030|Need a way to move artifacts from test to production Spark.           | To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'`                                                                                                                               | v1.0.0    |
 |ML-2201|No error message is raised when an MPI job is created but pods cannot be scheduled. | NA                                                                                                                                                                                                                                                                                                                                                                       |v1.0.0|
 |ML-2407|Kafka ingestion service on an empty feature set returns an error.      | Ingest a sample of the data manually. This creates the schema for the feature set, and then the ingestion service accepts new records.                                                                                                                                                                                                                                   |v1.1.0    |
-|ML-2489|Cannot pickle a class inside an mlrun function.                       | Use cloudpickle instead of pickle.                                                                                                                                                                                                                                                                                                                                       |v1.2.0    |
 |[2621](https://github.com/mlrun/mlrun/issues/2621)| Running a workflow whose project has `init_git=True`, results in Project error| Run `git config --global --add safe.directory '*'` (can substitute specific directory for *).                                                                                                                                                                                                                                                                            |v1.1.0    |
+|ML-2489|Cannot pickle a class inside an mlrun function.                       | Use cloudpickle instead of pickle.    |v1.2.0    |
 |ML-3081|The Monitor Workflows page does not present logs from the correct (Nuclio) deployment.| NA                                                                                                                                                                                                                                                                                                                                                                       |v1.2.1    |
 |ML-3294|Dask coredump during project deletion.| Before deleting a Dask project, verify that Dask was fully terminated.                                                                                                                                                                                                                                                                                                   |v1.3.0 |
 |ML-3315|Spark ingestion does not support nested aggregations.                 | NA                                                                                                                                                                                                                                                                                                                                                                       |v1.2.1    |
@@ -1224,6 +1224,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-9235|If in v1.7 there was one untagged artifact and another artifact with the same artifact key, project, iteration, that was logged earlier and includes the `latest` tag (meaning the latest tag does not actually point to the real latest artifact), then after migration to version 1.8, both artifacts have the `latest` tag. If such an artifact is used in a job with the latest tag and key, the job fails with the error 'multiple rows were found.' This is because there are two artifacts with the same key and tag but different UIDs.|NA|v1.8.0|
 |ML-9336|Attempts to delete more than 200 artifacts fail, and you are prompted to use a more granular filter.|Configure the limit with `mlrun.mlconf.artifacts.limits.max_deletions`.|v1.8.0|
 |ML-9338|If the same project+key were created from both a hyper-param run and single run, and you removed the latest tag from everything, MLRun assigns latest to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results: it might not be the actual latest.|NA|v1.8.0|
+|ML-9894|In rare cases, logging artifacts to v3io store may result in an "EOF occurred in violation of protocol" error in some rare cases.
 |ML-9913|UI: There may be a discrepancy in the artifact count between the Project monitoring page and the Artifacts page when running hyper-param jobs without a best-iteration. |Always provide a selection criteria for `best-iteration`.|v1.8.0|
 
 
@@ -1248,6 +1249,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-8699|After upgrade/restart there may be some lost notifications due to restart of the chief.|NA| v1.8.0|
 |ML-8996|Occasionally, deleting projects fails with 'Fail to delete project in MLRun' | Try deleting the project again.| v1.8.0|
 |ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.| NA|v1.8.0|
+
 ## Deprecations and removed code
 
 | In    |ID     |Description                                                                                                                                                                                                                         |
@@ -1267,30 +1269,53 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.11.0      | v1.8.0 |`batch` of `ServingRuntime.set_tracking`                         |NA|
 | v1.11.0      | v1.8.0 |`limit` in `MLrunProject.list_artifacts`                                     |`page` and `page_size`|
 | v1.11.0      | v1.8.0 |`limit` in `HTTPRunDB.list_artifacts`                                        |`page` and `page_size`|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.VolumeMount`                                                 |mlrun.runtimes.mounts.VolumeMount|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.auto_mount`                                                  |.mounts.auto_mount|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_configmap`                                                  |.mounts.mount_configmap|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_hostpath`                                                  |.mounts.mount_hostpath|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_pvc`                                                  |.mounts.mount_pvc|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_s3`                                                  |.mounts.mount_s3|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_secret`                                                  |.mounts.mount_secret|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_v3io`                                                  |.mounts.mount_v3io|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.set_env_variables`                                                  |.mounts.set_env_variables|
-| v1.11.0      | v1.8.0 |`mlrun.platforms.v3io_cred`                                                  |.mounts.v3io_cred instead"|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.VolumeMount`                                                 |`mlrun.runtimes.mounts.VolumeMount`|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.auto_mount`                                                  |`.mounts.auto_mount`|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_configmap`                                                  |`.mounts.mount_configmap`|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_hostpath`                                                  |`.mounts.mount_hostpath`|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_pvc`                                                  |`.mounts.mount_pvc`|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_s3`                                                  |`.mounts.mount_s3`|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_secret`                                                  |`.mounts.mount_secret`|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.mount_v3io`                                                  |`.mounts.mount_v3io`|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.set_env_variables`                                                  |`.mounts.set_env_variables`|
+| v1.11.0      | v1.8.0 |`mlrun.platforms.v3io_cred`                                                  |`.mounts.v3io_cred`|
+| v1.10.0      | v1.7.0 |`key`, `body`, `viewer`, `is_inline`, `format`, `size`, `target_path`, `project` and `src_path` in `mlrun.artifacts.base.Artifact`|`metadata` and `spec`|
+| v1.10.0      | v1.7.0 |`key`, `body`, `viewer`, `is_inline`, `format`, `size`, `target_path`, `project` and `src_path` in `mlrun.artifacts.base.LinkArtifact`|`metadata` and `spec`|
+| v1.10.0      | v1.7.0 |`key`, `format`, and `target_path` in `mlrun.artifacts.datasets.DatasetArtifact` |`metadata` and `spec` |
+| v1.10.0      | v1.7.0 |`key`, `body`, `format`, and `target_path` in `mlrun.artifacts.model.ModelArtifact`|`metadata` and `spec` |
+| v1.10.0      | v1.7.0 |`key`, `body`, `is_inline`, and `target_path` in `mlrun.artifacts.plots.PlotArtifact` |`metadata` and `spec` |
+| v1.10.0      | v1.7.0 |`key`, and `target_path` in `mlrun.artifacts.plots.PlotlyArtifact`  |`metadata` and `spec` |
+| v1.10.0      | v1.7.0 |`labels` in`get_or_create_ctx` |`spec` |
+| v1.10.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_function` |Default value changed to `True` |
+| v1.10.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_config` |Default value changed to `True` |
+| v1.10.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_image` |Default value changed to `True` |
+| v1.10.0      | v1.7.0 |`overwrite_build_params` in `mlrun.projects.operations.build_function` |Default value changed to `True` |
+| v1.10.0      | v1.7.0 |`overwrite` in `KubejobRuntime.build_config` |Default value changed to `True` |
+| v1.10.0      | v1.7.0 |`mlrun.utils.helpers.is_legacy_artifact`                                       |NA|
+| v1.10.0      | v1.7.0 |`mlrun.artifacts.base.convert_legacy_artifact_to_new_format`                 |NA. Make sure to save the artifact/project in the new format.|
+| v1.10.0      | v1.7.0 |`allow_cross_project` in `mlrun.load_project`                                 |Project name differs from the name specified in the context's project YAML. This functionality is no longer supported. If you want to enable this behavior, take one of the following actions:<ul><li>Set `allow_cross_project=True` when loading the project. (Previously, when `allow_cross_project` was not set (`None`), it implicitly behaved as if it were `True`, with a warning. Now, if you want this functionality, you must explicitly set `allow_cross_project=True`.)</li><li>Delete the existing project YAML, or ensure its `name` field matches the actual project name.</li><li>Use a different project context directory.</li></ul>
+| v1.10.0      | v1.7.0 |`bootstrap_servers` in `mlrun.datastore.targets.KafkaTarget`                  |`brokers`|
+| v1.10.0      | v1.7.0 |`schema` in `mlrun.datastore.sources.SnowflakeSource`                         |`db_schema`|
+| v1.10.0      | v1.7.0 |`credentials_prefix` in `mlrun.datastore.targets.BaseStoreTarget`             |Use datastore profiles for managing credentials|
+| v1.10.0      | v1.7.0 |`kafka_bootstrap_servers` in `get_kafka_brokers_from_dict()`                |`kafka_brokers`|
+| v1.10.0      | v1.7.0 |`drift_threshold`, `possible_drift_threshold` and `trigger_monitoring_job` in `mlrun.model_monitoring.api.record_results`|Enable the default histogram data drift application with `project.enable_model_monitoring()`|
+| v1.10.0      | v1.7.0 |`artifacts_tag`, `default_batch_image` in `mlrun.model_monitoring.api.record_results`  |NA|
+| v1.10.0      | v1.7.0 |`mlrun.model_monitoring.tracking_policy.TrackingPolicy`                                |NA| 
+| v1.10.0      | v1.7.0 |`default_controller_image` in `MlrunProject.enable_model_monitoring()`                  |`image`|
+| v1.10.0      | v1.7.0 |`MlrunProject.remove_model_monitoring_function()`                                     |`MlrunProject.delete_model_monitoring_function()`|
+| v1.10.0      | v1.7.0 |`tracking_policy` in `mlrun.runtimes.nuclio.serving.set_tracking`                      |Set the model monitoring time window and schedule with the `base_period` argument in `project.enable_model_monitoring()`|
 | v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.RunsFormat`                                       |`mlrun.common.formatters.RunFormat`                |
 | v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.ArtifactsFormat`                                  |`mlrun.common.formatters.ArtifactFormat`                |
 | v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.ProjectsFormat`                                  |`mlrun.common.formatters.ProjectFormat`                |
 | v1.10.0       | v1.7.0 |Class: `mlrunn.common.schemas.PipelinesFormat`                                  |`mlrun.common.formatters.PipelineFormat`                |
-| v1.10.0       | v1.7.0 |Datastore redis:`credentials_prefix`                                                 |Datastore profiles|
+| v1.10.0       | v1.7.0 |Datastore redis:`credentials_prefix`                                                 |Use datastore profiles for managing credentials|
 | v1.10.0       | v1.7.0 |Parameter: `mlrun.runtimes.nuclio.function.RemoteRuntime.deploy` `auth_info`         | NA. Was not used.|
 | v1.10.0       | v1.7.0 |Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                           |`states`            |
 | v1.10.0       | v1.7.0 |Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                             |`states`            |
 | v1.10.0       | v1.7.0 |Class: `mlrun.common.runtimes.constants.RunLabels`                                   |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
 | v1.10.0       | v1.7.0 |Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                                    |MLRUN_DBPATH environment variable |
-| v1.10.0       | v1.7.0 |Query parameter: GET `/projects/{project}/schedules?labels="label1=val1"`            |`label`, which is an array of strings       |
-| v1.10.0       | v1.7.0 |Query parameter: DELETE `/projects/{project}/artifacts/{key:path}?uid="some-uid"`    |`object-uid`                                    |
-| v1.10.0       | v1.7.0 |Query parameter: GET `/projects/{project}/artifacts/{key:path}?uid="some-uid"`       |`object-uid`                                    |
-| v1.10.0       | v1.6.3 |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_code_target_dir`
+| v1.10.0       | v1.7.0 |`bootstrap_servers` in `mlrun.datastore.datastore_profile.DatastoreProfileKafkaTarget` |brokers|
+| v1.10.0       | v1.6.3 |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_code_target_dir`|
 
 
 ## Removed APIs

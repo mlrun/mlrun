@@ -22,7 +22,6 @@ import io
 import json
 import multiprocessing
 import os
-import warnings
 import zipfile
 from ast import literal_eval
 from copy import deepcopy
@@ -78,7 +77,6 @@ def mlrun_op(
     outputs: typing.Optional[list] = None,
     in_path: str = "",
     out_path: str = "",
-    rundb: str = "",
     mode: str = "",
     handler: str = "",
     more_args: typing.Optional[list] = None,
@@ -119,7 +117,6 @@ def mlrun_op(
                      omitted the path will be the out_path/key.
     :param in_path:  default input path/url (prefix) for inputs
     :param out_path: default output path/url (prefix) for artifacts
-    :param rundb:    Deprecated. use 'MLRUN_DBPATH' env instead.
     :param mode:     run mode, e.g. 'pass' for using the command without mlrun wrapper
     :param handler   code entry-point/handler name
     :param job_image name of the image user for the job
@@ -174,14 +171,6 @@ def mlrun_op(
 
     """
     from mlrun_pipelines.ops import generate_pipeline_node
-
-    # TODO: remove in 1.10.0
-    if rundb:
-        warnings.warn(
-            "rundb parameter is deprecated in 1.7.0 and will be removed in 1.10.0. "
-            "use 'MLRUN_DBPATH' env instead.",
-            DeprecationWarning,
-        )
 
     secrets = [] if secrets is None else secrets
     params = {} if params is None else params

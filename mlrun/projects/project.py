@@ -1912,7 +1912,7 @@ class MlrunProject(ModelObj):
             project.log_llm_prompt(
                 key="summarization-prompt",
                 prompt_string="Summarize the following text:\n{text}",
-                model_artifact=model_1,
+                model_artifact=model,  # model is `ModelArtifact`
             )
 
             # Log a prompt from file

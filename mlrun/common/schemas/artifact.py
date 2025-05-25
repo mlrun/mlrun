@@ -57,7 +57,12 @@ class ArtifactCategories(mlrun.common.types.StrEnum):
 
     @classmethod
     def from_kind(cls, kind: str) -> "ArtifactCategories":
-        if kind in [cls.model.value, cls.dataset.value, cls.document.value]:
+        if kind in [
+            cls.model.value,
+            cls.dataset.value,
+            cls.document.value,
+            cls.llm_prompt.value,
+        ]:
             return cls(kind)
         return cls.other
 
@@ -113,6 +118,7 @@ class ArtifactSpec(pydantic.v1.BaseModel):
     db_key: typing.Optional[str]
     extra_data: typing.Optional[dict[str, typing.Any]]
     unpackaging_instructions: typing.Optional[dict[str, typing.Any]]
+    parent_uri: typing.Optional[str]
 
     class Config:
         extra = pydantic.v1.Extra.allow

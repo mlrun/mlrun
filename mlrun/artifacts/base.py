@@ -260,6 +260,9 @@ class Artifact(ModelObj):
         self.spec.viewer = viewer or self.spec.viewer
         self.spec.src_path = src_path or self.spec.src_path
 
+        # temp flag to indicate if the source path is a temporary file (if True it will be deleted after upload)
+        self._src_is_temp = False
+
         if body:
             self.spec._body = body
         self.spec._is_inline = is_inline or self.spec._is_inline
@@ -455,6 +458,10 @@ class Artifact(ModelObj):
         mlrun.datastore.store_manager.object(
             url=target_path or self.spec.target_path
         ).upload(source_path)
+
+        if self._src_is_temp and os.path.exists(self.spec.src_path):
+            # delete the temporary file if it was created for the upload
+            os.remove(self.spec.src_path)
 
     def resolve_body_target_hash_path(
         self, body: typing.Union[bytes, str], artifact_path: str

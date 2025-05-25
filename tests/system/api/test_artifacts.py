@@ -14,6 +14,7 @@
 
 import pathlib
 import tempfile
+import time
 import uuid
 
 import pytest
@@ -26,7 +27,7 @@ function_path = str(pathlib.Path(__file__).parent / "assets" / "function.py")
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestAPIArtifacts(TestMLRunSystem):
-    project_name = "test-project-artifacts"
+    project_name = "test-project-artifacts-scale"
 
     @pytest.mark.enterprise
     def test_import_artifact(self):
@@ -93,10 +94,9 @@ class TestAPIArtifacts(TestMLRunSystem):
 
     def test_llm_prompt_artifact(self):
         model_name = "model"
-        model_file = "./assets/model.pkl"
         model = self.project.log_model(
             model_name,
-            model_file=model_file,
+            model_file="./assets/model.pkl",
             upload=True,
         )
         llm_key = "llm-prompt"
@@ -120,3 +120,35 @@ class TestAPIArtifacts(TestMLRunSystem):
         model_ref = llm_0.model_artifact
         assert model_ref.key == model.key
         assert model_ref.spec.has_children
+
+    def test_scale_llm_prompt_artifact(self):
+        # model_name = "model"
+        # model = self.project.log_model(
+        #     model_name,
+        #     model_file="./assets/model.pkl",
+        #     upload=True,
+        # )
+        # llm_key = "llm-prompt"
+        # for i in range(1000000):
+        #     print(i)
+        #     self.project.log_llm_prompt(
+        #         f"{llm_key}-{i}",
+        #         prompt_string="Q : {question}",
+        #         description="best-prompt",
+        #         model_artifact=model if i <= 100 else None,
+        #     )
+
+        start = time.time()
+        llm_list = self.project.list_llm_prompts()
+        print(len(llm_list))
+        end = time.time()
+
+        print(f"Time taken to list LLM prompts: {end - start} seconds")
+
+        model = self.project.list_models()[0]
+        start = time.time()
+        llm_list = self.project.list_llm_prompts(model=model)
+        print(len(llm_list))
+        end = time.time()
+
+        print(f"Time taken to list LLM prompts with filter: {end - start} seconds")

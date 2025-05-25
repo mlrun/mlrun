@@ -17,6 +17,7 @@ import typing
 from os.path import exists, isdir
 from urllib.parse import urlparse
 
+import mlrun.common.helpers
 import mlrun.common.schemas.artifact
 import mlrun.config
 import mlrun.utils.regex
@@ -264,6 +265,10 @@ class ArtifactManager:
         item.iter = producer.iteration
         project = project or producer.project
         item.project = project
+        if item.spec.parent_uri:
+            mlrun.common.helpers.check_artifact_parent(
+                artifact_project=item.project, expected_parent_uri=item.spec.parent_uri
+            )
         if is_retained_producer:
             # if the producer is retained, we want to use the original target path
             target_path = target_path or item.target_path

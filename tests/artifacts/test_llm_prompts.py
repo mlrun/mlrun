@@ -42,7 +42,6 @@ def test_prompt_target_paths(generate_target_path_from_artifact_hash, from_file)
     llm_key = "llm-prompt"
 
     context = mlrun.get_or_create_ctx("test", project=project_name)
-    # we use log artifact and not log model as it should handle models as well
     if from_file:
         llm_prompt = context.log_llm_prompt(
             llm_key,
@@ -69,7 +68,6 @@ def test_prompt_limitation():
     llm_key = "llm-prompt"
 
     context = mlrun.get_or_create_ctx("test", project=project_name)
-    # we use log artifact and not log model as it should handle models as well
 
     llm_prompt = context.log_llm_prompt(
         llm_key,
@@ -82,3 +80,43 @@ def test_prompt_limitation():
 
     prompt_template = llm_prompt.read_prompt()
     assert prompt_template == "A" * 2000
+
+
+def test_unauthorised_model():
+    project_name_llm = "project-test-1"
+    project_name_model = "project-test"
+    artifact_path_llm = results_dir / project_name_llm
+    artifact_path_model = results_dir / project_name_model
+    llm_key = "llm-prompt"
+    model_key = "model"
+
+    context_model = mlrun.get_or_create_ctx("test", project=project_name_model)
+
+    model = context_model.log_model(
+        model_key,
+        body="model body",
+        model_file="trained_model.pkl",
+        artifact_path=artifact_path_model,
+    )
+
+    context_llm = mlrun.get_or_create_ctx("test-1", project=project_name_llm)
+    context_llm._project = project_name_llm
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        # different projects
+        context_llm.log_llm_prompt(
+            llm_key,
+            artifact_path=artifact_path_llm,
+            prompt_string="A" * 2000,
+            description="long-prompt",
+            model_artifact=model,
+        )
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        # bad model uri
+        context_llm.log_llm_prompt(
+            llm_key,
+            artifact_path=artifact_path_llm,
+            prompt_string="A" * 2000,
+            description="long-prompt",
+            model_artifact="dasdcfsfv",
+        )

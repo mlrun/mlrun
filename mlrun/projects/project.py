@@ -1966,7 +1966,6 @@ class MlrunProject(ModelObj):
                 labels=labels,
             ),
         )
-        self._update_run()
         return item
 
     def get_vector_store_collection(
@@ -4738,9 +4737,9 @@ class MlrunProject(ModelObj):
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
-            name,
-            self.metadata.name,
-            tag,
+            name=name,
+            project=self.metadata.name,
+            tag=tag,
             labels=labels,
             since=since,
             until=until,

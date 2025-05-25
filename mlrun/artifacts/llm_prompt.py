@@ -46,15 +46,6 @@ class LLMPromptArtifactSpec(ArtifactSpec):
                 "cannot specify both prompt_string and prompt_path"
             )
 
-        if prompt_string and len(prompt_string) > MAX_PROMPT_LENGTH:
-            logger.info("prompt_string is too long, creating a temp file")
-            with tempfile.NamedTemporaryFile(
-                delete=False, mode="w", suffix=".txt"
-            ) as temp_file:
-                temp_file.write(prompt_string)
-            prompt_path = temp_file.name
-            prompt_string = None
-
         super().__init__(
             src_path=prompt_path,
             target_path=target_path,
@@ -154,3 +145,20 @@ class LLMPromptArtifact(Artifact):
                 mode="r"
             ) as p_file:
                 return p_file.read()
+
+    def before_log(self):
+        """
+        Prepare the artifact before logging.
+        This method is called before the artifact is logged.
+        """
+        if self.spec.prompt_string and len(self.spec.prompt_string) > MAX_PROMPT_LENGTH:
+            logger.debug(
+                "Prompt string exceeds maximum length, saving to a temporary file."
+            )
+            with tempfile.NamedTemporaryFile(
+                delete=False, mode="w", suffix=".txt"
+            ) as temp_file:
+                temp_file.write(self.spec.prompt_string)
+            self.spec.src_path = temp_file.name
+            self.spec.prompt_string = None
+            self._src_is_temp = True

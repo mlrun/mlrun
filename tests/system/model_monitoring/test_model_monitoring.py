@@ -634,7 +634,9 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         function.save(versioned=False)
 
         graph = function.set_topology("flow", engine="async")
-        model_runner_step = mlrun.serving.states.ModelRunnerStep(name="model-runner-step")
+        model_runner_step = mlrun.serving.states.ModelRunnerStep(
+            name="model-runner-step"
+        )
         model_runner_step.add_model(
             model_class="MyRemoteModel",
             endpoint_name="my-model-1",

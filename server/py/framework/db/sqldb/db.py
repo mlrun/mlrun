@@ -858,8 +858,7 @@ class SQLDB(DBInterface):
         producer_id: typing.Optional[str] = None,
         producer_uri: typing.Optional[str] = None,
         most_recent: bool = False,
-        parent_key: typing.Optional[str] = None,
-        parent_tag: typing.Optional[str] = None,
+        parent_uri: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
@@ -898,8 +897,7 @@ class SQLDB(DBInterface):
             producer_uri=producer_uri,
             best_iteration=best_iteration,
             most_recent=most_recent,
-            parent_key=parent_key,
-            parent_tag=parent_tag,
+            parent_uri=parent_uri,
             attach_tags=not as_records,
             offset=offset,
             limit=limit,
@@ -1676,8 +1674,7 @@ class SQLDB(DBInterface):
         best_iteration: bool = False,
         most_recent: bool = False,
         attach_tags: bool = False,
-        parent_key: typing.Optional[str] = None,
-        parent_tag: typing.Optional[str] = None,
+        parent_uri: typing.Optional[str] = None,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         with_entities: typing.Optional[list[Any]] = None,
@@ -1773,8 +1770,7 @@ class SQLDB(DBInterface):
             rows_per_partition,
             partition_sort_by,
             partition_order,
-            parent_key,
-            parent_tag,
+            parent_uri,
         ):
             query = query.with_hint(ArtifactV2, "USE INDEX idx_project_bi_updated")
 
@@ -1840,15 +1836,45 @@ class SQLDB(DBInterface):
                 partition_order,
                 with_tagged=True,
             )
-        if parent_key or parent_tag:
+        if parent_uri:
+            (
+                parent_project,
+                parent_key,
+                parent_iteration,
+                parent_tag,
+                parent_tree,
+                parent_uid,
+            ) = [None] * 6
+            if mlrun.datastore.is_store_uri(parent_uri):
+                _, uri = mlrun.datastore.parse_store_uri(parent_uri)
+                (
+                    parent_project,
+                    parent_key,
+                    parent_iteration,
+                    parent_tag,
+                    parent_tree,
+                    parent_uid,
+                ) = parse_artifact_uri(uri)
+            elif ":" in parent_uri:
+                parent_key, parent_tag = parent_uri.split(":", maxsplit=1)
+            else:
+                parent_key = parent_uri
+
             ref_alias = aliased(ArtifactV2)
 
             # Join on reference_artifact_id -> ArtifactV2.id
             query = query.join(ref_alias, ArtifactV2.parent_id == ref_alias.id)
 
+            if parent_project:
+                query = query.filter(ref_alias.project == parent_project)
             if parent_key:
                 query = query.filter(ref_alias.key == parent_key)
-
+            if parent_iteration:
+                query = query.filter(ref_alias.iteration == parent_iteration)
+            if parent_tree:
+                query = query.filter(ref_alias.producer_id == parent_tree)
+            if parent_uid:
+                query = query.filter(ref_alias.uid == parent_uid)
             if parent_tag:
                 ref_tag = aliased(ArtifactV2.Tag)
                 query = query.join(ref_tag, ref_tag.obj_id == ref_alias.id)
@@ -1954,8 +1980,7 @@ class SQLDB(DBInterface):
         partition_order: typing.Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
-        parent_key: typing.Optional[str] = None,
-        parent_tag: typing.Optional[str] = None,
+        parent_uri: typing.Optional[str] = None,
     ) -> bool:
         parameters = inspect.signature(self._find_artifacts).parameters
         default_list_params = {

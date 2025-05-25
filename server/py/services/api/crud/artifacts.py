@@ -29,7 +29,6 @@ import mlrun.utils.helpers
 import mlrun.utils.singleton
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
-from mlrun.utils.helpers import parse_artifact_uri
 
 import framework.utils.singletons.db
 import services.api.crud
@@ -170,14 +169,6 @@ class Artifacts(
     ) -> list:
         if labels is None:
             labels = []
-        if mlrun.datastore.is_store_uri(parent):
-            _, uri = mlrun.datastore.parse_store_uri(parent)
-            _, parent_key, _, parent_tag, _, _ = parse_artifact_uri(uri)
-        elif parent:
-            parent_key, parent_tag = parent.split(":", maxsplit=1)
-        else:
-            parent_key = None
-            parent_tag = None
         artifacts = framework.utils.singletons.db.get_db().list_artifacts(
             db_session,
             name=name,
@@ -199,8 +190,7 @@ class Artifacts(
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
-            parent_key=parent_key,
-            parent_tag=parent_tag,
+            parent_uri=parent,
         )
         return artifacts
 

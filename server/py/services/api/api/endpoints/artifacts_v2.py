@@ -65,8 +65,7 @@ async def create_artifact(
     )
 
     if artifact.spec.parent_uri:
-        run_in_threadpool(
-            mlrun.artifacts.helpers.check_artifact_parent,
+        mlrun.artifacts.helpers.check_artifact_parent(
             artifact_project=project,
             expected_parent_uri=artifact.spec.parent_uri,
         )
@@ -133,6 +132,11 @@ async def store_artifact(
             auth_info,
         )
     )
+    if artifact.spec.parent_uri:
+        mlrun.artifacts.helpers.check_artifact_parent(
+            artifact_project=project,
+            expected_parent_uri=artifact.spec.parent_uri,
+        )
     artifact_uid = await run_in_threadpool(
         services.api.crud.Artifacts().store_artifact,
         db_session,

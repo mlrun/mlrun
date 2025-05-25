@@ -2983,14 +2983,14 @@ class TestArtifacts(TestDatabaseBase):
 
         # Filter using parent_key
         artifacts = self._db.list_artifacts(
-            self._db_session, parent_key=parent_artifact_name, project=project
+            self._db_session, parent_uri=parent_artifact_name, project=project
         )
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["key"] == child_artifact_name
 
         # Filter using parent_tag
         artifacts = self._db.list_artifacts(
-            self._db_session, parent_tag="ref-tag", project=project
+            self._db_session, parent_uri=":ref-tag", project=project
         )
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["key"] == child_artifact_name
@@ -2998,8 +2998,7 @@ class TestArtifacts(TestDatabaseBase):
         # Filter using both
         artifacts = self._db.list_artifacts(
             self._db_session,
-            parent_key=parent_artifact_name,
-            parent_tag="ref-tag",
+            parent_uri=f"{parent_artifact_name}:ref-tag",
             project=project,
         )
         assert len(artifacts) == 1
@@ -3007,7 +3006,7 @@ class TestArtifacts(TestDatabaseBase):
 
         # Negative case
         artifacts = self._db.list_artifacts(
-            self._db_session, parent_key="nonexistent", project=project
+            self._db_session, parent_uri="nonexistent", project=project
         )
         assert len(artifacts) == 0
 

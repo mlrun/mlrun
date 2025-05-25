@@ -184,12 +184,14 @@ class MyRemoteModel(Model):
         body["default_config"] = self.artifact.default_config
         return body
 
+    def load(self):
+        self.artifact = self._get_artifact_object()
+
 
 class MyPklModel(Model):
     execution_mechanism = "naive"
 
     def load(self) -> None:
-        super().load()
         model_path, _ = self.get_local_model_path()
         with open(model_path) as f:
             data = f.read()

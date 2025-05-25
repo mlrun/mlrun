@@ -978,6 +978,9 @@ class Model(storey.ParallelExecutionRunnable):
 
     def load(self) -> None:
         """Override to load model if needed."""
+        pass
+
+    def _get_artifact_object(self) -> ModelArtifact:
         if isinstance(self.artifact, str):
             if mlrun.datastore.is_store_uri(self.artifact):
                 self.artifact = get_store_resource(self.artifact)
@@ -985,6 +988,8 @@ class Model(storey.ParallelExecutionRunnable):
                 raise ValueError(
                     "When passing artifact as a string, it must be a valid artifact store URI."
                 )
+        else:
+            return self.artifact
 
     def init(self):
         self.load()
@@ -1028,10 +1033,10 @@ class Model(storey.ParallelExecutionRunnable):
         dict
             extra dataitems dictionary
         """
-
-        if self.artifact:
+        artifact = self._get_artifact_object()
+        if artifact:
             model_file, _, extra_dataitem = mlrun.artifacts.get_model(
-                suffix=suffix, model_dir=self.artifact
+                suffix=suffix, model_dir=artifact
             )
             return model_file, extra_dataitem
         return None, None

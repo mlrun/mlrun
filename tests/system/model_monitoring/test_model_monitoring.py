@@ -631,8 +631,6 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             filename=str(self.assets_path / "models.py"),
             image=self.image,
         )
-        function.save(versioned=False)
-
         graph = function.set_topology("flow", engine="async")
         model_runner_step = mlrun.serving.states.ModelRunnerStep(
             name="model-runner-step"

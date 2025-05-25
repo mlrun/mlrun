@@ -210,12 +210,38 @@ class _V3IORecordsChecker:
             ).all(), "The endpoint IDs are different than expected"
 
     @classmethod
+    def _test_parquet(
+        cls, ep_id: str, inputs: set[str], outputs: set[str]
+    ) -> None:  # TODO : delete in 1.10.0  (V1 app deprecation)
+        parquet_apps_directory = (
+            mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
+                mlrun.get_or_create_project(cls.project_name, allow_cross_project=True),
+                kind=mm_constants.FileTargetKind.PARQUET,
+            )
+        )
+        df = ParquetTarget(
+            path=f"{parquet_apps_directory}/key={ep_id}",
+        ).as_df()
+
+        is_inputs_saved = inputs.issubset(df.columns)
+        assert is_inputs_saved, "Dataframe does not contain the input columns"
+        is_output_saved = outputs.issubset(df.columns)
+        assert is_output_saved, "Dataframe does not contain the output columns"
+        is_metadata_saved = set(mm_constants.FeatureSetFeatures.list()).issubset(
+            df.columns
+        )
+        assert is_metadata_saved, "Dataframe does not contain the metadata columns"
+
+    @classmethod
     def _test_v3io_records(
         cls,
         ep_id: str,
+        inputs: set[str],
+        outputs: set[str],
         last_request: typing.Optional[datetime] = None,
         error_count: typing.Optional[float] = None,
     ) -> None:
+        cls._test_parquet(ep_id, inputs, outputs)
         cls._test_tsdb_record(ep_id, last_request=last_request, error_count=error_count)
 
     @classmethod
@@ -650,9 +676,48 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         # Validate alert notification
         assert alert.count == 1
 
+    def _test_function_summaries(self):
+        self._logger.debug("Checking function summaries")
+        # TODO: remove this if clause once TDEngine support is added (ML-10105)
+        if self._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
+            function_summaries = self.project.get_monitoring_function_summaries()
+            assert len(function_summaries) == 3 + len(self.apps_data)
+            function_summaries = self.project.get_monitoring_function_summaries(
+                include_infra=False
+            )
+            assert len(function_summaries) == len(self.apps_data)
+
+            evidently_func_summary_list = (
+                self.project.get_monitoring_function_summaries(
+                    include_infra=False, names=[DemoEvidentlyMonitoringApp.NAME]
+                )
+            )
+            assert len(evidently_func_summary_list) == 1
+            evidently_func_summary = evidently_func_summary_list[0]
+            assert evidently_func_summary.name == DemoEvidentlyMonitoringApp.NAME
+            assert (
+                evidently_func_summary.status
+                == mlrun.common.schemas.FunctionState.ready
+            )
+            assert evidently_func_summary.base_period == self.app_interval
+            assert not evidently_func_summary.stats
+
+            # now get function summary with stats
+            evidently_func_summary_list = (
+                self.project.get_monitoring_function_summaries(
+                    include_infra=False,
+                    names=[DemoEvidentlyMonitoringApp.NAME],
+                    include_stats=True,
+                )
+            )
+            evidently_func_summary = evidently_func_summary_list[0]
+            assert evidently_func_summary.stats["potential_detection"] == 1
+            assert evidently_func_summary.stats["detected"] == 0
+
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set: bool) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
+        inputs, outputs = self._log_model(with_training_set)
 
         for i in range(len(self.apps_data)):
             if "with_training_set" in self.apps_data[i].kwargs:
@@ -701,6 +766,8 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
         self._test_v3io_records(
             ep_id=mep.metadata.uid,
+            inputs=inputs,
+            outputs=outputs,
             last_request=mep.status.last_request,
             error_count=self.error_count,
         )
@@ -710,6 +777,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         if _DefaultDataDriftAppData in self.apps_data:
             self._test_model_endpoint_stats(mep=mep)
         self._test_error_alert()
+        self._test_function_summaries()
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
@@ -834,7 +902,9 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             feature_analysis=True,
             tsdb_metrics=True,
         )
-        self._test_v3io_records(mep.metadata.uid)
+        self._test_v3io_records(
+            mep.metadata.uid, inputs=set(self.columns), outputs=set(self.y_name)
+        )
         self._test_predictions_table(mep.metadata.uid, should_be_empty=True)
 
     @staticmethod

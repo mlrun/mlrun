@@ -35,7 +35,7 @@ class FunctionSummary(BaseModel):
     name: str
     application_class: str
     updated_time: datetime
-    status: str
+    status: Optional[str] = None
     base_period: Optional[float] = None
     stats: Optional[dict] = None
 

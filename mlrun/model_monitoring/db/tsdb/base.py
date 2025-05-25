@@ -470,8 +470,6 @@ class TSDBConnector(ABC):
                 project=project, app=app_name, name=name
             )
             try:
-                print("[EYAL]: sub df columns: ", sub_df.columns)
-                print("[EYAL]: sub df values: ", sub_df.values)
                 metrics_values.append(
                     mm_schemas.ModelEndpointMonitoringResultValues(
                         full_name=full_name,

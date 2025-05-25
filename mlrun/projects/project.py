@@ -4741,15 +4741,15 @@ class MlrunProject(ModelObj):
         names: Optional[Union[list[str], str]] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         include_stats: bool = False,
+        include_infra: bool = True,
     ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
         """Get monitoring function summaries for the specified project.
-
         :param start: Start time for filtering the results (optional).
         :param end: End time for filtering the results (optional).
         :param names: List of function names to filter by (optional).
         :param labels: Labels to filter by (optional).
         :param include_stats: Whether to include statistics in the response (default is False).
-
+        :param include_infra: whether to include model monitoring infrastructure functions (default is True).
         :return: A list of FunctionSummary objects containing information about the monitoring functions.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
@@ -4760,6 +4760,7 @@ class MlrunProject(ModelObj):
             names=names,
             labels=labels,
             include_stats=include_stats,
+            include_infra=include_infra,
         )
 
     def list_runs(

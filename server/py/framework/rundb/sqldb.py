@@ -1285,6 +1285,7 @@ class SQLRunDB(RunDBInterface):
         names: Optional[Union[list[str], str]] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         include_stats: bool = False,
+        include_infra: bool = True,
     ) -> [mlrun.common.schemas.model_monitoring.FunctionSummary]:
         raise NotImplementedError
 

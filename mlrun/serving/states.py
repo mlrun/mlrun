@@ -968,9 +968,6 @@ class Model(storey.ParallelExecutionRunnable):
         if artifact_uri is not None and not isinstance(artifact_uri, str):
             raise MLRunInvalidArgumentError("artifact_uri must be a string or None.")
         self.artifact_uri = artifact_uri
-        self._kwargs = kwargs
-        self.artifact = None
-        self.model = None
 
     def load(self) -> None:
         """Override to load model if needed."""

@@ -179,6 +179,15 @@ class MyModel(Model):
 class MyRemoteModel(Model):
     execution_mechanism = "naive"
 
+    def __init__(self, name, raise_exception, artifact_uri, **kwargs):
+        super().__init__(
+            name=name,
+            raise_exception=raise_exception,
+            artifact_uri=artifact_uri,
+            **kwargs,
+        )
+        self.artifact = None
+
     def predict(self, body):
         body["url"] = self.artifact.model_url
         body["default_config"] = self.artifact.default_config
@@ -190,6 +199,15 @@ class MyRemoteModel(Model):
 
 class MyPklModel(Model):
     execution_mechanism = "naive"
+
+    def __init__(self, name, raise_exception, artifact_uri, **kwargs):
+        super().__init__(
+            name=name,
+            raise_exception=raise_exception,
+            artifact_uri=artifact_uri,
+            **kwargs,
+        )
+        self.model = None
 
     def load(self) -> None:
         model_path, _ = self.get_local_model_path()

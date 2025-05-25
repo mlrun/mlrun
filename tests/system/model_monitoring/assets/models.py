@@ -83,6 +83,15 @@ class IncModel(mlrun.serving.states.Model):
 class MyRemoteModel(mlrun.serving.states.Model):
     execution_mechanism = "naive"
 
+    def __init__(self, name, raise_exception, artifact_uri, **kwargs):
+        super().__init__(
+            name=name,
+            raise_exception=raise_exception,
+            artifact_uri=artifact_uri,
+            **kwargs,
+        )
+        self.artifact = None
+
     def predict(self, body):
         body["url"] = self.artifact.model_url
         body["default_config"] = self.artifact.default_config

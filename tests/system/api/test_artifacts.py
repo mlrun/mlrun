@@ -14,7 +14,6 @@
 
 import pathlib
 import tempfile
-import time
 import uuid
 
 import pytest

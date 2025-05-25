@@ -109,7 +109,6 @@ class GraphServer(ModelObj):
         graph_initializer=None,
         error_stream=None,
         track_models=None,
-        tracking_policy=None,
         secret_sources=None,
         default_content_type=None,
         function_name=None,
@@ -130,7 +129,6 @@ class GraphServer(ModelObj):
         self.graph_initializer = graph_initializer
         self.error_stream = error_stream
         self.track_models = track_models
-        self.tracking_policy = tracking_policy
         self._error_stream_object = None
         self.secret_sources = secret_sources
         self._secrets = SecretsStore.from_list(secret_sources)

@@ -82,7 +82,7 @@ class LLMPromptArtifact(Artifact):
         self,
         key: Optional[str] = None,
         project: Optional[str] = None,
-        model_artifact: Union[model_art.ModelArtifact, str] = None,
+        model_artifact: Union[model_art.ModelArtifact, str] = None, # TODO support partial model uri
         prompt_string: Optional[str] = None,
         prompt_path: Optional[str] = None,
         prompt_legend: Optional[dict] = None,

@@ -18,6 +18,7 @@ from enum import Enum
 import pandas as pd
 import pytest
 
+import mlrun
 import mlrun.feature_store as fstore
 from mlrun import store_manager
 from mlrun.datastore.sources import ParquetSource
@@ -97,6 +98,10 @@ class SparkHadoopTestBase(TestMLRunSystem):
         if not cls.spark_image_deployed:
             from mlrun import get_run_db
             from mlrun.run import new_function
+
+            # TestMLRunSystem will create this project later in the initialization process, but we need it now
+            # to avoid a "project does not exist" error now because the default project was dropped in 1.8.0
+            mlrun.get_or_create_project(cls.project_name)
 
             sj = new_function(
                 kind="remote-spark",

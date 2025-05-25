@@ -64,7 +64,7 @@ def check_artifact_parent(
         )
         if project != artifact_project:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"parent_uri ({expected_parent_uri}) must be under the same project ({item.project})"
+                f"parent_uri ({expected_parent_uri}) must be under the same project ({artifact_project})"
             )
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(

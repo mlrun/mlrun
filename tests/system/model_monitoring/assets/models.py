@@ -88,6 +88,9 @@ class MyRemoteModel(mlrun.serving.states.Model):
         body["default_config"] = self.artifact.default_config
         return body
 
+    def load(self):
+        self.artifact = self._get_artifact_object()
+
 
 class Echo:
     def __init__(self, name=None):

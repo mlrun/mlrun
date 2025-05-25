@@ -961,35 +961,31 @@ class Model(storey.ParallelExecutionRunnable):
         self,
         name: str,
         raise_exception: bool = True,
-        artifact: Union[
-            ModelArtifact, Any, str
-        ] = None,  # TODO: Replace Any with LLMPromptArtifact when ready
+        artifact_uri: Optional[str] = None,
         **kwargs,
     ):
         super().__init__(name=name, raise_exception=raise_exception, **kwargs)
-        # TODO: Add LLMPromptArtifact when ready
-        if artifact is not None and not isinstance(artifact, (ModelArtifact, str)):
-            raise ValueError(
-                "Model support only ModelArtifact, LLMPromptArtifact or artifact uri(str) as model artifact."
-            )
-        self.artifact = artifact
+        if artifact_uri is not None and not isinstance(artifact_uri, str):
+            raise MLRunInvalidArgumentError("artifact_uri must be a string or None.")
+        self.artifact_uri = artifact_uri
         self._kwargs = kwargs
+        self.artifact = None
         self.model = None
 
     def load(self) -> None:
         """Override to load model if needed."""
         pass
 
-    def _get_artifact_object(self) -> ModelArtifact:
-        if isinstance(self.artifact, str):
-            if mlrun.datastore.is_store_uri(self.artifact):
-                return get_store_resource(self.artifact)
+    def _get_artifact_object(self) -> Union[ModelArtifact, None]:
+        if self.artifact_uri:
+            if mlrun.datastore.is_store_uri(self.artifact_uri):
+                return get_store_resource(self.artifact_uri)
             else:
                 raise ValueError(
-                    "When passing artifact as a string, it must be a valid artifact store URI."
+                    "Could not get artifact, artifact_uri must be a valid artifact store URI."
                 )
         else:
-            return self.artifact
+            return None
 
     def init(self):
         self.load()
@@ -1159,7 +1155,9 @@ class ModelRunnerStep(TaskStep, StepToDict):
             if isinstance(model_artifact, mlrun.artifacts.Artifact)
             else model_artifact
         )
-        model_parameters["artifact"] = model_parameters.get("artifact", model_artifact)
+        model_parameters["artifact_uri"] = model_parameters.get(
+            "artifact_uri", model_artifact
+        )
         if model_parameters.get("name", endpoint_name) != endpoint_name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Inconsistent name for model added to ModelRunnerStep."

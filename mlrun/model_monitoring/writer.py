@@ -129,10 +129,7 @@ class ModelMonitoringWriter(StepToDict):
             )
         kind = event.pop(WriterEvent.EVENT_KIND, WriterEventKind.RESULT)
         result_event = _AppResultEvent(json.loads(event.pop(WriterEvent.DATA, "{}")))
-        if not result_event:  # BC for < 1.7.0, can be removed in 1.10.0
-            result_event = _AppResultEvent(event)
-        else:
-            result_event.update(_AppResultEvent(event))
+        result_event.update(_AppResultEvent(event))
 
         expected_keys = list(
             set(WriterEvent.list()).difference(

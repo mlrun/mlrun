@@ -21,7 +21,7 @@ permissions:
 on:
   push:
     branches:
-      - '.+-os-system-tests'
+      - '*-os-system-tests'
 
 # disabled until we have a proper schedule definition
 #  schedule:

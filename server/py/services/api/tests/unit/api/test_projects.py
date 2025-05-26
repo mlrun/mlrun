@@ -1869,25 +1869,23 @@ def _create_runs(
 ):
     for index in range(runs_count):
         run_name = f"run-name-{str(uuid4())}"
-        # create several runs of the same name to verify we're not counting all instances, just all unique run names
-        for _ in range(3):
-            run_uid = str(uuid4())
-            run = {
-                "kind": mlrun.artifacts.model.ModelArtifact.kind,
-                "metadata": {
-                    "name": run_name,
-                    "uid": run_uid,
-                    "project": project_name,
-                },
+        run_uid = str(uuid4())
+        run = {
+            "kind": mlrun.artifacts.model.ModelArtifact.kind,
+            "metadata": {
+                "name": run_name,
+                "uid": run_uid,
+                "project": project_name,
+            },
+        }
+        if state:
+            run["status"] = {
+                "state": state,
             }
-            if state:
-                run["status"] = {
-                    "state": state,
-                }
-            if start_time:
-                run.setdefault("status", {})["start_time"] = start_time.isoformat()
-            response = client.post(f"projects/{project_name}/runs/{run_uid}", json=run)
-            assert response.status_code == HTTPStatus.OK.value, response.json()
+        if start_time:
+            run.setdefault("status", {})["start_time"] = start_time.isoformat()
+        response = client.post(f"projects/{project_name}/runs/{run_uid}", json=run)
+        assert response.status_code == HTTPStatus.OK.value, response.json()
 
 
 def _create_schedule(

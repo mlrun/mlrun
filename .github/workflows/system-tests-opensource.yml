@@ -61,6 +61,7 @@ env:
   NAMESPACE: mlrun
   MLRUN_API_NODE_PORT: 30070
   MLRUN_PYTHON_PACKAGE_INSTALLER: uv
+  MLRUN_PYTHON_VERSION: 3.9
 
 jobs:
 
@@ -204,7 +205,7 @@ jobs:
         cache-dependency-glob: "**/*requirements*.txt"
 
     - name: Set up Python
-      run: uv python install 3.9
+      run: uv python install ${MLRUN_PYTHON_VERSION}
 
     - name: Install automation scripts dependencies
       run: |

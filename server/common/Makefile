@@ -69,6 +69,7 @@ compile-schemas-python:
 	@echo Fixing Python GRPC Dir and Imports
 	@sh hack/scripts/fix_python_grpc_imports.sh
 	@cp -RL proto/build/py/* ../py/schemas/proto
+	@chmod -R 755 ../py/schemas/proto
 
 .PHONY: cleanup
 cleanup:

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import copy
 import time
@@ -27,7 +27,6 @@ from sqlalchemy.orm import Session
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
-from mlrun.config import config
 
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
@@ -220,13 +219,12 @@ def test_push_notifications(db: Session, client: TestClient) -> None:
 
 
 def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
+    project = "some-project"
     run_1_start_time = datetime.now(timezone.utc)
 
     time.sleep(0.1)
 
     run_1_update_time = datetime.now(timezone.utc)
-
-    run_1_end_time = run_1_update_time + timedelta(milliseconds=100)
 
     run_1_name = "run_1_name"
     run_1_uid = "run_1_uid"
@@ -236,11 +234,10 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     run = Run(
         name=run_1_name,
         uid=run_1_uid,
-        project=config.default_project,
+        project=project,
         iteration=0,
         start_time=run_1_start_time,
         updated=run_1_update_time,
-        end_time=run_1_end_time,
     )
     run.struct = run_1
     get_db()._upsert(db, [run], ignore=True)
@@ -255,8 +252,6 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
 
     run_2_update_time = datetime.now(timezone.utc)
 
-    run_2_end_time = run_2_update_time + timedelta(milliseconds=100)
-
     run_2_uid = "run_2_uid"
     run_2_name = "run_2_name"
     run_2 = {
@@ -265,28 +260,27 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     run = Run(
         name=run_2_name,
         uid=run_2_uid,
-        project=config.default_project,
+        project=project,
         iteration=0,
         start_time=run_2_start_time,
         updated=run_2_update_time,
-        end_time=run_2_end_time,
     )
     run.struct = run_2
     get_db()._upsert(db, [run], ignore=True)
 
     # all start time range
-    assert_time_range_request(client, [run_1_uid, run_2_uid], config.default_project)
+    assert_time_range_request(client, [run_1_uid, run_2_uid], project)
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
-        config.default_project,
+        project,
         start_time_from=run_1_start_time.isoformat(),
         start_time_to=run_2_update_time.isoformat(),
     )
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
-        config.default_project,
+        project,
         start_time_from=run_1_start_time.isoformat(),
     )
 
@@ -294,20 +288,20 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
-        config.default_project,
+        project,
         last_update_time_from=run_1_update_time,
         last_update_time_to=run_2_update_time,
     )
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
-        config.default_project,
+        project,
         last_update_time_from=run_1_update_time,
     )
     assert_time_range_request(
         client,
         [run_1_uid, run_2_uid],
-        config.default_project,
+        project,
         last_update_time_to=run_2_update_time,
     )
 
@@ -315,20 +309,20 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     assert_time_range_request(
         client,
         [run_1_uid],
-        config.default_project,
+        project,
         start_time_from=run_1_start_time,
         start_time_to=between_run_1_and_2,
     )
     assert_time_range_request(
         client,
         [run_1_uid],
-        config.default_project,
+        project,
         start_time_to=between_run_1_and_2,
     )
     assert_time_range_request(
         client,
         [run_1_uid],
-        config.default_project,
+        project,
         last_update_time_from=run_1_update_time,
         last_update_time_to=run_2_start_time,
     )
@@ -337,37 +331,15 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     assert_time_range_request(
         client,
         [run_2_uid],
-        config.default_project,
+        project,
         start_time_from=run_2_start_time,
         start_time_to=run_2_update_time,
     )
     assert_time_range_request(
         client,
         [run_2_uid],
-        config.default_project,
+        project,
         last_update_time_from=run_2_start_time,
-    )
-
-    assert_time_range_request(
-        client,
-        [run_1_uid, run_2_uid],
-        config.default_project,
-        end_time_from=run_1_start_time,
-    )
-
-    assert_time_range_request(
-        client,
-        [run_1_uid],
-        config.default_project,
-        end_time_from=run_1_start_time,
-        end_time_to=run_2_start_time,
-    )
-
-    assert_time_range_request(
-        client,
-        [run_2_uid],
-        config.default_project,
-        end_time_from=run_2_start_time,
     )
 
 
@@ -438,7 +410,7 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     for run in runs:
         assert "first" in run["metadata"]["uid"]
 
-    # partioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
+    # partitioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
     runs = _list_and_assert_objects(
         client,
         params={
@@ -705,7 +677,7 @@ def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock):
             "message": "completed",
             "name": "notification-1",
             "secret_params": {
-                "webhook": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+                "webhook": "https://slack.com/api/api.test",
                 "other_param": "other_value",
             },
             "severity": "info",

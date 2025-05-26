@@ -97,7 +97,6 @@ preprocess (prepare) the data, run the training pipeline, and evaluate the model
 <br> {octicon}`code-square` **Demos:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
 {bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
-{bdg-link-success}`Interactive bot demo using LLMs <https://github.com/mlrun/demo-llm-bot/blob/main>`
 <br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
@@ -118,7 +117,6 @@ inferring results using one or more models, and driving actions.
 <br> {octicon}`code-square` **Demos:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
 {bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
-{bdg-link-success}`Interactive bot demo using LLMs <https://github.com/mlrun/demo-llm-bot/blob/main>`
 <br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````

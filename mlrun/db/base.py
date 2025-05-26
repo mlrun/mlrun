@@ -441,10 +441,10 @@ class RunDBInterface(ABC):
     ) -> dict:
         pass
 
-    # TODO: remove in 1.9.0
+    # TODO: remove in 1.10.0
     @deprecated(
-        version="1.9.0",
-        reason="'list_features' will be removed in 1.9.0, use 'list_features_v2' instead",
+        version="1.7.0",
+        reason="'list_features' will be removed in 1.10.0, use 'list_features_v2' instead",
         category=FutureWarning,
     )
     @abstractmethod
@@ -469,10 +469,10 @@ class RunDBInterface(ABC):
     ) -> mlrun.common.schemas.FeaturesOutputV2:
         pass
 
-    # TODO: remove in 1.9.0
+    # TODO: remove in 1.10.0
     @deprecated(
-        version="1.9.0",
-        reason="'list_entities' will be removed in 1.9.0, use 'list_entities_v2' instead",
+        version="1.7.0",
+        reason="'list_entities' will be removed in 1.10.0, use 'list_entities_v2' instead",
         category=FutureWarning,
     )
     @abstractmethod
@@ -734,7 +734,8 @@ class RunDBInterface(ABC):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: bool = False,
+        metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
@@ -750,6 +751,7 @@ class RunDBInterface(ABC):
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
+        metric_list: Optional[list[str]] = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         pass
@@ -889,7 +891,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_alerts_configs(self, project=""):
+    def list_alerts_configs(
+        self, project="", limit: Optional[int] = None, offset: Optional[int] = None
+    ):
         pass
 
     @abstractmethod
@@ -1103,12 +1107,6 @@ class RunDBInterface(ABC):
     def delete_model_monitoring_function(
         self, project: str, functions: list[str]
     ) -> bool:
-        pass
-
-    @abstractmethod
-    def deploy_histogram_data_drift_app(
-        self, project: str, image: str = "mlrun/mlrun"
-    ) -> None:
         pass
 
     @abstractmethod

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 # Local Docker registry running in Kubernetes - for k3s
 # https://gist.github.com/gdamjan-loka/ccc34502eccf9b156a8e7d7bfd8d20f5

@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import typing
+
 import mlrun.serving
 
 
@@ -55,3 +57,33 @@ class OneToMany(mlrun.serving.V2ModelServer):
         else:
             outputs = [inputs[0], inputs[0], 3.0, "a", 5]
         return outputs
+
+
+class IncModel(mlrun.serving.states.Model):
+    execution_mechanism = "naive"
+
+    def __init__(
+        self, *args, inc: int, gpu_number: typing.Optional[int] = None, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        self.inc = inc
+        self.gpu_number = gpu_number
+
+    def predict(self, body):
+        body["n"] += self.inc
+        body.pop("models", None)
+        if self.gpu_number is not None:
+            body["gpu"] = self.gpu_number
+        return body
+
+    async def predict_async(self, body):
+        return self.predict(body)
+
+
+class Echo:
+    def __init__(self, name=None):
+        self.name = name
+
+    def do(self, x):
+        print("Echo:", self.name, x)
+        return x

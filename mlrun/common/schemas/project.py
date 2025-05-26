@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import typing
 
@@ -26,7 +26,7 @@ from .object import ObjectKind, ObjectStatus
 
 @deprecated(
     version="1.7.0",
-    reason="mlrun.common.schemas.ProjectsFormat is deprecated and will be removed in 1.9.0. "
+    reason="mlrun.common.schemas.ProjectsFormat is deprecated and will be removed in 1.10.0. "
     "Use mlrun.common.formatters.ProjectFormat instead.",
     category=FutureWarning,
 )

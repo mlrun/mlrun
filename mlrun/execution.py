@@ -94,6 +94,8 @@ class MLClientCtx:
         self._labels = {}
         self._annotations = {}
         self._node_selector = {}
+        self._tolerations = {}
+        self._affinity = {}
 
         self._function = ""
         self._parameters = {}
@@ -228,9 +230,24 @@ class MLClientCtx:
         return deepcopy(self._node_selector)
 
     @property
+    def tolerations(self):
+        """Dictionary with tolerations (read-only)"""
+        return deepcopy(self._tolerations)
+
+    @property
+    def affinity(self):
+        """Dictionary with affinities (read-only)"""
+        return deepcopy(self._affinity)
+
+    @property
     def annotations(self):
         """Dictionary with annotations (read-only)"""
         return deepcopy(self._annotations)
+
+    @property
+    def host(self):
+        """Execution host"""
+        return self._host
 
     def get_child_context(self, with_parent_params=False, **params):
         """Get child context (iteration)
@@ -411,6 +428,8 @@ class MLClientCtx:
                 "state_thresholds", self._state_thresholds
             )
             self._node_selector = spec.get("node_selector", self._node_selector)
+            self._tolerations = spec.get("tolerations", self._tolerations)
+            self._affinity = spec.get("affinity", self._affinity)
             self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
 
         self._init_dbs(rundb)
@@ -976,7 +995,7 @@ class MLClientCtx:
     def get_cached_artifact(self, key):
         """Return a logged artifact from cache (for potential updates)"""
         warnings.warn(
-            "get_cached_artifact is deprecated in 1.8.0 and will be removed in 1.10.0. Use get_artifact instead.",
+            "get_cached_artifact is deprecated in 1.8.0 and will be removed in 1.11.0. Use get_artifact instead.",
             FutureWarning,
         )
         return self.get_artifact(key)
@@ -1134,6 +1153,8 @@ class MLClientCtx:
                 "notifications": self._notifications,
                 "state_thresholds": self._state_thresholds,
                 "node_selector": self._node_selector,
+                "tolerations": self._tolerations,
+                "affinity": self._affinity,
             },
             "status": {
                 "results": self._results,

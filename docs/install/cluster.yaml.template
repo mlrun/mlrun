@@ -1,0 +1,76 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: ${SYSTEM_NAME}
+  region: ${REGION}
+  tags:
+    iguazio.systemId: marketplace-${USER_NAME}-eks
+    iguazio.owner: $USER_NAME
+
+iam:
+  podIdentityAssociations:
+    - namespace: kube-system
+      serviceAccountName: aws-load-balancer-controller-sa
+      createServiceAccount: true
+      roleName: alb-role-${SYSTEM_NAME}
+      wellKnownPolicies:
+        awsLoadBalancerController: true
+    - namespace: mlrun
+      serviceAccountName: mlrun-main-sa
+      createServiceAccount: true
+      permissionPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - ecr:GetAuthorizationToken
+            Resource: "*"
+            Effect: "Allow"
+          - Action:
+              - ecr:BatchCheckLayerAvailability
+              - ecr:GetDownloadUrlForLayer
+              - ecr:GetRepositoryPolicy
+              - ecr:DescribeRepositories
+              - ecr:ListImages
+              - ecr:DescribeImages
+              - ecr:BatchGetImage
+              - ecr:GetLifecyclePolicy
+              - ecr:GetLifecyclePolicyPreview
+              - ecr:ListTagsForResource
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+              - ecr:CreateRepository
+              - ecr:PutImage
+              - ecr:DeleteRepository
+            Resource:
+              - arn:aws:ecr:${REGION}:${ACCOUNT_ID}:repository/${SYSTEM_NAME}
+              - arn:aws:ecr:${REGION}:${ACCOUNT_ID}:repository/${SYSTEM_NAME}/*
+            Effect: "Allow"
+          - Action:
+              - s3:*
+              - s3-object-lambda:*
+            Resource:
+              - arn:aws:s3:::${SYSTEM_NAME}-${ACCOUNT_ID}-bucket
+              - arn:aws:s3:::${SYSTEM_NAME}-${ACCOUNT_ID}-bucket/*
+            Effect: "Allow"
+
+managedNodeGroups:
+  - name: MLRun-NodeGroup1 
+    instanceType: m5.xlarge
+
+    desiredCapacity: 2
+    ssh:
+      publicKeyPath: ${SSH_KEY}
+    volumeEncrypted: ${VOLUME_ENCRYPTED}
+    volumeKmsKeyID: ${KMS_NODE_KEY_ID}
+
+addonsConfig:
+  autoApplyPodIdentityAssociations: true
+
+addons:
+  - name: eks-pod-identity-agent # required for `iam.podIdentityAssociations`
+    tags:
+      team: eks
+  - name: aws-ebs-csi-driver
+    useDefaultPodIdentityAssociations: true

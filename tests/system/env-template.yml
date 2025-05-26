@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 # The system tests are expecting the env vars to be set in an env.yml file in this same directory
 # this is a template file for the env file
 
@@ -100,8 +100,17 @@ mlrun_model_monitoring_stream_profile:
   # type: kafka_source
   # brokers: # <host>:<port>
   # topics: []
+  # With SASL:
   # sasl_user:
   # sasl_pass:
+  # For Confluent Kafka:
+  # kwargs_public:
+  #   security_protocol: SASL_SSL
+  #   api_version_auto_timeout_ms: 15_000
+  #   tls:
+  #     enable: true
+  #   new_topic:
+  #     replication_factor: 3
 
 # Controls whether the client verifies the server's TLS certificate.
 # Set to `True` to enable TLS verification.

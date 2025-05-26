@@ -1,0 +1,36 @@
+[project]
+name = "mlrun-pipelines-kfp-v2"
+version = "0.5.2"
+description = "MLRun Pipelines adapter package for providing KFP 2.* compatibility"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+  { name = "Yaron Haviv", email = "yaronh@iguazio.com" }
+]
+license = { text = "Apache License 2.0" }
+keywords = ["mlrun", "kfp"]
+urls = { homepage = "https://github.com/mlrun/mlrun" }
+dependencies = [
+  "kfp_server_api>=2.3.0"
+]
+
+[project.optional-dependencies]
+kfp = [
+  "kfp[kubernetes]>=2.11.0"
+]
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["mlrun_pipelines"]
+
+# TODO: Uncomment once mlrun is removed as a dependency
+#[[tool.importlinter.contracts]]
+#name = "forbid-mlrun-import"
+#forbidden = ["mlrun"]

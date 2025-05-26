@@ -73,6 +73,10 @@ class NotificationKind(mlrun.common.types.StrEnum):
      The default is set to True.\n
     """
 
+    @classmethod
+    def alert_notification_kinds(cls) -> list[str]:
+        return [cls.git, cls.slack, cls.webhook]
+
 
 class NotificationSeverity(mlrun.common.types.StrEnum):
     INFO = "info"

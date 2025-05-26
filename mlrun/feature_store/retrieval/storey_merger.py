@@ -16,7 +16,7 @@ from mlrun.datastore.store_resources import ResourceCache
 from mlrun.datastore.targets import get_online_target
 from mlrun.serving.server import create_graph_server
 
-from ..feature_vector import OnlineVectorService
+from ..feature_vector_utils import OnlineVectorService
 from .base import BaseMerger
 
 

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import typing
 import warnings
 from typing import Optional, Union
@@ -181,9 +181,9 @@ def run_function(
     """
     if artifact_path:
         warnings.warn(
-            "'artifact_path' parameter is deprecated in 1.9.0 and will be removed in 1.11.0, "
+            "'artifact_path' parameter is deprecated in 1.10.0 and will be removed in 1.12.0, "
             "use 'output_path' instead.",
-            # TODO: Remove this in 1.11.0
+            # TODO: Remove this in 1.12.0
             FutureWarning,
         )
     output_path = output_path or artifact_path
@@ -222,7 +222,7 @@ def run_function(
         if local and project and function.spec.build.source:
             workdir = workdir or project.spec.get_code_path()
 
-        # remove this filter once the artifact_path parameter is deprecated in 1.11.0
+        # remove this filter once the artifact_path parameter is deprecated in 1.12.0
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=FutureWarning)
             run_result = function.run(
@@ -309,9 +309,9 @@ def build_function(
     :param force_build: Force building the image, even when no changes were made
     """
     if not overwrite_build_params:
-        # TODO: change overwrite_build_params default to True in 1.9.0
+        # TODO: change overwrite_build_params default to True in 1.10.0
         warnings.warn(
-            "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.9.0.",
+            "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.10.0.",
             mlrun.utils.OverwriteBuildParamsWarning,
         )
 
@@ -340,7 +340,7 @@ def build_function(
             skip_deployed=skip_deployed,
         )
     else:
-        # TODO: remove filter once overwrite_build_params default is changed to True in 1.9.0
+        # TODO: remove filter once overwrite_build_params default is changed to True in 1.10.0
         with warnings.catch_warnings():
             warnings.simplefilter(
                 "ignore", category=mlrun.utils.OverwriteBuildParamsWarning

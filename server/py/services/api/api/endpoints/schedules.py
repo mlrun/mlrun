@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import typing
 from http import HTTPStatus
@@ -106,12 +106,12 @@ async def update_schedule(
 async def list_schedules(
     project: str,
     name: Optional[str] = None,
-    # TODO: Remove _labels in 1.9.0
+    # TODO: Remove _labels in 1.10.0
     _labels: str = fastapi.Query(
         None,
         alias="labels",
         deprecated=True,
-        description="Use 'label' instead, will be removed in the 1.9.0",
+        description="Use 'label' instead, will be removed in the 1.10.0",
     ),
     labels: list[str] = fastapi.Query([], alias="label"),
     kind: mlrun.common.schemas.ScheduleKinds = None,

@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Optional, Union
 from unittest.mock import Mock, patch
 
+import pandas as pd
 import pytest
 
 import mlrun
@@ -77,6 +78,19 @@ class ModelEndpointAccessApp(ModelMonitoringApplicationBase):
         )
 
 
+class SampleDFAccessApp(ModelMonitoringApplicationBase):
+    def do_tracking(self, monitoring_context: MonitoringApplicationContext) -> None:
+        monitoring_context.logger.info(
+            "Accessing the model endpoint's sample data",
+            project=monitoring_context.project_name,
+        )
+        sample_df = monitoring_context.sample_df
+        monitoring_context.logger.info(
+            "Read the sample data",
+            sample_df=sample_df,
+        )
+
+
 @pytest.mark.filterwarnings("error")
 def test_no_deprecation_instantiation() -> None:
     NoOpApp()
@@ -119,6 +133,40 @@ class TestEvaluate:
             "but you have tried to access `monitoring_context.model_endpoint`"
             in captured.out
         ), "The error message is different than expected or was not captured"
+
+    @staticmethod
+    def test_invalid_sample_df_access(capsys: pytest.CaptureFixture) -> None:
+        """Test that the logs contain the error message about sample data access"""
+        run = SampleDFAccessApp.evaluate(func_path=__file__)
+        assert run.state() == "created"  # Should be "error", see ML-8507
+        captured = capsys.readouterr()
+        assert (
+            "You have tried to access `monitoring_context.sample_df`, but have not provided it directly"
+            in captured.out
+        ), "The error message is different than expected or was not captured"
+
+    @staticmethod
+    def test_valid_sample_df_access(
+        tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        project = mlrun.get_or_create_project(
+            "local-test-sample-df", context=str(tmp_path)
+        )
+        project.artifact_path = str(tmp_path)
+        sample_df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+        ds_artifact = project.log_dataset("sample-df", df=sample_df)
+        job = SampleDFAccessApp.to_job(func_path=__file__)
+        run = job.run(local=True, inputs={"sample_data": ds_artifact.target_path})
+        assert run.state() == "completed"
+        captured = capsys.readouterr()
+        assert (
+            "You have tried to access `monitoring_context.sample_df`, but have not provided it directly"
+            not in captured.out
+        ), "The captured error was not expected"
+
+        assert (
+            "Read the sample data" in captured.out
+        ), "The expected log message was not found in the captured output"
 
 
 @pytest.mark.parametrize(

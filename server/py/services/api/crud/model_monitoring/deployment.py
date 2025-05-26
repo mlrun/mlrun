@@ -47,6 +47,7 @@ import mlrun.serving.states
 import mlrun.utils.v3io_clients
 from mlrun import feature_store as fstore
 from mlrun.config import config
+from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFileChief
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
@@ -149,6 +150,7 @@ class MonitoringDeployment:
         self.deploy_model_monitoring_stream_processing(
             stream_image=image,
         )
+        ModelMonitoringSchedulesFileChief(project=self.project).get_or_create()
         if deploy_histogram_data_drift_app:
             self.deploy_histogram_data_drift_app(image=image)
 
@@ -165,12 +167,8 @@ class MonitoringDeployment:
         :param overwrite:                   If true, overwrite the existing model monitoring stream. Default is False.
         """
 
-        if (
-            overwrite
-            or self._get_function_state(
-                function_name=mm_constants.MonitoringFunctionNames.STREAM,
-            )
-            != "ready"
+        if overwrite or self._should_deploy_function(
+            function_name=mm_constants.MonitoringFunctionNames.STREAM
         ):
             logger.info(
                 f"Deploying {mm_constants.MonitoringFunctionNames.STREAM} function",
@@ -213,12 +211,8 @@ class MonitoringDeployment:
         :param overwrite:                   If true, overwrite the existing model monitoring controller.
                                             By default, False.
         """
-        if (
-            overwrite
-            or self._get_function_state(
-                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-            )
-            != "ready"
+        if overwrite or self._should_deploy_function(
+            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
         ):
             logger.info(
                 f"Deploying {mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER} function",
@@ -248,7 +242,6 @@ class MonitoringDeployment:
             fn, ready = services.api.utils.functions.build_function(
                 db_session=self.db_session, auth_info=self.auth_info, function=fn
             )
-
             logger.debug(
                 "Submitted the controller deployment",
                 controller_data=fn.to_dict(),
@@ -268,12 +261,8 @@ class MonitoringDeployment:
         :param overwrite:                   If true, overwrite the existing model monitoring writer. Default is False.
         """
 
-        if (
-            overwrite
-            or self._get_function_state(
-                function_name=mm_constants.MonitoringFunctionNames.WRITER,
-            )
-            != "ready"
+        if overwrite or self._should_deploy_function(
+            function_name=mm_constants.MonitoringFunctionNames.WRITER
         ):
             logger.info(
                 f"Deploying {mm_constants.MonitoringFunctionNames.WRITER} function",
@@ -367,23 +356,29 @@ class MonitoringDeployment:
         topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
             project=self.project, function_name=function_name
         )
-
+        profile_attributes = kafka_profile.attributes()
         stream_source = mlrun.datastore.sources.KafkaSource(
             brokers=kafka_profile.brokers,
             topics=[topic],
             group=kafka_profile.group,
             initial_offset=kafka_profile.initial_offset,
             partitions=kafka_profile.partitions,
-            attributes=kafka_profile.attributes()
-            | {
+            attributes={
                 "max_workers": stream_args.kafka.num_workers,
                 "worker_allocation_mode": "static",
-            },
+            }
+            | profile_attributes,
+        )
+        new_topic_profile_config = profile_attributes.get("new_topic", {})
+        num_partitions = new_topic_profile_config.get(
+            "num_partitions", stream_args.kafka.partition_count
+        )
+        replication_factor = new_topic_profile_config.get(
+            "replication_factor", stream_args.kafka.replication_factor
         )
         try:
             stream_source.create_topics(
-                num_partitions=stream_args.kafka.partition_count,
-                replication_factor=stream_args.kafka.replication_factor,
+                num_partitions=num_partitions, replication_factor=replication_factor
             )
         except kafka.errors.TopicAlreadyExistsError as exc:
             if ignore_stream_already_exists_failure:
@@ -651,14 +646,10 @@ class MonitoringDeployment:
 
         return function
 
-    def _get_function_state(
-        self,
-        function_name: str,
-    ) -> typing.Optional[str]:
+    def _get_function_state(self, function_name: str) -> typing.Optional[str]:
         """
-        :param function_name:   The name of the function to check.
-
-        :return:                Function state if deployed, else None.
+        :param function_name: The name of the function to check.
+        :return:              Function state if deployed, else None.
         """
         logger.info(
             f"Checking if {function_name} is already deployed",
@@ -683,6 +674,16 @@ class MonitoringDeployment:
         except mlrun.errors.MLRunNotFoundError:
             pass
 
+    def _should_deploy_function(self, function_name: str) -> bool:
+        """
+        :param function_name: The name of the function to check.
+        :return:              False if the function is deployed/deploying, True otherwise.
+        """
+        return self._get_function_state(function_name) not in (
+            mlrun.common.schemas.FunctionState.ready,
+            "building",  # see ML-9903
+        )
+
     def deploy_histogram_data_drift_app(
         self, image: str, overwrite: bool = False
     ) -> None:
@@ -692,12 +693,8 @@ class MonitoringDeployment:
         :param image:       The image on with the function will run.
         :param overwrite:   If True, the function will be overwritten.
         """
-        if (
-            overwrite
-            or self._get_function_state(
-                function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
-            )
-            != "ready"
+        if overwrite or self._should_deploy_function(
+            function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME
         ):
             logger.info("Preparing the histogram data drift function")
             func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
@@ -1060,7 +1057,10 @@ class MonitoringDeployment:
                     client_id=client_id,
                     **kafka_admin_client_kwargs,
                 )
-                kafka_client.delete_topics(topics)
+                try:
+                    kafka_client.delete_topics(topics)
+                finally:
+                    kafka_client.close()
                 logger.debug("Deleted kafka topics", topics=topics)
             except Exception as exc:
                 # Raise an error that will be caught by the caller and skip the deletion of the stream
@@ -1458,7 +1458,6 @@ class MonitoringDeployment:
             tuple[
                 mlrun.common.schemas.ModelEndpoint,
                 mm_constants.ModelEndpointCreationStrategy,
-                str,
             ]
         ]
         function_tag = function.metadata.tag or "latest"
@@ -1565,9 +1564,12 @@ class MonitoringDeployment:
                     function_name=function_name,
                     function_tag=function_tag,
                     model_endpoints_dict=model_endpoints_dict,
-                    step=route,
+                    creation_strategy=route.model_endpoint_creation_strategy,
+                    endpoint_name=route.name,
                 )
-                route.class_args["model_endpoint_uid"] = uid
+                route.class_args[
+                    mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
+                ] = uid
                 model_endpoints_instructions.append(
                     (
                         self._model_endpoint_draft(
@@ -1579,8 +1581,12 @@ class MonitoringDeployment:
                             track_models=track_models,
                             sampling_percentage=sampling_percentage,
                             uid=uid,
-                            label_names=route.class_args.get("outputs"),
-                            model_path=route.class_args.get("model_path", ""),
+                            label_names=route.class_args.get(
+                                mlrun.common.schemas.MonitoringData.OUTPUTS
+                            ),
+                            model_path=route.class_args.get(
+                                mlrun.common.schemas.MonitoringData.MODEL_PATH, ""
+                            ),
                         ),
                         route.model_endpoint_creation_strategy,
                     )
@@ -1596,9 +1602,12 @@ class MonitoringDeployment:
                 function_name=function_name,
                 function_tag=function_tag,
                 model_endpoints_dict=model_endpoints_dict,
-                step=router_step,
+                creation_strategy=router_step.model_endpoint_creation_strategy,
+                endpoint_name=router_step.name,
             )
-            router_step.class_args["model_endpoint_uid"] = uid
+            router_step.class_args[
+                mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
+            ] = uid
             model_endpoints_instructions.append(
                 (
                     self._model_endpoint_draft(
@@ -1648,6 +1657,18 @@ class MonitoringDeployment:
                         project=project,
                     )
                 )
+            elif isinstance(step, mlrun.serving.states.ModelRunnerStep):
+                model_endpoints_instructions.extend(
+                    self._extract_meps_from_model_runner_step(
+                        function_name=function_name,
+                        function_tag=function_tag,
+                        track_models=track_models,
+                        model_runner=step,
+                        sampling_percentage=sampling_percentage,
+                        model_endpoints_dict=model_endpoints_dict,
+                        project=project,
+                    )
+                )
             else:
                 if (
                     step.model_endpoint_creation_strategy
@@ -1658,9 +1679,12 @@ class MonitoringDeployment:
                         function_name=function_name,
                         function_tag=function_tag,
                         model_endpoints_dict=model_endpoints_dict,
-                        step=step,
+                        creation_strategy=step.model_endpoint_creation_strategy,
+                        endpoint_name=step.name,
                     )
-                    step.class_args["model_endpoint_uid"] = uid
+                    step.class_args[
+                        mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
+                    ] = uid
                     model_endpoints_instructions.append(
                         (
                             self._model_endpoint_draft(
@@ -1670,7 +1694,9 @@ class MonitoringDeployment:
                                 function_name=function_name,
                                 function_tag=function_tag,
                                 track_models=track_models,
-                                model_path=step.class_args.get("model_path", ""),
+                                model_path=step.class_args.get(
+                                    mlrun.common.schemas.MonitoringData.MODEL_PATH, ""
+                                ),
                                 uid=uid,
                             ),
                             step.model_endpoint_creation_strategy,
@@ -1684,16 +1710,16 @@ class MonitoringDeployment:
         function_name: str,
         function_tag: str,
         model_endpoints_dict: dict[str, ModelEndpoint],
-        step,
+        creation_strategy: str,
+        endpoint_name: str,
     ) -> str:
         old_model_endpoint = model_endpoints_dict.get(
-            f"{project}-{function_name}-{function_tag}-{step.name}"
+            f"{project}-{function_name}-{function_tag}-{endpoint_name}"
         )
         uid = (
             old_model_endpoint.uid
             if old_model_endpoint
-            and step.model_endpoint_creation_strategy
-            == mm_constants.ModelEndpointCreationStrategy.INPLACE
+            and creation_strategy == mm_constants.ModelEndpointCreationStrategy.INPLACE
             else uuid.uuid4().hex
         )
         return uid
@@ -1777,6 +1803,79 @@ class MonitoringDeployment:
                 return frequency
 
         return BASE_PERIOD_LOOKUP_TABLE[float("inf")]
+
+    def _extract_meps_from_model_runner_step(
+        self,
+        function_name: str,
+        function_tag: str,
+        track_models: bool,
+        model_runner: mlrun.serving.states.ModelRunnerStep,
+        sampling_percentage: float,
+        model_endpoints_dict: dict[str, ModelEndpoint],
+        project: str,
+    ) -> list[
+        tuple[
+            mlrun.common.schemas.ModelEndpoint,
+            mm_constants.ModelEndpointCreationStrategy,
+        ]
+    ]:
+        model_endpoints_instructions = []
+        monitoring_data = model_runner.class_args.get(
+            mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
+        )
+        for endpoint_name, (
+            model_class,
+            _,
+        ) in model_runner.class_args.get(
+            mlrun.common.schemas.ModelRunnerStepData.MODELS, {}
+        ).items():
+            monitoring_data[endpoint_name] = monitoring_data[endpoint_name] or {}
+            if (
+                monitoring_data[endpoint_name].get(
+                    mlrun.common.schemas.MonitoringData.CREATION_STRATEGY
+                )
+                != mm_constants.ModelEndpointCreationStrategy.SKIP
+            ):
+                uid = self._get_or_create_uid(
+                    project=project,
+                    function_name=function_name,
+                    function_tag=function_tag,
+                    model_endpoints_dict=model_endpoints_dict,
+                    creation_strategy=monitoring_data[endpoint_name].get(
+                        mlrun.common.schemas.MonitoringData.CREATION_STRATEGY
+                    ),
+                    endpoint_name=endpoint_name,
+                )
+                # assign class args for the graph update:
+                model_runner.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][endpoint_name][
+                    mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
+                ] = uid
+                model_endpoints_instructions.append(
+                    (
+                        self._model_endpoint_draft(
+                            name=endpoint_name,
+                            endpoint_type=model_runner.endpoint_type,
+                            model_class=model_class,
+                            function_name=function_name,
+                            function_tag=function_tag,
+                            track_models=track_models,
+                            sampling_percentage=sampling_percentage,
+                            uid=uid,
+                            label_names=monitoring_data[endpoint_name].get(
+                                mlrun.common.schemas.MonitoringData.OUTPUTS
+                            ),
+                            model_path=monitoring_data[endpoint_name].get(
+                                mlrun.common.schemas.MonitoringData.MODEL_PATH, ""
+                            ),
+                        ),
+                        monitoring_data[endpoint_name].get(
+                            mlrun.common.schemas.MonitoringData.CREATION_STRATEGY
+                        ),
+                    )
+                )
+        return model_endpoints_instructions
 
 
 def get_endpoint_features(

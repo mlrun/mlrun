@@ -11,12 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import math
 import tarfile
 import tempfile
 import typing
-import warnings
 from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
@@ -171,16 +170,7 @@ def _generate_sql_query_with_time_filter(
 def get_kafka_brokers_from_dict(options: dict, pop=False) -> typing.Optional[str]:
     get_or_pop = options.pop if pop else options.get
     kafka_brokers = get_or_pop("kafka_brokers", None)
-    if kafka_brokers:
-        return kafka_brokers
-    kafka_bootstrap_servers = get_or_pop("kafka_bootstrap_servers", None)
-    if kafka_bootstrap_servers:
-        warnings.warn(
-            "The 'kafka_bootstrap_servers' parameter is deprecated and will be removed in "
-            "1.9.0. Please pass the 'kafka_brokers' parameter instead.",
-            FutureWarning,
-        )
-    return kafka_bootstrap_servers
+    return kafka_brokers
 
 
 def transform_list_filters_to_tuple(additional_filters):
@@ -246,6 +236,9 @@ class KafkaParameters:
             "partitions": "",
             "sasl": "",
             "worker_allocation_mode": "",
+            "tls_enable": "",  # for Nuclio with Confluent Kafka (Sarama client)
+            "tls": "",
+            "new_topic": "",
         }
         self._reference_dicts = (
             self._custom_attributes,
@@ -270,7 +263,9 @@ class KafkaParameters:
         }
         if sasl := self._kwargs.get("sasl"):
             res |= {
-                "security_protocol": "SASL_PLAINTEXT",
+                "security_protocol": self._kwargs.get(
+                    "security_protocol", "SASL_PLAINTEXT"
+                ),
                 "sasl_mechanism": sasl["mechanism"],
                 "sasl_plain_username": sasl["user"],
                 "sasl_plain_password": sasl["password"],
@@ -288,15 +283,25 @@ class KafkaParameters:
 
     def sasl(
         self, *, usr: typing.Optional[str] = None, pwd: typing.Optional[str] = None
-    ) -> dict:
-        usr = usr or self._kwargs.get("sasl_plain_username", None)
-        pwd = pwd or self._kwargs.get("sasl_plain_password", None)
+    ) -> dict[str, typing.Union[str, bool]]:
         res = self._kwargs.get("sasl", {})
+        usr = usr or self._kwargs.get("sasl_plain_username")
+        pwd = pwd or self._kwargs.get("sasl_plain_password")
         if usr and pwd:
             res["enable"] = True
             res["user"] = usr
             res["password"] = pwd
             res["mechanism"] = self._kwargs.get("sasl_mechanism", "PLAIN")
+            res["handshake"] = self._kwargs.get("sasl_handshake", True)
+        return res
+
+    def tls(self, *, tls_enable: typing.Optional[bool] = None) -> dict[str, bool]:
+        res = self._kwargs.get("tls", {})
+        tls_enable = (
+            tls_enable if tls_enable is not None else self._kwargs.get("tls_enable")
+        )
+        if tls_enable:
+            res["enable"] = tls_enable
         return res
 
     def valid_entries_only(self, input_dict: dict) -> dict:

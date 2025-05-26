@@ -11,10 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
+from mlrun.serving import Model
+
+
+class ErrorModel(Model):
+    execution_mechanism = "naive"
+
+    def predict(self, body):
+        raise RuntimeError
+
+
 def inc(x):
     return x + 1
 
 
 def catcher(event):
     print(event.origin_state)
+
+
+def catcher_echo(event):
+    event.body["error"] = "catcher_echo"
+    return event

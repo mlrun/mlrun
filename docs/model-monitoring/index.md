@@ -10,6 +10,7 @@
 - [Multi-port predictions](#multi-port-predictions)
 - [Batch inputs](#batch-inputs)
 - [Alerts and notifications](#alerts-and-notifications)
+- [Scale limitations](#scale-limitations)
 
 ## Overview
 
@@ -40,13 +41,17 @@ The model monitoring APIs are configured per project. The APIs are:
 - {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring` &mdash; Brings up the controller, writer and stream realtime functions, and schedules the controller according to the `base_period`. 
 You can also deploy the default histogram-based data drift application when you enable model monitoring.
 - {py:meth}`~mlrun.projects.MlrunProject.create_model_monitoring_function` &mdash; Creates a monitoring function object without setting it to the project, used for user-apps and troubleshooting.
-- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function` &mdash; Updates or sets a monitoring function to the project. (Monitoring does not start until the function is deployed.) 
+- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function` &mdash; Updates or adds a monitoring function to the project. (Monitoring does not start until the function is deployed.) 
 - {py:meth}`~mlrun.projects.MlrunProject.list_model_monitoring_functions` &mdash; Retrieves a list of all the model monitoring functions.
 - {py:meth}`~mlrun.projects.MlrunProject.remove_model_monitoring_function` &mdash; Removes the specified model-monitoring-app function from the project and from the DB.
-- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials` &mdash; Set the credentials that are used by the project's model monitoring infrastructure functions. 
-- {py:meth}`~mlrun.projects.MlrunProject.disable_model_monitoring` &mdash; Disables the controller. 
+- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials` &mdash; Set the credentials that are used by the project's model monitoring infrastructure functions. You must set the credentials before deploying any model monitoring application or a monitored serving function.
+- {py:meth}`~mlrun.projects.MlrunProject.disable_model_monitoring` &mdash; Disables the model monitoring application controller, writer, stream, histogram data drift application and the user's applications functions, according to the given parameters. 
 - {py:meth}`~mlrun.projects.MlrunProject.update_model_monitoring_controller`  &mdash; Redeploys the model monitoring application controller functions.
 - {py:meth}`~mlrun.config.Config.get_model_monitoring_file_target_path` &mdash; Gets the full path from the configuration based on the provided project and kind.
+
+And for configuring alerts on model monitoring:
+- {py:meth}`~mlrun.projects.MlrunProject.create_model_monitoring_alert_configs` &mdash; Creates an alert for the specified model monitoring endpoint
+- {py:meth}`~mlrun.projects.MlrunProject.delete_model_monitoring_function` &mdash; Deletes the specified model-monitoring-app function/s
 
 
 ## Model and model monitoring endpoints
@@ -69,10 +74,12 @@ Model monitoring supports Kafka or V3IO as streaming platforms, and TDEngine or 
 
 We recommend the following versions:
 
-- TDEngine - `3.3.2.0`.
-- Kafka - `3.9.0`.
+- TDEngine: `3.3.2.0`.
+- Kafka: `3.9.0` self-hosted, or Confluent Cloud (tested against `7.9`).
 
 Before you deploy the model monitoring or serving function, you need to {py:meth}`set the credentials <mlrun.projects.MlrunProject.set_model_monitoring_credentials>`.
+
+See [Configuring TDengine and Kafka for model monitoring](../install/kubernetes.md#configuring-tdengine-and-kafka-for-model-monitoring).
 
 ## Model monitoring applications
 
@@ -127,3 +134,40 @@ See an example of batch input in the [Serving pre-trained ML/DL models](../tutor
 
 You can set up {ref}`alerts` to inform you about suspected and detected issues in the model monitoring functions. 
 And you can use {ref}`notifications` to notify about the status of runs and pipelines.
+
+## Scale limitations
+
+When ramping up the scale of your model monitoring, take note of these limitations. Each limit here assumes you have only large, medium, or small projects. When working with a combination, use these limits proportionally to adjust to your projects.
+- Up to 20 large projects (model endpoints per project between 1k and 5k)
+- Up to 100 medium projects (100 < model endpoints < 1k)
+- Up to 200 small projects (model endpoints < 100)
+- On each project and per 10 minute base-period:
+  - Up to 50,000 results/metrics can be captured (V3IO-TSDB)
+  - Up to 5,000 results/metrics can be captured (TDengine-TSDB)
+  
+**These numbers can vary depending on the overall system stress level and the TSDB performance.**
+
+An example of a suitable V3IO-TSDB-based setup would be one project with the following specifications:
+- Model monitoring enabled with a 10 minute `base-period`
+- Five serving functions, each with 1000 models
+- Two model monitoring apps each with 5 results
+
+Gives:  
+5 serving-functions * 1000 models * 2 model-monitoring-apps * 5 results = 50000 results per `base-period` of 10 min 
+
+(upgrade-from-17)=
+## How to upgrade from v1.7.x to v1.8.0 and higher
+
+### Before upgrade:
+1. Redeploy all monitored serving functions with set_tracking(False).
+     If you didn't redeploy the functions with `set_tracking(False)` before the upgrade, you will have to update the base image of those functions after the upgrade, before redeploying them.
+2. Run `project.disable_model_monitoring(delete_stream_function=True, delete_user_applications=True)`. **This deletes all MM applications, infra pods, and the streams.**
+
+### After upgrade:
+1. Set model monitoring credentials (stream and TSDB) with `project.set_model_monitoring_credentials()`.
+2. Run `enable_model_monitoring`.
+2. Redeploy all monitored serving functions with `set_tracking(True)`.
+
+```{admonition} Note
+You must use the v1.8.0 client to utilize model monitoring on the v1.8.0 server.
+``` 

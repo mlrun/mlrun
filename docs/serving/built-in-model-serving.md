@@ -8,7 +8,7 @@ The following table specifies, for each framework, the corresponding MLRun `Mode
 
 | Framework        | Serving class                                         | Dependencies   |
 |------------------|-------------------------------------------------------|----------------|
-| scikit-learn     | `mlrun.frameworks.sklearn.SklearnModelServer`         | `scikit-learn` |
+| scikit-learn     | `mlrun.frameworks.sklearn.SKLearnModelServer`         | `scikit-learn` |
 | TensorFlow.Keras | `mlrun.frameworks.tf_keras.TFKerasModelServer`        | `tensorflow`   |
 | ONNX             | `mlrun.frameworks.onnx.ONNXModelServer`               | `onnxruntime`  |
 | XGBoost          | `mlrun.frameworks.xgboost.XGBoostModelServer`         | `xgboost`      |
@@ -43,7 +43,7 @@ project = mlrun.get_or_create_project(
 )
 
 serving_function_image = "mlrun/mlrun"
-serving_model_class_name = "mlrun.frameworks.sklearn.SklearnModelServer"
+serving_model_class_name = "mlrun.frameworks.sklearn.SKLearnModelServer"
 
 # Create a serving function
 serving_fn = project.set_function(

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import enum
 import typing
 
@@ -237,7 +237,7 @@ class RunStates:
         }[pipeline_run_status]
 
 
-# TODO: remove this class in 1.9.0 - use only MlrunInternalLabels
+# TODO: remove this class in 1.10.0 - use only MlrunInternalLabels
 class RunLabels(enum.Enum):
     owner = mlrun_constants.MLRunInternalLabels.owner
     v3io_user = mlrun_constants.MLRunInternalLabels.v3io_user

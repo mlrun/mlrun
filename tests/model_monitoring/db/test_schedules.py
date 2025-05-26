@@ -20,7 +20,8 @@ import pytest
 import mlrun
 import mlrun.utils
 from mlrun.model_monitoring.db._schedules import (
-    ModelMonitoringSchedulesFile,
+    ModelMonitoringSchedulesFileChief,
+    ModelMonitoringSchedulesFileEndpoint,
     delete_model_monitoring_schedules_folder,
 )
 from mlrun.model_monitoring.helpers import _get_monitoring_schedules_folder_path
@@ -35,31 +36,182 @@ def _patch_store_prefixes(tmpdir: Path, monkeypatch: pytest.MonkeyPatch) -> None
     mlrun.mlconf.reload()
 
 
-@pytest.fixture
-def schedules_file() -> Iterator[ModelMonitoringSchedulesFile]:
-    f = ModelMonitoringSchedulesFile(project="project-0", endpoint_id="endpoint-0")
-    f.create()
-    yield f
-    f.delete()
+class TestModelMonitoringSchedulesFileEndpoint:
+    @pytest.fixture
+    def schedules_file(self) -> Iterator[ModelMonitoringSchedulesFileEndpoint]:
+        f = ModelMonitoringSchedulesFileEndpoint(
+            project="project-0", endpoint_id="endpoint-0"
+        )
+        f.create()
+        yield f
+        f.delete()
+
+    def test_create_file(self) -> None:
+        file = ModelMonitoringSchedulesFileEndpoint(
+            project="abc", endpoint_id="reoko1220a"
+        )
+        file.create()
+        assert (
+            file._item.get().decode() == "{}"
+        ), "The newly created schedules file is different than expected"
+
+    def test_delete_non_existent_file(self) -> None:
+        ModelMonitoringSchedulesFileEndpoint(
+            project="p0", endpoint_id="ep-1-without-file"
+        ).delete()
+
+    def test_delete_file(self) -> None:
+        file = ModelMonitoringSchedulesFileEndpoint(
+            project="p1", endpoint_id="ep-1-with-file"
+        )
+        file.create()
+        file.delete()
+        assert not file._fs.exists(file._path), "The schedules file wasn't deleted"
+
+    def test_unique_last_analyzed_per_app(
+        self,
+        schedules_file: ModelMonitoringSchedulesFileEndpoint,
+    ) -> None:
+        app1_name = "app-A"
+        app1_last_analyzed = 1716720842
+        app2_name = "app-B"
+
+        with schedules_file as f:
+            f.update_application_time(
+                application=app1_name, timestamp=app1_last_analyzed
+            )
+
+            assert f.get_application_time(app1_name) == app1_last_analyzed
+            assert f.get_application_time(app2_name) is None
+
+    def test_stored_last_analyzed(
+        self,
+        schedules_file: ModelMonitoringSchedulesFileEndpoint,
+    ) -> None:
+        application_name = "dummy-app"
+        # Try to get last analyzed value, we expect it to be empty
+        with schedules_file as f:
+            assert f.get_application_time(application=application_name) is None
+
+        # Update the application timestamp record and validate it is stored as expected
+        current_time = int(mlrun.utils.datetime_now().timestamp())
+        with schedules_file as f:
+            f.update_application_time(
+                application=application_name,
+                timestamp=current_time,
+            )
+
+        with schedules_file as f:
+            last_analyzed = f.get_application_time(application=application_name)
+
+        assert last_analyzed == current_time
+
+    def test_file_not_opened_error(
+        self,
+        schedules_file: ModelMonitoringSchedulesFileEndpoint,
+    ) -> None:
+        with pytest.raises(
+            mlrun.errors.MLRunValueError,
+            match="Open the schedules file as a context manager first",
+        ):
+            schedules_file.get_application_time(application="my-app")
+
+    def test_not_found_error(self) -> None:
+        with pytest.raises(FileNotFoundError):
+            with ModelMonitoringSchedulesFileEndpoint(
+                project="project-0", endpoint_id="endpoint-0"
+            ):
+                pass
 
 
-def test_create_file() -> None:
-    file = ModelMonitoringSchedulesFile(project="abc", endpoint_id="reoko1220a")
-    file.create()
-    assert (
-        file._item.get().decode() == "{}"
-    ), "The newly created schedules file is different than expected"
+class TestModelMonitoringSchedulesFileChief:
+    @pytest.fixture
+    def schedules_file(self) -> Iterator[ModelMonitoringSchedulesFileChief]:
+        f = ModelMonitoringSchedulesFileChief(
+            project="project-1",
+        )
+        f.create()
+        yield f
+        f.delete()
 
+    def test_create_file(self) -> None:
+        file = ModelMonitoringSchedulesFileChief(
+            project="abc",
+        )
+        file.create()
+        assert (
+            file._item.get().decode() == "{}"
+        ), "The newly created schedules file is different than expected"
 
-def test_delete_non_existent_file() -> None:
-    ModelMonitoringSchedulesFile(project="p0", endpoint_id="ep-1-without-file").delete()
+    def test_delete_non_existent_file(self) -> None:
+        ModelMonitoringSchedulesFileChief(
+            project="p1",
+        ).delete()
 
+    def test_delete_file(self) -> None:
+        file = ModelMonitoringSchedulesFileChief(
+            project="p1",
+        )
+        file.create()
+        file.delete()
+        assert not file._fs.exists(file._path), "The schedules file wasn't deleted"
 
-def test_delete_file() -> None:
-    file = ModelMonitoringSchedulesFile(project="p1", endpoint_id="ep-1-with-file")
-    file.create()
-    file.delete()
-    assert not file._fs.exists(file._path), "The schedules file wasn't deleted"
+    def test_stored_times(
+        self,
+        schedules_file: ModelMonitoringSchedulesFileChief,
+    ) -> None:
+        mep1_name = "app-A"
+        mep1_last_analyzed = 1716720842
+        mep1_last_request = 1716720841
+
+        with schedules_file as f:
+            f.update_endpoint_timestamps(
+                endpoint_uid=mep1_name,
+                last_request=mep1_last_request,
+                last_analyzed=mep1_last_analyzed,
+            )
+
+            assert f.get_endpoint_last_request(mep1_name) == mep1_last_request
+            assert f.get_endpoint_last_analyzed(mep1_name) is mep1_last_analyzed
+
+    def test_file_not_opened_error(
+        self,
+        schedules_file: ModelMonitoringSchedulesFileChief,
+    ) -> None:
+        with pytest.raises(
+            mlrun.errors.MLRunValueError,
+            match="Open the schedules file as a context manager first",
+        ):
+            schedules_file.get_endpoint_last_request(endpoint_uid="my-mep")
+
+    def test_not_found_error(self) -> None:
+        with pytest.raises(FileNotFoundError):
+            with ModelMonitoringSchedulesFileChief(
+                project="project-0",
+            ):
+                pass
+
+    def test_get_or_create(self):
+        my_mep_last_request = 1716720841
+        my_mep_last_analyzed = 1716720842
+
+        ModelMonitoringSchedulesFileChief(project="project-1").get_or_create()
+        with ModelMonitoringSchedulesFileChief(project="project-1") as f:
+            f.update_endpoint_timestamps(
+                endpoint_uid="my-mep",
+                last_request=my_mep_last_request,
+                last_analyzed=my_mep_last_analyzed,
+            )
+
+        ModelMonitoringSchedulesFileChief(project="project-1").get_or_create()
+        with ModelMonitoringSchedulesFileChief(project="project-1") as f1:
+            assert (
+                f1.get_endpoint_last_request(endpoint_uid="my-mep")
+                == my_mep_last_request
+                and f1.get_endpoint_last_analyzed(endpoint_uid="my-mep")
+                == my_mep_last_analyzed
+            )
+            f1.delete()
 
 
 def test_delete_non_existent_folder() -> None:
@@ -69,7 +221,9 @@ def test_delete_non_existent_folder() -> None:
 def test_delete_folder() -> None:
     project = "monitored-endpoints"
     for endpoint_id in ("ep-1", "ep-2", "ep-3"):
-        file = ModelMonitoringSchedulesFile(project=project, endpoint_id=endpoint_id)
+        file = ModelMonitoringSchedulesFileEndpoint(
+            project=project, endpoint_id=endpoint_id
+        )
         file.create()
         filesystem = file._fs
 
@@ -77,55 +231,3 @@ def test_delete_folder() -> None:
     assert not filesystem.exists(
         _get_monitoring_schedules_folder_path(project)
     ), "Schedules folder should have been removed"
-
-
-def test_unique_last_analyzed_per_app(
-    schedules_file: ModelMonitoringSchedulesFile,
-) -> None:
-    app1_name = "app-A"
-    app1_last_analyzed = 1716720842
-    app2_name = "app-B"
-
-    with schedules_file as f:
-        f.update_application_time(application=app1_name, timestamp=app1_last_analyzed)
-
-        assert f.get_application_time(app1_name) == app1_last_analyzed
-        assert f.get_application_time(app2_name) is None
-
-
-def test_stored_last_analyzed(
-    schedules_file: ModelMonitoringSchedulesFile,
-) -> None:
-    application_name = "dummy-app"
-    # Try to get last analyzed value, we expect it to be empty
-    with schedules_file as f:
-        assert f.get_application_time(application=application_name) is None
-
-    # Update the application timestamp record and validate it is stored as expected
-    current_time = int(mlrun.utils.datetime_now().timestamp())
-    with schedules_file as f:
-        f.update_application_time(
-            application=application_name,
-            timestamp=current_time,
-        )
-
-    with schedules_file as f:
-        last_analyzed = f.get_application_time(application=application_name)
-
-    assert last_analyzed == current_time
-
-
-def test_file_not_opened_error(schedules_file: ModelMonitoringSchedulesFile) -> None:
-    with pytest.raises(
-        mlrun.errors.MLRunValueError,
-        match="Open the schedules file as a context manager first",
-    ):
-        schedules_file.get_application_time(application="my-app")
-
-
-def test_not_found_error() -> None:
-    with pytest.raises(FileNotFoundError):
-        with ModelMonitoringSchedulesFile(
-            project="project-0", endpoint_id="endpoint-0"
-        ):
-            pass

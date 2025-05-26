@@ -255,7 +255,7 @@ class DatastoreProfileS3(DatastoreProfile):
     def check_bucket(cls, v):
         if not v:
             warnings.warn(
-                "The 'bucket' attribute will be mandatory starting from version 1.9",
+                "The 'bucket' attribute will be mandatory starting from version 1.10",
                 FutureWarning,
                 stacklevel=2,
             )
@@ -360,7 +360,7 @@ class DatastoreProfileGCS(DatastoreProfile):
     def check_bucket(cls, v):
         if not v:
             warnings.warn(
-                "The 'bucket' attribute will be mandatory starting from version 1.9",
+                "The 'bucket' attribute will be mandatory starting from version 1.10",
                 FutureWarning,
                 stacklevel=2,
             )
@@ -417,7 +417,7 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
     def check_container(cls, v):
         if not v:
             warnings.warn(
-                "The 'container' attribute will be mandatory starting from version 1.9",
+                "The 'container' attribute will be mandatory starting from version 1.10",
                 FutureWarning,
                 stacklevel=2,
             )

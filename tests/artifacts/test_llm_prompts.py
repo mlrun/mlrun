@@ -82,10 +82,13 @@ def test_prompt_limitation():
     assert prompt_template == "A" * 2000
 
 
-def test_unauthorised_model():
-    project_name_llm = "project-test-1"
+@pytest.mark.parametrize(
+    "project_name_llm",
+    ["project-test-1", None],
+)
+def test_unauthorised_model(project_name_llm):
     project_name_model = "project-test"
-    artifact_path_llm = results_dir / project_name_llm
+    artifact_path_llm = results_dir / (project_name_llm or "")
     artifact_path_model = results_dir / project_name_model
     llm_key = "llm-prompt"
     model_key = "model"

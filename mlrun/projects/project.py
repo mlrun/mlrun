@@ -4726,22 +4726,21 @@ class MlrunProject(ModelObj):
         :param tag: Filter artifacts by this tag (e.g., 'latest', 'prod').
         :param labels: Filter llm-prompt artifacts by label key-value pairs or key existence. This can be provided as:
 
-               - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-                 or `{"label": None}` to check for key existence.
-               - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-                 or just `"label"` for key existence.
-               - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-                 the specified key-value pairs or key existence.
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param since: Return artifacts updated after this date (as datetime object).
         :param until: Return artifacts updated before this date (as datetime object).
         :param iter: Retrieve a specific iteration. Use `0` for root; `None` for all.
-        Suggested change
-        :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
+        :param best_iteration: Returns the llm-prompt artifact which belongs to the best iteration of a given run, in the case of
             artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         :param tree: Filter by artifact tree ID (e.g., for lineage filtering).
         :param model: Return prompts associated with this model (can be `Artifact` URI or `Artifact` object).
-        Suggested change
         :param format_: The format in which to return the artifacts. Default is 'full'.
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.

@@ -104,13 +104,9 @@ class LLMPromptArtifact(Artifact):
             description=description,
         )
 
-        llm_metadata = (
-            ArtifactMetadata(
-                key=key,
-                project=project,
-            )
-            if key and project
-            else None
+        llm_metadata = ArtifactMetadata(
+            key=key,
+            project=project or "",
         )
 
         super().__init__(spec=llm_prompt_spec, metadata=llm_metadata, **kwargs)

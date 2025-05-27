@@ -363,7 +363,7 @@ async def _common_function_parameters(
     :param project:         Project name.
     :param auth_info:       The auth info of the request.
     :param db_session:      A session that manages the current dialog with the database.
-    :returns:          A `_CommonParameters` object that contains the input data.
+    :returns:          A `_FunctionSummariesParams` object that contains the input data.
     """
 
     await _verify_authorization(
@@ -403,8 +403,8 @@ async def get_model_monitoring_function_summaries(
     commons: Annotated[_FunctionSummariesParams, Depends(_common_function_parameters)],
     names: Optional[list[str]] = Query(None, alias="name"),
     labels: list[str] = Query([], alias="label"),
-    include_stats: bool = Query(True, alias="include_stats"),
-    include_infra: bool = Query(True, alias="include_infra"),
+    include_stats: bool = Query(True, alias="include-stats"),
+    include_infra: bool = Query(True, alias="include-infra"),
 ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
     """Get monitoring function summaries for the specified project.
 

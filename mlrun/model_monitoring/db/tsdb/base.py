@@ -349,6 +349,14 @@ class TSDBConnector(ABC):
                                   application are included.
         :param result_status_list: Optional list of result statuses to filter the results by. By default, all
                                   result statuses are included.
+
+        :return: A dictionary where the key is a tuple of (application_name, result_status) and the value is the total
+                 number of results with that status for that application.
+                 For example:
+                 {
+                    ('app1', 1): 10,
+                    ('app1', 2): 5
+                 }
         """
 
     async def add_basic_metrics(

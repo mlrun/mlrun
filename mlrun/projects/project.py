@@ -4752,6 +4752,13 @@ class MlrunProject(ModelObj):
         :param include_infra: whether to include model monitoring infrastructure functions (default is True).
         :return: A list of FunctionSummary objects containing information about the monitoring functions.
         """
+
+        if start is not None and end is not None:
+            if start.tzinfo is None or end.tzinfo is None:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    "Custom start and end times must contain the timezone."
+                )
+
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.get_monitoring_function_summaries(
             project=self.metadata.name,

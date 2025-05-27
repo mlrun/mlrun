@@ -1248,8 +1248,6 @@ class V3IOTSDBConnector(TSDBConnector):
                 mm_schemas.ApplicationEvent.APPLICATION_NAME
             ].str.lower()
 
-            # convert result status to numerical values
-            # df[mm_schemas.ResultData.RESULT_STATUS] = df[mm_schemas.ResultData.RESULT_STATUS].astype(str).astype(int)
             df = (
                 df[
                     [

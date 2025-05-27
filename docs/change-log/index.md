@@ -1,5 +1,6 @@
 (change-log)=
 # Change log
+- [v1.9.0](#v190)
 - [v1.8.0](#v180)
 - [v1.7.2](#v172-16-january-2025) | [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
 - [v1.6.4](#v164-2-july-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
@@ -12,6 +13,24 @@
 - [Open issues](#open-issues)
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
+
+(v190)=
+## v1.9.0 (June 2025)
+
+### Infrastructure
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-9326| MLRun supports Python 3.11.                                                 |
+|ML-8224|MLRun continues to support working with KFP server 1.8 (for existing IGZ/CE installations) and working with KFP server 2.4 (for newer IGZ versions and newer CE installations).|
+
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-9894|Logging artifacts to the V3IO store does not result in an "EOF occurred in violation of protocol" error.|
+
+
+
+
 
 (v180)=
 ## v1.8.0 (May 2025)
@@ -1224,7 +1243,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-9235|If in v1.7 there was one untagged artifact and another artifact with the same artifact key, project, iteration, that was logged earlier and includes the `latest` tag (meaning the latest tag does not actually point to the real latest artifact), then after migration to version 1.8, both artifacts have the `latest` tag. If such an artifact is used in a job with the latest tag and key, the job fails with the error 'multiple rows were found.' This is because there are two artifacts with the same key and tag but different UIDs.|NA|v1.8.0|
 |ML-9336|Attempts to delete more than 200 artifacts fail, and you are prompted to use a more granular filter.|Configure the limit with `mlrun.mlconf.artifacts.limits.max_deletions`.|v1.8.0|
 |ML-9338|If the same project+key were created from both a hyper-param run and single run, and you removed the latest tag from everything, MLRun assigns latest to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results: it might not be the actual latest.|NA|v1.8.0|
-|ML-9894|In rare cases, logging artifacts to v3io store may result in an "EOF occurred in violation of protocol" error in some rare cases.
 |ML-9913|UI: There may be a discrepancy in the artifact count between the Project monitoring page and the Artifacts page when running hyper-param jobs without a best-iteration. |Always provide a selection criteria for `best-iteration`.|v1.8.0|
 
 

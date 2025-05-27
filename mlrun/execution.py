@@ -910,7 +910,8 @@ class MLClientCtx:
         upload: Optional[bool] = None,
         **kwargs,
     ) -> LLMPromptArtifact:
-        """Log an LLM prompt artifact and optionally upload it to the artifact store.
+        """
+        Log an LLM prompt artifact and optionally upload it to the artifact store.
 
         This function allows you to log a prompt artifact for large language model (LLM) usage. Prompts can be defined
         as a string or by referencing a file path. Optionally, you can link the prompt to a parent model artifact and
@@ -930,6 +931,7 @@ class MLClientCtx:
             )
 
             # Log from a file
+
             project.log_llm_prompt(
                 key="summarization-prompt",
                 prompt_path="prompts/summarize.txt",
@@ -939,9 +941,9 @@ class MLClientCtx:
         :param key: Unique name of the artifact.
         :param prompt_string: Raw prompt text as a string. Cannot be used with `prompt_path`.
         :param prompt_path: Path to a file containing the prompt content. Cannot be used with `prompt_string`.
-        :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., {user_name})
-                              and the value is a description or explanation of what that placeholder represents.
-                              Useful for documenting and clarifying dynamic parts of the prompt.
+        :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., ``{user_name}``)
+            and the value is a description or explanation of what that placeholder represents.
+            Useful for documenting and clarifying dynamic parts of the prompt.
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
         :param model_configuration: Dictionary of generation parameters (e.g., temperature, max_tokens).
         :param description: Optional description of the prompt.

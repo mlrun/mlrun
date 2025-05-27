@@ -1898,7 +1898,8 @@ class MlrunProject(ModelObj):
         upload: Optional[bool] = None,
         **kwargs,
     ) -> LLMPromptArtifact:
-        """Log an LLM prompt artifact to the project.
+        """
+        Log an LLM prompt artifact to the project.
 
         This method creates and logs an `LLMPromptArtifact` which captures a prompt definition for large language model
         (LLM) interactions. The prompt can be provided as a string or a file, and may include metadata like generation
@@ -1909,6 +1910,7 @@ class MlrunProject(ModelObj):
         Examples::
 
             # Log a simple prompt string
+
             project.log_llm_prompt(
                 key="summarization-prompt",
                 prompt_string="Summarize the following text:\n{text}",
@@ -1916,6 +1918,7 @@ class MlrunProject(ModelObj):
             )
 
             # Log a prompt from file
+
             project.log_llm_prompt(
                 key="qa-prompt",
                 prompt_path="prompts/qa_template.txt",
@@ -1927,12 +1930,12 @@ class MlrunProject(ModelObj):
         :param key: Unique key for the prompt artifact.
         :param prompt_string: Raw prompt text. Mutually exclusive with `prompt_path`.
         :param prompt_path: Path to a file containing the prompt. Mutually exclusive with `prompt_string`.
-        :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., {user_name})
-                              and the value is a description or explanation of what that placeholder represents.
-                              Useful for documenting and clarifying dynamic parts of the prompt.
+        :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., ``{user_name}``)
+            and the value is a description or explanation of what that placeholder represents.
+            Useful for documenting and clarifying dynamic parts of the prompt.
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
         :param model_configuration: Configuration dictionary for model generation parameters
-                                         (e.g., temperature, max tokens).
+            (e.g., temperature, max tokens).
         :param description: Optional description of the prompt.
         :param target_path: Optional local target path for saving prompt content.
         :param artifact_path: Storage path for the logged artifact.
@@ -1943,6 +1946,7 @@ class MlrunProject(ModelObj):
 
         :returns: The logged `LLMPromptArtifact` object.
         """
+
         llm_prompt = LLMPromptArtifact(
             key=key,
             project=self.name,

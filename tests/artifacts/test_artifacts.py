@@ -102,7 +102,7 @@ def test_model_artifact_validators():
     project = mlrun.new_project("test-project", save=False)
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="cannot specify upload and model_url together",
+        match="log_artifact of ModelArtifact does not accept arguments for both upload and model_url parameters",
     ):
         project.log_model(
             key="test_model",

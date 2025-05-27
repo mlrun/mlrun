@@ -185,7 +185,7 @@ class ModelArtifact(Artifact):
         :param extra_data:      Extra artifacts and files to log with the model.
         :param model_dir:       Path to the local dir holding the model file and extra files
         :param model_url:       Remote model url.
-        :param default_config:  Default configuration for client building when 'model_url' is used.
+        :param default_config:  Default configuration for client building
                                 Saved as a sub-dictionary under the parameter.
         :param kwargs:
         """
@@ -472,9 +472,9 @@ class ModelArtifact(Artifact):
 
 
 def get_model(
-    model_dir: Optional[Union[str, ModelArtifact]] = None, suffix=""
+    model_dir: Optional[Union[str, ModelArtifact, mlrun.datastore.base.DataItem]] = None, suffix=""
 ) -> (str, ModelArtifact, dict):
-    """return model file, model spec object, and list of extra data items
+    """return model file, model spec object, and dictionary of extra data items
 
     this function will get the model file, metadata, and extra data
     the returned model file is always local, when using remote urls

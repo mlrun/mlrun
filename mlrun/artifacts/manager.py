@@ -224,7 +224,7 @@ class ArtifactManager:
         if isinstance(item, ModelArtifact) and item.model_url:
             if upload:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "cannot specify upload and model_url together"
+                    "log_artifact of ModelArtifact does not accept arguments for both upload and model_url parameters"
                 )
             upload = False
         validate_artifact_key_name(key, "artifact.key")

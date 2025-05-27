@@ -1028,10 +1028,10 @@ class Model(storey.ParallelExecutionRunnable):
         """
         artifact = self._get_artifact_object()
         if artifact:
-            model_file, _, extra_dataitem = mlrun.artifacts.get_model(
+            model_file, _, extra_dataitems = mlrun.artifacts.get_model(
                 suffix=suffix, model_dir=artifact
             )
-            return model_file, extra_dataitem
+            return model_file, extra_dataitems
         return None, None
 
 

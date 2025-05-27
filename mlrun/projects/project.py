@@ -1844,7 +1844,7 @@ class MlrunProject(ModelObj):
         :param extra_data:      key/value list of extra files/charts to link with this dataset
                                 value can be absolute path | relative path (to model dir) | bytes | artifact object
         :param model_url:       Remote model url.
-        :param default_config:  Default configuration for client building when 'model_url' is used.
+        :param default_config:  Default configuration for client building
                                 Saved as a sub-dictionary under the parameter.
         :returns: model artifact object
         """

@@ -853,7 +853,7 @@ class MLClientCtx:
         :param db_key:          The key to use in the artifact DB table, by default its run name + '_' + key
                                 db_key=False will not register it in the artifacts table
         :param model_url:       Remote model url.
-        :param default_config:  Default configuration for client building when 'model_url' is used.
+        :param default_config:  Default configuration for client building
                                 Saved as a sub-dictionary under the parameter.
 
         :returns: Model artifact object

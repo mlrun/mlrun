@@ -20,17 +20,12 @@
 ### Infrastructure
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9326| MLRun supports Python 3.11.                                                 |
-|ML-8224|MLRun continues to support working with KFP server 1.8 (for existing IGZ/CE installations) and working with KFP server 2.4 (for newer IGZ versions and newer CE installations).|
+|ML-9326|MLRun supports Python 3.11.                                                 |
 
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-9894|Logging artifacts to the V3IO store does not result in an "EOF occurred in violation of protocol" error.|
-
-
-
-
 
 (v180)=
 ## v1.8.0 (May 2025)

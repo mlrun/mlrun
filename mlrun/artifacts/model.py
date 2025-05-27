@@ -198,6 +198,10 @@ class ModelArtifact(Artifact):
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         model_file = str(model_file or "")
         if model_file and "/" in model_file:
+            if model_file and "/" in model_file:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "'model_file' cannot contain '/' (i.e., be a full path) when 'model_dir' is also specified"
+                )
             model_dir = path.dirname(model_file)
             model_file = path.basename(model_file)
         if (model_file or model_dir) and model_url:

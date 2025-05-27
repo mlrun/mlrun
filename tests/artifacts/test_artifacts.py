@@ -109,6 +109,15 @@ def test_model_artifact_validators():
             model_url="http://localhost:8080/v2/models/mymodel/infer",
             upload=True,
         )
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="'model_file' cannot contain '/' \\(i.e., be a full path\\) when 'model_dir' is also specified",
+    ):
+        project.log_model(
+            key="test_model",
+            model_file="/tmp/test_dir/model.pkl",
+            model_dir="/tmp/different_dir",
+        )
 
 
 class FakeProducer:

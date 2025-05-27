@@ -59,7 +59,6 @@ from services.api.api.endpoints.nuclio import (
     _get_api_gateways_urls_for_function,
     _handle_nuclio_deploy_status,
 )
-from services.api.utils.singletons.scheduler import get_scheduler
 
 router = APIRouter()
 
@@ -144,68 +143,6 @@ async def get_function(
     return {
         "func": func,
     }
-
-
-# TODO: Remove in 1.10.0
-@router.delete(
-    "/projects/{project}/functions/{name}",
-    status_code=HTTPStatus.NO_CONTENT.value,
-    deprecated=True,
-    description="'/v1/projects/{project}/functions/{name}' will be removed in 1.10.0, "
-    "use '/v2/projects/{project}/functions/{name}' instead.",
-)
-async def delete_function(
-    request: Request,
-    project: str,
-    name: str,
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-    db_session: Session = Depends(deps.get_db_session),
-):
-    await (
-        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.function,
-            project,
-            name,
-            mlrun.common.schemas.AuthorizationAction.delete,
-            auth_info,
-        )
-    )
-    #  If the requested function has a schedule, we must delete it before deleting the function
-    try:
-        function_schedule = await run_in_threadpool(
-            get_scheduler().get_schedule,
-            db_session,
-            project,
-            name,
-        )
-    except mlrun.errors.MLRunNotFoundError:
-        function_schedule = None
-
-    if function_schedule:
-        # when deleting a function, we should also delete its schedules if exists
-        # schedules are only supposed to be run by the chief, therefore, if the function has a schedule,
-        # and we are running in worker, we send the request to the chief client
-        if (
-            mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.common.schemas.ClusterizationRole.chief
-        ):
-            logger.info(
-                "Function has a schedule, deleting",
-                function=name,
-                project=project,
-            )
-            chief_client = framework.utils.clients.chief.Client()
-            await chief_client.delete_schedule(
-                project=project, name=name, request=request
-            )
-        else:
-            await run_in_threadpool(
-                get_scheduler().delete_schedule, db_session, project, name
-            )
-    await run_in_threadpool(
-        services.api.crud.Functions().delete_function, db_session, project, name
-    )
-    return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 @router.get("/projects/{project}/functions")

@@ -1909,18 +1909,12 @@ class MlrunProject(ModelObj):
 
         Examples::
 
-            # Log a simple prompt string
-            project.log_llm_prompt(
-                key="summarization-prompt",
-                prompt_string="Summarize the following text:\n{text}",
-                model_artifact=model,  # model is `ModelArtifact`
-            )
             # Log a prompt from file
             project.log_llm_prompt(
                 key="qa-prompt",
                 prompt_path="prompts/qa_template.txt",
-                prompt_legend=``{"question": "user_question"}``,
-                model_artifact=model_1,
+                prompt_legend={"question": "user_question"},
+                model_artifact=model,
                 tag="v2",
             )
 
@@ -1928,11 +1922,11 @@ class MlrunProject(ModelObj):
         :param prompt_string: Raw prompt text. Mutually exclusive with `prompt_path`.
         :param prompt_path: Path to a file containing the prompt. Mutually exclusive with `prompt_string`.
         :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., ``{user_name}``)
-            and the value is a description or explanation of what that placeholder represents.
-            Useful for documenting and clarifying dynamic parts of the prompt.
+               and the value is a description or explanation of what that placeholder represents.
+               Useful for documenting and clarifying dynamic parts of the prompt.
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
         :param model_configuration: Configuration dictionary for model generation parameters
-            (e.g., temperature, max tokens).
+               (e.g., temperature, max tokens).
         :param description: Optional description of the prompt.
         :param target_path: Optional local target path for saving prompt content.
         :param artifact_path: Storage path for the logged artifact.

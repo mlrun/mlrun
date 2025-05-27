@@ -4736,9 +4736,9 @@ class MlrunProject(ModelObj):
         :param since: Return artifacts updated after this date (as datetime object).
         :param until: Return artifacts updated before this date (as datetime object).
         :param iter: Retrieve a specific iteration. Use `0` for root; `None` for all.
-        :param best_iteration: Returns the llm-prompt artifact which belongs to the best iteration of a given run, in the case of
-            artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
-            from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
+        :param best_iteration: Returns the llm-prompt artifact which belongs to the best iteration of a given run,
+            in the case of artifacts generated from a hyper-param run. If only a single iteration exists, will return
+            the artifact from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         :param tree: Filter by artifact tree ID (e.g., for lineage filtering).
         :param model: Return prompts associated with this model (can be `Artifact` URI or `Artifact` object).
         :param format_: The format in which to return the artifacts. Default is 'full'.

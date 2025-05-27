@@ -804,13 +804,12 @@ class MonitoringDeployment:
         """
 
         # Enrich response with infra functions
-        functino_summaries_list, base_period = self._enrich_function_summary_with_infra(
+        infra_function_summaries_list, base_period = self._get_function_summary_infra(
             include_infra=include_infra
         )
 
         # Enrich response with monitoring applications
-        return self._enrich_function_summary_with_applications(
-            functino_summaries_list=functino_summaries_list,
+        application_function_summaries_list = self._get_function_summary_applications(
             base_period=base_period,
             start=start,
             end=end,
@@ -819,7 +818,9 @@ class MonitoringDeployment:
             include_stats=include_stats,
         )
 
-    def _enrich_function_summary_with_infra(
+        return infra_function_summaries_list + application_function_summaries_list
+
+    def _get_function_summary_infra(
         self,
         include_infra: bool = True,
     ) -> tuple[list[mlrun.common.schemas.model_monitoring.FunctionSummary], int]:
@@ -829,9 +830,8 @@ class MonitoringDeployment:
 
         :param include_infra: If True, include the model monitoring infrastructure functions in the response.
 
-        :return: Returns a tuple containing a list of FunctionSummary objects and the base period of the controller
+        :return: a tuple containing a list of FunctionSummary objects and the base period of the controller
                  function. If `include_infra` is False, the list will be empty.
-
         """
         function_summaries_list = []
         base_period = 0
@@ -843,10 +843,8 @@ class MonitoringDeployment:
             if not infra_mm_functions:
                 logger.info("No model monitoring infrastructure functions found")
             for function in infra_mm_functions:
-                function_summary = (
-                    mlrun.common.schemas.model_monitoring.FunctionSummary.from_dict(
-                        function, func_type="infra"
-                    )
+                function_summary = mlrun.common.schemas.model_monitoring.FunctionSummary.from_function_dict(
+                    function, func_type="infra"
                 )
                 function_summaries_list.append(function_summary)
                 if (
@@ -865,15 +863,14 @@ class MonitoringDeployment:
                 base_period = self._get_base_period(controller_func=controller_func)
             except mlrun.errors.MLRunNotFoundError:
                 logger.info(
-                    "Model monitoring controller function not found, "
-                    "probably you need to re-enable model monitoring",
+                    "Model monitoring controller function not found. "
+                    "Try to re-enable model monitoring.",
                     project=self.project,
                 )
         return function_summaries_list, base_period
 
-    def _enrich_function_summary_with_applications(
+    def _get_function_summary_applications(
         self,
-        functino_summaries_list: list,
         base_period: typing.Optional[float] = None,
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
@@ -882,18 +879,19 @@ class MonitoringDeployment:
         include_stats: bool = True,
     ):
         """
-        Enrich the function summaries list with the model monitoring applications.
+        Return function summaries list with the model monitoring applications.
         """
         mm_functions = self.list_model_monitoring_functions(
             labels=labels, format_=mlrun.common.formatters.FunctionFormat.minimal
         )
+
+        if not mm_functions:
+            logger.info("No model monitoring applications found")
+            return []
         if names:
             mm_functions = [
                 fn for fn in mm_functions if fn["metadata"]["name"] in names
             ]
-        if not mm_functions:
-            logger.info("No model monitoring applications found")
-            return functino_summaries_list
 
         detection_stats_dict = {}
         if include_stats:
@@ -914,10 +912,8 @@ class MonitoringDeployment:
             )
 
         for function in mm_functions:
-            function_summary = (
-                mlrun.common.schemas.model_monitoring.FunctionSummary.from_dict(
-                    func_dict=function, base_period=base_period
-                )
+            function_summary = mlrun.common.schemas.model_monitoring.FunctionSummary.from_function_dict(
+                func_dict=function, base_period=base_period
             )
             if detection_stats_dict:
                 # enrich func stats with #detections and #possible_detections
@@ -937,14 +933,13 @@ class MonitoringDeployment:
                         0,
                     ),
                 }
-            functino_summaries_list.append(function_summary)
-        return functino_summaries_list
+        return mm_functions
 
     @staticmethod
     def _get_base_period(controller_func: dict[str, typing.Any]) -> int:
         base_period = 0
         for env in controller_func["spec"]["env"]:
-            if env["name"] == "batch_intervals_dict":
+            if env["name"] == mm_constants.EventFieldType.BATCH_INTERVALS_DICT:
                 base_period = json.loads(env["value"])["minutes"]
         return base_period
 

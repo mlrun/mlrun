@@ -66,7 +66,7 @@ class FunctionSummary(BaseModel):
         )
 
     @classmethod
-    def from_dict(
+    def from_function_dict(
         cls,
         func_dict: dict,
         func_type=ModelMonitoringFunctionsType.APPLICATION,

@@ -408,7 +408,7 @@ async def get_model_monitoring_function_summaries(
 ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
     """Get monitoring function summaries for the specified project.
 
-    :param commons:                     The common parameters of the request.
+    :param commons: The common parameters of the request.
     :param names: List of function names to filter by (optional).
     :param labels: Labels to filter by (optional).
     :param include_stats: Whether to include statistics in the response (default is False).

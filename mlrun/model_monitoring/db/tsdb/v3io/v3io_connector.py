@@ -705,6 +705,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 logger.info(
                     "The number of filter values exceeds the v3io-engine filter-expression limit, "
                     "retrieving all the values from the db.",
+                    filter_key=filter_key,
                     limit=V3IO_FRAMESD_MEPS_LIMIT,
                     amount=len(filter_values),
                 )
@@ -712,7 +713,8 @@ class V3IOTSDBConnector(TSDBConnector):
             return f"{filter_key} IN({str(filter_values)[1:-1]}) "
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid filter key {filter_key}: must be a string or a list, filter values: {filter_values}"
+                f"Invalid filter key {filter_key}: must be a string or a list, got {type(filter_values).__name__}; "
+                f"filter values: {filter_values}"
             )
 
     def read_metrics_data(
@@ -1214,10 +1216,14 @@ class V3IOTSDBConnector(TSDBConnector):
                 filter_values=endpoint_ids,
             )
         if application_names:
-            filter_query = self._generate_filter_query(
+            app_filter_query = self._generate_filter_query(
                 filter_key=mm_schemas.ApplicationEvent.APPLICATION_NAME,
                 filter_values=application_names,
             )
+            if filter_query:
+                filter_query += f" AND {app_filter_query}"
+            else:
+                filter_query = app_filter_query
 
         df = self._get_records(
             table=mm_schemas.V3IOTSDBTables.APP_RESULTS,

@@ -83,6 +83,31 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             framework.utils.background_tasks.common.background_task_exceeded_timeout,
         )
 
+    def cleanup_old_background_tasks(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        max_age_seconds: int,
+    ) -> None:
+        logger.info(
+            "Cleaning up old background tasks",
+            max_age_seconds=max_age_seconds,
+        )
+        framework.utils.singletons.db.get_db().cleanup_old_background_tasks(
+            db_session,
+            max_age_seconds,
+            framework.utils.background_tasks.common.background_task_exceeded_timeout,
+        )
+
+    def get_background_task_by_labels(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        labels: dict[str, str],
+    ) -> mlrun.common.schemas.BackgroundTask:
+        return framework.utils.singletons.db.get_db().get_background_task_by_labels(
+            db_session,
+            labels,
+        )
+
     def list_background_tasks(
         self,
         db_session: sqlalchemy.orm.Session,

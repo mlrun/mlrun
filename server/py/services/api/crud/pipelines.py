@@ -304,9 +304,6 @@ class Pipelines(
             project=run_project,
         )
 
-    def get_terminate_pipeline_task(self, run_id: str):
-        return f"terminate_pipeline_{run_id}"
-
     def terminate_pipeline(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -352,7 +349,7 @@ class Pipelines(
                     f"Pipeline run with id {run_id} is not of project {project}"
                 )
 
-        # Check if the pipeline is in a completed state
+        # Check if the pipeline is in a terminable state
         if (
             run.status
             not in mlrun_pipelines.common.models.RunStatuses.terminable_statuses()
@@ -367,7 +364,7 @@ class Pipelines(
             run_name=run.get("name"),
             project=project,
         )
-        return kfp_client.retry_run(
+        return kfp_client.terminate_run(
             run_id=run_id,
         )
 

@@ -36,6 +36,7 @@ class BackgroundTaskState(mlrun.common.types.StrEnum):
 
 
 class BackgroundTaskMetadata(pydantic.v1.BaseModel):
+    id: int
     name: str
     kind: typing.Optional[str]
     project: typing.Optional[str]

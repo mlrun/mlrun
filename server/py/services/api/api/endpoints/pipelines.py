@@ -424,32 +424,31 @@ async def _terminate_pipeline(
     background_tasks: BackgroundTasks,
     run_id: str,
     project: str,
-) -> None:
-    existing_background_task_label = (
-        db_session.query(BackgroundTaskLabel)
-        .filter(
-            BackgroundTaskLabel.name == "pipeline_id",
-            BackgroundTaskLabel.value == run_id,
-        )
-        .one_or_none()
+) -> mlrun.common.schemas.BackgroundTask:
+    existing_terminate_pipeline_task = framework.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task_by_labels(
+        db_session,
+        {
+            "pipeline": run_id,
+        },
     )
-    if existing_background_task_label:
-        # If the background task already exists, we don't need to create a new one
-        return existing_background_task_label.parent.id
+    if existing_terminate_pipeline_task is not None:
+        return existing_terminate_pipeline_task
     else:
         # If the background task does not exist, we create a new one
-        _terminate_pipeline_task = await fastapi.concurrency.run_in_threadpool(
+        terminate_pipeline_task = await fastapi.concurrency.run_in_threadpool(
             framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
-            db_session,
-            project,
-            background_tasks,
-            services.api.crud.pipelines.Pipelines.terminate_pipeline,
-            mlrun.mlconf.background_tasks.default_timeouts.terminate_pipeline,
-            framework.utils.background_tasks.BackgroundTaskKinds.terminate_pipeline.format(
+            db_session=db_session,
+            project=project,
+            background_tasks=background_tasks,
+            function=services.api.crud.pipelines.Pipelines.terminate_pipeline,
+            timeout=mlrun.mlconf.background_tasks.default_timeouts.terminate_pipeline,
+            name=framework.utils.background_tasks.BackgroundTaskKinds.terminate_pipeline.format(
                 project,
                 run_id,
                 time.time(),
             ),
-            run_id,
-            project,
+            labels={
+                "pipeline": run_id,
+            },
         )
+        return terminate_pipeline_task

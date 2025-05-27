@@ -414,6 +414,13 @@ with warnings.catch_warnings():
         error = Column(String(255, collation=SQLTypesUtil.collation()))
         timeout = Column(Integer)
 
+        labels: Mapped[list["BackgroundTaskLabel"]] = relationship(
+            "BackgroundTaskLabel",
+            back_populates="task",
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        )
+
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
 

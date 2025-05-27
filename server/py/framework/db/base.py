@@ -18,6 +18,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
 from deprecated import deprecated
+from sqlalchemy.orm import Session
 
 import mlrun.alerts
 import mlrun.common.formatters
@@ -896,6 +897,19 @@ class DBInterface(ABC):
     ) -> mlrun.common.schemas.BackgroundTask:
         pass
 
+    def get_background_task_by_labels(
+        self,
+        session,
+        labels: dict[str, str],
+    ) -> mlrun.common.schemas.BackgroundTask:
+        """
+        Get a background task by its labels.
+        :param session: The database session.
+        :param labels: A dictionary of labels to filter the background task.
+        :return: The background task matching the labels.
+        """
+        pass
+
     def list_background_tasks(
         self,
         session,
@@ -1458,5 +1472,11 @@ class DBInterface(ABC):
         :param session: The database session.
         :param project: The project name.
         :param uids:    The feature set uids to delete.
+        """
+        pass
+
+    def cleanup_old_background_tasks(self, db_session: Session, max_age_seconds: int):
+        """
+        Cleanup old background tasks that are older than the specified age.
         """
         pass

@@ -41,6 +41,7 @@ from sqlalchemy import (
     or_,
     select,
     text,
+    tuple_,
 )
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
@@ -7134,6 +7135,7 @@ class SQLDB(DBInterface):
             project=project,
         ).one_or_none()
         now = mlrun.utils.now_date()
+        task_labels = []
         if background_task_record:
             # we don't want to be able to change state after it reached terminal state
             if (
@@ -7165,7 +7167,6 @@ class SQLDB(DBInterface):
             )
             session.add(background_task_record)
             session.refresh(background_task_record)
-            task_labels = []
             for label_name, label_value in labels.items():
                 task_labels.append(
                     BackgroundTaskLabel(
@@ -7174,7 +7175,10 @@ class SQLDB(DBInterface):
                         parent=background_task_record.id,
                     )
                 )
-        self._upsert(session, [background_task_record, task_labels])
+        objects = [background_task_record]
+        if task_labels:
+            objects.extend(task_labels)
+        self._upsert(session, objects)
 
     def get_background_task(
         self,
@@ -7193,6 +7197,31 @@ class SQLDB(DBInterface):
         )
 
         return self._transform_background_task_record_to_schema(background_task_record)
+
+    def get_background_task_by_labels(
+        self,
+        session: Session,
+        labels: dict[str, str],
+    ) -> Optional[mlrun.common.schemas.BackgroundTask]:
+        if not labels:
+            raise mlrun.errors.MLRunInvalidArgumentError("Labels must not be empty")
+
+        query = (
+            session.query(BackgroundTask)
+            .join(BackgroundTaskLabel)
+            .filter(
+                tuple_(BackgroundTaskLabel.name, BackgroundTaskLabel.value).in_(
+                    labels.items()
+                )
+            )
+            .group_by(BackgroundTask.id)
+            .having(func.count() == len(labels))
+        )
+
+        background_task = query.one_or_none()
+        if background_task is None:
+            return None
+        return self._transform_background_task_record_to_schema(background_task)
 
     def list_background_tasks(
         self,
@@ -7236,6 +7265,11 @@ class SQLDB(DBInterface):
 
         return background_tasks
 
+    def cleanup_old_background_tasks(self, db_session: Session, max_age_seconds: int) -> None:
+        db_session.query(BackgroundTask).filter(
+            BackgroundTask.created < mlrun.utils.now_date() - timedelta(seconds=max_age_seconds)
+        ).delete()
+
     def delete_background_task(self, session: Session, name: str, project: str):
         self._delete(session, BackgroundTask, name=name, project=project)
 
@@ -7272,6 +7306,7 @@ class SQLDB(DBInterface):
     ) -> mlrun.common.schemas.BackgroundTask:
         return mlrun.common.schemas.BackgroundTask(
             metadata=mlrun.common.schemas.BackgroundTaskMetadata(
+                id=background_task_record.id,
                 name=background_task_record.name,
                 project=background_task_record.project,
                 created=background_task_record.created,

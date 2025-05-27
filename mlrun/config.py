@@ -107,6 +107,7 @@ default_config = {
     "submit_timeout": "280",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
+    "background_task_cleanup_interval": "86400",
     "monitoring": {
         "runs": {
             # runs monitoring interval in seconds

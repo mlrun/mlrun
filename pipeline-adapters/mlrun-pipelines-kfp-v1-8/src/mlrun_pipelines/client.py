@@ -683,7 +683,7 @@ class Client(
                 value=(
                     str(value)
                     if not isinstance(value, (list, dict))
-                    else orjson.dumps(value)
+                    else orjson.dumps(value).decode()
                 ),
             )
             for key, value in params.items()

@@ -4682,16 +4682,25 @@ class MlrunProject(ModelObj):
         name: Optional[str] = None,
         tag: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        since=None,
-        until=None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
         iter: Optional[int] = None,
         best_iteration: bool = False,
         tree: Optional[str] = None,
-        limit: Optional[int] = None,
         model: Optional[Union[str, Artifact]] = None,
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[
+            Union[mlrun.common.schemas.SortField, str]
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
     ) -> list[mlrun.artifacts.llm_prompt.LLMPromptArtifact]:
         """List LLM prompt artifacts in the project with support for filtering.
 
@@ -4715,18 +4724,32 @@ class MlrunProject(ModelObj):
 
         :param name: Name of the prompt artifact. Prefix with '~' for wildcard search (case-insensitive).
         :param tag: Filter artifacts by this tag (e.g., 'latest', 'prod').
-        :param labels: Filter by label key-value pairs or key presence. Can be:
-                       - Dict: {"key": "value"}, {"key": None}
-                       - List: ["key=value", "key"]
-                       - Comma-separated string: "key=value,key2"
-        :param since: (Unused)
-        :param until: (Unused)
+        :param labels: Filter llm-prompt artifacts by label key-value pairs or key existence. This can be provided as:
+
+               - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                 or `{"label": None}` to check for key existence.
+               - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                 or just `"label"` for key existence.
+               - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                 the specified key-value pairs or key existence.
+        :param since: Return artifacts updated after this date (as datetime object).
+        :param until: Return artifacts updated before this date (as datetime object).
         :param iter: Retrieve a specific iteration. Use `0` for root; `None` for all.
-        :param best_iteration: Return artifacts from the best iteration (used with hyperparameter runs).
+        Suggested change
+        :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
+            artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
+            from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         :param tree: Filter by artifact tree ID (e.g., for lineage filtering).
-        :param limit: (Deprecated) Max number of results to return.
         :param model: Return prompts associated with this model (can be `Artifact` URI or `Artifact` object).
-        :param format_: Output format: one of `full`, `metadata`, or `name_only`.
+        Suggested change
+        :param format_: The format in which to return the artifacts. Default is 'full'.
+        :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
+            parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently the only allowed values are `created` and `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
 
         :returns: A list of filtered `LLMPromptArtifact` objects matching the given parameters.
         """
@@ -4743,8 +4766,11 @@ class MlrunProject(ModelObj):
             kind=mlrun.artifacts.llm_prompt.LLMPromptArtifact.kind,
             tree=tree,
             parent=model.uri if isinstance(model, Artifact) else model,
-            limit=limit,
             format_=format_,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
         ).to_objects()
 
     def paginated_list_llm_prompts(

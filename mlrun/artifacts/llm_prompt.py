@@ -16,6 +16,7 @@ from typing import Optional, Union
 
 import mlrun
 import mlrun.artifacts.model as model_art
+import mlrun.common
 from mlrun.artifacts import Artifact, ArtifactMetadata, ArtifactSpec
 from mlrun.utils import StorePrefix, logger
 
@@ -43,7 +44,7 @@ class LLMPromptArtifactSpec(ArtifactSpec):
     ):
         if prompt_string and prompt_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "cannot specify both prompt_string and prompt_path"
+                "Cannot specify both 'prompt_string' and 'prompt_path'"
             )
 
         super().__init__(
@@ -75,7 +76,7 @@ class LLMPromptArtifact(Artifact):
     Stores the prompt string/path and a link to the related model artifact.
     """
 
-    kind = "llm-prompt"
+    kind = mlrun.common.schemas.ArtifactCategories.llm_prompt
     _store_prefix = StorePrefix.LLMPrompt
 
     def __init__(
@@ -136,7 +137,7 @@ class LLMPromptArtifact(Artifact):
             return self.spec._model_artifact
         return None
 
-    def read_prompt(self) -> str:
+    def read_prompt(self) -> Optional[str]:
         """
         Read the prompt string from the artifact.
         """
@@ -164,3 +165,5 @@ class LLMPromptArtifact(Artifact):
             self.spec.src_path = temp_file.name
             self.spec.prompt_string = None
             self._src_is_temp = True
+
+        super().before_log()

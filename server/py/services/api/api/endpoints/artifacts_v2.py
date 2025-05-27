@@ -173,7 +173,7 @@ async def list_artifacts(
     tree: Optional[str] = None,
     producer_uri: Optional[str] = None,
     best_iteration: bool = Query(False, alias="best-iteration"),
-    parent: Optional[str] = Query(None, alias="parent"),
+    parent: Optional[str] = Query(None),
     format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
     limit: int = Query(
         None,

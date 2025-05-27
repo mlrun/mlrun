@@ -949,7 +949,7 @@ class MLClientCtx:
 
         llm_prompt = LLMPromptArtifact(
             key=key,
-            project=self._project or "",
+            project=self.project or "",
             prompt_string=prompt_string,
             prompt_path=prompt_path,
             prompt_legend=prompt_legend,

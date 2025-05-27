@@ -19,9 +19,10 @@ permissions:
   packages: write
 
 on:
-  push:
-    branches:
-      - '*-os-system-tests'
+# disabled for now, we don't want to run this workflow on every push
+#   push:
+#     branches:
+#       - '*-os-system-tests'
 
 # disabled until we have a proper schedule definition
 #  schedule:

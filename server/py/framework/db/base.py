@@ -887,6 +887,7 @@ class DBInterface(ABC):
         state: str = mlrun.common.schemas.BackgroundTaskState.running,
         timeout: Optional[int] = None,
         error: Optional[str] = None,
+        labels: Optional[dict[str, str]] = None,
     ):
         pass
 

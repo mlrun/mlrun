@@ -106,6 +106,7 @@ from framework.db.sqldb.models import (
     Artifact,
     ArtifactV2,
     BackgroundTask,
+    BackgroundTaskLabel,
     Base,
     DatastoreProfile,
     DataVersion,
@@ -7123,6 +7124,7 @@ class SQLDB(DBInterface):
         state: str = mlrun.common.schemas.BackgroundTaskState.running,
         timeout: typing.Optional[int] = None,
         error: typing.Optional[str] = None,
+        labels: Optional[dict[str, str]] = None,
     ):
         error = framework.db.sqldb.helpers.ensure_max_length(error)
         background_task_record = self._query(
@@ -7161,7 +7163,18 @@ class SQLDB(DBInterface):
                 timeout=int(timeout) if timeout else None,
                 error=error,
             )
-        self._upsert(session, [background_task_record])
+            session.add(background_task_record)
+            session.refresh(background_task_record)
+            task_labels = []
+            for label_name, label_value in labels.items():
+                task_labels.append(
+                    BackgroundTaskLabel(
+                        name=label_name,
+                        value=label_value,
+                        parent=background_task_record.id,
+                    )
+                )
+        self._upsert(session, [background_task_record, task_labels])
 
     def get_background_task(
         self,

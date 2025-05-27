@@ -40,6 +40,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         function,
         timeout: typing.Optional[int] = None,  # in seconds
         name: typing.Optional[str] = None,
+        labels: typing.Optional[dict[str, str]] = None,
         *args,
         **kwargs,
     ) -> mlrun.common.schemas.BackgroundTask:
@@ -56,6 +57,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             project,
             mlrun.common.schemas.BackgroundTaskState.running,
             timeout,
+            labels,
         )
         background_tasks.add_task(
             self.background_task_wrapper,

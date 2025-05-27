@@ -428,8 +428,7 @@ async def _terminate_pipeline(
     existing_background_task_label = (
         db_session.query(BackgroundTaskLabel)
         .filter(
-            BackgroundTaskLabel.name
-            == "pipeline_id",
+            BackgroundTaskLabel.name == "pipeline_id",
             BackgroundTaskLabel.value == run_id,
         )
         .one_or_none()

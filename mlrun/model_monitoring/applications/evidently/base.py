@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import posixpath
 import warnings
 from abc import ABC
 from tempfile import NamedTemporaryFile
@@ -60,7 +58,6 @@ except ModuleNotFoundError:
 
 if _HAS_EVIDENTLY:
     from evidently.core.report import Snapshot
-    from evidently.legacy.ui.storage.local.base import METADATA_PATH, FSLocation
     from evidently.ui.workspace import (
         STR_UUID,
         CloudWorkspace,
@@ -100,14 +97,13 @@ class EvidentlyModelMonitoringApplicationBase(
         self.evidently_project_id = evidently_project_id
         self.evidently_project = self.load_project()
 
-    def load_project(self) -> Project:
+    def load_project(self) -> "Project":
         """Load the Evidently project."""
         return self.evidently_workspace.get_project(self.evidently_project_id)
 
-    def get_workspace(self) -> WorkspaceBase:
+    def get_workspace(self) -> "WorkspaceBase":
         """Get the Evidently workspace. Override this method for customize access to the workspace."""
         if self.evidently_workspace_path:
-            self._log_location(self.evidently_workspace_path)
             return Workspace.create(self.evidently_workspace_path)
         else:
             raise MLRunValueError(
@@ -116,43 +112,9 @@ class EvidentlyModelMonitoringApplicationBase(
                 "`EVIDENTLY_API_KEY` environment variable. In other cases, override this method."
             )
 
-    def get_cloud_workspace(self) -> CloudWorkspace:
+    def get_cloud_workspace(self) -> "CloudWorkspace":
         """Load the Evidently cloud workspace according to the `EVIDENTLY_API_KEY` environment variable."""
         return CloudWorkspace()
-
-    @staticmethod
-    def _log_location(evidently_workspace_path):
-        # TODO remove function + usage after solving issue ML-9530
-        location = FSLocation(base_path=evidently_workspace_path)
-        location.invalidate_cache("")
-        paths = [p for p in location.listdir("") if location.isdir(p)]
-
-        for path in paths:
-            metadata_path = posixpath.join(path, METADATA_PATH)
-            full_path = posixpath.join(location.path, metadata_path)
-            print(f"evidently json issue, working on path: {full_path}")
-            try:
-                with location.open(metadata_path) as f:
-                    content = json.load(f)
-                    print(
-                        f"evidently json issue, successful load path: {full_path}, content: {content}"
-                    )
-            except FileNotFoundError:
-                print(f"evidently json issue, path not found: {full_path}")
-                continue
-            except json.decoder.JSONDecodeError as json_error:
-                print(
-                    f"evidently json issue, path got json error, path:{full_path}, error: {json_error}"
-                )
-                print("evidently json issue, file content:")
-                with location.open(metadata_path) as f:
-                    print(f.read())
-                continue
-            except Exception as error:
-                print(
-                    f"evidently json issue, path got general error, path:{full_path}, error: {error}"
-                )
-                continue
 
     @staticmethod
     def log_evidently_object(

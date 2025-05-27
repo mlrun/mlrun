@@ -20,9 +20,7 @@ Before you begin, ensure that the following prerequisites are met:
 
 Applications:
 - Python 3.9
-- Recommended pip 22.x+
-
-The MLRun server is based on a Python 3.9 environment. It's recommended to move the client to a Python 3.9 environment as well. 
+- Recommended pip 22.x+ 
 
 For a Python 3.7 environment for platform versions up to and including v3.5.2, see [Set up a Python 3.7 client environment](../change-log/index.md#set-up-a-python-37-client-environment-iguazio-versions-up-to-and-including-v352).
 
@@ -36,10 +34,11 @@ The MLRun client supports:
 
 1.  **Basic** <br> 
 Run ```pip install mlrun```
-<br>This installs MLRun locally with the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt).
+<br>This installs MLRun locally with the requirements in [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt).
 
-```{admonition} Note
-To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number.
+```{admonition} Notes
+- See more about images in {ref}`images-usage`
+- To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number.
 ```
 
 ## Note for ARM64 (Apple Silicon) Users
@@ -158,8 +157,7 @@ mlrun.set_environment("http://localhost:8080", artifact_path="./")
 mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
 ```
 
-For more explanations read the documentation [mlrun.set_environment](https://docs.mlrun.org/en/latest/api/mlrun.html?highlight=set_env_from_file()#mlrun.set_environment).
-
+For more explanations read the documentation [mlrun.set_environment](https://docs.mlrun.org/en/stable/api/mlrun.html#mlrun.set_environment).
 (using-your-ide-e-g-pycharm-or-vscode)=
 ### Using your IDE (e.g. PyCharm or VSCode)
 

@@ -47,7 +47,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 # Remove system ensurepip from Python
 RUN rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
 
-ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 
 WORKDIR /mlrun
 

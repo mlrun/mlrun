@@ -70,7 +70,7 @@ COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/README.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlrun.env $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlce-start.sh /usr/local/bin/mlce-start.sh
 
-ENV UV_LINK_MODE=copy
+ENV UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 
 # removing unsupported files
 RUN rm -rf $HOME/tutorials/genai-02-model-monitor-llm.ipynb $HOME/tutorials/genai_01_basic_tutorial.ipynb

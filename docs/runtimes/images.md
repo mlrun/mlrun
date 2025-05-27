@@ -7,9 +7,9 @@ This release of MLRun supports only Python 3.9.
 
 **In this section**
 - [Using images](#using-images)
-- [MLRun images](#building-mlrun-images)
+- [MLRun runtime images](#mlrun-runtime-images)
 - [Building MLRun images](#building-mlrun-images)
-- [Building a docker image using a Dockerfile and using it](#building-a-docker-image-using-a-dockerfile-and-using-it)
+- [Building a docker image using a Dockerfile and using it](#building-a-docker-image-using-a-dockerfile-and-then-using-it)
 - [MLRun images and external docker images](#mlrun-images-and-external-docker-images)
 
 ## Using images
@@ -24,16 +24,26 @@ All images are published to
 The images are:
 
 - `mlrun/mlrun`: An MLRun image includes preinstalled OpenMPI and other ML packages. Useful as a base image for simple jobs. 
+- `mlrun/mlrun-kfp`: The same as `mlrun/mlrun` with the addition of KFP 1.8 already installed. Use it for compiling KFP workflows, and for remote workflows. **This image includes KFP.**
 - `mlrun/mlrun-gpu`: The same as `mlrun/mlrun` but for GPUs, including Open MPI. 
 - `mlrun/ml-base`: Image for file acquisition, compression, Dask jobs, simple training jobs and other utilities.
-- `mlrun/jupyter`: An image with Jupyter giving a playground to use MLRun in the open source. Built on top of jupyter/scipy-notebook, with the addition of MLRun and several demos and examples.
+- `mlrun/jupyter`: An image with Jupyter giving a playground to use MLRun in the open source. Built on top of jupyter/scipy-notebook, with the addition of MLRun and several demos and examples. 
+- `mlrun/mlrun-api`: The server's backend image.
+- `mlrun/log-collector`: A service that collects the logs for all runs and stores them in a persistent storage
+- `mlrun/mlrun-ui`: The server's frontend image
 
 ```{admonition} Notes
 - When using the `mlrun` or `mlrun-gpu` image, use PyTorch versions up to and including than 2.0.1, but not higher. You can build your own images with newer CUDA for later releases of PyTorch.
--  If you are using a zipped source, use `mlrun/mlrun` images or install `unzip` in the provided function base image. 
+- If you are using a zipped source, use `mlrun/mlrun` images or install `unzip` in the provided function base image. 
+- When creating an image with MLRun methods using one of the mlrun/mlrun base images, MLRun by default runs `pip install mlrun` to ensure its dependencies are aligned, along with any other specified Python packages.
 ```
+### When to use an image with KFP
 
+MLRun supports KFP SDK 1.8. In general, if your workflow will be compiled locally,  meaning you are not working with a remote source, then you need to use the image `mlrun/mlrun-kfp`. 
 
+If your workflow will be compiled remotely (engine=`remote`), then the workflow-runner pod automatically uses the `mlrun/mlrun-kfp` image, unless you specify otherwise, for example, if you have specific python package requirements.
+
+Unless you are using KFP-specific code inside the MLRun job, you do not need to use the `mlrun-kfp image`. Generally speaking, all MLRun code works without KFP except, of course, for creating and running pipelines.
 
 ## Building MLRun images
 
@@ -49,20 +59,17 @@ Where:
 For example, running `MLRUN_VERSION=x.y.z make docker-images` generates these images:
 - mlrun/mlrun-api:x.y.z
 - mlrun/mlrun:x.y.z
+- mlrun/mlrun-kfp:x.y.z
 - mlrun/mlrun-gpu:x.y.z
 - mlrun/jupyter:x.y.z
 - mlrun/ml-base:x.y.z
 
-You can also build only a specific image, for example, `make mlrun` (builds only the api image).
-
-The possible commands are:
-- `mlrun`
-- `mlrun-gpu`
+You can build specific images. The typical images to build are the common client-side images that you actually use to run your code: `mlrun`, `mlrun-gpu` and `mlrun-kfp`.
 
 To run an image locally and explore its contents: `docker run -it <image-name>:<image-tag> /bin/bash`
 or to load python (or run a script): `docker run -it <image-name>:<image-tag> python`
 
-## Building a docker image using a Dockerfile and using it
+## Building a docker image using a Dockerfile and then using it
 
 This flow describes how to build the image externally, put it your private repo, and use it in MLRun.
 

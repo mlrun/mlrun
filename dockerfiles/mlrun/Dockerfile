@@ -79,7 +79,7 @@ RUN /usr/local/bin/python -m pip install --upgrade setuptools pip~=${MLRUN_PIP_V
 # see https://iguazio.atlassian.net/browse/ML-8712 for example
 # where 'tqdm' is given by conda env but will get remove if we omit the `--no-deps`.
 # TODO: move tqdm to image requirements
-ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/mlrun/locked-requirements.txt,target=locked-requirements.txt \

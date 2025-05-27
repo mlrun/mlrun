@@ -365,7 +365,7 @@ class ModelArtifact(Artifact):
 
     def before_log(self):
         if not self.spec.model_file and not self.spec.model_url:
-            raise ValueError("model_file or model_url attributes must be specified")
+            raise ValueError("ModelArtifact must have either model_file or model_url attributes")
 
         super().before_log()
 
@@ -491,7 +491,6 @@ def get_model(
 
     :param model_dir:       model dir or artifact path (store://..) or DataItem
     :param suffix:          model filename suffix (when using a dir)
-    :param artifact:         artifact used to retrieve a model_path
 
     :returns: model filename, model artifact object, extra data dict
 

@@ -480,9 +480,10 @@ def test_model_runner_with_remote_model():
     ):
         server = function.to_mock_server()
     try:
-        resp = server.test(body={})
+        resp = server.test(body={"prompt": "What is the capital of france?"})
         assert resp["default_config"] == {"model_version": "4"}
         assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
+        assert resp["prompt"] == "What is the capital of france?"
     finally:
         server.wait_for_completion()
 

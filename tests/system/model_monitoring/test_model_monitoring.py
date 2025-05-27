@@ -651,6 +651,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         )
         assert response["default_config"] == default_config
         assert response["url"] == model_url
+        assert response["prompt"] == "What is the capital of france?"
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured

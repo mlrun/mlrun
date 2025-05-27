@@ -365,7 +365,9 @@ class ModelArtifact(Artifact):
 
     def before_log(self):
         if not self.spec.model_file and not self.spec.model_url:
-            raise ValueError("ModelArtifact must have either model_file or model_url attributes")
+            raise ValueError(
+                "ModelArtifact must have either model_file or model_url attributes"
+            )
 
         super().before_log()
 
@@ -472,7 +474,10 @@ class ModelArtifact(Artifact):
 
 
 def get_model(
-    model_dir: Optional[Union[str, ModelArtifact, mlrun.datastore.base.DataItem]] = None, suffix=""
+    model_dir: Optional[
+        Union[str, ModelArtifact, "mlrun.datastore.base.DataItem"]
+    ] = None,
+    suffix="",
 ) -> (str, ModelArtifact, dict):
     """return model file, model spec object, and dictionary of extra data items
 

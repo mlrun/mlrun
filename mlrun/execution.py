@@ -920,18 +920,15 @@ class MLClientCtx:
         Examples::
 
             # Log an inline prompt
-
             context.log_llm_prompt(
                 key="qa-prompt",
                 prompt_string="Q: {question}\nA:",
                 model_artifact=model,  # model is `ModelArtifact`
-                prompt_legend={"question": "user_input"},
+                prompt_legend=``{"question": "user_input"}``,
                 model_configuration={"temperature": 0.7, "max_tokens": 128},
                 tag="latest",
             )
-
             # Log from a file
-
             project.log_llm_prompt(
                 key="summarization-prompt",
                 prompt_path="prompts/summarize.txt",

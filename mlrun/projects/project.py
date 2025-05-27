@@ -1910,19 +1910,16 @@ class MlrunProject(ModelObj):
         Examples::
 
             # Log a simple prompt string
-
             project.log_llm_prompt(
                 key="summarization-prompt",
                 prompt_string="Summarize the following text:\n{text}",
                 model_artifact=model,  # model is `ModelArtifact`
             )
-
             # Log a prompt from file
-
             project.log_llm_prompt(
                 key="qa-prompt",
                 prompt_path="prompts/qa_template.txt",
-                prompt_legend={"question": "user_question"},
+                prompt_legend=``{"question": "user_question"}``,
                 model_artifact=model_1,
                 tag="v2",
             )

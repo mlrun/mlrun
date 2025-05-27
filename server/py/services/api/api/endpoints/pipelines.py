@@ -41,7 +41,6 @@ import framework.utils.background_tasks
 import framework.utils.notifications
 import framework.utils.singletons.k8s
 import services.api.crud
-from framework.db.sqldb.models import BackgroundTaskLabel
 
 router = fastapi.APIRouter(prefix="/projects/{project}/pipelines")
 

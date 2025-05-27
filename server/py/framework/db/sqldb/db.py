@@ -7265,9 +7265,12 @@ class SQLDB(DBInterface):
 
         return background_tasks
 
-    def cleanup_old_background_tasks(self, db_session: Session, max_age_seconds: int) -> None:
+    def cleanup_old_background_tasks(
+        self, db_session: Session, max_age_seconds: int
+    ) -> None:
         db_session.query(BackgroundTask).filter(
-            BackgroundTask.created < mlrun.utils.now_date() - timedelta(seconds=max_age_seconds)
+            BackgroundTask.created
+            < mlrun.utils.now_date() - timedelta(seconds=max_age_seconds)
         ).delete()
 
     def delete_background_task(self, session: Session, name: str, project: str):

@@ -41,6 +41,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         timeout: typing.Optional[int] = None,  # in seconds
         name: typing.Optional[str] = None,
         labels: typing.Optional[dict[str, str]] = None,
+        delete_on_finish: bool = False,
         *args,
         **kwargs,
     ) -> mlrun.common.schemas.BackgroundTask:

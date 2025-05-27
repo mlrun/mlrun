@@ -605,11 +605,13 @@ class Service(framework.service.Service):
                 framework.utils.notifications.notification_pusher.RunNotificationPusher.get_mail_notification_default_params,
                 refresh=True,
             )
+
     def _start_periodic_background_task_cleanup(self):
         interval = int(mlconf.background_task_cleanup_interval)
         if interval > 0:
             self._logger.info(
-                "Starting periodic background task cleanup", interval=interval,
+                "Starting periodic background task cleanup",
+                interval=interval,
             )
             run_function_periodically(
                 interval,

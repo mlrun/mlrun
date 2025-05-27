@@ -37,7 +37,7 @@ xgboost~=1.1
 cryptography~=44.0
 
 # install to verify it doesn't cause a warning (ML-8951)
-evidently~=0.7.5
+evidently~=0.7.6
 
 coverage[toml]~=7.8
 diff-cover~=9.2

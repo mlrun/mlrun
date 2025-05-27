@@ -310,7 +310,6 @@ if [ "$tag_prefix" = "0.0" ]; then
     mlrun_version="1.7.0"
 fi
 
-echo "Looking for demos with MLRun version - ${mlrun_version}."
 if [[ "${mlrun_version}"<"1.7" ]]; then
     git_repo="demos"
 fi
@@ -320,10 +319,22 @@ if [ -z "${latest_tag}" ]; then
      error_exit "Couldn't locate a Git tag with prefix 'v${mlrun_version}.*'."
 fi
 branch=${latest_tag#refs/tags/}
+
+# Remove the 'v' prefix and suffixes like '-rc2'
+version="${branch#v}"               # remove leading 'v'
+version="${version%%-*}"           # remove suffix after '-' (e.g., '0-rc2' → '0')
+IFS='.' read -r major minor _ <<< "$version"
+echo "branch is ${branch}, parsed major : ${major}, parsed minor : ${minor}"
+
+# Convert to integers
+major=$((major))
+minor=$((minor))
+
 echo "Using branch ${branch} to download demos"
 temp_dir=$(mktemp -d /tmp/temp-get-demos.XXXXXXXXXX)
+
 # demos introduced to mlrun in 1.7.0
-if [[ "${branch}">"v1.7" ]]; then
+if (( major > 1 )) || (( major == 1 && minor > 6 )); then
     tar_url="${git_base_url}/releases/download/${branch}/mlrun-demos.tar"
     download_tar_to_temp_dir "$tar_url" "$temp_dir"
     verify_update_demos "${temp_dir}" "${branch}"

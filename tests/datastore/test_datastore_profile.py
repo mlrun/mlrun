@@ -15,6 +15,7 @@
 from collections.abc import Iterator
 from unittest.mock import patch
 
+import pydantic
 import pytest
 
 import mlrun
@@ -44,8 +45,14 @@ def test_kafka_target_datastore():
 
 def test_kafka_target_datastore_no_brokers():
     with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match="DatastoreProfileKafkaTarget requires the 'brokers' field to be set",
+        pydantic.error_wrappers.ValidationError,
+        match="none is not an allowed value",
+    ):
+        DatastoreProfileKafkaTarget(name="my_target", brokers=None, topic="my-topic")
+
+    with pytest.raises(
+        pydantic.error_wrappers.ValidationError,
+        match="field required",
     ):
         DatastoreProfileKafkaTarget(name="my_target", topic="my-topic")
 

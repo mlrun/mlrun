@@ -1052,12 +1052,14 @@ class ModelRunnerStep(TaskStep, StepToDict):
     def __init__(
         self,
         *args,
+        name: str = None,
         model_selector: Optional[Union[str, ModelSelector]] = None,
         raise_exception: bool = True,
         **kwargs,
     ):
         super().__init__(
             *args,
+            name=name,
             class_name="mlrun.serving.ModelRunner",
             class_args=dict(model_selector=model_selector),
             **kwargs,

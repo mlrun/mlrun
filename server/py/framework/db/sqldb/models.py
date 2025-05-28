@@ -428,7 +428,7 @@ with warnings.catch_warnings():
 
         labels: Mapped[list["BackgroundTaskLabel"]] = relationship(
             "BackgroundTaskLabel",
-            back_populates="task",
+            back_populates="parent",
             cascade="all, delete-orphan",
             passive_deletes=True,
         )

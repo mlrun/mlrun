@@ -1006,6 +1006,7 @@ class Model(storey.ParallelExecutionRunnable):
         If the model file is stored in remote cloud storage, download it to the local file system
 
         :param suffix: optional, model file suffix (when the model_path is a directory)
+
         :return:
         str
             (local) model file

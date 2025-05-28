@@ -85,14 +85,12 @@ def test_validate_run_success():
 
 
 @pytest.mark.parametrize(
-    "count, base_delay, default_count, default_base_delay, min_base_delay, expectation",
+    "count, base_delay, default_base_delay, min_base_delay, expectation",
     [
-        (None, None, 0, "30s", "30s", does_not_raise()),
-        (None, None, "0", "30s", "30s", does_not_raise()),
+        (None, None, "30s", "30s", does_not_raise()),
         (
             1,
             "29s",
-            0,
             "30s",
             "30s",
             pytest.raises(
@@ -103,7 +101,6 @@ def test_validate_run_success():
         (
             1,
             "31s",
-            0,
             "30s",
             "5m",
             pytest.raises(
@@ -111,12 +108,11 @@ def test_validate_run_success():
                 match="Retry backoff base_delay must be at least 5m, got 31s",
             ),
         ),
-        (3, None, 0, "30s", "30s", does_not_raise()),
-        (3, "1 min", 0, "30s", "30s", does_not_raise()),
+        (3, None, "30s", "30s", does_not_raise()),
+        (3, "1 min", "30s", "30s", does_not_raise()),
         (
             -1,
             None,
-            0,
             "30s",
             "30s",
             pytest.raises(
@@ -127,9 +123,8 @@ def test_validate_run_success():
     ],
 )
 def test_validate_run_retry(
-    count, base_delay, default_count, default_base_delay, min_base_delay, expectation
+    count, base_delay, default_base_delay, min_base_delay, expectation
 ):
-    mlrun.mlconf.function.spec.retry.default_count = default_count
     mlrun.mlconf.function.spec.retry.backoff.default_base_delay = default_base_delay
     mlrun.mlconf.function.spec.retry.backoff.min_base_delay = min_base_delay
 
@@ -158,12 +153,14 @@ def test_validate_run_retry(
     ):
         runtime.run(retry=retry)
         run = mock_submit.call_args[0][1]
-        assert run.spec.retry.count == (
-            count if count is not None else int(default_count)
-        )
-        assert run.spec.retry.backoff.base_delay == (
-            base_delay if base_delay is not None else default_base_delay
-        )
+        assert run.spec.retry.count == (count if count else None)
+
+        if count:
+            assert run.spec.retry.backoff.base_delay == (
+                base_delay if base_delay is not None else default_base_delay
+            )
+        else:
+            assert run.spec.retry.backoff is None
 
 
 def test_validate_run_retry_runtime_kind():

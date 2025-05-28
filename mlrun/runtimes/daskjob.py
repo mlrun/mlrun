@@ -496,6 +496,7 @@ class DaskCluster(KubejobRuntime):
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
         output_path: Optional[str] = "",
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
         **launcher_kwargs,
     ) -> RunObject:
         if state_thresholds:

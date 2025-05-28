@@ -265,7 +265,6 @@ default_config = {
                 }
             },
             "retry": {
-                "default_count": 0,
                 "backoff": {
                     "default_base_delay": "30s",
                     "min_base_delay": "300s",

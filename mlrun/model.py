@@ -947,11 +947,15 @@ class Retry(ModelObj):
         count: int = 0,
         backoff: typing.Union[RetryBackoff, dict] = None,
     ):
-        self.count = count or int(mlrun.mlconf.function.spec.retry.default_count)
-        self.backoff = backoff or {}
+        # Set to None if count is 0 to eliminate the retry configuration from the dictionary representation.
+        self.count = count or None
+        self.backoff = backoff
 
     @property
-    def backoff(self) -> RetryBackoff:
+    def backoff(self) -> Optional[RetryBackoff]:
+        if not self.count:
+            # Retry is not configured, return None
+            return None
         return self._backoff
 
     @backoff.setter

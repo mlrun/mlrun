@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
@@ -98,3 +98,42 @@ def test_update_functions_with_api_gateway_url(db: sqlalchemy.orm.Session):
     )
     # check that URL was deleted
     assert len(updated_function["status"]["external_invocation_urls"]) == 0
+
+
+def test_store_and_get_function_missing_project(db: sqlalchemy.orm.Session):
+    project = "some-project"
+    function_name = "test-function"
+    function_tag = "latest"
+    function = {
+        "metadata": {"name": function_name, "tag": function_tag},
+    }
+
+    # store with missing project should raise error
+    with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+        services.api.crud.Functions().store_function(
+            db, project=None, function=function, name=function_name, tag=function_tag
+        )
+
+    # store with valid project
+    services.api.crud.Functions().store_function(
+        db, project=project, function=function, name=function_name, tag=function_tag
+    )
+
+    # get with missing project should raise error
+    with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+        services.api.crud.Functions().get_function(
+            db, name=function_name, project=None, tag=function_tag
+        )
+
+    # list with missing project should raise error
+    with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+        services.api.crud.Functions().list_functions(
+            db, name=function_name, project=None, tag=function_tag
+        )
+
+    # get with valid project
+    function = services.api.crud.Functions().get_function(
+        db, name=function_name, project=project, tag=function_tag
+    )
+    assert function["metadata"]["name"] == function_name
+    assert function["metadata"]["tag"] == function_tag

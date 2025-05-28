@@ -46,14 +46,15 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
     )
 
     def custom_setup(self):
-        # ensure default project exists
-        mlrun.get_or_create_project("default", allow_cross_project=True)
+        self.project_name = "test-project"
+        mlrun.get_or_create_project(self.project_name, allow_cross_project=True)
 
     def test_main_run_basic(self):
         out = self._exec_run(
             f"{examples_path}/training.py",
             self._compose_param_list(dict(p1=5, p2='"aaa"')),
             "test_main_run_basic",
+            project=self.project_name,
         )
         print(out)
         assert out.find("state: completed") != -1, out
@@ -71,6 +72,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             self._compose_param_list(dict(time_to_sleep=time_to_sleep))
             + ["--handler", "handler"],
             "test_main_run_wait_for_completion",
+            project=self.project_name,
         )
         end_time = datetime.datetime.now()
         print(out)
@@ -84,6 +86,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             f"{examples_path}/training.py",
             self._compose_param_list(dict(p2=[4, 5, 6]), "-x"),
             "test_main_run_hyper",
+            project=self.project_name,
         )
         print(out)
         assert out.find("state: completed") != -1, out
@@ -94,6 +97,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             f"{tests_root_directory}/no_ctx.py -x " + "{p2}",
             ["--uid", "123457"] + self._compose_param_list(dict(p1=5, p2="aaa")),
             "test_main_run_args",
+            project=self.project_name,
         )
         print(out)
         assert out.find("state: completed") != -1, out
@@ -141,6 +145,8 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             "value1",
             "--arg2",
             "value2",
+            "--project",
+            self.project_name,
         ]
         self._exec_main(
             "run",
@@ -171,6 +177,8 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             "my_file.py",
             "--arg3",
             "value3",
+            "--project",
+            self.project_name,
         ]
         self._exec_main(
             "run",
@@ -196,6 +204,8 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             "123456789",
             "--from-env",
             "*",
+            "--project",
+            self.project_name,
         ]
         self._exec_main(
             "run",
@@ -264,6 +274,8 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             args = [
                 "--out-path",
                 tmpdir,
+                "--project",
+                self.project_name,
             ] + args
             out = self._exec_main(
                 op,
@@ -286,6 +298,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             "'main.py -x {x}'",
             ["--from-env"],
             "test_main_run_args_from_env",
+            project=self.project_name,
         )
         db = mlrun.get_run_db()
         run_object = db.read_run("123459")
@@ -311,6 +324,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             "bash {codefile} xx",
             ["--from-env", "--mode", "pass", "--kfp"],
             "test_main_run_nonpy_from_env",
+            project=self.project_name,
         )
         db = mlrun.get_run_db()
         run_object = db.read_run("123411")
@@ -324,6 +338,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             "python -c print(56)",
             ["--mode", "pass", "--uid", "123458"],
             "test_main_run_pass",
+            project=self.project_name,
         )
         print(out)
         assert out.find("state: completed") != -1, out
@@ -336,6 +351,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             "'python -c print({x})'",
             ["--mode", "pass", "--uid", "123451", "-p", "x=33"],
             "test_main_run_pass",
+            project=self.project_name,
         )
         print(out)
         assert out.find("state: completed") != -1, out
@@ -346,7 +362,12 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_main_run_archive(self):
         args = f"--source {examples_path}/archive.zip --handler handler -p p1=1"
-        out = self._exec_run("./myfunc.py", args.split(), "test_main_run_archive")
+        out = self._exec_run(
+            "./myfunc.py",
+            args.split(),
+            "test_main_run_archive",
+            project=self.project_name,
+        )
         assert out.find("state: completed") != -1, out
 
     def test_main_local_source(self):
@@ -362,7 +383,10 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         runtime = '{"spec":{"pythonpath":"./subdir"}}'
         args = f"--source {examples_path}/archive.zip -r {runtime}"
         out = self._exec_run(
-            "./subdir/func2.py", args.split(), "test_main_run_archive_subdir"
+            "./subdir/func2.py",
+            args.split(),
+            "test_main_run_archive_subdir",
+            project=self.project_name,
         )
         print(out)
         assert out.find("state: completed") != -1, out
@@ -382,7 +406,12 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         yaml_path = f"{out_path}/myfunc.yaml"
         fn.export(yaml_path)
         args = f"-f {yaml_path} --local"
-        out = self._exec_run("", args.split(), "test_main_local_flag")
+        out = self._exec_run(
+            "",
+            args.split(),
+            "test_main_local_flag",
+            project=self.project_name,
+        )
         print(out)
         assert out.find("state: completed") != -1, out
 
@@ -393,6 +422,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             function_path,
             self._compose_param_list(dict(x=8)) + ["--handler", "MyCls::mtd"],
             "test_main_run_class",
+            project=self.project_name,
         )
         assert out.find("state: completed") != -1, out
         assert out.find("rx: 8") != -1, out
@@ -406,6 +436,8 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             "json.dumps",
             "-p",
             "obj=[6,7]",
+            "--project",
+            self.project_name,
         ]
         out = self._exec_main("run", args)
         assert out.find("state: completed") != -1, out
@@ -425,6 +457,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
             function_path,
             ["--handler", "env_file_test", "--env-file", envfile],
             "test_main_env_file",
+            project=self.project_name,
         )
         assert out.find("state: completed") != -1, out
         assert out.find("ENV_ARG1: '123'") != -1, out
@@ -481,8 +514,10 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         return out.stdout.decode("utf-8")
 
-    def _exec_run(self, cmd, args, test, raise_on_error=True):
+    def _exec_run(self, cmd, args, test, raise_on_error=True, project=None):
         args = args + ["--name", test, "--dump", cmd]
+        if project:
+            args += ["--project", project]
         return self._exec_main("run", args, raise_on_error=raise_on_error)
 
     @staticmethod

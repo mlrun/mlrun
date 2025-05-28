@@ -205,6 +205,7 @@ class NopDB(RunDBInterface):
         kind: Optional[str] = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: Optional[str] = None,
+        parent: Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         limit: Optional[int] = None,
         partition_by: Optional[
@@ -627,7 +628,7 @@ class NopDB(RunDBInterface):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,

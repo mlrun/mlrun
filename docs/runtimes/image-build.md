@@ -229,6 +229,10 @@ with the correct versions of both products.
 To prepare this image, MLRun provides the following facilities:
 
 ```python
+import mlrun
+
+mlrun.get_or_create_project("my-spark-project")
+
 # For remote Spark
 from mlrun.runtimes import RemoteSparkRuntime
 

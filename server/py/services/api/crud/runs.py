@@ -52,8 +52,6 @@ class Runs(
         iter: int = 0,
         project: typing.Optional[str] = None,
     ):
-        project = project or mlrun.mlconf.default_project
-
         # Some runtimes do not use the submit job flow, so their notifications are not masked.
         # Redact notification params if not concealed with a secret
         framework.utils.notifications.mask_notification_params_on_task(
@@ -89,7 +87,6 @@ class Runs(
         iter: int,
         data: dict,
     ):
-        project = project or mlrun.mlconf.default_project
         run_state = data.get("status.state") if data else None
         logger.debug(
             "Updating run", project=project, uid=uid, iter=iter, run_state=run_state
@@ -111,7 +108,7 @@ class Runs(
         data.pop("status.artifacts", None)
 
         framework.utils.singletons.db.get_db().update_run(
-            db_session, data, uid, project, iter
+            db_session, updates=data, uid=uid, project=project, iter=iter
         )
 
     def get_run(
@@ -122,14 +119,12 @@ class Runs(
         project: typing.Optional[str] = None,
         format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
     ) -> dict:
-        project = project or mlrun.mlconf.default_project
-
         # TODO: 1.8 - add notifications for full format as well.
         run = framework.utils.singletons.db.get_db().read_run(
             db_session,
-            uid,
-            project,
-            iter,
+            uid=uid,
+            project=project,
+            iter=iter,
             with_notifications=format_
             == mlrun.common.formatters.RunFormat.notifications,
         )
@@ -174,7 +169,6 @@ class Runs(
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
     ) -> mlrun.lists.RunList:
-        project = project or mlrun.mlconf.default_project
         if (
             not name
             and not uid
@@ -252,10 +246,9 @@ class Runs(
         iter: int,
         project: typing.Optional[str] = None,
     ):
-        project = project or mlrun.mlconf.default_project
         try:
             run = framework.utils.singletons.db.get_db().read_run(
-                db_session, uid, project, iter
+                db_session, uid=uid, project=project, iter=iter
             )
         except mlrun.errors.MLRunNotFoundError:
             logger.debug(
@@ -301,7 +294,6 @@ class Runs(
         days_ago: int = 0,
         runs_list: mlrun.lists.RunList = None,
     ):
-        project = project or mlrun.mlconf.default_project
         if (
             state
             and state
@@ -396,7 +388,6 @@ class Runs(
         run: typing.Optional[dict] = None,
         new_background_task_id: typing.Optional[str] = None,
     ):
-        project = project or mlrun.mlconf.default_project
         run_updates = run_updates or {}
         run_updates["status.state"] = mlrun.common.runtimes.constants.RunStates.aborted
         logger.debug(
@@ -409,7 +400,7 @@ class Runs(
 
         if not run:
             run = framework.utils.singletons.db.get_db().read_run(
-                db_session, uid, project, iter
+                db_session, uid=uid, project=project, iter=iter
             )
 
         current_run_state = run.get("status", {}).get("state")
@@ -453,7 +444,7 @@ class Runs(
             "status.abort_task_id": new_background_task_id,
         }
         framework.utils.singletons.db.get_db().update_run(
-            db_session, aborting_updates, uid, project, iter
+            db_session, updates=aborting_updates, uid=uid, project=project, iter=iter
         )
 
         run_updates["status.state"] = mlrun.common.runtimes.constants.RunStates.aborted
@@ -481,12 +472,12 @@ class Runs(
                 "status.error": f"Failed to abort run, error: {err}",
             }
             framework.utils.singletons.db.get_db().update_run(
-                db_session, run_updates, uid, project, iter
+                db_session, updates=run_updates, uid=uid, project=project, iter=iter
             )
             raise exc
 
         framework.utils.singletons.db.get_db().update_run(
-            db_session, run_updates, uid, project, iter
+            db_session, updates=run_updates, uid=uid, project=project, iter=iter
         )
 
     def _enrich_run_artifacts(
@@ -630,7 +621,7 @@ class Runs(
             == mlrun.common.runtimes.constants.RunStates.aborted
         ):
             current_run = framework.utils.singletons.db.get_db().read_run(
-                db_session, uid, project, iter
+                db_session, uid=uid, project=project, iter=iter
             )
             if (
                 current_run.get("status", {}).get("state")

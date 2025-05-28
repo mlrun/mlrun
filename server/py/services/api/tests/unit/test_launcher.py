@@ -54,6 +54,7 @@ def test_create_server_side_launcher(is_remote, local, expectation):
 def test_enrich_runtime_with_auth_info(
     monkeypatch, k8s_secrets_mock, client: TestClient
 ):
+    project = "some-project"
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
     monkeypatch.setattr(
         framework.utils.clients.iguazio,
@@ -64,9 +65,7 @@ def test_enrich_runtime_with_auth_info(
         access_key="access_key",
         username="username",
     )
-    services.api.tests.unit.api.utils.create_project(
-        client, mlrun.mlconf.default_project
-    )
+    services.api.tests.unit.api.utils.create_project(client, project)
 
     launcher_kwargs = {"auth_info": auth_info}
     launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
@@ -78,12 +77,13 @@ def test_enrich_runtime_with_auth_info(
     function = mlrun.new_function(
         name="launcher-test",
         kind="job",
+        project=project,
     )
     function.metadata.credentials.access_key = (
         mlrun.model.Credentials.generate_access_key
     )
 
-    launcher.enrich_runtime(function)
+    launcher.enrich_runtime(function, project)
     assert (
         function.get_env("MLRUN_AUTH_SESSION").secret_key_ref.name
         == "secret-ref-username-access_key"
@@ -145,12 +145,11 @@ def test_validate_state_thresholds_failure(state_thresholds, expected_error):
 def test_new_function_args_with_default_image_pull_secret(
     db: sqlalchemy.orm.Session, client: TestClient
 ):
+    project = "some-project"
     assets_path = pathlib.Path(__file__).parent / "assets"
     func_path = assets_path / "sample_function.py"
     handler = "hello_word"
-    services.api.tests.unit.api.utils.create_project(
-        client, mlrun.mlconf.default_project
-    )
+    services.api.tests.unit.api.utils.create_project(client, project)
 
     mlrun.mlconf.function.spec.image_pull_secret = Config(
         {"default": "adam-docker-registry-auth"}
@@ -164,6 +163,7 @@ def test_new_function_args_with_default_image_pull_secret(
         filename=str(func_path),
         handler=handler,
         image="mlrun/mlrun",
+        project=project,
     )
     uid = "123"
     run = {
@@ -173,7 +173,7 @@ def test_new_function_args_with_default_image_pull_secret(
         },
     }
     rundb = mlrun.get_run_db()
-    rundb.store_run(run, uid)
+    rundb.store_run(run, uid, project)
     run = launcher._create_run_object(run)
 
     run = launcher._enrich_run(
@@ -184,7 +184,7 @@ def test_new_function_args_with_default_image_pull_secret(
         run.spec.image_pull_secret
         == mlrun.mlconf.function.spec.image_pull_secret.default
     )
-    launcher.enrich_runtime(runtime, full=True)
+    launcher.enrich_runtime(runtime, project, full=True)
     assert (
         runtime.spec.image_pull_secret
         == mlrun.mlconf.function.spec.image_pull_secret.default

@@ -541,7 +541,7 @@ class TestModelEndpoint(TestDatabaseBase):
             if i == 0:
                 self._db.update_function(
                     self._db_session,
-                    "function-1",
+                    name="function-1",
                     updates={"status": {"state": "error"}},
                     project="project-1",
                     tag="latest",

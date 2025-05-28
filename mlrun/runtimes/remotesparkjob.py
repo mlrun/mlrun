@@ -103,6 +103,12 @@ class RemoteSparkRuntime(KubejobRuntime):
 
     @classmethod
     def deploy_default_image(cls):
+        if not mlrun.get_current_project(silent=True):
+            raise mlrun.errors.MLRunMissingProjectError(
+                "An active project is required to run deploy_default_image(). "
+                "This can be set by calling get_or_create_project(), load_project(), or new_project()."
+            )
+
         sj = mlrun.new_function(
             kind="remote-spark", name="remote-spark-default-image-deploy-temp"
         )

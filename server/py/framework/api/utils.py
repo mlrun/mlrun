@@ -183,7 +183,7 @@ def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
         else:
             project, name, tag, hash_key = parse_versioned_object_uri(function_url)
             function_record = get_db().get_function(
-                db_session, name, project, tag, hash_key
+                db_session, name=name, project=project, tag=tag, hash_key=hash_key
             )
             if not function_record:
                 log_and_raise(
@@ -846,7 +846,7 @@ def parse_reference(reference: str):
 # Extract project and artifact name from the artifact
 def artifact_project_and_resource_name_extractor(artifact):
     return (
-        artifact.get("metadata").get("project", mlrun.mlconf.default_project),
+        artifact.get("metadata").get("project"),
         artifact.get("spec")["db_key"],
     )
 

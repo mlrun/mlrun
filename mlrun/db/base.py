@@ -182,6 +182,7 @@ class RunDBInterface(ABC):
         kind: Optional[str] = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: Optional[str] = None,
+        parent: Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         limit: Optional[int] = None,
         partition_by: Optional[
@@ -438,10 +439,10 @@ class RunDBInterface(ABC):
     ) -> dict:
         pass
 
-    # TODO: remove in 1.9.0
+    # TODO: remove in 1.10.0
     @deprecated(
-        version="1.9.0",
-        reason="'list_features' will be removed in 1.9.0, use 'list_features_v2' instead",
+        version="1.7.0",
+        reason="'list_features' will be removed in 1.10.0, use 'list_features_v2' instead",
         category=FutureWarning,
     )
     @abstractmethod
@@ -466,10 +467,10 @@ class RunDBInterface(ABC):
     ) -> mlrun.common.schemas.FeaturesOutputV2:
         pass
 
-    # TODO: remove in 1.9.0
+    # TODO: remove in 1.10.0
     @deprecated(
-        version="1.9.0",
-        reason="'list_entities' will be removed in 1.9.0, use 'list_entities_v2' instead",
+        version="1.7.0",
+        reason="'list_entities' will be removed in 1.10.0, use 'list_entities_v2' instead",
         category=FutureWarning,
     )
     @abstractmethod
@@ -731,7 +732,7 @@ class RunDBInterface(ABC):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
-        tsdb_metrics: bool = True,
+        tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,

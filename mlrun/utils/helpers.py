@@ -60,6 +60,7 @@ import mlrun_pipelines.common.constants
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
+from mlrun.common.schemas import ArtifactCategories
 from mlrun.config import config
 from mlrun_pipelines.models import PipelineRun
 
@@ -96,6 +97,7 @@ class StorePrefix:
     Model = "models"
     Dataset = "datasets"
     Document = "documents"
+    LLMPrompt = "llm-prompts"
 
     @classmethod
     def is_artifact(cls, prefix):
@@ -107,6 +109,7 @@ class StorePrefix:
             "model": cls.Model,
             "dataset": cls.Dataset,
             "document": cls.Document,
+            "llm-prompt": cls.LLMPrompt,
         }
         return kind_map.get(kind, cls.Artifact)
 
@@ -119,6 +122,7 @@ class StorePrefix:
             cls.FeatureSet,
             cls.FeatureVector,
             cls.Document,
+            cls.LLMPrompt,
         ]
 
 
@@ -131,7 +135,16 @@ def get_artifact_target(item: dict, project=None):
     kind = item.get("kind")
     uid = item["metadata"].get("uid")
 
-    if kind in {"dataset", "model", "artifact"} and db_key:
+    if (
+        kind
+        in {
+            ArtifactCategories.dataset,
+            ArtifactCategories.model,
+            ArtifactCategories.llm_prompt,
+            "artifact",
+        }
+        and db_key
+    ):
         target = (
             f"{DB_SCHEMA}://{StorePrefix.kind_to_prefix(kind)}/{project_str}/{db_key}"
         )
@@ -876,13 +889,18 @@ def enrich_image_url(
     client_version: Optional[str] = None,
     client_python_version: Optional[str] = None,
 ) -> str:
+    image_url = image_url.strip()
+
+    # Add python version tag if needed
+    if image_url == "python" and client_python_version:
+        image_url = f"python:{client_python_version}"
+
     client_version = _convert_python_package_version_to_image_tag(client_version)
     server_version = _convert_python_package_version_to_image_tag(
         mlrun.utils.version.Version().get()["version"]
     )
-    image_url = image_url.strip()
     mlrun_version = config.images_tag or client_version or server_version
-    tag = mlrun_version
+    tag = mlrun_version or ""
 
     # TODO: Remove condition when mlrun/mlrun-kfp image is also supported
     if "mlrun-kfp" not in image_url:
@@ -2226,8 +2244,9 @@ class Workflow:
             namespace=mlrun.mlconf.namespace,
         )
 
-        # arbitrary timeout of 5 seconds, the workflow should be done by now
-        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 5)
+        # arbitrary timeout of 60 seconds, the workflow should be done by now, however sometimes kfp takes a few
+        # seconds to update the workflow status
+        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 60)
         if not kfp_run:
             return None
 

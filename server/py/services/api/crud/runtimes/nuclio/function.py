@@ -278,7 +278,7 @@ def _compile_function_config(
     # resolve env vars before compiling the nuclio spec, as we need to set them in the spec
     env_dict, external_source_env_dict = _resolve_env_vars(function)
 
-    project = function.metadata.project or mlrun.mlconf.default_project
+    project = function.metadata.project
     tag = function.metadata.tag
 
     serving_spec_volume = None
@@ -393,24 +393,10 @@ def _configure_serving_spec(
     client_version, env_dict, function, project, serving_spec, serving_spec_volume, tag
 ):
     if serving_spec is not None:
-        # To keep backward compatability, allow passing service spec
-        # via Config Map only for client version higher then 1.7.0
-        # TODO: remove in 1.9.0.
-        can_pass_via_cm = (
-            not client_version
-            or (
-                semver.Version.parse(client_version)
-                >= semver.Version.parse("1.7.0-rc30")
-            )
-            or "unstable" in client_version
-        )
         # since environment variables have a limited size,
         # large serving specs are stored in config maps that are mounted to the pod
         serving_spec_len = len(serving_spec.encode("utf-8"))
-        if (
-            can_pass_via_cm
-            and serving_spec_len >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff
-        ):
+        if serving_spec_len >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff:
             if serving_spec_len >= SERVING_SPEC_MAX_LENGTH:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}. "
@@ -430,7 +416,7 @@ def _configure_serving_spec(
                     "utf-8"
                 )
             else:
-                # TODO: remove in 1.10.0.
+                # TODO: remove in 1.11.0.
                 if (
                     serving_spec_len >= SERVING_SPEC_MAX_LENGTH / 10
                 ):  # 1MB limitation as it were before the zip
@@ -471,12 +457,6 @@ def _configure_serving_spec(
                 "volumeMount": volume_mount,
             }
         else:
-            if not can_pass_via_cm:
-                logger.debug(
-                    "Client version does not support passing serving spec via ConfigMap",
-                    client_version=client_version,
-                    serving_spec_length=len(serving_spec),
-                )
             env_dict["SERVING_SPEC_ENV"] = serving_spec
     return serving_spec_volume
 

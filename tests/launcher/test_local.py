@@ -55,6 +55,7 @@ def test_launch_remote_job_locally():
 
 
 def test_create_local_function_for_execution():
+    project_name = "test-project"
     launcher = mlrun.launcher.local.ClientLocalLauncher(local=False)
     runtime = mlrun.code_to_function(
         name="test", kind="job", filename=str(func_path), handler=handler
@@ -63,8 +64,9 @@ def test_create_local_function_for_execution():
     runtime = launcher._create_local_function_for_execution(
         runtime=runtime,
         run=run,
+        project=project_name,
     )
-    assert runtime.metadata.project == "default"
+    assert runtime.metadata.project == project_name
     assert runtime.metadata.name == "test"
     assert run.spec.handler == handler
     assert runtime.kind == "local"

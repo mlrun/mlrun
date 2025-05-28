@@ -90,6 +90,13 @@ class MLRunInternalLabels:
             if not key.startswith("__") and isinstance(value, str)
         ]
 
+    @staticmethod
+    def default_run_labels_to_enrich():
+        return [
+            MLRunInternalLabels.owner,
+            MLRunInternalLabels.v3io_user,
+        ]
+
 
 class DeployStatusTextKind(mlrun.common.types.StrEnum):
     logs = "logs"

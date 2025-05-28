@@ -1128,7 +1128,7 @@ class ModelEndpoints:
             )
             tsdb_connector = None
         except mlrun.errors.MLRunInvalidMMStoreTypeError:
-            # TODO: delete in 1.9.0 - for BC trying to delete from v3io store
+            # TODO: delete in 1.10.0 - for BC trying to delete from v3io store
             if not mlrun.mlconf.is_ce_mode():
                 tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
                     project=project_name,

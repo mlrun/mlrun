@@ -427,12 +427,16 @@ async def _terminate_pipeline(
     run_id: str,
     project: str,
 ) -> mlrun.common.schemas.BackgroundTask:
-    background_task_handler = framework.utils.background_tasks.ProjectBackgroundTasksHandler()
-    existing_terminate_pipeline_task = background_task_handler.get_background_task_by_labels(
-        db_session,
-        {
-            "pipeline": run_id,
-        },
+    background_task_handler = (
+        framework.utils.background_tasks.ProjectBackgroundTasksHandler()
+    )
+    existing_terminate_pipeline_task = (
+        background_task_handler.get_background_task_by_labels(
+            db_session,
+            {
+                "pipeline": run_id,
+            },
+        )
     )
     if existing_terminate_pipeline_task is not None:
         return existing_terminate_pipeline_task

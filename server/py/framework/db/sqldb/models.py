@@ -33,7 +33,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, relationship
 
 import mlrun.common.schemas
 import mlrun.utils.db
@@ -446,21 +446,21 @@ with warnings.catch_warnings():
             ),
         )
 
-        id: Mapped[int] = mapped_column(
+        id: Mapped[int] = Column(
             Integer,
             primary_key=True,
             doc="Label identifier",
         )
-        name: Mapped[str] = mapped_column(
+        name: Mapped[str] = Column(
             String(255, collation=SQLTypesUtil.collation()),
             nullable=False,
             doc="Label name",
         )
-        value: Mapped[str] = mapped_column(
+        value: Mapped[str] = Column(
             String(255, collation=SQLTypesUtil.collation()),
             doc="Label value",
         )
-        parent: Mapped[int] = mapped_column(
+        parent: Mapped[int] = Column(
             Integer,
             nullable=False,
             doc="Associated background task ID",

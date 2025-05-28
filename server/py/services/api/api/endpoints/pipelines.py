@@ -31,6 +31,7 @@ import mlrun.errors
 import mlrun.utils
 import mlrun.utils.notifications
 import mlrun_pipelines.models
+from mlrun.common.schemas.background_task import BackGroundTaskLabel
 
 import framework.api
 import framework.api.deps
@@ -188,14 +189,20 @@ async def terminate_pipeline(
         )
     )
 
-    run_id = await fastapi.concurrency.run_in_threadpool(
-        services.api.crud.Pipelines().terminate_pipeline,
-        db_session,
-        run_id,
-        project,
-        namespace,
+    task = await _terminate_pipeline(
+        db_session=db_session,
+        background_tasks=background_tasks,
+        run_id=run_id,
+        project=project,
     )
-    return run_id
+
+    return fastapi.Response(
+        status_code=202,
+        content=task.metadata.id,
+        headers={
+            "content-type": "application/json",
+        },
+    )
 
 
 @router.post(
@@ -431,13 +438,15 @@ async def _terminate_pipeline(
         framework.utils.background_tasks.ProjectBackgroundTasksHandler()
     )
     existing_terminate_pipeline_task = (
-        background_task_handler.get_background_task_by_labels(
-            db_session,
-            {
-                "pipeline": run_id,
+        background_task_handler.get_background_task_by_status_and_labels(
+            db_session=db_session,
+            status=mlrun.common.schemas.BackgroundTaskState.running,
+            labels={
+                BackGroundTaskLabel.pipeline: run_id,
             },
         )
     )
+
     if existing_terminate_pipeline_task is not None:
         return existing_terminate_pipeline_task
     else:
@@ -455,7 +464,7 @@ async def _terminate_pipeline(
                 time.time(),
             ),
             labels={
-                "pipeline": run_id,
+                BackGroundTaskLabel.pipeline: run_id,
             },
         )
         return terminate_pipeline_task

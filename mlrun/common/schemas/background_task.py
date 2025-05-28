@@ -22,6 +22,10 @@ import mlrun.common.types
 from .object import ObjectKind
 
 
+class BackGroundTaskLabel(mlrun.common.types.StrEnum):
+    pipeline = "pipeline"
+
+
 class BackgroundTaskState(mlrun.common.types.StrEnum):
     succeeded = "succeeded"
     failed = "failed"

@@ -26,6 +26,7 @@ import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.lists
 import mlrun.model
+from mlrun.common.schemas import BackgroundTaskState
 
 import framework.db.sqldb.models
 
@@ -899,14 +900,16 @@ class DBInterface(ABC):
     ) -> mlrun.common.schemas.BackgroundTask:
         pass
 
-    def get_background_task_by_labels(
+    def get_background_task_by_status_and_labels(
         self,
         session,
+        status: BackgroundTaskState,
         labels: dict[str, str],
     ) -> mlrun.common.schemas.BackgroundTask:
         """
-        Get a background task by its labels.
+        Get a background task by its status and labels.
         :param session: The database session.
+        :param status: The status of the background task to filter by.
         :param labels: A dictionary of labels to filter the background task.
         :return: The background task matching the labels.
         """

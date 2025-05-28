@@ -25,6 +25,7 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
+from mlrun.common.schemas import BackgroundTaskState
 from mlrun.utils import logger
 
 import framework.utils.background_tasks.common
@@ -99,14 +100,16 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             framework.utils.background_tasks.common.background_task_exceeded_timeout,
         )
 
-    def get_background_task_by_labels(
+    def get_background_task_by_status_and_labels(
         self,
         db_session: sqlalchemy.orm.Session,
+        status: BackgroundTaskState,
         labels: dict[str, str],
     ) -> mlrun.common.schemas.BackgroundTask:
-        return framework.utils.singletons.db.get_db().get_background_task_by_labels(
-            db_session,
-            labels,
+        return framework.utils.singletons.db.get_db().get_background_task_by_status_and_labels(
+            session=db_session,
+            status=status,
+            labels=labels,
         )
 
     def list_background_tasks(

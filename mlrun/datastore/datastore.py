@@ -54,7 +54,7 @@ def parse_url(url):
     return schema, endpoint, parsed_url
 
 
-def schema_to_store(schema):
+def schema_to_store(schema) -> DataStore.__subclasses__():
     # import store classes inside to enable making their dependencies optional (package extras)
 
     if not schema or schema in get_local_file_schema():

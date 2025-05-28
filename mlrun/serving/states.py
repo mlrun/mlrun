@@ -1005,26 +1005,20 @@ class Model(storey.ParallelExecutionRunnable):
         """get local model file(s) and extra data items by using artifact
         If the model file is stored in remote cloud storage, download it to the local file system
 
+        :param suffix: optional, model file suffix (when the model_path is a directory)
+        :return:
+        str
+            (local) model file
+        dict
+            extra dataitems dictionary
+
         Examples
         --------
-        ::
-
             def load(self):
                 model_file, extra_data = self.get_local_model_path(suffix=".pkl")
                 self.model = load(open(model_file, "rb"))
                 categories = extra_data["categories"].as_df()
 
-        Parameters
-        ----------
-        suffix : str
-            optional, model file suffix (when the model_path is a directory)
-
-        Returns
-        -------
-        str
-            (local) model file
-        dict
-            extra dataitems dictionary
         """
         artifact = self._get_artifact_object()
         if artifact:

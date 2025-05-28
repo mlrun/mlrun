@@ -37,9 +37,9 @@ def upgrade() -> None:
         sa.Column(
             "value", sa.String(length=255, collation="utf8mb3_bin"), nullable=True
         ),
-        sa.Column("parent", sa.Integer(), nullable=False),
+        sa.Column("task_id", sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(
-            ["parent"], ["background_tasks.id"], ondelete="CASCADE"
+            ["task_id"], ["background_tasks.id"], ondelete="CASCADE"
         ),
         sa.PrimaryKeyConstraint("id"),
     )

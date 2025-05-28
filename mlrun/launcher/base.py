@@ -208,11 +208,18 @@ class BaseLauncher(abc.ABC):
 
         backoff = retry.backoff
         if backoff is not None and backoff.base_delay is not None:
-            min_base_delay = mlrun.mlconf.runs.spec.retry.minimum.base_delay
-            if backoff.base_delay < min_base_delay:
+            min_base_delay = mlrun.mlconf.function.spec.retry.backoff.min_base_delay
+            min_base_delay_seconds = mlrun.utils.time_string_to_seconds(
+                min_base_delay, 0
+            )
+            try:
+                mlrun.utils.time_string_to_seconds(
+                    backoff.base_delay, min_base_delay_seconds
+                )
+            except ValueError as exc:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Retry backoff base_delay must be at least {min_base_delay}, got {backoff.base_delay}"
-                )
+                ) from exc
 
     @staticmethod
     def _create_run_object(task):

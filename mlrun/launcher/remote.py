@@ -83,7 +83,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
             workdir=workdir,
             notifications=notifications,
             state_thresholds=state_thresholds,
-            retry=retry
+            retry=retry,
         )
         self._validate_run(runtime, run)
 

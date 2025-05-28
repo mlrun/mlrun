@@ -264,6 +264,13 @@ default_config = {
                     "executing": "24h",
                 }
             },
+            "retry": {
+                "default_count": 0,
+                "backoff": {
+                    "default_base_delay": "30s",
+                    "min_base_delay": "300s",
+                },
+            },
             # When the module is reloaded, the maximum depth recursion configuration for the recursive reload
             # function is used to prevent infinite loop
             "reload_max_recursion_depth": 100,

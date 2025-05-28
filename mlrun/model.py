@@ -923,11 +923,16 @@ class HyperParamOptions(ModelObj):
                 "max_iterations is only valid in random strategy"
             )
 
+
 class RetryBackoff(ModelObj):
     """Backoff strategy for retries."""
 
-    def __init__(self, base_delay: int = 30):
-        self.base_delay = base_delay
+    def __init__(self, base_delay: Optional[str] = None):
+        # The base_delay time string must conform to timelength python package standards and be at least
+        # mlrun.mlconf.function.spec.retry.backoff.min_base_delay (e.g. 1000s, 1 hour 30m, 1h etc.).
+        self.base_delay = (
+            base_delay or mlrun.mlconf.function.spec.retry.backoff.default_base_delay
+        )
 
     def get_delay(self, attempt: int) -> int:
         # Currently supports only linear backoff
@@ -936,13 +941,14 @@ class RetryBackoff(ModelObj):
 
 class Retry(ModelObj):
     """Retry configuration"""
+
     def __init__(
         self,
-        count: int,
-        backoff: typing.Union[RetryBackoff, dict],
+        count: int = 0,
+        backoff: typing.Union[RetryBackoff, dict] = None,
     ):
-        self.count = count or 0
-        self.backoff = backoff
+        self.count = count or mlrun.mlconf.function.spec.retry.default_count
+        self.backoff = backoff or {}
 
     @property
     def backoff(self) -> RetryBackoff:
@@ -950,9 +956,7 @@ class Retry(ModelObj):
 
     @backoff.setter
     def backoff(self, backoff):
-        self._backoff = self._verify_dict(
-            backoff, "backoff", RetryBackoff
-        )
+        self._backoff = self._verify_dict(backoff, "backoff", RetryBackoff)
 
 
 class RunSpec(ModelObj):
@@ -1240,11 +1244,7 @@ class RunSpec(ModelObj):
 
     @retry.setter
     def retry(self, retry: typing.Union[Retry, dict]):
-        self._retry = self._verify_dict(
-            retry, "retry", Retry
-        )
-
-
+        self._retry = self._verify_dict(retry, "retry", Retry)
 
     def extract_type_hints_from_inputs(self):
         """

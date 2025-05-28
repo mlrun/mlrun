@@ -30,6 +30,7 @@ import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.runtimes.utils
 import mlrun.utils
+import mlrun.utils.helpers
 import mlrun.utils.regex
 from mlrun.model import RunSpec, RunTemplate
 
@@ -454,7 +455,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 )
 
             try:
-                framework.utils.helpers.time_string_to_seconds(threshold)
+                mlrun.utils.helpers.time_string_to_seconds(threshold)
             except Exception as exc:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Threshold '{threshold}' for state '{state}' is not a valid timelength string. "

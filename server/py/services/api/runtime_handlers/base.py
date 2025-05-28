@@ -1503,7 +1503,7 @@ class BaseRuntimeHandler(ABC):
             run.get("spec", {}).get("state_thresholds", {}).get(threshold_state, None)
         )
         return (
-            framework.utils.helpers.time_string_to_seconds(threshold),
+            mlrun.utils.helpers.time_string_to_seconds(threshold),
             threshold_state,
         )
 

@@ -84,6 +84,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
     ) -> mlrun.run.RunObject:
         self.enrich_runtime(runtime, project)
 
@@ -107,7 +108,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             notifications=notifications,
             state_thresholds=state_thresholds,
         )
-        self._validate_runtime(runtime, run)
+        self._validate_run(runtime, run)
 
         if runtime.verbose:
             mlrun.utils.logger.info(f"Run:\n{run.to_yaml()}")
@@ -198,6 +199,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         workdir=None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
     ):
         run = super()._enrich_run(
             runtime=runtime,
@@ -216,6 +218,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             workdir=workdir,
             notifications=notifications,
             state_thresholds=state_thresholds,
+            retry=retry,
         )
 
         run = self._pre_run_image_pull_secret_enrichment(run)
@@ -396,7 +399,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             )
             run.spec.function = runtime._function_uri(hash_key=hash_key)
 
-    def _validate_runtime(
+    def _validate_run(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
         run: "mlrun.run.RunObject",
@@ -419,7 +422,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 f"This runtime kind ({runtime.kind}) must have a valid image"
             )
 
-        super()._validate_runtime(runtime, run)
+        super()._validate_run(runtime, run)
 
     @staticmethod
     def _validate_state_thresholds(

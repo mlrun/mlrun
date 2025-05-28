@@ -923,6 +923,37 @@ class HyperParamOptions(ModelObj):
                 "max_iterations is only valid in random strategy"
             )
 
+class RetryBackoff(ModelObj):
+    """Backoff strategy for retries."""
+
+    def __init__(self, base_delay: int = 30):
+        self.base_delay = base_delay
+
+    def get_delay(self, attempt: int) -> int:
+        # Currently supports only linear backoff
+        return self.base_delay * attempt
+
+
+class Retry(ModelObj):
+    """Retry configuration"""
+    def __init__(
+        self,
+        count: int,
+        backoff: typing.Union[RetryBackoff, dict],
+    ):
+        self.count = count or 0
+        self.backoff = backoff
+
+    @property
+    def backoff(self) -> RetryBackoff:
+        return self._backoff
+
+    @backoff.setter
+    def backoff(self, backoff):
+        self._backoff = self._verify_dict(
+            backoff, "backoff", RetryBackoff
+        )
+
 
 class RunSpec(ModelObj):
     """Run specification"""
@@ -960,6 +991,7 @@ class RunSpec(ModelObj):
         node_selector=None,
         tolerations=None,
         affinity=None,
+        retry: Retry = None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -1000,6 +1032,7 @@ class RunSpec(ModelObj):
         self.node_selector = node_selector or {}
         self.tolerations = tolerations or {}
         self.affinity = affinity or {}
+        self.retry = retry
 
     def _serialize_field(
         self, struct: dict, field_name: Optional[str] = None, strip: bool = False
@@ -1200,6 +1233,18 @@ class RunSpec(ModelObj):
         """
         self._verify_dict(state_thresholds, "state_thresholds")
         self._state_thresholds = state_thresholds
+
+    @property
+    def retry(self) -> Retry:
+        return self._retry
+
+    @retry.setter
+    def retry(self, retry: typing.Union[Retry, dict]):
+        self._retry = self._verify_dict(
+            retry, "retry", Retry
+        )
+
+
 
     def extract_type_hints_from_inputs(self):
         """

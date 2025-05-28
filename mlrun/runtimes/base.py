@@ -346,6 +346,7 @@ class BaseRuntime(ModelObj):
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
         output_path: Optional[str] = "",
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
         **launcher_kwargs,
     ) -> RunObject:
         """
@@ -404,6 +405,7 @@ class BaseRuntime(ModelObj):
                              This ensures latest code changes are executed. This argument must be used in
                              conjunction with the local=True argument.
         :param output_path:    Default artifact output path.
+        :param retry:          Retry configuration for the run, can be a dict or an instance of mlrun.model.Retry.
         :return: Run context object (RunObject) with run metadata, results and status
         """
         if artifact_path or out_path:
@@ -441,6 +443,7 @@ class BaseRuntime(ModelObj):
             returns=returns,
             state_thresholds=state_thresholds,
             reset_on_run=reset_on_run,
+            retry=retry,
         )
 
     def _get_db_run(

@@ -72,6 +72,7 @@ class BaseLauncher(abc.ABC):
         notifications: Optional[list[mlrun.model.Notification]] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
     ) -> "mlrun.run.RunObject":
         """run the function from the server/client[local/remote]"""
         pass
@@ -132,7 +133,7 @@ class BaseLauncher(abc.ABC):
         """Check if the runtime requires to build the image and updates the spec accordingly"""
         pass
 
-    def _validate_runtime(
+    def _validate_run(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
         run: "mlrun.run.RunObject",
@@ -146,6 +147,7 @@ class BaseLauncher(abc.ABC):
 
         self._validate_run_params(run.spec.parameters)
         self._validate_output_path(runtime, run)
+        self._validate_retry(run.spec.retry)
 
     @staticmethod
     def _validate_output_path(
@@ -186,13 +188,31 @@ class BaseLauncher(abc.ABC):
                 param_name=param_name, param_value=param_value
             )
 
-    @classmethod
-    def _validate_run_single_param(cls, param_name, param_value):
+    @staticmethod
+    def _validate_run_single_param(param_name: str, param_value: int):
         # verify that integer parameters don't exceed a int64
         if isinstance(param_value, int) and abs(param_value) >= 2**63:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Parameter {param_name} value {param_value} exceeds int64"
             )
+
+    @staticmethod
+    def _validate_retry(retry: Optional["mlrun.model.Retry"]):
+        if retry is None:
+            return
+
+        if retry.count is not None and retry.count < 0:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Retry count must be at least 0, got {retry.count}"
+            )
+
+        backoff = retry.backoff
+        if backoff is not None and backoff.base_delay is not None:
+            min_base_delay = mlrun.mlconf.runs.spec.retry.minimum.base_delay
+            if backoff.base_delay < min_base_delay:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Retry backoff base_delay must be at least {min_base_delay}, got {backoff.base_delay}"
+                )
 
     @staticmethod
     def _create_run_object(task):
@@ -239,6 +259,7 @@ class BaseLauncher(abc.ABC):
         workdir=None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
     ):
         run.spec.handler = (
             handler or run.spec.handler or runtime.spec.default_handler or ""
@@ -357,6 +378,7 @@ class BaseLauncher(abc.ABC):
             | state_thresholds
         )
         run.spec.state_thresholds = state_thresholds or run.spec.state_thresholds
+        run.spec.retry = retry
         return run
 
     @staticmethod

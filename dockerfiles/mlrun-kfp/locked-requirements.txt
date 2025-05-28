@@ -1996,9 +1996,9 @@ mlrun-pipelines-kfp-common==0.5.5 \
     --hash=sha256:57439162b2c94c245b987196bb33e2bb232692ea36632212e0ba87a2b95ea5e7 \
     --hash=sha256:fbd07c3c16857c854a2755bde2210de720f77dc6153bf8b1dc5b53d433e2c6fe
     # via -r requirements.txt
-mlrun-pipelines-kfp-v1-8==0.5.2 \
-    --hash=sha256:710da9cac69a128fc197a73573efcabd366e74f15952b4fdf89e8b62bd878ab9 \
-    --hash=sha256:78aaaf1f972cc60ab841b0df59641824c8a7e27e3d27cdf591e72c6b4eb3861e
+mlrun-pipelines-kfp-v1-8==0.5.4 \
+    --hash=sha256:3db2fef8da37e5253e9c099f4e3060ce57301256427b56246e9b93d4db505685 \
+    --hash=sha256:a17a9f365418e3f802854458d14939f9d05f959edb7ef0eadea2743aa216170d
     # via
     #   -r dockerfiles/mlrun-kfp/requirements.txt
     #   -r requirements.txt

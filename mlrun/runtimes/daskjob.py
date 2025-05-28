@@ -286,7 +286,7 @@ class DaskCluster(KubejobRuntime):
                         return
                 time.sleep(5)
                 now = datetime.datetime.utcnow()
-            raise mlrun.errors.MLRunRuntimeError(
+            raise mlrun.errors.MLRunTimeoutError(
                 "Timeout waiting for Dask cluster to start"
             )
 

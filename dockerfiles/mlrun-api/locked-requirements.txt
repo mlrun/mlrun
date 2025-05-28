@@ -3292,7 +3292,7 @@ threadpoolctl==3.6.0 \
     # via scikit-learn
 timelength==1.1.7 \
     --hash=sha256:2a6b6e0960f97e75997b8e298dfbb501ff326d78a4179c62eebedc078cde6fc6
-    # via -r dockerfiles/mlrun-api/requirements.txt
+    # via -r requirements.txt
 tinycss2==1.4.0 \
     --hash=sha256:10c0972f6fc0fbee87c3edb76549357415e94548c1ae10ebccdea16fb404a9b7 \
     --hash=sha256:3a49cf47b7675da0b15d0c6e1df8df4ebd96e9394bb905a5775adb0d884c5289

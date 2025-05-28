@@ -4117,6 +4117,9 @@ tifffile==2025.5.26 ; python_full_version >= '3.11' \
     --hash=sha256:512ad634b142a8aa7e3004f81acb81cd5b0f2ccd16979cb1ef2f01a7fd971bfc \
     --hash=sha256:c316c9191c935d3a1fd7617e7af1d4367dfe2d8bd74d98d147bc21c074cc3ea9
     # via scikit-image
+timelength==1.1.7 \
+    --hash=sha256:2a6b6e0960f97e75997b8e298dfbb501ff326d78a4179c62eebedc078cde6fc6
+    # via -r requirements.txt
 tinycss2==1.4.0 \
     --hash=sha256:10c0972f6fc0fbee87c3edb76549357415e94548c1ae10ebccdea16fb404a9b7 \
     --hash=sha256:3a49cf47b7675da0b15d0c6e1df8df4ebd96e9394bb905a5775adb0d884c5289

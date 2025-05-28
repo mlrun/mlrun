@@ -30,6 +30,7 @@ from copy import deepcopy
 from os import environ, makedirs, path
 from typing import Callable, Optional, Union, cast
 
+import deprecated
 import dotenv
 import git
 import git.exc

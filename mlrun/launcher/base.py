@@ -198,7 +198,7 @@ class BaseLauncher(abc.ABC):
 
     @staticmethod
     def _validate_retry(runtime_kind: str, retry: Optional["mlrun.model.Retry"]):
-        if retry is None:
+        if retry is None or not retry.count:
             return
 
         if retry.count is not None and retry.count < 0:

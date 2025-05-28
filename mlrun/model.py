@@ -947,7 +947,7 @@ class Retry(ModelObj):
         count: int = 0,
         backoff: typing.Union[RetryBackoff, dict] = None,
     ):
-        self.count = count or mlrun.mlconf.function.spec.retry.default_count
+        self.count = count or int(mlrun.mlconf.function.spec.retry.default_count)
         self.backoff = backoff or {}
 
     @property

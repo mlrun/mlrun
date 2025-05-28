@@ -191,8 +191,8 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
 
         return self._wrap_run_result(runtime, resp, run, schedule=schedule)
 
-    @staticmethod
-    def _validate_run_single_param(param_name: str, param_value: int):
+    @classmethod
+    def _validate_run_single_param(cls, param_name: str, param_value: int):
         if isinstance(param_value, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"Parameter '{param_name}' has an unsupported value of type"

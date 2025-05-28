@@ -48,9 +48,8 @@ class RedisStore(DataStore):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Provide Redis username and password only via secrets"
             )
-        credentials_prefix = self._get_secret_or_env("CREDENTIALS_PREFIX")
-        user = self._get_secret_or_env("REDIS_USER", "", credentials_prefix)
-        password = self._get_secret_or_env("REDIS_PASSWORD", "", credentials_prefix)
+        user = self._get_secret_or_env("REDIS_USER", "")
+        password = self._get_secret_or_env("REDIS_PASSWORD", "")
         host = parsed_endpoint.hostname
         port = parsed_endpoint.port if parsed_endpoint.port else redis_default_port
         schema = parsed_endpoint.scheme

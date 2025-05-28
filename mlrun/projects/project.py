@@ -82,6 +82,7 @@ from ..artifacts import (
     DatasetArtifact,
     DocumentArtifact,
     DocumentLoaderSpec,
+    LLMPromptArtifact,
     ModelArtifact,
 )
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
@@ -1799,6 +1800,8 @@ class MlrunProject(ModelObj):
         training_set=None,
         label_column=None,
         extra_data=None,
+        model_url: Optional[str] = None,
+        default_config=None,
         **kwargs,
     ) -> ModelArtifact:
         """Log a model artifact and optionally upload it to datastore
@@ -1841,7 +1844,9 @@ class MlrunProject(ModelObj):
         :param label_column:    which columns in the training set are the label (target) columns
         :param extra_data:      key/value list of extra files/charts to link with this dataset
                                 value can be absolute path | relative path (to model dir) | bytes | artifact object
-
+        :param model_url:       Remote model url.
+        :param default_config:  Default configuration for client building
+                                Saved as a sub-dictionary under the parameter.
         :returns: model artifact object
         """
 
@@ -1864,6 +1869,8 @@ class MlrunProject(ModelObj):
             feature_vector=feature_vector,
             feature_weights=feature_weights,
             extra_data=extra_data,
+            model_url=model_url,
+            default_config=default_config,
             **kwargs,
         )
         if training_set is not None:
@@ -1873,6 +1880,87 @@ class MlrunProject(ModelObj):
             ModelArtifact,
             self.log_artifact(
                 model,
+                artifact_path=artifact_path,
+                tag=tag,
+                upload=upload,
+                labels=labels,
+            ),
+        )
+        return item
+
+    def log_llm_prompt(
+        self,
+        key,
+        prompt_string: Optional[str] = None,
+        prompt_path: Optional[str] = None,
+        prompt_legend: Optional[dict] = None,
+        model_artifact: Union[ModelArtifact, str] = None,
+        model_configuration: Optional[dict] = None,
+        description: Optional[str] = None,
+        target_path: Optional[str] = None,
+        artifact_path: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[list[str], str]] = None,
+        upload: Optional[bool] = None,
+        **kwargs,
+    ) -> LLMPromptArtifact:
+        """
+        Log an LLM prompt artifact to the project.
+
+        This method creates and logs an `LLMPromptArtifact` which captures a prompt definition for large language model
+        (LLM) interactions. The prompt can be provided as a string or a file, and may include metadata like generation
+        parameters, a legend for variable injection, and references to a parent model artifact.
+
+        If the prompt content exceeds a certain length, it may be stored in a temporary file and logged accordingly.
+
+        Examples::
+
+            # Log a prompt from file
+            project.log_llm_prompt(
+                key="qa-prompt",
+                prompt_path="prompts/qa_template.txt",
+                prompt_legend={"question": "user_question"},
+                model_artifact=model,
+                tag="v2",
+            )
+
+        :param key: Unique key for the prompt artifact.
+        :param prompt_string: Raw prompt text. Mutually exclusive with `prompt_path`.
+        :param prompt_path: Path to a file containing the prompt. Mutually exclusive with `prompt_string`.
+        :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., ``{user_name}``)
+               and the value is a description or explanation of what that placeholder represents.
+               Useful for documenting and clarifying dynamic parts of the prompt.
+        :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
+        :param model_configuration: Configuration dictionary for model generation parameters
+               (e.g., temperature, max tokens).
+        :param description: Optional description of the prompt.
+        :param target_path: Optional local target path for saving prompt content.
+        :param artifact_path: Storage path for the logged artifact.
+        :param tag: Version tag for the artifact (e.g., "v1", "latest").
+        :param labels: Labels to tag the artifact for filtering and organization.
+        :param upload: Whether to upload the artifact to a remote datastore. Defaults to True.
+        :param kwargs: Additional attributes to pass into the `LLMPromptArtifact`.
+
+        :returns: The logged `LLMPromptArtifact` object.
+        """
+
+        llm_prompt = LLMPromptArtifact(
+            key=key,
+            project=self.name,
+            prompt_string=prompt_string,
+            prompt_path=prompt_path,
+            prompt_legend=prompt_legend,
+            model_artifact=model_artifact,
+            model_configuration=model_configuration,
+            target_path=target_path,
+            description=description,
+            **kwargs,
+        )
+
+        item = cast(
+            LLMPromptArtifact,
+            self.log_artifact(
+                llm_prompt,
                 artifact_path=artifact_path,
                 tag=tag,
                 upload=upload,
@@ -4474,8 +4562,8 @@ class MlrunProject(ModelObj):
 
     def list_models(
         self,
-        name=None,
-        tag=None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since=None,
         until=None,
@@ -4486,7 +4574,7 @@ class MlrunProject(ModelObj):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
-    ):
+    ) -> list[ModelArtifact]:
         """List models in project, filtered by various parameters.
 
         Examples::
@@ -4589,6 +4677,155 @@ class MlrunProject(ModelObj):
             *args,
             project=self.metadata.name,
             kind=mlrun.artifacts.model.ModelArtifact.kind,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
+            **kwargs,
+        )
+
+    def list_llm_prompts(
+        self,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        iter: Optional[int] = None,
+        best_iteration: bool = False,
+        tree: Optional[str] = None,
+        model: Optional[Union[str, Artifact]] = None,
+        format_: Optional[
+            mlrun.common.formatters.ArtifactFormat
+        ] = mlrun.common.formatters.ArtifactFormat.full,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[
+            Union[mlrun.common.schemas.SortField, str]
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
+    ) -> list[mlrun.artifacts.llm_prompt.LLMPromptArtifact]:
+        """List LLM prompt artifacts in the project with support for filtering.
+
+        This method returns a list of LLM prompt artifacts, filtered by parameters such as name, tag, labels,
+        model association, iteration, and more. It can be used to retrieve the latest, best, or specific versions
+        of prompts tied to a model or general project context.
+
+        Examples::
+
+            # Get all latest tagged prompts
+            prompts = project.list_llm_prompts(tag="latest")
+
+            # Get prompts associated with a specific model
+            prompts = project.list_llm_prompts(model=ModelArtifact("m1"))
+
+            # Get prompts filtered by label
+            prompts = project.list_llm_prompts(labels={"use_case": "chatbot"})
+
+            # Get prompts using a name wildcard
+            prompts = project.list_llm_prompts(name="~chat")
+
+        :param name: Name of the prompt artifact. Prefix with '~' for wildcard search (case-insensitive).
+        :param tag: Filter artifacts by this tag (e.g., 'latest', 'prod').
+        :param labels: Filter llm-prompt artifacts by label key-value pairs or key existence. This can be provided as:
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
+        :param since: Return artifacts updated after this date (as datetime object).
+        :param until: Return artifacts updated before this date (as datetime object).
+        :param iter: Retrieve a specific iteration. Use `0` for root; `None` for all.
+        :param best_iteration: Returns the llm-prompt artifact which belongs to the best iteration of a given run,
+            in the case of artifacts generated from a hyper-param run. If only a single iteration exists, will return
+            the artifact from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
+        :param tree: Filter by artifact tree ID (e.g., for lineage filtering).
+        :param model: Return prompts associated with this model (can be `Artifact` URI or `Artifact` object).
+        :param format_: The format in which to return the artifacts. Default is 'full'.
+        :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
+            parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently the only allowed values are `created` and `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
+
+        :returns: A list of filtered `LLMPromptArtifact` objects matching the given parameters.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.list_artifacts(
+            name=name,
+            project=self.metadata.name,
+            tag=tag,
+            labels=labels,
+            since=since,
+            until=until,
+            iter=iter,
+            best_iteration=best_iteration,
+            kind=mlrun.artifacts.llm_prompt.LLMPromptArtifact.kind,
+            tree=tree,
+            parent=model.uri if isinstance(model, Artifact) else model,
+            format_=format_,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
+        ).to_objects()
+
+    def paginated_list_llm_prompts(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ) -> tuple[mlrun.lists.ArtifactList, Optional[str]]:
+        """Retrieve a paginated list of LLM prompt artifacts for the current project.
+
+        This method returns a list of LLM prompt artifacts, supporting both token-based and page-number-based
+        pagination. You can filter and navigate through the results using the optional `page`, `page_size`, and
+        `page_token` parameters.
+
+        Examples::
+
+            # Fetch the first page with up to 5 prompt artifacts
+            prompts, token = project.paginated_list_llm_prompts(page_size=5)
+
+            # Fetch the next page using the page token
+            prompts, token = project.paginated_list_llm_prompts(page_token=token)
+
+            # Fetch a specific page (e.g., page 3)
+            prompts, token = project.paginated_list_llm_prompts(page=3, page_size=5)
+
+            # Retrieve all prompt artifacts across pages
+            all_prompts = []
+            token = None
+            while True:
+                page_prompts, token = project.paginated_list_llm_prompts(
+                    page_token=token, page_size=5
+                )
+                all_prompts.extend(page_prompts)
+                if not token:
+                    break
+            print(f"Total retrieved prompts: {len(all_prompts)}")
+
+        :param page: Page number to retrieve (alternative to page_token).
+        :param page_size: Number of items per page. Defaults to `mlrun.mlconf.httpdb.pagination.default_page_size`.
+        :param page_token: Token for retrieving the next page of results (used for continuous iteration).
+
+        :returns: A tuple of (ArtifactList of LLM prompts, next page_token or None if no more pages).
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.paginated_list_artifacts(
+            *args,
+            project=self.metadata.name,
+            kind=mlrun.artifacts.llm_prompt.LLMPromptArtifact.kind,
             page=page,
             page_size=page_size,
             page_token=page_token,

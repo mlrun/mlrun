@@ -197,8 +197,8 @@ async def terminate_pipeline(
     )
 
     return fastapi.Response(
-        status_code=202,
-        content=task.metadata.id,
+        status_code=20,
+        content=task,
         headers={
             "content-type": "application/json",
         },

@@ -24,7 +24,6 @@ from sqlalchemy import (
     JSON,
     Column,
     ForeignKey,
-    ForeignKeyConstraint,
     Index,
     Integer,
     PrimaryKeyConstraint,
@@ -33,7 +32,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Mapped, relationship
+from sqlalchemy.orm import relationship
 
 import mlrun.common.schemas
 import mlrun.utils.db
@@ -426,9 +425,9 @@ with warnings.catch_warnings():
         error = Column(String(255, collation=SQLTypesUtil.collation()))
         timeout = Column(Integer)
 
-        labels: Mapped[list["BackgroundTaskLabel"]] = relationship(
+        labels = relationship(
             "BackgroundTaskLabel",
-            back_populates="parent",
+            back_populates="task",
             cascade="all, delete-orphan",
             passive_deletes=True,
         )
@@ -438,32 +437,19 @@ with warnings.catch_warnings():
 
     class BackgroundTaskLabel(Base):
         __tablename__ = "background_task_labels"
-        __table_args__ = (
-            ForeignKeyConstraint(
-                ["parent"],
-                ["background_tasks.id"],
-                ondelete="CASCADE",
-            ),
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        value = Column(String(255, collation=SQLTypesUtil.collation()))
+        task_id = Column(
+            Integer,
+            ForeignKey("background_tasks.id", ondelete="CASCADE"),
+            nullable=False,
         )
 
-        id: Mapped[int] = Column(
-            Integer,
-            primary_key=True,
-            doc="Label identifier",
-        )
-        name: Mapped[str] = Column(
-            String(255, collation=SQLTypesUtil.collation()),
-            nullable=False,
-            doc="Label name",
-        )
-        value: Mapped[str] = Column(
-            String(255, collation=SQLTypesUtil.collation()),
-            doc="Label value",
-        )
-        parent: Mapped[int] = Column(
-            Integer,
-            nullable=False,
-            doc="Associated background task ID",
+        task = relationship(
+            "BackgroundTask",
+            back_populates="labels",
         )
 
     class Schedule(Base, mlrun.utils.db.BaseModel):

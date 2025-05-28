@@ -390,7 +390,8 @@ class BaseStep(ModelObj):
             raise GraphError(
                 f"step {self.name} parent is not set or it's not part of a graph"
             )
-
+        if not name and isinstance(class_name, BaseStep):
+            name = class_name.name
         name, step = params_to_step(
             class_name,
             name,

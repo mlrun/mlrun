@@ -92,7 +92,9 @@ class MonitoringPreProcessor(storey.MapClass):
                 )
         return self.output_schema.get(model)
 
-    def reconstruct_request_resp_field(self, event, model: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    def reconstruct_request_resp_fields(
+        self, event, model: str
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         output_schema = self.get_model_output_schema(model)
         logger.info("output schema retrieved", output_schema=output_schema)
         result_path = self.result_path.get(model) or ""
@@ -101,24 +103,23 @@ class MonitoringPreProcessor(storey.MapClass):
         result = (
             result.get(result_path, result) if (isinstance(result, dict)) else result
         )
-
         if isinstance(result, dict):
-            outputs = []
-            list_apply = False
-            for loc, key in enumerate(output_schema):
-                if key in result:
-                    if isinstance(result[key], list):
-                        if not list_apply:
-                            list_apply = True
-                            # cols - len(output_schema), rows - len(result[key])
-                            outputs = [
-                                [None] * len(output_schema)
-                                for _ in range(len(result[key]))
-                            ]
-                        for event_index in range(len(result[key])):
-                            outputs[event_index][loc] = result[key][event_index]
-                    else:
-                        outputs.append(result[key])
+            if not output_schema:
+                logger.warn(
+                    "Output schema was not provided using Project:log_model or by ModelRunnerStep:add_model order "
+                    "may not preserved"
+                )
+            values = (
+                [result[o] for o in output_schema if o in result]
+                if output_schema
+                else list(result.values())
+            )
+            # transpose by feature the outputs:
+            outputs = (
+                list(map(list, zip(*values)))
+                if all(isinstance(v, list) for v in values) and len(values) > 1
+                else values[0]
+            )
         else:
             outputs = result
 
@@ -129,21 +130,13 @@ class MonitoringPreProcessor(storey.MapClass):
             else event_inputs
         )
         if isinstance(event_inputs, dict):
-            inputs = []
-            list_apply = False
-            for loc, key in enumerate(event_inputs):
-                if isinstance(event_inputs[key], list):
-                    if not list_apply:
-                        list_apply = True
-                        # cols - len(event_inputs), rows - len(event_inputs[key])
-                        inputs = [
-                            [None] * len(event_inputs)
-                            for _ in range(len(event_inputs[key]))
-                        ]
-                    for event_index in range(len(event_inputs[key])):
-                        inputs[event_index][loc] = event_inputs[key][event_index]
-                else:
-                    inputs.append(result[key])
+            values = list(event_inputs.values())
+            # transpose by feature the inputs:
+            inputs = (
+                list(map(list, zip(*values)))
+                if all(isinstance(v, list) for v in values) and len(values) > 1
+                else values
+            )
         else:
             inputs = event_inputs
 
@@ -153,7 +146,16 @@ class MonitoringPreProcessor(storey.MapClass):
                     "The number of outputs returned by the model does not match the number of outputs "
                     "specified in the model endpoint.",
                     model_endpoint=model,
-                    output_len=len([outputs][0]),
+                    output_len=len(outputs[0]),
+                    schema_len=len(output_schema),
+                )
+        elif outputs:
+            if len(output_schema) != len(outputs):
+                logger.info(
+                    "The number of outputs returned by the model does not match the number of outputs "
+                    "specified in the model endpoint.",
+                    model_endpoint=model,
+                    output_len=len(outputs),
                     schema_len=len(output_schema),
                 )
         request = {"inputs": inputs, "id": getattr(event, "id", None)}
@@ -179,7 +181,7 @@ class MonitoringPreProcessor(storey.MapClass):
         if len(model_runner_endpoints) > 1:
             for model in event.body.keys():
                 if model in model_runner_endpoints:
-                    request, resp = self.reconstruct_request_resp_field(event, model)
+                    request, resp = self.reconstruct_request_resp_fields(event, model)
                     monitoring_event_list.append(
                         {
                             mm_schemas.StreamProcessingEvent.MODEL: model,
@@ -217,7 +219,7 @@ class MonitoringPreProcessor(storey.MapClass):
                     )
         elif model_runner_endpoints:
             model = list(model_runner_endpoints.keys())[0]
-            request, resp = self.reconstruct_request_resp_field(event, model)
+            request, resp = self.reconstruct_request_resp_fields(event, model)
             monitoring_event_list.append(
                 {
                     mm_schemas.StreamProcessingEvent.MODEL: model,
@@ -373,7 +375,7 @@ class SamplingStep(storey.MapClass):
                 ]
         event[mm_schemas.EventFieldType.SAMPLING_PERCENTAGE] = self.sampling_percentage
         event[mm_schemas.EventFieldType.EFFECTIVE_SAMPLE_COUNT] = len(
-            event.get(mm_schemas.StreamProcessingEvent.REQUEST,{}).get("inputs", [])
+            event.get(mm_schemas.StreamProcessingEvent.REQUEST, {}).get("inputs", [])
         )
         logger.info("sampling step ended", event=event)
         return event

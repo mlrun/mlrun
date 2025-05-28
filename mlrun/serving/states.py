@@ -661,7 +661,7 @@ class TaskStep(BaseStep):
             # todo invoke remote via REST call
             return event
 
-        if self.context.verbose:
+        if self.context and self.context.verbose:
             self.context.logger.info(f"step {self.name} got event {event.body}")
 
         # inject context parameter if it is expected by the handler
@@ -1001,21 +1001,19 @@ class ModelRunner(storey.ParallelExecution):
       event. Optional. If not passed, all models will be run.
     """
 
-    def __init__(self, *args, model_selector: Optional[ModelSelector] = None, **kwargs):
+    def __init__(
+        self, *args, context, model_selector: Optional[ModelSelector] = None, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.model_selector = model_selector or ModelSelector()
+        self.context = context
 
     def select_runnables(self, event):
+        if hasattr(event, "headers") and hasattr(event, "body"):
+            event.headers["model_runner_name"] = self.name
+            event.headers["inputs"] = deepcopy(event.body)
         models = cast(list[Model], self.runnables)
         return self.model_selector.select(event, models)
-
-    async def _do(self, event):
-        input_body = event
-        event = await super()._do(event)
-        if event is not None:
-            event.metadata["model_runner_name"] = self.name
-            event.metadata["inputs"] = input_body
-        return event
 
 
 class ModelRunnerStep(TaskStep, StepToDict):
@@ -1163,6 +1161,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
             model_selector=model_selector,
             runnables=model_objects,
             name=self.name,
+            context=context,
         )
 
 

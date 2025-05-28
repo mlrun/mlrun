@@ -154,6 +154,7 @@ class StreamProcessingEvent:
     LABELS = "labels"
     FUNCTION_URI = "function_uri"
     REQUEST = "request"
+    RESPONSE = "resp"
     METRICS = "metrics"
 
 

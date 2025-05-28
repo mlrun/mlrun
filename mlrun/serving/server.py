@@ -369,6 +369,7 @@ def add_error_raiser_step(graph: RootFlowStep) -> RootFlowStep:
 
 
 def apply_monitoring_general_steps(
+    project: str,
     graph: RootFlowStep,
     context,
     serving_spec,
@@ -376,7 +377,6 @@ def apply_monitoring_general_steps(
     monitor_flow_step = graph.add_step(
         "mlrun.serving.system_steps.BackgroundTaskStatus",
         "background_task_status_step",
-        full_event=True,
         context=context,
     )
     graph.add_step(
@@ -389,18 +389,26 @@ def apply_monitoring_general_steps(
         "mlrun.serving.system_steps.MonitoringPreProcessor",
         "monitoring_pre_processor_step",
         after="filter_none",
+        full_event=True,
         context=context,
+    )
+    # flatten the events
+    graph.add_step(
+        "storey.FlatMap",
+        "flatten_events",
+        _fn="(event)",
+        after="monitoring_pre_processor_step",
     )
     graph.add_step(
         "mlrun.serving.system_steps.SamplingStep",
         "sampling_step",
-        after="monitoring_pre_processor_step",
+        after="flatten_events",
         context=context,
-        sampling_percentage=serving_spec.parameters.get(
-            "sampling_percentage"
+        sampling_percentage=serving_spec.get("parameters", {}).get(
+            "sampling_percentage", 100
         )
-        if isinstance(serving_spec.parameters, dict)
-        else serving_spec.get("parameters", {}).get("sampling_percentage", 100),
+        if isinstance(serving_spec, dict)
+        else getattr(serving_spec, "parameters", {}).get("sampling_percentage", 100),
     )
     graph.add_step(
         "storey.Filter",
@@ -409,9 +417,13 @@ def apply_monitoring_general_steps(
         after="sampling_step",
     )
 
-    profile_name = mlrun.get_secret_or_env(
-        key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME)
-    stream_uri = f"ds://{profile_name}" if not context.is_mock else DUMMY_STREAM
+    stream_uri = mlrun.model_monitoring.get_stream_path(
+        project=project,
+        function_name=mlrun.common.schemas.MonitoringFunctionNames.STREAM,
+    )
+    context.logger.info_with(
+        "Creating Model Monitoring stream target using uri:", uri=stream_uri
+    )
     graph.add_step(
         ">>",
         "model_monitoring_stream",
@@ -422,8 +434,12 @@ def apply_monitoring_general_steps(
     return graph, monitor_flow_step
 
 
-def add_monitoring_pre_process_steps(graph: RootFlowStep, context, serving_spec) -> RootFlowStep:
-    graph, monitor_flow_step = apply_monitoring_general_steps(graph, context, serving_spec)
+def add_monitoring_pre_process_steps(
+    project: str, graph: RootFlowStep, context, serving_spec
+) -> RootFlowStep:
+    graph, monitor_flow_step = apply_monitoring_general_steps(
+        project, graph, context, serving_spec
+    )
     model_runner_steps_names = {
         step.name: step
         for step in graph.steps.values()
@@ -442,11 +458,11 @@ def add_monitoring_pre_process_steps(graph: RootFlowStep, context, serving_spec)
 
 
 def add_system_steps_to_graph(
-    graph: RootFlowStep, track_models: bool, context, serving_spec
+    project: str, graph: RootFlowStep, track_models: bool, context, serving_spec
 ) -> RootFlowStep:
     graph = add_error_raiser_step(graph)
-    if track_models:
-        graph = add_monitoring_pre_process_steps(graph, context, serving_spec)
+    if track_models and not getattr(context, "is_mock", False):
+        graph = add_monitoring_pre_process_steps(project, graph, context, serving_spec)
     return graph
 
 
@@ -458,7 +474,11 @@ def v2_serving_init(context, namespace=None):
     server = GraphServer.from_dict(spec)
     if isinstance(server.graph, RootFlowStep):
         server.graph = add_system_steps_to_graph(
-            copy.deepcopy(server.graph), spec.get("track_models"), context, spec
+            server.project,
+            copy.deepcopy(server.graph),
+            spec.get("track_models"),
+            context,
+            spec,
         )
         context.logger.info_with(
             "Server graph after adding system steps",

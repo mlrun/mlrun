@@ -13,19 +13,20 @@
 # limitations under the License.
 
 import random
+from datetime import timedelta
 from typing import Any, Union
 
 import storey
 
+import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.serving
 from mlrun.serving import ModelRunnerStep
-from mlrun.serving.remote import RemoteStep
 from mlrun.utils import logger
 
 
-class MonitoringPreProcessor(storey.MapClass):  # TODO Roy is this necessary
+class MonitoringPreProcessor(storey.MapClass):
     def __init__(
         self,
         context,
@@ -34,7 +35,7 @@ class MonitoringPreProcessor(storey.MapClass):  # TODO Roy is this necessary
         super().__init__(**kwargs)
         self.models_uri: dict[str:str] = {}
         self.context = context
-        self.model_endpoints: dict[str, dict[str, dict[str, str]]] = {}
+        self.model_endpoints: dict[str, [dict[str, str]]] = {}
         self.labels: dict[str, dict[str, str]] = {}
         self.input_path: dict[str, str] = {}
         self.result_path: dict[str, str] = {}
@@ -44,23 +45,22 @@ class MonitoringPreProcessor(storey.MapClass):  # TODO Roy is this necessary
             self.context, "_server", None
         ) or getattr(self.context, "server", None)
 
-        for step in server.graph:
+        for step in server.graph.steps.values():
             if isinstance(step, ModelRunnerStep):
                 self.model_endpoints[step.name] = {}
                 monitoring_data = step.class_args.get(
                     mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
                 )
-                for model in step.class_args.get(
+                for model, (model_class, _) in step.class_args.get(
                     mlrun.common.schemas.ModelRunnerStepData.MODELS, {}
-                ).keys():
-                    self.model_endpoints[step.name][
-                        mm_schemas.StreamProcessingEvent.MODEL
-                    ] = model
-                    self.model_endpoints[step.name][
-                        mm_schemas.StreamProcessingEvent.ENDPOINT_ID
-                    ] = monitoring_data[model][
-                        mm_schemas.StreamProcessingEvent.ENDPOINT_ID
-                    ]
+                ).items():
+                    self.model_endpoints[step.name][model] = {
+                        mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID: monitoring_data[
+                            model
+                        ][mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID],
+                        mm_schemas.StreamProcessingEvent.MODEL_CLASS: model_class,
+                    }
+
                     self.labels[model] = monitoring_data.get(model, {}).get(
                         mlrun.common.schemas.MonitoringData.OUTPUTS
                     )
@@ -78,20 +78,29 @@ class MonitoringPreProcessor(storey.MapClass):  # TODO Roy is this necessary
                     )
 
     def get_model_output_schema(self, model: str) -> list[str]:
-        if self.output_schema.get(model) is None and self.models_uri.get(model):
-            _, model_spec, extra_datitems = mlrun.artifacts.get_model(
-                self.output_schema.get(model), ""
-            )
-            self.output_schema[model] = [feature.name for feature in model_spec.outputs]
+        if self.output_schema.get(model) is None:
+            if self.models_uri.get(model) is not None:
+                _, model_spec, extra_datitems = mlrun.artifacts.get_model(
+                    self.models_uri.get(model), ""
+                )
+                self.output_schema[model] = [
+                    feature.name for feature in model_spec.outputs
+                ]
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "model uri or output schema must be provided in ModelRunnerStep.add_model"
+                )
         return self.output_schema.get(model)
 
-    def reconstruct_request_field(self, event, model: str) -> dict[str, Any]:
+    def reconstruct_request_resp_field(self, event, model: str) -> tuple[dict[str, Any], dict[str, Any]]:
         output_schema = self.get_model_output_schema(model)
+        logger.info("output schema retrieved", output_schema=output_schema)
         result_path = self.result_path.get(model) or ""
+        input_path = self.input_path.get(model) or ""
         result = event.body.get(model) or event.body.get(result_path) or event.body
         result = (
-            result.get(result_path) if (isinstance(result, dict)) else result
-        ) or result
+            result.get(result_path, result) if (isinstance(result, dict)) else result
+        )
 
         if isinstance(result, dict):
             outputs = []
@@ -113,7 +122,12 @@ class MonitoringPreProcessor(storey.MapClass):  # TODO Roy is this necessary
         else:
             outputs = result
 
-        event_inputs = (event.metadat.get("inputs", {}).get(self.input_path[model]),)
+        event_inputs = event.headers.get("inputs", {})
+        event_inputs = (
+            event_inputs.get(input_path, event_inputs)
+            if isinstance(event_inputs, dict)
+            else event_inputs
+        )
         if isinstance(event_inputs, dict):
             inputs = []
             list_apply = False
@@ -142,45 +156,51 @@ class MonitoringPreProcessor(storey.MapClass):  # TODO Roy is this necessary
                     output_len=len([outputs][0]),
                     schema_len=len(output_schema),
                 )
+        request = {"inputs": inputs, "id": getattr(event, "id", None)}
+        resp = {"outputs": outputs}
 
-        return {
-            "inputs": inputs,
-            "outputs": outputs,
-        }
+        return request, resp
 
-    def _do(self, event):
-        if self.context is not None and self.context.is_mock:
-            return event
+    def do(self, event):
         monitoring_event_list = []
         server: mlrun.serving.GraphServer = getattr(
             self.context, "_server", None
         ) or getattr(self.context, "server", None)
-        model_runner_endpoints = self.model_endpoints.get(
-            event.metadata.get("model_runner_name", "")
+        model_runner_name = event.headers.get("model_runner_name", "")
+        model_runner_endpoints = self.model_endpoints.get(model_runner_name)
+        logger.info(
+            "monitoring pre processor runs",
+            event=event,
+            model_endpoints=self.model_endpoints,
+            metadata=event._metadata,
+            headers=event.headers,
+            model_runner_endpoints=model_runner_endpoints,
         )
         if len(model_runner_endpoints) > 1:
             for model in event.body.keys():
                 if model in model_runner_endpoints:
+                    request, resp = self.reconstruct_request_resp_field(event, model)
                     monitoring_event_list.append(
                         {
                             mm_schemas.StreamProcessingEvent.MODEL: model,
                             mm_schemas.StreamProcessingEvent.MODEL_CLASS: model_runner_endpoints[
                                 model
                             ].get(mm_schemas.StreamProcessingEvent.MODEL_CLASS),
-                            mm_schemas.StreamProcessingEvent.MICROSEC: event.metadata.get(
+                            mm_schemas.StreamProcessingEvent.MICROSEC: event._metadata.get(
                                 model, {}
                             ).get(mm_schemas.StreamProcessingEvent.MICROSEC),
-                            mm_schemas.StreamProcessingEvent.WHEN: event.metadata.get(
+                            mm_schemas.StreamProcessingEvent.WHEN: event._metadata.get(
                                 model, {}
                             ).get(mm_schemas.StreamProcessingEvent.WHEN),
                             mm_schemas.StreamProcessingEvent.ENDPOINT_ID: model_runner_endpoints[
                                 model
-                            ].get(mm_schemas.StreamProcessingEvent.ENDPOINT_ID),
+                            ].get(
+                                mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
+                            ),
                             mm_schemas.StreamProcessingEvent.LABELS: self.labels[model],
                             mm_schemas.StreamProcessingEvent.FUNCTION_URI: server.function_uri,
-                            mm_schemas.StreamProcessingEvent.REQUEST: self.reconstruct_request_field(
-                                event, model
-                            ),
+                            mm_schemas.StreamProcessingEvent.REQUEST: request,
+                            mm_schemas.StreamProcessingEvent.RESPONSE: resp,
                             mm_schemas.StreamProcessingEvent.ERROR: event.body[model][
                                 mm_schemas.StreamProcessingEvent.ERROR
                             ]
@@ -197,26 +217,26 @@ class MonitoringPreProcessor(storey.MapClass):  # TODO Roy is this necessary
                     )
         elif model_runner_endpoints:
             model = list(model_runner_endpoints.keys())[0]
+            request, resp = self.reconstruct_request_resp_field(event, model)
             monitoring_event_list.append(
                 {
                     mm_schemas.StreamProcessingEvent.MODEL: model,
-                    mm_schemas.StreamProcessingEvent.MODEL_CLASS: self.model_endpoints[
+                    mm_schemas.StreamProcessingEvent.MODEL_CLASS: model_runner_endpoints[
                         model
                     ].get(mm_schemas.StreamProcessingEvent.MODEL_CLASS),
-                    mm_schemas.StreamProcessingEvent.MICROSEC: event.metadata.get(
+                    mm_schemas.StreamProcessingEvent.MICROSEC: event._metadata[0].get(
                         mm_schemas.StreamProcessingEvent.MICROSEC
                     ),
-                    mm_schemas.StreamProcessingEvent.WHEN: event.metadata.get(
+                    mm_schemas.StreamProcessingEvent.WHEN: event._metadata[0].get(
                         mm_schemas.StreamProcessingEvent.WHEN
                     ),
-                    mm_schemas.StreamProcessingEvent.ENDPOINT_ID: self.model_endpoints[
+                    mm_schemas.StreamProcessingEvent.ENDPOINT_ID: model_runner_endpoints[
                         model
-                    ].get(mm_schemas.StreamProcessingEvent.ENDPOINT_ID),
+                    ].get(mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID),
                     mm_schemas.StreamProcessingEvent.LABELS: self.labels[model],
                     mm_schemas.StreamProcessingEvent.FUNCTION_URI: server.function_uri,
-                    mm_schemas.StreamProcessingEvent.REQUEST: self.reconstruct_request_field(
-                        event, model
-                    ),
+                    mm_schemas.StreamProcessingEvent.REQUEST: request,
+                    mm_schemas.StreamProcessingEvent.RESPONSE: resp,
                     mm_schemas.StreamProcessingEvent.ERROR: event.body[
                         mm_schemas.StreamProcessingEvent.ERROR
                     ]
@@ -230,10 +250,11 @@ class MonitoringPreProcessor(storey.MapClass):  # TODO Roy is this necessary
                 }
             )
         event.body = monitoring_event_list
+        logger.info("monitoring pre processor ended", event=event)
         return event
 
 
-class BackgroundTaskStatus(RemoteStep):
+class BackgroundTaskStatus(storey.MapClass):
     def __init__(self, context, **kwargs):
         self.context = context
         self.server: mlrun.serving.GraphServer = getattr(
@@ -241,63 +262,37 @@ class BackgroundTaskStatus(RemoteStep):
         ) or getattr(self.context, "server", None)
         self._background_task_check_timestamp = None
         self._background_task_status = mlrun.common.schemas.BackgroundTaskState.running
+        super().__init__(**kwargs)
 
-        path = f"projects/{self.server.project}/background-tasks/{self.server.model_endpoint_creation_task_name}"
-        if not self.context.is_mock:
-            super().__init__(
-                url=self.context.get_run_db().get_base_api_url(path), method="GET", **kwargs
+    def do(self, event):
+        if (
+            self._background_task_status
+            == mlrun.common.schemas.BackgroundTaskState.running
+            and (
+                self._background_task_check_timestamp is None
+                or mlrun.utils.now_date() - self._background_task_check_timestamp
+                >= timedelta(seconds=15)
             )
-        else:
-            super().__init__(
-                url=path, method="GET", **kwargs
+        ):
+            background_task = mlrun.get_run_db().get_project_background_task(
+                self.server.project, self.server.model_endpoint_creation_task_name
             )
-
-    async def _process_event(self, event):
-        if self.context is not None and (not self.context.is_mock or self.context.monitoring_mock):
-            if (
-                self._background_task_status
-                == mlrun.common.schemas.BackgroundTaskState.running
-            ):
-                response = await super()._process_event(event)
-                background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-                self._background_task_check_timestamp = mlrun.utils.now_date()
-                if self._background_task_succeeded(background_task):
-                    return event
-                else:
-                    return None
-            elif (
-                self._background_task_status
-                == mlrun.common.schemas.BackgroundTaskState.failed
-            ):
+            self._background_task_check_timestamp = mlrun.utils.now_date()
+            if self._background_task_succeeded(background_task):
+                return event
+            else:
                 return None
+        elif (
+            self._background_task_status
+            == mlrun.common.schemas.BackgroundTaskState.failed
+        ):
+            return None
         return event
-
-    def do_event(self, event):
-        if self.context is not None and (not self.context.is_mock or self.context.monitoring_mock):
-            if (
-                self._background_task_status
-                == mlrun.common.schemas.BackgroundTaskState.running
-            ):
-                response = super().do_event(event)
-                background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-                self._background_task_check_timestamp = mlrun.utils.now_date()
-                if self._background_task_succeeded(background_task):
-                    return event
-                else:
-                    return None
-            elif (
-                self._background_task_status
-                == mlrun.common.schemas.BackgroundTaskState.failed
-            ):
-                return None
-        return event
-
-
 
     def _background_task_succeeded(
         self, background_task: mlrun.common.schemas.BackgroundTask
     ):
-        logger.debug(
+        logger.info(
             "Checking model endpoint creation task status",
             task_name=self.server.model_endpoint_creation_task_name,
         )
@@ -306,11 +301,11 @@ class BackgroundTaskStatus(RemoteStep):
             background_task.status.state
             in mlrun.common.schemas.BackgroundTaskState.terminal_states()
         ):
-            logger.debug(
+            logger.info(
                 f"Model endpoint creation task completed with state {background_task.status.state}"
             )
         else:  # in progress
-            logger.debug(
+            logger.info(
                 f"Model endpoint creation task is still in progress with the current state: "
                 f"{background_task.status.state}. Events will not be monitored for the next 15 seconds",
                 name=self.name,
@@ -330,12 +325,13 @@ class SamplingStep(storey.MapClass):
         **kwargs,
     ):
         super().__init__(**kwargs)
+        self.context = context
         server: mlrun.serving.GraphServer = getattr(
-            self.context, "_server", None
+            context, "_server", None
         ) or getattr(context, "server", None)
         self.sampling_percentage = sampling_percentage
         self.input_path: dict[str, str] = {}
-        self.result_path : dict[str, str] = {}
+        self.result_path: dict[str, str] = {}
         monitoring_data = {}
         for step in server.graph:
             if isinstance(step, ModelRunnerStep):
@@ -353,8 +349,11 @@ class SamplingStep(storey.MapClass):
             )
 
     def do(self, event):
-        if self.context is not None and self.context.is_mock:
-            return event
+        logger.info(
+            "sampling step runs",
+            event=event,
+            sampling_percentage=self.sampling_percentage,
+        )
         if self.sampling_percentage != 100:
             request = event[mm_schemas.StreamProcessingEvent.REQUEST]
             num_of_inputs = len(request["inputs"])
@@ -369,13 +368,14 @@ class SamplingStep(storey.MapClass):
             ]
 
             if isinstance(request["outputs"], list):
-                event[mm_schemas.StreamProcessingEvent.REQUEST]["outputs"] = [
+                event[mm_schemas.StreamProcessingEvent.RESPONSE]["outputs"] = [
                     request["outputs"][i] for i in sampled_requests_indices
                 ]
         event[mm_schemas.EventFieldType.SAMPLING_PERCENTAGE] = self.sampling_percentage
         event[mm_schemas.EventFieldType.EFFECTIVE_SAMPLE_COUNT] = len(
-            event.get("inputs", [])
+            event.get(mm_schemas.StreamProcessingEvent.REQUEST,{}).get("inputs", [])
         )
+        logger.info("sampling step ended", event=event)
         return event
 
     @staticmethod

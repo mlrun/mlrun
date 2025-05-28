@@ -774,7 +774,11 @@ class ServingRuntime(RemoteRuntime):
 
         if isinstance(self.spec.graph, RootFlowStep):
             server.graph = add_system_steps_to_graph(
-                copy.deepcopy(self.spec.graph), self.spec.track_models, server.context, self.spec
+                server.project,
+                copy.deepcopy(self.spec.graph),
+                self.spec.track_models,
+                server.context,
+                self.spec,
             )
 
         if workdir:

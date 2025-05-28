@@ -31,7 +31,7 @@ def apply_mlrun(
     model_name: Optional[str] = None,
     tag: str = "",
     model_path: Optional[str] = None,
-    model_format: str = TFKerasModelHandler.ModelFormats.DEFAULT,
+    model_format: str = TFKerasModelHandler.ModelFormats.default(),
     save_traces: bool = False,
     modules_map: Optional[Union[dict[str, Union[None, str, list[str]]], str]] = None,
     custom_objects_map: Optional[Union[dict[str, Union[str, list[str]]], str]] = None,

@@ -41,7 +41,7 @@ class TFKerasModelHandler(DLModelHandler):
     FRAMEWORK_NAME = "tensorflow.keras"
 
     # Declare a type of an input sample:
-    IOSample = Union[tf.Tensor, tf.TensorSpec, np.ndarray]
+    IOSample = Union[tf.Tensor, tf.TensorSpec, keras.KerasTensor, np.ndarray]
 
     class ModelFormats:
         """
@@ -54,13 +54,19 @@ class TFKerasModelHandler(DLModelHandler):
         JSON_ARCHITECTURE_H5_WEIGHTS = "json_h5"
 
         # Set the default model format according to the available keras version:
-        # Note: Only keras (imported from tensorflow) version 3.0.0 and above has the `__version__` attribute.
-        DEFAULT = (
-            KERAS
-            if hasattr(keras, "__version__")
-            and version.parse(keras.__version__) >= version.parse("3.0.0")
-            else SAVED_MODEL
-        )
+        @classmethod
+        def default(cls) -> str:
+            """
+            Get the default model format to use for saving and loading the model based on the keras version.
+
+            :return: The default model format to use.
+            """
+            return (
+                cls.KERAS
+                if hasattr(keras, "__version__")
+                and version.parse(keras.__version__) >= version.parse("3.0.0")
+                else cls.SAVED_MODEL
+            )
 
     class _LabelKeys:
         """
@@ -75,7 +81,7 @@ class TFKerasModelHandler(DLModelHandler):
         model: keras.Model = None,
         model_path: Optional[str] = None,
         model_name: Optional[str] = None,
-        model_format: str = ModelFormats.DEFAULT,
+        model_format: str = ModelFormats.default(),
         context: mlrun.MLClientCtx = None,
         modules_map: Optional[
             Union[dict[str, Union[None, str, list[str]]], str]

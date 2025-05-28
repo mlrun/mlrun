@@ -28,7 +28,6 @@ import kafka.errors
 import nuclio
 import sqlalchemy.orm
 import v3io.dataplane
-import v3io.dataplane.response
 from fastapi import BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
 

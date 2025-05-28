@@ -88,6 +88,38 @@ def test_extend_artifact_path():
         assert extend_artifact_path(test, "yz") == expected[i]
 
 
+def test_model_artifact_validators():
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Arguments 'model_file' and 'model_dir' cannot be"
+        " used together with 'model_url'.",
+    ):
+        mlrun.artifacts.ModelArtifact(
+            model_dir="y",
+            model_file="model.pkl",
+            model_url="http://localhost:8080/v2/models/mymodel/infer",
+        )
+    project = mlrun.new_project("test-project", save=False)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="log_artifact of ModelArtifact does not accept arguments for both upload and model_url parameters",
+    ):
+        project.log_model(
+            key="test_model",
+            model_url="http://localhost:8080/v2/models/mymodel/infer",
+            upload=True,
+        )
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="'model_file' cannot contain '/' \\(i.e., be a full path\\) when 'model_dir' is also specified",
+    ):
+        project.log_model(
+            key="test_model",
+            model_file="/tmp/test_dir/model.pkl",
+            model_dir="/tmp/different_dir",
+        )
+
+
 class FakeProducer:
     def __init__(self, name="", kind="run"):
         self.kind = kind

@@ -961,7 +961,11 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
                 deepdiff.DeepDiff(
                     artifact,
                     enriched_artifact,
-                    exclude_paths="root['metadata']['tag']",
+                    exclude_paths=[
+                        "root['metadata']['tag']",
+                        "root['spec']['parent_uri']",
+                        "root['spec']['has_children']",
+                    ],
                 )
                 == {}
             )

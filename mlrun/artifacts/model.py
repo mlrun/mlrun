@@ -15,7 +15,7 @@
 import tempfile
 import warnings
 from os import path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import pandas as pd
 import yaml
@@ -46,6 +46,7 @@ class ModelArtifactSpec(ArtifactSpec):
         "feature_weights",
         "feature_stats",
         "model_target_file",
+        "model_url",
     ]
     _exclude_fields_from_uid_hash = ArtifactSpec._exclude_fields_from_uid_hash + [
         "metrics",
@@ -79,6 +80,7 @@ class ModelArtifactSpec(ArtifactSpec):
         feature_weights=None,
         feature_stats=None,
         model_target_file=None,
+        model_url=None,
     ):
         super().__init__(
             src_path,
@@ -102,6 +104,7 @@ class ModelArtifactSpec(ArtifactSpec):
         self.feature_weights = feature_weights
         self.feature_stats = feature_stats
         self.model_target_file = model_target_file
+        self.model_url = model_url
 
     @property
     def inputs(self) -> ObjectList:
@@ -120,6 +123,18 @@ class ModelArtifactSpec(ArtifactSpec):
     @outputs.setter
     def outputs(self, outputs: list[Feature]) -> None:
         self._outputs = ObjectList.from_list(Feature, outputs)
+
+    @property
+    def default_config(self):
+        return self.parameters.get("default_config", {})
+
+    @default_config.setter
+    def default_config(self, default_config):
+        # skip storing 'default_config' if value is empty or unset
+        if default_config:
+            self.parameters["default_config"] = default_config
+        else:
+            self.parameters.pop("default_config", None)
 
 
 class ModelArtifact(Artifact):
@@ -148,8 +163,32 @@ class ModelArtifact(Artifact):
         feature_weights=None,
         extra_data=None,
         model_dir=None,
+        model_url: Optional[str] = None,
+        default_config: Optional[dict] = None,
         **kwargs,
     ):
+        """
+        :param key:             Artifact key or artifact class ()
+        :param body:            Will use the body as the artifact content
+        :param format:          Optional, format to use (e.g. csv, parquet, ..)
+        :param model_file:      Path to the local model file we upload (see also model_dir)
+                                or to a model file data url (e.g. `http://host/path/model.pkl`)
+        :param metrics:         The key/value dict of model metrics
+        :param target_path:     Absolute target path (instead of using artifact_path + local_path)
+        :param parameters:      Key/value dict of model parameters
+        :param inputs:          Ordered list of model input features (name, type, ..)
+        :param outputs:         Ordered list of model output/result elements (name, type, ..)
+        :param framework:       Name of the ML framework
+        :param algorithm:       Training algorithm name
+        :param feature_vector:  Feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
+        :param feature_weights: List of feature weights, one per input column
+        :param extra_data:      Extra artifacts and files to log with the model.
+        :param model_dir:       Path to the local dir holding the model file and extra files
+        :param model_url:       Remote model url.
+        :param default_config:  Default configuration for client building
+                                Saved as a sub-dictionary under the parameter.
+        :param kwargs:
+        """
         if key or body or format or target_path:
             warnings.warn(
                 "Artifact constructor parameters are deprecated in 1.7.0 and will be removed in 1.10.0. "
@@ -158,10 +197,18 @@ class ModelArtifact(Artifact):
             )
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         model_file = str(model_file or "")
+        if model_file and model_url:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Arguments 'model_file' and 'model_dir' cannot be"
+                " used together with 'model_url'."
+            )
         if model_file and "/" in model_file:
+            if model_dir:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "'model_file' cannot contain '/' (i.e., be a full path) when 'model_dir' is also specified"
+                )
             model_dir = path.dirname(model_file)
             model_file = path.basename(model_file)
-
         self.spec.model_file = model_file
         self.spec.src_path = model_dir
         self.spec.parameters = parameters or {}
@@ -174,6 +221,8 @@ class ModelArtifact(Artifact):
         self.spec.feature_vector = feature_vector
         self.spec.feature_weights = feature_weights
         self.spec.feature_stats = None
+        self.spec.model_url = model_url
+        self.default_config = default_config
 
     @property
     def spec(self) -> ModelArtifactSpec:
@@ -212,12 +261,28 @@ class ModelArtifact(Artifact):
         self.spec.model_file = model_file
 
     @property
+    def model_url(self):
+        return self.spec.model_url
+
+    @model_url.setter
+    def model_url(self, model_url):
+        self.spec.model_url = model_url
+
+    @property
     def parameters(self):
         return self.spec.parameters
 
     @parameters.setter
     def parameters(self, parameters):
         self.spec.parameters = parameters
+
+    @property
+    def default_config(self):
+        return self.spec.default_config
+
+    @default_config.setter
+    def default_config(self, default_config):
+        self.spec.default_config = default_config
 
     @property
     def metrics(self):
@@ -299,8 +364,10 @@ class ModelArtifact(Artifact):
         return True
 
     def before_log(self):
-        if not self.spec.model_file:
-            raise ValueError("model_file attr must be specified")
+        if not self.spec.model_file and not self.spec.model_url:
+            raise ValueError(
+                "ModelArtifact must have either model_file or model_url attributes"
+            )
 
         super().before_log()
 
@@ -406,8 +473,13 @@ class ModelArtifact(Artifact):
         return mlrun.get_dataitem(target_model_path).get()
 
 
-def get_model(model_dir, suffix=""):
-    """return model file, model spec object, and list of extra data items
+def get_model(
+    model_dir: Optional[
+        Union[str, ModelArtifact, "mlrun.datastore.base.DataItem"]
+    ] = None,
+    suffix="",
+) -> (str, ModelArtifact, dict):
+    """return model file, model spec object, and dictionary of extra data items
 
     this function will get the model file, metadata, and extra data
     the returned model file is always local, when using remote urls
@@ -428,6 +500,7 @@ def get_model(model_dir, suffix=""):
     :returns: model filename, model artifact object, extra data dict
 
     """
+    # TODO support LLMPromptArtifact
     model_file = ""
     model_spec = None
     extra_dataitems = {}
@@ -435,18 +508,25 @@ def get_model(model_dir, suffix=""):
 
     if hasattr(model_dir, "artifact_url"):
         model_dir = model_dir.artifact_url
-
     alternative_suffix = next(
         (
             optional_suffix
             for optional_suffix in MODEL_OPTIONAL_SUFFIXES
-            if model_dir.lower().endswith(optional_suffix)
+            if isinstance(model_dir, str)
+            and model_dir.lower().endswith(optional_suffix)
         ),
         None,
     )
-
-    if mlrun.datastore.is_store_uri(model_dir):
-        model_spec, target = mlrun.datastore.store_manager.get_store_artifact(model_dir)
+    is_store_uri = isinstance(model_dir, str) and mlrun.datastore.is_store_uri(
+        model_dir
+    )
+    if is_store_uri or isinstance(model_dir, ModelArtifact):
+        if is_store_uri:
+            model_spec, target = mlrun.datastore.store_manager.get_store_artifact(
+                model_dir
+            )
+        else:
+            model_spec, target = model_dir, model_dir.get_target_path()
         if not model_spec or model_spec.kind != "model":
             raise ValueError(f"store artifact ({model_dir}) is not model kind")
         # in case model_target_file is specified, use it, because that means that the actual model target path

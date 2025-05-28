@@ -32,12 +32,14 @@ import storey.utils
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas as schemas
+from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaSource,
     DatastoreProfileKafkaTarget,
     DatastoreProfileV3io,
     datastore_profile_read,
 )
+from mlrun.datastore.store_resources import get_store_resource
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import logger
 
@@ -955,9 +957,32 @@ class RouterStep(TaskStep):
 
 
 class Model(storey.ParallelExecutionRunnable):
+    def __init__(
+        self,
+        name: str,
+        raise_exception: bool = True,
+        artifact_uri: Optional[str] = None,
+        **kwargs,
+    ):
+        super().__init__(name=name, raise_exception=raise_exception, **kwargs)
+        if artifact_uri is not None and not isinstance(artifact_uri, str):
+            raise MLRunInvalidArgumentError("artifact_uri argument must be a string")
+        self.artifact_uri = artifact_uri
+
     def load(self) -> None:
         """Override to load model if needed."""
         pass
+
+    def _get_artifact_object(self) -> Union[ModelArtifact, None]:
+        if self.artifact_uri:
+            if mlrun.datastore.is_store_uri(self.artifact_uri):
+                return get_store_resource(self.artifact_uri)
+            else:
+                raise ValueError(
+                    "Could not get artifact, artifact_uri must be a valid artifact store URI"
+                )
+        else:
+            return None
 
     def init(self):
         self.load()
@@ -975,6 +1000,39 @@ class Model(storey.ParallelExecutionRunnable):
 
     async def run_async(self, body: Any, path: str) -> Any:
         return self.predict(body)
+
+    def get_local_model_path(self, suffix="") -> (str, dict):
+        """get local model file(s) and extra data items by using artifact
+        If the model file is stored in remote cloud storage, download it to the local file system
+
+        Examples
+        --------
+        ::
+
+            def load(self):
+                model_file, extra_data = self.get_local_model_path(suffix=".pkl")
+                self.model = load(open(model_file, "rb"))
+                categories = extra_data["categories"].as_df()
+
+        Parameters
+        ----------
+        suffix : str
+            optional, model file suffix (when the model_path is a directory)
+
+        Returns
+        -------
+        str
+            (local) model file
+        dict
+            extra dataitems dictionary
+        """
+        artifact = self._get_artifact_object()
+        if artifact:
+            model_file, _, extra_dataitems = mlrun.artifacts.get_model(
+                suffix=suffix, model_dir=artifact
+            )
+            return model_file, extra_dataitems
+        return None, None
 
 
 class ModelSelector:
@@ -1089,6 +1147,14 @@ class ModelRunnerStep(TaskStep, StepToDict):
         """
         # TODO allow model_class as Model object as part of ML-9924
         model_parameters = model_parameters or {}
+        model_artifact = (
+            model_artifact.uri
+            if isinstance(model_artifact, mlrun.artifacts.Artifact)
+            else model_artifact
+        )
+        model_parameters["artifact_uri"] = model_parameters.get(
+            "artifact_uri", model_artifact
+        )
         if model_parameters.get("name", endpoint_name) != endpoint_name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Inconsistent name for model added to ModelRunnerStep."
@@ -1111,9 +1177,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
             schemas.MonitoringData.INPUT_PATH: input_path,
             schemas.MonitoringData.CREATION_STRATEGY: creation_strategy,
             schemas.MonitoringData.LABELS: labels,
-            schemas.MonitoringData.MODEL_PATH: model_artifact.uri
-            if isinstance(model_artifact, mlrun.artifacts.Artifact)
-            else model_artifact,
+            schemas.MonitoringData.MODEL_PATH: model_artifact,
         }
         self.class_args[schemas.ModelRunnerStepData.MODELS] = models
         self.class_args[schemas.ModelRunnerStepData.MONITORING_DATA] = monitoring_data

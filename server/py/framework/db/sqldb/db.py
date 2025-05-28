@@ -54,6 +54,7 @@ import mlrun.common.model_monitoring
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.types
+import mlrun.datastore
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.model
@@ -773,7 +774,6 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunMissingProjectError()
         if not uid:
             uid = fill_artifact_object_hash(artifact, iteration, producer_id)
-
         # check if the object already exists
         query = self._query(session, ArtifactV2, key=key, project=project, uid=uid)
         existing_object = query.one_or_none()
@@ -795,6 +795,7 @@ class SQLDB(DBInterface):
             iteration,
             best_iteration,
             producer_id,
+            session,
         )
 
         self._upsert(session, [db_artifact])
@@ -818,6 +819,27 @@ class SQLDB(DBInterface):
 
         return uid
 
+    def _get_parent_artifact_id(self, session, parent_uri: str) -> int:
+        if parent_uri:
+            _, uri = mlrun.datastore.parse_store_uri(parent_uri)
+            project, key, iteration, tag, tree, uid = parse_artifact_uri(uri)
+            parent_db_artifact = self.read_artifact(
+                session=session,
+                key=key,
+                tag=tag,
+                iter=iteration,
+                producer_id=tree,
+                uid=uid,
+                project=project,
+                raise_on_not_found=False,
+                as_record=True,
+            )
+            if not parent_db_artifact:
+                raise mlrun.errors.MLRunConflictError(
+                    "Referenced artifact not found for URI: {references_uri}"
+                )
+            return parent_db_artifact.id
+
     def list_artifacts(
         self,
         session,
@@ -836,6 +858,7 @@ class SQLDB(DBInterface):
         producer_id: typing.Optional[str] = None,
         producer_uri: typing.Optional[str] = None,
         most_recent: bool = False,
+        parent_uri: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
@@ -874,6 +897,7 @@ class SQLDB(DBInterface):
             producer_uri=producer_uri,
             best_iteration=best_iteration,
             most_recent=most_recent,
+            parent_uri=parent_uri,
             attach_tags=not as_records,
             offset=offset,
             limit=limit,
@@ -889,6 +913,8 @@ class SQLDB(DBInterface):
         for artifact, artifact_tag in artifact_records:
             artifact_struct = artifact.full_object
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
+            self._set_parent_uri(artifact_struct, artifact.parent)
+            artifact_struct["spec"]["has_children"] = bool(artifact.child_artifacts)
             artifacts.append(
                 mlrun.common.formatters.ArtifactFormat.format_obj(
                     artifact_struct, format_
@@ -917,6 +943,8 @@ class SQLDB(DBInterface):
         for artifact, artifact_tag in artifact_records:
             artifact_struct = artifact.full_object
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
+            self._set_parent_uri(artifact_struct, artifact.parent)
+            artifact_struct["spec"]["has_children"] = bool(artifact.child_artifacts)
             artifacts.append(artifact_struct)
 
         return artifacts
@@ -996,6 +1024,8 @@ class SQLDB(DBInterface):
             return db_artifact
 
         artifact = db_artifact.full_object
+        artifact["spec"]["has_children"] = bool(db_artifact.child_artifacts)
+        self._set_parent_uri(artifact, db_artifact.parent)
 
         # If connected to a tag add it to metadata
         if enrich_tag:
@@ -1482,6 +1512,7 @@ class SQLDB(DBInterface):
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
         producer_id: typing.Optional[str] = None,
+        session: Session = None,
     ):
         artifact_record.project = project
         kind = artifact_dict.get("kind") or "artifact"
@@ -1525,6 +1556,11 @@ class SQLDB(DBInterface):
         # remove the tag from the metadata, as it is stored in a separate table
         artifact_dict["metadata"].pop("tag", None)
 
+        # add reference id and pop the parent uri berfore saving to db
+        parent_uri = artifact_dict.get("spec", {}).pop("parent_uri", None)
+        parent_id = self._get_parent_artifact_id(session, parent_uri)
+        artifact_record.parent_id = parent_id
+
         artifact_record.full_object = artifact_dict
 
         # labels are stored in a separate table
@@ -1566,6 +1602,23 @@ class SQLDB(DBInterface):
     @staticmethod
     def _set_tag_in_artifact_struct(artifact, tag):
         artifact["metadata"]["tag"] = tag
+
+    @staticmethod
+    def _set_parent_uri(artifact: dict, parent: ArtifactV2):
+        artifact_spec = artifact.setdefault("spec", {})
+        if parent:
+            artifact_spec["parent_uri"] = mlrun.datastore.get_store_uri(
+                kind=f"{parent.kind}s",
+                uri=generate_artifact_uri(
+                    project=parent.project,
+                    key=parent.key,
+                    iter=parent.iteration if parent.iteration else None,
+                    tree=parent.producer_id,
+                    uid=parent.uid,
+                ),
+            )
+        else:
+            artifact_spec["parent_uri"] = None
 
     def _get_link_artifacts_by_keys_and_uids(self, session, project, identifiers):
         # identifiers are tuples of (key, uid)
@@ -1621,6 +1674,7 @@ class SQLDB(DBInterface):
         best_iteration: bool = False,
         most_recent: bool = False,
         attach_tags: bool = False,
+        parent_uri: typing.Optional[str] = None,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         with_entities: typing.Optional[list[Any]] = None,
@@ -1716,6 +1770,7 @@ class SQLDB(DBInterface):
             rows_per_partition,
             partition_sort_by,
             partition_order,
+            parent_uri,
         ):
             query = query.with_hint(ArtifactV2, "USE INDEX idx_project_bi_updated")
 
@@ -1781,6 +1836,49 @@ class SQLDB(DBInterface):
                 partition_order,
                 with_tagged=True,
             )
+        if parent_uri:
+            (
+                parent_project,
+                parent_key,
+                parent_iteration,
+                parent_tag,
+                parent_tree,
+                parent_uid,
+            ) = [None] * 6
+            if mlrun.datastore.is_store_uri(parent_uri):
+                _, uri = mlrun.datastore.parse_store_uri(parent_uri)
+                (
+                    parent_project,
+                    parent_key,
+                    parent_iteration,
+                    parent_tag,
+                    parent_tree,
+                    parent_uid,
+                ) = parse_artifact_uri(uri)
+            elif ":" in parent_uri:
+                parent_key, parent_tag = parent_uri.split(":", maxsplit=1)
+            else:
+                parent_key = parent_uri
+
+            ref_alias = aliased(ArtifactV2)
+
+            # Join on reference_artifact_id -> ArtifactV2.id
+            query = query.join(ref_alias, ArtifactV2.parent_id == ref_alias.id)
+
+            if parent_project:
+                query = query.filter(ref_alias.project == parent_project)
+            if parent_key:
+                query = query.filter(ref_alias.key == parent_key)
+            if parent_iteration:
+                query = query.filter(ref_alias.iteration == parent_iteration)
+            if parent_tree:
+                query = query.filter(ref_alias.producer_id == parent_tree)
+            if parent_uid:
+                query = query.filter(ref_alias.uid == parent_uid)
+            if parent_tag:
+                ref_tag = aliased(ArtifactV2.Tag)
+                query = query.join(ref_tag, ref_tag.obj_id == ref_alias.id)
+                query = query.filter(ref_tag.name == parent_tag)
 
         if limit:
             # Order the results before applying the limit to ensure that the limit is applied to the correctly
@@ -1836,6 +1934,10 @@ class SQLDB(DBInterface):
         if not limit:
             outer_query = self._paginate_query(outer_query, offset, limit=None)
 
+        if not with_entities:
+            # egarly load the parent artifact
+            outer_query = outer_query.options(selectinload(ArtifactV2.parent))
+
         results = outer_query.all()
         if not attach_tags:
             # we might have duplicate records due to the tagging mechanism, so we need to deduplicate
@@ -1878,6 +1980,7 @@ class SQLDB(DBInterface):
         partition_order: typing.Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
+        parent_uri: typing.Optional[str] = None,
     ) -> bool:
         parameters = inspect.signature(self._find_artifacts).parameters
         default_list_params = {
@@ -1938,6 +2041,7 @@ class SQLDB(DBInterface):
         :return: A list of tuples of (ArtifactV2, tag_name)
         """
         query = session.query(ArtifactV2, ArtifactV2.Tag.name)
+        query = query.options(selectinload(ArtifactV2.parent))
         if project:
             query = query.filter(ArtifactV2.project == project)
         if producer_id:

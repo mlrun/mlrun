@@ -147,7 +147,7 @@ class BaseLauncher(abc.ABC):
 
         self._validate_run_params(run.spec.parameters)
         self._validate_output_path(runtime, run)
-        self._validate_retry(run.spec.retry)
+        self._validate_retry(runtime.kind, run.spec.retry)
 
     @staticmethod
     def _validate_output_path(
@@ -197,13 +197,20 @@ class BaseLauncher(abc.ABC):
             )
 
     @staticmethod
-    def _validate_retry(retry: Optional["mlrun.model.Retry"]):
+    def _validate_retry(runtime_kind: str, retry: Optional["mlrun.model.Retry"]):
         if retry is None:
             return
 
         if retry.count is not None and retry.count < 0:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Retry count must be at least 0, got {retry.count}"
+            )
+
+        if runtime_kind not in mlrun.runtimes.RuntimeKinds.retriable_runtimes():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Retry is not supported for runtime kind {runtime_kind}, "
+                "supported kinds are: "
+                f"{mlrun.runtimes.RuntimeKinds.retriable_runtimes()}"
             )
 
         backoff = retry.backoff

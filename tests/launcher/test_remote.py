@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pathlib
+import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
@@ -156,6 +157,30 @@ def test_validate_run_retry(
         run = mock_submit.call_args[0][1]
         assert run.spec.retry.count == count or default_count
         assert run.spec.retry.backoff.base_delay == base_delay or default_base_delay
+
+
+def test_validate_run_retry_runtime_kind():
+    runtime = mlrun.code_to_function(
+        name="test", kind="local", filename=str(func_path), handler=handler
+    )
+
+    retry = {
+        "count": 3,
+    }
+    with (
+        unittest.mock.patch("mlrun.launcher.remote.ClientRemoteLauncher._submit_job"),
+        unittest.mock.patch(
+            "mlrun.launcher.remote.ClientRemoteLauncher._validate_output_path"
+        ),
+        pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=re.escape(
+                f"Retry is not supported for runtime kind local, supported kinds are: "
+                f"{mlrun.runtimes.RuntimeKinds.retriable_runtimes()}"
+            ),
+        ),
+    ):
+        runtime.run(retry=retry)
 
 
 @pytest.mark.parametrize(

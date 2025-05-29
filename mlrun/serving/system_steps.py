@@ -144,7 +144,7 @@ class MonitoringPreProcessor(storey.MapClass):
                     schema_len=len(output_schema),
                 )
         elif outputs:
-            if len(output_schema) != len(outputs):
+            if len(output_schema) != 1:
                 logger.info(
                     "The number of outputs returned by the model does not match the number of outputs "
                     "specified in the model endpoint.",

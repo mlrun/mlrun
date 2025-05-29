@@ -40,6 +40,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun_pipelines.common.models
+from mlrun.common.schemas.background_task import BackGroundTaskLabel
 
 import framework.api.utils
 import framework.utils.auth.verifier
@@ -1494,6 +1495,9 @@ def _create_resources_of_all_kinds(
         name="task",
         project=project,
         state=mlrun.common.schemas.BackgroundTaskState.running,
+        labels={
+            BackGroundTaskLabel.pipeline: "test_pipeline",
+        },
     )
 
     ds_profile = mlrun.common.schemas.DatastoreProfile(
@@ -1610,7 +1614,6 @@ def _assert_db_resources_in_project(
             or cls.__tablename__ == "runs_tags"
             or cls.__tablename__ == "hub_sources"
             or cls.__tablename__ == "data_versions"
-            or cls.__tablename__ == "background_task_labels"
             or cls.__name__ == "Feature"
             or cls.__name__ == "Entity"
             or cls.__name__ == "Artifact"
@@ -1726,6 +1729,13 @@ def _assert_db_resources_in_project(
                     db_session.query(ModelEndpoint)
                     .join(cls)
                     .filter(ModelEndpoint.project == project)
+                    .count()
+                )
+            if cls.__tablename__ == "background_task_labels":
+                number_of_cls_records = (
+                    db_session.query(BackGroundTaskLabel)
+                    .join(cls)
+                    .filter(BackGroundTaskLabel.project == project)
                     .count()
                 )
             if cls.__tablename__ == "artifacts_labels":

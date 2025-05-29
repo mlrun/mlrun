@@ -59,7 +59,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             state=BackgroundTaskState.running,
             error=None,
             timeout=timeout,
-            labels=labels or {},
+            labels=labels,
         )
         background_tasks.add_task(
             self.background_task_wrapper,

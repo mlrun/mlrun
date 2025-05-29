@@ -23,7 +23,6 @@ import fastapi.concurrency
 import sqlalchemy.orm
 import yaml
 from fastapi import BackgroundTasks, Depends
-from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
 import mlrun.common.schemas
@@ -174,7 +173,7 @@ async def push_notifications(
     project: str,
     run_id: str,
     background_tasks: BackgroundTasks,
-    db_session: Session = Depends(framework.api.deps.get_db_session),
+    db_session: sqlalchemy.orm.Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
@@ -200,6 +199,7 @@ async def push_notifications(
         framework.utils.background_tasks.BackgroundTaskKinds.push_kfp_notification.format(
             project, run_id, time.time()
         ),
+        db_session,
         run_id,
         project,
         notifications,
@@ -357,7 +357,12 @@ def _try_resolve_project_from_body(
     )
 
 
-def _push_notifications(run_id, project, notifications):
+def _push_notifications(
+    db_session: sqlalchemy.orm.Session,
+    run_id: str,
+    project: str,
+    notifications: typing.Optional[list[mlrun.common.schemas.Notification]] = None,
+):
     if not notifications:
         return
     unmasked_notifications = []
@@ -379,5 +384,5 @@ def _push_notifications(run_id, project, notifications):
     )
     default_params = run_notification_pusher.resolve_notifications_default_params()
     framework.utils.notifications.notification_pusher.KFPNotificationPusher(
-        project, run_id, unmasked_notifications, default_params
+        db_session, project, run_id, unmasked_notifications, default_params
     ).push()

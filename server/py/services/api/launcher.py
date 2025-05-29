@@ -476,8 +476,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         if runtime_kind not in mlrun.runtimes.RuntimeKinds.retriable_runtimes():
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Retry is not supported for runtime kind {runtime_kind}, "
-                "supported kinds are: "
+                f"Retry is not supported for runtime kind {runtime_kind}, supported kinds are: "
                 f"{mlrun.runtimes.RuntimeKinds.retriable_runtimes()}"
             )
 

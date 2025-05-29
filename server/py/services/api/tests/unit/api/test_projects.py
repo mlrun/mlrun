@@ -1604,11 +1604,13 @@ def _assert_db_resources_in_project(
         # Logs are saved as files, the DB table is not really in use
         # in follower mode the DB project tables are irrelevant
         # alert_templates are not tied to project and are pre-populated anyway
+        # background_task_labels are optional
         if (
             cls.__name__ == "User"
             or cls.__tablename__ == "runs_tags"
             or cls.__tablename__ == "hub_sources"
             or cls.__tablename__ == "data_versions"
+            or cls.__tablename__ == "background_task_labels"
             or cls.__name__ == "Feature"
             or cls.__name__ == "Entity"
             or cls.__name__ == "Artifact"

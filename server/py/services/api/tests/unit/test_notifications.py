@@ -17,6 +17,8 @@ import hashlib
 import json
 import unittest.mock
 
+import pytest
+
 import mlrun.common.runtimes.constants as runtimes_constants
 import mlrun.common.schemas.notification
 
@@ -103,46 +105,111 @@ def test_notification_params_unmasking_on_run(monkeypatch):
     assert args[1][0].status == mlrun.common.schemas.NotificationStatus.ERROR
 
 
-class TestKFPNotificationPusher:
-    def test_push(self):
-        project = "test-project"
-        run_id = "test-run-id"
-        notifications = [
-            mlrun.common.schemas.Notification(
-                name="webhook-notification",
-                kind=mlrun.common.schemas.notification.NotificationKind.webhook,
-                message="test-message",
-                severity=mlrun.common.schemas.notification.NotificationSeverity.INFO,
-                when=[runtimes_constants.RunStates.completed],
-            ),
-            mlrun.common.schemas.Notification(
-                name="mail-notification",
-                kind=mlrun.common.schemas.notification.NotificationKind.mail,
-                message="test-message",
-                severity=mlrun.common.schemas.notification.NotificationSeverity.INFO,
-                when=[runtimes_constants.RunStates.completed],
-            ),
-            mlrun.common.schemas.Notification(
-                name="console-notification",
-                kind=mlrun.common.schemas.notification.NotificationKind.console,
-                message="test-message",
-                severity=mlrun.common.schemas.notification.NotificationSeverity.INFO,
-                when=[runtimes_constants.RunStates.completed],
-            ),
-        ]
+@pytest.mark.parametrize("running_from_api", [True, False])
+def test_push_kfp_notification(running_from_api):
+    project = "test-project"
+    run_id = "test-run-id"
+    notifications = [
+        mlrun.common.schemas.Notification(
+            name="webhook-notification",
+            kind=mlrun.common.schemas.notification.NotificationKind.webhook,
+            message="test-message",
+            severity=mlrun.common.schemas.notification.NotificationSeverity.INFO,
+            when=[runtimes_constants.RunStates.completed],
+        ),
+        mlrun.common.schemas.Notification(
+            name="mail-notification",
+            kind=mlrun.common.schemas.notification.NotificationKind.mail,
+            message="test-message",
+            severity=mlrun.common.schemas.notification.NotificationSeverity.INFO,
+            when=[runtimes_constants.RunStates.completed],
+        ),
+        mlrun.common.schemas.Notification(
+            name="console-notification",
+            kind=mlrun.common.schemas.notification.NotificationKind.console,
+            message="test-message",
+            severity=mlrun.common.schemas.notification.NotificationSeverity.INFO,
+            when=[runtimes_constants.RunStates.completed],
+        ),
+    ]
 
+    with unittest.mock.patch("framework.api.utils.get_run_db_instance"):
         kfp_notification_pusher = (
             framework.utils.notifications.notification_pusher.KFPNotificationPusher(
-                project, run_id, notifications, {}
+                unittest.mock.Mock(), project, run_id, notifications, {}
             )
         )
-        assert len(kfp_notification_pusher._sync_notifications) == 1
-        assert len(kfp_notification_pusher._async_notifications) == 2
-        with (
-            unittest.mock.patch(
-                "mlrun.utils.Workflow.get_workflow_steps"
-            ) as get_workflow_steps_mock,
-            unittest.mock.patch("mlrun.config.is_running_as_api", return_value=False),
-        ):
-            kfp_notification_pusher.push()
-            assert get_workflow_steps_mock.call_count == 3
+    kfp_notification_pusher._push_workflow_notification_async = (
+        unittest.mock.AsyncMock()
+    )
+    kfp_notification_pusher._push_workflow_notification_sync = unittest.mock.Mock()
+    assert len(kfp_notification_pusher._sync_notifications) == 1
+    assert len(kfp_notification_pusher._async_notifications) == 2
+    with (
+        unittest.mock.patch(
+            "mlrun.utils.Workflow.get_workflow_steps"
+        ) as get_workflow_steps_mock,
+        unittest.mock.patch(
+            "mlrun.config.is_running_as_api", return_value=running_from_api
+        ),
+    ):
+        kfp_notification_pusher.push()
+
+        # get the workflow steps once, send notification many times
+        assert get_workflow_steps_mock.call_count == 1
+        assert kfp_notification_pusher._push_workflow_notification_async.call_count == 2
+        assert (
+            kfp_notification_pusher._push_workflow_notification_sync.call_count == 0
+            if running_from_api
+            else 1
+        )
+
+
+def test_get_workflow_steps_called():
+    """Test that mlrun.utils.Workflow.get_workflow_steps is called and returns expected steps."""
+
+    db_mock = unittest.mock.Mock()
+    workflow_id = "workflow-123"
+    project = "test-project"
+
+    # Patch _get_workflow_manifest to return a mock with get_steps
+    class MockStep:
+        def __init__(self, display_name, step_type, skipped=False):
+            self.display_name = display_name
+            self.step_type = step_type
+            self.skipped = skipped
+            self.node_name = display_name
+            self.phase = "Succeeded"
+
+        def to_dict(self):
+            return {"display_name": self.display_name, "step_type": self.step_type}
+
+    class MockManifest:
+        def get_steps(self):
+            return [
+                MockStep("step1", "run"),
+            ]
+
+    db_mock.list_runs.side_effect = [
+        # no runs as label is incorrect
+        [],
+        # trying again yields it
+        [
+            {
+                "metadata": {"name": "step1", "project": project},
+                "status": {"state": "completed"},
+            }
+        ],
+    ]
+
+    with unittest.mock.patch(
+        "mlrun.utils.Workflow._get_workflow_manifest", return_value=MockManifest()
+    ):
+        steps = mlrun.utils.Workflow.get_workflow_steps(db_mock, workflow_id, project)
+
+    # TODO: change to 1 when deprecating kfp 1.8 server all together
+    assert (
+        db_mock.list_runs.call_count == 2
+    )  # called twice, first with no runs, then with the run
+    assert len(steps) == 1  # first step is the actual mlrun run
+    assert steps[0]["metadata"]["name"] == "step1"

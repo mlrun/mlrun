@@ -804,6 +804,12 @@ class Spark3Runtime(KubejobRuntime):
 
     @classmethod
     def deploy_default_image(cls, with_gpu=False):
+        if not mlrun.get_current_project(silent=True):
+            raise mlrun.errors.MLRunMissingProjectError(
+                "An active project is required to run deploy_default_image(). "
+                "This can be set by calling get_or_create_project()."
+            )
+
         sj = mlrun.new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
         sj.spec.build.image = cls._get_default_deployed_mlrun_image_name(with_gpu)
 

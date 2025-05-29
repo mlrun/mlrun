@@ -60,6 +60,7 @@ import mlrun_pipelines.common.constants
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
+from mlrun.common.schemas import ArtifactCategories
 from mlrun.config import config
 from mlrun_pipelines.models import PipelineRun
 
@@ -96,6 +97,7 @@ class StorePrefix:
     Model = "models"
     Dataset = "datasets"
     Document = "documents"
+    LLMPrompt = "llm-prompts"
 
     @classmethod
     def is_artifact(cls, prefix):
@@ -107,6 +109,7 @@ class StorePrefix:
             "model": cls.Model,
             "dataset": cls.Dataset,
             "document": cls.Document,
+            "llm-prompt": cls.LLMPrompt,
         }
         return kind_map.get(kind, cls.Artifact)
 
@@ -119,6 +122,7 @@ class StorePrefix:
             cls.FeatureSet,
             cls.FeatureVector,
             cls.Document,
+            cls.LLMPrompt,
         ]
 
 
@@ -131,7 +135,16 @@ def get_artifact_target(item: dict, project=None):
     kind = item.get("kind")
     uid = item["metadata"].get("uid")
 
-    if kind in {"dataset", "model", "artifact"} and db_key:
+    if (
+        kind
+        in {
+            ArtifactCategories.dataset,
+            ArtifactCategories.model,
+            ArtifactCategories.llm_prompt,
+            "artifact",
+        }
+        and db_key
+    ):
         target = (
             f"{DB_SCHEMA}://{StorePrefix.kind_to_prefix(kind)}/{project_str}/{db_key}"
         )
@@ -2098,22 +2111,60 @@ def join_urls(base_url: Optional[str], path: Optional[str]) -> str:
 
 class Workflow:
     @staticmethod
-    def get_workflow_steps(workflow_id: str, project: str) -> list:
+    def get_workflow_steps(
+        db: "mlrun.db.RunDBInterface", workflow_id: str, project: str
+    ) -> list:
         steps = []
-        db = mlrun.get_run_db()
 
         def _add_run_step(_step: mlrun_pipelines.models.PipelineStep):
+            # on kfp 1.8 argo sets the pod hostname differently than what we have with kfp 2.5
+            # therefore, the heuristic needs to change. what we do here is first trying against 1.8 conventions
+            # and if we can't find it then falling back to 2.5
             try:
-                _run = db.list_runs(
+                # runner_pod = x-y-N
+                _runs = db.list_runs(
                     project=project,
                     labels=f"{mlrun_constants.MLRunInternalLabels.runner_pod}={_step.node_name}",
-                )[0]
+                )
+                if not _runs:
+                    try:
+                        # x-y-N -> x-y, N
+                        node_name_initials, node_name_generated_id = (
+                            _step.node_name.rsplit("-", 1)
+                        )
+
+                    except ValueError:
+                        # defensive programming, if the node name is not in the expected format
+                        node_name_initials = _step.node_name
+                        node_name_generated_id = ""
+
+                    # compile the expected runner pod hostname as per kfp >= 2.4
+                    # x-y, Z, N -> runner_pod = x-y-Z-N
+                    runner_pod_value = "-".join(
+                        [
+                            node_name_initials,
+                            _step.display_name,
+                            node_name_generated_id,
+                        ]
+                    ).rstrip("-")
+                    logger.debug(
+                        "No run found for step, trying with different node name",
+                        step_node_name=runner_pod_value,
+                    )
+                    _runs = db.list_runs(
+                        project=project,
+                        labels=f"{mlrun_constants.MLRunInternalLabels.runner_pod}={runner_pod_value}",
+                    )
+
+                _run = _runs[0]
             except IndexError:
+                logger.warning("No run found for step", step=_step.to_dict())
                 _run = {
                     "metadata": {
                         "name": _step.display_name,
                         "project": project,
                     },
+                    "status": {},
                 }
             _run["step_kind"] = _step.step_type
             if _step.skipped:
@@ -2231,9 +2282,9 @@ class Workflow:
             namespace=mlrun.mlconf.namespace,
         )
 
-        # arbitrary timeout of 60 seconds, the workflow should be done by now, however sometimes kfp takes a few
+        # arbitrary timeout of 30 seconds, the workflow should be done by now, however sometimes kfp takes a few
         # seconds to update the workflow status
-        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 60)
+        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 30)
         if not kfp_run:
             return None
 

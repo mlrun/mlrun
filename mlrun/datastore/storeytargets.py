@@ -152,9 +152,7 @@ class KafkaStoreyTarget(storey.KafkaTarget):
                 parsed.path.strip("/") if parsed.path else datastore_profile.get_topic()
             )
         else:
-            brokers = attributes.pop(
-                "brokers", attributes.pop("bootstrap_servers", None)
-            )
+            brokers = attributes.pop("brokers", None)
             topic, brokers = parse_kafka_url(path, brokers)
 
         if not topic:
@@ -175,8 +173,7 @@ class RedisNoSqlStoreyTarget(storey.NoSqlTarget):
     def __init__(self, *args, **kwargs):
         path = kwargs.pop("path")
         endpoint, uri = mlrun.datastore.targets.RedisNoSqlTarget.get_server_endpoint(
-            path,
-            kwargs.pop("credentials_prefix", None),
+            path
         )
         kwargs["path"] = endpoint + "/" + uri
         super().__init__(*args, **kwargs)

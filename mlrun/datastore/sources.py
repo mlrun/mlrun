@@ -768,7 +768,6 @@ class SnowflakeSource(BaseSourceDriver):
     :parameter url: URL of the snowflake cluster
     :parameter user: snowflake user
     :parameter database: snowflake database
-    :parameter schema: snowflake schema - deprecated, use db_schema
     :parameter db_schema: snowflake schema
     :parameter warehouse: snowflake warehouse
     """
@@ -790,18 +789,10 @@ class SnowflakeSource(BaseSourceDriver):
         url: Optional[str] = None,
         user: Optional[str] = None,
         database: Optional[str] = None,
-        schema: Optional[str] = None,
         db_schema: Optional[str] = None,
         warehouse: Optional[str] = None,
         **kwargs,
     ):
-        # TODO: Remove in 1.10.0
-        if schema:
-            warnings.warn(
-                "schema is deprecated in 1.7.0, and will be removed in 1.10.0, please use db_schema"
-            )
-        db_schema = db_schema or schema  # TODO: Remove in 1.10.0
-
         attributes = attributes or {}
         if url:
             attributes["url"] = url

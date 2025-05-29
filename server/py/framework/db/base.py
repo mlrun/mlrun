@@ -240,6 +240,8 @@ class DBInterface(ABC):
         uid: Optional[str] = None,
         producer_id: Optional[str] = None,
         producer_uri: Optional[str] = None,
+        most_recent: bool = False,
+        parent_uri: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         offset: Optional[int] = None,
         limit: Optional[int] = None,

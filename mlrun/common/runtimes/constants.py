@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
 import typing
 
 import mlrun.common.constants as mlrun_constants
@@ -235,19 +234,6 @@ class RunStates:
             mlrun_pipelines.common.models.RunStatuses.paused: RunStates.unknown,
             mlrun_pipelines.common.models.RunStatuses.unknown: RunStates.unknown,
         }[pipeline_run_status]
-
-
-# TODO: remove this class in 1.10.0 - use only MlrunInternalLabels
-class RunLabels(enum.Enum):
-    owner = mlrun_constants.MLRunInternalLabels.owner
-    v3io_user = mlrun_constants.MLRunInternalLabels.v3io_user
-
-    @staticmethod
-    def all():
-        return [
-            RunLabels.owner,
-            RunLabels.v3io_user,
-        ]
 
 
 class SparkApplicationStates:

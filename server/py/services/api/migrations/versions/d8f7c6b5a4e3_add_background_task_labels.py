@@ -11,14 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-Add background task labels
-Alembic revision: d8f7c6b5a4e3
+
+"""Add background task labels
+
+Revision ID: d8f7c6b5a4e3
 Revises: b31651280cce
 """
 
-import sqlalchemy as sa
 from alembic import op
+import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = "d8f7c6b5a4e3"
@@ -30,20 +31,24 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         "background_task_labels",
-        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.Integer, primary_key=True),
         sa.Column(
-            "name", sa.String(length=255, collation="utf8mb3_bin"), nullable=False
+            "task_id",
+            sa.Integer,
+            sa.ForeignKey("background_tasks.id", ondelete="CASCADE"),
+            nullable=False,
         ),
-        sa.Column(
-            "value", sa.String(length=255, collation="utf8mb3_bin"), nullable=True
-        ),
-        sa.Column("task_id", sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["task_id"], ["background_tasks.id"], ondelete="CASCADE"
-        ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.Column("name", sa.String(255, collation="utf8mb3_bin"), nullable=False),
+        sa.Column("value", sa.String(255, collation="utf8mb3_bin"), nullable=True),
+        sa.UniqueConstraint("task_id", "name", name="uq_background_task_labels_task_name"),
+    )
+    op.create_index(
+        "ix_background_task_labels_task_id",
+        "background_task_labels",
+        ["task_id"],
     )
 
 
 def downgrade() -> None:
+    op.drop_index("ix_background_task_labels_task_id", table_name="background_task_labels")
     op.drop_table("background_task_labels")

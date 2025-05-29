@@ -83,6 +83,7 @@ class AlembicUtil:
 
     @staticmethod
     def _parse_revision_history(output: str) -> list[str]:
+        logger.debug("Alembic output", output=output)
         return [line.split(" ")[2].replace(",", "") for line in output.splitlines()]
 
     def _save_output(self, text: str, *_):

@@ -402,28 +402,45 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}/{self.iteration}"
 
-    class BackgroundTask(Base, mlrun.utils.db.BaseModel):
+
+    class BackgroundTask(
+        Base,
+        mlrun.utils.db.BaseModel,
+    ):
         __tablename__ = "background_tasks"
         __table_args__ = (
             UniqueConstraint("name", "project", name="_background_tasks_uc"),
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        name = Column(
+            String(255, collation=SQLTypesUtil.collation()),
+            nullable=False,
+        )
         project = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255, collation=SQLTypesUtil.collation()),
+            nullable=False,
         )
         created = Column(
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
+            nullable=False,
         )
         updated = Column(
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
+            onupdate=lambda: datetime.now(timezone.utc),
+            nullable=False,
         )
-        state = Column(String(255, collation=SQLTypesUtil.collation()))
-        error = Column(String(255, collation=SQLTypesUtil.collation()))
-        timeout = Column(Integer)
+        state = Column(
+            String(255, collation=SQLTypesUtil.collation()),
+            nullable=True,
+        )
+        error = Column(
+            String(255, collation=SQLTypesUtil.collation()),
+            nullable=True,
+        )
+        timeout = Column(Integer, nullable=True)
 
         labels = relationship(
             "BackgroundTaskLabel",
@@ -435,16 +452,27 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
 
+
     class BackgroundTaskLabel(Base):
         __tablename__ = "background_task_labels"
+        __table_args__ = (
+            UniqueConstraint("task_id", "name", name="uq_bg_task_labels_task_name"),
+            Index("ix_bg_task_labels_task_id", "task_id"),
+        )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-        value = Column(String(255, collation=SQLTypesUtil.collation()))
         task_id = Column(
             Integer,
             ForeignKey("background_tasks.id", ondelete="CASCADE"),
             nullable=False,
+        )
+        name = Column(
+            String(255, collation=SQLTypesUtil.collation()),
+            nullable=False,
+        )
+        value = Column(
+            String(255, collation=SQLTypesUtil.collation()),
+            nullable=True,
         )
 
         task = relationship(

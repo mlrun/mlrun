@@ -50,7 +50,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "ix_background_task_labels_task_id", table_name="background_task_labels"
-    )
+    op.drop_index("ix_bg_task_labels_task_id", table_name="background_task_labels")
     op.drop_table("background_task_labels")

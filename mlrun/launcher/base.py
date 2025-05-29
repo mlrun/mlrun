@@ -147,7 +147,6 @@ class BaseLauncher(abc.ABC):
 
         self._validate_run_params(run.spec.parameters)
         self._validate_output_path(runtime, run)
-        self._validate_retry(runtime.kind, run.spec.retry)
 
     @staticmethod
     def _validate_output_path(
@@ -195,38 +194,6 @@ class BaseLauncher(abc.ABC):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Parameter {param_name} value {param_value} exceeds int64"
             )
-
-    @staticmethod
-    def _validate_retry(runtime_kind: str, retry: Optional["mlrun.model.Retry"]):
-        if retry is None or not retry.count:
-            return
-
-        if retry.count is not None and retry.count < 0:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Retry count must be at least 0, got {retry.count}"
-            )
-
-        if runtime_kind not in mlrun.runtimes.RuntimeKinds.retriable_runtimes():
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Retry is not supported for runtime kind {runtime_kind}, "
-                "supported kinds are: "
-                f"{mlrun.runtimes.RuntimeKinds.retriable_runtimes()}"
-            )
-
-        backoff = retry.backoff
-        if backoff is not None and backoff.base_delay is not None:
-            min_base_delay = mlrun.mlconf.function.spec.retry.backoff.min_base_delay
-            min_base_delay_seconds = mlrun.utils.time_string_to_seconds(
-                min_base_delay, 0
-            )
-            try:
-                mlrun.utils.time_string_to_seconds(
-                    backoff.base_delay, min_base_delay_seconds
-                )
-            except ValueError as exc:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Retry backoff base_delay must be at least {min_base_delay}, got {backoff.base_delay}"
-                ) from exc
 
     @staticmethod
     def _create_run_object(task):

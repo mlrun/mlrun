@@ -13,9 +13,7 @@
 # limitations under the License.
 
 import pathlib
-import re
 import unittest.mock
-from contextlib import nullcontext as does_not_raise
 
 import pytest
 
@@ -82,109 +80,6 @@ def test_validate_run_success():
         spec=mlrun.model.RunSpec(inputs={"input1": ""}, output_path="./some_path")
     )
     launcher._validate_run(runtime, run)
-
-
-@pytest.mark.parametrize(
-    "count, base_delay, default_base_delay, min_base_delay, expectation",
-    [
-        (None, None, "30s", "30s", does_not_raise()),
-        (
-            1,
-            "29s",
-            "30s",
-            "30s",
-            pytest.raises(
-                mlrun.errors.MLRunInvalidArgumentError,
-                match="Retry backoff base_delay must be at least 30s, got 29s",
-            ),
-        ),
-        (
-            1,
-            "31s",
-            "30s",
-            "5m",
-            pytest.raises(
-                mlrun.errors.MLRunInvalidArgumentError,
-                match="Retry backoff base_delay must be at least 5m, got 31s",
-            ),
-        ),
-        (3, None, "30s", "30s", does_not_raise()),
-        (3, "1 min", "30s", "30s", does_not_raise()),
-        (
-            -1,
-            None,
-            "30s",
-            "30s",
-            pytest.raises(
-                mlrun.errors.MLRunInvalidArgumentError,
-                match="Retry count must be at least 0, got -1",
-            ),
-        ),
-    ],
-)
-def test_validate_run_retry(
-    count, base_delay, default_base_delay, min_base_delay, expectation
-):
-    mlrun.mlconf.function.spec.retry.backoff.default_base_delay = default_base_delay
-    mlrun.mlconf.function.spec.retry.backoff.min_base_delay = min_base_delay
-
-    runtime = mlrun.code_to_function(
-        name="test", kind="job", filename=str(func_path), handler=handler
-    )
-
-    retry = None
-    if count or base_delay:
-        retry = {}
-        if count is not None:
-            retry["count"] = count
-
-        if base_delay is not None:
-            retry["backoff"] = {
-                "base_delay": base_delay,
-            }
-    with (
-        unittest.mock.patch(
-            "mlrun.launcher.remote.ClientRemoteLauncher._submit_job"
-        ) as mock_submit,
-        unittest.mock.patch(
-            "mlrun.launcher.remote.ClientRemoteLauncher._validate_output_path"
-        ),
-        expectation,
-    ):
-        runtime.run(retry=retry)
-        run = mock_submit.call_args[0][1]
-        assert run.spec.retry.count == (count if count else None)
-
-        if count:
-            assert run.spec.retry.backoff.base_delay == (
-                base_delay if base_delay is not None else default_base_delay
-            )
-        else:
-            assert run.spec.retry.backoff is None
-
-
-def test_validate_run_retry_runtime_kind():
-    runtime = mlrun.code_to_function(
-        name="test", kind="local", filename=str(func_path), handler=handler
-    )
-
-    retry = {
-        "count": 3,
-    }
-    with (
-        unittest.mock.patch("mlrun.launcher.remote.ClientRemoteLauncher._submit_job"),
-        unittest.mock.patch(
-            "mlrun.launcher.remote.ClientRemoteLauncher._validate_output_path"
-        ),
-        pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError,
-            match=re.escape(
-                f"Retry is not supported for runtime kind local, supported kinds are: "
-                f"{mlrun.runtimes.RuntimeKinds.retriable_runtimes()}"
-            ),
-        ),
-    ):
-        runtime.run(retry=retry)
 
 
 @pytest.mark.parametrize(

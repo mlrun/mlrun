@@ -21,6 +21,7 @@ from typing import Callable, Optional, Union
 
 import semver
 from humanfriendly import InvalidTimespan, parse_timespan
+from timelength import English, FailureFlags, TimeLength
 
 import mlrun
 import mlrun.common.schemas
@@ -70,6 +71,24 @@ def ensure_running_on_chief(function):
     wrapper.__name__ = function.__name__
 
     return wrapper
+
+
+def time_string_to_seconds(time_str: str, min_seconds: int = 60) -> Optional[int]:
+    if not time_str:
+        return None
+
+    if time_str == "-1":
+        return -1
+
+    locale = English(flags=FailureFlags.ALL)
+    parsed_length = TimeLength(time_str, locale=locale)
+    total_seconds = int(parsed_length.result.seconds)
+    if total_seconds < min_seconds:
+        raise ValueError(
+            f"Invalid time string {time_str}, must be at least {min_seconds=}"
+        )
+
+    return total_seconds
 
 
 def extract_image_tag(image_reference):

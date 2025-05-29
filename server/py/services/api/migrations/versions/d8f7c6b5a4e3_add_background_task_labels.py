@@ -18,8 +18,8 @@ Revision ID: d8f7c6b5a4e3
 Revises: b31651280cce
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "d8f7c6b5a4e3"
@@ -40,7 +40,9 @@ def upgrade() -> None:
         ),
         sa.Column("name", sa.String(255, collation="utf8mb3_bin"), nullable=False),
         sa.Column("value", sa.String(255, collation="utf8mb3_bin"), nullable=True),
-        sa.UniqueConstraint("task_id", "name", name="uq_background_task_labels_task_name"),
+        sa.UniqueConstraint(
+            "task_id", "name", name="uq_background_task_labels_task_name"
+        ),
     )
     op.create_index(
         "ix_background_task_labels_task_id",
@@ -50,5 +52,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_background_task_labels_task_id", table_name="background_task_labels")
+    op.drop_index(
+        "ix_background_task_labels_task_id", table_name="background_task_labels"
+    )
     op.drop_table("background_task_labels")

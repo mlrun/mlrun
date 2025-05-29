@@ -402,7 +402,6 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}/{self.iteration}"
 
-
     class BackgroundTask(
         Base,
         mlrun.utils.db.BaseModel,
@@ -451,7 +450,6 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
-
 
     class BackgroundTaskLabel(Base):
         __tablename__ = "background_task_labels"

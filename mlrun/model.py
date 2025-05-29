@@ -924,6 +924,45 @@ class HyperParamOptions(ModelObj):
             )
 
 
+class RetryBackoff(ModelObj):
+    """Backoff strategy for retries."""
+
+    def __init__(self, base_delay: Optional[str] = None):
+        # The base_delay time string must conform to timelength python package standards and be at least
+        # mlrun.mlconf.function.spec.retry.backoff.min_base_delay (e.g. 1000s, 1 hour 30m, 1h etc.).
+        self.base_delay = (
+            base_delay or mlrun.mlconf.function.spec.retry.backoff.default_base_delay
+        )
+
+    def get_delay(self, attempt: int) -> int:
+        # Currently supports only linear backoff
+        return self.base_delay * attempt
+
+
+class Retry(ModelObj):
+    """Retry configuration"""
+
+    def __init__(
+        self,
+        count: int = 0,
+        backoff: typing.Union[RetryBackoff, dict] = None,
+    ):
+        # Set to None if count is 0 to eliminate the retry configuration from the dictionary representation.
+        self.count = count or None
+        self.backoff = backoff
+
+    @property
+    def backoff(self) -> Optional[RetryBackoff]:
+        if not self.count:
+            # Retry is not configured, return None
+            return None
+        return self._backoff
+
+    @backoff.setter
+    def backoff(self, backoff):
+        self._backoff = self._verify_dict(backoff, "backoff", RetryBackoff)
+
+
 class RunSpec(ModelObj):
     """Run specification"""
 
@@ -960,6 +999,7 @@ class RunSpec(ModelObj):
         node_selector=None,
         tolerations=None,
         affinity=None,
+        retry: Retry = None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -1000,6 +1040,7 @@ class RunSpec(ModelObj):
         self.node_selector = node_selector or {}
         self.tolerations = tolerations or {}
         self.affinity = affinity or {}
+        self.retry = retry
 
     def _serialize_field(
         self, struct: dict, field_name: Optional[str] = None, strip: bool = False
@@ -1200,6 +1241,14 @@ class RunSpec(ModelObj):
         """
         self._verify_dict(state_thresholds, "state_thresholds")
         self._state_thresholds = state_thresholds
+
+    @property
+    def retry(self) -> Retry:
+        return self._retry
+
+    @retry.setter
+    def retry(self, retry: typing.Union[Retry, dict]):
+        self._retry = self._verify_dict(retry, "retry", Retry)
 
     def extract_type_hints_from_inputs(self):
         """

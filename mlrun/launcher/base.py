@@ -72,6 +72,7 @@ class BaseLauncher(abc.ABC):
         notifications: Optional[list[mlrun.model.Notification]] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
     ) -> "mlrun.run.RunObject":
         """run the function from the server/client[local/remote]"""
         pass
@@ -133,7 +134,7 @@ class BaseLauncher(abc.ABC):
         """Check if the runtime requires to build the image and updates the spec accordingly"""
         pass
 
-    def _validate_runtime(
+    def _validate_run(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
         run: "mlrun.run.RunObject",
@@ -188,7 +189,7 @@ class BaseLauncher(abc.ABC):
             )
 
     @classmethod
-    def _validate_run_single_param(cls, param_name, param_value):
+    def _validate_run_single_param(cls, param_name: str, param_value: int):
         # verify that integer parameters don't exceed a int64
         if isinstance(param_value, int) and abs(param_value) >= 2**63:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -240,6 +241,7 @@ class BaseLauncher(abc.ABC):
         workdir=None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
     ):
         run.spec.handler = (
             handler or run.spec.handler or runtime.spec.default_handler or ""
@@ -358,6 +360,7 @@ class BaseLauncher(abc.ABC):
             | state_thresholds
         )
         run.spec.state_thresholds = state_thresholds or run.spec.state_thresholds
+        run.spec.retry = retry
         return run
 
     @staticmethod

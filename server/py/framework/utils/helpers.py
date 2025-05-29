@@ -83,7 +83,9 @@ def time_string_to_seconds(time_str: str, min_seconds: int = 60) -> Optional[int
     parsed_length = TimeLength(time_str, strict=True)
     total_seconds = parsed_length.to_seconds()
     if total_seconds < min_seconds:
-        raise ValueError(f"Invalid time string {time_str}, must be at least 1 minute")
+        raise ValueError(
+            f"Invalid time string {time_str}, must be at least {min_seconds=}"
+        )
 
     return total_seconds
 

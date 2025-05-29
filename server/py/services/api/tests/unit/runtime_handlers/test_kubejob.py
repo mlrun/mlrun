@@ -22,7 +22,6 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
-import mlrun.utils.helpers
 import tests.conftest
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.config import config

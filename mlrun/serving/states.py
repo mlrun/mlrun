@@ -1002,19 +1002,22 @@ class Model(storey.ParallelExecutionRunnable):
         return self.predict(body)
 
     def get_local_model_path(self, suffix="") -> (str, dict):
-        """get local model file(s) and extra data items by using artifact
-        If the model file is stored in remote cloud storage, download it to the local file system
+        """
+        Get local model file(s) and extra data items by using artifact.
 
-        :param suffix: optional, model file suffix (when the model_path is a directory)
+        If the model file is stored in remote cloud storage, this method downloads
+        it to the local file system.
 
-        :return:
-        str
-            (local) model file
-        dict
-            extra dataitems dictionary
+        :param suffix: Optional; model file suffix (used when the model path is a directory).
+        :type suffix: str
 
-        Examples
-        --------
+        :return: A tuple containing:
+            - str: Local model file path.
+            - dict: Dictionary of extra data items.
+        :rtype: tuple
+
+        :example:
+
             def load(self):
                 model_file, extra_data = self.get_local_model_path(suffix=".pkl")
                 self.model = load(open(model_file, "rb"))

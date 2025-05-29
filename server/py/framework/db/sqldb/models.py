@@ -31,6 +31,7 @@ from sqlalchemy import (
     Table,
     UniqueConstraint,
 )
+from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -477,6 +478,7 @@ with warnings.catch_warnings():
             "BackgroundTask",
             back_populates="labels",
         )
+        project = association_proxy("task", "project")
 
     class Schedule(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "schedules_v2"

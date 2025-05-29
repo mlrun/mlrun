@@ -7373,7 +7373,9 @@ class SQLDB(DBInterface):
         return background_tasks
 
     def cleanup_old_background_tasks(
-        self, db_session: Session, max_age_seconds: int
+        self,
+        db_session: Session,
+        max_age_seconds: int,
     ) -> None:
         db_session.query(BackgroundTask).filter(
             BackgroundTask.created

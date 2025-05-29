@@ -70,6 +70,7 @@ async def create_project_background_task(
         function,
         timeout,
         None,
+        None,
         *args,
     )
 

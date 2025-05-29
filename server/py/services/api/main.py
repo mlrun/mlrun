@@ -613,7 +613,7 @@ class Service(framework.service.Service):
                 "Starting periodic background task cleanup",
                 interval=interval,
             )
-            func = framework.utils.singletons.db.get_db().cleanup_old_background_tasks
+            func = framework.utils.background_tasks.ProjectBackgroundTasksHandler().cleanup_old_background_tasks
             run_function_periodically(
                 interval=interval,
                 name=func.__name__,

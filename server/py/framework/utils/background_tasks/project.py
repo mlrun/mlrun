@@ -53,12 +53,13 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             function=function.__name__,
         )
         framework.utils.singletons.db.get_db().store_background_task(
-            db_session,
-            name,
-            project,
-            mlrun.common.schemas.BackgroundTaskState.running,
-            timeout,
-            labels,
+            session=db_session,
+            name=name,
+            project=project,
+            state=BackgroundTaskState.running,
+            error=None,
+            timeout=timeout,
+            labels=labels or {},
         )
         background_tasks.add_task(
             self.background_task_wrapper,
@@ -96,7 +97,6 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         framework.utils.singletons.db.get_db().cleanup_old_background_tasks(
             db_session,
             max_age_seconds,
-            framework.utils.background_tasks.common.background_task_exceeded_timeout,
         )
 
     def get_background_task_by_status_and_labels(

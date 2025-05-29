@@ -239,6 +239,7 @@ async def push_notifications(
         framework.utils.background_tasks.BackgroundTaskKinds.push_kfp_notification.format(
             project, run_id, time.time()
         ),
+        None,
         db_session,
         run_id,
         project,

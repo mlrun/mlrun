@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import random
+from copy import deepcopy
 from datetime import timedelta
 from typing import Any, Union
 
@@ -24,7 +25,6 @@ import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.serving
 from mlrun.serving import ModelRunnerStep
 from mlrun.utils import logger
-
 
 class MonitoringPreProcessor(storey.MapClass):
     def __init__(
@@ -64,12 +64,12 @@ class MonitoringPreProcessor(storey.MapClass):
                     self.labels[model] = monitoring_data.get(model, {}).get(
                         mlrun.common.schemas.MonitoringData.OUTPUTS
                     )
-                    self.input_path[model] = monitoring_data.get(model, {}).get(
+                    self.input_path[model] = self._split_path(monitoring_data.get(model, {}).get(
                         mlrun.common.schemas.MonitoringData.INPUT_PATH
-                    )
-                    self.result_path[model] = monitoring_data.get(model, {}).get(
+                    ))
+                    self.result_path[model] = self._split_path(monitoring_data.get(model, {}).get(
                         mlrun.common.schemas.MonitoringData.RESULT_PATH
-                    )
+                    ))
                     self.output_schema[model] = monitoring_data.get(model, {}).get(
                         mlrun.common.schemas.MonitoringData.OUTPUTS
                     )
@@ -97,12 +97,10 @@ class MonitoringPreProcessor(storey.MapClass):
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         output_schema = self.get_model_output_schema(model)
         logger.info("output schema retrieved", output_schema=output_schema)
-        result_path = self.result_path.get(model) or ""
-        input_path = self.input_path.get(model) or ""
-        result = event.body.get(model) or event.body.get(result_path) or event.body
-        result = (
-            result.get(result_path, result) if (isinstance(result, dict)) else result
-        )
+        result_path = self.result_path.get(model)
+        input_path = self.input_path.get(model)
+
+        result = self._get_data_from_path(result_path, event.body.get(model, event.body))
         if isinstance(result, dict):
             if not output_schema:
                 logger.warn(
@@ -124,11 +122,7 @@ class MonitoringPreProcessor(storey.MapClass):
             outputs = result
 
         event_inputs = event.headers.get("inputs", {})
-        event_inputs = (
-            event_inputs.get(input_path, event_inputs)
-            if isinstance(event_inputs, dict)
-            else event_inputs
-        )
+        event_inputs = self._get_data_from_path(input_path, event_inputs)
         if isinstance(event_inputs, dict):
             values = list(event_inputs.values())
             # transpose by feature the inputs:
@@ -162,6 +156,31 @@ class MonitoringPreProcessor(storey.MapClass):
         resp = {"outputs": outputs}
 
         return request, resp
+
+    @staticmethod
+    def _get_data_from_path(path: Union[str, list[str], None], data: dict) -> dict[str, Any]:
+        if not isinstance(data, dict) or path is None:
+            return data
+        if isinstance(path, str):
+            return data.get(path)
+        elif isinstance(path, list):
+            output_data = deepcopy(data)
+            for key in path:
+                output_data = output_data.get(key, {})
+            return output_data
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError("Expected path be of type str or list of str")
+
+
+    @staticmethod
+    def _split_path(path: str) -> Union[str, list[str], None]:
+        if path is not None:
+            parsed_path = path.split(".")
+            if len(parsed_path) == 1:
+                parsed_path = parsed_path[0]
+            return parsed_path
+        return path
+
 
     def do(self, event):
         monitoring_event_list = []

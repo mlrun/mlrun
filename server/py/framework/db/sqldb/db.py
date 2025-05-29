@@ -7271,15 +7271,15 @@ class SQLDB(DBInterface):
                 error=error,
             )
             session.add(background_task_record)
-            session.refresh(background_task_record)
-            for label_name, label_value in labels.items():
-                task_labels.append(
-                    BackgroundTaskLabel(
-                        name=label_name,
-                        value=label_value,
-                        parent=background_task_record.id,
+            if labels is not None:
+                for label_name, label_value in labels.items():
+                    task_labels.append(
+                        BackgroundTaskLabel(
+                            name=label_name,
+                            value=label_value,
+                            task=background_task_record,
+                        )
                     )
-                )
         objects = [background_task_record]
         if task_labels:
             objects.extend(task_labels)

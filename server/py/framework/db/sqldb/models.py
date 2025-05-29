@@ -452,7 +452,7 @@ with warnings.catch_warnings():
     class BackgroundTaskLabel(Base):
         __tablename__ = "background_task_labels"
         __table_args__ = (
-            UniqueConstraint("task_id", "name", name="uq_bg_task_labels_task_name"),
+            UniqueConstraint("task_id", "name", name="uq_bg_task_labels_task_id_and_name"),
         )
 
         id = Column(Integer, primary_key=True)

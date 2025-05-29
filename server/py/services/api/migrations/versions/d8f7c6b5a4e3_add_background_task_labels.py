@@ -37,6 +37,7 @@ def upgrade() -> None:
             sa.Integer,
             sa.ForeignKey("background_tasks.id", ondelete="CASCADE"),
             nullable=False,
+            index=True,
         ),
         sa.Column("name", sa.String(255, collation="utf8mb3_bin"), nullable=False),
         sa.Column("value", sa.String(255, collation="utf8mb3_bin"), nullable=True),
@@ -44,11 +45,8 @@ def upgrade() -> None:
             "task_id", "name", name="uq_bg_task_labels_task_id_and_name"
         ),
     )
-    op.create_index(
-        "ix_bg_task_labels_task_id", "background_task_labels", ["task_id"], unique=False
-    )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_bg_task_labels_task_id", table_name="background_task_labels")
+    op.drop_index("ix_background_task_labels_task_id", table_name="background_task_labels")
     op.drop_table("background_task_labels")

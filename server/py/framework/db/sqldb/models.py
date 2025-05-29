@@ -423,13 +423,11 @@ with warnings.catch_warnings():
         created = Column(
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
-            nullable=False,
         )
         updated = Column(
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
             onupdate=lambda: datetime.now(timezone.utc),
-            nullable=False,
         )
         state = Column(
             String(255, collation=SQLTypesUtil.collation()),
@@ -455,7 +453,6 @@ with warnings.catch_warnings():
         __tablename__ = "background_task_labels"
         __table_args__ = (
             UniqueConstraint("task_id", "name", name="uq_bg_task_labels_task_name"),
-            Index("ix_bg_task_labels_task_id", "task_id"),
         )
 
         id = Column(Integer, primary_key=True)
@@ -463,6 +460,7 @@ with warnings.catch_warnings():
             Integer,
             ForeignKey("background_tasks.id", ondelete="CASCADE"),
             nullable=False,
+            index=True,
         )
         name = Column(
             String(255, collation=SQLTypesUtil.collation()),

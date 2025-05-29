@@ -11,7 +11,7 @@ fastapi~=0.115.6
 sqlalchemy~=1.4
 pymysql~=1.1
 alembic~=1.14
-timelength~=3.0
+timelength~=1.1
 memray~=1.12; sys_platform != 'win32'
 aiosmtplib~=3.0
 # until https://github.com/fastapi/fastapi/issues/10360 is solved

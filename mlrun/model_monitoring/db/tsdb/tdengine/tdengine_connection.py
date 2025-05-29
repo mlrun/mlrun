@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import traceback
 from collections.abc import Callable
 from enum import Enum
 from typing import Any, Final, Optional, Union
@@ -135,34 +134,6 @@ class Statement:
         statement.bind_param(bind_params)
         statement.add_batch()
         return statement
-
-
-def _run(connection_string, prefix_statements, q, statements, query):
-    try:
-        conn = taosws.connect(connection_string)
-
-        for statement in prefix_statements + statements:
-            if isinstance(statement, Statement):
-                prepared_statement = statement.prepare(conn.statement())
-                prepared_statement.execute()
-            else:
-                conn.execute(statement)
-
-        if not query:
-            q.put(None)
-            return
-
-        res = conn.query(query)
-
-        # taosws.TaosField is not serializable
-        fields = [
-            Field(field.name(), field.type(), field.bytes()) for field in res.fields
-        ]
-
-        q.put(QueryResult(list(res), fields))
-    except Exception as e:
-        tb = traceback.format_exc()
-        q.put(ErrorResult(tb, e))
 
 
 class TDEngineConnection:

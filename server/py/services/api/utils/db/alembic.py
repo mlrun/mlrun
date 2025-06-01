@@ -79,6 +79,7 @@ class AlembicUtil:
 
         self._flush_output()
         alembic.command.history(catch_stdout_config)
+        print(self._alembic_output)
         return self._parse_revision_history(self._alembic_output)
 
     @staticmethod

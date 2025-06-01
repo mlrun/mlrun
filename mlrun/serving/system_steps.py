@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import random
-from copy import deepcopy
+from copy import copy, deepcopy
 from datetime import timedelta
 from typing import Any, Union
 
@@ -26,6 +26,7 @@ import mlrun.serving
 from mlrun.serving import ModelRunnerStep
 from mlrun.utils import logger
 
+
 class MonitoringPreProcessor(storey.MapClass):
     def __init__(
         self,
@@ -34,7 +35,7 @@ class MonitoringPreProcessor(storey.MapClass):
     ):
         super().__init__(**kwargs)
         self.models_uri: dict[str:str] = {}
-        self.context = context
+        self.context = copy(context)
         self.model_endpoints: dict[str, [dict[str, str]]] = {}
         self.labels: dict[str, dict[str, str]] = {}
         self.input_path: dict[str, str] = {}
@@ -57,19 +58,23 @@ class MonitoringPreProcessor(storey.MapClass):
                     self.model_endpoints[step.name][model] = {
                         mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID: monitoring_data[
                             model
-                        ][mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID],
+                        ].get(mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID),
                         mm_schemas.StreamProcessingEvent.MODEL_CLASS: model_class,
                     }
 
                     self.labels[model] = monitoring_data.get(model, {}).get(
                         mlrun.common.schemas.MonitoringData.OUTPUTS
                     )
-                    self.input_path[model] = self._split_path(monitoring_data.get(model, {}).get(
-                        mlrun.common.schemas.MonitoringData.INPUT_PATH
-                    ))
-                    self.result_path[model] = self._split_path(monitoring_data.get(model, {}).get(
-                        mlrun.common.schemas.MonitoringData.RESULT_PATH
-                    ))
+                    self.input_path[model] = self._split_path(
+                        monitoring_data.get(model, {}).get(
+                            mlrun.common.schemas.MonitoringData.INPUT_PATH
+                        )
+                    )
+                    self.result_path[model] = self._split_path(
+                        monitoring_data.get(model, {}).get(
+                            mlrun.common.schemas.MonitoringData.RESULT_PATH
+                        )
+                    )
                     self.output_schema[model] = monitoring_data.get(model, {}).get(
                         mlrun.common.schemas.MonitoringData.OUTPUTS
                     )
@@ -77,7 +82,7 @@ class MonitoringPreProcessor(storey.MapClass):
                         mlrun.common.schemas.MonitoringData.MODEL_PATH
                     )
 
-    def get_model_output_schema(self, model: str) -> list[str]:
+    def get_model_output_schema(self, model: str, is_dict: bool) -> list[str]:
         if self.output_schema.get(model) is None:
             if self.models_uri.get(model) is not None:
                 _, model_spec, extra_datitems = mlrun.artifacts.get_model(
@@ -86,51 +91,54 @@ class MonitoringPreProcessor(storey.MapClass):
                 self.output_schema[model] = [
                     feature.name for feature in model_spec.outputs
                 ]
-            else:
+            elif is_dict:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "model uri or output schema must be provided in ModelRunnerStep.add_model"
+                    "model uri or output schema must be provided in ModelRunnerStep.add_model when dictionary "
+                    "result provided"
                 )
         return self.output_schema.get(model)
 
     def reconstruct_request_resp_fields(
         self, event, model: str
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        output_schema = self.get_model_output_schema(model)
-        logger.info("output schema retrieved", output_schema=output_schema)
         result_path = self.result_path.get(model)
         input_path = self.input_path.get(model)
 
-        result = self._get_data_from_path(result_path, event.body.get(model, event.body))
+        result = self._get_data_from_path(
+            result_path, event.body.get(model, event.body)
+        )
+        output_schema = self.get_model_output_schema(
+            model, is_dict=isinstance(result, dict)
+        )
+        logger.info("output schema retrieved", output_schema=output_schema)
         if isinstance(result, dict):
+            if len(result) > 1:
+                # transpose by key the outputs:
+                outputs = self.transpose_by_key(result, output_schema)
+            elif len(result) == 1:
+                outputs = (
+                    result[output_schema[0]]
+                    if output_schema
+                    else list(result.values())[0]
+                )
+            else:
+                outputs = []
             if not output_schema:
                 logger.warn(
                     "Output schema was not provided using Project:log_model or by ModelRunnerStep:add_model order "
                     "may not preserved"
                 )
-            values = (
-                [result[o] for o in output_schema if o in result]
-                if output_schema
-                else list(result.values())
-            )
-            # transpose by feature the outputs:
-            outputs = (
-                list(map(list, zip(*values)))
-                if all(isinstance(v, list) for v in values) and len(values) > 1
-                else values[0]
-            )
         else:
             outputs = result
 
         event_inputs = event.headers.get("inputs", {})
         event_inputs = self._get_data_from_path(input_path, event_inputs)
         if isinstance(event_inputs, dict):
-            values = list(event_inputs.values())
-            # transpose by feature the inputs:
-            inputs = (
-                list(map(list, zip(*values)))
-                if all(isinstance(v, list) for v in values) and len(values) > 1
-                else values
-            )
+            if len(event_inputs) > 1:
+                # transpose by key the inputs:
+                inputs = self.transpose_by_key(event_inputs)
+            else:
+                inputs = list(event_inputs.values())[0] if event_inputs else []
         else:
             inputs = event_inputs
 
@@ -144,7 +152,7 @@ class MonitoringPreProcessor(storey.MapClass):
                     schema_len=len(output_schema),
                 )
         elif outputs:
-            if len(output_schema) != 1:
+            if output_schema and len(output_schema) != 1:
                 logger.info(
                     "The number of outputs returned by the model does not match the number of outputs "
                     "specified in the model endpoint.",
@@ -158,19 +166,42 @@ class MonitoringPreProcessor(storey.MapClass):
         return request, resp
 
     @staticmethod
-    def _get_data_from_path(path: Union[str, list[str], None], data: dict) -> dict[str, Any]:
-        if not isinstance(data, dict) or path is None:
-            return data
+    def transpose_by_key(
+        data_to_transpose, schema: list[str] = None
+    ) -> list[list[float]]:
+        values = (
+            list(data_to_transpose.values())
+            if not schema
+            else [data_to_transpose[key] for key in schema]
+        )
+        if values and not isinstance(values[0], list):
+            values = [values]
+        transposed = (
+            list(map(list, zip(*values)))
+            if all(isinstance(v, list) for v in values) and len(values) > 1
+            else values
+        )
+        return transposed
+
+    @staticmethod
+    def _get_data_from_path(
+        path: Union[str, list[str], None], data: dict
+    ) -> dict[str, Any]:
         if isinstance(path, str):
-            return data.get(path)
+            output_data = data.get(path)
         elif isinstance(path, list):
             output_data = deepcopy(data)
             for key in path:
                 output_data = output_data.get(key, {})
-            return output_data
+        elif path is None:
+            output_data = data
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError("Expected path be of type str or list of str")
-
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Expected path be of type str or list of str or None"
+            )
+        if isinstance(output_data, (int, float)):
+            output_data = [output_data]
+        return output_data
 
     @staticmethod
     def _split_path(path: str) -> Union[str, list[str], None]:
@@ -180,7 +211,6 @@ class MonitoringPreProcessor(storey.MapClass):
                 parsed_path = parsed_path[0]
             return parsed_path
         return path
-
 
     def do(self, event):
         monitoring_event_list = []
@@ -219,7 +249,9 @@ class MonitoringPreProcessor(storey.MapClass):
                                 mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
                             ),
                             mm_schemas.StreamProcessingEvent.LABELS: self.labels[model],
-                            mm_schemas.StreamProcessingEvent.FUNCTION_URI: server.function_uri,
+                            mm_schemas.StreamProcessingEvent.FUNCTION_URI: server.function_uri
+                            if server
+                            else None,
                             mm_schemas.StreamProcessingEvent.REQUEST: request,
                             mm_schemas.StreamProcessingEvent.RESPONSE: resp,
                             mm_schemas.StreamProcessingEvent.ERROR: event.body[model][
@@ -255,7 +287,9 @@ class MonitoringPreProcessor(storey.MapClass):
                         model
                     ].get(mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID),
                     mm_schemas.StreamProcessingEvent.LABELS: self.labels[model],
-                    mm_schemas.StreamProcessingEvent.FUNCTION_URI: server.function_uri,
+                    mm_schemas.StreamProcessingEvent.FUNCTION_URI: server.function_uri
+                    if server
+                    else None,
                     mm_schemas.StreamProcessingEvent.REQUEST: request,
                     mm_schemas.StreamProcessingEvent.RESPONSE: resp,
                     mm_schemas.StreamProcessingEvent.ERROR: event.body[
@@ -277,7 +311,7 @@ class MonitoringPreProcessor(storey.MapClass):
 
 class BackgroundTaskStatus(storey.MapClass):
     def __init__(self, context, **kwargs):
-        self.context = context
+        self.context = copy(context)
         self.server: mlrun.serving.GraphServer = getattr(
             self.context, "_server", None
         ) or getattr(self.context, "server", None)
@@ -286,6 +320,8 @@ class BackgroundTaskStatus(storey.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
+        if (self.context and self.context.is_mock) or self.context is None:
+            return event
         if (
             self._background_task_status
             == mlrun.common.schemas.BackgroundTaskState.running
@@ -341,33 +377,11 @@ class BackgroundTaskStatus(storey.MapClass):
 class SamplingStep(storey.MapClass):
     def __init__(
         self,
-        context,
         sampling_percentage: float,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.context = context
-        server: mlrun.serving.GraphServer = getattr(
-            context, "_server", None
-        ) or getattr(context, "server", None)
         self.sampling_percentage = sampling_percentage
-        self.input_path: dict[str, str] = {}
-        self.result_path: dict[str, str] = {}
-        monitoring_data = {}
-        for step in server.graph:
-            if isinstance(step, ModelRunnerStep):
-                monitoring_data.update(
-                    step.class_args.get(
-                        mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
-                    )
-                )
-        for model in server.graph.model_endpoints_names:
-            self.input_path[model] = monitoring_data.get(model, {}).get(
-                mlrun.common.schemas.MonitoringData.INPUT_PATH
-            )
-            self.result_path[model] = monitoring_data.get(model, {}).get(
-                mlrun.common.schemas.MonitoringData.RESULT_PATH
-            )
 
     def do(self, event):
         logger.info(
@@ -412,3 +426,14 @@ class SamplingStep(storey.MapClass):
         return [
             req for req in range(num_of_reqs) if random.random() < (percentage / 100)
         ]
+
+
+class MockStreamPusher(storey.MapClass):
+    def __init__(self, context, output_stream=None, **kwargs):
+        super().__init__(**kwargs)
+        self.output_stream = output_stream or context.stream.output_stream
+
+    def do(self, event):
+        self.output_stream.push(
+            [event], partition_key=mm_schemas.StreamProcessingEvent.ENDPOINT_ID
+        )

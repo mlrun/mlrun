@@ -403,7 +403,6 @@ def apply_monitoring_general_steps(
         "mlrun.serving.system_steps.SamplingStep",
         "sampling_step",
         after="flatten_events",
-        context=context,
         sampling_percentage=serving_spec.get("parameters", {}).get(
             "sampling_percentage", 100
         )
@@ -417,20 +416,27 @@ def apply_monitoring_general_steps(
         after="sampling_step",
     )
 
-    stream_uri = mlrun.model_monitoring.get_stream_path(
-        project=project,
-        function_name=mlrun.common.schemas.MonitoringFunctionNames.STREAM,
-    )
-    context.logger.info_with(
-        "Creating Model Monitoring stream target using uri:", uri=stream_uri
-    )
-    graph.add_step(
-        ">>",
-        "model_monitoring_stream",
-        path=stream_uri,
-        sharding_func=mlrun.common.schemas.model_monitoring.constants.StreamProcessingEvent.ENDPOINT_ID,
-        after="filter_none_2",
-    )
+    if getattr(context, "is_mock", False):
+        graph.add_step(
+            "mlrun.serving.system_steps.MockStreamPusher",
+            "mock_mm_pusher",
+            after="filter_none_2",
+        )
+    else:
+        stream_uri = mlrun.model_monitoring.get_stream_path(
+            project=project,
+            function_name=mlrun.common.schemas.MonitoringFunctionNames.STREAM,
+        )
+        context.logger.info_with(
+            "Creating Model Monitoring stream target using uri:", uri=stream_uri
+        )
+        graph.add_step(
+            ">>",
+            "model_monitoring_stream",
+            path=stream_uri,
+            sharding_func=mlrun.common.schemas.model_monitoring.constants.StreamProcessingEvent.ENDPOINT_ID,
+            after="filter_none_2",
+        )
     return graph, monitor_flow_step
 
 
@@ -461,7 +467,7 @@ def add_system_steps_to_graph(
     project: str, graph: RootFlowStep, track_models: bool, context, serving_spec
 ) -> RootFlowStep:
     graph = add_error_raiser_step(graph)
-    if track_models and not getattr(context, "is_mock", False):
+    if track_models:
         graph = add_monitoring_pre_process_steps(project, graph, context, serving_spec)
     return graph
 

@@ -166,9 +166,7 @@ class MonitoringPreProcessor(storey.MapClass):
         return request, resp
 
     @staticmethod
-    def transpose_by_key(
-        data_to_transpose, schema: list[str] = None
-    ) -> list[list[float]]:
+    def transpose_by_key(data_to_transpose, schema: list[str]) -> list[list[float]]:
         values = (
             list(data_to_transpose.values())
             if not schema

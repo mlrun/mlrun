@@ -120,8 +120,8 @@ class MyModel(mlrun.serving.Model):
     def __init__(
         self,
         *args,
-        artifact_uri: str = None,
-        raise_exception=False,
+        artifact_uri: typing.Optional[str] = None,
+        raise_exception: bool = False,
         gpu_number: typing.Optional[int] = None,
         **kwargs,
     ):

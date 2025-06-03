@@ -483,12 +483,10 @@ class ServerSideLauncher(launcher.BaseLauncher):
         backoff = retry.backoff
         if backoff is not None and backoff.base_delay is not None:
             min_base_delay = mlrun.mlconf.function.spec.retry.backoff.min_base_delay
-            min_base_delay_seconds = framework.utils.helpers.time_string_to_seconds(
-                min_base_delay, 0
-            )
             try:
                 framework.utils.helpers.time_string_to_seconds(
-                    backoff.base_delay, min_base_delay_seconds
+                    backoff.base_delay,
+                    mlrun.mlconf.function.spec.retry.backoff.min_base_delay,
                 )
             except ValueError as exc:
                 raise mlrun.errors.MLRunInvalidArgumentError(

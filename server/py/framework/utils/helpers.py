@@ -73,15 +73,15 @@ def ensure_running_on_chief(function):
     return wrapper
 
 
-def time_string_to_seconds(time_str: str, min_seconds: int = 60) -> Optional[int]:
+def time_string_to_seconds(time_str: str, min_time_str: str = "60s") -> Optional[int]:
     if not time_str:
         return None
 
     if time_str == "-1":
         return -1
 
-    parsed_length = TimeLength(time_str, strict=True)
-    total_seconds = parsed_length.to_seconds()
+    total_seconds = TimeLength(time_str, strict=True).to_seconds()
+    min_seconds = TimeLength(min_time_str, strict=True).to_seconds()
     if total_seconds < min_seconds:
         raise ValueError(
             f"Invalid time string {time_str}, must be at least {min_seconds=}"

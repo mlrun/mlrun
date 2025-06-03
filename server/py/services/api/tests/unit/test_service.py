@@ -1,0 +1,75 @@
+# Copyright 2025 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+import asyncio
+import datetime
+import typing
+import unittest.mock
+
+from sqlalchemy.orm import Session
+
+import mlrun.common.runtimes
+import mlrun.db
+
+from services.api.daemon import daemon
+from services.api.tests.unit.conftest import TestAPIBase
+
+
+class TestService(TestAPIBase):
+    @classmethod
+    def custom_setup_class(cls):
+        cls._project = "test-project"
+        cls._service = daemon.service
+
+    async def test_retry_job(self, db: Session, monkeypatch):
+        mlrun.mlconf.function.spec.retry.backoff.min_base_delay = "0s"
+        run_uid = "test-job-uid"
+        run = self._generate_retry_job()
+        run_db = mlrun.db.get_run_db()
+        with unittest.mock.patch(
+            "framework.api.utils.submit_run_sync", return_value=unittest.mock.Mock()
+        ) as mock_submit_run_sync:
+            run_db.store_run(struct=run, uid=run_uid, project=self._project)
+            await self._service._retry_jobs()
+            await asyncio.sleep(1)
+            mock_submit_run_sync.assert_called_once()
+
+    def _generate_retry_job(
+        self,
+        project: typing.Optional[str] = None,
+        state: typing.Optional[str] = None,
+        count: int = 3,
+        retry_count: int = 0,
+    ):
+        return {
+            "metadata": {
+                "name": "test-job",
+                "project": project or self._project,
+            },
+            "spec": {
+                "function": f"{self._project}/test@c37401e5c6bf55b826bafa336a2c6e796280292a",
+                "retry": {
+                    "count": count,
+                    "backoff": {
+                        "base_delay": "1s",
+                    },
+                },
+            },
+            "status": {
+                "state": state
+                or mlrun.common.runtimes.constants.RunStates.pending_retry,
+                "error": "some error",
+                "retry_count": retry_count,
+                "end_time": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            },
+        }

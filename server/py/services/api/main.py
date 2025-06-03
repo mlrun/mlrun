@@ -41,6 +41,7 @@ import framework.service
 import framework.utils.clients.chief
 import framework.utils.clients.log_collector
 import framework.utils.clients.messaging
+import framework.utils.helpers
 import framework.utils.notifications.notification_pusher
 import framework.utils.pagination_cache
 import framework.utils.time_window_tracker
@@ -193,6 +194,7 @@ class Service(framework.service.Service):
             self._start_periodic_project_summaries_calculation()
         self._start_periodic_partition_management()
         self._start_periodic_refresh_smtp_configuration()
+        self._start_periodic_retry_job()
         if mlconf.httpdb.clusterization.chief.feature_gates.start_logs == "enabled":
             await self._start_periodic_logs_collection()
         if mlconf.httpdb.clusterization.chief.feature_gates.stop_logs == "enabled":
@@ -605,6 +607,17 @@ class Service(framework.service.Service):
                 refresh=True,
             )
 
+    def _start_periodic_retry_job(self):
+        interval = int(mlconf.monitoring.runs.retry.interval)
+        if interval > 0:
+            self._logger.info("Starting periodic retry job", interval=interval)
+            run_function_periodically(
+                interval,
+                self._retry_jobs.__name__,
+                False,
+                self._retry_jobs,
+            )
+
     @staticmethod
     async def _manage_partitions(table_name, retention_days):
         await fastapi.concurrency.run_in_threadpool(
@@ -910,6 +923,94 @@ class Service(framework.service.Service):
                         project=project_name,
                         chunked_run_uids=chunked_run_uids,
                     )
+
+    async def _retry_jobs(self):
+        """
+        Retry jobs that are in a failed state and have a retry policy configured.
+        This function is called periodically to retry jobs that have failed and can be retried.
+        """
+        self._logger.debug("Retrying jobs with retry policy configured")
+        db_session = await fastapi.concurrency.run_in_threadpool(create_session)
+        try:
+            runs = await fastapi.concurrency.run_in_threadpool(
+                get_db().list_runs,
+                db_session,
+                project="*",
+                states=[mlrun.common.runtimes.constants.RunStates.pending_retry],
+                limit=mlconf.monitoring.runs.retry.runs_limit,
+            )
+            if not runs:
+                self._logger.debug("No runs to retry")
+                return
+
+            self._logger.debug(
+                "Found runs to retry",
+                runs_count=len(runs),
+            )
+            futures = []
+            for run_dict in runs:
+                run = mlrun.RunObject.from_dict(run_dict)
+                # sanity
+                if not run.status.retry_count < run.spec.retry.count:
+                    self._logger.debug(
+                        "Run has reached max retry count, skipping",
+                        run_uid=run.get("metadata", {}).get("uid", None),
+                        retry_count=run.status.retry_count,
+                        max_retry_count=run.spec.retry.count,
+                    )
+                    futures.append(
+                        fastapi.concurrency.run_in_threadpool(
+                            framework.db.session.run_function_with_new_db_session,
+                            get_db().update_run,
+                            updates={
+                                "status.state": mlrun.common.runtimes.constants.RunStates.error,
+                                "status.error": "Run has reached max retry count",
+                            },
+                            uid=run.metadata.uid,
+                        )
+                    )
+
+                try:
+                    delay = framework.utils.helpers.time_string_to_seconds(
+                        run.spec.retry.backoff.base_delay,
+                        mlrun.mlconf.function.spec.retry.backoff.min_base_delay,
+                    ) * (run.status.retry_count + 1)
+                    delta = (
+                        datetime.datetime.fromisoformat(run.status.end_time)
+                        + datetime.timedelta(seconds=delay)
+                        - datetime.datetime.now(datetime.timezone.utc)
+                    )
+                    call_after_seconds = max(delta.total_seconds(), 0)
+                    submit_job_body = {
+                        "task": run.to_dict(),
+                    }
+                    loop = asyncio.get_event_loop()
+                    loop.call_later(
+                        call_after_seconds,
+                        framework.db.session.run_function_with_new_db_session,
+                        framework.api.utils.submit_run_sync,
+                        None,
+                        submit_job_body,
+                    )
+                except Exception as exc:
+                    self._logger.warning(
+                        "Failed retrying run",
+                        run_uid=run.metadata.uid,
+                        exc=err_to_str(exc),
+                        traceback=traceback.format_exc(),
+                    )
+
+                if futures:
+                    exceptions = await asyncio.gather(*futures, return_exceptions=True)
+                    for exception in exceptions:
+                        if isinstance(exception, Exception):
+                            self._logger.warning(
+                                "Failed task in retry job",
+                                exc=err_to_str(exception),
+                            )
+
+        finally:
+            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
 
 if __name__ == "__main__":

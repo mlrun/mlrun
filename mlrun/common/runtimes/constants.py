@@ -139,6 +139,7 @@ class RunStates:
     aborted = "aborted"
     aborting = "aborting"
     skipped = "skipped"
+    pending_retry = "pendingRetry"
 
     @staticmethod
     def all():
@@ -152,6 +153,7 @@ class RunStates:
             RunStates.aborted,
             RunStates.aborting,
             RunStates.skipped,
+            RunStates.pending_retry,
         ]
 
     @staticmethod
@@ -190,7 +192,7 @@ class RunStates:
         return [
             RunStates.running,
             RunStates.pending,
-            # TODO: add aborting state once we have it
+            # TODO: add aborting?
         ]
 
     @staticmethod

@@ -617,17 +617,15 @@ class SQLDB(DBInterface):
         :param run_dict: The run dict
         :param end_time: The end time to set - used when in 'store' flow to set the end time
         """
-        if (
-            run.state in mlrun.common.runtimes.constants.RunStates.terminal_states()
-            and not run.end_time
-        ):
+        endable_states = mlrun.common.runtimes.constants.RunStates.terminal_states() + [
+            mlrun.common.runtimes.constants.RunStates.pending_retry
+        ]
+        if run.state in endable_states and not run.end_time:
             if end_time is None:
                 # Ensures fsp 6 for MySQL NOW() to includes microseconds
                 end_time = func.now(6)
             run.end_time = end_time
-        elif (
-            run.state not in mlrun.common.runtimes.constants.RunStates.terminal_states()
-        ):
+        elif run.state not in endable_states:
             # Ensure end time is not set if the run is not in a terminal state
             run.end_time = None
             run_dict.setdefault("status", {}).pop("end_time", None)

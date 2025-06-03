@@ -118,6 +118,12 @@ default_config = {
             # max number of parallel abort run jobs in runs monitoring
             "concurrent_abort_stale_runs_workers": 10,
             "list_runs_time_period_in_days": 7,  # days
+            "retry": {
+                # periodic job for triggering retries interval in seconds
+                "interval": "30",
+                # runs limit to fetch for retrying
+                "runs_limit": 1000,
+            },
         },
         "projects": {
             "summaries": {
@@ -267,7 +273,7 @@ default_config = {
             "retry": {
                 "backoff": {
                     "default_base_delay": "30s",
-                    "min_base_delay": "300s",
+                    "min_base_delay": "30s",
                 },
             },
             # When the module is reloaded, the maximum depth recursion configuration for the recursive reload

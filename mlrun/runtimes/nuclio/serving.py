@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
 import json
 import os
 import warnings
@@ -775,7 +774,7 @@ class ServingRuntime(RemoteRuntime):
         if isinstance(self.spec.graph, RootFlowStep):
             server.graph = add_system_steps_to_graph(
                 server.project,
-                copy.deepcopy(self.spec.graph),
+                server.graph,
                 self.spec.track_models,
                 server.context,
                 self.spec,

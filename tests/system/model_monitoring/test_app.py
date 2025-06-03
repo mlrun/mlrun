@@ -43,6 +43,7 @@ import mlrun.feature_store
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
 import mlrun.model_monitoring.api
+import mlrun.serving
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfileKafkaSource,
@@ -515,20 +516,46 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
     @classmethod
     def _deploy_model_serving(
-        cls, with_training_set: bool
+        cls,
+        with_training_set: bool,
+        with_model_runner: bool = False,
     ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
-        serving_fn = typing.cast(
-            mlrun.runtimes.nuclio.serving.ServingRuntime,
-            mlrun.import_function(
-                "hub://v2_model_server",
+        if with_model_runner:
+            code_path = (
+                f"{str((Path(__file__).parent / 'assets').absolute())}/models.py"
+            )
+            serving_fn = mlrun.code_to_function(
+                name="model-serving",
+                kind="serving",
                 project=cls.project_name,
-                new_name="model-serving",
-            ),
-        )
-        serving_fn.add_model(
-            f"{cls.model_name}_{with_training_set}",
-            model_path=f"store://models/{cls.project_name}/{cls.model_name}_{with_training_set}:latest",
-        )
+                filename=code_path,
+            )
+            model_runner_step = mlrun.serving.ModelRunnerStep(
+                name="ModelRunner",
+                full_event=True,
+            )
+            model_runner_step.add_model(
+                endpoint_name=f"{cls.model_name}_{with_training_set}",
+                model_class="MyModel",
+                model_artifact=f"store://models/{cls.project_name}/{cls.model_name}_{with_training_set}:latest",
+                input_path="inputs",
+                result_path="outputs",
+            )
+            graph = serving_fn.set_topology("flow", engine="async")
+            graph.to(model_runner_step).respond()
+        else:
+            serving_fn = typing.cast(
+                mlrun.runtimes.nuclio.serving.ServingRuntime,
+                mlrun.import_function(
+                    "hub://v2_model_server",
+                    project=cls.project_name,
+                    new_name="model-serving",
+                ),
+            )
+            serving_fn.add_model(
+                f"{cls.model_name}_{with_training_set}",
+                model_path=f"store://models/{cls.project_name}/{cls.model_name}_{with_training_set}:latest",
+            )
         serving_fn.set_tracking()
         if cls.image is not None:
             serving_fn.spec.image = serving_fn.spec.build.image = cls.image
@@ -543,11 +570,18 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         *,
         num_events: int,
         with_training_set: bool = True,
+        with_model_runner: bool = False,
     ) -> datetime:
-        result = serving_fn.invoke(
-            f"v2/models/{cls.model_name}_{with_training_set}/infer",
-            json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}),
-        )
+        if with_model_runner:
+            result = serving_fn.invoke(
+                "/",
+                json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}),
+            )
+        else:
+            result = serving_fn.invoke(
+                f"v2/models/{cls.model_name}_{with_training_set}/infer",
+                json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}),
+            )
         assert isinstance(result, dict), "Unexpected result type"
         assert "outputs" in result, "Result should have 'outputs' key"
         assert (
@@ -651,7 +685,8 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         assert alert.count == 1
 
     @pytest.mark.parametrize("with_training_set", [True, False])
-    def test_app_flow(self, with_training_set: bool) -> None:
+    @pytest.mark.parametrize("with_model_runner", [True, False])
+    def test_app_flow(self, with_training_set: bool, with_model_runner: bool) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
 
         for i in range(len(self.apps_data)):
@@ -662,20 +697,27 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         if not with_training_set and _DefaultDataDriftAppData in self.apps_data:
             self.apps_data.remove(_DefaultDataDriftAppData)
 
+        self._log_model(with_training_set=with_training_set)
+
         self._submit_controller_and_deploy_writer(
             deploy_histogram_data_drift_app=_DefaultDataDriftAppData in self.apps_data,
             # workaround for ML-5997
         )
         with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.submit(self._set_and_deploy_monitoring_apps)
-            future = executor.submit(self._deploy_model_serving, with_training_set)
+            future = executor.submit(
+                self._deploy_model_serving, with_training_set, with_model_runner
+            )
 
         serving_fn = future.result()
         self._add_error_alert()
 
         time.sleep(5)
         last_request = self._infer(
-            serving_fn, num_events=self.num_events, with_training_set=with_training_set
+            serving_fn,
+            num_events=self.num_events,
+            with_training_set=with_training_set,
+            with_model_runner=with_model_runner,
         )
 
         self._infer_with_error(serving_fn, with_training_set=with_training_set)
@@ -694,9 +736,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             feature_analysis=True,
             tsdb_metrics=True,
         )
-
+        # Model predict timestamp is slightly differ than storey timestamp
         assert (
-            mep.status.last_request == last_request
+            (mep.status.last_request - last_request) < timedelta(milliseconds=1)
         ), "The saved `last_request` in the model endpoint is different than the last result timestamp"
 
         self._test_v3io_records(

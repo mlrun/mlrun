@@ -423,3 +423,34 @@ def test_tracked_model_runner_multiple_models():
     models.sort()
     output_models.sort()
     assert output_models == models, "expected models to be the same"
+
+
+def test_set_untracked_with_model_runner():
+    function = mlrun.new_function("tests-1", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="DictOutputModel",
+        endpoint_name="dict_model",
+        input_path="inputs",
+        result_path="outputs",
+        outputs=["o1", "o2", "o3", "o4"],
+        raise_error=False,
+    )
+    graph.to(model_runner_step).respond()
+    function.set_tracking(stream_args={"mock": True})
+
+    function.set_tracking("dummy://", enable_tracking=True)
+    server = function.to_mock_server()
+    server.test("/", {"inputs": {"f1": 1, "f2": 2, "f3": 3, "f4": 4}})
+    server.wait_for_completion()
+
+    dummy_stream = server.context.stream.output_stream
+    assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+    function.set_tracking("dummy://", enable_tracking=False)
+    server = function.to_mock_server()
+    server.test("/", {"inputs": {"f1": 1, "f2": 2, "f3": 3, "f4": 4}})
+    server.wait_for_completion()
+    assert (
+        len(dummy_stream.event_list) == 1
+    ), "expected stream to still have single message"

@@ -4,6 +4,8 @@
 
 MLRun supports configuring notifications on jobs and scheduled jobs. This section describes the SDK for notifications.
 
+**In this section**
+
 - [The notification object](#the-notification-object)
 - [Local vs. remote](#local-vs-remote)
 - [Notification parameters and secrets](#notification-parameters-and-secrets)

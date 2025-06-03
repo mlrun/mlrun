@@ -1,6 +1,8 @@
 (model-monitoring-des)=
 # Model monitoring architecture
 
+Take a deeper dive into model monitoring functionality, including its APIs, model and model monitoring endpoints, multi-port predictions, batch inputs, and more.
+
 **In this section**
 - [Overview](#overview)
 - [APIs](#apis)
@@ -56,8 +58,7 @@ And for configuring alerts on model monitoring:
 
 ## Model and model monitoring endpoints
 
-For each model that is served in a model serving function, there is a model endpoint. The model endpoint is associated 
-with a feature set that manages the model endpoint statistics. See {py:meth}`model endpoint <mlrun.model_monitoring.api.get_or_create_model_endpoint>`.
+For each model that is served in a model serving function, there is a model endpoint.  See {py:meth}`model endpoint <mlrun.model_monitoring.api.get_or_create_model_endpoint>`.
 
 All model monitoring endpoints are presented in the UI with information about the actual inference, including data on the inputs, outputs, and results.
 The Model Endpoints tab presents the overall metrics. From there you can select an endpoint and view the Overview, Features Analysis, and the Metrics tabs. 
@@ -72,18 +73,17 @@ For example:
 
 Model monitoring supports Kafka or V3IO as streaming platforms, and TDEngine or V3IO TSDB platforms.
 
-We recommend the following versions:
+The recommended versions are:
 
-- TDEngine: `3.3.2.0`.
-- Kafka: `3.9.0` self-hosted, or Confluent Cloud (tested against `7.9`).
+- TDEngine: `3.3.2.0`
+- Kafka: `3.9.0` self-hosted, or Confluent Cloud (tested against `7.9`)
 
-Before you deploy the model monitoring or serving function, you need to {py:meth}`set the credentials <mlrun.projects.MlrunProject.set_model_monitoring_credentials>`.
-
-See [Configuring TDengine and Kafka for model monitoring](../install/kubernetes.md#configuring-tdengine-and-kafka-for-model-monitoring).
+Before you deploy the model monitoring or serving function, you need to set the credentials with {py:meth}`mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
+See also [Configuring TDengine and Kafka for model monitoring](../install/kubernetes.md#configuring-tdengine-and-kafka-for-model-monitoring).
 
 ## Model monitoring applications
 
-When you call `enable_model_monitoring` on a project, by default MLRun deploys the monitoring app, `HistogramDataDriftApplication`, which is
+When you call `enable_model_monitoring` on a project, by default MLRun deploys the monitoring app `HistogramDataDriftApplication`, which is
 tailored for classical ML models (not LLMs, gen AI, deep-learning models, etc.). It includes:
 
 - Total Variation Distance (TVD) &mdash; The statistical difference between the actual predictions and the model's trained predictions.

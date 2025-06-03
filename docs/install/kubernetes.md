@@ -203,7 +203,7 @@ project.set_model_monitoring_credentials(
 )
 ```
 
-See more details, including additional configuration options, in {py:class}`mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
+See more details, including additional configuration options, in {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
 
 ## Configuring the online feature store
 The MLRun Community Edition supports the online feature store. To enable it, you need to first deploy a Redis service that is accessible to your MLRun CE cluster.

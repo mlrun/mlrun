@@ -3181,7 +3181,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-base",
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
@@ -3751,7 +3751,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-base",
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4103,7 +4103,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-base",
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4224,7 +4224,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-base",
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4519,7 +4519,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-base",
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4585,7 +4585,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-base",
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True

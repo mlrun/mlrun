@@ -83,7 +83,7 @@ default_config = {
     "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
-    "dask_kfp_image": "mlrun/ml-base",  # image to use for dask KFP runner
+    "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime

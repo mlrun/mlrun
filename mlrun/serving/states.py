@@ -1110,7 +1110,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
     def __init__(
         self,
         *args,
-        name: str = None,
+        name: Optional[str] = None,
         model_selector: Optional[Union[str, ModelSelector]] = None,
         raise_exception: bool = True,
         **kwargs,

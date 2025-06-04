@@ -444,7 +444,6 @@ def test_set_untracked_with_model_runner():
     server = function.to_mock_server()
     server.test("/", {"inputs": {"f1": 1, "f2": 2, "f3": 3, "f4": 4}})
     server.wait_for_completion()
-
     dummy_stream = server.context.stream.output_stream
     assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
     function.set_tracking("dummy://", enable_tracking=False)

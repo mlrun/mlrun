@@ -15,7 +15,7 @@
 import random
 from copy import copy, deepcopy
 from datetime import timedelta
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 import storey
 
@@ -166,7 +166,9 @@ class MonitoringPreProcessor(storey.MapClass):
         return request, resp
 
     @staticmethod
-    def transpose_by_key(data_to_transpose, schema: list[str]) -> list[list[float]]:
+    def transpose_by_key(
+        data_to_transpose, schema: Optional[list[str]] = None
+    ) -> list[list[float]]:
         values = (
             list(data_to_transpose.values())
             if not schema

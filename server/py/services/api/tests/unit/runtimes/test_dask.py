@@ -557,6 +557,30 @@ class TestDaskRuntime(TestRuntimeBase):
         # used once by test, once by enrich_dask_cluster
         assert function.generate_runtime_k8s_env.call_count == 2
 
+    def test_enrich_dask_cluster_enriches_image(self):
+        function = mlrun.runtimes.DaskCluster(
+            metadata={"name": "test", "project": self.project},
+            spec={"image": "mlrun/ml-base"},
+        )
+
+        client_version = "1.10.0"
+        client_python_version = "3.9"
+        scheduler_pod, worker_pod, _, _ = (
+            services.api.runtime_handlers.daskjob.enrich_dask_cluster(
+                function=function,
+                secrets=[],
+                client_version=client_version,
+                client_python_version=client_python_version,
+            )
+        )
+
+        expected_base_image = "mlrun/mlrun"
+        expected_image = "mlrun/mlrun:1.10.0-py39"
+
+        assert scheduler_pod.spec.containers[0].image == expected_image
+        assert worker_pod.spec.containers[0].image == expected_image
+        assert function.spec.image == expected_base_image
+
     def test_deploy_dask_function_with_enriched_security_context(
         self, db: Session, client: TestClient, k8s_secrets_mock: APIK8sSecretsMock
     ):

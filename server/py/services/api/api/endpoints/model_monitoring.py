@@ -411,7 +411,7 @@ async def get_model_monitoring_function_summaries(
     :param commons: The common parameters of the request.
     :param names: List of function names to filter by (optional).
     :param labels: Labels to filter by (optional).
-    :param include_stats: Whether to include statistics in the response (default is False).
+    :param include_stats: Whether to include statistics in the response (default is True).
     :param include_infra: whether to include model monitoring infrastructure functions (default is True).
 
     :return: A list of FunctionSummary objects containing information about the monitoring functions.

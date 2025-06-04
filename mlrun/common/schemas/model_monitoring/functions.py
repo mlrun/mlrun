@@ -40,32 +40,6 @@ class FunctionSummary(BaseModel):
     stats: Optional[dict] = None
 
     @classmethod
-    def from_func(
-        cls,
-        func,
-        func_type=ModelMonitoringFunctionsType.APPLICATION,
-        base_period: Optional[float] = None,
-        stats: Optional[dict] = None,
-    ):
-        """
-        Create a FunctionSummary instance from a function object.
-        """
-
-        return cls(
-            type=func_type,
-            name=func.metadata.name,
-            application_class=func.spec.graph.steps.get(
-                "PushToMonitoringWriter", {}
-            ).get("after", [None])[0]
-            if func_type == ModelMonitoringFunctionsType.APPLICATION
-            else "",
-            updated_time=func.metadata.updated,
-            status=func.status.state,
-            base_period=base_period,
-            stats=stats,
-        )
-
-    @classmethod
     def from_function_dict(
         cls,
         func_dict: dict,

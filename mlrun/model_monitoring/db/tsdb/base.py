@@ -342,7 +342,7 @@ class TSDBConnector(ABC):
 
         :param start:             The start time in which to read the results. By default, the last 24 hours
                                   are read.
-        :param end:               The end time in which to read the results.
+        :param end:               The end time in which to read the results. Default is the current time (now).
         :param endpoint_ids:      Optional list of endpoint ids to filter the results by. By default, all
                                   endpoint ids are included.
         :param application_names: Optional list of application names to filter the results by. By default, all

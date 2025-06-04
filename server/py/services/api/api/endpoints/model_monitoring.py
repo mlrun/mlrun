@@ -416,7 +416,6 @@ async def get_model_monitoring_function_summaries(
 
     :return: A list of FunctionSummary objects containing information about the monitoring functions.
     """
-
     return MonitoringDeployment(
         project=commons.project,
         auth_info=commons.auth_info,

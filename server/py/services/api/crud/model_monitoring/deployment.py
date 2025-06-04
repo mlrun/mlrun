@@ -890,6 +890,7 @@ class MonitoringDeployment:
         mm_functions_list = self.list_model_monitoring_functions(
             labels=labels, format_=mlrun.common.formatters.FunctionFormat.minimal
         )
+        function_summaries_list = []
 
         if not mm_functions_list:
             logger.info("No model monitoring applications found")
@@ -939,7 +940,8 @@ class MonitoringDeployment:
                         0,
                     ),
                 }
-        return mm_functions_list
+            function_summaries_list.append(function_summary)
+        return function_summaries_list
 
     @staticmethod
     def _get_base_period(controller_func: dict[str, typing.Any]) -> int:

@@ -36,7 +36,7 @@ class FunctionSummary(BaseModel):
     application_class: str
     updated_time: datetime
     status: Optional[str] = None
-    base_period: Optional[float] = None
+    base_period: Optional[int] = None
     stats: Optional[dict] = None
 
     @classmethod
@@ -44,7 +44,7 @@ class FunctionSummary(BaseModel):
         cls,
         func_dict: dict,
         func_type=FunctionsType.APPLICATION,
-        base_period: Optional[float] = None,
+        base_period: Optional[int] = None,
         stats: Optional[dict] = None,
     ):
         """

@@ -106,6 +106,8 @@ class ArtifactSpec(ModelObj):
         "extra_data",
         "unpackaging_instructions",
         "producer",
+        "parent_uri",
+        "has_children",
     ]
 
     _extra_fields = ["annotations", "sources", "license", "encoding"]
@@ -128,6 +130,7 @@ class ArtifactSpec(ModelObj):
         extra_data=None,
         body=None,
         unpackaging_instructions: typing.Optional[dict] = None,
+        parent_uri: typing.Optional[str] = None,
     ):
         self.src_path = src_path
         self.target_path = target_path
@@ -138,6 +141,8 @@ class ArtifactSpec(ModelObj):
         self.db_key = db_key
         self.extra_data = extra_data or {}
         self.unpackaging_instructions = unpackaging_instructions
+        self.parent_uri = parent_uri
+        self.has_children = False
 
         self._body = body
         self.encoding = None
@@ -253,7 +258,10 @@ class Artifact(ModelObj):
         self.spec.target_path = target_path or self.spec.target_path
         self.spec.format = format or self.spec.format
         self.spec.viewer = viewer or self.spec.viewer
-        self.spec.src_path = src_path
+        self.spec.src_path = src_path or self.spec.src_path
+
+        # temp flag to indicate if the source path is a temporary file (if True it will be deleted after upload)
+        self._src_is_temp = False
 
         if body:
             self.spec._body = body
@@ -341,7 +349,7 @@ class Artifact(ModelObj):
 
     def before_log(self):
         for key, item in self.spec.extra_data.items():
-            if hasattr(item, "get_target_path"):
+            if hasattr(item, "get_target_path") and item.get_target_path():
                 self.spec.extra_data[key] = item.get_target_path()
 
     @property
@@ -450,6 +458,10 @@ class Artifact(ModelObj):
         mlrun.datastore.store_manager.object(
             url=target_path or self.spec.target_path
         ).upload(source_path)
+
+        if self._src_is_temp and os.path.exists(self.spec.src_path):
+            # delete the temporary file if it was created for the upload
+            os.remove(self.spec.src_path)
 
     def resolve_body_target_hash_path(
         self, body: typing.Union[bytes, str], artifact_path: str

@@ -27,6 +27,7 @@ import mlrun.config
 import mlrun.errors
 import mlrun.lists
 import mlrun.utils
+from mlrun.artifacts import Artifact
 from mlrun.artifacts.base import LinkArtifact
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.document import DocumentArtifact
@@ -2946,6 +2947,82 @@ class TestArtifacts(TestDatabaseBase):
         }
         kwargs.update(ignored_params)
         assert self._db._is_default_list_artifacts_query(**kwargs) == expected
+
+    def test_list_artifact_parent_filter(self):
+        # Create referenced artifact
+        parent_artifact_name = "parent-artifact"
+        child_artifact_name = "child-artifact"
+        project = "test-project"
+        parent_artifact = self._generate_artifact(parent_artifact_name)
+        self._db.store_artifact(
+            self._db_session,
+            parent_artifact_name,
+            parent_artifact,
+            project,
+            tag="ref-tag",
+        )
+        parent_artifact_db = Artifact.from_dict(
+            self._db.read_artifact(
+                self._db_session,
+                key=parent_artifact_name,
+                tag="ref-tag",
+                project=project,
+            )
+        )
+
+        # Create artifact that references the above (manually inject the reference UID)
+        child_artifact = self._generate_artifact(child_artifact_name)
+        child_artifact["spec"]["parent_uri"] = parent_artifact_db.uri
+
+        self._db.store_artifact(
+            self._db_session,
+            child_artifact_name,
+            child_artifact,
+            project,
+        )
+
+        # Filter using parent_key
+        artifacts = self._db.list_artifacts(
+            self._db_session, parent_uri=parent_artifact_name, project=project
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == child_artifact_name
+
+        # Filter using parent_tag
+        artifacts = self._db.list_artifacts(
+            self._db_session, parent_uri=":ref-tag", project=project
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == child_artifact_name
+
+        # Filter using both
+        artifacts = self._db.list_artifacts(
+            self._db_session,
+            parent_uri=f"{parent_artifact_name}:ref-tag",
+            project=project,
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == child_artifact_name
+
+        # Negative case
+        artifacts = self._db.list_artifacts(
+            self._db_session, parent_uri="nonexistent", project=project
+        )
+        assert len(artifacts) == 0
+
+        artifact = self._db.read_artifact(
+            self._db_session, key=parent_artifact_name, project=project
+        )
+
+        assert artifact["spec"]["has_children"]
+
+        c_artifact = self._db.read_artifact(
+            self._db_session, key=child_artifact_name, project=project
+        )
+
+        assert c_artifact["spec"]["parent_uri"] == parent_artifact_db.get_store_url(
+            with_tag=False
+        )
 
     def _generate_artifact_with_iterations(
         self, key, tree, num_iters, best_iter, kind, project=""

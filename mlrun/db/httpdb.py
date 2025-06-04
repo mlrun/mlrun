@@ -1226,6 +1226,7 @@ class HTTPRunDB(RunDBInterface):
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: Optional[str] = None,
         producer_uri: Optional[str] = None,
+        parent: Optional[str] = None,
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
@@ -1254,6 +1255,8 @@ class HTTPRunDB(RunDBInterface):
                 "results", tag="*", project="iris", labels=["uploaded", "type=binary"]
             )
 
+        :param parent: The URI or <parent_name>:<parent_tag> string of the parent artifact.
+                Used to filter and return only artifacts that are direct children of the specified parent.
         :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
             case-sensitive. This means that querying for ``~name`` may return artifacts named
             ``my_Name_1`` or ``surname``.
@@ -1310,6 +1313,7 @@ class HTTPRunDB(RunDBInterface):
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
             return_all=not limit,
+            parent=parent,
         )
         return artifacts
 
@@ -5127,6 +5131,7 @@ class HTTPRunDB(RunDBInterface):
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: Optional[str] = None,
         producer_uri: Optional[str] = None,
+        parent: Optional[str] = None,
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
@@ -5175,6 +5180,7 @@ class HTTPRunDB(RunDBInterface):
             "page": page,
             "page-size": page_size,
             "page-token": page_token,
+            "parent": parent,
         }
 
         if partition_by:

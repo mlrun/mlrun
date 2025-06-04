@@ -17,6 +17,7 @@ import typing
 from os.path import exists, isdir
 from urllib.parse import urlparse
 
+import mlrun.artifacts.helpers
 import mlrun.common.schemas.artifact
 import mlrun.config
 import mlrun.utils.regex
@@ -42,6 +43,7 @@ from .dataset import (
     TableArtifact,
 )
 from .document import DocumentArtifact
+from .llm_prompt import LLMPromptArtifact
 from .model import ModelArtifact
 from .plots import (
     PlotArtifact,
@@ -59,6 +61,7 @@ artifact_types = {
     "dataset": DatasetArtifact,
     "plotly": PlotlyArtifact,
     "document": DocumentArtifact,
+    "llm-prompt": LLMPromptArtifact,
 }
 
 
@@ -221,7 +224,12 @@ class ArtifactManager:
         else:
             key = item.key
             target_path = target_path or item.target_path
-
+        if isinstance(item, ModelArtifact) and item.model_url:
+            if upload:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "log_artifact of ModelArtifact does not accept arguments for both upload and model_url parameters"
+                )
+            upload = False
         validate_artifact_key_name(key, "artifact.key")
         validate_inline_artifact_body_size(item.spec.inline)
         src_path = local_path or item.src_path  # TODO: remove src_path
@@ -262,6 +270,10 @@ class ArtifactManager:
         item.iter = producer.iteration
         project = project or producer.project
         item.project = project
+        if item.spec.parent_uri:
+            mlrun.artifacts.helpers.check_artifact_parent(
+                artifact_project=item.project, expected_parent_uri=item.spec.parent_uri
+            )
         if is_retained_producer:
             # if the producer is retained, we want to use the original target path
             target_path = target_path or item.target_path

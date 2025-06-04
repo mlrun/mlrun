@@ -26,7 +26,7 @@ function_path = str(pathlib.Path(__file__).parent / "assets" / "function.py")
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestAPIArtifacts(TestMLRunSystem):
-    project_name = "db-system-test-project"
+    project_name = "test-project-artifacts"
 
     @pytest.mark.enterprise
     def test_import_artifact(self):
@@ -90,3 +90,32 @@ class TestAPIArtifacts(TestMLRunSystem):
         assert "v2" in outputs_uri, "Expected 'v2' tag in outputs_uri"
 
         mlrun.get_dataitem(output_uri)
+
+    def test_llm_prompt_artifact(self):
+        model_name = "model"
+        model = self.project.log_model(
+            model_name,
+            model_file="./assets/model.pkl",
+            upload=True,
+        )
+        llm_key = "llm-prompt"
+        for i in range(3):
+            self.project.log_llm_prompt(
+                f"{llm_key}-{i}",
+                prompt_string="Q : {question}",
+                description="best-prompt",
+                model_artifact=model if i <= 1 else None,
+            )
+
+        llm_list = self.project.list_llm_prompts()
+        assert len(llm_list) == 3, "Expected 3 LLM prompts"
+
+        llm_list = self.project.list_llm_prompts(model=model)
+        assert len(llm_list) == 2, "Expected 2 LLM prompts"
+
+        llm_0 = self.project.list_llm_prompts(name=f"{llm_key}-0")[0]
+        assert llm_0.read_prompt() == "Q : {question}"
+
+        model_ref = llm_0.model_artifact
+        assert model_ref.key == model.key
+        assert model_ref.spec.has_children

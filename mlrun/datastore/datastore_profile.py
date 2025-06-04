@@ -141,18 +141,10 @@ class ConfigProfile(DatastoreProfile):
 class DatastoreProfileKafkaTarget(DatastoreProfile):
     type: str = pydantic.v1.Field("kafka_target")
     _private_attributes = "kwargs_private"
-    brokers: typing.Optional[str] = None
+    brokers: str
     topic: str
     kwargs_public: typing.Optional[dict]
     kwargs_private: typing.Optional[dict]
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        if not self.brokers:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "DatastoreProfileKafkaTarget requires the 'brokers' field to be set"
-            )
 
     def get_topic(self) -> typing.Optional[str]:
         return self.topic

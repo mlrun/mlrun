@@ -1415,12 +1415,15 @@ class TestAppJob(TestMLRunSystem):
         # Prepare the data
         sample_data = pd.DataFrame({"a": [9, 10, -2, 1], "b": [0.11, 2.03, 0.55, 0]})
         reference_data = pd.DataFrame({"a": [12, 13], "b": [3.12, 4.12]})
+        reference_data_uri = self.project.log_dataset(
+            "reference_data", reference_data
+        ).uri
 
         # Call `.evaluate(...)`
         run_result = histogram_app_with_artifacts.HistogramDataDriftApplicationWithArtifacts.evaluate(
             func_path=histogram_app_with_artifacts.__file__,
             sample_data=sample_data,
-            reference_data=reference_data,
+            reference_data=reference_data_uri,
             run_local=run_local,
             image=self.image,  # Relevant for remote runs only
         )

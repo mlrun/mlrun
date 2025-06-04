@@ -178,6 +178,81 @@ def tsdb_df() -> pd.DataFrame:
 
 
 @pytest.fixture
+def tsdb_df_extended() -> pd.DataFrame:
+    return pd.DataFrame.from_records(
+        [
+            (
+                pd.Timestamp("2024-04-02 18:00:28", tz="UTC"),
+                "histogram-data-drift",
+                "ep-1",
+                0,
+                "kld_mean",
+                2,
+                0.06563064,
+                "2024-04-02 17:59:28.000000+00:00",
+                "",
+            ),
+            (
+                pd.Timestamp("2024-04-02 18:00:28", tz="UTC"),
+                "histogram-data-drift",
+                "ep-1",
+                0,
+                "general_drift",
+                2,
+                0.04651495,
+                "2024-04-02 17:59:28.000000+00:00",
+                "{'extra_data': 'some data'}",
+            ),
+            (
+                pd.Timestamp("2024-04-02 18:00:28", tz="UTC"),
+                "histogram-data-drift",
+                "ep-2",
+                0,
+                "general_drift",
+                1,
+                0.04651495,
+                "2024-04-02 17:59:28.000000+00:00",
+                "{'extra_data': 'some data'}",
+            ),
+            (
+                pd.Timestamp("2024-04-02 18:00:28", tz="UTC"),
+                "test-app",
+                "ep-1",
+                2,
+                "some_metric",
+                1,
+                0.04651495,
+                "2024-04-02 17:59:28.000000+00:00",
+                "{'extra_data': 'some data'}",
+            ),
+            (
+                pd.Timestamp("2024-04-02 18:00:28", tz="UTC"),
+                "test-app-v2",
+                "ep-2",
+                2,
+                "some_metric_v2",
+                0,
+                0.04651495,
+                "2024-04-02 17:59:28.000000+00:00",
+                "{'extra_data': 'some data'}",
+            ),
+        ],
+        index="time",
+        columns=[
+            "time",
+            "application_name",
+            "endpoint_id",
+            "result_kind",
+            "result_name",
+            "result_status",
+            "result_value",
+            "start_infer_time",
+            "result_extra_data",
+        ],
+    )
+
+
+@pytest.fixture
 def predictions_df() -> pd.DataFrame:
     return pd.DataFrame.from_records(
         [
@@ -199,6 +274,17 @@ def predictions_df() -> pd.DataFrame:
 def _mock_frames_client(tsdb_df: pd.DataFrame) -> Iterator[None]:
     frames_client_mock = Mock()
     frames_client_mock.read = Mock(return_value=tsdb_df)
+
+    with patch.object(
+        mlrun.utils.v3io_clients, "get_frames_client", return_value=frames_client_mock
+    ):
+        yield
+
+
+@pytest.fixture
+def _mock_frames_client_extended(tsdb_df_extended: pd.DataFrame) -> Iterator[None]:
+    frames_client_mock = Mock()
+    frames_client_mock.read = Mock(return_value=tsdb_df_extended)
 
     with patch.object(
         mlrun.utils.v3io_clients, "get_frames_client", return_value=frames_client_mock
@@ -302,3 +388,25 @@ def test_normalize_dict_for_v3io_frames(
     input_event: dict[str, Any], expected_output: dict[str, Any]
 ) -> None:
     assert _normalize_dict_for_v3io_frames(input_event) == expected_output
+
+
+@pytest.mark.usefixtures("_mock_frames_client_extended")
+def test_read_results_by_status():
+    """Test reading results by status from V3IOTSDBConnector."""
+    tsdb_connector = V3IOTSDBConnector(project="fictitious-one")
+    data = tsdb_connector.read_results_by_status()
+
+    assert len(data) == 4
+    assert data[("histogram-data-drift", 1)] == 1
+    assert data[("histogram-data-drift", 2)] == 2
+    assert data[("test-app", 1)] == 1
+    assert data[("test-app-v2", 0)] == 1
+
+    data = tsdb_connector.read_results_by_status(result_status_list=[1])
+    assert len(data) == 2
+
+    data = tsdb_connector.read_results_by_status(result_status_list=[1, 0])
+    assert len(data) == 3
+
+    data = tsdb_connector.read_results_by_status(result_status_list=[-1])
+    assert len(data) == 0

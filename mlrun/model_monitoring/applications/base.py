@@ -409,8 +409,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         tag: Optional[str] = None,
         run_local: bool = True,
         auto_build: bool = True,
-        sample_data: Optional[pd.DataFrame] = None,
-        reference_data: Optional[pd.DataFrame] = None,
+        sample_data: Optional[Union[pd.DataFrame, str]] = None,
+        reference_data: Optional[Union[pd.DataFrame, str]] = None,
         image: Optional[str] = None,
         with_repo: Optional[bool] = False,
         class_handler: Optional[str] = None,
@@ -434,9 +434,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param tag:               Tag for the function.
         :param run_local:         Whether to run the function locally or remotely.
         :param auto_build:        Whether to auto build the function.
-        :param sample_data:       Pandas data-frame as the current dataset.
+        :param sample_data:       Pandas data-frame or :py:class:`~mlrun.artifacts.dataset.DatasetArtifact` URI as
+                                  the current dataset.
                                   When set, it replaces the data read from the model endpoint's offline source.
-        :param reference_data:    Pandas data-frame of the reference dataset.
+        :param reference_data:    Pandas data-frame or :py:class:`~mlrun.artifacts.dataset.DatasetArtifact` URI as
+                                  the reference dataset.
                                   When set, its statistics override the model endpoint's feature statistics.
         :param image:             Docker image to run the job on (when running remotely).
         :param with_repo:         Whether to clone the current repo to the build source.
@@ -515,7 +517,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             (sample_data, "sample_data"),
             (reference_data, "reference_data"),
         ]:
-            if data is not None:
+            if isinstance(data, str):
+                inputs[identifier] = data
+            elif data is not None:
                 key = f"{job.metadata.name}_{identifier}"
                 inputs[identifier] = project.log_dataset(
                     key,

@@ -58,7 +58,14 @@ And for configuring alerts on model monitoring:
 
 ## Model and model monitoring endpoints
 
-For each model that is served in a model serving function, there is a model endpoint.  See {py:meth}`model endpoint <mlrun.model_monitoring.api.get_or_create_model_endpoint>`.
+For each model that is served in a model serving function, there is a model endpoint. 
+
+The model endpoint APIs are:
+
+- {py:method}`https://docs.mlrun.org/en/latest/api/mlrun.db/index.html#mlrun.db.httpdb.HTTPRunDB.get_model_endpoint`
+- {py:method}`https://docs.mlrun.org/en/latest/api/mlrun.db/index.html#mlrun.db.httpdb.HTTPRunDB.list_model_endpoints`
+- {py:method}`https://docs.mlrun.org/en/latest/api/mlrun.projects/index.html#mlrun.projects.MlrunProject.list_model_endpoints`
+- {py:method}`https://docs.mlrun.org/en/latest/api/mlrun.db/index.html#mlrun.db.httpdb.HTTPRunDB.get_metrics_by_multiple_endpoints`
 
 All model monitoring endpoints are presented in the UI with information about the actual inference, including data on the inputs, outputs, and results.
 The Model Endpoints tab presents the overall metrics. From there you can select an endpoint and view the Overview, Features Analysis, and the Metrics tabs. 

@@ -912,6 +912,14 @@ def enrich_image_url(
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
 
+    if is_mlrun_image and "mlrun/ml-base" in image_url:
+        warnings.warn(
+            "'mlrun/ml-base' image is deprecated in 1.10.0 and will be removed in 1.12.0, "
+            "use 'mlrun/mlrun' instead.",
+            FutureWarning,
+        )
+        image_url = image_url.replace("mlrun/ml-base", "mlrun/mlrun")
+
     if is_mlrun_image and tag and ":" not in image_url:
         image_url = f"{image_url}:{tag}"
 

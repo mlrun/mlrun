@@ -67,7 +67,7 @@ class AzureBlobStore(DataStore):
                 or self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN"),
                 credential=self._get_secret_or_env("credential"),
             )
-            self._storage_options = self._sanitize_storage_options(res)
+            self._storage_options = self._sanitize_options(res)
         return self._storage_options
 
     @property

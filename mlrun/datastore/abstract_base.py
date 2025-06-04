@@ -42,3 +42,10 @@ class BaseRemoteClient(ABC):
     @property
     def url(self):
         return f"{self.kind}://{self.endpoint}"
+
+    @staticmethod
+    def _sanitize_options(options):
+        if not options:
+            return {}
+        options = {k: v for k, v in options.items() if v is not None and v != ""}
+        return options

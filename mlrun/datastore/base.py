@@ -72,13 +72,6 @@ class DataStore(BaseRemoteClient):
         return True
 
     @staticmethod
-    def _sanitize_storage_options(options):
-        if not options:
-            return {}
-        options = {k: v for k, v in options.items() if v is not None and v != ""}
-        return options
-
-    @staticmethod
     def _sanitize_url(url):
         """
         Extract only the schema, netloc, and path from an input URL if they exist,
@@ -109,7 +102,7 @@ class DataStore(BaseRemoteClient):
 
     def get_storage_options(self):
         """get fsspec storage options"""
-        return self._sanitize_storage_options(None)
+        return self._sanitize_options(None)
 
     def open(self, filepath, mode):
         file_system = self.filesystem

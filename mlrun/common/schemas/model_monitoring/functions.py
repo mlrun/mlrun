@@ -19,7 +19,7 @@ from typing import Optional
 from pydantic.v1 import BaseModel
 
 
-class ModelMonitoringFunctionsType(enum.Enum):
+class FunctionsType(enum.Enum):
     APPLICATION = "application"
     INFRA = "infra"
 
@@ -31,7 +31,7 @@ class FunctionSummary(BaseModel):
     application (type "application") or an infrastructure function (type "infra").
     """
 
-    type: ModelMonitoringFunctionsType
+    type: FunctionsType
     name: str
     application_class: str
     updated_time: datetime
@@ -43,7 +43,7 @@ class FunctionSummary(BaseModel):
     def from_function_dict(
         cls,
         func_dict: dict,
-        func_type=ModelMonitoringFunctionsType.APPLICATION,
+        func_type=FunctionsType.APPLICATION,
         base_period: Optional[float] = None,
         stats: Optional[dict] = None,
     ):
@@ -55,7 +55,7 @@ class FunctionSummary(BaseModel):
             type=func_type,
             name=func_dict["metadata"]["name"],
             application_class=""
-            if func_type != ModelMonitoringFunctionsType.APPLICATION
+            if func_type != FunctionsType.APPLICATION
             else func_dict["spec"]["graph"]["steps"]["PushToMonitoringWriter"]["after"][
                 0
             ],

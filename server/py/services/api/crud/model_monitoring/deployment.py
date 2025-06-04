@@ -755,17 +755,17 @@ class MonitoringDeployment:
         self,
         labels: typing.Optional[list[str]] = None,
         format_: str = mlrun.common.formatters.FunctionFormat.full,
-        function_type: mm_functions.ModelMonitoringFunctionsType = mm_functions.ModelMonitoringFunctionsType.APPLICATION,
+        function_type: mm_functions.FunctionsType = mm_functions.FunctionsType.APPLICATION,
     ) -> list[dict]:
         """Retrieve a list of dictionaries, representing all the model monitoring functions."""
 
         labels = labels or []
-        if function_type == mm_functions.ModelMonitoringFunctionsType.INFRA:
+        if function_type == mm_functions.FunctionsType.INFRA:
             # Model monitoring infrastructure functions
             labels.append(
                 f"{mm_constants.ModelMonitoringInfraLabel.KEY}={mm_constants.ModelMonitoringInfraLabel.VAL}"
             )
-        elif function_type == mm_functions.ModelMonitoringFunctionsType.APPLICATION:
+        elif function_type == mm_functions.FunctionsType.APPLICATION:
             # Model monitoring applications
             labels.append(
                 f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
@@ -843,7 +843,7 @@ class MonitoringDeployment:
         if enrich_with_infra:
             infra_mm_functions = self.list_model_monitoring_functions(
                 format_=mlrun.common.formatters.FunctionFormat.full,
-                function_type=mm_functions.ModelMonitoringFunctionsType.INFRA,
+                function_type=mm_functions.FunctionsType.INFRA,
             )
 
             if not infra_mm_functions:

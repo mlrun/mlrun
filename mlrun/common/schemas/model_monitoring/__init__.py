@@ -43,7 +43,7 @@ from .constants import (
     WriterEvent,
     WriterEventKind,
 )
-from .functions import FunctionSummary, ModelMonitoringFunctionsType
+from .functions import FunctionsType, FunctionSummary
 from .grafana import (
     GrafanaColumn,
     GrafanaColumnType,

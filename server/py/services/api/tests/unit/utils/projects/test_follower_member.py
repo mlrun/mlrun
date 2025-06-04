@@ -468,7 +468,7 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
     )
     framework.utils.singletons.db.get_db().get_project_resources_counters = (
         unittest.mock.AsyncMock(
-            return_value=tuple({project_name: i} for i in range(12))
+            return_value=tuple({project_name: i} for i in range(14))
         )
     )
     await services.api.crud.Projects().refresh_project_resources_counters_cache(db)

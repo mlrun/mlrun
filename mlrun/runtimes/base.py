@@ -148,10 +148,10 @@ class FunctionSpec(ModelObj):
 
     @property
     def clone_target_dir(self):
-        # TODO: remove this property in 1.9.0
+        # TODO: remove this property in 1.10.0
         if self.build.source_code_target_dir:
             warnings.warn(
-                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.9.0. "
+                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.10.0. "
                 "Use spec.build.source_code_target_dir instead.",
                 FutureWarning,
             )
@@ -159,10 +159,10 @@ class FunctionSpec(ModelObj):
 
     @clone_target_dir.setter
     def clone_target_dir(self, clone_target_dir):
-        # TODO: remove this property in 1.9.0
+        # TODO: remove this property in 1.10.0
         if clone_target_dir:
             warnings.warn(
-                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.9.0. "
+                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.10.0. "
                 "Use spec.build.source_code_target_dir instead.",
                 FutureWarning,
             )
@@ -409,9 +409,9 @@ class BaseRuntime(ModelObj):
         if artifact_path or out_path:
             deprecated_param = "artifact_path" if artifact_path else "out_path"
             warnings.warn(
-                f"'{deprecated_param}' parameter is deprecated in 1.9.0 and will be removed in 1.11.0, "
+                f"'{deprecated_param}' parameter is deprecated in 1.10.0 and will be removed in 1.12.0, "
                 "use 'output_path' instead.",
-                # TODO: Remove this in 1.11.0
+                # TODO: Remove this in 1.12.0
                 FutureWarning,
             )
         output_path = output_path or out_path or artifact_path
@@ -470,14 +470,14 @@ class BaseRuntime(ModelObj):
         :return: Dictionary with all the variables that could be parsed
         """
         runtime_env = {
-            "MLRUN_DEFAULT_PROJECT": self.metadata.project or config.default_project
+            "MLRUN_ACTIVE_PROJECT": self.metadata.project or config.active_project
         }
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
                 exclude_notifications_params=True
             )
             if runobj.metadata.project:
-                runtime_env["MLRUN_DEFAULT_PROJECT"] = runobj.metadata.project
+                runtime_env["MLRUN_ACTIVE_PROJECT"] = runobj.metadata.project
             if runobj.spec.verbose:
                 runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
         if config.httpdb.api_url:
@@ -499,7 +499,7 @@ class BaseRuntime(ModelObj):
     def _store_function(self, runspec, meta, db):
         meta.labels["kind"] = self.kind
         mlrun.runtimes.utils.enrich_run_labels(
-            meta.labels, [mlrun.common.runtimes.constants.RunLabels.owner]
+            meta.labels, [mlrun_constants.MLRunInternalLabels.owner]
         )
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(

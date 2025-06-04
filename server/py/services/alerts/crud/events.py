@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 from typing import Optional
 
@@ -66,8 +66,6 @@ class Events(
         project: Optional[str] = None,
         validate_event: bool = False,
     ):
-        project = project or mlrun.mlconf.default_project
-
         if validate_event and not self.is_valid_event(project, event_data):
             raise mlrun.errors.MLRunBadRequestError(
                 f"Invalid event specified {event_name}"

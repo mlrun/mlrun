@@ -11,28 +11,42 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import asyncio
+
 from datetime import datetime, timedelta
 from threading import Lock
-from typing import Callable, Literal, Optional, Union
+from typing import Callable, Final, Literal, Optional, Union
 
 import pandas as pd
 import taosws
-from taoswswrap.tdengine_connection import (
-    Statement,
-    TDEngineConnection,
-)
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
+import mlrun.common.types
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
 from mlrun.datastore.datastore_profile import DatastoreProfile
 from mlrun.model_monitoring.db import TSDBConnector
+from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
+    Statement,
+    TDEngineConnection,
+)
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
 
 _connection = None
 _connection_lock = Lock()
+
+
+class TDEngineTimestampPrecision(mlrun.common.types.StrEnum):
+    """
+    The timestamp precision for the TDEngine database.
+    For more information, see:
+    https://docs.tdengine.com/tdengine-reference/sql-manual/data-types/#timestamp
+    https://docs.tdengine.com/tdengine-reference/sql-manual/manage-databases/#create-database
+    """
+
+    MILLISECOND = "ms"  # TDEngine's default
+    MICROSECOND = "us"  # MLRun's default
+    NANOSECOND = "ns"
 
 
 class TDEngineConnector(TSDBConnector):
@@ -47,16 +61,18 @@ class TDEngineConnector(TSDBConnector):
         self,
         project: str,
         profile: DatastoreProfile,
+        timestamp_precision: TDEngineTimestampPrecision = TDEngineTimestampPrecision.MICROSECOND,
         **kwargs,
     ):
         super().__init__(project=project)
 
         self._tdengine_connection_profile = profile
 
-        self._init_super_tables()
+        self._timestamp_precision: Final = (  # cannot be changed after initialization
+            timestamp_precision
+        )
 
-        self._timeout = mlrun.mlconf.model_endpoint_monitoring.tdengine.timeout
-        self._retries = mlrun.mlconf.model_endpoint_monitoring.tdengine.retries
+        self._init_super_tables()
 
     @property
     def connection(self) -> TDEngineConnection:
@@ -74,7 +90,9 @@ class TDEngineConnector(TSDBConnector):
     def _create_connection(self) -> TDEngineConnection:
         """Establish a connection to the TSDB server."""
         logger.debug("Creating a new connection to TDEngine", project=self.project)
-        conn = TDEngineConnection(self._tdengine_connection_profile.dsn())
+        conn = TDEngineConnection(
+            self._tdengine_connection_profile.dsn(),
+        )
         conn.prefix_statements = [f"USE {self.database}"]
 
         return conn
@@ -100,9 +118,7 @@ class TDEngineConnector(TSDBConnector):
         """Create the database if it does not exist."""
         self.connection.prefix_statements = []
         self.connection.run(
-            statements=f"CREATE DATABASE IF NOT EXISTS {self.database}",
-            timeout=self._timeout,
-            retries=self._retries,
+            statements=f"CREATE DATABASE IF NOT EXISTS {self.database} PRECISION '{self._timestamp_precision}'",
         )
         self.connection.prefix_statements = [f"USE {self.database}"]
         logger.debug(
@@ -122,8 +138,6 @@ class TDEngineConnector(TSDBConnector):
             conn = self.connection
             conn.run(
                 statements=create_table_query,
-                timeout=self._timeout,
-                retries=self._retries,
             )
 
     def write_application_event(
@@ -175,6 +189,7 @@ class TDEngineConnector(TSDBConnector):
             columns=columns,
             subtable=table_name,
             values=event,
+            timestamp_precision=self._timestamp_precision,
         )
 
         self.connection.run(
@@ -182,8 +197,6 @@ class TDEngineConnector(TSDBConnector):
                 create_table_sql,
                 insert_statement,
             ],
-            timeout=self._timeout,
-            retries=self._retries,
         )
 
     @staticmethod
@@ -287,7 +300,8 @@ class TDEngineConnector(TSDBConnector):
         )
 
     def delete_tsdb_records(
-        self, endpoint_ids: list[str], delete_timeout: Optional[int] = None
+        self,
+        endpoint_ids: list[str],
     ):
         """
         To delete subtables within TDEngine, we first query the subtables names with the provided endpoint_ids.
@@ -308,8 +322,6 @@ class TDEngineConnector(TSDBConnector):
                 )
                 subtables_result = self.connection.run(
                     query=get_subtable_query,
-                    timeout=self._timeout,
-                    retries=self._retries,
                 )
                 subtables.extend([subtable[0] for subtable in subtables_result.data])
         except Exception as e:
@@ -330,8 +342,6 @@ class TDEngineConnector(TSDBConnector):
         try:
             self.connection.run(
                 statements=drop_statements,
-                timeout=delete_timeout or self._timeout,
-                retries=self._retries,
             )
         except Exception as e:
             logger.warning(
@@ -362,8 +372,6 @@ class TDEngineConnector(TSDBConnector):
         try:
             self.connection.run(
                 statements=drop_statements,
-                timeout=self._timeout,
-                retries=self._retries,
             )
         except Exception as e:
             logger.warning(
@@ -387,8 +395,6 @@ class TDEngineConnector(TSDBConnector):
         try:
             table_name = self.connection.run(
                 query=query_random_table_name,
-                timeout=self._timeout,
-                retries=self._retries,
             )
             if len(table_name.data) == 0:
                 # no tables were found under the database
@@ -411,8 +417,6 @@ class TDEngineConnector(TSDBConnector):
             try:
                 self.connection.run(
                     statements=drop_database_query,
-                    timeout=self._timeout,
-                    retries=self._retries,
                 )
                 logger.debug(
                     "The TDEngine database has been successfully dropped",
@@ -505,7 +509,7 @@ class TDEngineConnector(TSDBConnector):
         logger.debug("Querying TDEngine", query=full_query)
         try:
             query_result = self.connection.run(
-                query=full_query, timeout=self._timeout, retries=self._retries
+                query=full_query,
             )
         except taosws.QueryError as e:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -668,7 +672,6 @@ class TDEngineConnector(TSDBConnector):
         endpoint_ids: Union[str, list[str]],
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        get_raw: bool = False,
     ) -> pd.DataFrame:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start, end = self._get_start_end(start, end)
@@ -883,6 +886,7 @@ class TDEngineConnector(TSDBConnector):
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
         run_in_threadpool: Callable,
+        metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Add basic metrics to the model endpoint object.
@@ -891,24 +895,28 @@ class TDEngineConnector(TSDBConnector):
                                         be filled with the relevant basic metrics.
         :param project:                The name of the project.
         :param run_in_threadpool:      A function that runs another function in a thread pool.
+        :param metric_list:            List of metrics to include from the time series DB. Defaults to all metrics.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
 
         uids = [mep.metadata.uid for mep in model_endpoint_objects]
-        coroutines = [
-            run_in_threadpool(self.get_error_count, endpoint_ids=uids),
-            run_in_threadpool(self.get_last_request, endpoint_ids=uids),
-            run_in_threadpool(self.get_avg_latency, endpoint_ids=uids),
-            run_in_threadpool(self.get_drift_status, endpoint_ids=uids),
-        ]
 
-        (
-            error_count_df,
-            last_request_df,
-            avg_latency_df,
-            drift_status_df,
-        ) = await asyncio.gather(*coroutines)
+        metric_name_to_function = {
+            "error_count": self.get_error_count,
+            "last_request": self.get_last_request,
+            "avg_latency": self.get_avg_latency,
+            "result_status": self.get_drift_status,
+        }
+        if metric_list is not None:
+            for metric_name in list(metric_name_to_function):
+                if metric_name not in metric_list:
+                    del metric_name_to_function[metric_name]
+
+        metric_name_to_df = {
+            metric_name: function(endpoint_ids=uids)
+            for metric_name, function in metric_name_to_function.items()
+        }
 
         def add_metrics(
             mep: mlrun.common.schemas.ModelEndpoint,
@@ -930,12 +938,7 @@ class TDEngineConnector(TSDBConnector):
             map(
                 lambda mep: add_metrics(
                     mep=mep,
-                    df_dictionary={
-                        "error_count": error_count_df,
-                        "last_request": last_request_df,
-                        "avg_latency": avg_latency_df,
-                        "result_status": drift_status_df,
-                    },
+                    df_dictionary=metric_name_to_df,
                 ),
                 model_endpoint_objects,
             )

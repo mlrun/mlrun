@@ -11,12 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import copy
 import json
 import os
 import warnings
 from copy import deepcopy
-from typing import TYPE_CHECKING, Optional, Union
+from typing import Optional, Union
 
 import nuclio
 from nuclio import KafkaTrigger
@@ -27,7 +27,11 @@ from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.secrets import SecretsStore
-from mlrun.serving.server import GraphServer, create_graph_server
+from mlrun.serving.server import (
+    GraphServer,
+    add_system_steps_to_graph,
+    create_graph_server,
+)
 from mlrun.serving.states import (
     RootFlowStep,
     RouterStep,
@@ -42,10 +46,6 @@ from mlrun.utils import get_caller_globals, logger, set_paths
 from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions
 
 serving_subkind = "serving_v2"
-
-if TYPE_CHECKING:
-    # remove this block in 1.9.0
-    from mlrun.model_monitoring import TrackingPolicy
 
 
 def new_v2_model_server(
@@ -95,7 +95,6 @@ class ServingSpec(NuclioSpec):
         "default_class",
         "secret_sources",
         "track_models",
-        "tracking_policy",
     ]
 
     def __init__(
@@ -132,7 +131,6 @@ class ServingSpec(NuclioSpec):
         graph_initializer=None,
         error_stream=None,
         track_models=None,
-        tracking_policy=None,
         secret_sources=None,
         default_content_type=None,
         node_name=None,
@@ -207,7 +205,6 @@ class ServingSpec(NuclioSpec):
         self.graph_initializer = graph_initializer
         self.error_stream = error_stream
         self.track_models = track_models
-        self.tracking_policy = tracking_policy
         self.secret_sources = secret_sources or []
         self.default_content_type = default_content_type
         self.model_endpoint_creation_task_name = model_endpoint_creation_task_name
@@ -271,7 +268,8 @@ class ServingRuntime(RemoteRuntime):
                    can specify special router class and router arguments
 
           flow   - workflow (DAG) with a chain of states
-                   flow support "sync" and "async" engines, branches are not allowed in sync mode
+                   flow supports both "sync" and "async" engines, with "async" being the default.
+                   Branches are not allowed in sync mode.
                    when using async mode calling state.respond() will mark the state as the
                    one which generates the (REST) call response
 
@@ -300,7 +298,7 @@ class ServingRuntime(RemoteRuntime):
                 step = RouterStep(class_name=class_name, class_args=class_args)
             self.spec.graph = step
         elif topology == StepKinds.flow:
-            self.spec.graph = RootFlowStep(engine=engine)
+            self.spec.graph = RootFlowStep(engine=engine or "async")
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"unsupported topology {topology}, use 'router' or 'flow'"
@@ -313,7 +311,6 @@ class ServingRuntime(RemoteRuntime):
         batch: Optional[int] = None,
         sampling_percentage: float = 100,
         stream_args: Optional[dict] = None,
-        tracking_policy: Optional[Union["TrackingPolicy", dict]] = None,
         enable_tracking: bool = True,
     ) -> None:
         """Apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
@@ -337,6 +334,17 @@ class ServingRuntime(RemoteRuntime):
         """
         # Applying model monitoring configurations
         self.spec.track_models = enable_tracking
+        if self._spec and self._spec.function_refs:
+            logger.debug(
+                "Set tracking for children references", enable_tracking=enable_tracking
+            )
+            for name in self._spec.function_refs.keys():
+                self._spec.function_refs[name].track_models = enable_tracking
+                # Check if function_refs _function is filled if so update track_models field:
+                if self._spec.function_refs[name]._function:
+                    self._spec.function_refs[
+                        name
+                    ]._function.spec.track_models = enable_tracking
 
         if not 0 < sampling_percentage <= 100:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -349,20 +357,12 @@ class ServingRuntime(RemoteRuntime):
         if batch:
             warnings.warn(
                 "The `batch` size parameter was deprecated in version 1.8.0 and is no longer used. "
-                "It will be removed in 1.10.",
-                # TODO: Remove this in 1.10
+                "It will be removed in 1.11.",
+                # TODO: Remove this in 1.11
                 FutureWarning,
             )
         if stream_args:
             self.spec.parameters["stream_args"] = stream_args
-        if tracking_policy is not None:
-            warnings.warn(
-                "The `tracking_policy` argument is deprecated from version 1.7.0 "
-                "and has no effect. It will be removed in 1.9.0.\n"
-                "To set the desired model monitoring time window and schedule, use "
-                "the `base_period` argument in `project.enable_model_monitoring()`.",
-                FutureWarning,
-            )
 
     def add_model(
         self,
@@ -506,7 +506,11 @@ class ServingRuntime(RemoteRuntime):
         :return function object
         """
         function_reference = FunctionReference(
-            url, image, requirements=requirements, kind=kind or "serving"
+            url,
+            image,
+            requirements=requirements,
+            kind=kind or "serving",
+            track_models=self.spec.track_models,
         )
         self._spec.function_refs.update(function_reference, name)
         func = function_reference.to_function(self.kind)
@@ -703,7 +707,6 @@ class ServingRuntime(RemoteRuntime):
             "graph_initializer": self.spec.graph_initializer,
             "error_stream": self.spec.error_stream,
             "track_models": self.spec.track_models,
-            "tracking_policy": None,
             "default_content_type": self.spec.default_content_type,
             "model_endpoint_creation_task_name": self.spec.model_endpoint_creation_task_name,
         }
@@ -745,10 +748,13 @@ class ServingRuntime(RemoteRuntime):
             set_paths(workdir)
             os.chdir(workdir)
 
+        system_graph = None
+        if isinstance(self.spec.graph, RootFlowStep):
+            system_graph = add_system_steps_to_graph(copy.deepcopy(self.spec.graph))
         server = create_graph_server(
             parameters=self.spec.parameters,
             load_mode=self.spec.load_mode,
-            graph=self.spec.graph,
+            graph=system_graph or self.spec.graph,
             verbose=self.verbose,
             current_function=current_function,
             graph_initializer=self.spec.graph_initializer,
@@ -784,7 +790,7 @@ class ServingRuntime(RemoteRuntime):
             serving_fn.add_model(
                 "my-classifier",
                 model_path=model_path,
-                class_name="mlrun.frameworks.sklearn.SklearnModelServer",
+                class_name="mlrun.frameworks.sklearn.SKLearnModelServer",
             )
             serving_fn.plot(rankdir="LR")
 

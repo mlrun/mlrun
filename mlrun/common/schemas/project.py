@@ -11,33 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import typing
 
 import pydantic.v1
-from deprecated import deprecated
 
 import mlrun.common.types
 
 from .common import ImageBuilder
 from .object import ObjectKind, ObjectStatus
-
-
-@deprecated(
-    version="1.7.0",
-    reason="mlrun.common.schemas.ProjectsFormat is deprecated and will be removed in 1.9.0. "
-    "Use mlrun.common.formatters.ProjectFormat instead.",
-    category=FutureWarning,
-)
-class ProjectsFormat(mlrun.common.types.StrEnum):
-    full = "full"
-    name_only = "name_only"
-    # minimal format removes large fields from the response (e.g. functions, workflows, artifacts)
-    # and is used for faster response times (in the UI)
-    minimal = "minimal"
-    # internal - allowed only in follower mode, only for the leader for upgrade purposes
-    leader = "leader"
 
 
 class ProjectMetadata(pydantic.v1.BaseModel):

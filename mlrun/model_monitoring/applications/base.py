@@ -38,21 +38,30 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
     For example, :code:`MyApp` below is a simplistic custom application::
 
+        from mlrun.common.schemas.model_monitoring.constants import (
+            ResultKindApp,
+            ResultStatusApp,
+        )
+        from mlrun.model_monitoring.applications import (
+            ModelMonitoringApplicationBase,
+            ModelMonitoringApplicationResult,
+            MonitoringApplicationContext,
+        )
+
+
         class MyApp(ModelMonitoringApplicationBase):
             def do_tracking(
-                self,
-                monitoring_context: mm_context.MonitoringApplicationContext,
+                self, monitoring_context: MonitoringApplicationContext
             ) -> ModelMonitoringApplicationResult:
-                monitoring_context.log_artifact(
-                    TableArtifact(
-                        "sample_df_stats", df=self.dict_to_histogram(sample_df_stats)
-                    )
+                monitoring_context.logger.info(
+                    "Running application",
+                    application_name=monitoring_context.application_name,
                 )
                 return ModelMonitoringApplicationResult(
                     name="data_drift_test",
                     value=0.5,
-                    kind=mm_constant.ResultKindApp.data_drift,
-                    status=mm_constant.ResultStatusApp.detected,
+                    kind=ResultKindApp.data_drift,
+                    status=ResultStatusApp.detected,
                 )
     """
 
@@ -400,8 +409,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         tag: Optional[str] = None,
         run_local: bool = True,
         auto_build: bool = True,
-        sample_data: Optional[pd.DataFrame] = None,
-        reference_data: Optional[pd.DataFrame] = None,
+        sample_data: Optional[Union[pd.DataFrame, str]] = None,
+        reference_data: Optional[Union[pd.DataFrame, str]] = None,
         image: Optional[str] = None,
         with_repo: Optional[bool] = False,
         class_handler: Optional[str] = None,
@@ -425,9 +434,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param tag:               Tag for the function.
         :param run_local:         Whether to run the function locally or remotely.
         :param auto_build:        Whether to auto build the function.
-        :param sample_data:       Pandas data-frame as the current dataset.
+        :param sample_data:       Pandas data-frame or :py:class:`~mlrun.artifacts.dataset.DatasetArtifact` URI as
+                                  the current dataset.
                                   When set, it replaces the data read from the model endpoint's offline source.
-        :param reference_data:    Pandas data-frame of the reference dataset.
+        :param reference_data:    Pandas data-frame or :py:class:`~mlrun.artifacts.dataset.DatasetArtifact` URI as
+                                  the reference dataset.
                                   When set, its statistics override the model endpoint's feature statistics.
         :param image:             Docker image to run the job on (when running remotely).
         :param with_repo:         Whether to clone the current repo to the build source.
@@ -506,7 +517,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             (sample_data, "sample_data"),
             (reference_data, "reference_data"),
         ]:
-            if data is not None:
+            if isinstance(data, str):
+                inputs[identifier] = data
+            elif data is not None:
                 key = f"{job.metadata.name}_{identifier}"
                 inputs[identifier] = project.log_dataset(
                     key,

@@ -26,8 +26,6 @@ from .utils import SKLearnTypes, SKLearnUtils
 
 # Placeholders as the SciKit-Learn API is commonly used among all ML frameworks:
 SKLearnModelServer = PickleModelServer
-# TODO: Change in docs to the correct naming and add warning for this one:
-SklearnModelServer = SKLearnModelServer
 SKLearnArtifactsLibrary = MLArtifactsLibrary
 
 
@@ -198,15 +196,3 @@ def apply_mlrun(
     )
 
     return handler
-
-
-def __getattr__(name):
-    if name == "SklearnModelServer":
-        warnings.warn(
-            "'SklearnModelServer' was renamed to 'SKLearnModelServer'. "
-            "'SklearnModelServer' is deprecated in 1.3.0 and will be removed in 1.5.0.",
-            # TODO: remove in 1.5.0
-            FutureWarning,
-        )
-        return SKLearnModelServer
-    raise ImportError(f"cannot import name '{name}' from '{__name__}' ({__file__})")

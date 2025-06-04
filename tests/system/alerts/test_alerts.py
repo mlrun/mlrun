@@ -31,7 +31,9 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointList,
 )
 from mlrun.datastore import get_stream_pusher
-from mlrun.datastore.datastore_profile import DatastoreProfileV3io
+from mlrun.datastore.datastore_profile import (
+    register_temporary_client_datastore_profile,
+)
 from mlrun.model_monitoring.helpers import get_stream_path
 from tests.system.base import TestMLRunSystem
 from tests.system.model_monitoring import TestMLRunSystemModelMonitoring
@@ -162,11 +164,13 @@ class TestAlerts(TestMLRunSystem):
         tsdb_profile = TestMLRunSystemModelMonitoring.get_tsdb_profile(
             self.mm_tsdb_profile_data
         )
+        register_temporary_client_datastore_profile(tsdb_profile)
         self.project.register_datastore_profile(tsdb_profile)
 
         stream_profile = TestMLRunSystemModelMonitoring.get_stream_profile(
             self.mm_stream_profile_data
         )
+        register_temporary_client_datastore_profile(stream_profile)
         self.project.register_datastore_profile(stream_profile)
 
         self.project.set_model_monitoring_credentials(
@@ -195,7 +199,7 @@ class TestAlerts(TestMLRunSystem):
         stream_uri = get_stream_path(
             project=self.project.metadata.name,
             function_name=mm_constants.MonitoringFunctionNames.WRITER,
-            profile=DatastoreProfileV3io(name="tmp"),
+            profile=stream_profile,
         )
         output_stream = get_stream_pusher(stream_uri)
 

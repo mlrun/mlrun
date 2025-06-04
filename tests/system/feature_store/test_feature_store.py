@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
 import math
 import os
@@ -40,7 +40,6 @@ import mlrun
 import mlrun.datastore.utils
 import mlrun.feature_store as fstore
 import mlrun.runtimes.mounts
-import tests.conftest
 from mlrun.config import config
 from mlrun.data_types.data_types import InferOptions, ValueType
 from mlrun.datastore.datastore_profile import (
@@ -1950,7 +1949,7 @@ class TestFeatureStore(TestMLRunSystem):
             feature_vector_update=update_dict,
             project=self.project_name,
         )
-
+        vector.reload()
         svc = vector.get_online_feature_service()
         try:
             resp = svc.get(entity_rows=[{"ticker": "GOOG"}])
@@ -2596,13 +2595,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         myset.ingest(quotes)
         source = StreamSource(key_field="ticker")
-        filename = str(
-            pathlib.Path(tests.conftest.tests_root_directory)
-            / "api"
-            / "runtimes"
-            / "assets"
-            / "sample_function.py"
-        )
+        filename = str(pathlib.Path(__file__).parent / "assets" / "sample_function.py")
 
         function = mlrun.code_to_function(
             "ingest_transactions", kind="serving", filename=filename
@@ -2912,13 +2905,7 @@ class TestFeatureStore(TestMLRunSystem):
             entity_columns=["ticker"],
         )
 
-        filename = str(
-            pathlib.Path(tests.conftest.tests_root_directory)
-            / "api"
-            / "runtimes"
-            / "assets"
-            / "sample_function.py"
-        )
+        filename = str(pathlib.Path(__file__).parent / "assets" / "sample_function.py")
 
         function = mlrun.code_to_function(
             "ingest_transactions", kind="serving", filename=filename
@@ -3128,13 +3115,7 @@ class TestFeatureStore(TestMLRunSystem):
             fset.set_targets(feature_set_targets, with_defaults=False)
         fset.ingest(quotes)
         source = StreamSource(key_field="ticker")
-        filename = str(
-            pathlib.Path(tests.conftest.tests_root_directory)
-            / "api"
-            / "runtimes"
-            / "assets"
-            / "sample_function.py"
-        )
+        filename = str(pathlib.Path(__file__).parent / "assets" / "sample_function.py")
 
         function = mlrun.code_to_function(
             "ingest_transactions", kind="serving", filename=filename
@@ -3567,7 +3548,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert (
             response.status_code == 200
         ), f"Failed to patch feature vector: {response}"
-
+        vector.reload()
         service = vector.get_online_feature_service()
         try:
             resp = service.get([{"ticker": "AAPL"}])
@@ -4978,7 +4959,7 @@ class TestFeatureStore(TestMLRunSystem):
                 f"The following snowflake keys are missing: {snowflake_missing_keys}"
             )
         snowflake_spark_parameters = get_snowflake_spark_parameters()
-        schema = os.environ["SNOWFLAKE_SCHEMA"]
+        db_schema = os.environ["SNOWFLAKE_SCHEMA"]
         now = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         config_parameters = {} if local else {"image": "mlrun/mlrun"}
         run_config = fstore.RunConfig(local=local, **config_parameters)
@@ -4990,7 +4971,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = SnowflakeSource(
             "snowflake_source_for_ingest",
             query=f"select * from source_{now} order by ID limit 10",
-            schema=schema,
+            db_schema=db_schema,
             **snowflake_spark_parameters,
         )
         target = ParquetTarget(

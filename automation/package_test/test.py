@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
 import re
 import subprocess
@@ -272,7 +272,7 @@ class PackageTester:
             extra=extra,
         )
         self._run_command(
-            "python -m pip install --upgrade pip~=25.0",
+            "python -m pip install --upgrade pip~=25.0.0",
             run_in_venv=True,
         )
 

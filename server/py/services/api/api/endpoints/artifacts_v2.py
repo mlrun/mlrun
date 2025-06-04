@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 from http import HTTPStatus
 from typing import Optional
 
@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.artifacts.helpers
 import mlrun.common.formatters
 import mlrun.common.schemas
 from mlrun.common.schemas.artifact import ArtifactsDeletionStrategies
@@ -62,6 +63,12 @@ async def create_artifact(
             auth_info,
         )
     )
+
+    if artifact.spec.parent_uri:
+        mlrun.artifacts.helpers.check_artifact_parent(
+            artifact_project=project,
+            expected_parent_uri=artifact.spec.parent_uri,
+        )
     artifact_uid = await run_in_threadpool(
         services.api.crud.Artifacts().create_artifact,
         db_session,
@@ -125,6 +132,11 @@ async def store_artifact(
             auth_info,
         )
     )
+    if artifact.spec.parent_uri:
+        mlrun.artifacts.helpers.check_artifact_parent(
+            artifact_project=project,
+            expected_parent_uri=artifact.spec.parent_uri,
+        )
     artifact_uid = await run_in_threadpool(
         services.api.crud.Artifacts().store_artifact,
         db_session,
@@ -161,11 +173,12 @@ async def list_artifacts(
     tree: Optional[str] = None,
     producer_uri: Optional[str] = None,
     best_iteration: bool = Query(False, alias="best-iteration"),
+    parent: Optional[str] = Query(None),
     format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
     limit: int = Query(
         None,
         deprecated=True,
-        description="Use page and page_size, will be removed in the 1.10.0",
+        description="Use page and page_size, will be removed in the 1.11.0",
     ),
     since: Optional[str] = None,
     until: Optional[str] = None,
@@ -191,7 +204,7 @@ async def list_artifacts(
         auth_info,
     )
 
-    # TODO: deprecate the limit parameter in the list_artifacts method in 1.10.0
+    # TODO: remove the limit parameter in the list_artifacts method in 1.11.0
     if limit and (page_size or page):
         raise mlrun.errors.MLRunConflictError(
             "'page/page_size' and 'limit' are conflicting, only one can be specified."
@@ -223,6 +236,7 @@ async def list_artifacts(
         until=mlrun.utils.datetime_from_iso(until),
         kind=kind,
         category=category,
+        parent=parent,
         iter=iter,
         best_iteration=best_iteration,
         format_=format_,
@@ -248,13 +262,6 @@ async def get_artifact(
     tag: Optional[str] = None,
     iter: Optional[int] = None,
     object_uid: str = Query(None, alias="object-uid"),
-    # TODO: remove deprecated uid parameter in 1.9.0
-    # we support both uid and object-uid for backward compatibility
-    uid: str = Query(
-        None,
-        deprecated=True,
-        description="Use object-uid instead, will be removed in the 1.9.0",
-    ),
     format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -291,7 +298,7 @@ async def get_artifact(
         project,
         format_,
         producer_id=tree,
-        object_uid=object_uid or uid,
+        object_uid=object_uid,
     )
     return artifact
 
@@ -303,13 +310,6 @@ async def delete_artifact(
     tree: Optional[str] = None,
     tag: Optional[str] = None,
     object_uid: str = Query(None, alias="object-uid"),
-    # TODO: remove deprecated uid parameter in 1.9.0
-    # we support both uid and object-uid for backward compatibility
-    uid: str = Query(
-        None,
-        deprecated=True,
-        description="Use object-uid instead, will be removed in the 1.9.0",
-    ),
     iteration: int = Query(None, alias="iter"),
     deletion_strategy: ArtifactsDeletionStrategies = ArtifactsDeletionStrategies.metadata_only,
     secrets: Optional[dict] = None,
@@ -324,7 +324,7 @@ async def delete_artifact(
         producer_id=tree,
         deletion_strategy=deletion_strategy,
         iteration=iteration,
-        object_uid=object_uid or uid,
+        object_uid=object_uid,
     )
 
     await (
@@ -342,7 +342,7 @@ async def delete_artifact(
         key=key,
         tag=tag,
         project=project,
-        object_uid=object_uid or uid,
+        object_uid=object_uid,
         producer_id=tree,
         deletion_strategy=deletion_strategy,
         secrets=secrets,
@@ -363,7 +363,8 @@ async def delete_artifacts(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    project = project or mlrun.mlconf.default_project
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     artifacts = await run_in_threadpool(
         services.api.crud.Artifacts().list_artifacts,
         db_session,

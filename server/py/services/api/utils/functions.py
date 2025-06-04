@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import os
 import traceback
@@ -65,9 +64,19 @@ def build_function(
         # so we need full enrichment
         launcher.enrich_runtime(runtime=fn, full=is_nuclio_deploy)
 
-        fn.save(versioned=False)
         if is_nuclio_deploy:
             fn: mlrun.runtimes.RemoteRuntime
+            # before saving function to DB, we need to mask some nuclio-specific fields
+            # which later in Nuclio will be masked and saved to secrets
+            raw_config = fn.mask_sensitive_data_in_config()
+
+            # save without sensitive data
+            fn.save(versioned=False)
+
+            # after saving function to DB, we need to restore the original config
+            # so that the sensitive data won't be stored
+            fn.spec.config = raw_config
+
             fn.pre_deploy_validation()
             fn = _deploy_nuclio_runtime(
                 auth_info,
@@ -77,9 +86,13 @@ def build_function(
                 db_session,
                 fn,
             )
+            # after deploying the function, we need to re-mask the sensitive data again and save to the db
+            fn.mask_sensitive_data_in_config()
+
             # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:
+            fn.save(versioned=False)
             log_file = framework.api.utils.log_path(
                 fn.metadata.project,
                 f"build_{fn.metadata.name}__{fn.metadata.tag or 'latest'}",

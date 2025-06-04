@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import typing
 
 if typing.TYPE_CHECKING:
@@ -22,7 +22,6 @@ import io
 import json
 import multiprocessing
 import os
-import warnings
 import zipfile
 from ast import literal_eval
 from copy import deepcopy
@@ -38,6 +37,7 @@ import mlrun_pipelines.common.constants
 import mlrun_pipelines.common.models
 from mlrun.config import config
 from mlrun.errors import err_to_str
+from mlrun.k8s_utils import enrich_preemption_mode
 from mlrun.model import HyperParamOptions, RunSpec
 from mlrun.utils import (
     create_ipython_display,
@@ -77,7 +77,6 @@ def mlrun_op(
     outputs: typing.Optional[list] = None,
     in_path: str = "",
     out_path: str = "",
-    rundb: str = "",
     mode: str = "",
     handler: str = "",
     more_args: typing.Optional[list] = None,
@@ -118,7 +117,6 @@ def mlrun_op(
                      omitted the path will be the out_path/key.
     :param in_path:  default input path/url (prefix) for inputs
     :param out_path: default output path/url (prefix) for artifacts
-    :param rundb:    Deprecated. use 'MLRUN_DBPATH' env instead.
     :param mode:     run mode, e.g. 'pass' for using the command without mlrun wrapper
     :param handler   code entry-point/handler name
     :param job_image name of the image user for the job
@@ -173,13 +171,6 @@ def mlrun_op(
 
     """
     from mlrun_pipelines.ops import generate_pipeline_node
-
-    if rundb:
-        warnings.warn(
-            "rundb parameter is deprecated and will be removed in 1.9.0. "
-            "use 'MLRUN_DBPATH' env instead.",
-            DeprecationWarning,
-        )
 
     secrets = [] if secrets is None else secrets
     params = {} if params is None else params
@@ -501,7 +492,7 @@ def format_summary_from_kfp_run(kfp_run, project=None):
             dag[step_name]["kind"] = get_in(run, "metadata.labels.kind")
             error = get_in(run, "status.error")
             if error:
-                dag[step]["error"] = error
+                dag[step_name]["error"] = error
 
     short_run = {
         "graph": dag,
@@ -606,7 +597,7 @@ def write_kfpmeta(struct):
 
     struct = deepcopy(struct)
     uid = struct["metadata"].get("uid")
-    project = struct["metadata"].get("project", config.default_project)
+    project = struct["metadata"].get("project")
     output_artifacts, out_dict = get_kfp_outputs(
         struct["status"].get(run_keys.artifacts, []),
         struct["metadata"].get("labels", {}),
@@ -717,6 +708,19 @@ def _enrich_node_selector(function):
         project_node_selector, function_node_selector
     )
     return mlrun.utils.helpers.to_non_empty_values_dict(function_node_selector)
+
+
+def _enrich_preemption_mode(function, enriched_node_selector):
+    function_preemption_mode = getattr(function.spec, "preemption_mode") or {}
+    function_node_selector = enriched_node_selector or {}
+    function_affinity = getattr(function.spec, "affinity") or {}
+    function_tolerations = getattr(function.spec, "tolerations") or {}
+    return enrich_preemption_mode(
+        preemption_mode=function_preemption_mode,
+        node_selector=function_node_selector,
+        affinity=function_affinity,
+        tolerations=function_tolerations,
+    )
 
 
 def _enrich_gpu_limits(function, task):

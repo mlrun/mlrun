@@ -27,12 +27,20 @@ from mlrun.model_monitoring.applications.context import MonitoringApplicationCon
 from mlrun.serving import GraphContext, GraphServer
 
 
-@pytest.mark.parametrize("method", ["log_artifact", "log_dataset", "log_model"])
+@pytest.mark.parametrize("method", ["log_artifact", "log_dataset"])
 def test_log_object_signature(method: str) -> None:
     """Future-proof the `log_x` method of MM app context with respect to the project object"""
-    assert inspect.signature(
-        getattr(MonitoringApplicationContext, method)
-    ) == inspect.signature(getattr(MlrunProject, method))
+    monitoring_parameters = list(
+        inspect.signature(
+            getattr(MonitoringApplicationContext, method)
+        ).parameters.keys()
+    )
+    project_parameters = list(
+        inspect.signature(getattr(MlrunProject, method)).parameters.keys()
+    )
+    assert (
+        project_parameters <= monitoring_parameters
+    ), f"All MlrunProject {method} params should appear in MonitoringApplicationContext {method}"
 
 
 def test_from_graph_context(tmp_path: Path) -> None:

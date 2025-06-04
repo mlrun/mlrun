@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import pytest
 
@@ -106,7 +105,7 @@ def test_resolve_work_dir_and_handler(handler, expected):
 @pytest.mark.parametrize(
     "mlrun_client_version,python_version,expected_runtime",
     [
-        ("1.9.0", "3.12.16", mlrun.mlconf.default_nuclio_runtime),
+        ("1.9.0", "3.11.16", mlrun.mlconf.default_nuclio_runtime),
         ("1.8.0", "3.9.16", "python:3.9"),
         (None, None, mlrun.mlconf.default_nuclio_runtime),
         (None, "3.9.16", mlrun.mlconf.default_nuclio_runtime),

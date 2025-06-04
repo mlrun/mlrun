@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import io
 import os
 import sys
@@ -34,7 +34,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         self._files_to_upload = [self._vizro_app_code_filename]
         self._source = os.path.join(self.remote_code_dir, self._vizro_app_code_filename)
 
-    @pytest.mark.smoke
     def test_deploy_application(self):
         self._upload_code_to_cluster()
 
@@ -55,6 +54,16 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             function.status.application_image
             == f".mlrun/func-{self.project.metadata.name}-{function.metadata.name}:latest"
         )
+
+        # Assert get state does not create a new function since the state hasn't changed
+        db_functions = self._run_db.list_functions(name="vizro-app")
+        current_functions_in_db = len(db_functions)
+
+        # Run get state multiple times to make sure it doesn't create a new function
+        for i in range(5):
+            function._get_state()
+        db_functions = self._run_db.list_functions(name="vizro-app")
+        assert len(db_functions) == current_functions_in_db
 
         self._logger.debug("Redeploying the same application with capturing stdout")
         output = self._deploy_application_with_stdout_capture(function)
@@ -187,7 +196,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function = self.project.set_function(
             name=name,
             kind="application",
-            requirements=["vizro", "gunicorn", "Werkzeug==2.2.2"],
+            requirements=["vizro<0.1.32", "gunicorn", "Werkzeug==2.2.2"],
             with_repo=with_repo,
         )
         function.set_internal_application_port(8050)

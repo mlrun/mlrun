@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import typing
 from typing import Optional
 
@@ -37,7 +37,7 @@ def generate_alert_data(
             kind="slack",
             name="slack_notification",
             secret_params={
-                "webhook": "https://hooks.slack.com/services/",
+                "webhook": "https://slack.com/api/api.test",
             },
         )
         notifications = [alert_objects.AlertNotification(notification=notification)]

@@ -1091,9 +1091,9 @@ class ModelRunnerStep(TaskStep, StepToDict):
       an error. If False, the error will appear in the output event.
 
     :raise ModelRunnerError - when a model raise an error the ModelRunnerStep will handle it, collect errors and outputs
-                              from added models, If raise_exception is True will raise ModelRunnerError Else will add the
-                              error msg as part of the event body mapped by model name if more than one model was added
-                              to the ModelRunnerStep
+                              from added models, If raise_exception is True will raise ModelRunnerError Else will add
+                              the error msg as part of the event body mapped by model name if more than one model was
+                              added to the ModelRunnerStep
     """
 
     kind = "model_runner"

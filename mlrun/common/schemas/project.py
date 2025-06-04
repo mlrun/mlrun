@@ -162,6 +162,8 @@ class ProjectSummary(pydantic.v1.BaseModel):
     endpoint_alerts_count: int = 0
     job_alerts_count: int = 0
     other_alerts_count: int = 0
+    datasets_count: int = 0
+    documents_count: int = 0
 
 
 class IguazioProject(pydantic.v1.BaseModel):

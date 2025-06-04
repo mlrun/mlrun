@@ -446,6 +446,8 @@ class Projects(
             project_to_endpoint_alerts_count,
             project_to_job_alerts_count,
             project_to_other_alerts_count,
+            project_to_datasets_count,
+            project_to_documents_count,
         ) = project_counters
         (
             project_to_recent_completed_pipelines_count,
@@ -500,6 +502,8 @@ class Projects(
                     other_alerts_count=project_to_other_alerts_count.get(
                         project_name, 0
                     ),
+                    datasets_count=project_to_datasets_count.get(project_name, 0),
+                    documents_count=project_to_documents_count.get(project_name, 0),
                 )
             )
         await fastapi.concurrency.run_in_threadpool(

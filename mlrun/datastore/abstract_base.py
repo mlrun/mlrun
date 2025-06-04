@@ -25,7 +25,7 @@ class BaseRemoteClient(ABC):
         self.kind = kind
         self.endpoint = endpoint
         self._secrets = secrets or {}
-        self.secret_pfx = ""
+        self.secret_pfx = ""  # TODO decide if needed here, or only in datastore.
 
     def _get_secret_or_env(self, key, default=None):
         # Project-secrets are mounted as env variables whose name can be retrieved from SecretsStore

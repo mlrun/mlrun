@@ -58,7 +58,6 @@ class DataStore(BaseRemoteClient):
         self.name = name
         self.endpoint = endpoint
         self.subpath = ""
-        self.secret_pfx = ""
         self.options = {}
         self.from_spec = False
         self._filesystem = None

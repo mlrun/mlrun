@@ -26,12 +26,13 @@ from fastapi import BackgroundTasks, Depends
 
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.common.schemas.background_task
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
 import mlrun.utils.notifications
 import mlrun_pipelines.models
-from mlrun.common.schemas.background_task import BackGroundTaskLabel
+import mlrun_pipelines.utils
 
 import framework.api
 import framework.api.deps
@@ -158,7 +159,6 @@ async def retry_pipeline(
     )
     run_id = await fastapi.concurrency.run_in_threadpool(
         services.api.crud.Pipelines().retry_pipeline,
-        db_session,
         run_id,
         project,
         namespace,
@@ -188,6 +188,20 @@ async def terminate_pipeline(
             auth_info,
         )
     )
+    run = services.api.crud.pipelines.Pipelines().get_pipeline(
+        run_id=run_id,
+        project=project,
+        namespace=namespace,
+    )
+
+    # Check if the pipeline is in a terminable state
+    if (
+        run.status
+        not in mlrun_pipelines.common.models.RunStatuses.terminable_statuses()
+    ):
+        raise mlrun.errors.MLRunBadRequestError(
+            f"Pipeline run {run_id} is not in a terminable state. Current status: {run.status}"
+        )
 
     task = await _terminate_pipeline(
         db_session=db_session,
@@ -197,8 +211,8 @@ async def terminate_pipeline(
     )
 
     return fastapi.Response(
-        status_code=20,
-        content=task,
+        status_code=202,
+        content=task.json(),
         headers={
             "content-type": "application/json",
         },
@@ -265,7 +279,6 @@ async def get_pipeline(
 ):
     pipeline = await fastapi.concurrency.run_in_threadpool(
         services.api.crud.Pipelines().get_pipeline,
-        db_session,
         run_id,
         project,
         namespace,
@@ -302,7 +315,6 @@ async def _get_pipeline_without_project(
     """
     run = await fastapi.concurrency.run_in_threadpool(
         services.api.crud.Pipelines().get_pipeline,
-        db_session,
         run_id,
         namespace=namespace,
         # minimal format that includes the project
@@ -438,34 +450,44 @@ async def _terminate_pipeline(
     background_task_handler = (
         framework.utils.background_tasks.ProjectBackgroundTasksHandler()
     )
-    existing_terminate_pipeline_task = (
-        background_task_handler.get_background_task_by_status_and_labels(
-            db_session=db_session,
-            status=mlrun.common.schemas.BackgroundTaskState.running,
-            labels={
-                BackGroundTaskLabel.pipeline: run_id,
-            },
-        )
+    existing_terminate_pipeline_task = background_task_handler.get_background_task_by_status_and_labels(
+        db_session=db_session,
+        status=mlrun.common.schemas.BackgroundTaskState.running,
+        labels={
+            mlrun.common.schemas.background_task.BackGroundTaskLabel.pipeline: run_id,
+        },
     )
 
     if existing_terminate_pipeline_task is not None:
+        mlrun.utils.logger.info(
+            "Found existing terminate pipeline task, returning it",
+            run_id=run_id,
+            task_name=existing_terminate_pipeline_task.metadata.name,
+        )
         return existing_terminate_pipeline_task
     else:
-        # If the background task does not exist, we create a new one
         terminate_pipeline_task = await fastapi.concurrency.run_in_threadpool(
             framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
-            db_session=db_session,
-            project=project,
-            background_tasks=background_tasks,
-            function=services.api.crud.pipelines.Pipelines.terminate_pipeline,
-            timeout=mlrun.mlconf.background_tasks.default_timeouts.terminate_pipeline,
-            name=framework.utils.background_tasks.BackgroundTaskKinds.terminate_pipeline.format(
+            db_session,
+            project,
+            background_tasks,
+            services.api.crud.pipelines.Pipelines().terminate_pipeline,
+            mlrun.mlconf.background_tasks.default_timeouts.operations.terminate_pipeline,
+            framework.utils.background_tasks.BackgroundTaskKinds.terminate_pipeline.format(
                 project,
                 run_id,
                 time.time(),
             ),
-            labels={
-                BackGroundTaskLabel.pipeline: run_id,
+            {
+                mlrun.common.schemas.background_task.BackGroundTaskLabel.pipeline: run_id,
             },
+            run_id,
+            project,
+        )
+
+        mlrun.utils.logger.info(
+            "Created new terminate pipeline task",
+            run_id=run_id,
+            task_name=terminate_pipeline_task.metadata.name,
         )
         return terminate_pipeline_task

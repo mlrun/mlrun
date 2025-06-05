@@ -653,9 +653,9 @@ class Client(
         """
 
         try:
-            self._run_api.terminate_run(
+            return self._run_api.terminate_run(
                 run_id=run_id,
-            )
+            )[0]
         except kfp_server_api.OpenApiException as error:
             logging.error(
                 "Could not terminate run %s, error: %s",

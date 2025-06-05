@@ -38,6 +38,7 @@ import framework.constants
 import framework.db.base
 import framework.db.sqldb.db
 import framework.service
+import framework.utils.background_tasks
 import framework.utils.clients.chief
 import framework.utils.clients.log_collector
 import framework.utils.clients.messaging
@@ -613,10 +614,14 @@ class Service(framework.service.Service):
                 "Starting periodic background task cleanup",
                 interval=interval,
             )
-            func = framework.utils.background_tasks.ProjectBackgroundTasksHandler().cleanup_old_background_tasks
+
+            cleanup_func = framework.utils.background_tasks.ProjectBackgroundTasksHandler().cleanup_old_background_tasks
+            func = framework.db.session.run_function_with_new_db_session(
+                cleanup_func, int(mlconf.background_task_max_age)
+            )
             run_function_periodically(
                 interval=interval,
-                name=func.__name__,
+                name=cleanup_func.__name__,
                 replace=False,
                 function=func,
             )

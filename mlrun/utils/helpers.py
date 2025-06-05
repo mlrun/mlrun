@@ -919,7 +919,7 @@ def enrich_image_url(
             ):
                 warnings.warn(
                     "'mlrun/ml-base' image is deprecated in 1.10.0 and will be removed in 1.12.0, "
-                    "please use 'mlrun/mlrun' instead.",
+                    "use 'mlrun/mlrun' instead.",
                     # TODO: Remove this in 1.12.0
                     FutureWarning,
                 )

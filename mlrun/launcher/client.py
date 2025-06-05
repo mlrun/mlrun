@@ -65,7 +65,8 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         if image and "mlrun/ml-base" in image:
             warnings.warn(
                 "'mlrun/ml-base' image is deprecated in 1.10.0 and will be removed in 1.12.0, "
-                "please use 'mlrun/mlrun' instead.",
+                "use 'mlrun/mlrun' instead. "
+                "For clients >= 1.10.0, the image is automatically replaced with 'mlrun/mlrun'. ",
                 # TODO: Remove this in 1.12.0
                 FutureWarning,
             )

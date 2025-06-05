@@ -15,6 +15,7 @@
 import datetime
 import typing
 import unittest.mock
+from typing import get_args, get_type_hints
 
 import deepdiff
 import pytest
@@ -466,9 +467,15 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
         project_name,
         project,
     )
+
+    hints = get_type_hints(
+        framework.utils.singletons.db.get_db().get_project_resources_counters
+    )
+    ret_ann = hints.get("return", tuple())
+
     framework.utils.singletons.db.get_db().get_project_resources_counters = (
         unittest.mock.AsyncMock(
-            return_value=tuple({project_name: i} for i in range(15))
+            return_value=tuple({project_name: i} for i in range(len(get_args(ret_ann))))
         )
     )
     await services.api.crud.Projects().refresh_project_resources_counters_cache(db)

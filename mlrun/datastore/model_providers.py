@@ -33,7 +33,7 @@ class ModelProvider(BaseRemoteClient, ABC):
         self.default_invoke_kwargs = default_invoke_kwargs
 
     @abstractmethod
-    def get_service_options(self) -> dict:
+    def get_client_options(self) -> dict:
         """retrieve provider secrets."""
         pass
 
@@ -46,6 +46,7 @@ class OpenAIProvider(ModelProvider):
     def __init__(
         self, parent, name, kind, endpoint="", secrets={}, **default_invoke_kwargs
     ):
+
         super().__init__(
             parent=parent,
             name=name,
@@ -56,9 +57,13 @@ class OpenAIProvider(ModelProvider):
         )
         self.client = None
         self._default_operation = None
-        self.options = self.get_service_options()
-        self.model = self.options.pop("model")
+        self.options = self.get_client_options()
         self.load_client()
+
+    def _validate_model_name(self):
+        # endpoint represent model name
+        pass
+
 
     def load_client(self) -> None:
         try:
@@ -69,14 +74,14 @@ class OpenAIProvider(ModelProvider):
         except ImportError as exc:
             raise ImportError("openai package not installed") from exc
 
-    def get_service_options(self):
+    def get_client_options(self):
         res = dict(
             api_key=self._get_secret_or_env("OPENAI_API_KEY"),
-            model=self._get_secret_or_env("OPENAI_MODEL"),
             endpoint_url=self._get_secret_or_env("OPENAI_BASE_URL"),
-            # OPENAI_API_KEY - for the API key
-            # OPENAI_ORG_ID - for organization ID
-            # OPENAI_PROJECT_ID - for project ID
+            open_ai_project_id=self._get_secret_or_env("OPENAI_ORG_ID"),
+            openai_org_id=self._get_secret_or_env("OPENAI_PROJECT_ID"),
+            timeout=self._get_secret_or_env("OPENAI_TIMEOUT"),
+            max_retries=self._get_secret_or_env("OPENAI_MAX_RETRIES"),
         )
         return self._sanitize_options(res)
 

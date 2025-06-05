@@ -201,7 +201,7 @@ class Pipelines(
         self,
         run_id: str,
         project: str,
-        namespace: Optional[str] = None,
+        namespace: typing.Optional[str] = None,
     ) -> mlrun_pipelines.models.PipelineRun:
         """
         Get a Kubeflow Pipeline (KFP) run by its ID.

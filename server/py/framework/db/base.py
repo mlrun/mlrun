@@ -26,7 +26,6 @@ import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.lists
 import mlrun.model
-from mlrun.common.schemas import BackgroundTaskState
 
 import framework.db.sqldb.models
 
@@ -903,7 +902,7 @@ class DBInterface(ABC):
     def get_background_task_by_status_and_labels(
         self,
         session,
-        status: BackgroundTaskState,
+        status: mlrun.common.schemas.BackgroundTaskState,
         labels: dict[str, str],
     ) -> mlrun.common.schemas.BackgroundTask:
         """

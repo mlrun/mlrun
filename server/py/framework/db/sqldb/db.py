@@ -61,7 +61,6 @@ import mlrun.k8s_utils
 import mlrun.model
 import mlrun.utils.db
 from mlrun.artifacts.base import fill_artifact_object_hash
-from mlrun.common.schemas import BackgroundTaskState
 from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
     FeatureSetDigestSpecV2,
@@ -7306,7 +7305,7 @@ class SQLDB(DBInterface):
     def get_background_task_by_status_and_labels(
         self,
         session: Session,
-        status: BackgroundTaskState,
+        status: mlrun.common.schemas.BackgroundTaskState,
         labels: dict[str, str],
     ) -> Optional[mlrun.common.schemas.BackgroundTask]:
         if not labels:

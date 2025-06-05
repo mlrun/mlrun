@@ -24,9 +24,8 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.utils
 import mlrun.utils.singleton
-from mlrun.common.schemas import BackgroundTaskState
-from mlrun.utils import logger
 
 import framework.utils.background_tasks.common
 import framework.utils.singletons.db
@@ -46,7 +45,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         **kwargs,
     ) -> mlrun.common.schemas.BackgroundTask:
         name = name or str(uuid.uuid4())
-        logger.debug(
+        mlrun.utils.logger.debug(
             "Creating background task",
             name=name,
             project=project,
@@ -56,7 +55,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             session=db_session,
             name=name,
             project=project,
-            state=BackgroundTaskState.running,
+            state=mlrun.common.schemas.BackgroundTaskState.running,
             error=None,
             timeout=timeout,
             labels=labels,
@@ -90,7 +89,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         db_session: sqlalchemy.orm.Session,
         max_age_seconds: int,
     ) -> None:
-        logger.info(
+        mlrun.utils.logger.info(
             "Cleaning up old background tasks",
             max_age_seconds=max_age_seconds,
         )
@@ -102,7 +101,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
     def get_background_task_by_status_and_labels(
         self,
         db_session: sqlalchemy.orm.Session,
-        status: BackgroundTaskState,
+        status: mlrun.common.schemas.BackgroundTaskState,
         labels: dict[str, str],
     ) -> mlrun.common.schemas.BackgroundTask:
         return framework.utils.singletons.db.get_db().get_background_task_by_status_and_labels(
@@ -150,7 +149,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 await fastapi.concurrency.run_in_threadpool(function, *args, **kwargs)
         except Exception as exc:
             err_str = mlrun.errors.err_to_str(exc)
-            logger.warning(
+            mlrun.utils.logger.warning(
                 "Background task execution failed",
                 function_name=function.__name__,
                 exc=err_str,

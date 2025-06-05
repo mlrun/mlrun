@@ -580,7 +580,8 @@ async def _get_metrics_values_params(
         )
     if start > end:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "The start time must precede the end time."
+            "The start time must be before the end time. Note that if end time is not provided, "
+            "the current time is used by default."
         )
 
     metrics = []

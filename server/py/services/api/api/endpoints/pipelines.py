@@ -33,6 +33,7 @@ import mlrun.utils
 import mlrun.utils.notifications
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
+import mlrun_pipelines.common.models
 
 import framework.api
 import framework.api.deps
@@ -144,9 +145,6 @@ async def retry_pipeline(
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        framework.api.deps.get_db_session
-    ),
 ):
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -188,7 +186,7 @@ async def terminate_pipeline(
             auth_info,
         )
     )
-    run = services.api.crud.pipelines.Pipelines().get_pipeline(
+    run = services.api.crud.pipelines.Pipelines().get_run(
         run_id=run_id,
         project=project,
         namespace=namespace,
@@ -278,7 +276,7 @@ async def get_pipeline(
     ),
 ):
     pipeline = await fastapi.concurrency.run_in_threadpool(
-        services.api.crud.Pipelines().get_pipeline,
+        services.api.crud.Pipelines().get_formatted_pipeline,
         run_id,
         project,
         namespace,
@@ -314,7 +312,7 @@ async def _get_pipeline_without_project(
     permissions
     """
     run = await fastapi.concurrency.run_in_threadpool(
-        services.api.crud.Pipelines().get_pipeline,
+        services.api.crud.Pipelines().get_formatted_pipeline,
         run_id,
         namespace=namespace,
         # minimal format that includes the project

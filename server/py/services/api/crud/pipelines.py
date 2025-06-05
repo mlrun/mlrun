@@ -197,13 +197,22 @@ class Pipelines(
                     failed=experiments_failed,
                 )
 
-    def get_pipeline(
-        self,
-        run_id: str,
-        project: typing.Optional[str] = None,
-        namespace: typing.Optional[str] = None,
-        format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.summary,
-    ):
+    def get_run(self, run_id: str, project: str, namespace: str = None) -> mlrun_pipelines.models.PipelineRun:
+        """
+        Get a Kubeflow Pipeline (KFP) run by its ID.
+
+        :param run_id: The unique identifier of the pipeline run.
+        :param project: The name of the MLRun project associated with the pipeline run.
+        :param namespace: (Optional) The Kubernetes namespace in which the pipeline is running.
+                          Defaults to the configured namespace if not specified.
+        :raises MLRunNotFoundError: If the pipeline run does not belong to the specified project
+                                    or if the run ID is not found.
+        :raises MLRunRuntimeError: If there is an error retrieving the pipeline run details.
+        :raises MLRunHTTPStatusError: If there is an HTTP error interacting with KFP.
+        :return: The pipeline run object.
+        :rtype: mlrun_pipelines.models.PipelineRun
+        """
+
         kfp_client = self.initialize_kfp_client(namespace)
         try:
             api_run_detail = kfp_client.get_run(run_id)
@@ -216,20 +225,29 @@ class Pipelines(
                             f"Pipeline run with id {run_id} is not of project {project}"
                         )
 
-                mlrun.utils.logger.debug(
-                    "Got kfp run",
-                    run_id=run_id,
-                    run_name=run.get("name"),
-                    project=project,
-                    format_=format_,
-                )
-                run = self._format_run(run, format_, kfp_client)
         except kfp_server_api.ApiException as exc:
             raise mlrun.errors.err_for_status_code(
                 exc.status, mlrun.errors.err_to_str(exc)
             ) from exc
         except mlrun.errors.MLRunHTTPStatusError:
             raise
+        except Exception as exc:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed getting KFP run: {mlrun.errors.err_to_str(exc)}"
+            ) from exc
+        return run
+
+    def get_formatted_pipeline(
+        self,
+        run_id: str,
+        project: typing.Optional[str] = None,
+        namespace: typing.Optional[str] = None,
+        format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.summary,
+    ) -> dict:
+        kfp_client = self.initialize_kfp_client(namespace)
+        try:
+            run = self.get_run(run_id=run_id,project=project, namespace=namespace)
+            run = self._format_run(run, format_, kfp_client)
         except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(
                 f"Failed getting KFP run: {mlrun.errors.err_to_str(exc)}"
@@ -258,7 +276,7 @@ class Pipelines(
         :return: The unique identifier of the retried pipeline run.
         :rtype: str
         """
-        run = self.get_pipeline(
+        run = self.get_run(
             run_id=run_id,
             project=project,
             namespace=namespace,
@@ -307,7 +325,7 @@ class Pipelines(
         :rtype: str
         """
         kfp_client = self.initialize_kfp_client(namespace)
-        run = self.get_pipeline(
+        run = self.get_run(
             run_id=run_id,
             project=project,
             namespace=namespace,

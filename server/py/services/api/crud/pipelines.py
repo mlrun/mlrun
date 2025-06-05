@@ -263,13 +263,6 @@ class Pipelines(
             raise mlrun.errors.MLRunRuntimeError(
                 f"Failed getting KFP run: {mlrun.errors.err_to_str(exc)}"
             ) from exc
-        mlrun.utils.logger.debug(
-            "Got kfp run",
-            run_id=run_id,
-            run_name=run.get("name"),
-            project=project,
-            format_=format_,
-        )
         return run
 
     def retry_pipeline(

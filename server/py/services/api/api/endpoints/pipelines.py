@@ -31,9 +31,9 @@ import mlrun.config
 import mlrun.errors
 import mlrun.utils
 import mlrun.utils.notifications
+import mlrun_pipelines.common.models
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
-import mlrun_pipelines.common.models
 
 import framework.api
 import framework.api.deps

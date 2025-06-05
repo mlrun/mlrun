@@ -197,7 +197,12 @@ class Pipelines(
                     failed=experiments_failed,
                 )
 
-    def get_run(self, run_id: str, project: str, namespace: str = None) -> mlrun_pipelines.models.PipelineRun:
+    def get_run(
+        self,
+        run_id: str,
+        project: str,
+        namespace: Optional[str] = None,
+    ) -> mlrun_pipelines.models.PipelineRun:
         """
         Get a Kubeflow Pipeline (KFP) run by its ID.
 
@@ -246,7 +251,7 @@ class Pipelines(
     ) -> dict:
         kfp_client = self.initialize_kfp_client(namespace)
         try:
-            run = self.get_run(run_id=run_id,project=project, namespace=namespace)
+            run = self.get_run(run_id=run_id, project=project, namespace=namespace)
             run = self._format_run(run, format_, kfp_client)
         except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(

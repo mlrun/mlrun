@@ -147,6 +147,7 @@ class ProjectSummary(pydantic.v1.BaseModel):
     other_alerts_count: int = 0
     datasets_count: int = 0
     documents_count: int = 0
+    llm_prompts_count: int = 0
 
 
 class IguazioProject(pydantic.v1.BaseModel):

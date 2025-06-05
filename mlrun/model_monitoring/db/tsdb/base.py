@@ -340,15 +340,14 @@ class TSDBConnector(ABC):
         """
         Read results status from the TSDB and return a dictionary of results statuses by application name.
 
-        :param start:             The start time in which to read the results. By default, the last 24 hours
-                                  are read.
-        :param end:               The end time in which to read the results. Default is the current time (now).
-        :param endpoint_ids:      Optional list of endpoint ids to filter the results by. By default, all
-                                  endpoint ids are included.
-        :param application_names: Optional list of application names to filter the results by. By default, all
-                                  application are included.
+        :param start:              The start time in which to read the results. By default, the last 24 hours are read.
+        :param end:                The end time in which to read the results. Default is the current time (now).
+        :param endpoint_ids:       Optional list of endpoint ids to filter the results by. By default, all
+                                   endpoint ids are included.
+        :param application_names:  Optional list of application names to filter the results by. By default, all
+                                   application are included.
         :param result_status_list: Optional list of result statuses to filter the results by. By default, all
-                                  result statuses are included.
+                                   result statuses are included.
 
         :return: A dictionary where the key is a tuple of (application_name, result_status) and the value is the total
                  number of results with that status for that application.

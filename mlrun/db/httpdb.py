@@ -4155,8 +4155,8 @@ class HTTPRunDB(RunDBInterface):
                 "end": datetime_to_iso(end),
                 "name": names,
                 "label": labels,
-                "include_stats": include_stats,
-                "include_infra": include_infra,
+                "include-stats": include_stats,
+                "include-infra": include_infra,
             },
         )
 

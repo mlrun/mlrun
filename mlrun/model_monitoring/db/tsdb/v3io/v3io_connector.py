@@ -710,7 +710,7 @@ class V3IOTSDBConnector(TSDBConnector):
                     amount=len(filter_values),
                 )
                 return None
-            return f"{filter_key} IN({str(filter_values)[1:-1]}) "
+            return f"{filter_key} IN ({', '.join(repr(v) for v in filter_values)}) "
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Invalid filter key {filter_key}: must be a string or a list, got {type(filter_values).__name__}; "

@@ -26,9 +26,9 @@ class FunctionsType(enum.Enum):
 
 class FunctionSummary(BaseModel):
     """
-    Function summary model. Includes metadata about the function, such as its name, but also statistical metrics such
-    as the number of detections and possible detections. A function summary can be from either a model monitoring
-    application (type "application") or an infrastructure function (type "infra").
+    Function summary model. Includes metadata about the function, such as its name, as well as statistical
+    metrics such as the number of detections and possible detections. A function summary can be from either a
+    model monitoring application (type "application") or an infrastructure function (type "infra").
     """
 
     type: FunctionsType

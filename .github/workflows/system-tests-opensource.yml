@@ -213,7 +213,7 @@ jobs:
         sudo apt-get install curl jq make
         uv venv venv --seed
         source venv/bin/activate
-        make install-requirements install-complete-kfp-requirements
+        make install-requirements install-complete-kfp-requirements kfp
         uv pip install -r automation/requirements.txt
         pip3 -vvv install --upgrade --force-reinstall cffi
 

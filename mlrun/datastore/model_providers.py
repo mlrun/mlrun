@@ -14,7 +14,7 @@
 from abc import ABC
 from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar
-
+import mlrun
 from mlrun.datastore.abstract_base import BaseRemoteClient
 
 T = TypeVar("T")
@@ -76,8 +76,6 @@ class AsyncModelProvider(ModelProvider, ABC):
 
 
 class OpenAIProvider(AsyncModelProvider):
-    DEFAULT_MODEL = "gpt-4"  # TODO move to config
-
     def __init__(
         self,
         parent,
@@ -87,7 +85,7 @@ class OpenAIProvider(AsyncModelProvider):
         secrets: Optional[dict] = None,
         **default_invoke_kwargs,
     ):
-        endpoint = endpoint or self.DEFAULT_MODEL
+        endpoint = endpoint or mlrun.mlconf.model_providers.openai_default_model
         super().__init__(
             parent=parent,
             name=name,
@@ -126,7 +124,9 @@ class OpenAIProvider(AsyncModelProvider):
         )
         return self._sanitize_options(res)
 
-    def invoke(self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs) -> Optional[T]:
+    def invoke(
+        self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs
+    ) -> Optional[T]:
         kwargs = self.default_invoke_kwargs.copy()
         kwargs.update(invoke_kwargs)
         if operation:

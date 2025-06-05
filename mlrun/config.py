@@ -236,7 +236,10 @@ default_config = {
                 "model_endpoint_tsdb_leftovers": "900",
                 "terminate_pipeline": "120",
             },
-            "runtimes": {"dask": "600"},
+            "runtimes": {
+                "dask": "600",
+                "dask_cluster_start": "300",
+            },
             "push_notifications": "60",
         },
     },

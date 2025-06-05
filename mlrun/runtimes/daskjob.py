@@ -192,7 +192,9 @@ class DaskCluster(KubejobRuntime):
         super().__init__(spec, metadata)
         self._cluster = None
         self.use_remote = not mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
-        self.spec.build.base_image = self.spec.build.base_image or "mlrun/mlrun"
+        self.spec.build.base_image = (
+            self.spec.build.base_image or mlrun.mlconf.default_base_image
+        )
 
     @property
     def spec(self) -> DaskSpec:

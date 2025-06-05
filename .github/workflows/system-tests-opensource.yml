@@ -214,7 +214,7 @@ jobs:
         uv venv venv --seed
         source venv/bin/activate
         make install-requirements install-complete-kfp-requirements
-        uv pip install kfp
+        uv pip install kfp kfp_server_api
         uv pip install -r automation/requirements.txt
         pip3 -vvv install --upgrade --force-reinstall cffi
 

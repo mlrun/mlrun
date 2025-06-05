@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import socket
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
@@ -29,6 +30,48 @@ import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.results as mm_results
 from mlrun.serving.utils import MonitoringApplicationToDict
 from mlrun.utils import logger
+
+
+def _serialize_context_and_result(
+    *,
+    context: mm_context.MonitoringApplicationContext,
+    result: Union[
+        mm_results.ModelMonitoringApplicationResult,
+        mm_results.ModelMonitoringApplicationMetric,
+        mm_results._ModelMonitoringApplicationStats,
+    ],
+) -> dict[mm_constants.WriterEvent, str]:
+    """
+    Serialize the returned result from a model monitoring application and its context
+    for the writer.
+    """
+    writer_event = {
+        mm_constants.WriterEvent.ENDPOINT_NAME: context.endpoint_name,
+        mm_constants.WriterEvent.APPLICATION_NAME: context.application_name,
+        mm_constants.WriterEvent.ENDPOINT_ID: context.endpoint_id,
+        mm_constants.WriterEvent.START_INFER_TIME: context.start_infer_time.isoformat(
+            sep=" ", timespec="microseconds"
+        ),
+        mm_constants.WriterEvent.END_INFER_TIME: context.end_infer_time.isoformat(
+            sep=" ", timespec="microseconds"
+        ),
+    }
+
+    if isinstance(result, mm_results.ModelMonitoringApplicationResult):
+        writer_event[mm_constants.WriterEvent.EVENT_KIND] = (
+            mm_constants.WriterEventKind.RESULT
+        )
+    elif isinstance(result, mm_results._ModelMonitoringApplicationStats):
+        writer_event[mm_constants.WriterEvent.EVENT_KIND] = (
+            mm_constants.WriterEventKind.STATS
+        )
+    else:
+        writer_event[mm_constants.WriterEvent.EVENT_KIND] = (
+            mm_constants.WriterEventKind.METRIC
+        )
+    writer_event[mm_constants.WriterEvent.DATA] = json.dumps(result.to_dict())
+
+    return writer_event
 
 
 class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):

@@ -76,6 +76,8 @@ class AsyncModelProvider(ModelProvider, ABC):
 
 
 class OpenAIProvider(AsyncModelProvider):
+    DEFAULT_MODEL = "gpt-4"  # TODO move to config
+
     def __init__(
         self,
         parent,
@@ -85,6 +87,7 @@ class OpenAIProvider(AsyncModelProvider):
         secrets: Optional[dict] = None,
         **default_invoke_kwargs,
     ):
+        endpoint = endpoint or self.DEFAULT_MODEL
         super().__init__(
             parent=parent,
             name=name,

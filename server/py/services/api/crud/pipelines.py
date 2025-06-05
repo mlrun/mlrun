@@ -251,7 +251,11 @@ class Pipelines(
     ) -> dict:
         kfp_client = self.initialize_kfp_client(namespace)
         try:
-            run = self.get_run(run_id=run_id, project=project, namespace=namespace)
+            run = self.get_run(
+                run_id=run_id,
+                project=project,
+                namespace=namespace,
+            )
             run = self._format_run(run, format_, kfp_client)
         except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(

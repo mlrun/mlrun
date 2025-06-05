@@ -382,7 +382,7 @@ async def _common_function_parameters(
             )
         if start > end:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "The start time must precede the end time."
+                "The start time must be before the end time."
             )
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(

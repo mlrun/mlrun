@@ -29,7 +29,7 @@ MLRUN_DOCKER_REGISTRY ?=
 MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 # do not specify the patch version so that we can easily upgrade it when needed - it is determined by the base image
-# mainly used for mlrun, base and mlrun-gpu. mlrun API version >= 1.3.0 should always have python 3.9
+# mainly used for mlrun and mlrun-gpu. mlrun API version >= 1.3.0 should always have python 3.9
 MLRUN_PYTHON_VERSION ?= 3.11
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
@@ -94,7 +94,6 @@ SETUP_COVERAGE_MOUNTING = if [[ "$(RUN_COVERAGE)" == "true" ]]; then \
 # THIS BLOCK IS FOR COMPUTED VARIABLES
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 MLRUN_CACHE_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_CACHE_FROM_REGISTRY),$(strip $(MLRUN_DOCKER_CACHE_FROM_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
-MLRUN_DOCKER_CACHE_FROM_FLAG :=
 # if MLRUN_NO_CACHE passed we don't want to use cache, this is mainly used for cleaner if statements
 MLRUN_USE_CACHE := $(if $(MLRUN_NO_CACHE),,true)
 MLRUN_DOCKER_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache,)
@@ -251,7 +250,6 @@ DEFAULT_DOCKER_IMAGES_RULES = \
 	mlrun-gpu \
 	mlrun-kfp \
 	jupyter \
-	base \
 	log-collector
 
 .PHONY: docker-images
@@ -390,35 +388,6 @@ prebake-mlrun-gpu: ## Build prebake mlrun GPU based docker image
 .PHONY: push-prebake-mlrun-gpu
 push-prebake-mlrun-gpu: ## Push prebake mlrun GPU based docker image
 	docker push $(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED)
-
-MLRUN_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base
-MLRUN_BASE_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base
-MLRUN_BASE_IMAGE_NAME_TAGGED := $(MLRUN_BASE_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_BASE_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_BASE_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_BASE_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_BASE_CACHE_IMAGE_NAME_TAGGED)),)
-MLRUN_BASE_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_BASE_IMAGE_NAME_TAGGED) $(MLRUN_BASE_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_BASE_CACHE_IMAGE_NAME_TAGGED),)
-DEFAULT_IMAGES += $(MLRUN_BASE_IMAGE_NAME_TAGGED)
-
-.PHONY: base
-base: pull-cache update-version-file ## Build base docker image
-	docker build \
-		--file dockerfiles/base/Dockerfile \
-		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
-		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
-		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
-		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
-		--tag $(MLRUN_BASE_IMAGE_NAME_TAGGED) .
-
-.PHONY: push-base
-push-base: base ## Push base docker image
-	docker push $(MLRUN_BASE_IMAGE_NAME_TAGGED)
-	$(MLRUN_BASE_CACHE_IMAGE_PUSH_COMMAND)
-
-.PHONY: pull-base
-pull-base: ## Pull base docker image
-	docker pull $(MLRUN_BASE_IMAGE_NAME_TAGGED)
 
 MLRUN_JUPYTER_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/jupyter
 MLRUN_JUPYTER_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/jupyter
@@ -944,12 +913,8 @@ ifdef MLRUN_DOCKER_CACHE_FROM_TAG
 	targets="$(subst push-,,$(MAKECMDGOALS))" ; \
 	for image_name in $$targets; do \
 		tag=$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX) ; \
-		case "$$image_name" in \
-			*base*) image_name=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)$$image_name ;; \
-		esac; \
 		docker pull $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/$$image_name:$$tag || true ; \
 	done;
-    MLRUN_DOCKER_CACHE_FROM_FLAG := $(MLRUN_BASE_IMAGE_DOCKER_CACHE_FROM_FLAG)
 endif
 
 .PHONY: verify-uv-version
@@ -982,22 +947,12 @@ upgrade-mlrun-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-mlrun locked r
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/mlrun/locked-requirements.txt
 
-.PHONY: upgrade-mlrun-base-deps-lock
-upgrade-mlrun-base-deps-lock: verify-uv-version ## Upgrade mlrun-base locked requirements file
-	uv pip compile \
-		requirements.txt \
-		extras-requirements.txt \
-		dockerfiles/base/requirements.txt \
-		$(MLRUN_UV_UPGRADE_FLAG) \
-		--output-file dockerfiles/base/locked-requirements.txt
-
 .PHONY: upgrade-mlrun-gpu-deps-lock
 upgrade-mlrun-gpu-deps-lock: verify-uv-version ## Upgrade mlrun-gpu locked requirements file
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
 		dockerfiles/mlrun/requirements.txt \
-		dockerfiles/base/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/gpu/locked-requirements.txt
 
@@ -1048,7 +1003,6 @@ upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirement
 		upgrade-mlrun-mlrun-deps-lock \
 		upgrade-mlrun-api-deps-lock \
 		upgrade-mlrun-jupyter-deps-lock \
-		upgrade-mlrun-base-deps-lock \
 		upgrade-mlrun-gpu-deps-lock \
 		upgrade-mlrun-kfp-deps-lock \
 		upgrade-mlrun-test-deps-lock \

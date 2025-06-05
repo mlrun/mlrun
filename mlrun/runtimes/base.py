@@ -668,10 +668,6 @@ class BaseRuntime(ModelObj):
     ):
         image = image or self.spec.image or ""
 
-        # TODO: Remove this in 1.12.0
-        if self.spec.image == "mlrun/ml-base":
-            self.spec.image = "mlrun/mlrun"
-
         image = enrich_image_url(image, client_version, client_python_version)
         if not image.startswith(
             mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX

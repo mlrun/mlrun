@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
+import warnings
 from typing import Optional
 
 import IPython.display
@@ -59,6 +60,15 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
             and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
         ):
             image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
+
+        # Warn if user explicitly set the deprecated mlrun/ml-base image
+        if image and "mlrun/ml-base" in image:
+            warnings.warn(
+                "'mlrun/ml-base' image is deprecated in 1.10.0 and will be removed in 1.12.0, "
+                "please use 'mlrun/mlrun' instead.",
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
+            )
 
         # TODO: need a better way to decide whether a function requires a build
         if require_build and image and not runtime.spec.build.base_image:

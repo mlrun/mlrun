@@ -913,13 +913,19 @@ def enrich_image_url(
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
 
     if is_mlrun_image and "mlrun/ml-base" in image_url:
-        warnings.warn(
-            "'mlrun/ml-base' image is deprecated in 1.10.0 and will be removed in 1.12.0, "
-            "use 'mlrun/mlrun' instead.",
-            # TODO: Remove this in 1.12.0
-            FutureWarning,
-        )
-        image_url = image_url.replace("mlrun/ml-base", "mlrun/mlrun")
+        if tag:
+            if mlrun.utils.helpers.validate_component_version_compatibility(
+                "mlrun-client", "1.10.0", mlrun_client_version=tag
+            ):
+                warnings.warn(
+                    "'mlrun/ml-base' image is deprecated in 1.10.0 and will be removed in 1.12.0, "
+                    "please use 'mlrun/mlrun' instead.",
+                    # TODO: Remove this in 1.12.0
+                    FutureWarning,
+                )
+                image_url = image_url.replace("mlrun/ml-base", "mlrun/mlrun")
+        else:
+            image_url = "mlrun/mlrun"
 
     if is_mlrun_image and tag and ":" not in image_url:
         image_url = f"{image_url}:{tag}"

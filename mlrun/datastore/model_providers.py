@@ -11,13 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from abc import ABC, abstractmethod
-from typing import Optional
+from abc import ABC
+from collections.abc import Awaitable
+from typing import Callable, Optional, TypeVar
 
 from mlrun.datastore.abstract_base import BaseRemoteClient
 
+T = TypeVar("T")
+
 
 class ModelProvider(BaseRemoteClient, ABC):
+    support_async = False
+
     def __init__(
         self,
         parent,
@@ -31,22 +36,29 @@ class ModelProvider(BaseRemoteClient, ABC):
             parent=parent, name=name, kind=kind, endpoint=endpoint, secrets=secrets
         )
         self.default_invoke_kwargs = default_invoke_kwargs
+        self._client = None
+        self._default_operation = None
 
-    @abstractmethod
-    def get_client_options(self) -> dict:
-        """retrieve provider secrets."""
-        pass
-
-    @abstractmethod
     def load_client(self) -> None:
-        pass
+        raise NotImplementedError("load_client method is not implemented")
+
+    @property
+    def client(self):
+        return self._client
 
 
-class OpenAIProvider(ModelProvider):
+class AsyncModelProvider(ModelProvider, ABC):
+    support_async = True
+
     def __init__(
-        self, parent, name, kind, endpoint="", secrets={}, **default_invoke_kwargs
+        self,
+        parent,
+        name,
+        kind,
+        endpoint="",
+        secrets: Optional[dict] = None,
+        **default_invoke_kwargs,
     ):
-
         super().__init__(
             parent=parent,
             name=name,
@@ -55,8 +67,32 @@ class OpenAIProvider(ModelProvider):
             secrets=secrets,
             default_invoke_kwargs=default_invoke_kwargs,
         )
-        self.client = None
-        self._default_operation = None
+        self._async_client = None
+        self._default_async_operation = None
+
+    @property
+    def async_client(self):
+        return self._async_client
+
+
+class OpenAIProvider(AsyncModelProvider):
+    def __init__(
+        self,
+        parent,
+        name,
+        kind,
+        endpoint="",
+        secrets: Optional[dict] = None,
+        **default_invoke_kwargs,
+    ):
+        super().__init__(
+            parent=parent,
+            name=name,
+            kind=kind,
+            endpoint=endpoint,
+            secrets=secrets,
+            default_invoke_kwargs=default_invoke_kwargs,
+        )
         self.options = self.get_client_options()
         self.load_client()
 
@@ -64,13 +100,15 @@ class OpenAIProvider(ModelProvider):
         # endpoint represent model name
         pass
 
-
     def load_client(self) -> None:
         try:
-            from openai import OpenAI  # noqa
+            from openai import OpenAI, AsyncOpenAI  # noqa
 
-            self.client = OpenAI(**self.options)
+            self._client = OpenAI(**self.options)
             self._default_operation = self.client.ChatCompletion.create
+
+            self._async_client = AsyncOpenAI(**self.options)
+            self._default_async_operation = self.async_client.chat.completions.create
         except ImportError as exc:
             raise ImportError("openai package not installed") from exc
 
@@ -85,10 +123,22 @@ class OpenAIProvider(ModelProvider):
         )
         return self._sanitize_options(res)
 
-    def invoke(self, operation: callable = None, **invoke_kwargs):
+    def invoke(self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs) -> Optional[T]:
         kwargs = self.default_invoke_kwargs.copy()
         kwargs.update(invoke_kwargs)
         if operation:
-            return operation(**kwargs, model=self.model)
+            return operation(**kwargs, model=self.endpoint)
         else:
-            self._default_operation(**invoke_kwargs)
+            return self._default_operation(**invoke_kwargs, model=self.endpoint)
+
+    async def async_invoke(
+        self,
+        async_operation: Optional[Callable[..., Awaitable[T]]] = None,
+        **invoke_kwargs,
+    ) -> Awaitable[T]:
+        kwargs = self.default_invoke_kwargs.copy()
+        kwargs.update(invoke_kwargs)
+        if async_operation:
+            return async_operation(**kwargs, model=self.endpoint)
+        else:
+            return self._default_async_operation(**invoke_kwargs, model=self.endpoint)

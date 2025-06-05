@@ -1207,8 +1207,9 @@ class V3IOTSDBConnector(TSDBConnector):
         application_names: Optional[Union[str, list[str]]] = None,
         result_status_list: Optional[list[int]] = None,
     ) -> dict[tuple[str, int], int]:
-        start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-        end = end or mlrun.utils.datetime_now()
+        now = mlrun.utils.datetime_now()
+        start = start or (now - timedelta(hours=24))
+        end = end or now
         filter_query = ""
         if endpoint_ids:
             filter_query = self._generate_filter_query(

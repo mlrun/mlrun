@@ -903,8 +903,9 @@ class MonitoringDeployment:
         detection_stats_dict = {}
         if include_stats:
             # enrich func stats with #detections and #possible_detections
-            start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-            end = end or mlrun.utils.datetime_now()
+            now = mlrun.utils.datetime_now()
+            start = start or (now - timedelta(hours=24))
+            end = end or now
             tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
                 project=self.project, secret_provider=self._secret_provider
             )

@@ -114,7 +114,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
             notifications=notifications,
             state_thresholds=state_thresholds,
         )
-
         self._validate_runtime(runtime, run)
 
         if runtime.verbose:

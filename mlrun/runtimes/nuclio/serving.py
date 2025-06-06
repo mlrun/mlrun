@@ -713,7 +713,7 @@ class ServingRuntime(RemoteRuntime):
             "track_models": self.spec.track_models,
             "default_content_type": self.spec.default_content_type,
             "model_endpoint_creation_task_name": self.spec.model_endpoint_creation_task_name,
-            "filename": getattr(self.spec, "filename"),
+            "filename": getattr(self.spec, "filename", None),
         }
 
         if self.spec.secret_sources:

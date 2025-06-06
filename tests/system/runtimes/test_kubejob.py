@@ -19,6 +19,7 @@ from sys import executable
 
 import pandas as pd
 import pytest
+import v3io
 
 import mlrun
 import mlrun.common.schemas
@@ -26,6 +27,7 @@ import mlrun.feature_store.common
 import mlrun.model
 import tests.system.base
 from mlrun.runtimes.function_reference import FunctionReference
+from mlrun.serving.states import params_to_step
 
 
 def exec_cli(args, action="run"):
@@ -685,3 +687,44 @@ def print_df(df):
         assert background_task.metadata.name in [
             task.metadata.name for task in background_tasks
         ]
+
+    @pytest.mark.parametrize("with_target_mapping", [False, True])
+    def test_job_from_serving_runtime(self, with_target_mapping):
+        function = mlrun.new_function(
+            name="test",
+            kind="serving",
+        )
+        graph = function.set_topology("flow", engine="async")
+
+        graph.to(
+            name="parquet",
+            class_name="storey.ParquetTarget",
+            path=f"v3io:///projects/{self.project_name}/out.parquet",
+        )
+
+        target_mapping = None
+        if with_target_mapping:
+            new_target = params_to_step(
+                class_name="storey.ParquetTarget",
+                name="other-parquet",
+                class_args={
+                    "path": f"v3io:///projects/{self.project_name}/out-alt.parquet"
+                },
+            )
+            target_mapping = {"parquet": new_target}
+
+        job = function.to_job(target_mapping=target_mapping)
+
+        with open(str(self.assets_path / "test_data.csv")) as f:
+            csv_content = f.read()
+
+        v3io_client = v3io.Client()
+        try:
+            v3io_client.object.put(
+                "projects", f"{self.project_name}/in.csv", body=csv_content
+            )
+            inputs = {"data": f"v3io:///projects/{self.project_name}/in.csv"}
+            self.project.run_function(job, inputs=inputs, local=True)
+            v3io_client.object.get("projects", f"{self.project_name}/out.parquet")
+        finally:
+            v3io_client.close()

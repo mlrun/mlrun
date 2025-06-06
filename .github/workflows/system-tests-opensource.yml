@@ -213,10 +213,13 @@ jobs:
         sudo apt-get install curl jq make
         uv venv venv --seed
         source venv/bin/activate
-        make install-requirements install-complete-kfp-requirements
-        uv pip install kfp kfp_server_api
+        make install-requirements install-complete-requirements
         uv pip install -r automation/requirements.txt
-        pip3 -vvv install --upgrade --force-reinstall cffi
+
+        # helps to resovler missing cffi_backend but test_spark_snowflake.py still fails
+        # uv pip uninstall cryptography bcrypt paramiko
+        # uv pip -vvv install --upgrade --force-reinstall cffi
+        # uv pip install cryptography bcrypt paramiko
 
     - uses: jupyterhub/action-k3s-helm@6389a7f2a11343ea6b469628c6e7b3afa961db24 # 4.0.1
       name: "Start a local k8s cluster"

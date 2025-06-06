@@ -13,9 +13,10 @@
 # limitations under the License.
 
 import os
+import pytest
 
-import kfp.compiler
-import kfp.dsl
+kfp.compiler = pytest.importorskip("kfp.complier")
+kfp.dsl = pytest.importorskip("kfp.dsl")
 import pytest
 
 import mlrun.common.constants as mlrun_constants

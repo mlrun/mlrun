@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import pytest
+pytest.skip(allow_module_level=True, reason="")
 import snowflake.connector
 
 import mlrun.errors

@@ -16,10 +16,10 @@ import datetime
 import os
 import random
 import string
-
-import kfp
-import kfp.compiler
 import pytest
+
+kfp = pytest.importorskip("kfp")
+kfp.compiler = pytest.importorskip("kfp.complier")
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.utils

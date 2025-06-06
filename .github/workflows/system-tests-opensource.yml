@@ -57,8 +57,8 @@ on:
         options:
           - 'true'
           - 'false'
-      dump_logs_on_failure:
-        description: 'Dump some K8 logs in case of test failure'
+      on_failure_dump_k8_kogs:
+        description: 'On failure dump K8 logs'
         required: false
         default: 'false'
         type: choice
@@ -308,7 +308,7 @@ jobs:
         PYTEST_MARKERS: ${{ github.event.inputs.pytest_markers }}
 
     - name: Output some logs in case of failure
-      if: ${{ failure() && github.event.inputs.dump_logs_on_failure == 'true' }}
+      if: ${{ failure() && github.event.inputs.on_failure_dump_k8_kogs == 'true' }}
       # add set -x to print commands before executing to make logs reading easier
       run: |
         set -x

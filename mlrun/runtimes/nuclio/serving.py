@@ -822,9 +822,26 @@ class ServingRuntime(RemoteRuntime):
         )
         self._mock_server = self.to_mock_server()
 
-    def to_job(self, target_mapping: Optional[dict] = None) -> KubejobRuntime:
+    def to_job(
+        self, target_mapping: Optional[dict[str, TaskStep]] = None
+    ) -> KubejobRuntime:
+        """
+        Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job.
+
+        :param target_mapping: Set this to map targets in this ServingRuntime to other targets that will run as
+          part of the standalone job. For example, you may wish to replace a ParquetTarget in order to change its path.
+        """
+        serving_job = self.copy()
+        if target_mapping:
+            for from_name, (to_name, to_step) in target_mapping.items():
+                to_step = to_step.copy()
+                to_step.after = serving_job.spec.graph.steps[from_name].after
+                to_step.responder = serving_job.spec.graph.steps[from_name].responder
+                del serving_job.spec.graph.steps[from_name]
+                serving_job.spec.graph.steps[to_name] = to_step
+
         spec = KubeResourceSpec(
-            serving_spec=self._get_serving_spec(),
+            serving_spec=serving_job._get_serving_spec(),
             default_handler="mlrun.serving.server.execute_graph",
         )
         job = KubejobRuntime(

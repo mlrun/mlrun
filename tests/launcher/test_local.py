@@ -14,10 +14,12 @@
 import math
 import pathlib
 import sys
+import tempfile
 
 import pytest
 
 import mlrun.launcher.local
+from mlrun.serving.states import params_to_step
 
 assets_path = pathlib.Path(__file__).parent / "assets"
 func_path = assets_path / "sample_function.py"
@@ -200,7 +202,7 @@ def test_run_local_serving_job(batching, batch_size):
         name="test", kind="serving", filename=str(custom_classes_path)
     )
     graph = function.set_topology("flow", engine="async")
-    graph.to(class_name="SepalLengthIncreaser").respond()
+    graph.to(name="increaser", class_name="SepalLengthIncreaser").respond()
     job = function.to_job()
 
     inputs = {"data": str(input_csv_path)}
@@ -230,3 +232,34 @@ def test_run_local_serving_job(batching, batch_size):
     }
 
     assert termination_result is None
+
+
+@pytest.mark.parametrize("with_target_mapping", [False, True])
+def test_run_local_serving_job_with_target(with_target_mapping):
+    project = mlrun.new_project("some-project")
+    function = mlrun.code_to_function(
+        name="test", kind="serving", filename=str(custom_classes_path)
+    )
+    graph = function.set_topology("flow", engine="async")
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        graph.to(name="increaser", class_name="SepalLengthIncreaser")
+        graph.to(name="parquet", class_name="storey.ParquetTarget", path=tmp_dir)
+
+        target_mapping = None
+        if with_target_mapping:
+            new_target = params_to_step(
+                class_name="storey.ParquetTarget",
+                name="other-parquet",
+                class_args={"path": f"{tmp_dir}/subdir"},
+            )
+            target_mapping = {"parquet": new_target}
+
+        job = function.to_job(target_mapping=target_mapping)
+
+        inputs = {"data": str(input_csv_path)}
+
+        project.run_function(job, inputs=inputs, local=True)
+
+        assert pathlib.Path(tmp_dir).exists()
+        assert pathlib.Path(f"{tmp_dir}/subdir").exists() == with_target_mapping

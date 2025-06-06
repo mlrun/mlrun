@@ -200,7 +200,7 @@ def test_run_local_serving_job(batching, batch_size):
         name="test", kind="serving", filename=str(custom_classes_path)
     )
     graph = function.set_topology("flow", engine="async")
-    graph.to(class_name="MyStep").respond()
+    graph.to(class_name="SepalLengthIncreaser").respond()
     job = function.to_job()
 
     inputs = {"data": str(input_csv_path)}
@@ -221,8 +221,8 @@ def test_run_local_serving_job(batching, batch_size):
     first_response = responses[0]
     if batching:
         first_response = first_response[0]
-    assert first_response == {  # first row in input file
-        "sepal_length": 5.1,
+    assert first_response == {  # based on the first row in input file
+        "sepal_length": 6.1,
         "sepal_width": 3.5,
         "petal_length": 1.4,
         "petal_width": 0.2,

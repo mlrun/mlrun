@@ -13,7 +13,10 @@
 # limitations under the License.
 
 
-class MyStep:
+class SepalLengthIncreaser:
     def do(self, event):
-        print(f"event={event}")
-        return event
+        event_is_list = isinstance(event, list)
+        events = event if event_is_list else [event]
+        for event in events:
+            event["sepal_length"] += 1
+        return events if event_is_list else events[0]

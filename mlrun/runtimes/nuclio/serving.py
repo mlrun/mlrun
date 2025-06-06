@@ -43,6 +43,8 @@ from mlrun.serving.states import (
 )
 from mlrun.utils import get_caller_globals, logger, set_paths
 
+from .. import KubejobRuntime
+from ..pod import KubeResourceSpec
 from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions
 
 serving_subkind = "serving_v2"
@@ -151,6 +153,7 @@ class ServingSpec(NuclioSpec):
         state_thresholds=None,
         disable_default_http_trigger=None,
         model_endpoint_creation_task_name=None,
+        serving_spec=None,
     ):
         super().__init__(
             command=command,
@@ -192,6 +195,7 @@ class ServingSpec(NuclioSpec):
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
             clone_target_dir=clone_target_dir,
             disable_default_http_trigger=disable_default_http_trigger,
+            serving_spec=serving_spec,
         )
 
         self.models = models or {}
@@ -709,6 +713,7 @@ class ServingRuntime(RemoteRuntime):
             "track_models": self.spec.track_models,
             "default_content_type": self.spec.default_content_type,
             "model_endpoint_creation_task_name": self.spec.model_endpoint_creation_task_name,
+            "filename": getattr(self.spec, "filename"),
         }
 
         if self.spec.secret_sources:
@@ -716,6 +721,10 @@ class ServingRuntime(RemoteRuntime):
             serving_spec["secret_sources"] = self._secrets.to_serial()
 
         return json.dumps(serving_spec)
+
+    @property
+    def serving_spec(self):
+        return self._get_serving_spec()
 
     def to_mock_server(
         self,
@@ -812,3 +821,14 @@ class ServingRuntime(RemoteRuntime):
             "Turn off the mock (mock=False) and make sure Nuclio is installed for real deployment to Nuclio"
         )
         self._mock_server = self.to_mock_server()
+
+    def to_job(self, target_mapping: Optional[dict] = None) -> KubejobRuntime:
+        spec = KubeResourceSpec(
+            serving_spec=self._get_serving_spec(),
+            default_handler="mlrun.serving.server.execute_graph",
+        )
+        job = KubejobRuntime(
+            spec=spec,
+            metadata=self.metadata,
+        )
+        return job

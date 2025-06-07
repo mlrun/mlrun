@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import time
 from collections.abc import Callable
 from enum import Enum
@@ -20,6 +19,7 @@ from typing import Any, Final, Optional, Union
 import taosws
 from taosws import TaosStmt
 
+import mlrun
 from mlrun.utils import logger
 
 
@@ -163,26 +163,6 @@ class TDEngineConnection:
         self._conn = self._create_connection()
         logger.info("Successfully reconnected to TDEngine")
 
-    def _is_connection_error(self, error):
-        error_msg = str(error).lower()
-        connection_errors = [
-            "dead",
-            "timeout",
-            "broken",
-            "closed",
-            "refused",
-            "unreachable",
-            "disconnected",
-            "connection",
-            "network",
-            "socket",
-            "lost",
-            "dropped",
-            "reset",
-        ]
-
-        return any(err in error_msg for err in connection_errors)
-
     def _execute_with_retry(self, operation, operation_name, *args, **kwargs):
         """
         Execute an operation with retry logic for connection failures.
@@ -201,10 +181,6 @@ class TDEngineConnection:
 
             except taosws.Error as e:
                 last_exception = e
-
-                if not self._is_connection_error(e):
-                    # Not a connection error, don't retry
-                    raise TDEngineError(f"Failed to {operation_name}: {e}") from e
 
                 if attempt < self._max_retries:
                     logger.warning(
@@ -277,7 +253,6 @@ class TDEngineConnection:
 
             self._execute_with_retry(self._execute_statement, operation_name, statement)
 
-        # Execute query if provided
         if not query:
             return None
 
@@ -296,8 +271,11 @@ class TDEngineConnection:
     def close(self):
         """Close the connection."""
         try:
-            if hasattr(self, "_conn") and self._conn:
+            if self._conn:
                 self._conn.close()
                 logger.debug("TDEngine connection closed")
+                self._conn = None
         except Exception as e:
-            logger.warning(f"Error closing TDEngine connection: {e}")
+            logger.warning(
+                f"Error closing TDEngine connection: {mlrun.errors.err_to_str(e)}"
+            )

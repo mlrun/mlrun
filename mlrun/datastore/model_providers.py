@@ -97,9 +97,9 @@ class OpenAIProvider(AsyncModelProvider):
         self.options = self.get_client_options()
         self.load_client()
 
-    def _validate_model_name(self):
-        # endpoint represent model name
-        pass
+    @property
+    def model(self):
+        return self.endpoint
 
     def load_client(self) -> None:
         try:
@@ -130,9 +130,9 @@ class OpenAIProvider(AsyncModelProvider):
         kwargs = self.default_invoke_kwargs.copy()
         kwargs.update(invoke_kwargs)
         if operation:
-            return operation(**kwargs, model=self.endpoint)
+            return operation(**kwargs, model=self.model)
         else:
-            return self._default_operation(**invoke_kwargs, model=self.endpoint)
+            return self._default_operation(**invoke_kwargs, model=self.model)
 
     async def async_invoke(
         self,
@@ -142,6 +142,13 @@ class OpenAIProvider(AsyncModelProvider):
         kwargs = self.default_invoke_kwargs.copy()
         kwargs.update(invoke_kwargs)
         if async_operation:
-            return async_operation(**kwargs, model=self.endpoint)
+            return async_operation(**kwargs, model=self.model)
         else:
-            return self._default_async_operation(**invoke_kwargs, model=self.endpoint)
+            return self._default_async_operation(**invoke_kwargs, model=self.model)
+
+    def basic_llm_invoke(self, prompt):
+        messages = [{
+            "role": "user",
+            "content": prompt,
+        }]
+        self._default_operation(model=self.endpoint, messages=messages)

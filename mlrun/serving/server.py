@@ -485,6 +485,17 @@ def execute_graph(
     batching: bool = False,
     batch_size: Optional[int] = None,
 ) -> (list[Any], Any):
+    """
+    Execute graph as a job, from start to finish.
+
+    :param context: The job's execution client context.
+    :param data: The input data to the job, to be pushed into the graph row by row, or in batches.
+    :param batching: Whether to push one or more batches into the graph rather than row by row.
+    :param batch_size: The number of rows to push per batch. If not set, and batching=True, the entire dataset will
+        be pushed into the graph in one batch.
+
+    :return: A list of responses, and the graph's termination result.
+    """
     return asyncio.run(async_execute_graph(context, data, batching, batch_size))
 
 

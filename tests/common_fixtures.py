@@ -795,14 +795,11 @@ class RemoteBuilderMock(RunDBMock):
             *args,
             **kwargs,
         ):
-            # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
-            # it overrides the mock args - this way the value will remain as it was.
             image = f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest"
             return {
                 "ready": True,
                 "data": {
                     "spec": {
-                        "clone_target_dir": func.spec.clone_target_dir,
                         "build": {
                             "image": image,
                         },
@@ -844,7 +841,7 @@ class RemoteBuilderMock(RunDBMock):
         call_args = self.remote_builder.call_args
 
         build_runtime = call_args.args[0]
-        return build_runtime.spec.build, build_runtime.spec.clone_target_dir
+        return build_runtime.spec.build, build_runtime.spec.build.source_code_target_dir
 
     def get_builder_status(
         self,

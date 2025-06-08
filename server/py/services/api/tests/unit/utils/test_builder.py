@@ -791,7 +791,7 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "clone_target_dir,expected_source_dir",
+    "source_code_target_dir,expected_source_dir",
     [
         (None, "ADD /path/some-source.tgz /home/mlrun_code/"),
         ("", "ADD /path/some-source.tgz /home/mlrun_code/"),
@@ -800,7 +800,7 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
         ("/some/workdir", "ADD /path/some-source.tgz /some/workdir"),
     ],
 )
-def test_builder_workdir(monkeypatch, clone_target_dir, expected_source_dir):
+def test_builder_workdir(monkeypatch, source_code_target_dir, expected_source_dir):
     _patch_k8s_helper(monkeypatch)
     with unittest.mock.patch(
         "services.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
@@ -815,8 +815,8 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_source_dir):
             image="mlrun/mlrun",
             kind=RuntimeKinds.job,
         )
-        if clone_target_dir is not None:
-            function.spec.clone_target_dir = clone_target_dir
+        if source_code_target_dir is not None:
+            function.spec.build.source_code_target_dir = source_code_target_dir
         function.spec.build.source = "/path/some-source.tgz"
         services.api.utils.builder.build_runtime(
             mlrun.common.schemas.AuthInfo(),

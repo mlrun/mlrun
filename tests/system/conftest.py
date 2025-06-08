@@ -64,10 +64,12 @@ def post_report_session_finish_to_slack(
     reporter: TerminalReporter = session.config.pluginmanager.get_plugin(
         "terminalreporter"
     )
+
+    # pytest < 8.4
     if hasattr(reporter, "_sessionstarttime"):
         test_duration = time.time() - reporter._sessionstarttime
     else:
-        test_duration = "N/A"
+        test_duration = reporter._session_start.elapsed()
     mlrun_version = os.getenv("MLRUN_VERSION", "")
     mlrun_current_branch = os.getenv("MLRUN_SYSTEM_TESTS_BRANCH", "")
     mlrun_system_tests_component = os.getenv("MLRUN_SYSTEM_TESTS_COMPONENT", "")

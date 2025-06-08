@@ -841,8 +841,29 @@ class ServingRuntime(RemoteRuntime):
                 serving_job.spec.graph.steps[to_step.name] = to_step
 
         spec = KubeResourceSpec(
-            serving_spec=serving_job._get_serving_spec(),
+            image=serving_job.spec.image,
+            mode=serving_job.spec.mode,
+            volumes=serving_job.spec.volumes,
+            volume_mounts=serving_job.spec.volume_mounts,
+            env=serving_job.spec.env,
+            resources=serving_job.spec.resources,
             default_handler="mlrun.serving.server.execute_graph",
+            pythonpath=serving_job.spec.pythonpath,
+            entry_points=serving_job.spec.entry_points,
+            description=serving_job.spec.description,
+            workdir=serving_job.spec.workdir,
+            image_pull_secret=serving_job.spec.image_pull_secret,
+            node_name=serving_job.spec.node_name,
+            node_selector=serving_job.spec.node_selector,
+            affinity=serving_job.spec.affinity,
+            disable_auto_mount=serving_job.spec.disable_auto_mount,
+            priority_class_name=serving_job.spec.priority_class_name,
+            tolerations=serving_job.spec.tolerations,
+            preemption_mode=serving_job.spec.preemption_mode,
+            security_context=serving_job.spec.security_context,
+            clone_target_dir=serving_job.spec.clone_target_dir,
+            state_thresholds=serving_job.spec.state_thresholds,
+            serving_spec=serving_job._get_serving_spec(),
         )
         job = KubejobRuntime(
             spec=spec,

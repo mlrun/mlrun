@@ -859,7 +859,6 @@ class ServingRuntime(RemoteRuntime):
             tolerations=serving_job.spec.tolerations,
             preemption_mode=serving_job.spec.preemption_mode,
             security_context=serving_job.spec.security_context,
-            clone_target_dir=serving_job.spec.clone_target_dir,
             state_thresholds=serving_job.spec.state_thresholds,
             serving_spec=serving_job._get_serving_spec(),
         )

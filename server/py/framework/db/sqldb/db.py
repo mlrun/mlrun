@@ -44,7 +44,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
-from sqlalchemy.orm import Session, aliased, load_only, selectinload
+from sqlalchemy.orm import Query, Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 import mlrun
@@ -1837,48 +1837,7 @@ class SQLDB(DBInterface):
                 with_tagged=True,
             )
         if parent_uri:
-            (
-                parent_project,
-                parent_key,
-                parent_iteration,
-                parent_tag,
-                parent_tree,
-                parent_uid,
-            ) = [None] * 6
-            if mlrun.datastore.is_store_uri(parent_uri):
-                _, uri = mlrun.datastore.parse_store_uri(parent_uri)
-                (
-                    parent_project,
-                    parent_key,
-                    parent_iteration,
-                    parent_tag,
-                    parent_tree,
-                    parent_uid,
-                ) = parse_artifact_uri(uri)
-            elif ":" in parent_uri:
-                parent_key, parent_tag = parent_uri.split(":", maxsplit=1)
-            else:
-                parent_key = parent_uri
-
-            ref_alias = aliased(ArtifactV2)
-
-            # Join on reference_artifact_id -> ArtifactV2.id
-            query = query.join(ref_alias, ArtifactV2.parent_id == ref_alias.id)
-
-            if parent_project:
-                query = query.filter(ref_alias.project == parent_project)
-            if parent_key:
-                query = query.filter(ref_alias.key == parent_key)
-            if parent_iteration:
-                query = query.filter(ref_alias.iteration == parent_iteration)
-            if parent_tree:
-                query = query.filter(ref_alias.producer_id == parent_tree)
-            if parent_uid:
-                query = query.filter(ref_alias.uid == parent_uid)
-            if parent_tag:
-                ref_tag = aliased(ArtifactV2.Tag)
-                query = query.join(ref_tag, ref_tag.obj_id == ref_alias.id)
-                query = query.filter(ref_tag.name == parent_tag)
+            query = self._add_artifact_parent_query(query=query, parent_uri=parent_uri)
 
         if limit:
             # Order the results before applying the limit to ensure that the limit is applied to the correctly
@@ -2072,14 +2031,98 @@ class SQLDB(DBInterface):
             return query
 
         if name.startswith("~"):
-            # Escape special chars (_,%) since we still need to do a like query.
-            exact_name = self._escape_characters_for_like_query(name)
-            # Use Like query to find substring matches
-            return query.filter(
-                ArtifactV2.key.ilike(f"%{exact_name[1:]}%", escape="\\")
+            return self._partial_querying(
+                query=query,
+                name=name,
+                column=ArtifactV2.key,
             )
 
         return query.filter(ArtifactV2.key == name)
+
+    def _partial_querying(self, query: Query, name: str, column: Any):
+        # Escape special chars (_,%) since we still need to do a like query.
+        exact_name = self._escape_characters_for_like_query(name)
+        # Use Like query to find substring matches
+        return query.filter(column.ilike(f"%{exact_name[1:]}%", escape="\\"))
+
+    def _add_artifact_parent_query(self, query: Query, parent_uri: str):
+        """
+        Augments a SQLAlchemy query to filter artifacts based on a given parent artifact URI or shorthand notation.
+
+        This function supports filtering artifacts that are linked (via `parent_id`) to a specific parent artifact.
+        The parent artifact can be referenced using:
+          - A full store URI (e.g., `store://artifacts/<project>/<key>:<tag>`),
+          - A shorthand `key:tag` format,
+          - Or a simple key.
+
+        Partial matching behavior:
+        - **Key (name)** and **tag** filters use a SQL `ILIKE` clause for case-insensitive substring matching.
+          For example, filtering by `parent_key="m1"` will match parent keys such as `"m11"` or `"M1"`.
+        - This allows flexibility in referencing parent artifacts without requiring the full exact name or tag.
+
+        :param query: SQLAlchemy query object to be augmented with parent artifact filters.
+        :param parent_uri: A string identifying the parent artifact. Can be a full MLRun store URI, a `key:tag` pair,
+                           or just a key.
+        :return: A SQLAlchemy query object with added filters for the parent artifact.
+        """
+        (
+            parent_project,
+            parent_key,
+            parent_iteration,
+            parent_tag,
+            parent_tree,
+            parent_uid,
+        ) = [None] * 6
+        if mlrun.datastore.is_store_uri(parent_uri):
+            # Parse the parent URI to extract project, key, iteration, tag, tree, and uid
+            _, uri = mlrun.datastore.parse_store_uri(parent_uri)
+            (
+                parent_project,
+                parent_key,
+                parent_iteration,
+                parent_tag,
+                parent_tree,
+                parent_uid,
+            ) = parse_artifact_uri(uri)
+        elif ":" in parent_uri:
+            parent_key, parent_tag = parent_uri.split(":", maxsplit=1)
+        else:
+            parent_key = parent_uri
+
+        ref_alias = aliased(ArtifactV2)
+
+        # Join on reference_artifact_id -> ArtifactV2.id
+        query = query.join(ref_alias, ArtifactV2.parent_id == ref_alias.id)
+
+        if parent_project:
+            query = query.filter(ref_alias.project == parent_project)
+        if parent_key:
+            parent_key = (
+                f"~{parent_key}" if not parent_key.startswith("~") else parent_key
+            )
+            query = self._partial_querying(
+                query=query,
+                name=parent_key,
+                column=ref_alias.key,
+            )
+        if parent_iteration:
+            query = query.filter(ref_alias.iteration == parent_iteration)
+        if parent_tree:
+            query = query.filter(ref_alias.producer_id == parent_tree)
+        if parent_uid:
+            query = query.filter(ref_alias.uid == parent_uid)
+        if parent_tag:
+            ref_tag = aliased(ArtifactV2.Tag)
+            query = query.join(ref_tag, ref_tag.obj_id == ref_alias.id)
+            parent_tag = (
+                f"~{parent_tag}" if not parent_tag.startswith("~") else parent_tag
+            )
+            query = self._partial_querying(
+                query=query,
+                name=parent_tag,
+                column=ref_tag.name,
+            )
+        return query
 
     @staticmethod
     def _add_artifact_category_query(category, query):

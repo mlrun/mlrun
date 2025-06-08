@@ -572,36 +572,6 @@ def test_validate_v3io_consumer_group(value, expected):
             "images_to_enrich_registry": "some-repo/some-image,mlrun/mlrun",
         },
         {
-            "image": "mlrun/ml-base",
-            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2-unstable-adsf76s",
-            "images_to_enrich_registry": "mlrun/mlrun,mlrun/ml-base,mlrun/ml-models",
-        },
-        {
-            "image": "mlrun/ml-base:0.5.2",
-            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2",
-            "images_to_enrich_registry": "mlrun/mlrun:0.5.2,mlrun/ml-base:0.5.2,mlrun/ml-models:0.5.2",
-        },
-        {
-            "image": "mlrun/ml-base",
-            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2-unstable-adsf76s",
-            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s,^mlrun/ml-base:0.5.2-unstable-adsf76s",
-        },
-        {
-            "image": "quay.io/mlrun/ml-base",
-            "expected_output": "quay.io/mlrun/ml-base:0.5.2-unstable-adsf76s",
-            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s,^mlrun/ml-base:0.5.2-unstable-adsf76s",
-        },
-        {
-            "image": "mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
-            "expected_output": "ghcr.io/mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
-            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s,^mlrun/ml-base:0.5.2-unstable-adsf76s",
-        },
-        {
-            "image": "mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
-            "expected_output": "mlrun/ml-base:0.5.2-unstable-adsf76s-another-tag-suffix",
-            "images_to_enrich_registry": "^mlrun/mlrun:0.5.2-unstable-adsf76s$,^mlrun/ml-base:0.5.2-unstable-adsf76s$",
-        },
-        {
             "image": "mlrun/mlrun",
             "expected_output": "mlrun/mlrun:0.5.2-unstable-adsf76s",
             "images_to_enrich_registry": "",
@@ -804,6 +774,36 @@ def test_validate_v3io_consumer_group(value, expected):
             "client_python_version": "3.9",
             "images_registry": "",
             "expected_output": "mlrun/mlrun:customtag",
+        },
+        # version >= 1.10.0 — ml-base image is deprecated, image should be switched to mlrun/mlrun
+        {
+            "image": "mlrun/ml-base",
+            "client_version": "1.10.0",
+            "images_tag": None,
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:1.10.0",
+        },
+        {
+            "image": "mlrun/ml-base",
+            "client_version": "1.11.0",
+            "images_tag": None,
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:1.11.0",
+        },
+        # version < 1.10.0 — ml-base image is still valid, image should remain unchanged
+        {
+            "image": "mlrun/ml-base",
+            "client_version": "1.7.0",
+            "images_tag": None,
+            "images_registry": "",
+            "expected_output": "mlrun/ml-base:1.7.0",
+        },
+        {
+            "image": "mlrun/ml-base",
+            "client_version": "1.9.0",
+            "images_tag": None,
+            "images_registry": "",
+            "expected_output": "mlrun/ml-base:1.9.0",
         },
     ],
 )

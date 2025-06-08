@@ -572,21 +572,16 @@ async def _get_metrics_values_params(
     await _verify_model_endpoint_read_permission(
         project=project, name_or_uid=endpoint_id, auth_info=auth_info
     )
-    if start is None and end is None:
-        end = mlrun.utils.helpers.datetime_now()
-        start = end - timedelta(days=1)
-    elif start is not None and end is not None:
-        if start.tzinfo is None or end.tzinfo is None:
-            raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                "Custom start and end times must contain the timezone."
-            )
-        if start > end:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "The start time must precede the end time."
-            )
-    else:
+    end = end or mlrun.utils.helpers.datetime_now()
+    start = start or (end - timedelta(days=1))
+    if start.tzinfo is None or end.tzinfo is None:
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            "Custom start and end times must contain the timezone."
+        )
+    if start > end:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Provided only one of start time, end time. Please provide both or neither."
+            "The start time must be before the end time. Note that if end time is not provided, "
+            "the current time is used by default."
         )
 
     metrics = []

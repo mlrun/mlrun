@@ -44,7 +44,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
-from sqlalchemy.orm import Session, aliased, load_only, selectinload
+from sqlalchemy.orm import Query, Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 import mlrun
@@ -2031,16 +2031,21 @@ class SQLDB(DBInterface):
             return query
 
         if name.startswith("~"):
-            # Escape special chars (_,%) since we still need to do a like query.
-            exact_name = self._escape_characters_for_like_query(name)
-            # Use Like query to find substring matches
-            return query.filter(
-                ArtifactV2.key.ilike(f"%{exact_name[1:]}%", escape="\\")
+            return self._partial_querying(
+                query=query,
+                name=name,
+                column=ArtifactV2.key,
             )
 
         return query.filter(ArtifactV2.key == name)
 
-    def _add_artifact_parent_query(self, query, parent_uri=None):
+    def _partial_querying(self, query: Query, name: str, column: Any):
+        # Escape special chars (_,%) since we still need to do a like query.
+        exact_name = self._escape_characters_for_like_query(name)
+        # Use Like query to find substring matches
+        return query.filter(column.ilike(f"%{exact_name[1:]}%", escape="\\"))
+
+    def _add_artifact_parent_query(self, query: Query, parent_uri: str = None):
         """
         Augments a SQLAlchemy query to filter artifacts based on a given parent artifact URI or shorthand notation.
 
@@ -2095,10 +2100,10 @@ class SQLDB(DBInterface):
             parent_key = (
                 f"~{parent_key}" if not parent_key.startswith("~") else parent_key
             )
-            exact_parent_name = self._escape_characters_for_like_query(parent_key)
-            # Use Like query to find substring matches
-            query = query.filter(
-                ref_alias.key.ilike(f"%{exact_parent_name[1:]}%", escape="\\")
+            query = self._partial_querying(
+                query=query,
+                name=parent_key,
+                column=ref_alias.key,
             )
         if parent_iteration:
             query = query.filter(ref_alias.iteration == parent_iteration)
@@ -2112,10 +2117,10 @@ class SQLDB(DBInterface):
             parent_tag = (
                 f"~{parent_tag}" if not parent_tag.startswith("~") else parent_tag
             )
-            exact_tag_name = self._escape_characters_for_like_query(parent_tag)
-            # Use Like query to find substring matches
-            query = query.filter(
-                ref_tag.name.ilike(f"%{exact_tag_name[1:]}%", escape="\\")
+            query = self._partial_querying(
+                query=query,
+                name=parent_tag,
+                column=ref_tag.name,
             )
         return query
 

@@ -833,12 +833,12 @@ class ServingRuntime(RemoteRuntime):
         """
         serving_job = self.copy()
         if target_mapping:
-            for from_name, (to_name, to_step) in target_mapping.items():
+            for from_name, to_step in target_mapping.items():
                 to_step = to_step.copy()
                 to_step.after = serving_job.spec.graph.steps[from_name].after
                 to_step.responder = serving_job.spec.graph.steps[from_name].responder
                 del serving_job.spec.graph.steps[from_name]
-                serving_job.spec.graph.steps[to_name] = to_step
+                serving_job.spec.graph.steps[to_step.name] = to_step
 
         spec = KubeResourceSpec(
             serving_spec=serving_job._get_serving_spec(),

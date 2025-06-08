@@ -248,7 +248,7 @@ def test_run_local_serving_job_with_target(with_target_mapping):
 
         target_mapping = None
         if with_target_mapping:
-            new_target = params_to_step(
+            _, new_target = params_to_step(
                 class_name="storey.ParquetTarget",
                 name="other-parquet",
                 class_args={"path": f"{tmp_dir}/subdir"},

@@ -704,7 +704,7 @@ def print_df(df):
 
         target_mapping = None
         if with_target_mapping:
-            new_target = params_to_step(
+            _, new_target = params_to_step(
                 class_name="storey.ParquetTarget",
                 name="other-parquet",
                 class_args={

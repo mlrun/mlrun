@@ -23,7 +23,7 @@ import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.serving
-from mlrun.serving import ModelRunnerStep
+from mlrun.common.schemas import MonitoringData
 from mlrun.utils import logger
 
 
@@ -34,83 +34,19 @@ class MonitoringPreProcessor(storey.MapClass):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.models_uri: dict[str:str] = {}
         self.context = copy(context)
-        self.model_endpoints: dict[str, [dict[str, str]]] = {}
-        self.labels: dict[str, dict[str, str]] = {}
-        self.input_path: dict[str, str] = {}
-        self.result_path: dict[str, str] = {}
-        self.output_schema: dict[str, Union[list[str], str]] = {}
-
-        server: mlrun.serving.GraphServer = getattr(
-            self.context, "_server", None
-        ) or getattr(self.context, "server", None)
-
-        for step in server.graph.steps.values():
-            if isinstance(step, ModelRunnerStep):
-                self.model_endpoints[step.name] = {}
-                monitoring_data = step.class_args.get(
-                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
-                )
-                for model, (model_class, _) in step.class_args.get(
-                    mlrun.common.schemas.ModelRunnerStepData.MODELS, {}
-                ).items():
-                    self.model_endpoints[step.name][model] = {
-                        mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID: monitoring_data[
-                            model
-                        ].get(mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID),
-                        mm_schemas.StreamProcessingEvent.MODEL_CLASS: model_class,
-                    }
-
-                    self.labels[model] = monitoring_data.get(model, {}).get(
-                        mlrun.common.schemas.MonitoringData.OUTPUTS
-                    )
-                    self.input_path[model] = self._split_path(
-                        monitoring_data.get(model, {}).get(
-                            mlrun.common.schemas.MonitoringData.INPUT_PATH
-                        )
-                    )
-                    self.result_path[model] = self._split_path(
-                        monitoring_data.get(model, {}).get(
-                            mlrun.common.schemas.MonitoringData.RESULT_PATH
-                        )
-                    )
-                    self.output_schema[model] = monitoring_data.get(model, {}).get(
-                        mlrun.common.schemas.MonitoringData.OUTPUTS
-                    )
-                    self.models_uri[model] = monitoring_data.get(model, {}).get(
-                        mlrun.common.schemas.MonitoringData.MODEL_PATH
-                    )
-
-    def get_model_output_schema(self, model: str, is_dict: bool) -> list[str]:
-        if self.output_schema.get(model) is None:
-            if self.models_uri.get(model) is not None:
-                _, model_spec, extra_datitems = mlrun.artifacts.get_model(
-                    self.models_uri.get(model), ""
-                )
-                self.output_schema[model] = [
-                    feature.name for feature in model_spec.outputs
-                ]
-            elif is_dict:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "model uri or output schema must be provided in ModelRunnerStep.add_model when dictionary "
-                    "result provided"
-                )
-        return self.output_schema.get(model)
 
     def reconstruct_request_resp_fields(
-        self, event, model: str
+        self, event, model: str, model_monitoring_data: dict
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        result_path = self.result_path.get(model)
-        input_path = self.input_path.get(model)
+        result_path = model_monitoring_data.get(MonitoringData.RESULT_PATH)
+        input_path = model_monitoring_data.get(MonitoringData.INPUT_PATH)
 
         result = self._get_data_from_path(
             result_path, event.body.get(model, event.body)
         )
-        output_schema = self.get_model_output_schema(
-            model, is_dict=isinstance(result, dict)
-        )
-        logger.info("output schema retrieved", output_schema=output_schema)
+        output_schema = model_monitoring_data.get(MonitoringData.OUTPUTS)
+        logger.debug("output schema retrieved", output_schema=output_schema)
         if isinstance(result, dict):
             if len(result) > 1:
                 # transpose by key the outputs:
@@ -203,38 +139,31 @@ class MonitoringPreProcessor(storey.MapClass):
             output_data = [output_data]
         return output_data
 
-    @staticmethod
-    def _split_path(path: str) -> Union[str, list[str], None]:
-        if path is not None:
-            parsed_path = path.split(".")
-            if len(parsed_path) == 1:
-                parsed_path = parsed_path[0]
-            return parsed_path
-        return path
-
     def do(self, event):
         monitoring_event_list = []
         server: mlrun.serving.GraphServer = getattr(
             self.context, "_server", None
         ) or getattr(self.context, "server", None)
         model_runner_name = event.headers.get("model_runner_name", "")
-        model_runner_endpoints = self.model_endpoints.get(model_runner_name)
-        logger.info(
+        step = server.graph.steps.to_dict().get(model_runner_name, {}) if server else {}
+        monitoring_data = step.get("_monitoring_data")
+        logger.debug(
             "monitoring pre processor runs",
             event=event,
-            model_endpoints=self.model_endpoints,
+            model_endpoints=monitoring_data,
             metadata=event._metadata,
             headers=event.headers,
-            model_runner_endpoints=model_runner_endpoints,
         )
-        if len(model_runner_endpoints) > 1:
+        if len(monitoring_data) > 1:
             for model in event.body.keys():
-                if model in model_runner_endpoints:
-                    request, resp = self.reconstruct_request_resp_fields(event, model)
+                if model in monitoring_data:
+                    request, resp = self.reconstruct_request_resp_fields(
+                        event, model, monitoring_data[model]
+                    )
                     monitoring_event_list.append(
                         {
                             mm_schemas.StreamProcessingEvent.MODEL: model,
-                            mm_schemas.StreamProcessingEvent.MODEL_CLASS: model_runner_endpoints[
+                            mm_schemas.StreamProcessingEvent.MODEL_CLASS: monitoring_data[
                                 model
                             ].get(mm_schemas.StreamProcessingEvent.MODEL_CLASS),
                             mm_schemas.StreamProcessingEvent.MICROSEC: event._metadata.get(
@@ -243,12 +172,14 @@ class MonitoringPreProcessor(storey.MapClass):
                             mm_schemas.StreamProcessingEvent.WHEN: event._metadata.get(
                                 model, {}
                             ).get(mm_schemas.StreamProcessingEvent.WHEN),
-                            mm_schemas.StreamProcessingEvent.ENDPOINT_ID: model_runner_endpoints[
+                            mm_schemas.StreamProcessingEvent.ENDPOINT_ID: monitoring_data[
                                 model
                             ].get(
                                 mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
                             ),
-                            mm_schemas.StreamProcessingEvent.LABELS: self.labels[model],
+                            mm_schemas.StreamProcessingEvent.LABELS: monitoring_data[
+                                model
+                            ].get(mlrun.common.schemas.MonitoringData.OUTPUTS),
                             mm_schemas.StreamProcessingEvent.FUNCTION_URI: server.function_uri
                             if server
                             else None,
@@ -268,13 +199,15 @@ class MonitoringPreProcessor(storey.MapClass):
                             else None,
                         }
                     )
-        elif model_runner_endpoints:
-            model = list(model_runner_endpoints.keys())[0]
-            request, resp = self.reconstruct_request_resp_fields(event, model)
+        elif monitoring_data:
+            model = list(monitoring_data.keys())[0]
+            request, resp = self.reconstruct_request_resp_fields(
+                event, model, monitoring_data[model]
+            )
             monitoring_event_list.append(
                 {
                     mm_schemas.StreamProcessingEvent.MODEL: model,
-                    mm_schemas.StreamProcessingEvent.MODEL_CLASS: model_runner_endpoints[
+                    mm_schemas.StreamProcessingEvent.MODEL_CLASS: monitoring_data[
                         model
                     ].get(mm_schemas.StreamProcessingEvent.MODEL_CLASS),
                     mm_schemas.StreamProcessingEvent.MICROSEC: event._metadata[0].get(
@@ -283,10 +216,12 @@ class MonitoringPreProcessor(storey.MapClass):
                     mm_schemas.StreamProcessingEvent.WHEN: event._metadata[0].get(
                         mm_schemas.StreamProcessingEvent.WHEN
                     ),
-                    mm_schemas.StreamProcessingEvent.ENDPOINT_ID: model_runner_endpoints[
+                    mm_schemas.StreamProcessingEvent.ENDPOINT_ID: monitoring_data[
                         model
                     ].get(mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID),
-                    mm_schemas.StreamProcessingEvent.LABELS: self.labels[model],
+                    mm_schemas.StreamProcessingEvent.LABELS: monitoring_data[model].get(
+                        mlrun.common.schemas.MonitoringData.OUTPUTS
+                    ),
                     mm_schemas.StreamProcessingEvent.FUNCTION_URI: server.function_uri
                     if server
                     else None,
@@ -305,7 +240,7 @@ class MonitoringPreProcessor(storey.MapClass):
                 }
             )
         event.body = monitoring_event_list
-        logger.info("monitoring pre processor ended", event=event)
+        logger.debug("monitoring pre processor ended", event=event)
         return event
 
 
@@ -335,6 +270,7 @@ class BackgroundTaskStatus(storey.MapClass):
                 self.server.project, self.server.model_endpoint_creation_task_name
             )
             self._background_task_check_timestamp = mlrun.utils.now_date()
+            self._background_task_status = background_task.status.state
             if self._background_task_succeeded(background_task):
                 return event
             else:
@@ -353,7 +289,6 @@ class BackgroundTaskStatus(storey.MapClass):
             "Checking model endpoint creation task status",
             task_name=self.server.model_endpoint_creation_task_name,
         )
-        self._background_task_status = background_task.status.state
         if (
             background_task.status.state
             in mlrun.common.schemas.BackgroundTaskState.terminal_states()
@@ -381,10 +316,12 @@ class SamplingStep(storey.MapClass):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.sampling_percentage = sampling_percentage
+        self.sampling_percentage = (
+            sampling_percentage if 0 < sampling_percentage <= 100 else 100
+        )
 
     def do(self, event):
-        logger.info(
+        logger.debug(
             "sampling step runs",
             event=event,
             sampling_percentage=self.sampling_percentage,
@@ -402,15 +339,18 @@ class SamplingStep(storey.MapClass):
                 request["inputs"][i] for i in sampled_requests_indices
             ]
 
-            if isinstance(request["outputs"], list):
+            if isinstance(
+                event[mm_schemas.StreamProcessingEvent.RESPONSE]["outputs"], list
+            ):
                 event[mm_schemas.StreamProcessingEvent.RESPONSE]["outputs"] = [
-                    request["outputs"][i] for i in sampled_requests_indices
+                    event[mm_schemas.StreamProcessingEvent.RESPONSE]["outputs"][i]
+                    for i in sampled_requests_indices
                 ]
         event[mm_schemas.EventFieldType.SAMPLING_PERCENTAGE] = self.sampling_percentage
         event[mm_schemas.EventFieldType.EFFECTIVE_SAMPLE_COUNT] = len(
             event.get(mm_schemas.StreamProcessingEvent.REQUEST, {}).get("inputs", [])
         )
-        logger.info("sampling step ended", event=event)
+        logger.debug("sampling step ended", event=event)
         return event
 
     @staticmethod

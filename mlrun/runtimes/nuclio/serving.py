@@ -771,7 +771,10 @@ class ServingRuntime(RemoteRuntime):
             monitoring_mock=self.spec.track_models,
         )
 
-        if isinstance(self.spec.graph, RootFlowStep):
+        if (
+            isinstance(self.spec.graph, RootFlowStep)
+            and self.spec.graph.include_model_runner
+        ):
             server.graph = add_system_steps_to_graph(
                 server.project,
                 server.graph,

@@ -38,3 +38,4 @@ class MonitoringData(StrEnum):
     LABELS = "labels"
     MODEL_PATH = "model_path"
     MODEL_ENDPOINT_UID = "model_endpoint_uid"
+    MODEL_CLASS = "model_class"

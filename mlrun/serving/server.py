@@ -46,6 +46,7 @@ from ..utils import get_caller_globals
 from .states import (
     FlowStep,
     GraphError,
+    MonitoredStep,
     RootFlowStep,
     RouterStep,
     get_function,
@@ -337,27 +338,27 @@ class GraphServer(ModelObj):
         return self.graph.wait_for_completion()
 
 
-def add_error_raiser_step(graph: RootFlowStep) -> RootFlowStep:
+def add_error_raiser_step(
+    graph: RootFlowStep, model_runner_steps: dict[str, MonitoredStep]
+) -> RootFlowStep:
     model_runner_raisers = {}
-    steps = list(graph.steps.values())
-    for step in steps:
-        if (
-            isinstance(step, mlrun.serving.states.ModelRunnerStep)
-            and step.raise_exception
-        ):
+    user_steps = list(graph.steps.values())
+    for model_runner_step in model_runner_steps.values():
+        if model_runner_step.raise_exception:
             error_step = graph.add_step(
                 class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
-                name=f"{step.name}_error_raise",
-                after=step.name,
+                name=f"{model_runner_step.name}_error_raise",
+                after=model_runner_step.name,
                 full_event=True,
-                raise_exception=step.raise_exception,
-                models_names=list(step.class_args["models"].keys()),
+                raise_exception=model_runner_step.raise_exception,
+                models_names=list(model_runner_step.class_args["models"].keys()),
             )
-            if step.responder:
-                step.responder = False
+            if model_runner_step.responder:
+                model_runner_step.responder = False
                 error_step.respond()
-            model_runner_raisers[step.name] = error_step.name
-            error_step.on_error = step.on_error
+            model_runner_raisers[model_runner_step.name] = error_step.name
+            error_step.on_error = model_runner_step.on_error
+    for step in user_steps:
         if isinstance(step.after, list):
             for i in range(len(step.after)):
                 if step.after[i] in model_runner_raisers:
@@ -368,7 +369,7 @@ def add_error_raiser_step(graph: RootFlowStep) -> RootFlowStep:
     return graph
 
 
-def apply_monitoring_general_steps(
+def add_monitoring_general_steps(
     project: str,
     graph: RootFlowStep,
     context,
@@ -440,35 +441,29 @@ def apply_monitoring_general_steps(
     return graph, monitor_flow_step
 
 
-def add_monitoring_pre_process_steps(
-    project: str, graph: RootFlowStep, context, serving_spec
-) -> RootFlowStep:
-    graph, monitor_flow_step = apply_monitoring_general_steps(
-        project, graph, context, serving_spec
-    )
-    model_runner_steps_names = {
-        step.name: step
-        for step in graph.steps.values()
-        if isinstance(step, mlrun.serving.states.ModelRunnerStep)
-    }
-    for step_name, step in model_runner_steps_names.items():
-        if isinstance(monitor_flow_step.after, list):
-            monitor_flow_step.after.append(step_name)
-        elif isinstance(monitor_flow_step.after, str):
-            monitor_flow_step.after = [monitor_flow_step.after, step_name]
-        else:
-            raise GraphError(
-                "Expected model runner step to be followed by error raiser step"
-            )
-    return graph
-
-
 def add_system_steps_to_graph(
     project: str, graph: RootFlowStep, track_models: bool, context, serving_spec
 ) -> RootFlowStep:
-    graph = add_error_raiser_step(graph)
+    monitored_steps = {
+        step.name: step
+        for step in graph.steps.values()
+        if isinstance(step, mlrun.serving.MonitoredStep)
+    }
+    graph = add_error_raiser_step(graph, monitored_steps)
     if track_models:
-        graph = add_monitoring_pre_process_steps(project, graph, context, serving_spec)
+        graph, monitor_flow_step = add_monitoring_general_steps(
+            project, graph, context, serving_spec
+        )
+        # Connect each model runner to the monitoring step:
+        for step_name, step in monitored_steps.items():
+            if isinstance(monitor_flow_step.after, list):
+                monitor_flow_step.after.append(step_name)
+            elif isinstance(monitor_flow_step.after, str):
+                monitor_flow_step.after = [monitor_flow_step.after, step_name]
+            else:
+                raise GraphError(
+                    "Expected model runner step to be followed by error raiser step"
+                )
     return graph
 
 
@@ -478,7 +473,7 @@ def v2_serving_init(context, namespace=None):
     context.logger.info("Initializing server from spec")
     spec = mlrun.utils.get_serving_spec()
     server = GraphServer.from_dict(spec)
-    if isinstance(server.graph, RootFlowStep):
+    if isinstance(server.graph, RootFlowStep) and server.graph.include_model_runner:
         server.graph = add_system_steps_to_graph(
             server.project,
             copy.deepcopy(server.graph),

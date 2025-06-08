@@ -482,6 +482,7 @@ class BaseStep(ModelObj):
             )
         else:
             root.extend_model_endpoints_names(step_model_endpoints_names)
+        root.include_model_runner = True
 
 
 class TaskStep(BaseStep):
@@ -1075,7 +1076,30 @@ class ModelRunner(storey.ParallelExecution):
         return self.model_selector.select(event, models)
 
 
-class ModelRunnerStep(TaskStep, StepToDict):
+class MonitoredStep(TaskStep, StepToDict):
+    kind = "monitored"
+    _dict_fields = TaskStep._dict_fields + ["raise_exception", "_monitoring_data"]
+
+    def __init__(self, *args, name: str, raise_exception=True, **kwargs):
+        super().__init__(*args, name=name, **kwargs)
+        self.raise_exception = raise_exception
+        self._monitoring_data = None
+
+    def load_monitoring_data(self):
+        """
+        Child class must override load_monitoring_data() method and provide meaningful data-structure to the
+        pre-process step in monitoring flow.
+        """
+        self._monitoring_data = {}
+
+    @property
+    def monitoring_data(self) -> dict:
+        if self._monitoring_data is None:
+            self.load_monitoring_data()
+        return self._monitoring_data
+
+
+class ModelRunnerStep(MonitoredStep):
     """
     Runs multiple Models on each event.
 
@@ -1097,7 +1121,6 @@ class ModelRunnerStep(TaskStep, StepToDict):
     """
 
     kind = "model_runner"
-    _dict_fields = TaskStep._dict_fields + ["raise_exception"]
 
     def __init__(
         self,
@@ -1110,6 +1133,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
         super().__init__(
             *args,
             name=name,
+            raise_exception=raise_exception,
             class_name="mlrun.serving.ModelRunner",
             class_args=dict(model_selector=model_selector),
             **kwargs,
@@ -1197,9 +1221,52 @@ class ModelRunnerStep(TaskStep, StepToDict):
             schemas.MonitoringData.CREATION_STRATEGY: creation_strategy,
             schemas.MonitoringData.LABELS: labels,
             schemas.MonitoringData.MODEL_PATH: model_artifact,
+            schemas.MonitoringData.MODEL_CLASS: model_class,
         }
         self.class_args[schemas.ModelRunnerStepData.MODELS] = models
         self.class_args[schemas.ModelRunnerStepData.MONITORING_DATA] = monitoring_data
+
+    def _get_model_output_schema(self, model: str) -> list[str]:
+        output_schema = None
+        if (
+            self._monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH)
+            is not None
+        ):
+            _, model_spec, extra_datitems = mlrun.artifacts.get_model(
+                self._monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH), ""
+            )
+            output_schema = [feature.name for feature in model_spec.outputs]
+        return output_schema
+
+    @staticmethod
+    def _split_path(path: str) -> Union[str, list[str], None]:
+        if path is not None:
+            parsed_path = path.split(".")
+            if len(parsed_path) == 1:
+                parsed_path = parsed_path[0]
+            return parsed_path
+        return path
+
+    def load_monitoring_data(self):
+        self._monitoring_data = self.class_args.get(
+            mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+        )
+        if isinstance(self._monitoring_data, dict):
+            for model in self._monitoring_data:
+                self._monitoring_data[model][schemas.MonitoringData.OUTPUTS] = (
+                    self._monitoring_data[model][schemas.MonitoringData.OUTPUTS]
+                    or self._get_model_output_schema(model)
+                )
+                self._monitoring_data[model][schemas.MonitoringData.INPUT_PATH] = (
+                    self._split_path(
+                        self._monitoring_data[model][schemas.MonitoringData.INPUT_PATH]
+                    )
+                )
+                self._monitoring_data[model][schemas.MonitoringData.RESULT_PATH] = (
+                    self._split_path(
+                        self._monitoring_data[model][schemas.MonitoringData.RESULT_PATH]
+                    )
+                )
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         model_selector = self.class_args.get("model_selector")
@@ -1216,6 +1283,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
                 # prevent model predict from raising error
                 model._raise_exception = False
             model_objects.append(model)
+        self.load_monitoring_data()
         self._async_object = ModelRunner(
             model_selector=model_selector,
             runnables=model_objects,
@@ -1899,6 +1967,7 @@ class RootFlowStep(FlowStep):
         "final_step",
         "on_error",
         "model_endpoints_names",
+        "include_model_runner",
     ]
 
     def __init__(
@@ -1917,6 +1986,7 @@ class RootFlowStep(FlowStep):
             final_step,
         )
         self._models = []
+        self.include_model_runner = False
 
     @property
     def model_endpoints_names(self) -> list[str]:

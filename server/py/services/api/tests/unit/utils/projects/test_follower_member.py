@@ -15,6 +15,7 @@
 import datetime
 import typing
 import unittest.mock
+from typing import get_args, get_type_hints
 
 import deepdiff
 import pytest
@@ -466,9 +467,20 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
         project_name,
         project,
     )
+
+    # Resolve the function's return type hints to discover how many counter dicts are expected.
+    hints = get_type_hints(
+        framework.utils.singletons.db.get_db().get_project_resources_counters
+    )
+    # Retrieve the resolved return type (a fixed-length Tuple of dict[str,int] entries),
+    # defaulting to an empty tuple if the annotation is missing
+    ret_ann = hints.get("return", tuple())
+
+    # Mock get_project_resources_counters to return a tuple with one dict per annotated slot,
+    # where each dict maps the project_name to its sequential index (0..N-1)
     framework.utils.singletons.db.get_db().get_project_resources_counters = (
         unittest.mock.AsyncMock(
-            return_value=tuple({project_name: i} for i in range(12))
+            return_value=tuple({project_name: i} for i in range(len(get_args(ret_ann))))
         )
     )
     await services.api.crud.Projects().refresh_project_resources_counters_cache(db)

@@ -695,6 +695,7 @@ def print_df(df):
             name="raise-func",
             kind="job",
             handler="handler",
+            image="datanode-registry.iguazio-platform.app.vmdev17.lab.iguazeng.com:80/quay.io/mlrun/mlrun:unstable",
         )
 
         function.set_image_pull_configuration(image_pull_policy="Always")
@@ -703,8 +704,14 @@ def print_df(df):
             count=3,
         )
 
-        # should we wait for all retries to finish?
-        run = function.run(retry=retry)
-        assert run.status.retry_count == 3
-        assert run.status.state == mlrun.common.runtimes.constants.RunStates.error
-        assert run.states.status_text == "Run failed after 3 retries"
+        # TODO: should we wait for all retries to finish?
+        with pytest.raises(mlrun.runtimes.utils.RunError):
+            function.run(verbose=True, retry=retry)
+        runs = mlrun.get_run_db().list_runs(project=self.project_name)
+        assert len(runs) == 1
+        run = mlrun.RunObject.from_dict(runs[0])
+        assert run.status.retry_count == 0
+        assert (
+            run.status.state == mlrun.common.runtimes.constants.RunStates.pending_retry
+        )
+        assert run.states.status_text == "This should be something like, failed try 1/3"

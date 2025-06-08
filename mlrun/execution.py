@@ -92,7 +92,7 @@ class MLClientCtx:
         self._autocommit = autocommit
         self._notifications = []
         self._state_thresholds = {}
-        self._max_retries = 0
+        self._retry_spec = {}
         self._retry_count = 0
 
         self._labels = {}
@@ -435,7 +435,7 @@ class MLClientCtx:
             self._tolerations = spec.get("tolerations", self._tolerations)
             self._affinity = spec.get("affinity", self._affinity)
             self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
-            self._max_retries = spec.get("retry", {}).get("count", 0)
+            self._retry_spec = spec.get("retry", self._retry_spec)
 
         self._init_dbs(rundb)
 
@@ -1153,14 +1153,15 @@ class MLClientCtx:
 
         if error is not None:
             new_state = mlrun.common.runtimes.constants.RunStates.error
-            if self._max_retries and self._retry_count < self._max_retries:
+            max_retries = self._retry_spec.get("count", 0)
+            if max_retries and self._retry_count < max_retries:
                 new_state = mlrun.common.runtimes.constants.RunStates.pending_retry
 
             logger.warning(
                 "Resolved new state",
                 new_state=new_state,
                 error=error,
-                max_retries=self._max_retries,
+                max_retries=max_retries,
                 retry_count=self._retry_count,
             )
 
@@ -1258,11 +1259,13 @@ class MLClientCtx:
                 "node_selector": self._node_selector,
                 "tolerations": self._tolerations,
                 "affinity": self._affinity,
+                "retry": self._retry_spec,
             },
             "status": {
                 "results": self._results,
                 "start_time": to_date_str(self._start_time),
                 "last_update": to_date_str(self._last_update),
+                "retry_count": self._retry_count,
             },
         }
 

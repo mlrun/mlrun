@@ -360,7 +360,7 @@ class BaseLauncher(abc.ABC):
             | state_thresholds
         )
         run.spec.state_thresholds = state_thresholds or run.spec.state_thresholds
-        run.spec.retry = retry
+        run.spec.retry = retry or run.spec.retry
         return run
 
     @staticmethod
@@ -407,7 +407,7 @@ class BaseLauncher(abc.ABC):
             )
             if (
                 run.status.state
-                in mlrun.common.runtimes.constants.RunStates.terminal_error_states()
+                in mlrun.common.runtimes.constants.RunStates.error_states()
             ):
                 if runtime._is_remote and not runtime.is_child:
                     logger.error(

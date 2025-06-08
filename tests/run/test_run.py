@@ -20,6 +20,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 import mlrun
+import mlrun.common.runtimes.constants
 import mlrun.errors
 import mlrun.launcher.factory
 from mlrun import new_function, new_task
@@ -389,3 +390,15 @@ def test_code_to_function_file_include_invalid_handler_name_for_nuclio_mlrun_run
             image="mlrun/mlrun",
             kind="nuclio:mlrun",
         )
+
+
+def test_move_to_pending_retry_state(rundb_mock):
+    function = new_function(command=f"{assets_path}/kwargs.py")
+    result = function.run(
+        runspec={"spec": {"retry": {"count": 10}}},
+        local=True,
+        handler="func_with_default",
+    )
+    assert (
+        result.status.state == mlrun.common.runtimes.constants.RunStates.pending_retry
+    ), "Expected run state to be pending_retry"

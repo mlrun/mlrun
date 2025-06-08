@@ -2045,7 +2045,7 @@ class SQLDB(DBInterface):
         # Use Like query to find substring matches
         return query.filter(column.ilike(f"%{exact_name[1:]}%", escape="\\"))
 
-    def _add_artifact_parent_query(self, query: Query, parent_uri: str = None):
+    def _add_artifact_parent_query(self, query: Query, parent_uri: str):
         """
         Augments a SQLAlchemy query to filter artifacts based on a given parent artifact URI or shorthand notation.
 

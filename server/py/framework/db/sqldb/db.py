@@ -7302,7 +7302,7 @@ class SQLDB(DBInterface):
 
         return self._transform_background_task_record_to_schema(background_task_record)
 
-    def get_background_task_by_status_and_labels(
+    def get_background_task_by_state_and_labels(
         self,
         session: Session,
         status: mlrun.common.schemas.BackgroundTaskState,

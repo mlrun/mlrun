@@ -98,13 +98,13 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             max_age_seconds,
         )
 
-    def get_background_task_by_status_and_labels(
+    def get_background_task_by_state_and_labels(
         self,
         db_session: sqlalchemy.orm.Session,
         status: mlrun.common.schemas.BackgroundTaskState,
         labels: dict[str, str],
     ) -> mlrun.common.schemas.BackgroundTask:
-        return framework.utils.singletons.db.get_db().get_background_task_by_status_and_labels(
+        return framework.utils.singletons.db.get_db().get_background_task_by_state_and_labels(
             session=db_session,
             status=status,
             labels=labels,

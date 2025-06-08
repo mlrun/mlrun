@@ -331,10 +331,9 @@ class Pipelines(
                                     or if the run ID is not found.
         :raises MLRunRuntimeError: If there is an error retrieving the pipeline run details.
         :raises MLRunHTTPStatusError: If there is an HTTP error interacting with KFP.
-        :return: The unique identifier of the retried pipeline run.
+        :return: The unique identifier of the terminated pipeline run.
         :rtype: str
         """
-        kfp_client = self.initialize_kfp_client(namespace)
         run = self.get_run(
             run_id=run_id,
             project=project,
@@ -356,7 +355,8 @@ class Pipelines(
             run_name=run.get("name"),
             project=project,
         )
-        return kfp_client.terminate_run(
+        kfp_client = self.initialize_kfp_client(namespace)
+        kfp_client.terminate_run(
             run_id=run_id,
         )
 

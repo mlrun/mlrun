@@ -45,9 +45,16 @@ def upgrade() -> None:
             "task_id", "name", name="uq_bg_task_labels_task_id_and_name"
         ),
     )
+    op.create_index(
+        "ix_background_tasks_state",
+        "background_tasks",
+        ["state"],
+        unique=False,
+    )
 
 
 def downgrade() -> None:
+    op.drop_index("ix_background_tasks_state", table_name="background_tasks")
     op.drop_index(
         "ix_background_task_labels_task_id", table_name="background_task_labels"
     )

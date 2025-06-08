@@ -182,7 +182,7 @@ async def terminate_pipeline(
             mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
             project,
             run_id,
-            mlrun.common.schemas.AuthorizationAction.create,
+            mlrun.common.schemas.AuthorizationAction.delete,
             auth_info,
         )
     )
@@ -448,12 +448,14 @@ async def _terminate_pipeline(
     background_task_handler = (
         framework.utils.background_tasks.ProjectBackgroundTasksHandler()
     )
-    existing_terminate_pipeline_task = background_task_handler.get_background_task_by_status_and_labels(
-        db_session=db_session,
-        status=mlrun.common.schemas.BackgroundTaskState.running,
-        labels={
-            mlrun.common.schemas.background_task.BackGroundTaskLabel.pipeline: run_id,
-        },
+    existing_terminate_pipeline_task = await fastapi.concurrency.run_in_threadpool(
+        background_task_handler.get_background_task_by_state_and_labels(
+            db_session=db_session,
+            status=mlrun.common.schemas.BackgroundTaskState.running,
+            labels={
+                mlrun.common.schemas.background_task.BackGroundTaskLabel.pipeline: run_id,
+            },
+        )
     )
 
     if existing_terminate_pipeline_task is not None:

@@ -643,19 +643,18 @@ class Client(
     def terminate_run(
         self,
         run_id: str,
-    ) -> Optional[str]:
+    ) -> None:
         """
         Terminate a run by ID.
 
         :param run_id:  The ID of the run to terminate.
-        :return: The ID of the new or retried run if successful, otherwise None.
         :raises kfp_server_api.ApiException: If the termination of the run fails.
         """
 
         try:
-            return self._run_api.terminate_run(
+            self._run_api.terminate_run(
                 run_id=run_id,
-            )[0]
+            )
         except kfp_server_api.OpenApiException as error:
             logging.error(
                 "Could not terminate run %s, error: %s",

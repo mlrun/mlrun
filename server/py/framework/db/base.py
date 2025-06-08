@@ -899,7 +899,7 @@ class DBInterface(ABC):
     ) -> mlrun.common.schemas.BackgroundTask:
         pass
 
-    def get_background_task_by_status_and_labels(
+    def get_background_task_by_state_and_labels(
         self,
         session,
         status: mlrun.common.schemas.BackgroundTaskState,

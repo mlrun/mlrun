@@ -433,6 +433,7 @@ with warnings.catch_warnings():
         state = Column(
             String(255, collation=SQLTypesUtil.collation()),
             nullable=True,
+            index=True,
         )
         error = Column(
             String(255, collation=SQLTypesUtil.collation()),

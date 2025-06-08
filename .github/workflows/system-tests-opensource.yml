@@ -325,6 +325,7 @@ jobs:
         set +x
 
     - name: Delete the k8s namespace (including PVCs)
+      if: always()
       run: |
         source venv/bin/activate
         python automation/deployment/ce.py delete \

@@ -223,7 +223,7 @@ class TDEngineConnector(TSDBConnector):
             return f"{filter_column} IN ({', '.join(repr(v) for v in filter_values)}) "
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid filter column {filter_column}: must be a string or a list, "
+                f"Invalid filter values {filter_values}: must be a string or a list, "
                 f"got {type(filter_values).__name__}; filter values: {filter_values}"
             )
 

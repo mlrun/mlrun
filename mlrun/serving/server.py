@@ -404,11 +404,13 @@ def add_monitoring_general_steps(
         "mlrun.serving.system_steps.SamplingStep",
         "sampling_step",
         after="flatten_events",
-        sampling_percentage=serving_spec.get("parameters", {}).get(
-            "sampling_percentage", 100
-        )
-        if isinstance(serving_spec, dict)
-        else getattr(serving_spec, "parameters", {}).get("sampling_percentage", 100),
+        sampling_percentage=float(
+            serving_spec.get("parameters", {}).get("sampling_percentage", 100)
+            if isinstance(serving_spec, dict)
+            else getattr(serving_spec, "parameters", {}).get(
+                "sampling_percentage", 100
+            ),
+        ),
     )
     graph.add_step(
         "storey.Filter",
@@ -420,7 +422,7 @@ def add_monitoring_general_steps(
     if getattr(context, "is_mock", False):
         graph.add_step(
             "mlrun.serving.system_steps.MockStreamPusher",
-            "mock_mm_pusher",
+            "model_monitoring_stream",
             after="filter_none_2",
         )
     else:

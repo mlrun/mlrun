@@ -392,8 +392,7 @@ class BaseStep(ModelObj):
             raise GraphError(
                 f"step {self.name} parent is not set or it's not part of a graph"
             )
-        if not name and isinstance(class_name, BaseStep):
-            name = class_name.name
+
         name, step = params_to_step(
             class_name,
             name,
@@ -1076,7 +1075,7 @@ class ModelRunner(storey.ParallelExecution):
 
 class MonitoredStep(TaskStep, StepToDict):
     kind = "monitored"
-    _dict_fields = TaskStep._dict_fields + ["raise_exception", "monitoring_data"]
+    _dict_fields = TaskStep._dict_fields + ["raise_exception"]
 
     def __init__(self, *args, name: str, raise_exception=True, **kwargs):
         super().__init__(*args, name=name, **kwargs)
@@ -1191,6 +1190,10 @@ class ModelRunnerStep(MonitoredStep):
         """
         # TODO allow model_class as Model object as part of ML-9924
         model_parameters = model_parameters or {}
+        if outputs is None and isinstance(
+            model_artifact, mlrun.artifacts.ModelArtifact
+        ):
+            outputs = [feature.name for feature in model_artifact.spec.outputs]
         model_artifact = (
             model_artifact.uri
             if isinstance(model_artifact, mlrun.artifacts.Artifact)
@@ -1234,10 +1237,10 @@ class ModelRunnerStep(MonitoredStep):
             self._monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH)
             is not None
         ):
-            _, model_spec, extra_datitems = mlrun.artifacts.get_model(
-                self._monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH), ""
+            artifact = get_store_resource(
+                self._monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH)
             )
-            output_schema = [feature.name for feature in model_spec.outputs]
+            output_schema = [feature.name for feature in artifact.spec.outputs]
         return output_schema
 
     @staticmethod

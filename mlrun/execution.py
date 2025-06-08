@@ -1157,6 +1157,7 @@ class MLClientCtx:
             if max_retries and self._retry_count < max_retries:
                 new_state = mlrun.common.runtimes.constants.RunStates.pending_retry
 
+            # TODO: log for testing purposes, remove later
             logger.warning(
                 "Resolved new state",
                 new_state=new_state,

@@ -1078,7 +1078,7 @@ class ModelRunner(storey.ParallelExecution):
 
 class MonitoredStep(TaskStep, StepToDict):
     kind = "monitored"
-    _dict_fields = TaskStep._dict_fields + ["raise_exception", "_monitoring_data"]
+    _dict_fields = TaskStep._dict_fields + ["raise_exception", "monitoring_data"]
 
     def __init__(self, *args, name: str, raise_exception=True, **kwargs):
         super().__init__(*args, name=name, **kwargs)
@@ -1097,6 +1097,10 @@ class MonitoredStep(TaskStep, StepToDict):
         if self._monitoring_data is None:
             self.load_monitoring_data()
         return self._monitoring_data
+
+    @monitoring_data.setter
+    def monitoring_data(self, data: dict) -> None:
+        self._monitoring_data = data
 
 
 class ModelRunnerStep(MonitoredStep):

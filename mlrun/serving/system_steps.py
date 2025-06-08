@@ -146,7 +146,7 @@ class MonitoringPreProcessor(storey.MapClass):
         ) or getattr(self.context, "server", None)
         model_runner_name = event.headers.get("model_runner_name", "")
         step = server.graph.steps.to_dict().get(model_runner_name, {}) if server else {}
-        monitoring_data = step.get("_monitoring_data")
+        monitoring_data = step.get("monitoring_data")
         logger.debug(
             "monitoring pre processor runs",
             event=event,

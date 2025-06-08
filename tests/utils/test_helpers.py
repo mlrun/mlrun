@@ -744,6 +744,11 @@ def test_validate_v3io_consumer_group(value, expected):
         # image_url is " python " (with spaces), client_python_version is "3.9".
         {
             "image": " python ",
+            "client_python_version": "3.9.18",
+            "expected_output": "dummy-repo/python:3.9",
+        },
+        {
+            "image": " python ",
             "client_python_version": "3.9",
             "expected_output": "dummy-repo/python:3.9",
         },

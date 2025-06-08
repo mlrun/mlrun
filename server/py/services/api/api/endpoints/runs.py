@@ -240,7 +240,7 @@ async def list_runs(
         uid=uid,
         project=allowed_project_names,
         labels=labels,
-        states=states.extend(state),
+        states=list(set(state + states)),
         sort=sort,
         iter=iter,
         start_time_from=start_time_from,

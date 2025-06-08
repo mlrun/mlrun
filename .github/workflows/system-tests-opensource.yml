@@ -288,6 +288,13 @@ jobs:
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
             --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100"
 
+    - name: On helm install failure delete k3s
+      if: failure()
+      run: |
+        sudo /usr/local/bin/k3s-uninstall.sh
+        sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /var/lib/cni /run/k3s
+        sudo rm -f /etc/systemd/system/k3s* /usr/local/bin/k3s
+
     - name: Prepare system tests env
       run: |
         source venv/bin/activate
@@ -328,6 +335,11 @@ jobs:
       if: always()
       run: |
         source venv/bin/activate
+
         python automation/deployment/ce.py delete \
           --namespace=${NAMESPACE} \
-          --cleanup-namespace
+          --cleanup-volumes \
+
+        # python automation/deployment/ce.py delete \
+        #   --namespace=${NAMESPACE} \
+        #   --cleanup-namespace

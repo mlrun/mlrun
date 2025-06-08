@@ -214,6 +214,30 @@ class TDEngineConnector(TSDBConnector):
                 "Invalid 'endpoint_id' filter: must be a string or a list."
             )
 
+    @staticmethod
+    def _generate_filter_query(
+        filter_key: str, filter_values: Union[str, list[Union[str, int]]]
+    ) -> Optional[str]:
+        """
+        Generate a filter query for TDengine based on the provided key and values.
+
+        :param filter_key:    The key to filter by.
+        :param filter_values: A single value or a list of values to filter by.
+
+        :return: A string representing the filter query.
+        :raise: MLRunInvalidArgumentError if the filter key is not a string or a list.
+        """
+
+        if isinstance(filter_values, str):
+            return f"{filter_key}='{filter_values}'"
+        elif isinstance(filter_values, list):
+            return f"{filter_key} IN ({str(filter_values)[1:-1]})"
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid filter key {filter_key}: must be a string or a list, got {type(filter_values).__name__}; "
+                f"filter values: {filter_values}"
+            )
+
     def _drop_database_query(self) -> str:
         return f"DROP DATABASE IF EXISTS {self.database};"
 
@@ -749,7 +773,62 @@ class TDEngineConnector(TSDBConnector):
         application_names: Optional[Union[str, list[str]]] = None,
         result_status_list: Optional[list[int]] = None,
     ) -> dict[tuple[str, int], int]:
-        pass
+        filter_query = ""
+
+        start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
+        start, end = self._get_start_end(start, end)
+
+        if endpoint_ids:
+            filter_query = self._generate_filter_query(
+                filter_key=mm_schemas.EventFieldType.ENDPOINT_ID,
+                filter_values=endpoint_ids,
+            )
+        if application_names:
+            app_filter_query = self._generate_filter_query(
+                filter_key=mm_schemas.ApplicationEvent.APPLICATION_NAME,
+                filter_values=application_names,
+            )
+            if filter_query:
+                filter_query += f" AND {app_filter_query}"
+        if result_status_list:
+            status_filter_query = self._generate_filter_query(
+                filter_key=mm_schemas.ResultData.RESULT_STATUS,
+                filter_values=result_status_list,
+            )
+            if filter_query:
+                filter_query += f" AND {status_filter_query}"
+            else:
+                filter_query = status_filter_query
+
+        df = self._get_records(
+            table=self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS].super_table,
+            start=start,
+            end=end,
+            columns=[
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.ResultData.RESULT_STATUS,
+                mm_schemas.ResultData.RESULT_VALUE,
+            ],
+            filter_query=filter_query,
+            timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+            group_by=[
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.ResultData.RESULT_STATUS,
+            ],
+            agg_funcs=["count"],
+            preform_agg_columns=[mm_schemas.ResultData.RESULT_VALUE],
+        )
+        if df.empty:
+            return {}
+
+        # Convert DataFrame to a dictionary
+        return {
+            (
+                row[mm_schemas.WriterEvent.APPLICATION_NAME],
+                row[mm_schemas.ResultData.RESULT_STATUS],
+            ): row["count(result_value)"]
+            for _, row in df.iterrows()
+        }
 
     def get_metrics_metadata(
         self,

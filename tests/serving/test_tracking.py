@@ -391,7 +391,6 @@ def test_tracked_model_runner_multiple_steps():
     )
     graph.to(model_runner_step_0).respond()
     graph.to(model_runner_step_1)
-    function.set_tracking(stream_args={"mock": True})
 
     function.set_tracking(
         "dummy://",

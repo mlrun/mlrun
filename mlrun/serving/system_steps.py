@@ -148,7 +148,7 @@ class MonitoringPreProcessor(storey.MapClass):
         step = server.graph.steps.to_dict().get(model_runner_name, {}) if server else {}
         monitoring_data = step.get("monitoring_data")
         logger.debug(
-            "monitoring pre processor runs",
+            "monitoring preprocessor started",
             event=event,
             model_endpoints=monitoring_data,
             metadata=event._metadata,
@@ -240,7 +240,6 @@ class MonitoringPreProcessor(storey.MapClass):
                 }
             )
         event.body = monitoring_event_list
-        logger.debug("monitoring pre processor ended", event=event)
         return event
 
 
@@ -350,7 +349,6 @@ class SamplingStep(storey.MapClass):
         event[mm_schemas.EventFieldType.EFFECTIVE_SAMPLE_COUNT] = len(
             event.get(mm_schemas.StreamProcessingEvent.REQUEST, {}).get("inputs", [])
         )
-        logger.debug("sampling step ended", event=event)
         return event
 
     @staticmethod

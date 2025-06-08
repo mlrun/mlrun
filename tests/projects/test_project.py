@@ -2355,19 +2355,19 @@ def test_project_build_image(
 
     (
         build_config,
-        clone_target_dir,
+        source_code_target_dir,
     ) = remote_builder_mock.get_build_config_and_target_dir()
 
     # If pull-at-runtime, then source will not be provided to the build process since no configuration is needed
-    # at build time. Also, there will be no clone_target_dir, since no pulling/cloning is happening at build.
+    # at build time. Also, there will be no source_code_target_dir, since no pulling/cloning is happening at build.
     if pull_at_runtime:
         assert build_config.load_source_on_run is None
         assert build_config.source is None
-        assert clone_target_dir is None
+        assert source_code_target_dir is None
     else:
         assert not build_config.load_source_on_run
         assert build_config.source == source_url
-        assert clone_target_dir == target_dir
+        assert source_code_target_dir == target_dir
 
     assert build_config.image == image_name
     # If no base image was used, then mlrun/mlrun is expected

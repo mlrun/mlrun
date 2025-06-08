@@ -795,6 +795,8 @@ class RemoteBuilderMock(RunDBMock):
             *args,
             **kwargs,
         ):
+            # Need to fill in source_code_target_dir in the response since the code is copying it back to the
+            # function, so it overrides the mock args - this way the value will remain as it was.
             image = f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest"
             return {
                 "ready": True,
@@ -802,6 +804,7 @@ class RemoteBuilderMock(RunDBMock):
                     "spec": {
                         "build": {
                             "image": image,
+                            "source_code_target_dir": func.spec.build.source_code_target_dir,
                         },
                         "env": [
                             {"name": "SIDECAR_PORT", "value": "8050"},

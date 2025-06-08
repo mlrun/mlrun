@@ -149,7 +149,6 @@ class ServingSpec(NuclioSpec):
         security_context=None,
         service_type=None,
         add_templated_ingress_host_mode=None,
-        clone_target_dir=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
         model_endpoint_creation_task_name=None,
@@ -193,7 +192,6 @@ class ServingSpec(NuclioSpec):
             security_context=security_context,
             service_type=service_type,
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
-            clone_target_dir=clone_target_dir,
             disable_default_http_trigger=disable_default_http_trigger,
             serving_spec=serving_spec,
         )

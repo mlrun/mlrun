@@ -11,14 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import traceback
+import time
 from collections.abc import Callable
 from enum import Enum
 from typing import Any, Final, Optional, Union
 
 import taosws
 from taosws import TaosStmt
+
+import mlrun
+from mlrun.utils import logger
 
 
 class _StrEnum(str, Enum):
@@ -137,40 +139,99 @@ class Statement:
         return statement
 
 
-def _run(connection_string, prefix_statements, q, statements, query):
-    try:
-        conn = taosws.connect(connection_string)
-
-        for statement in prefix_statements + statements:
-            if isinstance(statement, Statement):
-                prepared_statement = statement.prepare(conn.statement())
-                prepared_statement.execute()
-            else:
-                conn.execute(statement)
-
-        if not query:
-            q.put(None)
-            return
-
-        res = conn.query(query)
-
-        # taosws.TaosField is not serializable
-        fields = [
-            Field(field.name(), field.type(), field.bytes()) for field in res.fields
-        ]
-
-        q.put(QueryResult(list(res), fields))
-    except Exception as e:
-        tb = traceback.format_exc()
-        q.put(ErrorResult(tb, e))
-
-
 class TDEngineConnection:
-    def __init__(self, connection_string):
+    def __init__(self, connection_string, max_retries=3, retry_delay=0.5):
         self._connection_string = connection_string
         self.prefix_statements = []
+        self._max_retries = max_retries
+        self._retry_delay = retry_delay
 
-        self._conn = taosws.connect(self._connection_string)
+        self._conn = self._create_connection()
+
+    def _create_connection(self):
+        """Create a new TDEngine connection."""
+        return taosws.connect(self._connection_string)
+
+    def _reconnect(self):
+        """Close current connection and create a new one."""
+        try:
+            if hasattr(self, "_conn") and self._conn:
+                self._conn.close()
+        except Exception as e:
+            logger.warning(f"Error closing connection during reconnect: {e}")
+
+        self._conn = self._create_connection()
+        logger.info("Successfully reconnected to TDEngine")
+
+    def _execute_with_retry(self, operation, operation_name, *args, **kwargs):
+        """
+        Execute an operation with retry logic for connection failures.
+
+        :param operation: The function to execute
+        :param operation_name: Name of the operation for logging
+        :param args: Arguments to pass to the operation
+        :param kwargs: Keyword arguments to pass to the operation
+        :return: Result of the operation
+        """
+        last_exception = None
+
+        for attempt in range(self._max_retries + 1):  # +1 for initial attempt
+            try:
+                return operation(*args, **kwargs)
+
+            except taosws.Error as e:
+                last_exception = e
+
+                if attempt < self._max_retries:
+                    logger.warning(
+                        f"Connection error during {operation_name} "
+                        f"(attempt {attempt + 1}/{self._max_retries + 1}): {e}. "
+                        f"Retrying in {self._retry_delay} seconds..."
+                    )
+
+                    # Wait before retrying
+                    time.sleep(self._retry_delay)
+
+                    # Reconnect
+                    try:
+                        self._reconnect()
+                    except Exception as reconnect_error:
+                        logger.error(f"Failed to reconnect: {reconnect_error}")
+                        if attempt == self._max_retries - 1:
+                            # Last attempt, raise the reconnection error
+                            raise TDEngineError(
+                                f"Failed to reconnect after {operation_name} failure: {reconnect_error}"
+                            ) from reconnect_error
+                        continue
+                else:
+                    # Max retries exceeded
+                    logger.error(
+                        f"Max retries ({self._max_retries}) exceeded for {operation_name}"
+                    )
+                    break
+
+            except Exception as e:
+                # Non-TDEngine error, don't retry
+                raise TDEngineError(
+                    f"Unexpected error during {operation_name}: {e}"
+                ) from e
+
+        # If we get here, all retries failed
+        raise TDEngineError(
+            f"Failed to {operation_name} after {self._max_retries} retries: {last_exception}"
+        ) from last_exception
+
+    def _execute_statement(self, statement):
+        """Execute a single statement (string or Statement object)."""
+        if isinstance(statement, Statement):
+            prepared_statement = statement.prepare(self._conn.statement())
+            prepared_statement.execute()
+        else:
+            self._conn.execute(statement)
+
+    def _execute_query(self, query):
+        """Execute a query and return the result."""
+        return self._conn.query(query)
 
     def run(
         self,
@@ -181,33 +242,40 @@ class TDEngineConnection:
         if not isinstance(statements, list):
             statements = [statements]
 
-        for statement in self.prefix_statements + statements:
+        # Execute all statements with retry logic
+        all_statements = self.prefix_statements + statements
+        for i, statement in enumerate(all_statements):
+            operation_name = f"execute statement {i + 1}/{len(all_statements)}"
             if isinstance(statement, Statement):
-                try:
-                    prepared_statement = statement.prepare(self._conn.statement())
-                    prepared_statement.execute()
-                except taosws.Error as e:
-                    raise TDEngineError(
-                        f"Failed to run prepared statement `{self._conn.statement()}`: {e}"
-                    ) from e
+                operation_name += " (prepared)"
             else:
-                try:
-                    self._conn.execute(statement)
-                except taosws.Error as e:
-                    raise TDEngineError(
-                        f"Failed to run statement `{statement}`: {e}"
-                    ) from e
+                operation_name += f" `{statement}`"
+
+            self._execute_with_retry(self._execute_statement, operation_name, statement)
 
         if not query:
             return None
 
-        try:
-            res = self._conn.query(query)
-        except taosws.Error as e:
-            raise TDEngineError(f"Failed to run query `{query}`: {e}") from e
+        # Execute query with retry logic
+        res = self._execute_with_retry(
+            self._execute_query, f"execute query `{query}`", query
+        )
 
+        # Process results
         fields = [
             Field(field.name(), field.type(), field.bytes()) for field in res.fields
         ]
 
         return QueryResult(list(res), fields)
+
+    def close(self):
+        """Close the connection."""
+        try:
+            if self._conn:
+                self._conn.close()
+                logger.debug("TDEngine connection closed")
+                self._conn = None
+        except Exception as e:
+            logger.warning(
+                f"Error closing TDEngine connection: {mlrun.errors.err_to_str(e)}"
+            )

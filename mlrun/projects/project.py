@@ -1408,7 +1408,10 @@ class MlrunProject(ModelObj):
                               https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                               Note that "local" engine does not support this argument
         :param ttl:           Pipeline ttl in secs (after that the pods will be removed)
-        :param image:         Image for workflow runner job, only for scheduled and remote workflows
+        :param image:         Image for workflow runner job, only for scheduled and remote workflows.
+                              The image must have mlrun[kfp] installed which requires python 3.9.
+                              Therefore, the project default image will not be used for the workflow,
+                              and the image must be specified explicitly.
         :param args:          Argument values (key=value, ..)
         """
 

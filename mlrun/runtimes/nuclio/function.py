@@ -153,7 +153,6 @@ class NuclioSpec(KubeResourceSpec):
         security_context=None,
         service_type=None,
         add_templated_ingress_host_mode=None,
-        clone_target_dir=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
     ):
@@ -184,7 +183,6 @@ class NuclioSpec(KubeResourceSpec):
             tolerations=tolerations,
             preemption_mode=preemption_mode,
             security_context=security_context,
-            clone_target_dir=clone_target_dir,
             state_thresholds=state_thresholds,
         )
 

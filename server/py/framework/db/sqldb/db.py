@@ -3647,6 +3647,9 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
@@ -3711,6 +3714,18 @@ class SQLDB(DBInterface):
             project_to_endpoint_alerts_count,
             project_to_job_alerts_count,
             project_to_other_alerts_count,
+            category_to_project_artifact_count.get(
+                mlrun.common.schemas.ArtifactCategories.dataset,
+                collections.defaultdict(lambda: 0),
+            ),
+            category_to_project_artifact_count.get(
+                mlrun.common.schemas.ArtifactCategories.document,
+                collections.defaultdict(lambda: 0),
+            ),
+            category_to_project_artifact_count.get(
+                mlrun.common.schemas.ArtifactCategories.llm_prompt,
+                collections.defaultdict(lambda: 0),
+            ),
         )
 
     @staticmethod

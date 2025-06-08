@@ -328,6 +328,36 @@ class TSDBConnector(ABC):
         If an endpoint has not been invoked within the specified time range, it will not appear in the result.
         """
 
+    @abstractmethod
+    def read_results_by_status(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        endpoint_ids: Optional[Union[str, list[str]]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+        result_status_list: Optional[list[int]] = None,
+    ) -> dict[tuple[str, int], int]:
+        """
+        Read results status from the TSDB and return a dictionary of results statuses by application name.
+
+        :param start:              The start time in which to read the results. By default, the last 24 hours are read.
+        :param end:                The end time in which to read the results. Default is the current time (now).
+        :param endpoint_ids:       Optional list of endpoint ids to filter the results by. By default, all
+                                   endpoint ids are included.
+        :param application_names:  Optional list of application names to filter the results by. By default, all
+                                   application are included.
+        :param result_status_list: Optional list of result statuses to filter the results by. By default, all
+                                   result statuses are included.
+
+        :return: A dictionary where the key is a tuple of (application_name, result_status) and the value is the total
+                 number of results with that status for that application.
+                 For example:
+                 {
+                    ('app1', 1): 10,
+                    ('app1', 2): 5
+                 }
+        """
+
     async def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],

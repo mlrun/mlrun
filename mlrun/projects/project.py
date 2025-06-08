@@ -4971,6 +4971,42 @@ class MlrunProject(ModelObj):
             labels=model_monitoring_labels_list,
         )
 
+    def get_monitoring_function_summaries(
+        self,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        names: Optional[Union[list[str], str]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        include_stats: bool = False,
+        include_infra: bool = True,
+    ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
+        """Get monitoring function summaries for the specified project.
+        :param start: Start time for filtering the results (optional).
+        :param end: End time for filtering the results (optional).
+        :param names: List of function names to filter by (optional).
+        :param labels: Labels to filter by (optional).
+        :param include_stats: Whether to include statistics in the response (default is False).
+        :param include_infra: whether to include model monitoring infrastructure functions (default is True).
+        :return: A list of FunctionSummary objects containing information about the monitoring functions.
+        """
+
+        if start is not None and end is not None:
+            if start.tzinfo is None or end.tzinfo is None:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    "Custom start and end times must contain the timezone."
+                )
+
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.get_monitoring_function_summaries(
+            project=self.metadata.name,
+            start=start,
+            end=end,
+            names=names,
+            labels=labels,
+            include_stats=include_stats,
+            include_infra=include_infra,
+        )
+
     def list_runs(
         self,
         name: Optional[str] = None,

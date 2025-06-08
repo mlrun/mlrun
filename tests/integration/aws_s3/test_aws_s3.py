@@ -178,16 +178,7 @@ class TestAwsS3:
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param))
 
     def test_using_env_variables(self):
-        # Use "naked" env variables, useful in client-side sdk.
-        for param in credential_params:
-            os.environ[param] = self.env[param]
-            os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
-
         self._perform_aws_s3_tests()
-
-        # cleanup
-        for param in credential_params:
-            os.environ.pop(param)
 
     def test_using_dataitem_secrets(
         self,

@@ -18,6 +18,7 @@ import os
 import uuid
 from typing import Any, Callable, Optional, Union
 
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -406,7 +407,7 @@ class BaseLauncher(abc.ABC):
             )
             if (
                 run.status.state
-                in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
+                in mlrun.common.runtimes.constants.RunStates.terminal_error_states()
             ):
                 if runtime._is_remote and not runtime.is_child:
                     logger.error(

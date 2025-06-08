@@ -21,6 +21,7 @@ import pandas as pd
 import pytest
 
 import mlrun
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.feature_store.common
 import mlrun.model
@@ -449,7 +450,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         runs = mlrun.get_run_db().list_runs(
             project=self.project_name,
             end_time_from=beginning_time,
-            states=mlrun.common.runtimes.constants.RunStates.error,
+            states=[mlrun.common.runtimes.constants.RunStates.error],
         )
         assert len(runs) == 1
 
@@ -458,7 +459,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         runs = mlrun.get_run_db().list_runs(
             project=self.project_name,
             end_time_from=now,
-            states=mlrun.common.runtimes.constants.RunStates.error,
+            states=[mlrun.common.runtimes.constants.RunStates.error],
         )
         assert len(runs) == 0
 
@@ -685,3 +686,25 @@ def print_df(df):
         assert background_task.metadata.name in [
             task.metadata.name for task in background_tasks
         ]
+
+    def test_retry_job_exhausted(self):
+        code_path = str(self.assets_path / "raise_func.py")
+
+        function = self.project.set_function(
+            code_path,
+            name="raise-func",
+            kind="job",
+            handler="handler",
+        )
+
+        function.set_image_pull_configuration(image_pull_policy="Always")
+
+        retry = mlrun.model.Retry(
+            count=3,
+        )
+
+        # should we wait for all retries to finish?
+        run = function.run(retry=retry)
+        assert run.status.retry_count == 3
+        assert run.status.state == mlrun.common.runtimes.constants.RunStates.error
+        assert run.states.status_text == "Run failed after 3 retries"

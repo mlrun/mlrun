@@ -954,7 +954,7 @@ class Service(framework.service.Service):
                 if not run.status.retry_count < run.spec.retry.count:
                     self._logger.debug(
                         "Run has reached max retry count, skipping",
-                        run_uid=run.get("metadata", {}).get("uid", None),
+                        run_uid=run.metadata.uid,
                         retry_count=run.status.retry_count,
                         max_retry_count=run.spec.retry.count,
                     )
@@ -964,11 +964,13 @@ class Service(framework.service.Service):
                             get_db().update_run,
                             updates={
                                 "status.state": mlrun.common.runtimes.constants.RunStates.error,
-                                "status.error": "Run has reached max retry count",
+                                "status.status_text": "Run retries exhausted",
                             },
                             uid=run.metadata.uid,
+                            project=run.metadata.project,
                         )
                     )
+                    continue
 
                 try:
                     delay = framework.utils.helpers.time_string_to_seconds(
@@ -985,6 +987,7 @@ class Service(framework.service.Service):
                         "task": run.to_dict(),
                     }
                     loop = asyncio.get_event_loop()
+                    # TODO: ensure not submitting the same run multiple times
                     loop.call_later(
                         call_after_seconds,
                         framework.db.session.run_function_with_new_db_session,
@@ -1000,14 +1003,14 @@ class Service(framework.service.Service):
                         traceback=traceback.format_exc(),
                     )
 
-                if futures:
-                    exceptions = await asyncio.gather(*futures, return_exceptions=True)
-                    for exception in exceptions:
-                        if isinstance(exception, Exception):
-                            self._logger.warning(
-                                "Failed task in retry job",
-                                exc=err_to_str(exception),
-                            )
+            if futures:
+                exceptions = await asyncio.gather(*futures, return_exceptions=True)
+                for exception in exceptions:
+                    if isinstance(exception, Exception):
+                        self._logger.warning(
+                            "Failed task in retry job",
+                            exc=err_to_str(exception),
+                        )
 
         finally:
             await fastapi.concurrency.run_in_threadpool(close_session, db_session)

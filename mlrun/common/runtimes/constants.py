@@ -170,6 +170,7 @@ class RunStates:
         return [
             RunStates.error,
             RunStates.aborted,
+            RunStates.pending_retry,
         ]
 
     @staticmethod
@@ -186,6 +187,13 @@ class RunStates:
     @staticmethod
     def non_terminal_states():
         return list(set(RunStates.all()) - set(RunStates.terminal_states()))
+
+    @staticmethod
+    def terminal_error_states():
+        return list(
+            set(RunStates.terminal_states())
+            & set(RunStates.error_and_abortion_states())
+        )
 
     @staticmethod
     def not_allowed_for_deletion_states():

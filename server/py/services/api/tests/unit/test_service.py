@@ -31,7 +31,7 @@ class TestService(TestAPIBase):
         cls._project = "test-project"
         cls._service = daemon.service
 
-    async def test_retry_job(self, db: Session, monkeypatch):
+    async def test_retry_job(self, db: Session):
         mlrun.mlconf.function.spec.retry.backoff.min_base_delay = "0s"
         run_uid = "test-job-uid"
         run = self._generate_retry_job()
@@ -43,6 +43,25 @@ class TestService(TestAPIBase):
             await self._service._retry_jobs()
             await asyncio.sleep(1)
             mock_submit_run_sync.assert_called_once()
+
+    async def test_retry_job_retry_exhausted(self, db: Session):
+        run_uid = "test-job-uid"
+        run = self._generate_retry_job(count=2, retry_count=2)
+        assert (
+            run["status"]["state"]
+            == mlrun.common.runtimes.constants.RunStates.pending_retry
+        )
+        run_db = mlrun.db.get_run_db()
+        with unittest.mock.patch(
+            "framework.api.utils.submit_run_sync", return_value=unittest.mock.Mock()
+        ) as mock_submit_run_sync:
+            run_db.store_run(struct=run, uid=run_uid, project=self._project)
+            await self._service._retry_jobs()
+            mock_submit_run_sync.assert_not_called()
+
+        run = run_db.read_run(uid=run_uid, project=self._project)
+        assert run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.error
+        assert run["status"]["status_text"] == "Run retries exhausted"
 
     def _generate_retry_job(
         self,

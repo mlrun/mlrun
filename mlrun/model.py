@@ -995,7 +995,7 @@ class RunSpec(ModelObj):
         node_selector=None,
         tolerations=None,
         affinity=None,
-        retry: Retry = None,
+        retry=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -1036,7 +1036,7 @@ class RunSpec(ModelObj):
         self.node_selector = node_selector or {}
         self.tolerations = tolerations or {}
         self.affinity = affinity or {}
-        self.retry = retry
+        self.retry = retry or {}
 
     def _serialize_field(
         self, struct: dict, field_name: Optional[str] = None, strip: bool = False

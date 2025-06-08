@@ -109,6 +109,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             workdir=workdir,
             notifications=notifications,
             state_thresholds=state_thresholds,
+            retry=retry,
         )
         self._validate_run(runtime, run)
 

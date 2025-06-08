@@ -287,7 +287,8 @@ class NotificationPusher(_NotificationPusherBase):
             )
             project = run.metadata.project
             workflow_id = run.status.results.get("workflow_id", None)
-            runs.extend(Workflow.get_workflow_steps(workflow_id, project))
+            db = mlrun.get_run_db()
+            runs.extend(Workflow.get_workflow_steps(db, workflow_id, project))
 
         message = (
             self.messages.get(run.state(), "").format(resource=resource)

@@ -90,13 +90,13 @@ def test_list_schedules(
         )
 
         _get_and_assert_single_schedule(
-            client, {"labels": "label1"}, schedule_name, project
+            client, {"label": "label1"}, schedule_name, project
         )
         _get_and_assert_single_schedule(
             client, {"label": "label1"}, schedule_name, project
         )
         _get_and_assert_single_schedule(
-            client, {"labels": "label2"}, schedule_name_2, project
+            client, {"label": "label2"}, schedule_name_2, project
         )
         _get_and_assert_single_schedule(
             client, {"label": ["label2"]}, schedule_name_2, project
@@ -105,10 +105,10 @@ def test_list_schedules(
             client, {"label": ["label2", "label3"]}, schedule_name_2, project
         )
         _get_and_assert_single_schedule(
-            client, {"labels": "label1=value1"}, schedule_name, project
+            client, {"label": "label1=value1"}, schedule_name, project
         )
         _get_and_assert_single_schedule(
-            client, {"labels": "label2=value2"}, schedule_name_2, project
+            client, {"label": "label2=value2"}, schedule_name_2, project
         )
         _get_and_assert_single_schedule(
             client, {"label": "label2=value2"}, schedule_name_2, project
@@ -118,13 +118,13 @@ def test_list_schedules(
         )
         _get_and_assert_single_schedule(
             client,
-            {"labels": ["label2=value2", "label3=value3"]},
+            {"label": ["label2=value2", "label3=value3"]},
             schedule_name_2,
             project,
         )
 
     # Validate multi-project query
-    resp = client.get("projects/*/schedules", params={"labels": "label1"})
+    resp = client.get("projects/*/schedules", params={"label": "label1"})
     assert resp.status_code == http.HTTPStatus.OK.value, "status"
     result = resp.json()["schedules"]
     assert len(result) == len(project_names)

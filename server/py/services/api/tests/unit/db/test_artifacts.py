@@ -2988,6 +2988,13 @@ class TestArtifacts(TestDatabaseBase):
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["key"] == child_artifact_name
 
+        # Filter using partial parent_key
+        artifacts = self._db.list_artifacts(
+            self._db_session, parent_uri="parent-ar", project=project
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == child_artifact_name
+
         # Filter using parent_tag
         artifacts = self._db.list_artifacts(
             self._db_session, parent_uri=":ref-tag", project=project
@@ -2995,7 +3002,14 @@ class TestArtifacts(TestDatabaseBase):
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["key"] == child_artifact_name
 
-        # Filter using both
+        # Filter using partial parent_tag
+        artifacts = self._db.list_artifacts(
+            self._db_session, parent_uri=":ref", project=project
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == child_artifact_name
+
+        # Filter using both name and tag
         artifacts = self._db.list_artifacts(
             self._db_session,
             parent_uri=f"{parent_artifact_name}:ref-tag",

@@ -700,9 +700,11 @@ def build_runtime(
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
 
-    base_image: str = (
-        build.base_image or runtime.spec.image or config.default_base_image
-    )
+    base_image: str = build.base_image or runtime.spec.image
+    if not base_image:
+        base_image = mlrun.mlconf.function_defaults.image_by_kind.to_dict().get(
+            runtime.kind, config.default_base_image
+        )
 
     mlrun_image = False
     # If the base is one of mlrun images - set with_mlrun to False, so it won't be added later

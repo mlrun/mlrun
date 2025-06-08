@@ -966,7 +966,7 @@ class Model(storey.ParallelExecutionRunnable):
     ):
         super().__init__(name=name, raise_exception=raise_exception, **kwargs)
         if artifact_uri is not None and not isinstance(artifact_uri, str):
-            raise MLRunInvalidArgumentError("artifact_uri argument must be a string")
+            raise MLRunInvalidArgumentError("'artifact_uri' argument must be a string")
         self.artifact_uri = artifact_uri
 
     def load(self) -> None:
@@ -979,7 +979,7 @@ class Model(storey.ParallelExecutionRunnable):
                 return get_store_resource(self.artifact_uri)
             else:
                 raise ValueError(
-                    "Could not get artifact, artifact_uri must be a valid artifact store URI"
+                    "Could not get artifact, 'artifact_uri' must be a valid artifact store URI"
                 )
         else:
             return None
@@ -1002,29 +1002,27 @@ class Model(storey.ParallelExecutionRunnable):
         return self.predict(body)
 
     def get_local_model_path(self, suffix="") -> (str, dict):
-        """get local model file(s) and extra data items by using artifact
-        If the model file is stored in remote cloud storage, download it to the local file system
+        """
+        Get local model file(s) and extra data items by using artifact.
 
-        Examples
-        --------
-        ::
+        If the model file is stored in remote cloud storage, this method downloads
+        it to the local file system.
+
+        :param suffix: Optional; model file suffix (used when the model path is a directory).
+        :type suffix: str
+
+        :return: A tuple containing:
+            - str: Local model file path.
+            - dict: Dictionary of extra data items.
+        :rtype: tuple
+
+        :example:
 
             def load(self):
                 model_file, extra_data = self.get_local_model_path(suffix=".pkl")
                 self.model = load(open(model_file, "rb"))
                 categories = extra_data["categories"].as_df()
 
-        Parameters
-        ----------
-        suffix : str
-            optional, model file suffix (when the model_path is a directory)
-
-        Returns
-        -------
-        str
-            (local) model file
-        dict
-            extra dataitems dictionary
         """
         artifact = self._get_artifact_object()
         if artifact:

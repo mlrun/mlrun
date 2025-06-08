@@ -1,3 +1,4 @@
+cd ..
 (pipelines-error-handling)=
 # Error handling
    

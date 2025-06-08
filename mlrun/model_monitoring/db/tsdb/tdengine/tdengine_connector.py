@@ -204,22 +204,11 @@ class TDEngineConnector(TSDBConnector):
         return datetime.fromisoformat(val) if isinstance(val, str) else val
 
     @staticmethod
-    def _get_endpoint_filter(endpoint_id: Union[str, list[str]]) -> str:
-        if isinstance(endpoint_id, str):
-            return f"endpoint_id='{endpoint_id}'"
-        elif isinstance(endpoint_id, list):
-            return f"endpoint_id IN({str(endpoint_id)[1:-1]}) "
-        else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Invalid 'endpoint_id' filter: must be a string or a list."
-            )
-
-    @staticmethod
     def _generate_filter_query(
         filter_key: str, filter_values: Union[str, list[Union[str, int]]]
     ) -> Optional[str]:
         """
-        Generate a filter query for TDengine based on the provided key and values.
+        Generate a filter query for TDEngine based on the provided key and values.
 
         :param filter_key:    The key to filter by.
         :param filter_values: A single value or a list of values to filter by.
@@ -231,7 +220,7 @@ class TDEngineConnector(TSDBConnector):
         if isinstance(filter_values, str):
             return f"{filter_key}='{filter_values}'"
         elif isinstance(filter_values, list):
-            return f"{filter_key} IN ({str(filter_values)[1:-1]})"
+            return f"{filter_key} IN ({', '.join(repr(v) for v in filter_values)}) "
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Invalid filter key {filter_key}: must be a string or a list, got {type(filter_values).__name__}; "
@@ -697,7 +686,9 @@ class TDEngineConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
-        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
+        filter_query = self._generate_filter_query(
+            filter_key=mm_schemas.EventFieldType.ENDPOINT_ID, filter_values=endpoint_ids
+        )
         start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.PREDICTIONS].super_table,
@@ -738,7 +729,9 @@ class TDEngineConnector(TSDBConnector):
         end: Optional[datetime] = None,
         get_raw: bool = False,
     ) -> pd.DataFrame:
-        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
+        filter_query = self._generate_filter_query(
+            filter_key=mm_schemas.EventFieldType.ENDPOINT_ID, filter_values=endpoint_ids
+        )
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -848,7 +841,10 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.MetricData.METRIC_NAME,
                 mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
-            filter_query=self._get_endpoint_filter(endpoint_id=endpoint_id),
+            filter_query=self._generate_filter_query(
+                filter_key=mm_schemas.EventFieldType.ENDPOINT_ID,
+                filter_values=endpoint_id,
+            ),
             timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
             group_by=[
                 mm_schemas.WriterEvent.APPLICATION_NAME,
@@ -886,7 +882,10 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.ResultData.RESULT_KIND,
                 mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
-            filter_query=self._get_endpoint_filter(endpoint_id=endpoint_id),
+            filter_query=self._generate_filter_query(
+                filter_key=mm_schemas.EventFieldType.ENDPOINT_ID,
+                filter_values=endpoint_id,
+            ),
             timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
             group_by=[
                 mm_schemas.WriterEvent.APPLICATION_NAME,
@@ -915,7 +914,9 @@ class TDEngineConnector(TSDBConnector):
         end: Optional[datetime] = None,
         get_raw: bool = False,
     ) -> pd.DataFrame:
-        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
+        filter_query = self._generate_filter_query(
+            filter_key=mm_schemas.EventFieldType.ENDPOINT_ID, filter_values=endpoint_ids
+        )
         filter_query += f"AND {mm_schemas.EventFieldType.ERROR_TYPE} = '{mm_schemas.EventFieldType.INFER_ERROR}'"
         start, end = self._get_start_end(start, end)
         df = self._get_records(

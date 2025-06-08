@@ -765,7 +765,7 @@ class TDEngineConnector(TSDBConnector):
             df.dropna(inplace=True)
         return df
 
-    def read_results_by_status(
+    def count_results_by_status(
         self,
         start: Optional[Union[datetime, str]] = None,
         end: Optional[Union[datetime, str]] = None,
@@ -790,6 +790,8 @@ class TDEngineConnector(TSDBConnector):
             )
             if filter_query:
                 filter_query += f" AND {app_filter_query}"
+            else:
+                filter_query = app_filter_query
         if result_status_list:
             status_filter_query = self._generate_filter_query(
                 filter_key=mm_schemas.ResultData.RESULT_STATUS,

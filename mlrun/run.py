@@ -931,6 +931,38 @@ def retry_pipeline(
     return pipeline_run_id
 
 
+def terminate_pipeline(
+    run_id: str,
+    project: str,
+    namespace: Optional[str] = None,
+) -> str:
+    """Terminate a pipeline run.
+
+    This function terminates a running pipeline with the specified run ID. If the run is not in a
+    terminable state, an error is raised.
+
+    :param run_id: ID of the pipeline run to terminate.
+    :param project: name of the project associated with the pipeline run.
+    :param namespace: Optional; Kubernetes namespace to use if not the default.
+
+    :returns: ID of the terminate pipeline run background task.
+    :raises ValueError: If access to the remote API service is not available.
+    """
+    mldb = mlrun.db.get_run_db()
+    if mldb.kind != "http":
+        raise ValueError(
+            "Terminating a pipeline requires access to remote API service. "
+            "Please set the dbpath URL."
+        )
+
+    pipeline_run_task = mldb.terminate_pipeline(
+        run_id=run_id,
+        project=project,
+        namespace=namespace,
+    )
+    return pipeline_run_task["metadata"]["id"]
+
+
 def wait_for_pipeline_completion(
     run_id,
     timeout=60 * 60,

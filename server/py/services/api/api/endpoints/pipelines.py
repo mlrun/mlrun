@@ -449,13 +449,12 @@ async def _terminate_pipeline(
         framework.utils.background_tasks.ProjectBackgroundTasksHandler()
     )
     existing_terminate_pipeline_task = await fastapi.concurrency.run_in_threadpool(
-        background_task_handler.get_background_task_by_state_and_labels(
-            db_session=db_session,
-            status=mlrun.common.schemas.BackgroundTaskState.running,
-            labels={
-                mlrun.common.schemas.background_task.BackGroundTaskLabel.pipeline: run_id,
-            },
-        )
+        background_task_handler.get_background_task_by_state_and_labels,
+        db_session=db_session,
+        status=mlrun.common.schemas.BackgroundTaskState.running,
+        labels={
+            mlrun.common.schemas.background_task.BackGroundTaskLabel.pipeline: run_id,
+        },
     )
 
     if existing_terminate_pipeline_task is not None:

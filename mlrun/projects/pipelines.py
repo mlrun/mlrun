@@ -39,7 +39,12 @@ from mlrun.utils import (
 
 from ..common.helpers import parse_versioned_object_uri
 from ..config import config
-from ..run import _run_pipeline, retry_pipeline, wait_for_pipeline_completion
+from ..run import (
+    _run_pipeline,
+    retry_pipeline,
+    terminate_pipeline,
+    wait_for_pipeline_completion,
+)
 from ..runtimes.pod import AutoMountType
 
 
@@ -691,6 +696,24 @@ class _KFPRunner(_PipelineRunner):
             project=project_name,
         )
         run_id = retry_pipeline(
+            run.run_id,
+            project=project_name,
+        )
+        return run_id
+
+    @classmethod
+    def terminate(
+        cls,
+        run: "_PipelineRunStatus",
+        project: typing.Optional["mlrun.projects.MlrunProject"] = None,
+    ) -> str:
+        project_name = project.metadata.name if project else ""
+        logger.info(
+            "Terminating pipeline",
+            run_id=run.run_id,
+            project=project_name,
+        )
+        run_id = terminate_pipeline(
             run.run_id,
             project=project_name,
         )

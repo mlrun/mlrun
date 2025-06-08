@@ -469,6 +469,9 @@ async def async_execute_graph(
         else:
             await run(data)
 
+    if batch:
+        await run(batch)
+
     termination_result = server.wait_for_completion()
     if asyncio.iscoroutine(termination_result):
         termination_result = await termination_result

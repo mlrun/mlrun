@@ -194,7 +194,7 @@ def func_b():
 
 
 @pytest.mark.parametrize(
-    ["batching", "batch_size"], [(False, None), (True, None), (True, 10)]
+    ["batching", "batch_size"], [(False, None), (True, None), (True, 10), (True, 77)]
 )
 def test_run_local_serving_job(batching, batch_size):
     project = mlrun.new_project("some-project")

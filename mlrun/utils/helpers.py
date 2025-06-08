@@ -84,10 +84,6 @@ DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
 DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
 
 
-class OverwriteBuildParamsWarning(FutureWarning):
-    pass
-
-
 class StorePrefix:
     """map mlrun store objects to prefixes"""
 

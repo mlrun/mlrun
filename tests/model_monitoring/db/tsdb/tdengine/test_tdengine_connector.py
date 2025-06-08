@@ -85,8 +85,8 @@ def test_write_application_event(
         connector.write_application_event(data)
     connector.create_tables()  # DB is created here
     connector.write_application_event(data)
-    start_read_time = datetime(2023, 1, 1, 1, 0, 0)
-    end_read_time = datetime(2025, 1, 1, 1, 0, 0)
+    start_read_time = datetime(2023, 1, 1, 1, 0, 0, tzinfo=timezone.utc)
+    end_read_time = datetime(2025, 1, 1, 1, 0, 0, tzinfo=timezone.utc)
     read_data_kwargs = {
         "endpoint_id": endpoint_id,
         "start": start_read_time,

@@ -323,3 +323,10 @@ jobs:
         kubectl --namespace ${NAMESPACE} get pvc
         kubectl --namespace ${NAMESPACE} get pv
         set +x
+
+    - name: Delete the k8s namespace (including PVCs)
+      run: |
+        source venv/bin/activate
+        python automation/deployment/ce.py delete \
+          --namespace=${NAMESPACE} \
+          --cleanup-namespace=True

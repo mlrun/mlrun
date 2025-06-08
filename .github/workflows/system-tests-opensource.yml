@@ -330,4 +330,4 @@ jobs:
         source venv/bin/activate
         python automation/deployment/ce.py delete \
           --namespace=${NAMESPACE} \
-          --cleanup-namespace=True
+          --cleanup-namespace

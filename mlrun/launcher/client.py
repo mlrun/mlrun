@@ -24,6 +24,7 @@ import mlrun.lists
 import mlrun.model
 import mlrun.runtimes
 import mlrun.utils
+import mlrun.utils.version
 
 
 class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
@@ -63,10 +64,21 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
 
         # Warn if user explicitly set the deprecated mlrun/ml-base image
         if image and "mlrun/ml-base" in image:
-            warnings.warn(
+            client_version = mlrun.utils.version.Version().get()["version"]
+            auto_replaced = mlrun.utils.validate_component_version_compatibility(
+                "mlrun-client", "1.10.0", mlrun_client_version=client_version
+            )
+            message = (
                 "'mlrun/ml-base' image is deprecated in 1.10.0 and will be removed in 1.12.0, "
-                "use 'mlrun/mlrun' instead. "
-                "For clients >= 1.10.0, the image is automatically replaced with 'mlrun/mlrun'. ",
+                "use 'mlrun/mlrun' instead."
+            )
+            if auto_replaced:
+                message += (
+                    " Since your client version is >= 1.10.0, the image will be automatically "
+                    "replaced with mlrun/mlrun."
+                )
+            warnings.warn(
+                message,
                 # TODO: Remove this in 1.12.0
                 FutureWarning,
             )

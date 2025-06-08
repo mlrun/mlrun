@@ -44,6 +44,7 @@ from .constants import (
     WriterEvent,
     WriterEventKind,
 )
+from .functions import FunctionsType, FunctionSummary
 from .grafana import (
     GrafanaColumn,
     GrafanaColumnType,

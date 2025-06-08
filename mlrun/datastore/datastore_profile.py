@@ -223,7 +223,7 @@ class DatastoreProfileS3(DatastoreProfile):
     assume_role_arn: typing.Optional[str] = None
     access_key_id: typing.Optional[str] = None
     secret_key: typing.Optional[str] = None
-    bucket: str
+    bucket: typing.Optional[str] = None
 
     def secrets(self) -> dict:
         res = {}

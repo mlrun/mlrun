@@ -50,6 +50,7 @@ from mlrun_pipelines.utils import compile_pipeline
 
 from ..artifacts import Artifact
 from ..common.schemas import AlertActivations
+from ..common.schemas.model_monitoring import FunctionSummary
 from ..config import config
 from ..datastore.datastore_profile import DatastoreProfile2Json
 from ..feature_store import FeatureSet, FeatureVector
@@ -4117,6 +4118,52 @@ class HTTPRunDB(RunDBInterface):
             path=f"projects/{project}/model-monitoring/credentials",
             params={**credentials, "replace_creds": replace_creds},
         )
+
+    def get_monitoring_function_summaries(
+        self,
+        project: str,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        names: Optional[Union[list[str], str]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        include_stats: bool = False,
+        include_infra: bool = True,
+    ) -> list[FunctionSummary]:
+        """
+        Get monitoring function summaries for the specified project.
+
+        :param project: The name of the project.
+        :param start: Start time for filtering the results (optional).
+        :param end: End time for filtering the results (optional).
+        :param names: List of function names to filter by (optional).
+        :param labels: Labels to filter by (optional).
+        :param include_stats: Whether to include statistics in the response (default is False).
+        :param include_infra: whether to include model monitoring infrastructure functions (default is True).
+
+        :return: A list of FunctionSummary objects containing information about the monitoring functions.
+        """
+
+        path = f"projects/{project}/model-monitoring/function-summaries"
+        labels = self._parse_labels(labels)
+        if names and isinstance(names, str):
+            names = [names]
+        response = self.api_call(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path=path,
+            params={
+                "start": datetime_to_iso(start),
+                "end": datetime_to_iso(end),
+                "name": names,
+                "label": labels,
+                "include-stats": include_stats,
+                "include-infra": include_infra,
+            },
+        )
+
+        results = []
+        for item in response.json():
+            results.append(FunctionSummary(**item))
+        return results
 
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]

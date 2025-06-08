@@ -1163,9 +1163,7 @@ graphql-relay==3.2.0 \
 graphviz==0.20.3 \
     --hash=sha256:09d6bc81e6a9fa392e7ba52135a9d49f1ed62526f96499325930e87ca1b5925d \
     --hash=sha256:81f848f2904515d8cd359cc611faba817598d2feaac4027b266aa3eda7b3dde5
-    # via
-    #   -r dockerfiles/base/requirements.txt
-    #   -r extras-requirements.txt
+    # via -r extras-requirements.txt
 greenlet==3.2.3 ; platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64' \
     --hash=sha256:003c930e0e074db83559edc8705f3a2d066d4aa8c2f198aff1e454946efd0f26 \
     --hash=sha256:024571bbce5f2c1cfff08bf3fbaa43bbc7444f580ae13b0099e95d0e6e67ed36 \
@@ -2399,15 +2397,6 @@ oauthlib==3.2.2 \
     # via
     #   kubernetes
     #   requests-oauthlib
-opencv-python-headless==4.11.0.86 \
-    --hash=sha256:0e0a27c19dd1f40ddff94976cfe43066fbbe9dfbb2ec1907d66c19caef42a57b \
-    --hash=sha256:48128188ade4a7e517237c8e1e11a9cdf5c282761473383e77beb875bb1e61ca \
-    --hash=sha256:6c304df9caa7a6a5710b91709dd4786bf20a74d57672b3c31f7033cc638174ca \
-    --hash=sha256:6efabcaa9df731f29e5ea9051776715b1bdd1845d7c9530065c7951d2a2899eb \
-    --hash=sha256:996eb282ca4b43ec6a3972414de0e2331f5d9cda2b41091a49739c19fb843798 \
-    --hash=sha256:a66c1b286a9de872c343ee7c3553b084244299714ebb50fbdcd76f07ebbe6c81 \
-    --hash=sha256:f447d8acbb0b6f2808da71fddd29c1cdd448d2bc98f72d9bb78a7a898fc9621b
-    # via -r dockerfiles/base/requirements.txt
 opentelemetry-api==1.34.0 \
     --hash=sha256:390b81984affe4453180820ca518de55e3be051111e70cc241bb3b0071ca3a2c \
     --hash=sha256:48d167589134799093005b7f7f347c69cc67859c693b17787f334fbe8871279f
@@ -2680,9 +2669,7 @@ platformdirs==4.3.8 \
 plotly==5.24.1 \
     --hash=sha256:dbc8ac8339d248a4bcc36e08a5659bacfe1b079390b8953533f4eb22169b4bae \
     --hash=sha256:f67073a1e637eb0dc3e46324d9d51e2fe76e9727c892dde64ddf1e1b51f29089
-    # via
-    #   -r dockerfiles/base/requirements.txt
-    #   -r extras-requirements.txt
+    # via -r extras-requirements.txt
 prometheus-client==0.22.1 \
     --hash=sha256:190f1331e783cf21eb60bca559354e0a4d4378facecf78f5428c39b675d20d28 \
     --hash=sha256:cca895342e308174341b2cbf99a56bef291fbc0ef7b9e5412a0f26d653ba7094
@@ -3767,18 +3754,6 @@ threadpoolctl==3.6.0 \
     --hash=sha256:43a0b8fd5a2928500110039e43a5eed8480b918967083ea48dc3ab9f13c4a7fb \
     --hash=sha256:8ab8b4aa3491d812b623328249fab5302a68d2d71745c8a4c719a2fcaba9f44e
     # via scikit-learn
-tifffile==2024.8.30 ; python_full_version < '3.10' \
-    --hash=sha256:2c9508fe768962e30f87def61819183fb07692c258cb175b3c114828368485a4 \
-    --hash=sha256:8bc59a8f02a2665cd50a910ec64961c5373bee0b8850ec89d3b7b485bf7be7ad
-    # via scikit-image
-tifffile==2025.5.10 ; python_full_version == '3.10.*' \
-    --hash=sha256:018335d34283aa3fd8c263bae5c3c2b661ebc45548fde31504016fcae7bf1103 \
-    --hash=sha256:e37147123c0542d67bc37ba5cdd67e12ea6fbe6e86c52bee037a9eb6a064e5ad
-    # via scikit-image
-tifffile==2025.6.1 ; python_full_version >= '3.11' \
-    --hash=sha256:63cff7cf7305c26e3f3451c0b05fd95a09252beef4f1663227d4b70cb75c5fdb \
-    --hash=sha256:ff7163f1aaea519b769a2ac77c43be69e7d83e5b5d5d6a676497399de50535e5
-    # via scikit-image
 tinycss2==1.4.0 \
     --hash=sha256:10c0972f6fc0fbee87c3edb76549357415e94548c1ae10ebccdea16fb404a9b7 \
     --hash=sha256:3a49cf47b7675da0b15d0c6e1df8df4ebd96e9394bb905a5775adb0d884c5289

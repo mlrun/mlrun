@@ -14,8 +14,9 @@
 from abc import ABC
 from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar
+
 import mlrun
-from mlrun.datastore.abstract_base import BaseRemoteClient
+from mlrun.datastore.abstract_base import BaseRemoteClient, BaseRemoteClientManager
 
 T = TypeVar("T")
 
@@ -147,8 +148,44 @@ class OpenAIProvider(AsyncModelProvider):
             return self._default_async_operation(**invoke_kwargs, model=self.model)
 
     def basic_llm_invoke(self, prompt):
-        messages = [{
-            "role": "user",
-            "content": prompt,
-        }]
+        messages = [
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ]
         self._default_operation(model=self.endpoint, messages=messages)
+
+
+def schema_to_model_provider(schema: str) -> ModelProvider.__subclasses__():
+    #  TODO add hugging face and http
+    schema_dict = {"openai": OpenAIProvider}
+    provider_class = schema_dict.get(schema, None)
+    if not provider_class:
+        raise ValueError(f"unsupported model provider scheme ({schema})")
+
+
+class ModelProviderManager(BaseRemoteClientManager):
+    def __init__(self, secrets=None, db=None):
+        super().__init__(secrets=secrets, db=db)
+
+    def object(
+        self,
+        url,
+        key="",
+        project="",
+        allow_empty_resources=None,
+        secrets: Optional[dict] = None,
+    ) -> ModelProvider:
+        # TODO
+        # if is_store_uri(url):
+        #     artifact_url = url
+        #     resource = self._get_db().read_artifact(
+        #         key,
+        #         project=project,
+        #         tag=tag,
+        #         iter=iteration,
+        #         tree=tree,
+        #         uid=uid,
+        #     )
+        return None

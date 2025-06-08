@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from enum import Enum
+
 import mlrun
 import mlrun.artifacts
 from mlrun.config import config
@@ -21,6 +23,11 @@ from ..common.helpers import parse_versioned_object_uri
 from ..platforms.iguazio import parse_path
 from ..utils import DB_SCHEMA, StorePrefix
 from .targets import get_online_target
+
+
+class ResourceRemoteClient(Enum):
+    STORE = "store"
+    MODEL_PROVIDER = "model_provider"
 
 
 def is_store_uri(url):
@@ -140,7 +147,12 @@ class ResourceCache:
 
 
 def get_store_resource(
-    uri, db=None, secrets=None, project=None, data_store_secrets=None
+    uri,
+    db=None,
+    secrets=None,
+    project=None,
+    data_store_secrets=None,
+    fallback_manager: ResourceRemoteClient = ResourceRemoteClient.STORE,
 ):
     """get store resource object by uri"""
 
@@ -188,5 +200,9 @@ def get_store_resource(
             return mlrun.artifacts.dict_to_artifact(resource)
 
     else:
-        stores = mlrun.store_manager.set(secrets, db=db)
-        return stores.object(url=uri, secrets=data_store_secrets)
+        if fallback_manager == ResourceRemoteClient.STORE:
+            stores = mlrun.store_manager.set(secrets, db=db)
+            return stores.object(url=uri, secrets=data_store_secrets)
+        elif fallback_manager == ResourceRemoteClient.MODEL_PROVIDER:
+            model_providers = mlrun.model_provider_manager.set(secrets, db=db)
+            return model_providers.object(url=uri, secrets=data_store_secrets)

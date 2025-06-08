@@ -12,13 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import Optional
-from urllib.parse import urlparse
-
-from mergedeep import merge
 
 import mlrun
 import mlrun.errors
-from mlrun.datastore.datastore_profile import datastore_profile_read
+from mlrun.datastore.abstract_base import BaseRemoteClientManager, parse_url
 from mlrun.errors import err_to_str
 from mlrun.utils.helpers import get_local_file_schema
 
@@ -30,28 +27,6 @@ from .store_resources import get_store_resource, is_store_uri
 from .v3io import V3ioStore
 
 in_memory_store = InMemoryStore()
-
-
-def parse_url(url):
-    if url and url.startswith("v3io://") and not url.startswith("v3io:///"):
-        url = url.replace("v3io://", "v3io:///", 1)
-    parsed_url = urlparse(url)
-    schema = parsed_url.scheme.lower()
-    endpoint = parsed_url.hostname
-    if endpoint:
-        # HACK - urlparse returns the hostname after in lower case - we want the original case:
-        # the hostname is a substring of the netloc, in which it's the original case, so we find the indexes of the
-        # hostname in the netloc and take it from there
-        lower_hostname = parsed_url.hostname
-        netloc = str(parsed_url.netloc)
-        lower_netloc = netloc.lower()
-        hostname_index_in_netloc = lower_netloc.index(str(lower_hostname))
-        endpoint = netloc[
-            hostname_index_in_netloc : hostname_index_in_netloc + len(lower_hostname)
-        ]
-    if parsed_url.port:
-        endpoint += f":{parsed_url.port}"
-    return schema, endpoint, parsed_url
 
 
 def schema_to_store(schema) -> DataStore.__subclasses__():
@@ -116,24 +91,10 @@ def uri_to_ipython(link):
     return schema_to_store(schema).uri_to_ipython(endpoint, parsed_url.path)
 
 
-class StoreManager:
+class StoreManager(BaseRemoteClientManager):
     def __init__(self, secrets=None, db=None):
+        super().__init__(secrets=secrets, db=db)
         self._stores = {}
-        self._secrets = secrets or {}
-        self._db = db
-
-    def set(self, secrets=None, db=None):
-        if db and not self._db:
-            self._db = db
-        if secrets:
-            for key, val in secrets.items():
-                self._secrets[key] = val
-        return self
-
-    def _get_db(self):
-        if not self._db:
-            self._db = mlrun.get_run_db(secrets=self._secrets)
-        return self._db
 
     def from_dict(self, struct: dict):
         stor_list = struct.get(RunKeys.data_stores)
@@ -151,9 +112,6 @@ class StoreManager:
         struct[RunKeys.data_stores] = [
             stor.to_dict() for stor in self._stores.values() if stor.from_spec
         ]
-
-    def secret(self, key):
-        return self._secrets.get(key)
 
     def _add_store(self, store):
         self._stores[store.name] = store
@@ -218,14 +176,11 @@ class StoreManager:
         store_key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"
 
         if schema == "ds":
-            datastore_profile = datastore_profile_read(url, project_name, secrets)
-            if secrets and datastore_profile.secrets():
-                secrets = merge(secrets, datastore_profile.secrets())
-            else:
-                secrets = secrets or datastore_profile.secrets()
-            url = datastore_profile.url(subpath)
-            schema, endpoint, parsed_url = parse_url(url)
-            subpath = parsed_url.path
+            secrets, url, schema, endpoint, parsed_url, subpath = (
+                self._resolve_datastore_profile(
+                    url=url, secrets=secrets, project_name=project_name, subpath=subpath
+                )
+            )
 
         if schema == "memory":
             subpath = url[len("memory://") :]

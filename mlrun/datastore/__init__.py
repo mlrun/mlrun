@@ -37,7 +37,6 @@ __all__ = [
 from urllib.parse import urlparse
 
 import fsspec
-from mergedeep import merge
 
 import mlrun.datastore.wasbfs
 from mlrun.datastore.datastore_profile import (
@@ -56,6 +55,7 @@ from ..utils import logger
 from .base import DataItem
 from .datastore import StoreManager, in_memory_store, uri_to_ipython
 from .dbfs_store import DatabricksFileBugFixed, DatabricksFileSystemDisableCache
+from .model_providers import ModelProviderManager
 from .s3 import parse_s3_bucket_and_key
 from .sources import (
     BigQuerySource,
@@ -75,6 +75,7 @@ from .targets import CSVTarget, NoSqlTarget, ParquetTarget, StreamTarget
 from .utils import get_kafka_brokers_from_dict, parse_kafka_url
 
 store_manager = StoreManager()
+model_provider_manager = ModelProviderManager()
 
 if hasattr(fsspec, "register_implementation"):
     fsspec.register_implementation(

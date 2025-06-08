@@ -214,7 +214,7 @@ class TDEngineConnector(TSDBConnector):
         :param filter_values: A single value or a list of values to filter by.
 
         :return: A string representing the filter query.
-        :raise: MLRunInvalidArgumentError if the filter column is not a string or a list.
+        :raise: MLRunInvalidArgumentError if the filter values are not of type string or list.
         """
 
         if isinstance(filter_values, str):

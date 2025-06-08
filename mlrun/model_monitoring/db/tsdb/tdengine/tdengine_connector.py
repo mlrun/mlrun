@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
 from datetime import datetime, timedelta
-from threading import Lock
 from typing import Callable, Final, Literal, Optional, Union
 
 import pandas as pd
@@ -32,8 +32,8 @@ from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
 
-_connection = None
-_connection_lock = Lock()
+# Thread-local storage for connections
+_thread_local = threading.local()
 
 
 class TDEngineTimestampPrecision(mlrun.common.types.StrEnum):
@@ -76,16 +76,15 @@ class TDEngineConnector(TSDBConnector):
 
     @property
     def connection(self) -> TDEngineConnection:
-        global _connection
-
-        if _connection:
-            return _connection
-
-        with _connection_lock:
-            if not _connection:
-                _connection = self._create_connection()
-
-        return _connection
+        if not hasattr(_thread_local, "connection"):
+            _thread_local.connection = self._create_connection()
+            logger.debug(
+                "Created new TDEngine connection for thread",
+                project=self.project,
+                thread_name=threading.current_thread().name,
+                thread_id=threading.get_ident(),
+            )
+        return _thread_local.connection
 
     def _create_connection(self) -> TDEngineConnection:
         """Establish a connection to the TSDB server."""

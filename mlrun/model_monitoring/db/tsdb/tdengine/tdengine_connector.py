@@ -208,13 +208,13 @@ class TDEngineConnector(TSDBConnector):
         filter_column: str, filter_values: Union[str, list[Union[str, int]]]
     ) -> Optional[str]:
         """
-        Generate a filter query for TDEngine based on the provided key and values.
+        Generate a filter query for TDEngine based on the provided column and values.
 
-        :param filter_column:    The key to filter by.
+        :param filter_column: The column to filter by.
         :param filter_values: A single value or a list of values to filter by.
 
         :return: A string representing the filter query.
-        :raise: MLRunInvalidArgumentError if the filter key is not a string or a list.
+        :raise: MLRunInvalidArgumentError if the filter column is not a string or a list.
         """
 
         if isinstance(filter_values, str):
@@ -223,8 +223,8 @@ class TDEngineConnector(TSDBConnector):
             return f"{filter_column} IN ({', '.join(repr(v) for v in filter_values)}) "
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid filter key {filter_column}: must be a string or a list, got {type(filter_values).__name__}; "
-                f"filter values: {filter_values}"
+                f"Invalid filter column {filter_column}: must be a string or a list, "
+                f"got {type(filter_values).__name__}; filter values: {filter_values}"
             )
 
     def _drop_database_query(self) -> str:

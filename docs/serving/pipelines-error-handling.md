@@ -1,8 +1,7 @@
-cd ..
 (pipelines-error-handling)=
 # Error handling
    
-Graph steps might raise an exception. You can define exception handling (an error handling flow) that is triggered on error. The exception can be on a:
+You can define exception handling (an error-handling flow) that is triggered on graph or step errors:
 * step: The error handler is appended to the step that, if it fails, triggers the error handling. If you want 
 the graph to continue after an error handler execution, specify the next step in the `before` parameter. 
 If you want the graph to complete after an error handler execution, omit the `before` parameter.

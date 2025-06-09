@@ -6,6 +6,7 @@ A project is a container for all the assets, configuration, and code of a partic
 <p align="center"><img src="../_static/images/project.png" alt="mlrun-project" width="600"/></p><br>
 
 **In this section**
+- [Best practices](#best-practices)
 - [Creating a project](#creating-a-project)
 - [Adding functions, artifacts, workflow, and config](#adding-functions-artifacts-workflow-and-config)
 - [Pushing the project content into git or an archive](#pushing-the-project-content-into-git-or-an-archive)

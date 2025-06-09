@@ -14,7 +14,7 @@ See the supported data stores, development tools, services, platforms, etc., sup
 **In this section**
 - [Gen AI tasks](#gen-ai-tasks) 
 - [MLOps tasks](#mlops-tasks)
-- [MLRun core components](#mlrun core components)
+- [MLRun core components](#mlrun-core-components)
 
 ## Gen AI tasks
 

@@ -190,7 +190,9 @@ class DaskCluster(KubejobRuntime):
         super().__init__(spec, metadata)
         self._cluster = None
         self.use_remote = not mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
-        self.spec.build.base_image = self.spec.build.base_image or "daskdev/dask:latest"
+        self.spec.build.base_image = (
+            self.spec.build.base_image or mlrun.mlconf.default_base_image
+        )
 
     @property
     def spec(self) -> DaskSpec:
@@ -246,7 +248,7 @@ class DaskCluster(KubejobRuntime):
         if not self.is_deployed():
             raise RunError(
                 "Function image is not built/ready, use .deploy()"
-                " method first, or set base dask image (daskdev/dask:latest)"
+                " method first, or set base dask image to mlrun/mlrun"
             )
 
         self.save(versioned=False)

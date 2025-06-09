@@ -1199,7 +1199,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 uid, mep.status.last_request
             )
 
-    def read_results_by_status(
+    def count_results_by_status(
         self,
         start: Optional[Union[datetime, str]] = None,
         end: Optional[Union[datetime, str]] = None,

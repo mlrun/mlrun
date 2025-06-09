@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
+import warnings
 from typing import Optional
 
 import IPython.display
@@ -23,6 +24,7 @@ import mlrun.lists
 import mlrun.model
 import mlrun.runtimes
 import mlrun.utils
+import mlrun.utils.version
 
 
 class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
@@ -59,6 +61,27 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
             and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
         ):
             image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
+
+        # Warn if user explicitly set the deprecated mlrun/ml-base image
+        if image and "mlrun/ml-base" in image:
+            client_version = mlrun.utils.version.Version().get()["version"]
+            auto_replaced = mlrun.utils.validate_component_version_compatibility(
+                "mlrun-client", "1.10.0", mlrun_client_version=client_version
+            )
+            message = (
+                "'mlrun/ml-base' image is deprecated in 1.10.0 and will be removed in 1.12.0, "
+                "use 'mlrun/mlrun' instead."
+            )
+            if auto_replaced:
+                message += (
+                    " Since your client version is >= 1.10.0, the image will be automatically "
+                    "replaced with mlrun/mlrun."
+                )
+            warnings.warn(
+                message,
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
+            )
 
         # TODO: need a better way to decide whether a function requires a build
         if require_build and image and not runtime.spec.build.base_image:

@@ -652,41 +652,32 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
     def _test_function_summaries(self):
         self._logger.debug("Checking function summaries")
-        # TODO: remove this if clause once TDEngine support is added (ML-10105)
-        if self._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
-            function_summaries = self.project.get_monitoring_function_summaries()
-            assert len(function_summaries) == 3 + len(self.apps_data)
-            function_summaries = self.project.get_monitoring_function_summaries(
-                include_infra=False
-            )
-            assert len(function_summaries) == len(self.apps_data)
+        function_summaries = self.project.get_monitoring_function_summaries()
+        assert len(function_summaries) == 3 + len(self.apps_data)
+        function_summaries = self.project.get_monitoring_function_summaries(
+            include_infra=False
+        )
+        assert len(function_summaries) == len(self.apps_data)
 
-            evidently_func_summary_list = (
-                self.project.get_monitoring_function_summaries(
-                    include_infra=False, names=[DemoEvidentlyMonitoringApp.NAME]
-                )
-            )
-            assert len(evidently_func_summary_list) == 1
-            evidently_func_summary = evidently_func_summary_list[0]
-            assert evidently_func_summary.name == DemoEvidentlyMonitoringApp.NAME
-            assert (
-                evidently_func_summary.status
-                == mlrun.common.schemas.FunctionState.ready
-            )
-            assert evidently_func_summary.base_period == self.app_interval
-            assert not evidently_func_summary.stats
+        evidently_func_summary_list = self.project.get_monitoring_function_summaries(
+            include_infra=False, names=[DemoEvidentlyMonitoringApp.NAME]
+        )
+        assert len(evidently_func_summary_list) == 1
+        evidently_func_summary = evidently_func_summary_list[0]
+        assert evidently_func_summary.name == DemoEvidentlyMonitoringApp.NAME
+        assert evidently_func_summary.status == mlrun.common.schemas.FunctionState.ready
+        assert evidently_func_summary.base_period == self.app_interval
+        assert not evidently_func_summary.stats
 
-            # now get function summary with stats
-            evidently_func_summary_list = (
-                self.project.get_monitoring_function_summaries(
-                    include_infra=False,
-                    names=[DemoEvidentlyMonitoringApp.NAME],
-                    include_stats=True,
-                )
-            )
-            evidently_func_summary = evidently_func_summary_list[0]
-            assert evidently_func_summary.stats["potential_detection"] == 1
-            assert evidently_func_summary.stats["detected"] == 0
+        # now get function summary with stats
+        evidently_func_summary_list = self.project.get_monitoring_function_summaries(
+            include_infra=False,
+            names=[DemoEvidentlyMonitoringApp.NAME],
+            include_stats=True,
+        )
+        evidently_func_summary = evidently_func_summary_list[0]
+        assert evidently_func_summary.stats["potential_detection"] == 1
+        assert evidently_func_summary.stats["detected"] == 0
 
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set: bool) -> None:

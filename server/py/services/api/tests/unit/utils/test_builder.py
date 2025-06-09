@@ -1031,18 +1031,6 @@ def test_resolve_build_requirements(
         ),
         (
             None,
-            "mlrun/ml-base:1.5.1",
-            "1.4.0",
-            "==1.5.1",
-        ),
-        (
-            None,
-            "somewhere/mlrun/ml-base:1.5.1",
-            "1.4.0",
-            "==1.5.1",
-        ),
-        (
-            None,
             "not-an-mlrun/image:1.5.1",
             "1.4.0",
             "==1.4.0",

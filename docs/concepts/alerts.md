@@ -14,6 +14,9 @@ Learn how to create and modify alerts and model monitoring alerts.
 - [Alert templates](#alert-templates)
 - [Creating an alert with a template](#creating-an-alert-with-a-template)
 
+See also:
+- {ref}`alert_notifications`: the alert-activation records
+
 ## System configuration 
 These variables control the basic alert behavior: 
 - `alerts.mode` &mdash; Enables/disables the feature. Enabled by default.
@@ -200,7 +203,3 @@ alert_from_template.with_notifications(notifications=notifications)
 project.store_alert_config(alert_from_template)
 ```
 
-## Alert activations
-
-When an existing alert is activated by its configured trigger, MLRun saves the activation record.
-You can view all activations of alerts: see {ref}`list-alerts`.

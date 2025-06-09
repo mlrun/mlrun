@@ -282,5 +282,31 @@ def test_to_job_with_bad_target_mapping():
     )
     target_mapping = {"parquet": new_target}
 
-    with pytest.raises(MLRunInvalidArgumentError):
+    with pytest.raises(
+        MLRunInvalidArgumentError,
+        match="Target mappings must be to a target with the same name as the one being replaced",
+    ):
         function.to_job(target_mapping=target_mapping)
+
+
+def test_to_job_on_function_with_children():
+    function = mlrun.code_to_function(
+        name="test", kind="serving", filename=str(custom_classes_path)
+    )
+    graph = function.set_topology("flow", engine="async")
+
+    child = function.add_child_function(
+        "my-child-function", __file__, image="some-image"
+    )
+
+    graph.to(name="increaser", class_name="SepalLengthIncreaser")
+    graph.to(name="queue", class_name=">>", path="some/path")
+    graph.to(
+        name="parquet", class_name="storey.ParquetTarget", path="some/path", func=child
+    )
+
+    with pytest.raises(
+        MLRunInvalidArgumentError,
+        match="Cannot convert function 'test' to a job because it has child functions",
+    ):
+        function.to_job()

@@ -825,6 +825,11 @@ class ServingRuntime(RemoteRuntime):
         :param target_mapping: Set this to map targets in this ServingRuntime to other targets that will run as
           part of the standalone job. For example, you may wish to replace a ParquetTarget in order to change its path.
         """
+        if self.spec.function_refs:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Cannot convert function '{self.metadata.name}' to a job because it has child functions"
+            )
+
         serving_job = self.copy()
         if target_mapping:
             for from_name, to_step in target_mapping.items():

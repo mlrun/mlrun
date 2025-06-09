@@ -256,8 +256,9 @@ def test_build_config_with_multiple_commands():
     fn.build_config(commands=["pip install pandas", "pip install numpy"])
     assert len(fn.spec.build.commands) == 2
 
+    # By default, overwrite=True, which means the existing parameters are replaced with the new ones
     fn.build_config(commands=["pip install pandas"])
-    assert len(fn.spec.build.commands) == 2
+    assert len(fn.spec.build.commands) == 1
 
 
 def test_build_config_preserve_order():

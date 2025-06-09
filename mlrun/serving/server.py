@@ -416,7 +416,7 @@ async def async_execute_graph(
     data: DataItem,
     batching: bool,
     batch_size: Optional[int],
-) -> (list[Any], Any):
+) -> list[Any]:
     spec = mlrun.utils.get_serving_spec()
 
     source_filename = spec.get("filename", None)
@@ -474,9 +474,9 @@ async def async_execute_graph(
 
     termination_result = server.wait_for_completion()
     if asyncio.iscoroutine(termination_result):
-        termination_result = await termination_result
+        await termination_result
 
-    return responses, termination_result
+    return responses
 
 
 def execute_graph(
@@ -494,7 +494,7 @@ def execute_graph(
     :param batch_size: The number of rows to push per batch. If not set, and batching=True, the entire dataset will
         be pushed into the graph in one batch.
 
-    :return: A list of responses, and the graph's termination result.
+    :return: A list of responses.
     """
     return asyncio.run(async_execute_graph(context, data, batching, batch_size))
 

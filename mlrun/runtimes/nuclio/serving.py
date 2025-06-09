@@ -43,6 +43,7 @@ from mlrun.serving.states import (
 )
 from mlrun.utils import get_caller_globals, logger, set_paths
 
+from ... import MLRunInvalidArgumentError
 from .. import KubejobRuntime
 from ..pod import KubeResourceSpec
 from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions
@@ -828,11 +829,15 @@ class ServingRuntime(RemoteRuntime):
         serving_job = self.copy()
         if target_mapping:
             for from_name, to_step in target_mapping.items():
+                if from_name != to_step.name:
+                    raise MLRunInvalidArgumentError(
+                        "Target mappings must be to a target with the same name as the one being replaced"
+                    )
                 to_step = to_step.copy()
                 to_step.after = serving_job.spec.graph.steps[from_name].after
                 to_step.responder = serving_job.spec.graph.steps[from_name].responder
                 del serving_job.spec.graph.steps[from_name]
-                serving_job.spec.graph.steps[to_step.name] = to_step
+                serving_job.spec.graph.steps[from_name] = to_step
 
         spec = KubeResourceSpec(
             image=serving_job.spec.image,

@@ -210,7 +210,7 @@ def test_run_local_serving_job(batching, batch_size):
     params = {"batching": batching, "batch_size": batch_size}
 
     result = project.run_function(job, inputs=inputs, params=params, local=True)
-    responses = eval(result.status.results["return"])
+    responses = result.status.results["return"]
 
     num_input_rows = 150  # number of rows in input file
     if batching:

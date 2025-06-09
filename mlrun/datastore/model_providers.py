@@ -16,7 +16,16 @@ from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar
 
 import mlrun
-from mlrun.datastore.abstract_base import BaseRemoteClient, BaseRemoteClientManager
+from mlrun.artifacts.llm_prompt import LLMPromptArtifact
+from mlrun.artifacts.model import ModelArtifact
+from mlrun.datastore.abstract_base import (
+    BaseRemoteClient,
+    BaseRemoteClientManager,
+    parse_url,
+)
+from mlrun.errors import err_to_str
+
+from .store_resources import ResourceRemoteClient, get_store_resource
 
 T = TypeVar("T")
 
@@ -46,6 +55,10 @@ class ModelProvider(BaseRemoteClient, ABC):
     @property
     def client(self):
         return self._client
+
+    @classmethod
+    def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):
+        return endpoint, subpath
 
 
 class AsyncModelProvider(ModelProvider, ABC):
@@ -97,6 +110,13 @@ class OpenAIProvider(AsyncModelProvider):
         )
         self.options = self.get_client_options()
         self.load_client()
+
+    @classmethod
+    def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):
+        endpoint = endpoint + subpath
+        #  in openai there is no usage of subpath variable. if the model contains "/", it is part of the model name.
+        subpath = ""
+        return endpoint, subpath
 
     @property
     def model(self):
@@ -157,17 +177,72 @@ class OpenAIProvider(AsyncModelProvider):
         self._default_operation(model=self.endpoint, messages=messages)
 
 
-def schema_to_model_provider(schema: str) -> ModelProvider.__subclasses__():
+def schema_to_model_provider(schema: str) -> type[ModelProvider]:
     #  TODO add hugging face and http
     schema_dict = {"openai": OpenAIProvider}
     provider_class = schema_dict.get(schema, None)
     if not provider_class:
         raise ValueError(f"unsupported model provider scheme ({schema})")
+    return provider_class
 
 
 class ModelProviderManager(BaseRemoteClientManager):
     def __init__(self, secrets=None, db=None):
         super().__init__(secrets=secrets, db=db)
+
+    def get_or_create_model_provider(
+        self, url, secrets: Optional[dict] = None, project_name="", **client_kwargs
+    ) -> (ModelProvider, str, str):
+        schema, endpoint, parsed_url = parse_url(url)
+        subpath = parsed_url.path
+
+        if schema == "ds":
+            secrets, url, schema, endpoint, parsed_url, subpath = (
+                self._resolve_datastore_profile(
+                    url=url, secrets=secrets, project_name=project_name, subpath=subpath
+                )
+            )
+
+        model_provider_class = schema_to_model_provider(schema)
+        endpoint, subpath = model_provider_class.parse_endpoint_and_path(
+            endpoint=endpoint, subpath=subpath
+        )
+        key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"
+
+        model_provider = model_provider_class(
+            parent=self,
+            name=key,
+            kind=schema,
+            endpoint=endpoint,
+            secrets=secrets,
+            **client_kwargs,
+        )
+        return model_provider
+
+    def get_model_artifact(
+        self, url, project="", allow_empty_resources=None, secrets=None
+    ):
+        try:
+            resource = get_store_resource(
+                url,
+                db=self._get_db(),
+                secrets=self._secrets,
+                project=project,
+                data_store_secrets=secrets,
+                fallback_manager=ResourceRemoteClient.MODEL_PROVIDER,
+            )
+        except Exception as exc:
+            raise OSError(f"artifact {url} not found, {err_to_str(exc)}")
+        if not isinstance(resource, (ModelArtifact, LLMPromptArtifact)):
+            raise mlrun.errors.MLRunRuntimeError(
+                "The resource is neither a ModelArtifact nor an LLMPromptArtifact"
+            )
+        url = resource.model_url
+        if not url and not allow_empty_resources:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Resource {url} does not have a valid/persistent offline target"
+            )
+        return resource, url or ""  # TODO check if url is needed
 
     def object(
         self,
@@ -177,15 +252,11 @@ class ModelProviderManager(BaseRemoteClientManager):
         allow_empty_resources=None,
         secrets: Optional[dict] = None,
     ) -> ModelProvider:
-        # TODO
-        # if is_store_uri(url):
-        #     artifact_url = url
-        #     resource = self._get_db().read_artifact(
-        #         key,
-        #         project=project,
-        #         tag=tag,
-        #         iter=iteration,
-        #         tree=tree,
-        #         uid=uid,
-        #     )
-        return None
+        if mlrun.datastore.is_store_uri(url):
+            resource, _ = self.get_model_artifact(
+                url, project, allow_empty_resources, secrets
+            )
+        model_provider = self.get_or_create_model_provider(
+            url, secrets=secrets, project_name=project
+        )
+        return model_provider

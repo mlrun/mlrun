@@ -262,7 +262,9 @@ class BackgroundTaskStatus(storey.MapClass):
             and (
                 self._background_task_check_timestamp is None
                 or mlrun.utils.now_date() - self._background_task_check_timestamp
-                >= timedelta(seconds=15)
+                >= timedelta(
+                    seconds=mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_creation_check
+                )
             )
         ):
             background_task = mlrun.get_run_db().get_project_background_task(

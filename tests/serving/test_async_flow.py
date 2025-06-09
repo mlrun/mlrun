@@ -255,10 +255,10 @@ def test_model_runner_add_model(method: str):
         graph.to(name="echo", class_name="Echo").to(model_runner_step).respond()
     elif method == "set_flow":
         graph.set_flow([model_runner_step]).respond()
-    assert [
+    assert graph.model_endpoints_names == [
         "my_model_1",
         "my_model_2",
-    ] == graph.model_endpoints_names, "model endpoints name not in graph"
+    ],  "model endpoints name not in graph"
 
     server = function.to_mock_server()
     try:

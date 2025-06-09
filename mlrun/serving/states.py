@@ -406,7 +406,8 @@ class BaseStep(ModelObj):
             class_args=class_args,
             model_endpoint_creation_strategy=model_endpoint_creation_strategy,
         )
-
+        # Make sure model endpoint was not introduce in ModelRunnerStep
+        self.check_model_endpoint_existence(step, model_endpoint_creation_strategy)
         self.verify_model_runner_step(step)
 
         step = parent._steps.update(name, step)
@@ -453,11 +454,45 @@ class BaseStep(ModelObj):
     def supports_termination(self):
         return False
 
-    def verify_model_runner_step(self, step: "ModelRunnerStep"):
+    def check_model_endpoint_existence(self, step, model_endpoint_creation_strategy):
+        """
+        Verify that model endpoint name is not duplicate, in flow graph.
+        :param step: ModelRunnerStep to verify
+        :param model_endpoint_creation_strategy: model_endpoint_creation_strategy: Strategy for creating or updating
+               the model endpoint:
+            """
+        if (isinstance(step, TaskStep) and not isinstance(step, ModelRunnerStep) and
+                model_endpoint_creation_strategy != schemas.ModelEndpointCreationStrategy.SKIP):
+            root = self
+            while root.parent is not None:
+                root = root.parent
+            if not isinstance(root, RootFlowStep):
+                return
+            models = []
+            if isinstance(step, RouterStep):
+                for route in step.routes.values():
+                    if route.name in root.model_endpoints_names:
+                        raise GraphError(
+                            "Cannot add router step containing the same model endpoint name as "
+                            "ModelRunnerStep model")
+                    models.append(route.name)
+            else:
+                if step.name in root.model_endpoints_names:
+                    raise GraphError("Cannot add router step or task step containing the same model endpoint name as "
+                                     "ModelRunnerStep model")
+                models.append(step.name)
+            root.update_model_endpoints_routes_names(models)
+            return
+
+    def verify_model_runner_step(
+            self,
+            step: "ModelRunnerStep",
+    ):
         """
         Verify ModelRunnerStep, can be part of Flow graph and models can not repeat in graph.
         :param step: ModelRunnerStep to verify
         """
+
         if not isinstance(step, ModelRunnerStep):
             return
 
@@ -480,8 +515,17 @@ class BaseStep(ModelObj):
             raise GraphError(
                 f"The graph already contains the model endpoints named - {common_endpoints_names}."
             )
-        else:
-            root.extend_model_endpoints_names(step_model_endpoints_names)
+        elif not common_endpoints_names:
+            common_endpoints_names = list(
+            set(root.model_endpoints_routes_names) & set(step_model_endpoints_names)
+        )
+            if common_endpoints_names:
+                raise GraphError(
+                    f"The graph already contains the model endpoints named - {common_endpoints_names} as part of route "
+                    f"step or task step."
+                )
+
+        root.extend_model_endpoints_names(step_model_endpoints_names)
         root.include_model_runner = True
 
 
@@ -875,7 +919,6 @@ class RouterStep(TaskStep):
                            2. Create a new model endpoint with the same name and set it to `latest`.
 
         """
-
         if len(self.routes.keys()) >= MAX_MODELS_PER_ROUTER and key not in self.routes:
             raise mlrun.errors.MLRunModelLimitExceededError(
                 f"Router cannot support more than {MAX_MODELS_PER_ROUTER} model endpoints. "
@@ -895,6 +938,8 @@ class RouterStep(TaskStep):
                 if self.class_name and "serving.VotingEnsemble" in self.class_name
                 else schemas.EndpointType.NODE_EP,
             )
+            self.check_model_endpoint_existence(route, creation_strategy)
+
         route.function = function or route.function
 
         route = self._routes.update(key, route)
@@ -1547,6 +1592,8 @@ class FlowStep(BaseStep):
             class_args=class_args,
         )
 
+        # Make sure model endpoint was not introduce in ModelRunnerStep
+        self.check_model_endpoint_existence(step, model_endpoint_creation_strategy)
         self.verify_model_runner_step(step)
 
         after_list = after if isinstance(after, list) else [after]
@@ -1976,6 +2023,7 @@ class RootFlowStep(FlowStep):
         "on_error",
         "model_endpoints_names",
         "include_model_runner",
+        "model_endpoints_routes_names",
     ]
 
     def __init__(
@@ -1994,6 +2042,7 @@ class RootFlowStep(FlowStep):
             final_step,
         )
         self._models = []
+        self._route_models = set()
         self.include_model_runner = False
 
     @property
@@ -2006,6 +2055,17 @@ class RootFlowStep(FlowStep):
 
     def extend_model_endpoints_names(self, model_endpoints_names: list):
         self._models.extend(model_endpoints_names)
+
+    @property
+    def model_endpoints_routes_names(self) -> list[str]:
+        return list(self._route_models)
+
+    @model_endpoints_routes_names.setter
+    def model_endpoints_routes_names(self, models: list[str]):
+        self._route_models = set(models)
+
+    def update_model_endpoints_routes_names(self, model_endpoints_names: list):
+        self._route_models.update(model_endpoints_names)
 
 
 classes_map = {

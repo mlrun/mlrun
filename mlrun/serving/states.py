@@ -460,9 +460,13 @@ class BaseStep(ModelObj):
         :param step: ModelRunnerStep to verify
         :param model_endpoint_creation_strategy: model_endpoint_creation_strategy: Strategy for creating or updating
                the model endpoint:
-            """
-        if (isinstance(step, TaskStep) and not isinstance(step, ModelRunnerStep) and
-                model_endpoint_creation_strategy != schemas.ModelEndpointCreationStrategy.SKIP):
+        """
+        if (
+            isinstance(step, TaskStep)
+            and not isinstance(step, ModelRunnerStep)
+            and model_endpoint_creation_strategy
+            != schemas.ModelEndpointCreationStrategy.SKIP
+        ):
             root = self
             while root.parent is not None:
                 root = root.parent
@@ -474,19 +478,22 @@ class BaseStep(ModelObj):
                     if route.name in root.model_endpoints_names:
                         raise GraphError(
                             "Cannot add router step containing the same model endpoint name as "
-                            "ModelRunnerStep model")
+                            "ModelRunnerStep model"
+                        )
                     models.append(route.name)
             else:
                 if step.name in root.model_endpoints_names:
-                    raise GraphError("Cannot add router step or task step containing the same model endpoint name as "
-                                     "ModelRunnerStep model")
+                    raise GraphError(
+                        "Cannot add router step or task step containing the same model endpoint name as "
+                        "ModelRunnerStep model"
+                    )
                 models.append(step.name)
             root.update_model_endpoints_routes_names(models)
             return
 
     def verify_model_runner_step(
-            self,
-            step: "ModelRunnerStep",
+        self,
+        step: "ModelRunnerStep",
     ):
         """
         Verify ModelRunnerStep, can be part of Flow graph and models can not repeat in graph.
@@ -517,8 +524,8 @@ class BaseStep(ModelObj):
             )
         elif not common_endpoints_names:
             common_endpoints_names = list(
-            set(root.model_endpoints_routes_names) & set(step_model_endpoints_names)
-        )
+                set(root.model_endpoints_routes_names) & set(step_model_endpoints_names)
+            )
             if common_endpoints_names:
                 raise GraphError(
                     f"The graph already contains the model endpoints named - {common_endpoints_names} as part of route "
@@ -932,16 +939,16 @@ class RouterStep(TaskStep):
             route = TaskStep(
                 class_name,
                 class_args,
+                name=key,
                 handler=handler,
                 model_endpoint_creation_strategy=creation_strategy,
                 endpoint_type=schemas.EndpointType.LEAF_EP
                 if self.class_name and "serving.VotingEnsemble" in self.class_name
                 else schemas.EndpointType.NODE_EP,
             )
-            self.check_model_endpoint_existence(route, creation_strategy)
 
         route.function = function or route.function
-
+        self.check_model_endpoint_existence(route, creation_strategy)
         route = self._routes.update(key, route)
         route.set_parent(self)
         return route

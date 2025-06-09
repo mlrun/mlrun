@@ -477,6 +477,7 @@ class ServingRuntime(RemoteRuntime):
                 state = TaskStep(
                     class_name,
                     class_args,
+                    name=key,
                     handler=handler,
                     function=child_function,
                     model_endpoint_creation_strategy=creation_strategy,

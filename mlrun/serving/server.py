@@ -352,6 +352,7 @@ def add_error_raiser_step(
                 full_event=True,
                 raise_exception=model_runner_step.raise_exception,
                 models_names=list(model_runner_step.class_args["models"].keys()),
+                model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
             )
             if model_runner_step.responder:
                 model_runner_step.responder = False
@@ -379,12 +380,14 @@ def add_monitoring_general_steps(
         "mlrun.serving.system_steps.BackgroundTaskStatus",
         "background_task_status_step",
         context=context,
+        model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
     )
     graph.add_step(
         "storey.Filter",
         "filter_none",
         _fn="(event is not None)",
         after="background_task_status_step",
+        model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
     )
     graph.add_step(
         "mlrun.serving.system_steps.MonitoringPreProcessor",
@@ -392,6 +395,7 @@ def add_monitoring_general_steps(
         after="filter_none",
         full_event=True,
         context=context,
+        model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
     )
     # flatten the events
     graph.add_step(
@@ -399,6 +403,7 @@ def add_monitoring_general_steps(
         "flatten_events",
         _fn="(event)",
         after="monitoring_pre_processor_step",
+        model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
     )
     graph.add_step(
         "mlrun.serving.system_steps.SamplingStep",
@@ -411,12 +416,14 @@ def add_monitoring_general_steps(
                 "sampling_percentage", 100
             ),
         ),
+        model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
     )
     graph.add_step(
         "storey.Filter",
         "filter_none_2",
         _fn="(event is not None)",
         after="sampling_step",
+        model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
     )
 
     if getattr(context, "is_mock", False):
@@ -424,6 +431,7 @@ def add_monitoring_general_steps(
             "mlrun.serving.system_steps.MockStreamPusher",
             "model_monitoring_stream",
             after="filter_none_2",
+            model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
         )
     else:
         stream_uri = mlrun.model_monitoring.get_stream_path(

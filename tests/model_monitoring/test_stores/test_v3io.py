@@ -391,10 +391,10 @@ def test_normalize_dict_for_v3io_frames(
 
 
 @pytest.mark.usefixtures("_mock_frames_client_extended")
-def test_read_results_by_status():
+def count_read_results_by_status():
     """Test reading results by status from V3IOTSDBConnector."""
     tsdb_connector = V3IOTSDBConnector(project="fictitious-one")
-    data = tsdb_connector.read_results_by_status()
+    data = tsdb_connector.count_results_by_status()
 
     assert len(data) == 4
     assert data[("histogram-data-drift", 1)] == 1
@@ -402,11 +402,11 @@ def test_read_results_by_status():
     assert data[("test-app", 1)] == 1
     assert data[("test-app-v2", 0)] == 1
 
-    data = tsdb_connector.read_results_by_status(result_status_list=[1])
+    data = tsdb_connector.count_results_by_status(result_status_list=[1])
     assert len(data) == 2
 
-    data = tsdb_connector.read_results_by_status(result_status_list=[1, 0])
+    data = tsdb_connector.count_results_by_status(result_status_list=[1, 0])
     assert len(data) == 3
 
-    data = tsdb_connector.read_results_by_status(result_status_list=[-1])
+    data = tsdb_connector.count_results_by_status(result_status_list=[-1])
     assert len(data) == 0

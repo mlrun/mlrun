@@ -187,7 +187,7 @@ class ModelArtifact(Artifact):
         :param model_url:       Remote model url.
         :param default_config:  Default configuration for client building
                                 Saved as a sub-dictionary under the parameter.
-        :param kwargs:
+        :param kwargs:          Arguments to pass to the artifact class.
         """
         if key or body or format or target_path:
             warnings.warn(
@@ -366,7 +366,7 @@ class ModelArtifact(Artifact):
     def before_log(self):
         if not self.spec.model_file and not self.spec.model_url:
             raise ValueError(
-                "ModelArtifact must have either model_file or model_url attributes"
+                "ModelArtifact must have either 'model_file' or 'model_url' attributes"
             )
 
         super().before_log()
@@ -479,7 +479,7 @@ def get_model(
     ] = None,
     suffix="",
 ) -> (str, ModelArtifact, dict):
-    """return model file, model spec object, and dictionary of extra data items
+    """Return model file, model spec object, and dictionary of extra data items
 
     this function will get the model file, metadata, and extra data
     the returned model file is always local, when using remote urls

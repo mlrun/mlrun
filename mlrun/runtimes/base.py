@@ -608,7 +608,7 @@ class BaseRuntime(ModelObj):
             new_state = mlrun.common.runtimes.constants.RunStates.error
             status_text = None
             max_retries = get_in(resp, "spec.retry.count", 0)
-            retry_count = get_in(resp, "status.retry_count", 0)
+            retry_count = get_in(resp, "status.retry_count", 0) or 0
             if max_retries and retry_count < max_retries:
                 new_state = mlrun.common.runtimes.constants.RunStates.pending_retry
             elif max_retries and retry_count >= max_retries:

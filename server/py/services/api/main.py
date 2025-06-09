@@ -950,6 +950,8 @@ class Service(framework.service.Service):
             futures = []
             for run_dict in runs:
                 run = mlrun.RunObject.from_dict(run_dict)
+                # retry_count may be None on the first attempt
+                run.status.retry_count = run.status.retry_count or 0
                 # sanity
                 if not run.status.retry_count < run.spec.retry.count:
                     self._logger.debug(

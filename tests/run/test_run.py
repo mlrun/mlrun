@@ -394,11 +394,16 @@ def test_code_to_function_file_include_invalid_handler_name_for_nuclio_mlrun_run
 
 def test_move_to_pending_retry_state(rundb_mock):
     function = new_function(command=f"{assets_path}/kwargs.py")
-    result = function.run(
-        runspec={"spec": {"retry": {"count": 10}}},
-        local=True,
-        handler="func_with_default",
-    )
+    with pytest.raises(mlrun.runtimes.RunError) as exc:
+        function.run(
+            runspec={"spec": {"retry": {"count": 10}}},
+            local=True,
+            handler="func_with_default",
+        )
+        assert "Run is pending retry, error: kwargs is empty" in str(exc)
+
+    result = rundb_mock.list_runs()[0]
     assert (
-        result.status.state == mlrun.common.runtimes.constants.RunStates.pending_retry
+        result["status"]["state"]
+        == mlrun.common.runtimes.constants.RunStates.pending_retry
     ), "Expected run state to be pending_retry"

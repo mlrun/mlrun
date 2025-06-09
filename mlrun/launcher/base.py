@@ -415,7 +415,14 @@ class BaseLauncher(abc.ABC):
                         state=run.status.state,
                         status=run.status.to_dict(),
                     )
-                raise mlrun.runtimes.utils.RunError(run.error)
+
+                error = run.error
+                if (
+                    run.status.state
+                    == mlrun.common.runtimes.constants.RunStates.pending_retry
+                ):
+                    error = f"Run is pending retry, error: {run.error}"
+                raise mlrun.runtimes.utils.RunError(error)
             return run
 
         return None

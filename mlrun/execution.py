@@ -93,7 +93,7 @@ class MLClientCtx:
         self._notifications = []
         self._state_thresholds = {}
         self._retry_spec = {}
-        self._retry_count = 0
+        self._retry_count = None
 
         self._labels = {}
         self._annotations = {}
@@ -467,7 +467,7 @@ class MLClientCtx:
             for key, uri in status.get("artifact_uris", {}).items():
                 self._artifacts_manager.artifact_uris[key] = uri
             self._state = status.get("state", self._state)
-            self._retry_count = status.get("retry_count", 0)
+            self._retry_count = status.get("retry_count", self._retry_count)
 
         # No need to store the run for every worker
         if store_run and self.is_logging_worker():
@@ -1154,6 +1154,7 @@ class MLClientCtx:
         if error is not None:
             new_state = mlrun.common.runtimes.constants.RunStates.error
             max_retries = self._retry_spec.get("count", 0)
+            self._retry_count = self._retry_count or 0
             if max_retries and self._retry_count < max_retries:
                 new_state = mlrun.common.runtimes.constants.RunStates.pending_retry
 

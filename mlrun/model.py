@@ -1381,7 +1381,7 @@ class RunStatus(ModelObj):
         self.notifications = notifications or {}
         # Artifact key -> URI mapping, since the full artifacts are not stored in the runs DB table
         self._artifact_uris = artifact_uris or {}
-        self._retry_count = retry_count or 0
+        self._retry_count = retry_count or None
 
     @classmethod
     def from_dict(

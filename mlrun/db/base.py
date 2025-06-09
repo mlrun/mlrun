@@ -185,6 +185,7 @@ class RunDBInterface(ABC):
         kind: Optional[str] = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: Optional[str] = None,
+        parent: Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         limit: Optional[int] = None,
         partition_by: Optional[
@@ -441,10 +442,10 @@ class RunDBInterface(ABC):
     ) -> dict:
         pass
 
-    # TODO: remove in 1.9.0
+    # TODO: remove in 1.10.0
     @deprecated(
-        version="1.9.0",
-        reason="'list_features' will be removed in 1.9.0, use 'list_features_v2' instead",
+        version="1.7.0",
+        reason="'list_features' will be removed in 1.10.0, use 'list_features_v2' instead",
         category=FutureWarning,
     )
     @abstractmethod
@@ -469,10 +470,10 @@ class RunDBInterface(ABC):
     ) -> mlrun.common.schemas.FeaturesOutputV2:
         pass
 
-    # TODO: remove in 1.9.0
+    # TODO: remove in 1.10.0
     @deprecated(
-        version="1.9.0",
-        reason="'list_entities' will be removed in 1.9.0, use 'list_entities_v2' instead",
+        version="1.7.0",
+        reason="'list_entities' will be removed in 1.10.0, use 'list_entities_v2' instead",
         category=FutureWarning,
     )
     @abstractmethod
@@ -1116,6 +1117,19 @@ class RunDBInterface(ABC):
         credentials: dict[str, Optional[str]],
         replace_creds: bool,
     ) -> None:
+        pass
+
+    @abstractmethod
+    def get_monitoring_function_summaries(
+        self,
+        project: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        names: Optional[Union[list[str], str]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        include_stats: bool = False,
+        include_infra: bool = True,
+    ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
         pass
 
     @abstractmethod

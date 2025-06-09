@@ -32,12 +32,14 @@ import storey.utils
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas as schemas
+from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaSource,
     DatastoreProfileKafkaTarget,
     DatastoreProfileV3io,
     datastore_profile_read,
 )
+from mlrun.datastore.store_resources import get_store_resource
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import logger
 
@@ -47,7 +49,7 @@ from ..datastore.utils import (
     get_kafka_brokers_from_dict,
     parse_kafka_url,
 )
-from ..errors import MLRunInvalidArgumentError, err_to_str
+from ..errors import MLRunInvalidArgumentError, ModelRunnerError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, get_function, is_explicit_ack_supported
@@ -955,9 +957,32 @@ class RouterStep(TaskStep):
 
 
 class Model(storey.ParallelExecutionRunnable):
+    def __init__(
+        self,
+        name: str,
+        raise_exception: bool = True,
+        artifact_uri: Optional[str] = None,
+        **kwargs,
+    ):
+        super().__init__(name=name, raise_exception=raise_exception, **kwargs)
+        if artifact_uri is not None and not isinstance(artifact_uri, str):
+            raise MLRunInvalidArgumentError("'artifact_uri' argument must be a string")
+        self.artifact_uri = artifact_uri
+
     def load(self) -> None:
         """Override to load model if needed."""
         pass
+
+    def _get_artifact_object(self) -> Union[ModelArtifact, None]:
+        if self.artifact_uri:
+            if mlrun.datastore.is_store_uri(self.artifact_uri):
+                return get_store_resource(self.artifact_uri)
+            else:
+                raise ValueError(
+                    "Could not get artifact, 'artifact_uri' must be a valid artifact store URI"
+                )
+        else:
+            return None
 
     def init(self):
         self.load()
@@ -975,6 +1000,37 @@ class Model(storey.ParallelExecutionRunnable):
 
     async def run_async(self, body: Any, path: str) -> Any:
         return self.predict(body)
+
+    def get_local_model_path(self, suffix="") -> (str, dict):
+        """
+        Get local model file(s) and extra data items by using artifact.
+
+        If the model file is stored in remote cloud storage, this method downloads
+        it to the local file system.
+
+        :param suffix: Optional; model file suffix (used when the model path is a directory).
+        :type suffix: str
+
+        :return: A tuple containing:
+            - str: Local model file path.
+            - dict: Dictionary of extra data items.
+        :rtype: tuple
+
+        :example:
+
+            def load(self):
+                model_file, extra_data = self.get_local_model_path(suffix=".pkl")
+                self.model = load(open(model_file, "rb"))
+                categories = extra_data["categories"].as_df()
+
+        """
+        artifact = self._get_artifact_object()
+        if artifact:
+            model_file, _, extra_dataitems = mlrun.artifacts.get_model(
+                suffix=suffix, model_dir=artifact
+            )
+            return model_file, extra_dataitems
+        return None, None
 
 
 class ModelSelector:
@@ -1022,14 +1078,18 @@ class ModelRunnerStep(TaskStep, StepToDict):
 
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
       event. Optional. If not passed, all models will be run.
+    :param raise_exception:  If True, an error will be raised when model selection fails or if one of the models raised
+      an error. If False, the error will appear in the output event.
     """
 
     kind = "model_runner"
+    _dict_fields = TaskStep._dict_fields + ["raise_exception"]
 
     def __init__(
         self,
         *args,
         model_selector: Optional[Union[str, ModelSelector]] = None,
+        raise_exception: bool = True,
         **kwargs,
     ):
         super().__init__(
@@ -1038,6 +1098,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
             class_args=dict(model_selector=model_selector),
             **kwargs,
         )
+        self.raise_exception = raise_exception
 
     def add_model(
         self,
@@ -1084,6 +1145,14 @@ class ModelRunnerStep(TaskStep, StepToDict):
         """
         # TODO allow model_class as Model object as part of ML-9924
         model_parameters = model_parameters or {}
+        model_artifact = (
+            model_artifact.uri
+            if isinstance(model_artifact, mlrun.artifacts.Artifact)
+            else model_artifact
+        )
+        model_parameters["artifact_uri"] = model_parameters.get(
+            "artifact_uri", model_artifact
+        )
         if model_parameters.get("name", endpoint_name) != endpoint_name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Inconsistent name for model added to ModelRunnerStep."
@@ -1106,9 +1175,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
             schemas.MonitoringData.INPUT_PATH: input_path,
             schemas.MonitoringData.CREATION_STRATEGY: creation_strategy,
             schemas.MonitoringData.LABELS: labels,
-            schemas.MonitoringData.MODEL_PATH: model_artifact.uri
-            if isinstance(model_artifact, mlrun.artifacts.Artifact)
-            else model_artifact,
+            schemas.MonitoringData.MODEL_PATH: model_artifact,
         }
         self.class_args[schemas.ModelRunnerStepData.MODELS] = models
         self.class_args[schemas.ModelRunnerStepData.MONITORING_DATA] = monitoring_data
@@ -1121,12 +1188,40 @@ class ModelRunnerStep(TaskStep, StepToDict):
         model_objects = []
         for model, model_params in models.values():
             if not isinstance(model, Model):
+                # prevent model predict from raising error
+                model_params["raise_exception"] = False
                 model = get_class(model, namespace)(**model_params)
+            else:
+                # prevent model predict from raising error
+                model._raise_exception = False
             model_objects.append(model)
         self._async_object = ModelRunner(
             model_selector=model_selector,
             runnables=model_objects,
         )
+
+
+class ModelRunnerErrorRaiser(storey.MapClass):
+    def __init__(self, raise_exception: bool, models_names: list[str], **kwargs):
+        super().__init__(**kwargs)
+        self._raise_exception = raise_exception
+        self._models_names = models_names
+
+    def do(self, event):
+        if self._raise_exception:
+            errors = {}
+            should_raise = False
+            if len(self._models_names) == 1:
+                should_raise = event.body.get("error") is not None
+                errors[self._models_names[0]] = event.body.get("error")
+            else:
+                for model in event.body:
+                    errors[model] = event.body.get(model).get("error")
+                    if errors[model] is not None:
+                        should_raise = True
+            if should_raise:
+                raise ModelRunnerError(models_errors=errors)
+        return event
 
 
 class QueueStep(BaseStep, StepToDict):

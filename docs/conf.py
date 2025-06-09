@@ -81,7 +81,8 @@ language = "en"
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = [
-    "_build",
+    "_build/**",
+    ".venv/**",
     "CONTRIBUTING.md",
 ]
 
@@ -135,7 +136,7 @@ html_theme_options = {
 }
 
 html_sidebars = {
-    "**": ["navbar-logo.html", "search-field.html", "sbt-sidebar-nav.html"]
+    "**": ["navbar-logo.html", "search-button-field.html", "sbt-sidebar-nav.html"]
 }
 
 copybutton_selector = "div:not(.output) > div.highlight pre"

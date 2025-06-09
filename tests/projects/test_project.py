@@ -1314,6 +1314,7 @@ def test_function_receives_project_artifact_path(rundb_mock):
     rundb_mock.reset()
 
     proj1.spec.artifact_path = "/var"
+    mlrun.get_run_db().store_project("proj1", proj1)
 
     func2 = mlrun.code_to_function(
         "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
@@ -1332,13 +1333,6 @@ def test_function_receives_project_artifact_path(rundb_mock):
 
     rundb_mock.reset()
     mlrun.pipeline_context.clear(with_project=True)
-
-    func3 = mlrun.code_to_function(
-        "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
-    )
-    # expected to call `get_project`, but the project wasn't saved yet, so it will use the default artifact path
-    run5 = func3.run(local=True, project="proj1")
-    assert run5.spec.output_path == mlrun.mlconf.artifact_path
 
     proj1.set_function(func_path, "func", kind="job", image="mlrun/mlrun")
     run = proj1.run_function("func", local=True)
@@ -1476,6 +1470,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
     assert run1.spec.output_path == mlrun.mlconf.artifact_path
     rundb_mock.reset()
 
+    mlrun.get_run_db().store_project("proj1", proj1)
     proj1.spec.artifact_path = "/var"
 
     run2 = proj1.run_function("f1", local=True)
@@ -1646,10 +1641,9 @@ def test_validating_large_int_params(
     rundb_mock, parameters, hyperparameters, expectation, run_saved
 ):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
-    proj1 = mlrun.new_project("proj1", save=False)
+    proj1 = mlrun.new_project("proj1")
     proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
 
-    rundb_mock.reset()
     with expectation:
         proj1.run_function(
             "f1",
@@ -1869,7 +1863,6 @@ def test_init_function_from_dict_function_in_spec():
                 },
                 "description": "",
                 "disable_auto_mount": False,
-                "clone_target_dir": "/home/mlrun_code/",
                 "replicas": 1,
                 "image_pull_policy": "Always",
                 "priority_class_name": "dummy-class",
@@ -2362,19 +2355,19 @@ def test_project_build_image(
 
     (
         build_config,
-        clone_target_dir,
+        source_code_target_dir,
     ) = remote_builder_mock.get_build_config_and_target_dir()
 
     # If pull-at-runtime, then source will not be provided to the build process since no configuration is needed
-    # at build time. Also, there will be no clone_target_dir, since no pulling/cloning is happening at build.
+    # at build time. Also, there will be no source_code_target_dir, since no pulling/cloning is happening at build.
     if pull_at_runtime:
         assert build_config.load_source_on_run is None
         assert build_config.source is None
-        assert clone_target_dir is None
+        assert source_code_target_dir is None
     else:
         assert not build_config.load_source_on_run
         assert build_config.source == source_url
-        assert clone_target_dir == target_dir
+        assert source_code_target_dir == target_dir
 
     assert build_config.image == image_name
     # If no base image was used, then mlrun/mlrun is expected

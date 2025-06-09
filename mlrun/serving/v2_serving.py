@@ -177,7 +177,7 @@ class V2ModelServer(StepToDict):
         """set real time metric (for model monitoring)"""
         self.metrics[name] = value
 
-    def get_model(self, suffix=""):
+    def get_model(self, suffix="") -> (str, dict):
         """get the model file(s) and metadata from model store
 
         the method returns a path to the model file and the extra data (dict of dataitem objects)

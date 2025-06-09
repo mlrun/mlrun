@@ -31,6 +31,7 @@ import mlrun.model
 import mlrun.runtimes.utils
 import mlrun.utils
 from mlrun.config import config
+from mlrun.k8s_utils import enrich_preemption_mode
 from mlrun.utils.helpers import remove_image_protocol_prefix
 
 import framework.utils.helpers
@@ -495,9 +496,7 @@ def build_image(
         user_unix_id = runtime.spec.security_context.run_as_user
         enriched_group_id = runtime.spec.security_context.run_as_group
 
-    source_code_target_dir = (
-        runtime.spec.build.source_code_target_dir or runtime.spec.clone_target_dir
-    )
+    source_code_target_dir = runtime.spec.build.source_code_target_dir
     if source_to_copy and (
         not source_code_target_dir or not os.path.isabs(source_code_target_dir)
     ):
@@ -571,7 +570,9 @@ def build_image(
 def get_kaniko_spec_attributes_from_runtime(
     project, runtime_spec, project_default_fucntion_node_selector
 ):
-    """get the names of Kaniko spec attributes that are defined for runtime but should also be applied to kaniko"""
+    """Get the names of Kaniko spec attributes that are defined for runtime but should also be applied to Kaniko."""
+    # preemption mode scheduling constraints cache
+    _preemption_enrichment_result = {}
 
     def service_account_handler(attr_value):
         from framework.api.utils import resolve_project_default_service_account
@@ -586,7 +587,7 @@ def get_kaniko_spec_attributes_from_runtime(
             attr_value = default_service_account
         return attr_value
 
-    def node_selector_handler(attr_value):
+    def get_merged_node_selector(attr_value):
         attr_value = mlrun.utils.to_non_empty_values_dict(
             mlrun.utils.helpers.merge_dicts_with_precedence(
                 mlrun.mlconf.get_default_function_node_selector(),
@@ -596,14 +597,35 @@ def get_kaniko_spec_attributes_from_runtime(
         )
         return attr_value
 
+    def preemption_mode_handler(key):
+        if key not in _preemption_enrichment_result:
+            keys = ["node_selector", "tolerations", "affinity"]
+            values = enrich_preemption_mode(
+                preemption_mode=runtime_spec.preemption_mode,
+                node_selector=get_merged_node_selector(runtime_spec.node_selector),
+                affinity=runtime_spec.affinity,
+                tolerations=runtime_spec.tolerations,
+            )
+            _preemption_enrichment_result.update(dict(zip(keys, values)))
+        return _preemption_enrichment_result[key]
+
+    def node_selector_handler(attr_value):
+        return preemption_mode_handler("node_selector")
+
+    def affinity_handler(attr_value):
+        return preemption_mode_handler("affinity")
+
+    def tolerations_handler(attr_value):
+        return preemption_mode_handler("tolerations")
+
     def identity_handler(attr_value):
         return attr_value
 
     return {
         "node_name": identity_handler,
         "node_selector": node_selector_handler,
-        "affinity": identity_handler,
-        "tolerations": identity_handler,
+        "affinity": affinity_handler,
+        "tolerations": tolerations_handler,
         "priority_class_name": identity_handler,
         "service_account": service_account_handler,
     }
@@ -676,9 +698,11 @@ def build_runtime(
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
 
-    base_image: str = (
-        build.base_image or runtime.spec.image or config.default_base_image
-    )
+    base_image: str = build.base_image or runtime.spec.image
+    if not base_image:
+        base_image = mlrun.mlconf.function_defaults.image_by_kind.to_dict().get(
+            runtime.kind, config.default_base_image
+        )
 
     mlrun_image = False
     # If the base is one of mlrun images - set with_mlrun to False, so it won't be added later

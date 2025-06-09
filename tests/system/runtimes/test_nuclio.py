@@ -59,7 +59,8 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         assert deployment == function.get_url()  # check function url
 
-    def test_deploy_function_with_model_runner(self):
+    @pytest.mark.parametrize("raise_exception", [True, False])
+    def test_deploy_function_with_model_runner(self, raise_exception):
         code_path = str(self.assets_path / "function_with_model.py")
 
         self._logger.debug("Creating nuclio function")
@@ -72,7 +73,9 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         )
 
         graph = function.set_topology("flow", engine="async")
-        model_runner_step = ModelRunnerStep()
+        model_runner_step = ModelRunnerStep(
+            name="model-runner", raise_exception=raise_exception
+        )
         model_runner_step.add_model(model_class="DummyModel", endpoint_name="my-model")
 
         graph.to(model_runner_step).respond()
@@ -84,6 +87,37 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         resp = function.invoke("/", {"x": "y"})
         assert resp == {"x": "y", "extra": 123}
+
+    @pytest.mark.parametrize("raise_exception", [True, False])
+    def test_deploy_model_runner_error_handler(self, raise_exception: bool):
+        code_path = str(self.assets_path / "function-with-catcher.py")
+
+        self._logger.debug("Creating nuclio function")
+        function = mlrun.code_to_function(
+            name="function-with-catcher",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(
+            name="model-runner", raise_exception=raise_exception
+        )
+        model_runner_step.add_model(model_class="ErrorModel", endpoint_name="my-model")
+
+        step = graph.to(model_runner_step).respond()
+        step.error_handler("catcher", handler="catcher_echo", full_event=True)
+
+        self._logger.debug("Deploying nuclio function")
+        deployment = function.deploy()
+
+        assert deployment == function.get_url()  # check function url
+        resp = function.invoke("/", {"x": "y"})
+        assert resp == {
+            "error": "catcher_echo",
+        }
 
     # Nuclio sometimes passes b'' instead of None due to dirty memory
     def test_workaround_for_nuclio_bug(self):

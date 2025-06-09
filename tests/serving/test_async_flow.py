@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import pathlib
+import unittest.mock
+from types import SimpleNamespace
 from typing import Optional
 
 import pytest
@@ -28,6 +30,16 @@ from .demo_states import *  # noqa
 class _DummyStreamRaiser:
     def push(self, data):
         raise ValueError("DummyStreamRaiser raises an error")
+
+
+def create_mocked_get_store_resource(model_artifact):
+    def mocked_get_store_resource(uri, **kwargs):
+        if uri == model_artifact.uri:
+            return model_artifact
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
+
+    return mocked_get_store_resource
 
 
 def test_async_basic():
@@ -164,6 +176,51 @@ class MyModel(Model):
         return self.predict(body)
 
 
+class MyRemoteModel(Model):
+    execution_mechanism = "naive"
+
+    def __init__(self, name, raise_exception, artifact_uri, **kwargs):
+        super().__init__(
+            name=name,
+            raise_exception=raise_exception,
+            artifact_uri=artifact_uri,
+            **kwargs,
+        )
+        self.artifact = None
+
+    def predict(self, body):
+        body["url"] = self.artifact.model_url
+        body["default_config"] = self.artifact.default_config
+        return body
+
+    def load(self):
+        self.artifact = self._get_artifact_object()
+
+
+class MyPklModel(Model):
+    execution_mechanism = "naive"
+
+    def __init__(self, name, raise_exception, artifact_uri, **kwargs):
+        super().__init__(
+            name=name,
+            raise_exception=raise_exception,
+            artifact_uri=artifact_uri,
+            **kwargs,
+        )
+        self.model = None
+
+    def load(self) -> None:
+        model_path, _ = self.get_local_model_path()
+        with open(model_path) as f:
+            data = f.read()
+        # Create a simple mock model object with a .predict method
+        self.model = SimpleNamespace(predict=lambda x=None: data)
+
+    def predict(self, body):
+        body["result"] = self.model.predict(body)
+        return body
+
+
 def test_model_runner():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
@@ -254,6 +311,85 @@ def test_model_runner_add_model_failure(method: str):
         )
 
 
+@pytest.mark.parametrize("raise_error", (True, False))
+@pytest.mark.parametrize("with_error", (True, False))
+def test_model_runner_error_raiser(raise_error: bool, with_error: bool):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner", raise_exception=raise_error
+    )
+    model_runner_step.add_model(
+        model_class="MyModel", endpoint_name="my_model", raise_error=False, inc=1
+    )
+    graph.to(model_runner_step).respond()
+    _test_model_runner_raise_error_output(function, raise_error, with_error)
+
+
+@pytest.mark.parametrize("raise_error", (True, False))
+@pytest.mark.parametrize("with_error", (True, False))
+def test_model_runner_error_raiser_multiple_models(raise_error: bool, with_error: bool):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner", raise_exception=raise_error
+    )
+    model_runner_step.add_model(
+        model_class="MyModel", endpoint_name="my_model_0", raise_error=False, inc=1
+    )
+    model_runner_step.add_model(
+        model_class="MyModel", endpoint_name="my_model_1", raise_error=False, inc=1
+    )
+    graph.to(model_runner_step).respond()
+    _test_model_runner_raise_error_output(
+        function, raise_error, with_error, models=["my_model_0", "my_model_1"]
+    )
+
+
+@pytest.mark.parametrize("raise_error", (True, False))
+@pytest.mark.parametrize("with_error", (True, False))
+def test_model_runner_multiple_downstream_steps(raise_error: bool, with_error: bool):
+    function = mlrun.new_function("tests-1", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner", raise_exception=raise_error
+    )
+    model_runner_step.add_model(
+        model_class="MyModel", endpoint_name="my_model", raise_error=False, inc=1
+    )
+    step = graph.to(model_runner_step)
+    for i in range(5):
+        echo = step.to(name=f"echo-{i}", class_name="Echo")
+        if i == 4:
+            echo.respond()
+
+    _test_model_runner_raise_error_output(function, raise_error, with_error)
+
+
+def _test_model_runner_raise_error_output(
+    function, raise_error, with_error, models=None
+):
+    server = function.to_mock_server()
+    if with_error:
+        if raise_error:
+            with pytest.raises(RuntimeError):
+                server.test(body={"n": "This should fail"})
+        else:
+            body = server.test(body={"n": "This should fail"})
+            if models is None or len(models) == 1:
+                assert "error" in body, f"Expected error field in body got {body}"
+            else:
+                assert all(
+                    "error" in body.get(model) for model in models
+                ), f"Expected error field for each model in body got {body}"
+    else:
+        if models is None or len(models) == 1:
+            assert server.test(body={"n": 1}) == {"n": 2}
+        else:
+            assert server.test(body={"n": 1}) == {model: {"n": 2} for model in models}
+    server.wait_for_completion()
+
+
 class MyModelSelector(ModelSelector):
     def select(self, event, available_models: list[Model]) -> Optional[list[str]]:
         return event.body.get("models")
@@ -312,5 +448,68 @@ def test_model_runner_with_gpu_allocation():
         for n in range(10):
             resp = server.test(body={"n": n})
             assert resp == {"m1": {"n": n + 1, "gpu": 1}, "m2": {"n": n + 2, "gpu": 2}}
+    finally:
+        server.wait_for_completion()
+
+
+def test_model_runner_with_remote_model():
+    project = mlrun.new_project("remote-model-project", save=False)
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(
+        model_class="MyRemoteModel",
+        endpoint_name="my_endpoint",
+        model_artifact=model_artifact,
+    )
+    graph.to(model_runner_step).respond()
+    assert (
+        "my_endpoint" in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+    # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
+    # Mocked function used to verify artifact URI is passed correctly.
+
+    with unittest.mock.patch(
+        "mlrun.serving.states.get_store_resource",
+        side_effect=create_mocked_get_store_resource(model_artifact=model_artifact),
+    ):
+        server = function.to_mock_server()
+    try:
+        resp = server.test(body={"prompt": "What is the capital of france?"})
+        assert resp["default_config"] == {"model_version": "4"}
+        assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
+        assert resp["prompt"] == "What is the capital of france?"
+    finally:
+        server.wait_for_completion()
+
+
+def test_get_local_model_path():
+    project = mlrun.new_project("get-model-path-project", save=False)
+    model_dir = str(pathlib.Path(__file__).parent / "assets")
+    model_artifact = project.log_model(
+        "my_model", target_path=model_dir, model_file="model.pkl", upload=False
+    )
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(
+        model_class="MyPklModel",
+        endpoint_name="my_endpoint",
+        model_artifact=model_artifact,
+    )
+    graph.to(model_runner_step).respond()
+    with unittest.mock.patch(
+        "mlrun.serving.states.get_store_resource",
+        side_effect=create_mocked_get_store_resource(model_artifact=model_artifact),
+    ):
+        server = function.to_mock_server()
+    try:
+        resp = server.test(body={})
+        assert resp["result"] == "123"
     finally:
         server.wait_for_completion()

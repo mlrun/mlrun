@@ -52,7 +52,7 @@ RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /mlrun
 
-ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 ARG MLRUN_PYTHON_VERSION=3.9
 # explicitly set the python version to ensure uv installs the correct version
 # as per the python version or we will handle situtations where python 3.11 tries to install

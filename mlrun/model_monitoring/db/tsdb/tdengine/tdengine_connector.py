@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
 from datetime import datetime, timedelta
-from threading import Lock
 from typing import Callable, Final, Literal, Optional, Union
 
 import pandas as pd
@@ -32,8 +32,8 @@ from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
 
-_connection = None
-_connection_lock = Lock()
+# Thread-local storage for connections
+_thread_local = threading.local()
 
 
 class TDEngineTimestampPrecision(mlrun.common.types.StrEnum):
@@ -76,16 +76,15 @@ class TDEngineConnector(TSDBConnector):
 
     @property
     def connection(self) -> TDEngineConnection:
-        global _connection
-
-        if _connection:
-            return _connection
-
-        with _connection_lock:
-            if not _connection:
-                _connection = self._create_connection()
-
-        return _connection
+        if not hasattr(_thread_local, "connection"):
+            _thread_local.connection = self._create_connection()
+            logger.debug(
+                "Created new TDEngine connection for thread",
+                project=self.project,
+                thread_name=threading.current_thread().name,
+                thread_id=threading.get_ident(),
+            )
+        return _thread_local.connection
 
     def _create_connection(self) -> TDEngineConnection:
         """Establish a connection to the TSDB server."""
@@ -204,14 +203,27 @@ class TDEngineConnector(TSDBConnector):
         return datetime.fromisoformat(val) if isinstance(val, str) else val
 
     @staticmethod
-    def _get_endpoint_filter(endpoint_id: Union[str, list[str]]) -> str:
-        if isinstance(endpoint_id, str):
-            return f"endpoint_id='{endpoint_id}'"
-        elif isinstance(endpoint_id, list):
-            return f"endpoint_id IN({str(endpoint_id)[1:-1]}) "
+    def _generate_filter_query(
+        filter_column: str, filter_values: Union[str, list[Union[str, int]]]
+    ) -> Optional[str]:
+        """
+        Generate a filter query for TDEngine based on the provided column and values.
+
+        :param filter_column: The column to filter by.
+        :param filter_values: A single value or a list of values to filter by.
+
+        :return: A string representing the filter query.
+        :raise: MLRunInvalidArgumentError if the filter values are not of type string or list.
+        """
+
+        if isinstance(filter_values, str):
+            return f"{filter_column}='{filter_values}'"
+        elif isinstance(filter_values, list):
+            return f"{filter_column} IN ({', '.join(repr(v) for v in filter_values)}) "
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Invalid 'endpoint_id' filter: must be a string or a list."
+                f"Invalid filter values {filter_values}: must be a string or a list, "
+                f"got {type(filter_values).__name__}; filter values: {filter_values}"
             )
 
     def _drop_database_query(self) -> str:
@@ -673,7 +685,10 @@ class TDEngineConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
-        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
+        filter_query = self._generate_filter_query(
+            filter_column=mm_schemas.EventFieldType.ENDPOINT_ID,
+            filter_values=endpoint_ids,
+        )
         start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.PREDICTIONS].super_table,
@@ -714,7 +729,10 @@ class TDEngineConnector(TSDBConnector):
         end: Optional[datetime] = None,
         get_raw: bool = False,
     ) -> pd.DataFrame:
-        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
+        filter_query = self._generate_filter_query(
+            filter_column=mm_schemas.EventFieldType.ENDPOINT_ID,
+            filter_values=endpoint_ids,
+        )
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -741,6 +759,72 @@ class TDEngineConnector(TSDBConnector):
             df.dropna(inplace=True)
         return df
 
+    def count_results_by_status(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        endpoint_ids: Optional[Union[str, list[str]]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+        result_status_list: Optional[list[int]] = None,
+    ) -> dict[tuple[str, int], int]:
+        filter_query = ""
+        now = mlrun.utils.datetime_now()
+        start = start or (now - timedelta(hours=24))
+        end = end or now
+        if endpoint_ids:
+            filter_query = self._generate_filter_query(
+                filter_column=mm_schemas.EventFieldType.ENDPOINT_ID,
+                filter_values=endpoint_ids,
+            )
+        if application_names:
+            app_filter_query = self._generate_filter_query(
+                filter_column=mm_schemas.ApplicationEvent.APPLICATION_NAME,
+                filter_values=application_names,
+            )
+            if filter_query:
+                filter_query += f" AND {app_filter_query}"
+            else:
+                filter_query = app_filter_query
+        if result_status_list:
+            status_filter_query = self._generate_filter_query(
+                filter_column=mm_schemas.ResultData.RESULT_STATUS,
+                filter_values=result_status_list,
+            )
+            if filter_query:
+                filter_query += f" AND {status_filter_query}"
+            else:
+                filter_query = status_filter_query
+
+        df = self._get_records(
+            table=self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS].super_table,
+            start=start,
+            end=end,
+            columns=[
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.ResultData.RESULT_STATUS,
+                mm_schemas.ResultData.RESULT_VALUE,
+            ],
+            filter_query=filter_query,
+            timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+            group_by=[
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.ResultData.RESULT_STATUS,
+            ],
+            agg_funcs=["count"],
+            preform_agg_columns=[mm_schemas.ResultData.RESULT_VALUE],
+        )
+        if df.empty:
+            return {}
+
+        # Convert DataFrame to a dictionary
+        return {
+            (
+                row[mm_schemas.WriterEvent.APPLICATION_NAME],
+                row[mm_schemas.ResultData.RESULT_STATUS],
+            ): row["count(result_value)"]
+            for _, row in df.iterrows()
+        }
+
     def get_metrics_metadata(
         self,
         endpoint_id: Union[str, list[str]],
@@ -757,7 +841,10 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.MetricData.METRIC_NAME,
                 mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
-            filter_query=self._get_endpoint_filter(endpoint_id=endpoint_id),
+            filter_query=self._generate_filter_query(
+                filter_column=mm_schemas.EventFieldType.ENDPOINT_ID,
+                filter_values=endpoint_id,
+            ),
             timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
             group_by=[
                 mm_schemas.WriterEvent.APPLICATION_NAME,
@@ -795,7 +882,10 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.ResultData.RESULT_KIND,
                 mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
-            filter_query=self._get_endpoint_filter(endpoint_id=endpoint_id),
+            filter_query=self._generate_filter_query(
+                filter_column=mm_schemas.EventFieldType.ENDPOINT_ID,
+                filter_values=endpoint_id,
+            ),
             timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
             group_by=[
                 mm_schemas.WriterEvent.APPLICATION_NAME,
@@ -824,7 +914,10 @@ class TDEngineConnector(TSDBConnector):
         end: Optional[datetime] = None,
         get_raw: bool = False,
     ) -> pd.DataFrame:
-        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
+        filter_query = self._generate_filter_query(
+            filter_column=mm_schemas.EventFieldType.ENDPOINT_ID,
+            filter_values=endpoint_ids,
+        )
         filter_query += f"AND {mm_schemas.EventFieldType.ERROR_TYPE} = '{mm_schemas.EventFieldType.INFER_ERROR}'"
         start, end = self._get_start_end(start, end)
         df = self._get_records(

@@ -91,7 +91,6 @@ class DaskSpec(KubeResourceSpec):
         tolerations=None,
         preemption_mode=None,
         security_context=None,
-        clone_target_dir=None,
         state_thresholds=None,
     ):
         super().__init__(
@@ -121,7 +120,6 @@ class DaskSpec(KubeResourceSpec):
             tolerations=tolerations,
             preemption_mode=preemption_mode,
             security_context=security_context,
-            clone_target_dir=clone_target_dir,
             state_thresholds=state_thresholds,
         )
         self.args = args
@@ -192,7 +190,9 @@ class DaskCluster(KubejobRuntime):
         super().__init__(spec, metadata)
         self._cluster = None
         self.use_remote = not mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
-        self.spec.build.base_image = self.spec.build.base_image or "daskdev/dask:latest"
+        self.spec.build.base_image = (
+            self.spec.build.base_image or mlrun.mlconf.default_base_image
+        )
 
     @property
     def spec(self) -> DaskSpec:
@@ -248,14 +248,18 @@ class DaskCluster(KubejobRuntime):
         if not self.is_deployed():
             raise RunError(
                 "Function image is not built/ready, use .deploy()"
-                " method first, or set base dask image (daskdev/dask:latest)"
+                " method first, or set base dask image to mlrun/mlrun"
             )
 
         self.save(versioned=False)
         background_task = db.start_function(func_url=self._function_uri())
         if watch:
             now = datetime.datetime.utcnow()
-            timeout = now + datetime.timedelta(minutes=10)
+            timeout = now + datetime.timedelta(
+                seconds=int(
+                    mlrun.mlconf.background_tasks.default_timeouts.runtimes.dask_cluster_start
+                )
+            )
             while now < timeout:
                 background_task = db.get_project_background_task(
                     background_task.metadata.project, background_task.metadata.name
@@ -282,6 +286,9 @@ class DaskCluster(KubejobRuntime):
                         return
                 time.sleep(5)
                 now = datetime.datetime.utcnow()
+            raise mlrun.errors.MLRunTimeoutError(
+                "Timeout waiting for Dask cluster to start"
+            )
 
     def close(self, running=True):
         from dask.distributed import default_client

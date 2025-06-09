@@ -8,7 +8,19 @@
 ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/mlrun/mlrun?sort=semver)
 [![Join MLOps Live](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://mlopslive.slack.com)
 
-<p align="left"><img src="https://github.com/mlrun/mlrun/raw/development/docs/_static/images/MLRun-logo.png" alt="MLRun logo" width="150"/></p>
+<div>
+  <span>
+    <picture>
+      <img img align="left" src="./docs/_static/images/MLRun-logo.png" alt="MLRun logo" width="150"/>
+    </picture>
+  </span>
+  <span>
+    <picture>
+      <img img align="right" src="./docs/_static/images/maintenance_logo.svg" alt="Maintenance logo" width="250"/>
+    </picture>
+  </span>
+  <br clear="all"/>
+</div>
 
 # Using MLRun 
 
@@ -24,7 +36,7 @@ See the supported data stores, development tools, services, platforms, etc., sup
 
 ## Gen AI tasks
 
-<p align="center"><img src="https://github.com/mlrun/mlrun/raw/development/docs/_static/images/ai-tasks.png" alt="ai-tasks" width="800"/></p><br>
+<p align="center"><img src="./docs/_static/images/ai-tasks.png" alt="ai-tasks" width="800"/></p><br>
 
 Use MLRun to develop, scale, deploy, and monitor your AI model across your enterprise. The [**gen AI development workflow**](https://docs.mlrun.org/en/stable/genai/genai-flow.html) 
 section describes the different tasks and stages in detail.
@@ -89,7 +101,7 @@ Collect production data, metadata, and metrics to tune the model and application
 <a id="mlops-tasks"></a>
 ## MLOps tasks
 
-<p align="center"><img src="https://github.com/mlrun/mlrun/raw/development/docs/_static/images/mlops-task.png" alt="mlrun-tasks" width="800"/></p><br>
+<p align="center"><img src="./docs/_static/images/mlops-task.png" alt="mlrun-tasks" width="800"/></p><br>
 
 The [**MLOps development workflow**](https://docs.mlrun.org/en/stable/mlops-dev-flow.html) section describes the different tasks and stages in detail.
 MLRun can be used to automate and orchestrate all the different tasks or just specific tasks (and integrate them with what you have already deployed).
@@ -139,7 +151,7 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 <a id="core-components"></a>
 ## MLRun core components
 
-<p align="center"><img src="https://github.com/mlrun/mlrun/raw/development/docs/_static/images/mlops-core.png" alt="mlrun-core" width="800"/></p><br>
+<p align="center"><img src="./docs/_static/images/mlops-core.png" alt="mlrun-core" width="800"/></p><br>
 
 
 MLRun includes the following major components:

@@ -550,7 +550,7 @@ def build(
         exit(1)
 
     meta = func.metadata
-    meta.project = project or meta.project or mlconf.default_project
+    meta.project = project or meta.project or mlconf.active_project
     meta.name = name or meta.name
     meta.tag = tag or meta.tag
 
@@ -870,7 +870,7 @@ def version():
 @main.command()
 @click.argument("uid", type=str)
 @click.option(
-    "--project", "-p", help="project name (defaults to mlrun.mlconf.default_project)"
+    "--project", "-p", help="project name (defaults to mlrun.mlconf.active_project)"
 )
 @click.option("--offset", type=int, default=0, help="byte offset")
 @click.option("--db", help="api and db service path/url")

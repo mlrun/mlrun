@@ -240,6 +240,8 @@ class DBInterface(ABC):
         uid: Optional[str] = None,
         producer_id: Optional[str] = None,
         producer_uri: Optional[str] = None,
+        most_recent: bool = False,
+        parent_uri: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         offset: Optional[int] = None,
         limit: Optional[int] = None,
@@ -327,8 +329,8 @@ class DBInterface(ABC):
 
     # TODO: Remove once data migration v5 is obsolete
     @deprecated(
-        version="1.9.0",
-        reason="'store_artifact_v1' will be removed from this file in 1.9.0, use "
+        version="1.7.0",
+        reason="'store_artifact_v1' will be removed from this file in 1.10.0, use "
         "'store_artifact' instead",
         category=FutureWarning,
     )
@@ -351,8 +353,8 @@ class DBInterface(ABC):
 
     # TODO: Remove once data migration v5 is obsolete
     @deprecated(
-        version="1.9.0",
-        reason="'read_artifact_v1' will be removed from this file in 1.9.0, use "
+        version="1.7.0",
+        reason="'read_artifact_v1' will be removed from this file in 1.10.0, use "
         "'read_artifact' instead",
         category=FutureWarning,
     )
@@ -577,6 +579,9 @@ class DBInterface(ABC):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
     ]:
         pass
 
@@ -664,10 +669,10 @@ class DBInterface(ABC):
     ) -> mlrun.common.schemas.FeatureSet:
         pass
 
-    # TODO: remove in 1.9.0
+    # TODO: remove in 1.10.0
     @deprecated(
-        version="1.9.0",
-        reason="'list_features' will be removed in 1.9.0, use 'list_features_v2' instead",
+        version="1.7.0",
+        reason="'list_features' will be removed in 1.10.0, use 'list_features_v2' instead",
         category=FutureWarning,
     )
     @abstractmethod
@@ -694,10 +699,10 @@ class DBInterface(ABC):
     ) -> mlrun.common.schemas.FeaturesOutputV2:
         pass
 
-    # TODO: remove in 1.9.0
+    # TODO: remove in 1.10.0
     @deprecated(
-        version="1.9.0",
-        reason="'list_entities' will be removed in 1.9.0, use 'list_entities_v2' instead",
+        version="1.7.0",
+        reason="'list_entities' will be removed in 1.10.0, use 'list_entities_v2' instead",
         category=FutureWarning,
     )
     @abstractmethod

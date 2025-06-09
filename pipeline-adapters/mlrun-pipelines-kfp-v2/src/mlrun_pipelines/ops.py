@@ -115,36 +115,42 @@ def add_function_node_selection_attributes(
         enriched_node_selector = mlrun_pipelines.common.ops._enrich_node_selector(
             function
         )
+        enriched_node_selector, enriched_tolerations, enriched_affinity = (
+            mlrun_pipelines.common.ops._enrich_preemption_mode(
+                function, enriched_node_selector
+            )
+        )
+
         if enriched_node_selector:
             for k, v in enriched_node_selector.items():
                 task = kfp_k8s.add_node_selector(task, k, v)
 
-    if getattr(function.spec, "tolerations"):
-        if hasattr(kfp_k8s, "add_toleration"):
-            for t in function.spec.tolerations:
-                task = kfp_k8s.add_toleration(
-                    task,
-                    t.key,
-                    t.operator,
-                    t.value,
-                    t.effect,
-                    t.toleration_seconds,
+        if enriched_tolerations:
+            if hasattr(kfp_k8s, "add_toleration"):
+                for t in enriched_tolerations:
+                    task = kfp_k8s.add_toleration(
+                        task,
+                        t.key,
+                        t.operator,
+                        t.value,
+                        t.effect,
+                        t.toleration_seconds,
+                    )
+            else:
+                # TODO: remove this warning as soon as KFP SDK >=2.7.0 is available for MLRun SDK
+                logger.warning(
+                    "Support for Pod tolerations is not yet available on the KFP 2 engine",
+                    project=function.metadata.project,
+                    function_name=function.metadata.name,
                 )
-        else:
-            # TODO: remove this warning as soon as KFP SDK >=2.7.0 is available for MLRun SDK
+
+        if enriched_affinity:
+            # TODO: remove this warning as soon as KFP SDK provides support for affinity management
             logger.warning(
-                "Support for Pod tolerations is not yet available on the KFP 2 engine",
+                "Support for Pod affinity is not yet available on the KFP 2 engine",
                 project=function.metadata.project,
                 function_name=function.metadata.name,
             )
-
-    # TODO: remove this warning as soon as KFP SDK provides support for affinity management
-    if getattr(function.spec, "affinity"):
-        logger.warning(
-            "Support for Pod affinity is not yet available on the KFP 2 engine",
-            project=function.metadata.project,
-            function_name=function.metadata.name,
-        )
 
     return task
 

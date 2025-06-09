@@ -273,7 +273,7 @@ class BaseLauncher(abc.ABC):
             project_name
             or run.metadata.project
             or runtime.metadata.project
-            or mlrun.mlconf.default_project
+            or mlrun.mlconf.active_project
         )
         run.spec.parameters = params or run.spec.parameters
         run.spec.inputs = inputs or run.spec.inputs

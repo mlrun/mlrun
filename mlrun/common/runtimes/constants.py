@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
 import typing
-
-from deprecated import deprecated
 
 import mlrun.common.constants as mlrun_constants
 import mlrun_pipelines.common.models
@@ -237,24 +234,6 @@ class RunStates:
             mlrun_pipelines.common.models.RunStatuses.paused: RunStates.unknown,
             mlrun_pipelines.common.models.RunStatuses.unknown: RunStates.unknown,
         }[pipeline_run_status]
-
-
-# TODO: remove this class in 1.11.0 - use only MLRunInternalLabels
-@deprecated(
-    version="1.9.0",
-    reason="This class is deprecated and will be removed in 1.11.0. Use MLRunInternalLabels instead.",
-    category=FutureWarning,
-)
-class RunLabels(enum.Enum):
-    owner = mlrun_constants.MLRunInternalLabels.owner
-    v3io_user = mlrun_constants.MLRunInternalLabels.v3io_user
-
-    @staticmethod
-    def all():
-        return [
-            RunLabels.owner,
-            RunLabels.v3io_user,
-        ]
 
 
 class SparkApplicationStates:

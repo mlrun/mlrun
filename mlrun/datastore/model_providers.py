@@ -16,7 +16,6 @@ from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar
 
 import mlrun
-from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.abstract_base import (
     BaseRemoteClient,
@@ -52,6 +51,9 @@ class ModelProvider(BaseRemoteClient, ABC):
     def load_client(self) -> None:
         raise NotImplementedError("load_client method is not implemented")
 
+    def basic_llm_invoke(self, prompt):
+        raise NotImplementedError("basic_llm_invoke method is not implemented")
+
     @property
     def client(self):
         return self._client
@@ -59,6 +61,10 @@ class ModelProvider(BaseRemoteClient, ABC):
     @classmethod
     def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):
         return endpoint, subpath
+
+    @property
+    def model(self):
+        return None
 
 
 class AsyncModelProvider(ModelProvider, ABC):
@@ -88,6 +94,9 @@ class AsyncModelProvider(ModelProvider, ABC):
     def async_client(self):
         return self._async_client
 
+    async def async_invoke(self, **kwargs):
+        raise NotImplementedError("async_invoke is not implemented")
+
 
 class OpenAIProvider(AsyncModelProvider):
     def __init__(
@@ -113,9 +122,10 @@ class OpenAIProvider(AsyncModelProvider):
 
     @classmethod
     def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):
-        endpoint = endpoint + subpath
-        #  in openai there is no usage of subpath variable. if the model contains "/", it is part of the model name.
-        subpath = ""
+        if endpoint and subpath:
+            endpoint = endpoint + subpath
+            #  in openai there is no usage of subpath variable. if the model contains "/", it is part of the model name.
+            subpath = ""
         return endpoint, subpath
 
     @property
@@ -127,7 +137,7 @@ class OpenAIProvider(AsyncModelProvider):
             from openai import OpenAI, AsyncOpenAI  # noqa
 
             self._client = OpenAI(**self.options)
-            self._default_operation = self.client.ChatCompletion.create
+            self._default_operation = self.client.chat.completions.create
 
             self._async_client = AsyncOpenAI(**self.options)
             self._default_async_operation = self.async_client.chat.completions.create
@@ -137,9 +147,9 @@ class OpenAIProvider(AsyncModelProvider):
     def get_client_options(self):
         res = dict(
             api_key=self._get_secret_or_env("OPENAI_API_KEY"),
-            endpoint_url=self._get_secret_or_env("OPENAI_BASE_URL"),
-            open_ai_project_id=self._get_secret_or_env("OPENAI_ORG_ID"),
-            openai_org_id=self._get_secret_or_env("OPENAI_PROJECT_ID"),
+            organization=self._get_secret_or_env("OPENAI_ORG_ID"),
+            project=self._get_secret_or_env("OPENAI_PROJECT_ID"),
+            base_url=self._get_secret_or_env("OPENAI_BASE_URL"),
             timeout=self._get_secret_or_env("OPENAI_TIMEOUT"),
             max_retries=self._get_secret_or_env("OPENAI_MAX_RETRIES"),
         )
@@ -174,7 +184,7 @@ class OpenAIProvider(AsyncModelProvider):
                 "content": prompt,
             }
         ]
-        self._default_operation(model=self.endpoint, messages=messages)
+        return self._default_operation(model=self.endpoint, messages=messages)
 
 
 def schema_to_model_provider(schema: str) -> type[ModelProvider]:
@@ -191,7 +201,11 @@ class ModelProviderManager(BaseRemoteClientManager):
         super().__init__(secrets=secrets, db=db)
 
     def get_or_create_model_provider(
-        self, url, secrets: Optional[dict] = None, project_name="", default_invoke_kwargs: Optional[dict] = None
+        self,
+        url,
+        secrets: Optional[dict] = None,
+        project_name="",
+        default_invoke_kwargs: Optional[dict] = None,
     ) -> (ModelProvider, str, str):
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
@@ -234,9 +248,7 @@ class ModelProviderManager(BaseRemoteClientManager):
         except Exception as exc:
             raise OSError(f"artifact {url} not found, {err_to_str(exc)}")
         if not isinstance(resource, ModelArtifact):
-            raise mlrun.errors.MLRunRuntimeError(
-                "The resource is not a ModelArtifact"
-            )
+            raise mlrun.errors.MLRunRuntimeError("The resource is not a ModelArtifact")
         url = resource.model_url
         if not url and not allow_empty_resources:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -260,6 +272,9 @@ class ModelProviderManager(BaseRemoteClientManager):
             url = resource.model_url
             default_invoke_kwargs = default_invoke_kwargs or resource.default_config
         model_provider = self.get_or_create_model_provider(
-            url, secrets=secrets, project_name=project, default_invoke_kwargs=default_invoke_kwargs
+            url,
+            secrets=secrets,
+            project_name=project,
+            default_invoke_kwargs=default_invoke_kwargs,
         )
         return model_provider

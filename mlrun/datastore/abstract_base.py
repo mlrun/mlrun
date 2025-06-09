@@ -90,7 +90,7 @@ class BaseRemoteClientManager(ABC):
         project="",
         allow_empty_resources=None,
         secrets: Optional[dict] = None,
-        **kwargs
+        **kwargs,
     ) -> Any:
         pass
 
@@ -126,3 +126,6 @@ class BaseRemoteClientManager(ABC):
         if not self._db:
             self._db = mlrun.get_run_db(secrets=self._secrets)
         return self._db
+
+    def reset_secrets(self):
+        self._secrets = {}

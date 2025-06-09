@@ -41,7 +41,7 @@ from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
 
 from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
-from .datastore import store_manager, model_provider_manager
+from .datastore import model_provider_manager, store_manager
 from .errors import MLRunInvalidArgumentError, MLRunTimeoutError
 from .execution import MLClientCtx
 from .model import RunObject, RunTemplate
@@ -62,6 +62,7 @@ from .runtimes.databricks_job.databricks_runtime import DatabricksRuntime
 from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.nuclio.application import ApplicationRuntime
 from .runtimes.utils import add_code_metadata, global_context
+from mlrun.datastore.model_providers import ModelProvider
 from .utils import (
     RunKeys,
     create_ipython_display,
@@ -74,7 +75,6 @@ from .utils import (
 
 if typing.TYPE_CHECKING:
     from mlrun.datastore import DataItem
-    from mlrun.datastore.model_providers import ModelProvider
 
 
 def function_to_module(code="", workdir=None, secrets=None, silent=False):
@@ -1121,7 +1121,9 @@ def get_dataitem(url, secrets=None, db=None) -> "DataItem":
     return stores.object(url=url)
 
 
-def get_model_provider(url, secrets=None, db=None, default_invoke_kwargs: Optional[dict] = None) -> "ModelProvider":
+def get_model_provider(
+    url, secrets=None, db=None, default_invoke_kwargs: Optional[dict] = None
+) -> ModelProvider:
     """get mlrun dataitem object (from path/url)"""
     model_provider = model_provider_manager.set(secrets, db=db)
     return model_provider.object(url=url, default_invoke_kwargs=default_invoke_kwargs)

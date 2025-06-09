@@ -148,7 +148,7 @@ class StoreManager(BaseRemoteClientManager):
         project="",
         allow_empty_resources=None,
         secrets: Optional[dict] = None,
-        **kwargs
+        **kwargs,
     ) -> DataItem:
         meta = artifact_url = None
         if is_store_uri(url):
@@ -211,6 +211,3 @@ class StoreManager(BaseRemoteClientManager):
         if not secrets and not mlrun.config.is_running_as_api():
             self._stores[store_key] = store
         return store, subpath, url
-
-    def reset_secrets(self):
-        self._secrets = {}

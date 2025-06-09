@@ -34,10 +34,11 @@ from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
 from mlrun.datastore.dbfs_store import DBFSStore
 from mlrun.datastore.filestore import FileStore
 from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
+from mlrun.datastore.model_providers import OpenAIProvider, schema_to_model_provider
 from mlrun.datastore.redis import RedisStore
 from mlrun.datastore.s3 import S3Store
 from mlrun.datastore.v3io import V3ioStore
-from mlrun.datastore.model_providers import OpenAIProvider, schema_to_model_provider
+
 
 def test_http_fs_parquet_as_df():
     data_item = mlrun.datastore.store_manager.object(

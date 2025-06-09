@@ -15,7 +15,7 @@ Learn how to create and modify alerts and model monitoring alerts.
 - [Creating an alert with a template](#creating-an-alert-with-a-template)
 
 See also:
-- {ref}`alert_notifications`: the alert-activation records
+- {ref}`alert_activations`: When an alert is activated by its configured trigger, MLRun saves the activation records that you can list, filter, etc. 
 
 ## System configuration 
 These variables control the basic alert behavior: 

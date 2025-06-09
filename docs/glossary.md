@@ -1,6 +1,14 @@
 (glossary)=
 # Glossary
 
+This page describes commonly used MLRun and industry termonology.
+
+**In this section**
+- [MLRun terms](#mlrun-terms)
+- [Iguazio (V3IO) terms](#iguazio-v3io-terms)
+- [Standard ML terms](#standard-ml-terms)
+- [ML libraries / tools](#ml-libraries-tools)
+
 ## MLRun terms
 
 | MLRun terms        | Description                                                                                                                                                                                                                                 |

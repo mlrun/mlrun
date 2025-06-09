@@ -1,7 +1,7 @@
 (use-cases-serving)=
 # Serving graph use cases
 
-Here are a few code examples of typical scenarios for serving graphs.
+Learn how serving graphs can simplify complex workflows as illustrated in these use cases.
 
 <!-- ## Data preparation, ## Model serving -->
 

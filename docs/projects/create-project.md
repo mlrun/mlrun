@@ -1,7 +1,7 @@
 (create-projects)=
 # Create, save, and use projects
 
-A project is a container for all the assets, configuration, and code of a particular application. It is the starting point for your work. Projects are stored in a versioned source repository (GIT) or archive and can map to IDE projects (in PyCharm, VSCode, etc.).
+Your project is the starting point for your work: it contains all the assets, configuration, and code of a particular application. Projects are stored in a versioned source repository (GIT) or archive and can map to IDE projects (in PyCharm, VSCode, etc.).
 
 <p align="center"><img src="../_static/images/project.png" alt="mlrun-project" width="600"/></p><br>
 

@@ -147,7 +147,6 @@ class ServingSpec(NuclioSpec):
         security_context=None,
         service_type=None,
         add_templated_ingress_host_mode=None,
-        clone_target_dir=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
         model_endpoint_creation_task_name=None,
@@ -190,7 +189,6 @@ class ServingSpec(NuclioSpec):
             security_context=security_context,
             service_type=service_type,
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
-            clone_target_dir=clone_target_dir,
             disable_default_http_trigger=disable_default_http_trigger,
         )
 
@@ -631,7 +629,6 @@ class ServingRuntime(RemoteRuntime):
         project="",
         tag="",
         verbose=False,
-        auth_info: schemas.AuthInfo = None,
         builder_env: Optional[dict] = None,
         force_build: bool = False,
     ):
@@ -640,8 +637,6 @@ class ServingRuntime(RemoteRuntime):
         :param project:   optional, override function specified project name
         :param tag:       specify unique function tag (a different function service is created for every tag)
         :param verbose:   verbose logging
-        :param auth_info: The auth info to use to communicate with the Nuclio dashboard, required only when providing
-                          dashboard
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
         """
@@ -686,7 +681,6 @@ class ServingRuntime(RemoteRuntime):
             project,
             tag,
             verbose,
-            auth_info,
             builder_env=builder_env,
             force_build=force_build,
         )

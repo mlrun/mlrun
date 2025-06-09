@@ -26,7 +26,7 @@ function_path = str(pathlib.Path(__file__).parent / "assets" / "function.py")
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestAPIArtifacts(TestMLRunSystem):
-    project_name = "test-project-artifacts"
+    project_name = "test-project-artifacts-87"
 
     @pytest.mark.enterprise
     def test_import_artifact(self):
@@ -95,7 +95,8 @@ class TestAPIArtifacts(TestMLRunSystem):
         model_name = "model"
         model = self.project.log_model(
             model_name,
-            model_file="./assets/model.pkl",
+            model_dir=str((pathlib.Path(__file__).parent / "assets").absolute()),
+            model_file="model.pkl",
             upload=True,
         )
         llm_key = "llm-prompt"

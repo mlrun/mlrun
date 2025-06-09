@@ -177,7 +177,6 @@ class KubeResourceSpec(FunctionSpec):
         tolerations=None,
         preemption_mode=None,
         security_context=None,
-        clone_target_dir=None,
         state_thresholds=None,
     ):
         super().__init__(
@@ -192,7 +191,6 @@ class KubeResourceSpec(FunctionSpec):
             default_handler=default_handler,
             pythonpath=pythonpath,
             disable_auto_mount=disable_auto_mount,
-            clone_target_dir=clone_target_dir,
         )
         self._volumes = {}
         self._volume_mounts = {}
@@ -1116,7 +1114,7 @@ class KubeResource(BaseRuntime):
         # Get the source target dir in case it was enriched due to loading source
         self.spec.build.source_code_target_dir = mlrun.utils.get_in(
             data, "data.spec.build.source_code_target_dir"
-        ) or mlrun.utils.get_in(data, "data.spec.clone_target_dir")
+        )
         ready = data.get("ready", False)
         if not ready:
             logger.info(

@@ -15,8 +15,8 @@ project = mlrun.get_or_create_project(\"iguazio-academy\", context=\"./\")
 ```
 **In this section**
 - [Add functions to a project](#add-functions-to-a-project)
-- [Write a pipeline](#Write-a-pipeline)
-- [Add a pipeline to a project](#Add-a-pipeline-to-a-project)
+- [Write a pipeline](#write-a-pipeline)
+- [Add a pipeline to a project](#add-a-pipeline-to-a-project)
 
 ## Add functions to a project
    

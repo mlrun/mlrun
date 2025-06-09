@@ -11,7 +11,7 @@ To run multiple functions, one after the other, or in parallel, such as: `jobs`,
 All three types are configured by the `engine` flag, when running the workflow, see {py:class}`mlrun.projects.MlrunProject.run`.
 
 **In this section**
-- [Remote on KFP](#remote-on-kfp)
+- [Remote on KFP](#remote-kfp)
 - [KFP](#kfp)
  
 ## Remote-KFP 

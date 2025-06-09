@@ -202,5 +202,5 @@ project.store_alert_config(alert_from_template)
 
 ## Alert activations
 
-When an existing [alert](./alerts.md) is activated by its configured trigger, MLRun saves the activation record.
+When an existing alert is activated by its configured trigger, MLRun saves the activation record.
 You can view all activations of alerts: see {ref}`list-alerts`.

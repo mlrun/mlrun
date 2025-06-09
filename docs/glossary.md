@@ -48,6 +48,7 @@ This page describes commonly used MLRun and industry termonology.
 | MLOps               | Set of practices that reliably and efficiently deploys and maintains machine learning models in production. Combination of Machine Learning and DevOps.                                                                                                                              |
 | Dataframe           | Tabular representation of data, often using tools such as Pandas, Spark, or Dask.                                                                                                                                                                                                    |
 
+(ml-libraries-tools)=
 ## ML libraries / tools
 
 

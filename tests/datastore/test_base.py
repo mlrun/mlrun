@@ -37,7 +37,7 @@ from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
 from mlrun.datastore.redis import RedisStore
 from mlrun.datastore.s3 import S3Store
 from mlrun.datastore.v3io import V3ioStore
-
+from mlrun.datastore.model_providers import OpenAIProvider, schema_to_model_provider
 
 def test_http_fs_parquet_as_df():
     data_item = mlrun.datastore.store_manager.object(
@@ -200,6 +200,18 @@ def test_kafka_source_without_attributes():
 def test_schema_to_store(schemas, expected_class, expected):
     with expected:
         stores = [schema_to_store(schema) for schema in schemas]
+        assert all(store == expected_class for store in stores)
+
+
+@pytest.mark.parametrize(
+    "schemas,expected_class,expected",
+    [
+        (["openai"], OpenAIProvider, does_not_raise()),
+    ],
+)
+def test_schema_to_model_provider(schemas, expected_class, expected):
+    with expected:
+        stores = [schema_to_model_provider(schema) for schema in schemas]
         assert all(store == expected_class for store in stores)
 
 

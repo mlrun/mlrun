@@ -148,6 +148,7 @@ class StoreManager(BaseRemoteClientManager):
         project="",
         allow_empty_resources=None,
         secrets: Optional[dict] = None,
+        **kwargs
     ) -> DataItem:
         meta = artifact_url = None
         if is_store_uri(url):

@@ -40,12 +40,12 @@ class ModelProvider(BaseRemoteClient, ABC):
         kind,
         endpoint="",
         secrets: Optional[dict] = None,
-        **default_invoke_kwargs,
+        default_invoke_kwargs: Optional[dict] = None,
     ):
         super().__init__(
             parent=parent, name=name, kind=kind, endpoint=endpoint, secrets=secrets
         )
-        self.default_invoke_kwargs = default_invoke_kwargs
+        self.default_invoke_kwargs = default_invoke_kwargs or {}
         self._client = None
         self._default_operation = None
 
@@ -71,7 +71,7 @@ class AsyncModelProvider(ModelProvider, ABC):
         kind,
         endpoint="",
         secrets: Optional[dict] = None,
-        **default_invoke_kwargs,
+        default_invoke_kwargs: Optional[dict] = None,
     ):
         super().__init__(
             parent=parent,
@@ -97,7 +97,7 @@ class OpenAIProvider(AsyncModelProvider):
         kind,
         endpoint="",
         secrets: Optional[dict] = None,
-        **default_invoke_kwargs,
+        default_invoke_kwargs: Optional[dict] = None,
     ):
         endpoint = endpoint or mlrun.mlconf.model_providers.openai_default_model
         super().__init__(
@@ -191,7 +191,7 @@ class ModelProviderManager(BaseRemoteClientManager):
         super().__init__(secrets=secrets, db=db)
 
     def get_or_create_model_provider(
-        self, url, secrets: Optional[dict] = None, project_name="", **client_kwargs
+        self, url, secrets: Optional[dict] = None, project_name="", default_invoke_kwargs: Optional[dict] = None
     ) -> (ModelProvider, str, str):
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
@@ -215,7 +215,7 @@ class ModelProviderManager(BaseRemoteClientManager):
             kind=schema,
             endpoint=endpoint,
             secrets=secrets,
-            **client_kwargs,
+            default_invoke_kwargs=default_invoke_kwargs,
         )
         return model_provider
 
@@ -233,16 +233,16 @@ class ModelProviderManager(BaseRemoteClientManager):
             )
         except Exception as exc:
             raise OSError(f"artifact {url} not found, {err_to_str(exc)}")
-        if not isinstance(resource, (ModelArtifact, LLMPromptArtifact)):
+        if not isinstance(resource, ModelArtifact):
             raise mlrun.errors.MLRunRuntimeError(
-                "The resource is neither a ModelArtifact nor an LLMPromptArtifact"
+                "The resource is not a ModelArtifact"
             )
         url = resource.model_url
         if not url and not allow_empty_resources:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Resource {url} does not have a valid/persistent offline target"
+                f"Resource {url} does not have model url"
             )
-        return resource, url or ""  # TODO check if url is needed
+        return resource
 
     def object(
         self,
@@ -251,12 +251,15 @@ class ModelProviderManager(BaseRemoteClientManager):
         project="",
         allow_empty_resources=None,
         secrets: Optional[dict] = None,
+        default_invoke_kwargs: Optional[dict] = None,
     ) -> ModelProvider:
         if mlrun.datastore.is_store_uri(url):
-            resource, _ = self.get_model_artifact(
+            resource = self.get_model_artifact(
                 url, project, allow_empty_resources, secrets
             )
+            url = resource.model_url
+            default_invoke_kwargs = default_invoke_kwargs or resource.default_config
         model_provider = self.get_or_create_model_provider(
-            url, secrets=secrets, project_name=project
+            url, secrets=secrets, project_name=project, default_invoke_kwargs=default_invoke_kwargs
         )
         return model_provider

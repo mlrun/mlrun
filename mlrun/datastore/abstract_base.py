@@ -90,6 +90,7 @@ class BaseRemoteClientManager(ABC):
         project="",
         allow_empty_resources=None,
         secrets: Optional[dict] = None,
+        **kwargs
     ) -> Any:
         pass
 

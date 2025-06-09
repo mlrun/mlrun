@@ -69,6 +69,7 @@ class TestRuntimeHandlerBase:
         name: Optional[str] = None,
         uid: Optional[str] = None,
         start_time: Optional[datetime] = None,
+        retry_spec: Optional[dict] = None,
     ):
         self.run = {
             "status": {
@@ -86,6 +87,7 @@ class TestRuntimeHandlerBase:
             "spec": {
                 "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
                 "node_selector": {"test/host": "node1"},
+                "retry": retry_spec,
             },
         }
         if start_time:

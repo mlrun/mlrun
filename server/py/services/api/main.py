@@ -990,12 +990,13 @@ class Service(framework.service.Service):
                     }
                     loop = asyncio.get_event_loop()
                     # TODO: ensure not submitting the same run multiple times
-                    # TODO: Need to resolve auth info for the run, so it can be submitted with the correct user
                     loop.call_later(
                         call_after_seconds,
                         framework.db.session.run_function_with_new_db_session,
                         framework.api.utils.submit_run_sync,
-                        None,
+                        # auth is already masked on the function
+                        # TODO: pass values for param_file_secrets ?
+                        mlrun.common.schemas.AuthInfo(),
                         submit_job_body,
                     )
                 except Exception as exc:

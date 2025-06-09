@@ -14,6 +14,7 @@
 
 import json
 import subprocess
+import time
 from datetime import datetime, timedelta, timezone
 from sys import executable
 
@@ -700,18 +701,26 @@ def print_df(df):
 
         function.set_image_pull_configuration(image_pull_policy="Always")
 
+        retry_count = 3
         retry = mlrun.model.Retry(
-            count=3,
+            count=retry_count,
         )
 
-        # TODO: should we wait for all retries to finish?
         with pytest.raises(mlrun.runtimes.utils.RunError):
             function.run(verbose=True, retry=retry)
         runs = mlrun.get_run_db().list_runs(project=self.project_name)
         assert len(runs) == 1
         run = mlrun.RunObject.from_dict(runs[0])
-        assert run.status.retry_count == 0
+        assert run.status.retry_count is None
         assert (
             run.status.state == mlrun.common.runtimes.constants.RunStates.pending_retry
         )
-        assert run.states.status_text == "This should be something like, failed try 1/3"
+        assert run.status.status_text == f"Run failed attempt 1 of {retry_count}"
+
+        time.sleep(90)  # wait for the retries to finish
+        runs = mlrun.get_run_db().list_runs(project=self.project_name)
+        assert len(runs) == 1
+        run = mlrun.RunObject.from_dict(runs[0])
+        assert run.status.retry_count == 3
+        assert run.status.state == mlrun.common.runtimes.constants.RunStates.error
+        assert run.status.status_text == f"Run failed after {retry_count} attempts"

@@ -189,10 +189,10 @@ class RunStates:
         return list(set(RunStates.all()) - set(RunStates.terminal_states()))
 
     @staticmethod
-    def terminal_error_states():
+    def terminal_or_error_states():
         return list(
             set(RunStates.terminal_states())
-            & set(RunStates.error_and_abortion_states())
+            | set(RunStates.error_and_abortion_states())
         )
 
     @staticmethod

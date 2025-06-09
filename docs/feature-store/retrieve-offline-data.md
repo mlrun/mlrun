@@ -1,7 +1,7 @@
 (retrieve-offline-data)=
 # Training with the feature store
 
-Learn how to train your model using an offline dataset created by the the MLRun feature store.
+Learn how to train your model using an offline dataset created by the MLRun feature store.
 
 **In this section**
 - [Creating an offline dataset](#creating-an-offline-dataset)

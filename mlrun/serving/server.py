@@ -21,8 +21,9 @@ import os
 import socket
 import traceback
 import uuid
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
+import storey
 from nuclio import Context as NuclioContext
 from nuclio.request import Logger as NuclioLogger
 
@@ -37,9 +38,10 @@ from mlrun.secrets import SecretsStore
 
 from ..common.helpers import parse_versioned_object_uri
 from ..common.schemas.model_monitoring.constants import FileTargetKind
-from ..datastore import get_stream_pusher
+from ..datastore import DataItem, get_stream_pusher
 from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
+from ..execution import MLClientCtx
 from ..model import ModelObj
 from ..utils import get_caller_globals
 from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
@@ -314,7 +316,11 @@ class GraphServer(ModelObj):
 
     def _process_response(self, context, response, get_body):
         body = response.body
-        if isinstance(body, context.Response) or get_body:
+        if (
+            isinstance(context, MLClientCtx)
+            or isinstance(body, context.Response)
+            or get_body
+        ):
             return body
 
         if body and not isinstance(body, (str, bytes)):
@@ -403,6 +409,94 @@ def v2_serving_init(context, namespace=None):
         context.logger.info(server.to_yaml())
 
     _set_callbacks(server, context)
+
+
+async def async_execute_graph(
+    context: MLClientCtx,
+    data: DataItem,
+    batching: bool,
+    batch_size: Optional[int],
+) -> list[Any]:
+    spec = mlrun.utils.get_serving_spec()
+
+    source_filename = spec.get("filename", None)
+    namespace = {}
+    if source_filename:
+        with open(source_filename) as f:
+            exec(f.read(), namespace)
+
+    server = GraphServer.from_dict(spec)
+
+    if config.log_level.lower() == "debug":
+        server.verbose = True
+    context.logger.info_with("Initializing states", namespace=namespace)
+    kwargs = {}
+    if hasattr(context, "is_mock"):
+        kwargs["is_mock"] = context.is_mock
+    server.init_states(
+        context=None,  # this context is expected to be a nuclio context, which we don't have in this flow
+        namespace=namespace,
+        **kwargs,
+    )
+    context.logger.info("Initializing graph steps")
+    server.init_object(namespace)
+
+    context.logger.info_with("Graph was initialized", verbose=server.verbose)
+
+    if server.verbose:
+        context.logger.info(server.to_yaml())
+
+    df = data.as_df()
+
+    responses = []
+
+    async def run(body):
+        event = storey.Event(id=index, body=body)
+        response = await server.run(event, context)
+        responses.append(response)
+
+    if batching and not batch_size:
+        batch_size = len(df)
+
+    batch = []
+    for index, row in df.iterrows():
+        data = row.to_dict()
+        if batching:
+            batch.append(data)
+            if len(batch) == batch_size:
+                await run(batch)
+                batch = []
+        else:
+            await run(data)
+
+    if batch:
+        await run(batch)
+
+    termination_result = server.wait_for_completion()
+    if asyncio.iscoroutine(termination_result):
+        await termination_result
+
+    return responses
+
+
+def execute_graph(
+    context: MLClientCtx,
+    data: DataItem,
+    batching: bool = False,
+    batch_size: Optional[int] = None,
+) -> (list[Any], Any):
+    """
+    Execute graph as a job, from start to finish.
+
+    :param context: The job's execution client context.
+    :param data: The input data to the job, to be pushed into the graph row by row, or in batches.
+    :param batching: Whether to push one or more batches into the graph rather than row by row.
+    :param batch_size: The number of rows to push per batch. If not set, and batching=True, the entire dataset will
+        be pushed into the graph in one batch.
+
+    :return: A list of responses.
+    """
+    return asyncio.run(async_execute_graph(context, data, batching, batch_size))
 
 
 def _set_callbacks(server, context):

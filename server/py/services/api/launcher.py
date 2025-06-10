@@ -11,9 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import base64
+import gzip
 from copy import deepcopy
 from typing import Optional, Union
 
+import semver
 from dependency_injector import containers, providers
 
 import mlrun.common.constants as mlrun_constants
@@ -32,11 +35,15 @@ import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.regex
 from mlrun.model import RunSpec, RunTemplate
+from mlrun.runtimes import KubejobRuntime
 
 import framework.api.utils
 import framework.utils.helpers
 import services.api.crud
 import services.api.runtime_handlers
+
+# Configmap objects on Kubernetes have 10Mb size limit
+SERVING_SPEC_MAX_LENGTH = 10485760
 
 
 class ServerSideLauncher(launcher.BaseLauncher):
@@ -297,11 +304,87 @@ class ServerSideLauncher(launcher.BaseLauncher):
         )
         return run
 
+    @staticmethod
+    def _configure_serving_spec(
+        client_version,
+        function,
+        project: str,
+        serving_spec,
+    ):
+        serving_spec_volume = None
+        if serving_spec is not None:
+            # since environment variables have a limited size,
+            # large serving specs are stored in config maps that are mounted to the pod
+            serving_spec_len = len(serving_spec.encode("utf-8"))
+            if serving_spec_len >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff:
+                if serving_spec_len >= SERVING_SPEC_MAX_LENGTH:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}."
+                    )
+                if (
+                    not client_version
+                    or semver.Version.parse(client_version)
+                    >= semver.Version.parse("1.8.0-rc20")
+                    or "unstable" in client_version
+                ):
+                    # Compress and encode the serving spec
+                    compressed_serving_spec = gzip.compress(
+                        serving_spec.encode("utf-8")
+                    )
+                    encoded_serving_spec = base64.b64encode(
+                        compressed_serving_spec
+                    ).decode("utf-8")
+                else:
+                    # TODO: remove in 1.11.0.
+                    if (
+                        serving_spec_len >= SERVING_SPEC_MAX_LENGTH / 10
+                    ):  # 1MB limitation as it were before the zip
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}."
+                        )
+                    mlrun.utils.logger.info(
+                        "Client version does not support passing serving spec as zip via ConfigMap",
+                        FutureWarning,
+                    )
+                    encoded_serving_spec = serving_spec
+
+                function_name = mlrun.runtimes.nuclio.function.get_fullname(
+                    function.metadata.name, project, function.metadata.tag
+                )
+                k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
+                confmap_name = k8s_helper.ensure_configmap(
+                    mlrun.common.constants.MLRUN_SERVING_CONF,
+                    function_name,
+                    {
+                        mlrun.common.constants.MLRUN_SERVING_SPEC_FILENAME: encoded_serving_spec
+                    },
+                    labels={mlrun_constants.MLRunInternalLabels.created: "true"},
+                    project=project,
+                )
+                volume_name = mlrun.common.constants.MLRUN_SERVING_CONF
+                volume_mount = {
+                    "name": volume_name,
+                    "mountPath": mlrun.common.constants.MLRUN_SERVING_SPEC_MOUNT_PATH,
+                    "readOnly": True,
+                }
+
+                serving_spec_volume = {
+                    "volume": {
+                        "name": volume_name,
+                        "configMap": {"name": confmap_name},
+                    },
+                    "volumeMount": volume_mount,
+                }
+            else:
+                function.spec.env["SERVING_SPEC_ENV"] = serving_spec
+        return serving_spec_volume
+
     def enrich_runtime(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
         project_name: Optional[str] = "",
         full: bool = True,
+        client_version: str = "",
     ):
         """
         Enrich the runtime object with the project spec and metadata.
@@ -311,6 +394,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         :param project_name:    the project name of the project to enrich the runtime with
         :param full:            whether to enrich the runtime with the project's full spec (before run)
                                 e.g. mount, service account, etc.
+        :param client_version:  MLRun client version
         """
 
         # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
@@ -348,6 +432,22 @@ class ServerSideLauncher(launcher.BaseLauncher):
             runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
                 runtime.kind
             ]
+
+        serving_spec = getattr(runtime, "serving_spec", None)
+        if serving_spec:
+            serving_spec_volume = self._configure_serving_spec(
+                client_version=client_version,
+                function=runtime,
+                project=project.name,
+                serving_spec=serving_spec,
+            )
+            if serving_spec_volume and isinstance(runtime, KubejobRuntime):
+                runtime.spec.volumes = runtime.spec.volumes + [
+                    serving_spec_volume["volume"]
+                ]
+                runtime.spec.volume_mounts = runtime.spec.volume_mounts + [
+                    serving_spec_volume["volumeMount"]
+                ]
 
     def _enrich_full_spec(
         self,

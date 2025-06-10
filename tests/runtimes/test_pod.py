@@ -256,7 +256,7 @@ def test_build_config_with_multiple_commands():
     fn.build_config(commands=["pip install pandas", "pip install numpy"])
     assert len(fn.spec.build.commands) == 2
 
-    fn.build_config(commands=["pip install pandas"])
+    fn.build_config(commands=["pip install pandas"], overwrite=False)
     assert len(fn.spec.build.commands) == 2
 
 

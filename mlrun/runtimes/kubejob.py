@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import typing
-import warnings
 
 import mlrun.common.schemas
 import mlrun.db
@@ -83,7 +82,7 @@ class KubejobRuntime(KubeResource):
         with_mlrun=None,
         auto_build=None,
         requirements=None,
-        overwrite=False,
+        overwrite=True,
         prepare_image_for_deploy=True,
         requirements_file=None,
         builder_env=None,
@@ -113,12 +112,6 @@ class KubejobRuntime(KubeResource):
         :param builder_env: Kaniko builder pod env vars dict (for config/credentials)
             e.g. builder_env={"GIT_TOKEN": token}
         """
-        if not overwrite:
-            # TODO: change overwrite default to True in 1.10.0
-            warnings.warn(
-                "The `overwrite` parameter default will change from 'False' to 'True' in 1.10.0.",
-                mlrun.utils.OverwriteBuildParamsWarning,
-            )
         image = mlrun.utils.helpers.remove_image_protocol_prefix(image)
         self.spec.build.build_config(
             image=image,

@@ -32,6 +32,7 @@ import storey.utils
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas as schemas
+from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaSource,
@@ -973,7 +974,7 @@ class Model(storey.ParallelExecutionRunnable):
         """Override to load model if needed."""
         pass
 
-    def _get_artifact_object(self) -> Union[ModelArtifact, None]:
+    def _get_artifact_object(self) -> Union[ModelArtifact, LLMPromptArtifact, None]:
         if self.artifact_uri:
             if mlrun.datastore.is_store_uri(self.artifact_uri):
                 return get_store_resource(self.artifact_uri)
@@ -1035,6 +1036,42 @@ class Model(storey.ParallelExecutionRunnable):
         return None, None
 
 
+class ModelProviderModel(mlrun.serving.states.Model):
+    execution_mechanism = "naive"
+
+    def __init__(
+        self,
+        name: str,
+        raise_exception: bool = True,
+        artifact_uri: Optional[str] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            name=name,
+            raise_exception=raise_exception,
+            artifact_uri=artifact_uri,
+            **kwargs,
+        )
+        self.invocation_artifact = None
+        self.model_artifact = None
+        self.model = None
+
+    def load(self):
+        artifact = self._get_artifact_object()
+        if isinstance(artifact, LLMPromptArtifact):
+            self.invocation_artifact = artifact
+            self.model_artifact = get_store_resource(
+                self.invocation_artifact.model_artifact
+            )
+        else:
+            self.model_artifact = artifact
+        self.model = mlrun.get_model_provider(
+            url=self.model_artifact.model_url,
+            default_invoke_kwargs=self.model_artifact.default_config,
+        )
+
+
+# user defined
 class ModelSelector:
     """Used to select which models to run on each event."""
 

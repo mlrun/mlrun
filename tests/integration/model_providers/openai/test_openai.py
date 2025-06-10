@@ -16,6 +16,7 @@ import os
 from typing import cast
 
 import pytest
+import tiktoken
 import yaml
 
 import mlrun
@@ -25,7 +26,6 @@ from mlrun.datastore.datastore_profile import (
     register_temporary_client_datastore_profile,
 )
 from mlrun.datastore.model_providers import OpenAIProvider
-import tiktoken
 
 here = os.path.dirname(__file__)
 config = {}
@@ -84,8 +84,9 @@ class TestOpenAIProvider:
 
     @staticmethod
     def check_basic_invoke(model_url: str, secrets: dict, model_name: str):
-        model_provider = mlrun.get_model_provider(url=model_url, secrets=secrets,
-                                                  default_invoke_kwargs={"max_tokens": 200})
+        model_provider = mlrun.get_model_provider(
+            url=model_url, secrets=secrets, default_invoke_kwargs={"max_tokens": 200}
+        )
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == model_name
         result = model_provider.basic_llm_invoke(
@@ -103,7 +104,8 @@ class TestOpenAIProvider:
         assert token_count == 200
 
         result = model_provider.basic_llm_invoke(
-            prompt="Write a very long detailed explanation about machine learning", max_tokens=50
+            prompt="Write a very long detailed explanation about machine learning",
+            max_tokens=50,
         )
         token_count = len(encoding.encode(result))
         assert token_count == 50

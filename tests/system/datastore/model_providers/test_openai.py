@@ -15,6 +15,7 @@
 
 import mlrun.artifacts
 import mlrun.serving.states
+from tests.system.base import TestMLRunSystem
 
 
 class MyOpenAILLM(mlrun.serving.states.ModelProviderModel):
@@ -32,3 +33,14 @@ class MyOpenAILLM(mlrun.serving.states.ModelProviderModel):
             sub_dict = {k: body[k] for k in needed_params if k in body}
             return prompt_template.format(**sub_dict)
         return body["question"]
+
+
+class TestOpenAIModelRunner(TestMLRunSystem):
+    """Applying basic model endpoint CRUD operations through MLRun API"""
+
+    project_name = "openai_model_runner"
+    image = "mlrun/mlrun"
+
+    def test_basic_openai_model_runner(self):
+        # TODO
+        pass

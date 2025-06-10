@@ -67,7 +67,7 @@ class MonitoringPreProcessor(storey.MapClass):
         else:
             outputs = result
 
-        event_inputs = event.headers.get("inputs", {})
+        event_inputs = event._metadata.get("inputs", {})
         event_inputs = self._get_data_from_path(input_path, event_inputs)
         if isinstance(event_inputs, dict):
             if len(event_inputs) > 1:
@@ -144,7 +144,7 @@ class MonitoringPreProcessor(storey.MapClass):
         server: mlrun.serving.GraphServer = getattr(
             self.context, "_server", None
         ) or getattr(self.context, "server", None)
-        model_runner_name = event.headers.get("model_runner_name", "")
+        model_runner_name = event._metadata.get("model_runner_name", "")
         step = server.graph.steps[model_runner_name] if server else {}
         monitoring_data = step.monitoring_data
         logger.debug(
@@ -152,7 +152,6 @@ class MonitoringPreProcessor(storey.MapClass):
             event=event,
             model_endpoints=monitoring_data,
             metadata=event._metadata,
-            headers=event.headers,
         )
         if len(monitoring_data) > 1:
             for model in event.body.keys():
@@ -210,10 +209,10 @@ class MonitoringPreProcessor(storey.MapClass):
                     mm_schemas.StreamProcessingEvent.MODEL_CLASS: monitoring_data[
                         model
                     ].get(mm_schemas.StreamProcessingEvent.MODEL_CLASS),
-                    mm_schemas.StreamProcessingEvent.MICROSEC: event._metadata[0].get(
+                    mm_schemas.StreamProcessingEvent.MICROSEC: event._metadata.get(
                         mm_schemas.StreamProcessingEvent.MICROSEC
                     ),
-                    mm_schemas.StreamProcessingEvent.WHEN: event._metadata[0].get(
+                    mm_schemas.StreamProcessingEvent.WHEN: event._metadata.get(
                         mm_schemas.StreamProcessingEvent.WHEN
                     ),
                     mm_schemas.StreamProcessingEvent.ENDPOINT_ID: monitoring_data[

@@ -1118,10 +1118,16 @@ class ModelRunner(storey.ParallelExecution):
         self.model_selector = model_selector or ModelSelector()
         self.context = context
 
+    def preprocess_event(self, event):
+        if not hasattr(event, "_metadata"):
+            event._metadata = {}
+
+        event._metadata["model_runner_name"] = self.name
+        event._metadata["inputs"] = deepcopy(event.body)
+
+        return event
+
     def select_runnables(self, event):
-        if hasattr(event, "headers") and hasattr(event, "body"):
-            event.headers["model_runner_name"] = self.name
-            event.headers["inputs"] = deepcopy(event.body)
         models = cast(list[Model], self.runnables)
         return self.model_selector.select(event, models)
 

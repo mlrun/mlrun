@@ -20,7 +20,6 @@ import pytest
 
 import mlrun.launcher.local
 from mlrun import MLRunInvalidArgumentError
-from mlrun.serving.states import params_to_step
 
 assets_path = pathlib.Path(__file__).parent / "assets"
 func_path = assets_path / "sample_function.py"
@@ -233,8 +232,7 @@ def test_run_local_serving_job(batching, batch_size):
     }
 
 
-@pytest.mark.parametrize("with_target_mapping", [False, True])
-def test_run_local_serving_job_with_target(with_target_mapping):
+def test_run_local_serving_job_with_target():
     project = mlrun.new_project("some-project")
     function = mlrun.code_to_function(
         name="test", kind="serving", filename=str(custom_classes_path)
@@ -245,46 +243,13 @@ def test_run_local_serving_job_with_target(with_target_mapping):
         graph.to(name="increaser", class_name="SepalLengthIncreaser")
         graph.to(name="parquet", class_name="storey.ParquetTarget", path=tmp_dir)
 
-        target_mapping = None
-        if with_target_mapping:
-            _, new_target = params_to_step(
-                class_name="storey.ParquetTarget",
-                name="parquet",
-                class_args={"path": f"{tmp_dir}/subdir"},
-            )
-            target_mapping = {"parquet": new_target}
-
-        job = function.to_job(target_mapping=target_mapping)
+        job = function.to_job()
 
         inputs = {"data": str(input_csv_path)}
 
         project.run_function(job, inputs=inputs, local=True)
 
         assert pathlib.Path(tmp_dir).exists()
-        assert pathlib.Path(f"{tmp_dir}/subdir").exists() == with_target_mapping
-
-
-def test_to_job_with_bad_target_mapping():
-    function = mlrun.code_to_function(
-        name="test", kind="serving", filename=str(custom_classes_path)
-    )
-    graph = function.set_topology("flow", engine="async")
-
-    graph.to(name="increaser", class_name="SepalLengthIncreaser")
-    graph.to(name="parquet", class_name="storey.ParquetTarget", path="some/path")
-
-    _, new_target = params_to_step(
-        class_name="storey.ParquetTarget",
-        name="other-parquet",
-        class_args={"path": "some/path/subdir"},
-    )
-    target_mapping = {"parquet": new_target}
-
-    with pytest.raises(
-        MLRunInvalidArgumentError,
-        match="Target mappings must be to a target with the same name as the one being replaced",
-    ):
-        function.to_job(target_mapping=target_mapping)
 
 
 def test_to_job_on_function_with_children():

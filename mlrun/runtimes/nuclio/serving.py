@@ -816,56 +816,36 @@ class ServingRuntime(RemoteRuntime):
         )
         self._mock_server = self.to_mock_server()
 
-    def to_job(
-        self, target_mapping: Optional[dict[str, TaskStep]] = None
-    ) -> KubejobRuntime:
-        """
-        Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job.
-
-        :param target_mapping: Set this to map targets in this ServingRuntime to other targets that will run as
-          part of the standalone job. For example, you may wish to replace a ParquetTarget in order to change its path.
-        """
+    def to_job(self) -> KubejobRuntime:
+        """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job."""
         if self.spec.function_refs:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Cannot convert function '{self.metadata.name}' to a job because it has child functions"
             )
 
-        serving_job = self.copy()
-        if target_mapping:
-            for from_name, to_step in target_mapping.items():
-                if from_name != to_step.name:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        "Target mappings must be to a target with the same name as the one being replaced"
-                    )
-                to_step = to_step.copy()
-                to_step.after = serving_job.spec.graph.steps[from_name].after
-                to_step.responder = serving_job.spec.graph.steps[from_name].responder
-                del serving_job.spec.graph.steps[from_name]
-                serving_job.spec.graph.steps[from_name] = to_step
-
         spec = KubeResourceSpec(
-            image=serving_job.spec.image,
-            mode=serving_job.spec.mode,
-            volumes=serving_job.spec.volumes,
-            volume_mounts=serving_job.spec.volume_mounts,
-            env=serving_job.spec.env,
-            resources=serving_job.spec.resources,
+            image=self.spec.image,
+            mode=self.spec.mode,
+            volumes=self.spec.volumes,
+            volume_mounts=self.spec.volume_mounts,
+            env=self.spec.env,
+            resources=self.spec.resources,
             default_handler="mlrun.serving.server.execute_graph",
-            pythonpath=serving_job.spec.pythonpath,
-            entry_points=serving_job.spec.entry_points,
-            description=serving_job.spec.description,
-            workdir=serving_job.spec.workdir,
-            image_pull_secret=serving_job.spec.image_pull_secret,
-            node_name=serving_job.spec.node_name,
-            node_selector=serving_job.spec.node_selector,
-            affinity=serving_job.spec.affinity,
-            disable_auto_mount=serving_job.spec.disable_auto_mount,
-            priority_class_name=serving_job.spec.priority_class_name,
-            tolerations=serving_job.spec.tolerations,
-            preemption_mode=serving_job.spec.preemption_mode,
-            security_context=serving_job.spec.security_context,
-            state_thresholds=serving_job.spec.state_thresholds,
-            serving_spec=serving_job._get_serving_spec(),
+            pythonpath=self.spec.pythonpath,
+            entry_points=self.spec.entry_points,
+            description=self.spec.description,
+            workdir=self.spec.workdir,
+            image_pull_secret=self.spec.image_pull_secret,
+            node_name=self.spec.node_name,
+            node_selector=self.spec.node_selector,
+            affinity=self.spec.affinity,
+            disable_auto_mount=self.spec.disable_auto_mount,
+            priority_class_name=self.spec.priority_class_name,
+            tolerations=self.spec.tolerations,
+            preemption_mode=self.spec.preemption_mode,
+            security_context=self.spec.security_context,
+            state_thresholds=self.spec.state_thresholds,
+            serving_spec=self._get_serving_spec(),
         )
         job = KubejobRuntime(
             spec=spec,

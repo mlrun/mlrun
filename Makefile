@@ -541,15 +541,15 @@ build-test-system: compile-schemas update-version-file ## Build system tests doc
 
 .PHONY: package-wheel
 package-wheel: clean update-version-file ## Build python package wheel
-	python -m build --wheel
+	uv build
 
 .PHONY: publish-package
 publish-package: package-wheel ## Publish python package wheel
-	python -m twine upload dist/mlrun-*.whl
+	uv publish
 
 .PHONY: test-publish
 test-publish: package-wheel ## Test python package publishing
-	python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/mlrun-*.whl
+	uv publish --publish-url https://test.pypi.org/legacy/
 
 .PHONY: clean
 clean: ## Clean python package build artifacts

@@ -572,16 +572,12 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         with_training_set: bool = True,
         with_model_runner: bool = False,
     ) -> datetime:
-        if with_model_runner:
-            result = serving_fn.invoke(
-                "/",
-                json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}),
-            )
-        else:
-            result = serving_fn.invoke(
-                f"v2/models/{cls.model_name}_{with_training_set}/infer",
-                json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}),
-            )
+        result = serving_fn.invoke(
+            path="/"
+            if with_model_runner
+            else f"v2/models/{cls.model_name}_{with_training_set}/infer",
+            body=json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}),
+        )
         assert isinstance(result, dict), "Unexpected result type"
         assert "outputs" in result, "Result should have 'outputs' key"
         assert (
@@ -1713,18 +1709,47 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
         ).uri
 
     def _deploy_model_serving(
-        self, model_uri: str, sampling_percentage: typing.Optional[float] = None
+        self,
+        model_uri: str,
+        sampling_percentage: typing.Optional[float] = None,
+        with_model_runner: typing.Optional[bool] = False,
     ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
-        serving_fn = typing.cast(
-            mlrun.runtimes.nuclio.serving.ServingRuntime,
-            self.project.set_function(
-                "hub://v2_model_server",
+        if with_model_runner:
+            code_path = (
+                f"{str((Path(__file__).parent / 'assets').absolute())}/models.py"
+            )
+            serving_fn = mlrun.code_to_function(
                 name=self._serving_function_name_with_sample
                 if sampling_percentage
                 else self._serving_function_name_without_sample,
-            ),
-        )
-        serving_fn.add_model(self._model_name, model_path=model_uri)
+                kind="serving",
+                project=self.project_name,
+                filename=code_path,
+            )
+            model_runner_step = mlrun.serving.ModelRunnerStep(
+                name="ModelRunner",
+                full_event=True,
+            )
+            model_runner_step.add_model(
+                endpoint_name=self._model_name,
+                model_class="MyModel",
+                model_artifact=model_uri,
+                input_path="inputs",
+                result_path="outputs",
+            )
+            graph = serving_fn.set_topology("flow", engine="async")
+            graph.to(model_runner_step).respond()
+        else:
+            serving_fn = typing.cast(
+                mlrun.runtimes.nuclio.serving.ServingRuntime,
+                self.project.set_function(
+                    "hub://v2_model_server",
+                    name=self._serving_function_name_with_sample
+                    if sampling_percentage
+                    else self._serving_function_name_without_sample,
+                ),
+            )
+            serving_fn.add_model(self._model_name, model_path=model_uri)
         if sampling_percentage:
             serving_fn.set_tracking(sampling_percentage=sampling_percentage)
         else:
@@ -1735,22 +1760,27 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
         serving_fn.deploy()
         return serving_fn
 
-    def _setup_resources(self) -> None:
+    def _setup_resources(
+        self, with_model_runner: typing.Optional[bool] = False
+    ) -> None:
         self.set_mm_credentials()
         model_uri = self._log_model()
         with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.submit(
-                self._deploy_model_serving, model_uri, 15.5
+                self._deploy_model_serving, model_uri, 15.5, with_model_runner
             )  # with sampling
-            executor.submit(self._deploy_model_serving, model_uri)  # without sampling
+            executor.submit(
+                self._deploy_model_serving, model_uri, None, with_model_runner
+            )  # without sampling
             executor.submit(self._set_infra)
         self._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project_name, profile=self.mm_tsdb_profile
         )
 
-    def test_serving(self) -> None:
+    @pytest.mark.parametrize("with_model_runner", [False, True])
+    def test_serving(self, with_model_runner: bool) -> None:
         # Set up the serving function with a model endpoint, and the necessary infrastructure
-        self._setup_resources()
+        self._setup_resources(with_model_runner)
 
         # Send 10 requests to the serving functions, with each request containing 100 data points
         serving_fn_v1 = typing.cast(
@@ -1765,11 +1795,15 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
 
         for i in range(10):
             serving_fn_v1.invoke(
-                f"v2/models/{self._model_name}/infer",
+                path="/"
+                if with_model_runner
+                else f"v2/models/{self._model_name}/infer",
                 body=json.dumps({"inputs": [[0, 0, 0, 0]] * 100}),
             )
             serving_fn_v2.invoke(
-                f"v2/models/{self._model_name}/infer",
+                path="/"
+                if with_model_runner
+                else f"v2/models/{self._model_name}/infer",
                 body=json.dumps({"inputs": [[0, 0, 0, 0]] * 100}),
             )
 

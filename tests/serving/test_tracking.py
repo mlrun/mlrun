@@ -552,10 +552,10 @@ def test_sampling_model_runner(sampling_percentage: float):
         "/",
         {
             "inputs": {
-                "f1": [1, 4, 8, 12],
-                "f2": [2, 5, 9, 13],
-                "f3": [3, 6, 10, 14],
-                "f4": [4, 7, 11, 15],
+                "f1": [1, 4, 8, 12] * 1000,
+                "f2": [2, 5, 9, 13] * 1000,
+                "f3": [3, 6, 10, 14] * 1000,
+                "f4": [4, 7, 11, 15] * 1000,
             }
         },
     )
@@ -563,8 +563,15 @@ def test_sampling_model_runner(sampling_percentage: float):
 
     dummy_stream = server.context.stream.output_stream
 
+    _test_graph_structure(server.graph, True)
+
     if sampling_percentage == 100.0:
         assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
-        assert len(dummy_stream.event_list[0]["resp"]["outputs"]) == 4
-    _test_graph_structure(server.graph, True)
-    # Otherwise probability to have no events or less outputs, allow to test this use case manually.
+        assert len(dummy_stream.event_list[0]["resp"]["outputs"]) == 4000
+    else:
+        if len(dummy_stream.event_list) == 1:
+            assert len(dummy_stream.event_list[0]["resp"]["outputs"]) < 4000, (
+                f"expected sampling will remove"
+                f" some outputs with sampling_percentage"
+                f" = {sampling_percentage} "
+            )

@@ -36,6 +36,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun_pipelines.utils
+from mlrun.datastore.model_providers import ModelProvider
 from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
 
@@ -62,7 +63,6 @@ from .runtimes.databricks_job.databricks_runtime import DatabricksRuntime
 from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.nuclio.application import ApplicationRuntime
 from .runtimes.utils import add_code_metadata, global_context
-from mlrun.datastore.model_providers import ModelProvider
 from .utils import (
     RunKeys,
     create_ipython_display,

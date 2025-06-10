@@ -13,11 +13,18 @@
 # limitations under the License.
 
 import os
-import mlrun
+from typing import cast
+
 import pytest
 import yaml
+
+import mlrun
+from mlrun import model_provider_manager
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileOpenAI,
+    register_temporary_client_datastore_profile,
+)
 from mlrun.datastore.model_providers import OpenAIProvider
-from typing import cast
 
 here = os.path.dirname(__file__)
 config = {}
@@ -37,18 +44,36 @@ def openai_configured():
     openai_configured(),
     reason="Requires OPENAI_API_KEY and OPENAI_BASE_URL to be set under test-openai.yml",
 )
+@pytest.mark.parametrize("use_datastore_profile", [True, False])
 class TestOpenAIProvider:
+    profile_name = "openai_profile"
 
     @classmethod
     def setup_class(cls):
         cls.env_secrets = config["env"]
+        cls.basic_llm_model = "gpt-4"
 
     @pytest.fixture(autouse=True)
-    def setup_before_each_test(self):
-        for key, env_param in self.env_secrets.items():
-            if env_param:
-                os.environ[key] = env_param
-        mlrun.model_provider_manager.reset_secrets()
+    def setup_before_each_test(self, use_datastore_profile):
+        if use_datastore_profile:
+            self.profile = DatastoreProfileOpenAI(
+                name=self.profile_name,
+                api_key=self.env_secrets.get("OPENAI_API_KEY"),
+                organization=self.env_secrets.get("OPENAI_ORG_ID"),
+                project=self.env_secrets.get("OPENAI_PROJECT_ID"),
+                base_url=self.env_secrets.get("OPENAI_BASE_URL"),
+                timeout=self.env_secrets.get("OPENAI_TIMEOUT"),
+                max_retries=self.env_secrets.get("OPENAI_MAX_RETRIES"),
+            )
+            register_temporary_client_datastore_profile(self.profile)
+            self.url_prefix = f"ds://{self.profile_name}/"
+            self.reset_env()
+        else:
+            for key, env_param in self.env_secrets.items():
+                if env_param:
+                    os.environ[key] = env_param
+            model_provider_manager.reset_secrets()
+            self.url_prefix = "openai://"
 
     @classmethod
     def reset_env(cls):
@@ -60,14 +85,13 @@ class TestOpenAIProvider:
     def check_basic_invoke(model_url, secrets):
         model_provider = mlrun.get_model_provider(url=model_url, secrets=secrets)
         model_provider = cast(OpenAIProvider, model_provider)
-        response = model_provider.basic_llm_invoke(prompt="what is the capital of france?")
+        response = model_provider.basic_llm_invoke(
+            prompt="what is the capital of france?"
+        )
         assert "paris" in response.choices[0].message.content.lower()
 
-    @pytest.mark.parametrize(
-        "model_url",
-        ["openai://gpt-4"],
-    )
-    def test_basic_invoke(self, model_url):
+    def test_basic_invoke(self):
+        model_url = self.url_prefix + self.basic_llm_model
         #  env check
         self.check_basic_invoke(model_url=model_url, secrets={})
         # secrets check

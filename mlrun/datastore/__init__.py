@@ -56,7 +56,7 @@ from ..utils import logger
 from .base import DataItem
 from .datastore import StoreManager, in_memory_store, uri_to_ipython
 from .dbfs_store import DatabricksFileBugFixed, DatabricksFileSystemDisableCache
-from .model_providers import ModelProviderManager, ModelProvider
+from .model_providers import ModelProvider, ModelProviderManager
 from .s3 import parse_s3_bucket_and_key
 from .sources import (
     BigQuerySource,

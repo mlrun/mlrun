@@ -340,7 +340,7 @@ def _compile_function_config(
             if not mlrun.utils.get_in(config, key):
                 mlrun.utils.update_in(config, key, {})
 
-        if not mlrun.utils.get_in(config,     "spec.handler"):
+        if not mlrun.utils.get_in(config, "spec.handler"):
             # if handler was not set, we set it to the default value
             mlrun.utils.update_in(config, "spec.handler", handler or "main:handler")
         config = nuclio.config.extend_config(

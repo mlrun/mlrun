@@ -28,6 +28,8 @@ from mlrun.utils import logger
 
 
 class MonitoringPreProcessor(storey.MapClass):
+    """preprocess step, reconstructs the serving output event body to StreamProcessingEvent schema"""
+
     def __init__(
         self,
         context,
@@ -141,9 +143,7 @@ class MonitoringPreProcessor(storey.MapClass):
 
     def do(self, event):
         monitoring_event_list = []
-        server: mlrun.serving.GraphServer = getattr(
-            self.context, "_server", None
-        ) or getattr(self.context, "server", None)
+        server: mlrun.serving.GraphServer = getattr(self.context, "server", None)
         model_runner_name = event._metadata.get("model_runner_name", "")
         step = server.graph.steps[model_runner_name] if server else {}
         monitoring_data = step.monitoring_data
@@ -243,11 +243,14 @@ class MonitoringPreProcessor(storey.MapClass):
 
 
 class BackgroundTaskStatus(storey.MapClass):
+    """
+    background task status checker, prevent events from pushing to the model monitoring stream target if model endpoints
+    creation failed or in progress
+    """
+
     def __init__(self, context, **kwargs):
         self.context = copy(context)
-        self.server: mlrun.serving.GraphServer = getattr(
-            self.context, "_server", None
-        ) or getattr(self.context, "server", None)
+        self.server: mlrun.serving.GraphServer = getattr(self.context, "server", None)
         self._background_task_check_timestamp = None
         self._background_task_status = mlrun.common.schemas.BackgroundTaskState.running
         super().__init__(**kwargs)
@@ -255,6 +258,9 @@ class BackgroundTaskStatus(storey.MapClass):
     def do(self, event):
         if (self.context and self.context.is_mock) or self.context is None:
             return event
+        if self.server is None:
+            return None
+
         if (
             self._background_task_status
             == mlrun.common.schemas.BackgroundTaskState.running
@@ -310,6 +316,8 @@ class BackgroundTaskStatus(storey.MapClass):
 
 
 class SamplingStep(storey.MapClass):
+    """sampling step, samples the serving outputs for the model monitoring as sampling_percentage defines"""
+
     def __init__(
         self,
         sampling_percentage: float,

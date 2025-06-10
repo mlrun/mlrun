@@ -33,6 +33,8 @@ __all__ = [
     "get_stream_pusher",
     "ConfigProfile",
     "VectorStoreCollection",
+    "store_manager",
+    "model_provider_manager",
 ]
 
 from urllib.parse import urlparse

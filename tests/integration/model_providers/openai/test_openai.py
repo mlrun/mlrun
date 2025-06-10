@@ -19,7 +19,7 @@ import pytest
 import yaml
 
 import mlrun
-from mlrun import model_provider_manager
+from mlrun.datastore import model_provider_manager
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileOpenAI,
     register_temporary_client_datastore_profile,

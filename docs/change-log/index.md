@@ -29,6 +29,13 @@
 |ML-4767|PyTorch 2.1.0 is now compatible with `mlrun`-gpu image.|
 |ML-9894|Logging artifacts to the V3IO store does not result in an "EOF occurred in violation of protocol" error.|
 
+## Model monitoring
+
+```{admonition} Notes
+- You must use the v1.8.0 client or higher to utilize model monitoring on a v1.9.0 server.
+```
+
+
 (v180)=
 ## v1.8.0 (May 2025)
 

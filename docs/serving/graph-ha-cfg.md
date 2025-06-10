@@ -1,7 +1,7 @@
 (graph-ha-cfg)=
 # Serving graph high availability configuration
 
-Learn about the configuration parameters to maximize your serving graph processing.  
+Learn about the high availability configuration parameters to maximize your serving graph processing.  
 
 This figure illustrates a simplistic flow of an MLRun serving graph with remote invocation:<br>
 <img src="../_static/images/graph-flow.png" alt="graph-flow" width="600"/>

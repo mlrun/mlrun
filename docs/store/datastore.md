@@ -1,7 +1,7 @@
 (datastore)=
 # Data stores
 
-MLRun supports multiple data stores; each one defines a storage provider (e.g. file system, S3, Azure blob, Iguazio v3io, etc.).
+MLRun supports multiple data stores; each one defines a storage provider (for example, file system, S3, Azure blob, Iguazio v3io, etc.).
 
 Additional data stores, for example MongoDB, can easily be added by extending the `DataStore` class.
 

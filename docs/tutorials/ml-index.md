@@ -3,7 +3,7 @@
 
 (quick-start-tutorial)=
 
-
+Each of these  MLRun tutorials is a dedicated Jupyter notebook, illustrating different capabilities of MLRun. You can download them by clicking the download icon <img src="../_static/images/icon-download.png"> at the top of each page.
 
 ```{toctree}
 :maxdepth: 1
@@ -18,9 +18,6 @@
 ../feature-store/basic-demo
 mlflow
 ```
-
-
-Each of these  MLRun tutorials is a dedicated Jupyter notebook, illustrating different capabilities of MLRun. You can download them by clicking the download icon <img src="../_static/images/icon-download.png"> at the top of each page.
 
 ````{card} Make sure you start with the Quick start tutorial to understand the basics
 ```{button-link} ./01-mlrun-basics.ipynb

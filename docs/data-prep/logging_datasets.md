@@ -1,9 +1,7 @@
 (logging_datasets)=
 # Logging datasets 
 
-Storing datasets is important in order to have a record of the data that was used to train 
-models, as well as storing any processed data. MLRun comes with built-in support for the DataFrame format. MLRun not 
-only stores the DataFrame, but it also provides information about the data, such as statistics.
+Storing datasets is important in order to have a record of the data that was used to train models, as well as storing any processed data. MLRun comes with built-in support for the DataFrame format. MLRun not only stores the DataFrame, but it also provides information about the data, such as statistics.
 
 The simplest way to store a dataset is with the following code:
 

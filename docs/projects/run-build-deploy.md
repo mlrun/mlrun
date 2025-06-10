@@ -1,7 +1,7 @@
 (run_project_functions)=
 # Run, build, and deploy functions
 
-The set of methods used to deploy and run project functions can be used interactively or inside a pipeline (e.g. Kubeflow). When used inside a pipeline, each method is automatically mapped to the relevant pipeline engine command.
+The set of methods used to deploy and run project functions can be used interactively or inside a pipeline (for example, Kubeflow). When used inside a pipeline, each method is automatically mapped to the relevant pipeline engine command.
 
 **In this section**
 - [Overview](#overview)

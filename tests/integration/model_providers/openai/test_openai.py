@@ -41,27 +41,25 @@ class TestOpenAIProvider:
 
     @classmethod
     def setup_class(cls):
-        cls.env_params = config["env"]
-        cls.secrets = {"base_url": cls.env_params.get("OPENAI_BASE_URL"),
-                       "api_key":cls.env_params.get("OPENAI_API_KEY")}
+        cls.env_secrets = config["env"]
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self):
-        for key, env_param in self.env_params.items():
+        for key, env_param in self.env_secrets.items():
             if env_param:
                 os.environ[key] = env_param
         mlrun.model_provider_manager.reset_secrets()
 
     @classmethod
     def reset_env(cls):
-        for key, env_param in cls.env_params.items():
+        for key, env_param in cls.env_secrets.items():
             if env_param:
                 os.environ.pop(key, None)
 
     @staticmethod
     def check_basic_invoke(model_url, secrets):
-        model_provider = mlrun.get_model_provider(url=model_url, secrets=None)
-        #model_provider = cast(model_provider, OpenAIProvider)  # TODO need to fix
+        model_provider = mlrun.get_model_provider(url=model_url, secrets=secrets)
+        model_provider = cast(OpenAIProvider, model_provider)
         response = model_provider.basic_llm_invoke(prompt="what is the capital of france?")
         assert "paris" in response.choices[0].message.content.lower()
 
@@ -73,4 +71,5 @@ class TestOpenAIProvider:
         #  env check
         self.check_basic_invoke(model_url=model_url, secrets={})
         # secrets check
-        # self.check_basic_invoke(model_url=model_url, secrets=self.secrets)
+        self.reset_env()
+        self.check_basic_invoke(model_url=model_url, secrets=self.env_secrets)

@@ -51,7 +51,7 @@ class ModelProvider(BaseRemoteClient, ABC):
     def load_client(self) -> None:
         raise NotImplementedError("load_client method is not implemented")
 
-    def basic_llm_invoke(self, prompt):
+    def basic_llm_invoke(self, prompt) -> str:
         raise NotImplementedError("basic_llm_invoke method is not implemented")
 
     @property
@@ -65,6 +65,11 @@ class ModelProvider(BaseRemoteClient, ABC):
     @property
     def model(self):
         return None
+
+    def get_invoke_kwargs(self, invoke_kwargs):
+        kwargs = self.default_invoke_kwargs.copy()
+        kwargs.update(invoke_kwargs)
+        return kwargs
 
 
 class AsyncModelProvider(ModelProvider, ABC):
@@ -158,10 +163,9 @@ class OpenAIProvider(AsyncModelProvider):
     def invoke(
         self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs
     ) -> Optional[T]:
-        kwargs = self.default_invoke_kwargs.copy()
-        kwargs.update(invoke_kwargs)
+        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         if operation:
-            return operation(**kwargs, model=self.model)
+            return operation(**invoke_kwargs, model=self.model)
         else:
             return self._default_operation(**invoke_kwargs, model=self.model)
 
@@ -170,21 +174,29 @@ class OpenAIProvider(AsyncModelProvider):
         async_operation: Optional[Callable[..., Awaitable[T]]] = None,
         **invoke_kwargs,
     ) -> Awaitable[T]:
-        kwargs = self.default_invoke_kwargs.copy()
-        kwargs.update(invoke_kwargs)
+        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         if async_operation:
-            return async_operation(**kwargs, model=self.model)
+            return async_operation(**invoke_kwargs, model=self.model)
         else:
             return self._default_async_operation(**invoke_kwargs, model=self.model)
 
-    def basic_llm_invoke(self, prompt):
+    def basic_llm_invoke(self, prompt: str, **invoke_kwargs) -> str:
+        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         messages = [
             {
                 "role": "user",
                 "content": prompt,
             }
         ]
-        return self._default_operation(model=self.endpoint, messages=messages)
+        if invoke_kwargs.get("messages"):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "can not provide 'messages' as an invoke argument in "
+                "basic_llm_invoke"
+            )
+        response = self._default_operation(
+            model=self.endpoint, messages=messages, **invoke_kwargs
+        )
+        return response.choices[0].message.content
 
 
 def schema_to_model_provider(schema: str) -> type[ModelProvider]:

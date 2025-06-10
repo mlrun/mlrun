@@ -51,7 +51,7 @@ class ModelProvider(BaseRemoteClient, ABC):
     def load_client(self) -> None:
         raise NotImplementedError("load_client method is not implemented")
 
-    def basic_llm_invoke(self, prompt) -> str:
+    def basic_llm_invoke(self, prompt, **invoke_kwargs) -> str:
         raise NotImplementedError("basic_llm_invoke method is not implemented")
 
     @property

@@ -12,3 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+import mlrun.artifacts
+import mlrun.serving.states
+
+
+class MyOpenAILLM(mlrun.serving.states.ModelProviderModel):
+    def predict(self, body):
+        prompt = self.enrich_prompt(body)
+        body["result"] = self.model.basic_llm_invoke(
+            prompt=prompt, **self.invocation_artifact.spec.model_configuration
+        )
+        return body
+
+    def enrich_prompt(self, body) -> str:
+        if isinstance(self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact):
+            prompt_template = self.invocation_artifact.spec.prompt_string
+            needed_params = ["question", "level", "length"]
+            sub_dict = {k: body[k] for k in needed_params if k in body}
+            return prompt_template.format(**sub_dict)
+        return body["question"]

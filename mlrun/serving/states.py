@@ -40,6 +40,7 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileV3io,
     datastore_profile_read,
 )
+from mlrun.datastore.model_providers import ModelProvider
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import logger
@@ -1052,9 +1053,9 @@ class ModelProviderModel(mlrun.serving.states.Model):
             artifact_uri=artifact_uri,
             **kwargs,
         )
-        self.invocation_artifact = None
-        self.model_artifact = None
-        self.model = None
+        self.invocation_artifact: Optional[LLMPromptArtifact] = None
+        self.model_artifact: Optional[ModelArtifact] = None
+        self.model: Optional[ModelProvider] = None
 
     def load(self):
         artifact = self._get_artifact_object()

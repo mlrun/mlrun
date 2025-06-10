@@ -82,18 +82,44 @@ class TestOpenAIProvider:
                 os.environ.pop(key, None)
 
     @staticmethod
-    def check_basic_invoke(model_url, secrets):
+    def check_basic_invoke(model_url: str, secrets: dict, model_name: str):
         model_provider = mlrun.get_model_provider(url=model_url, secrets=secrets)
         model_provider = cast(OpenAIProvider, model_provider)
         response = model_provider.basic_llm_invoke(
             prompt="what is the capital of france?"
         )
         assert "paris" in response.choices[0].message.content.lower()
+        assert model_provider.model == model_name
 
     def test_basic_invoke(self):
         model_url = self.url_prefix + self.basic_llm_model
         #  env check
-        self.check_basic_invoke(model_url=model_url, secrets={})
+        self.check_basic_invoke(
+            model_url=model_url, secrets={}, model_name=self.basic_llm_model
+        )
         # secrets check
         self.reset_env()
-        self.check_basic_invoke(model_url=model_url, secrets=self.env_secrets)
+        self.check_basic_invoke(
+            model_url=model_url,
+            secrets=self.env_secrets,
+            model_name=self.basic_llm_model,
+        )
+
+    def test_configurable_model(self):
+        configurable_model = mlrun.mlconf.model_providers.openai_default_model
+        if not configurable_model:
+            pytest.skip(
+                "model_providers.openai_default_model is not configured in conf, cannot perform the test"
+            )
+
+        #  checking default model usage:
+        model_url = self.url_prefix
+        #  env check
+        self.check_basic_invoke(
+            model_url=model_url, secrets={}, model_name=configurable_model
+        )
+        # secrets check
+        self.reset_env()
+        self.check_basic_invoke(
+            model_url=model_url, secrets=self.env_secrets, model_name=configurable_model
+        )

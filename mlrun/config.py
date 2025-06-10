@@ -78,12 +78,12 @@ default_config = {
     "vendor_images_registry": "",
     # comma separated list of images that are in the specified images_registry, and therefore will be enriched with this
     # registry when used. default to mlrun/* which means any image which is of the mlrun repository (mlrun/mlrun,
-    # mlrun/ml-base, etc...)
+    # mlrun/mlrun-kfp, etc...)
     "images_to_enrich_registry": "^mlrun/*,^python:3.(9|11)$",
     "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
-    "dask_kfp_image": "mlrun/ml-base",  # image to use for dask KFP runner
+    "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
@@ -287,7 +287,7 @@ default_config = {
             "serving": "mlrun/mlrun",
             "nuclio": "mlrun/mlrun",
             "remote": "mlrun/mlrun",
-            "dask": "mlrun/ml-base",
+            "dask": "mlrun/mlrun",
             "mpijob": "mlrun/mlrun",
             "application": "python",
         },

@@ -331,12 +331,21 @@ def _compile_function_config(
             # if base_spec was not set (when not using code_to_function) and we have base64 code
             # we create the base spec with essential attributes
             config = nuclio.config.new_config()
-            mlrun.utils.update_in(config, "spec.handler", handler or "main:handler")
 
+        # if base_spec comes from client side, make sure that labels and annotations exists in dictionary
+        for key in [
+            "metadata.labels",
+            "metadata.annotations",
+        ]:
+            if not mlrun.utils.get_in(config, key):
+                mlrun.utils.update_in(config, key, {})
+
+        if not mlrun.utils.get_in(config,     "spec.handler"):
+            # if handler was not set, we set it to the default value
+            mlrun.utils.update_in(config, "spec.handler", handler or "main:handler")
         config = nuclio.config.extend_config(
             config, nuclio_spec, tag, function.spec.build.code_origin
         )
-
         if (
             function.kind == mlrun.runtimes.RuntimeKinds.serving
             and not mlrun.utils.get_in(config, "spec.build.functionSourceCode")

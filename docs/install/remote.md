@@ -7,7 +7,7 @@ This release of MLRun supports only Python 3.9 for both the server and the clien
 
 **In this section**
 - [Prerequisites](#prerequisites)
-- [Set up a Python 3.9 client environment](#set-up-a-python-39-client-environment)
+- [Set up a Python 3.11 client environment](#set-up-a-python-311-client-environment)
 - [Configure remote environment](#configure-remote-environment)
    - [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)
    - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
@@ -19,10 +19,10 @@ This release of MLRun supports only Python 3.9 for both the server and the clien
 Before you begin, ensure that the following prerequisites are met:
 
 Applications:
-- Python 3.9
-- Recommended pip 22.x+
+- Python 3.11
+- Recommended pip 25.0.x+
 
-The MLRun server is based on a Python 3.9 environment. It's recommended to move the client to a Python 3.9 environment as well. 
+The MLRun server is based on a Python 3.11 environment. It's recommended to move the client to a Python 3.11 environment as well. 
 
 For a Python 3.7 environment for platform versions up to and including v3.5.2, see [Set up a Python 3.7 client environment](../change-log/index.md#set-up-a-python-37-client-environment-iguazio-versions-up-to-and-including-v352).
 
@@ -32,7 +32,7 @@ The MLRun client supports:
 - Mac
 - Windows via WSL
 
-## Set up a Python 3.9 client environment
+## Set up a Python 3.11 client environment
 
 1.  **Basic** <br> 
 Run ```pip install mlrun```
@@ -45,13 +45,13 @@ Run ```pip install mlrun```
 
 ## Note for ARM64 (Apple Silicon) Users
 
-When using ARM64 (Apple Silicon), you need to use **conda** and install protobuf by running the following command:
+When using ARM64 (Apple Silicon) and **Python 3.11**, you need to use **conda** to install protobuf by running the following command:
 
 ```bash
 conda install "protobuf>=3.20.3, <4" -y
 ````
 
-2. **Advanced** <br> 
+1. **Advanced** <br> 
    - If you expect to connect to, or work with, cloud providers (Azure/Google Cloud/S3), you can install additional packages. This is not 
    part of the regular requirements since not all users work with those platforms. Using this option reduces the dependencies and the size 
    of the installation. The additional packages include:

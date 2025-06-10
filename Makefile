@@ -34,7 +34,7 @@ MLRUN_PYTHON_VERSION ?= 3.11
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 25.0.0
-MLRUN_UV_VERSION ?= 0.5.13
+MLRUN_UV_VERSION ?= 0.7.12
 MLRUN_UV_IMAGE ?= ghcr.io/astral-sh/uv:$(MLRUN_UV_VERSION)
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
@@ -955,7 +955,7 @@ endif
 .PHONY: verify-uv-version
 verify-uv-version:
 	@{ \
-	uv_version=$$(uv version | cut -d' ' -f2); \
+	uv_version=$$(uv self version | cut -d' ' -f2); \
 	result=$$(python -m semver compare $$uv_version $(MLRUN_UV_VERSION)); \
 	if [ "$$result" -eq -1 ]; then \
 	  echo "Error: The running uv version ($$uv_version) is outdated. Upgrade uv to version $(MLRUN_UV_VERSION)."; \

@@ -31,6 +31,7 @@ RUN apt-get update && \
 
 ARG MLRUN_PIP_VERSION=25.0
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
+ARG MLRUN_PYTHON_VERSION=3.9
 
 WORKDIR /mlrun
 

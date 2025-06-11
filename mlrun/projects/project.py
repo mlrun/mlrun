@@ -757,14 +757,7 @@ def _project_instance_from_struct(struct, name, allow_cross_project):
             "3. Use different project context dir."
         )
 
-        if allow_cross_project is None:
-            # TODO: Remove this warning in version 1.10.0 and also fix cli to support allow_cross_project
-            warnings.warn(
-                f"Project {name=} is different than specified on the context's project yaml. "
-                "This behavior is deprecated and will not be supported from version 1.10.0."
-            )
-            logger.warn(error_message)
-        elif allow_cross_project:
+        if allow_cross_project:
             logger.debug(
                 "Project name is different than specified on the context's project yaml. Overriding.",
                 existing_name=name_from_struct,

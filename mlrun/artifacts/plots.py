@@ -35,12 +35,6 @@ class PlotArtifact(Artifact):
     def __init__(
         self, key=None, body=None, is_inline=False, target_path=None, title=None
     ):
-        if key or body or is_inline or target_path:
-            warnings.warn(
-                "Artifact constructor parameters are deprecated in 1.7.0 and will be removed in 1.10.0. "
-                "Use the metadata and spec parameters instead.",
-                DeprecationWarning,
-            )
         super().__init__(key, body, format="html", target_path=target_path)
         self.metadata.description = title
 

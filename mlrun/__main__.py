@@ -23,6 +23,7 @@ from ast import literal_eval
 from base64 import b64decode
 from os import environ, path, remove
 from pprint import pprint
+from typing import Optional
 
 import click
 import dotenv
@@ -202,6 +203,7 @@ def main():
 @click.option(
     "--allow-cross-project",
     is_flag=True,
+    default=True,  # TODO: remove this default in 1.11
     help="Override the loaded project name. This flag ensures awareness of loading an existing project yaml "
     "as a baseline for a new project with a different name",
 )
@@ -505,6 +507,7 @@ def run(
 @click.option(
     "--allow-cross-project",
     is_flag=True,
+    default=True,  # TODO: remove this default in 1.11
     help="Override the loaded project name. This flag ensures awareness of loading an existing project yaml "
     "as a baseline for a new project with a different name",
 )
@@ -663,6 +666,7 @@ def build(
 @click.option(
     "--allow-cross-project",
     is_flag=True,
+    default=True,  # TODO: remove this default in 1.11
     help="Override the loaded project name. This flag ensures awareness of loading an existing project yaml "
     "as a baseline for a new project with a different name",
 )
@@ -998,6 +1002,7 @@ def logs(uid, project, offset, db):
 @click.option(
     "--allow-cross-project",
     is_flag=True,
+    default=True,  # TODO: remove this default in 1.11
     help="Override the loaded project name. This flag ensures awareness of loading an existing project yaml "
     "as a baseline for a new project with a different name",
 )
@@ -1370,7 +1375,9 @@ def dict_to_str(struct: dict):
 
 
 def func_url_to_runtime(
-    func_url, ensure_project: bool = False, allow_cross_project: bool = None
+    func_url,
+    ensure_project: bool = False,
+    allow_cross_project: Optional[bool] = None,
 ):
     try:
         if func_url.startswith("db://"):

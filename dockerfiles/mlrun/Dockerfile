@@ -85,7 +85,7 @@ COPY . .
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION} \
+    uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION}
 
 # Remove server related files that are not needed
 # Remove pip is not needed anymore

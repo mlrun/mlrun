@@ -164,10 +164,14 @@ def extract_ipynb_first_sentence(nb_path):
 
 
 def valid_first_sentence(line):
-
     line = line.strip()
     # Skip title lines, empty lines, and lines with `{admonition}`
-    if not line or line.startswith("#") or line.startswith("<") or "{admonition}" in line:
+    if (
+        not line
+        or line.startswith("#")
+        or line.startswith("<")
+        or "{admonition}" in line
+    ):
         return None
     if re.match(r"^\(.*\)=", line):
         # Skip anchor-like metadata lines
@@ -192,3 +196,5 @@ def valid_first_sentence(line):
                 continue
             # Otherwise, assume it's a sentence-ending dot
             break
+
+    return " ".join(sentence_words).strip()

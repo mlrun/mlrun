@@ -259,7 +259,10 @@ def copy_doc(src, dest, title=""):
 def setup(app):
     # This avoids generating llms.txt for every branch/tag build,
     # limiting it to builds of public-facing versions ("stable") and PR previews ("external")
-    if environ.get("READTHEDOCS_VERSION") == "stable" or environ.get("READTHEDOCS_VERSION_TYPE") == "external":
+    if (
+        environ.get("READTHEDOCS_VERSION") == "stable"
+        or environ.get("READTHEDOCS_VERSION_TYPE") == "external"
+    ):
         app.connect("build-finished", create_llms_txt)
 
 

@@ -45,7 +45,6 @@ from ..model import ModelObj
 from ..utils import get_caller_globals
 from .states import (
     FlowStep,
-    GraphError,
     MonitoredStep,
     RootFlowStep,
     RouterStep,
@@ -360,13 +359,14 @@ def add_error_raiser_step(
             model_runner_raisers[model_runner_step.name] = error_step.name
             error_step.on_error = model_runner_step.on_error
     for step in user_steps:
-        if isinstance(step.after, list):
-            for i in range(len(step.after)):
-                if step.after[i] in model_runner_raisers:
-                    step.after[i] = model_runner_raisers[step.after[i]]
-        else:
-            if step.after in model_runner_raisers:
-                step.after = model_runner_raisers[step.after]
+        if step.after:
+            if isinstance(step.after, list):
+                for i in range(len(step.after)):
+                    if step.after[i] in model_runner_raisers:
+                        step.after[i] = model_runner_raisers[step.after[i]]
+            else:
+                if isinstance(step.after, str) and step.after in model_runner_raisers:
+                    step.after = model_runner_raisers[step.after]
     return graph
 
 
@@ -376,6 +376,13 @@ def add_monitoring_general_steps(
     context,
     serving_spec,
 ) -> tuple[RootFlowStep, FlowStep]:
+    """
+    Adding the monitoring flow connection steps, this steps allow the graph to reconstruct the serving event enrich it
+    and push it to the model monitoring stream
+    system_steps structure -
+        "background_task_status_step" --> "filter_none" --> "monitoring_pre_processor_step" --> "flatten_events"
+        --> "sampling_step" --> "filter_none_sampling" --> "model_monitoring_stream"
+    """
     monitor_flow_step = graph.add_step(
         "mlrun.serving.system_steps.BackgroundTaskStatus",
         "background_task_status_step",
@@ -410,17 +417,17 @@ def add_monitoring_general_steps(
         "sampling_step",
         after="flatten_events",
         sampling_percentage=float(
-            serving_spec.get("parameters", {}).get("sampling_percentage", 100)
+            serving_spec.get("parameters", {}).get("sampling_percentage", 100.0)
             if isinstance(serving_spec, dict)
             else getattr(serving_spec, "parameters", {}).get(
-                "sampling_percentage", 100
+                "sampling_percentage", 100.0
             ),
         ),
         model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
     )
     graph.add_step(
         "storey.Filter",
-        "filter_none_2",
+        "filter_none_sampling",
         _fn="(event is not None)",
         after="sampling_step",
         model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
@@ -430,7 +437,7 @@ def add_monitoring_general_steps(
         graph.add_step(
             "mlrun.serving.system_steps.MockStreamPusher",
             "model_monitoring_stream",
-            after="filter_none_2",
+            after="filter_none_sampling",
             model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
         )
     else:
@@ -446,7 +453,7 @@ def add_monitoring_general_steps(
             "model_monitoring_stream",
             path=stream_uri,
             sharding_func=mlrun.common.schemas.model_monitoring.constants.StreamProcessingEvent.ENDPOINT_ID,
-            after="filter_none_2",
+            after="filter_none_sampling",
         )
     return graph, monitor_flow_step
 
@@ -466,14 +473,15 @@ def add_system_steps_to_graph(
         )
         # Connect each model runner to the monitoring step:
         for step_name, step in monitored_steps.items():
-            if isinstance(monitor_flow_step.after, list):
-                monitor_flow_step.after.append(step_name)
-            elif isinstance(monitor_flow_step.after, str):
-                monitor_flow_step.after = [monitor_flow_step.after, step_name]
+            if monitor_flow_step.after:
+                if isinstance(monitor_flow_step.after, list):
+                    monitor_flow_step.after.append(step_name)
+                elif isinstance(monitor_flow_step.after, str):
+                    monitor_flow_step.after = [monitor_flow_step.after, step_name]
             else:
-                raise GraphError(
-                    "Expected model runner step to be followed by error raiser step"
-                )
+                monitor_flow_step.after = [
+                    step_name,
+                ]
     return graph
 
 

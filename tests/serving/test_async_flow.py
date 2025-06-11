@@ -384,8 +384,7 @@ def test_model_runner_with_route(model_runner_first: bool, method: str):
     try:
         resp = server.test(body={"n": 1})
         assert resp["n"] == 2
-        assert graph.model_endpoints_names == ["my_model"]
-        assert graph.model_endpoints_routes_names == ["my_model_1"]
+        assert set(graph.model_endpoints_names) == {"my_model", "my_model_1"}
     finally:
         server.wait_for_completion()
 

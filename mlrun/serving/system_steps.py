@@ -320,7 +320,7 @@ class SamplingStep(storey.MapClass):
 
     def __init__(
         self,
-        sampling_percentage: float,
+        sampling_percentage: Optional[float] = 100.0,
         **kwargs,
     ):
         super().__init__(**kwargs)

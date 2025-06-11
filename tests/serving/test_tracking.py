@@ -285,9 +285,9 @@ def _test_monitoring_system_steps_structure(
         "monitoring_pre_processor_step": ["filter_none"],
         "flatten_events": ["monitoring_pre_processor_step"],
         "sampling_step": ["flatten_events"],
-        "filter_none_2": ["sampling_step"],
+        "filter_none_sampling": ["sampling_step"],
         "model_monitoring_stream": [
-            "filter_none_2"
+            "filter_none_sampling"
         ],  # mock creates a dummy pusher and not target
     }
     for step in graph.steps.values():

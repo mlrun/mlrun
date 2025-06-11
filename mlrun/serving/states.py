@@ -467,9 +467,7 @@ class BaseStep(ModelObj):
             and model_endpoint_creation_strategy
             != schemas.ModelEndpointCreationStrategy.SKIP
         ):
-            root = self
-            while root.parent is not None:
-                root = root.parent
+            root = self._extract_root_step()
             if not isinstance(root, RootFlowStep):
                 return
             models = []
@@ -477,19 +475,23 @@ class BaseStep(ModelObj):
                 for route in step.routes.values():
                     if route.name in root.model_endpoints_names:
                         raise GraphError(
-                            "Cannot add router step containing the same model endpoint name as "
-                            "ModelRunnerStep model"
+                            f"The graph already contains the model endpoints named - {route.name}."
                         )
                     models.append(route.name)
             else:
                 if step.name in root.model_endpoints_names:
                     raise GraphError(
-                        "Cannot add router step or task step containing the same model endpoint name as "
-                        "ModelRunnerStep model"
+                        f"The graph already contains the model endpoints named - {step.name}."
                     )
                 models.append(step.name)
-            root.update_model_endpoints_routes_names(models)
+            root.update_model_endpoints_names(models)
             return
+
+    def _extract_root_step(self):
+        root = self
+        while root.parent is not None:
+            root = root.parent
+        return root
 
     def verify_model_runner_step(
         self,
@@ -503,9 +505,7 @@ class BaseStep(ModelObj):
         if not isinstance(step, ModelRunnerStep):
             return
 
-        root = self
-        while root.parent is not None:
-            root = root.parent
+        root = self._extract_root_step()
 
         if not isinstance(root, RootFlowStep):
             raise GraphError(
@@ -522,17 +522,7 @@ class BaseStep(ModelObj):
             raise GraphError(
                 f"The graph already contains the model endpoints named - {common_endpoints_names}."
             )
-        elif not common_endpoints_names:
-            common_endpoints_names = list(
-                set(root.model_endpoints_routes_names) & set(step_model_endpoints_names)
-            )
-            if common_endpoints_names:
-                raise GraphError(
-                    f"The graph already contains the model endpoints named - {common_endpoints_names} as part of route "
-                    f"step or task step."
-                )
-
-        root.extend_model_endpoints_names(step_model_endpoints_names)
+        root.update_model_endpoints_names(step_model_endpoints_names)
         root.include_model_runner = True
 
 
@@ -2054,31 +2044,19 @@ class RootFlowStep(FlowStep):
             engine,
             final_step,
         )
-        self._models = []
-        self._route_models = set()
+        self._models = set()
         self.include_model_runner = False
 
     @property
     def model_endpoints_names(self) -> list[str]:
-        return self._models
+        return list(self._models)
 
     @model_endpoints_names.setter
     def model_endpoints_names(self, models: list[str]):
-        self._models = models
+        self._models = set(models)
 
-    def extend_model_endpoints_names(self, model_endpoints_names: list):
-        self._models.extend(model_endpoints_names)
-
-    @property
-    def model_endpoints_routes_names(self) -> list[str]:
-        return list(self._route_models)
-
-    @model_endpoints_routes_names.setter
-    def model_endpoints_routes_names(self, models: list[str]):
-        self._route_models = set(models)
-
-    def update_model_endpoints_routes_names(self, model_endpoints_names: list):
-        self._route_models.update(model_endpoints_names)
+    def update_model_endpoints_names(self, model_endpoints_names: list):
+        self._models.update(model_endpoints_names)
 
 
 classes_map = {

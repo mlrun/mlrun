@@ -13,7 +13,6 @@
 # limitations under the License.
 import base64
 import typing
-import warnings
 from io import BytesIO
 
 import mlrun
@@ -88,12 +87,6 @@ class PlotlyArtifact(Artifact):
         :param key:         Key for the artifact to be stored in the database.
         :param target_path: Path to save the artifact.
         """
-        if key or target_path:
-            warnings.warn(
-                "Artifact constructor parameters are deprecated in 1.7.0 and will be removed in 1.10.0. "
-                "Use the metadata and spec parameters instead.",
-                DeprecationWarning,
-            )
         # Validate the plotly package:
         try:
             from plotly.graph_objs import Figure

@@ -64,7 +64,7 @@ from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
     FeatureSetDigestSpecV2,
 )
-from mlrun.common.schemas.model_monitoring import EndpointType, ModelEndpointSchema
+from mlrun.common.schemas.model_monitoring import EndpointType, ModelEndpointSchema, constants
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, RunList
@@ -3693,6 +3693,10 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
@@ -3716,6 +3720,14 @@ class SQLDB(DBInterface):
                 self._calculate_alert_activations_counters,
                 projects_with_creation_time,
             ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_mm_functions_counters,
+            ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_mep_counters,
+            ),
         )
         (
             category_to_project_artifact_count,
@@ -3734,6 +3746,14 @@ class SQLDB(DBInterface):
                 project_to_endpoint_alerts_count,
                 project_to_job_alerts_count,
                 project_to_other_alerts_count,
+            ),
+            (
+                project_to_running_mm_functions,
+                project_to_failed_mm_functions_count,
+            ),
+            (
+                project_to_real_time_mep_count,
+                project_to_batch_mep_count,
             ),
         ) = results
         # TODO: counters by artifact categories should be expanded to include all categories (currently only models
@@ -3769,6 +3789,10 @@ class SQLDB(DBInterface):
                 mlrun.common.schemas.ArtifactCategories.llm_prompt,
                 collections.defaultdict(lambda: 0),
             ),
+            project_to_running_mm_functions,
+            project_to_failed_mm_functions_count,
+            project_to_real_time_mep_count,
+            project_to_batch_mep_count,
         )
 
     @staticmethod
@@ -3862,6 +3886,44 @@ class SQLDB(DBInterface):
             result[0]: result[1] for result in feature_sets_count_per_project
         }
         return project_to_feature_set_count
+
+
+    def _calculate_mm_functions_counters(self, session) -> tuple [dict[str, int], dict[str, str]]:
+        labels = [f"{constants.ModelMonitoringAppLabel.KEY}={constants.ModelMonitoringAppLabel.VAL}"]
+
+        query = session.query(Function.project, Function, Function.Tag.name)
+        query = query.join(Function.Tag, Function.id == Function.Tag.obj_id) # filter duplications
+
+        labels = label_set(labels)
+        query = self._add_labels_filter(session, query, Function, labels)
+
+        project_to_failed_mm_functions_count = {}
+        project_to_running_mm_functions_count = {}
+        for project, function, name in query.all():
+            project_to_running_mm_functions_count.setdefault(project, 0)
+            project_to_failed_mm_functions_count.setdefault(project, 0)
+            if function.state == 'ready':
+                project_to_running_mm_functions_count[project] += 1
+            if function.state == 'error':
+                project_to_failed_mm_functions_count[project] += 1
+
+        return project_to_running_mm_functions_count, project_to_failed_mm_functions_count
+
+    @staticmethod
+    def _calculate_mep_counters(session) -> tuple [dict[str, int], dict[str, str]]:
+        query = session.query(ModelEndpoint.project, ModelEndpoint.endpoint_type)
+
+        project_to_real_time_mep_count = {}
+        project_to_batch_mep_count = {}
+        for project, endpoint_type in query.all():
+            project_to_real_time_mep_count.setdefault(project, 0)
+            project_to_batch_mep_count.setdefault(project, 0)
+            if endpoint_type == EndpointType.BATCH_EP:
+                project_to_batch_mep_count[project] += 1
+            else:
+                project_to_real_time_mep_count[project] += 1
+
+        return project_to_real_time_mep_count, project_to_batch_mep_count
 
     @staticmethod
     def _calculate_artifact_counters_by_category(

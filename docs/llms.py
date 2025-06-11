@@ -126,8 +126,6 @@ def extract_ipynb_first_title(nb_path):
     """
     with open(nb_path, encoding="utf-8") as file:
         notebook = json.load(file)
-    if "built-in-training-function" in nb_path:
-        print("check")
     for cell in notebook.get("cells", []):
         if cell.get("cell_type") == "markdown":
             lines = cell.get("source", [])

@@ -19,6 +19,7 @@ from typing import Optional
 import pytest
 
 import mlrun
+import mlrun.common.schemas as schemas
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.serving import Model, ModelRunnerStep, ModelSelector, RouterStep
 from mlrun.utils import logger
@@ -255,13 +256,17 @@ def test_model_runner_add_model(method: str):
     if method == "add_step":
         graph.add_step(model_runner_step).respond()
     elif method == "to":
-        graph.to(name="echo", class_name="Echo").to(model_runner_step).respond()
+        graph.to(
+            name="echo",
+            class_name="Echo",
+            model_endpoint_creation_strategy=schemas.ModelEndpointCreationStrategy.SKIP,
+        ).to(model_runner_step).respond()
     elif method == "set_flow":
         graph.set_flow([model_runner_step]).respond()
-    assert graph.model_endpoints_names == [
+    assert set(graph.model_endpoints_names) == {
         "my_model_1",
         "my_model_2",
-    ], "model endpoints name not in graph"
+    }, "model endpoints name not in graph"
 
     server = function.to_mock_server()
     try:
@@ -384,7 +389,8 @@ def test_model_runner_with_route(model_runner_first: bool, method: str):
     try:
         resp = server.test(body={"n": 1})
         assert resp["n"] == 2
-        assert set(graph.model_endpoints_names) == {"my_model", "my_model_1"}
+        assert graph.model_endpoints_names == ["my_model"]
+        assert graph.model_endpoints_routes_names == ["my_model_1"]
     finally:
         server.wait_for_completion()
 

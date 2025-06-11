@@ -484,7 +484,7 @@ class BaseStep(ModelObj):
                         f"The graph already contains the model endpoints named - {step.name}."
                     )
                 models.append(step.name)
-            root.update_model_endpoints_names(models)
+            root.update_model_endpoints_routes_names(models)
             return
 
     def _extract_root_step(self):
@@ -517,6 +517,8 @@ class BaseStep(ModelObj):
         # Get all model_endpoints names that are in both lists
         common_endpoints_names = list(
             set(root.model_endpoints_names) & set(step_model_endpoints_names)
+        ) or list(
+            set(root.model_endpoints_routes_names) & set(step_model_endpoints_names)
         )
         if common_endpoints_names:
             raise GraphError(
@@ -2045,6 +2047,7 @@ class RootFlowStep(FlowStep):
             final_step,
         )
         self._models = set()
+        self._route_models = set()
         self.include_model_runner = False
 
     @property
@@ -2057,6 +2060,17 @@ class RootFlowStep(FlowStep):
 
     def update_model_endpoints_names(self, model_endpoints_names: list):
         self._models.update(model_endpoints_names)
+
+    @property
+    def model_endpoints_routes_names(self) -> list[str]:
+        return list(self._route_models)
+
+    @model_endpoints_routes_names.setter
+    def model_endpoints_routes_names(self, models: list[str]):
+        self._route_models = set(models)
+
+    def update_model_endpoints_routes_names(self, model_endpoints_names: list):
+        self._route_models.update(model_endpoints_names)
 
 
 classes_map = {

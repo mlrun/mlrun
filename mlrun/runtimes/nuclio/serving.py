@@ -43,6 +43,8 @@ from mlrun.serving.states import (
 )
 from mlrun.utils import get_caller_globals, logger, set_paths
 
+from .. import KubejobRuntime
+from ..pod import KubeResourceSpec
 from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions
 
 serving_subkind = "serving_v2"
@@ -150,6 +152,7 @@ class ServingSpec(NuclioSpec):
         state_thresholds=None,
         disable_default_http_trigger=None,
         model_endpoint_creation_task_name=None,
+        serving_spec=None,
     ):
         super().__init__(
             command=command,
@@ -190,6 +193,7 @@ class ServingSpec(NuclioSpec):
             service_type=service_type,
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
             disable_default_http_trigger=disable_default_http_trigger,
+            serving_spec=serving_spec,
         )
 
         self.models = models or {}
@@ -703,6 +707,7 @@ class ServingRuntime(RemoteRuntime):
             "track_models": self.spec.track_models,
             "default_content_type": self.spec.default_content_type,
             "model_endpoint_creation_task_name": self.spec.model_endpoint_creation_task_name,
+            "filename": getattr(self.spec, "filename", None),
         }
 
         if self.spec.secret_sources:
@@ -710,6 +715,10 @@ class ServingRuntime(RemoteRuntime):
             serving_spec["secret_sources"] = self._secrets.to_serial()
 
         return json.dumps(serving_spec)
+
+    @property
+    def serving_spec(self):
+        return self._get_serving_spec()
 
     def to_mock_server(
         self,
@@ -806,3 +815,40 @@ class ServingRuntime(RemoteRuntime):
             "Turn off the mock (mock=False) and make sure Nuclio is installed for real deployment to Nuclio"
         )
         self._mock_server = self.to_mock_server()
+
+    def to_job(self) -> KubejobRuntime:
+        """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job."""
+        if self.spec.function_refs:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Cannot convert function '{self.metadata.name}' to a job because it has child functions"
+            )
+
+        spec = KubeResourceSpec(
+            image=self.spec.image,
+            mode=self.spec.mode,
+            volumes=self.spec.volumes,
+            volume_mounts=self.spec.volume_mounts,
+            env=self.spec.env,
+            resources=self.spec.resources,
+            default_handler="mlrun.serving.server.execute_graph",
+            pythonpath=self.spec.pythonpath,
+            entry_points=self.spec.entry_points,
+            description=self.spec.description,
+            workdir=self.spec.workdir,
+            image_pull_secret=self.spec.image_pull_secret,
+            node_name=self.spec.node_name,
+            node_selector=self.spec.node_selector,
+            affinity=self.spec.affinity,
+            disable_auto_mount=self.spec.disable_auto_mount,
+            priority_class_name=self.spec.priority_class_name,
+            tolerations=self.spec.tolerations,
+            preemption_mode=self.spec.preemption_mode,
+            security_context=self.spec.security_context,
+            state_thresholds=self.spec.state_thresholds,
+            serving_spec=self._get_serving_spec(),
+        )
+        job = KubejobRuntime(
+            spec=spec,
+            metadata=self.metadata,
+        )
+        return job

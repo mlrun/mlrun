@@ -23,6 +23,7 @@ __all__ = [
 import os
 import pathlib
 import traceback
+from abc import ABC
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Any, Optional, Union, cast
@@ -1124,7 +1125,7 @@ class ModelRunner(storey.ParallelExecution):
         return self.model_selector.select(event, models)
 
 
-class MonitoredStep(TaskStep, StepToDict):
+class MonitoredStep(ABC, TaskStep, StepToDict):
     kind = "monitored"
     _dict_fields = TaskStep._dict_fields + ["raise_exception"]
 
@@ -1133,22 +1134,28 @@ class MonitoredStep(TaskStep, StepToDict):
         self.raise_exception = raise_exception
         self._monitoring_data = None
 
-    def load_monitoring_data(self):
+    def _calculate_monitoring_data(self) -> dict[str, Any]:
         """
-        Child class must override load_monitoring_data() method and provide meaningful data-structure to the
+        Child class must override _calculate_monitoring_data() method and provide meaningful data-structure to the
         pre-process step in monitoring flow.
+        monitoring data structure should support the next schema:
+        {
+            "inputs" - inputs features
+            "outputs" - output schema expected
+            "input_path" - the path where inputs are
+            "result_path" - the path where results are
+            "creation_strategy" - model endpoint creation strategy
+            "labels" - model endpoint labels
+            "model_endpoint_uid" - model endpoint uid (added in deployment)
+            "model_class" - the model class
+        }
         """
-        self._monitoring_data = {}
+        raise NotImplementedError
 
     @property
-    def monitoring_data(self) -> dict:
-        if self._monitoring_data is None:
-            self.load_monitoring_data()
+    def monitoring_data(self) -> dict[str, Any]:
+        self._monitoring_data = self._calculate_monitoring_data()
         return self._monitoring_data
-
-    @monitoring_data.setter
-    def monitoring_data(self, data: dict) -> None:
-        self._monitoring_data = data
 
 
 class ModelRunnerStep(MonitoredStep):
@@ -1282,14 +1289,14 @@ class ModelRunnerStep(MonitoredStep):
         self.class_args[schemas.ModelRunnerStepData.MODELS] = models
         self.class_args[schemas.ModelRunnerStepData.MONITORING_DATA] = monitoring_data
 
-    def _get_model_output_schema(self, model: str) -> list[str]:
+    @staticmethod
+    def _get_model_output_schema(
+        model: str, monitoring_data: dict[str, dict[str, str]]
+    ) -> list[str]:
         output_schema = None
-        if (
-            self._monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH)
-            is not None
-        ):
+        if monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH) is not None:
             artifact = get_store_resource(
-                self._monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH)
+                monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH)
             )
             output_schema = [feature.name for feature in artifact.spec.outputs]
         return output_schema
@@ -1303,26 +1310,35 @@ class ModelRunnerStep(MonitoredStep):
             return parsed_path
         return path
 
-    def load_monitoring_data(self):
-        self._monitoring_data = self.class_args.get(
-            mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+    def _calculate_monitoring_data(self) -> dict[str, dict[str, str]]:
+        monitoring_data = deepcopy(
+            self.class_args.get(
+                mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+            )
         )
-        if isinstance(self._monitoring_data, dict):
-            for model in self._monitoring_data:
-                self._monitoring_data[model][schemas.MonitoringData.OUTPUTS] = (
-                    self._monitoring_data[model][schemas.MonitoringData.OUTPUTS]
-                    or self._get_model_output_schema(model)
+        if isinstance(monitoring_data, dict):
+            for model in monitoring_data:
+                monitoring_data[model][schemas.MonitoringData.OUTPUTS] = (
+                    monitoring_data[model][schemas.MonitoringData.OUTPUTS]
+                    or self._get_model_output_schema(model, monitoring_data)
                 )
-                self._monitoring_data[model][schemas.MonitoringData.INPUT_PATH] = (
+                # Prevent calling _get_model_output_schema for same model more than once
+                self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.OUTPUTS] = monitoring_data[model][
+                    schemas.MonitoringData.OUTPUTS
+                ]
+                monitoring_data[model][schemas.MonitoringData.INPUT_PATH] = (
                     self._split_path(
-                        self._monitoring_data[model][schemas.MonitoringData.INPUT_PATH]
+                        monitoring_data[model][schemas.MonitoringData.INPUT_PATH]
                     )
                 )
-                self._monitoring_data[model][schemas.MonitoringData.RESULT_PATH] = (
+                monitoring_data[model][schemas.MonitoringData.RESULT_PATH] = (
                     self._split_path(
-                        self._monitoring_data[model][schemas.MonitoringData.RESULT_PATH]
+                        monitoring_data[model][schemas.MonitoringData.RESULT_PATH]
                     )
                 )
+            return monitoring_data
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         model_selector = self.class_args.get("model_selector")
@@ -1339,7 +1355,6 @@ class ModelRunnerStep(MonitoredStep):
                 # prevent model predict from raising error
                 model._raise_exception = False
             model_objects.append(model)
-        self.load_monitoring_data()
         self._async_object = ModelRunner(
             model_selector=model_selector,
             runnables=model_objects,
@@ -2027,7 +2042,6 @@ class RootFlowStep(FlowStep):
         "final_step",
         "on_error",
         "model_endpoints_names",
-        "include_model_runner",
         "model_endpoints_routes_names",
     ]
 
@@ -2048,7 +2062,6 @@ class RootFlowStep(FlowStep):
         )
         self._models = set()
         self._route_models = set()
-        self.include_model_runner = False
 
     @property
     def model_endpoints_names(self) -> list[str]:
@@ -2071,6 +2084,19 @@ class RootFlowStep(FlowStep):
 
     def update_model_endpoints_routes_names(self, model_endpoints_names: list):
         self._route_models.update(model_endpoints_names)
+
+    def _include_monitored_step(self) -> bool:
+        for step in self.steps.values():
+            if isinstance(step, mlrun.serving.MonitoredStep):
+                return True
+        return False
+
+    def _get_monitored_steps(self) -> dict[str, "MonitoredStep"]:
+        return {
+            step.name: step
+            for step in self.steps.values()
+            if isinstance(step, mlrun.serving.MonitoredStep)
+        }
 
 
 classes_map = {

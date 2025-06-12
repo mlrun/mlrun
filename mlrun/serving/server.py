@@ -467,11 +467,7 @@ def add_monitoring_general_steps(
 def add_system_steps_to_graph(
     project: str, graph: RootFlowStep, track_models: bool, context, serving_spec
 ) -> RootFlowStep:
-    monitored_steps = {
-        step.name: step
-        for step in graph.steps.values()
-        if isinstance(step, mlrun.serving.MonitoredStep)
-    }
+    monitored_steps = graph._get_monitored_steps()
     graph = add_error_raiser_step(graph, monitored_steps)
     if track_models:
         graph, monitor_flow_step = add_monitoring_general_steps(
@@ -497,7 +493,10 @@ def v2_serving_init(context, namespace=None):
     context.logger.info("Initializing server from spec")
     spec = mlrun.utils.get_serving_spec()
     server = GraphServer.from_dict(spec)
-    if isinstance(server.graph, RootFlowStep) and server.graph.include_model_runner:
+    if (
+        isinstance(server.graph, RootFlowStep)
+        and server.graph._include_monitored_step()
+    ):
         server.graph = add_system_steps_to_graph(
             server.project,
             copy.deepcopy(server.graph),

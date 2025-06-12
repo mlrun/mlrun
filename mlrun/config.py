@@ -233,7 +233,6 @@ default_config = {
                 "delete_function": "900",
                 "model_endpoint_creation": "600",
                 "model_endpoint_tsdb_leftovers": "900",
-                "model_endpoint_creation_check": "15",
             },
             "runtimes": {
                 "dask": "600",
@@ -639,6 +638,7 @@ default_config = {
         "offline_storage_path": "model-endpoints/{kind}",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
+        "model_endpoint_creation_check_period": "15",
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory

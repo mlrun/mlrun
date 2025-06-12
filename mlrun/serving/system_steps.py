@@ -48,6 +48,7 @@ class MonitoringPreProcessor(storey.MapClass):
             result_path, event.body.get(model, event.body)
         )
         output_schema = model_monitoring_data.get(MonitoringData.OUTPUTS)
+        input_schema = model_monitoring_data.get(MonitoringData.INPUTS)
         logger.debug("output schema retrieved", output_schema=output_schema)
         if isinstance(result, dict):
             if len(result) > 1:
@@ -74,9 +75,13 @@ class MonitoringPreProcessor(storey.MapClass):
         if isinstance(event_inputs, dict):
             if len(event_inputs) > 1:
                 # transpose by key the inputs:
-                inputs = self.transpose_by_key(event_inputs)
+                inputs = self.transpose_by_key(event_inputs, input_schema)
             else:
-                inputs = list(event_inputs.values())[0] if event_inputs else []
+                inputs = (
+                    event_inputs[input_schema[0]]
+                    if input_schema
+                    else list(result.values())[0]
+                )
         else:
             inputs = event_inputs
 
@@ -268,7 +273,7 @@ class BackgroundTaskStatus(storey.MapClass):
                 self._background_task_check_timestamp is None
                 or mlrun.utils.now_date() - self._background_task_check_timestamp
                 >= timedelta(
-                    seconds=mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_creation_check
+                    seconds=mlrun.mlconf.model_endpoint_monitoring.model_endpoint_creation_check_period
                 )
             )
         ):

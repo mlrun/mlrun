@@ -88,9 +88,7 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION}
 
 # Remove server related files that are not needed
-# Remove pip is not needed anymore
 # Remove ensurepip folders from both conda and system python
 RUN rm -rf ./server/go \
-    && python -m pip uninstall pip -y \
     && rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
     && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip

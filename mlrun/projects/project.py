@@ -4111,7 +4111,7 @@ class MlrunProject(ModelObj):
         requirements: Optional[typing.Union[str, list[str]]] = None,
         mlrun_version_specifier: Optional[str] = None,
         builder_env: Optional[dict] = None,
-        overwrite_build_params: bool = False,
+        overwrite_build_params: bool = True,
         requirements_file: Optional[str] = None,
         extra_args: Optional[str] = None,
         force_build: bool = False,
@@ -4167,7 +4167,7 @@ class MlrunProject(ModelObj):
         commands: Optional[list] = None,
         secret_name: Optional[str] = None,
         requirements: Optional[typing.Union[str, list[str]]] = None,
-        overwrite_build_params: bool = False,
+        overwrite_build_params: bool = True,
         requirements_file: Optional[str] = None,
         builder_env: Optional[dict] = None,
         extra_args: Optional[str] = None,
@@ -4197,12 +4197,6 @@ class MlrunProject(ModelObj):
         :param source_code_target_dir: Path on the image where source code would be extracted
             (by default `/home/mlrun_code`)
         """
-        if not overwrite_build_params:
-            # TODO: change overwrite_build_params default to True in 1.10.0
-            warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.10.0.",
-                mlrun.utils.OverwriteBuildParamsWarning,
-            )
         default_image_name = mlrun.mlconf.default_project_image_name.format(
             name=self.name
         )
@@ -4236,7 +4230,7 @@ class MlrunProject(ModelObj):
         requirements: Optional[typing.Union[str, list[str]]] = None,
         mlrun_version_specifier: Optional[str] = None,
         builder_env: Optional[dict] = None,
-        overwrite_build_params: bool = False,
+        overwrite_build_params: bool = True,
         requirements_file: Optional[str] = None,
         extra_args: Optional[str] = None,
         target_dir: Optional[str] = None,
@@ -4276,60 +4270,47 @@ class MlrunProject(ModelObj):
                 base_image=base_image,
             )
 
-        if not overwrite_build_params:
-            # TODO: change overwrite_build_params default to True in 1.10.0
-            warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.10.0.",
-                mlrun.utils.OverwriteBuildParamsWarning,
+        self.build_config(
+            image=image,
+            set_as_default=set_as_default,
+            base_image=base_image,
+            commands=commands,
+            secret_name=secret_name,
+            with_mlrun=with_mlrun,
+            requirements=requirements,
+            requirements_file=requirements_file,
+            overwrite_build_params=overwrite_build_params,
+        )
+
+        function = mlrun.new_function("mlrun--project--image--builder", kind="job")
+
+        if self.spec.source and not self.spec.load_source_on_run:
+            function.with_source_archive(
+                source=self.spec.source,
+                target_dir=target_dir,
+                pull_at_runtime=False,
             )
 
-        # TODO: remove filter once overwrite_build_params default is changed to True in 1.8.0
-        with warnings.catch_warnings():
-            warnings.simplefilter(
-                "ignore", category=mlrun.utils.OverwriteBuildParamsWarning
-            )
+        build = self.spec.build
+        result = self.build_function(
+            function=function,
+            with_mlrun=build.with_mlrun,
+            image=build.image,
+            base_image=build.base_image,
+            commands=build.commands,
+            secret_name=build.secret,
+            requirements=build.requirements,
+            overwrite_build_params=overwrite_build_params,
+            mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
+            extra_args=extra_args,
+            force_build=True,
+        )
 
-            self.build_config(
-                image=image,
-                set_as_default=set_as_default,
-                base_image=base_image,
-                commands=commands,
-                secret_name=secret_name,
-                with_mlrun=with_mlrun,
-                requirements=requirements,
-                requirements_file=requirements_file,
-                overwrite_build_params=overwrite_build_params,
-            )
-
-            function = mlrun.new_function("mlrun--project--image--builder", kind="job")
-
-            if self.spec.source and not self.spec.load_source_on_run:
-                function.with_source_archive(
-                    source=self.spec.source,
-                    target_dir=target_dir,
-                    pull_at_runtime=False,
-                )
-
-            build = self.spec.build
-            result = self.build_function(
-                function=function,
-                with_mlrun=build.with_mlrun,
-                image=build.image,
-                base_image=build.base_image,
-                commands=build.commands,
-                secret_name=build.secret,
-                requirements=build.requirements,
-                overwrite_build_params=overwrite_build_params,
-                mlrun_version_specifier=mlrun_version_specifier,
-                builder_env=builder_env,
-                extra_args=extra_args,
-                force_build=True,
-            )
-
-            # Get the enriched target dir from the function
-            self.spec.build.source_code_target_dir = (
-                function.spec.build.source_code_target_dir
-            )
+        # Get the enriched target dir from the function
+        self.spec.build.source_code_target_dir = (
+            function.spec.build.source_code_target_dir
+        )
 
         try:
             mlrun.db.get_run_db(secrets=self._secrets).delete_function(

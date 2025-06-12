@@ -493,10 +493,7 @@ def v2_serving_init(context, namespace=None):
     context.logger.info("Initializing server from spec")
     spec = mlrun.utils.get_serving_spec()
     server = GraphServer.from_dict(spec)
-    if (
-        isinstance(server.graph, RootFlowStep)
-        and server.graph.include_monitored_step()
-    ):
+    if isinstance(server.graph, RootFlowStep) and server.graph.include_monitored_step():
         server.graph = add_system_steps_to_graph(
             server.project,
             copy.deepcopy(server.graph),

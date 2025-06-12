@@ -693,9 +693,9 @@ def test_feature_sets(create_server):
     feature_set = db.get_feature_set(name, project)
     assert len(feature_set.metadata.labels) == 2, "Labels didn't get updated"
 
-    features = db.list_features(project, "time")
+    features = db.list_features_v2(project, "time")
     # The feature-set with different labels also counts here
-    assert len(features) == count + 1
+    assert len(features["features"]) == count + 1
     # Only count, since we modified the entity of the last feature-set - other name, no labels
     entities = db.list_entities_v2(project, "ticker")
     assert len(entities["entities"]) == count

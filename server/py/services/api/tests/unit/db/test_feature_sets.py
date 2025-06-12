@@ -74,7 +74,7 @@ class TestFeatureSets(TestDatabaseBase):
         feature_set_res = self._db.list_feature_sets(self._db_session, project)
         assert len(feature_set_res.feature_sets) == 1
 
-        features_res = self._db.list_features(self._db_session, project, "time")
+        features_res = self._db.list_features_v2(self._db_session, project, "time")
         assert len(features_res.features) == 1
 
     def test_handle_feature_set_with_datetime_fields(self):

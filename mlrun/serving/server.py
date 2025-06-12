@@ -467,7 +467,7 @@ def add_monitoring_general_steps(
 def add_system_steps_to_graph(
     project: str, graph: RootFlowStep, track_models: bool, context, serving_spec
 ) -> RootFlowStep:
-    monitored_steps = graph._get_monitored_steps()
+    monitored_steps = graph.get_monitored_steps()
     graph = add_error_raiser_step(graph, monitored_steps)
     if track_models:
         graph, monitor_flow_step = add_monitoring_general_steps(
@@ -495,7 +495,7 @@ def v2_serving_init(context, namespace=None):
     server = GraphServer.from_dict(spec)
     if (
         isinstance(server.graph, RootFlowStep)
-        and server.graph._include_monitored_step()
+        and server.graph.include_monitored_step()
     ):
         server.graph = add_system_steps_to_graph(
             server.project,

@@ -2085,13 +2085,13 @@ class RootFlowStep(FlowStep):
     def update_model_endpoints_routes_names(self, model_endpoints_names: list):
         self._route_models.update(model_endpoints_names)
 
-    def _include_monitored_step(self) -> bool:
+    def include_monitored_step(self) -> bool:
         for step in self.steps.values():
             if isinstance(step, mlrun.serving.MonitoredStep):
                 return True
         return False
 
-    def _get_monitored_steps(self) -> dict[str, "MonitoredStep"]:
+    def get_monitored_steps(self) -> dict[str, "MonitoredStep"]:
         return {
             step.name: step
             for step in self.steps.values()

@@ -777,7 +777,7 @@ class ServingRuntime(RemoteRuntime):
 
         if (
             isinstance(self.spec.graph, RootFlowStep)
-            and self.spec.graph.include_model_runner
+            and self.spec.graph.include_monitored_step()
         ):
             server.graph = add_system_steps_to_graph(
                 server.project,

@@ -934,7 +934,6 @@ def retry_pipeline(
 def terminate_pipeline(
     run_id: str,
     project: str,
-    namespace: Optional[str] = None,
 ) -> str:
     """Terminate a pipeline run.
 
@@ -943,12 +942,11 @@ def terminate_pipeline(
 
     :param run_id: ID of the pipeline run to terminate.
     :param project: name of the project associated with the pipeline run.
-    :param namespace: Optional; Kubernetes namespace to use if not the default.
 
     :returns: ID of the terminate pipeline run background task.
     :raises ValueError: If access to the remote API service is not available.
     """
-    mldb = mlrun.db.get_run_db()
+    mldb: HTTPRunDB = mlrun.db.get_run_db()
     if mldb.kind != "http":
         raise ValueError(
             "Terminating a pipeline requires access to remote API service. "
@@ -958,7 +956,6 @@ def terminate_pipeline(
     pipeline_run_task = mldb.terminate_pipeline(
         run_id=run_id,
         project=project,
-        namespace=namespace,
     )
     return pipeline_run_task["metadata"]["id"]
 

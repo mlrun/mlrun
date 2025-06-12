@@ -2398,7 +2398,7 @@ class HTTPRunDB(RunDBInterface):
                 namespace=namespace,
                 response_code=resp_code,
                 response_text=resp_text,
-                error=str(exc),
+                error=err_to_str(exc),
             )
             if isinstance(exc, mlrun.errors.MLRunHTTPError):
                 raise exc  # Re-raise known HTTP errors
@@ -2458,13 +2458,13 @@ class HTTPRunDB(RunDBInterface):
                 )
         except Exception as exc:
             logger.error(
-                "Terminate pipeline API call encountered an error.",
+                "Failed to invoke terminate pipeline API",
                 run_id=run_id,
                 project=project,
                 namespace=namespace,
                 response_code=resp_code,
                 response_text=resp_text,
-                error=str(exc),
+                error=err_to_str(exc),
             )
             if isinstance(exc, mlrun.errors.MLRunHTTPError):
                 raise exc  # Re-raise known HTTP errors

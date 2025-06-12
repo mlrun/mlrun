@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import time
 
 import pytest
 from kfp import dsl
@@ -176,7 +177,6 @@ class TestKFP(tests.system.base.TestMLRunSystem):
 
         assert run["run"].get("error") == "Error (exit code 1)"
 
-    @pytest.mark.enterprise
     def test_kfp_terminate_pipeline(self):
         code_path = str(self.assets_path / "sleep.py")
         sleep_fn = mlrun.code_to_function(
@@ -204,9 +204,8 @@ class TestKFP(tests.system.base.TestMLRunSystem):
         )
 
         # 3. give it a moment to start
-        import time as _time
 
-        _time.sleep(30)
+        time.sleep(30)
 
         # 4. issue a termination request
         mlrun.terminate_pipeline(run_id, project=self.project_name)

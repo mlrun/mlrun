@@ -25,6 +25,7 @@ import pytest
 
 import mlrun
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
+from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,
     ModelMonitoringApplicationMetric,
@@ -178,6 +179,67 @@ class TestEvaluate:
         assert (
             "Read the sample data" in captured.out
         ), "The expected log message was not found in the captured output"
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("endpoints", "start", "end", "run_local", "write_output", "error_msg"),
+        [
+            (
+                [("ep-name", "ep-uid")],
+                datetime(2025, 5, 3),
+                datetime(2025, 5, 4),
+                False,
+                True,
+                "`stream_profile` is relevant only when running locally",
+            ),
+            (
+                [("ep-name", "ep-uid")],
+                datetime(2025, 5, 3),
+                datetime(2025, 5, 4),
+                True,
+                False,
+                "`stream_profile` is relevant only when writing the outputs",
+            ),
+            (
+                None,
+                datetime(2025, 5, 3),
+                datetime(2025, 5, 4),
+                False,
+                True,
+                "Custom `start` and `end` times .+ supported only with endpoints data",
+            ),
+            (
+                None,
+                None,
+                None,
+                False,
+                False,
+                "or passing `stream_profile` are supported only with endpoints data",
+            ),
+        ],
+    )
+    def test_invalid_params(
+        endpoints: Optional[list[tuple[str, str]]],
+        start: Optional[datetime],
+        end: Optional[datetime],
+        run_local: bool,
+        write_output: bool,
+        error_msg: str,
+    ) -> None:
+        with pytest.raises(mlrun.errors.MLRunValueError, match=error_msg):
+            ModelEndpointAccessApp.evaluate(
+                func_path=__file__,
+                endpoints=endpoints,
+                start=start,
+                end=end,
+                run_local=run_local,
+                write_output=write_output,
+                stream_profile=DatastoreProfileKafkaSource(
+                    name="should-not-be-passed-on-remote",
+                    brokers=["broker-address:9092"],
+                    topics=[],
+                ),
+            )
 
 
 @pytest.mark.parametrize(

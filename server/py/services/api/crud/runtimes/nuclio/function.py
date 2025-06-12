@@ -347,7 +347,6 @@ def _compile_function_config(
         config,
         "spec.volumes",
         function.spec.generate_nuclio_volumes(),
-        append=True,
     )
     _resolve_and_set_base_image(function, config, client_version, client_python_version)
     _resolve_and_set_nuclio_runtime(

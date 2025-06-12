@@ -76,7 +76,6 @@ class ApplicationSpec(NuclioSpec):
         security_context=None,
         service_type=None,
         add_templated_ingress_host_mode=None,
-        clone_target_dir=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
         internal_application_port=None,
@@ -119,7 +118,6 @@ class ApplicationSpec(NuclioSpec):
             security_context=security_context,
             service_type=service_type,
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
-            clone_target_dir=clone_target_dir,
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
         )
@@ -274,7 +272,6 @@ class ApplicationRuntime(RemoteRuntime):
         project="",
         tag="",
         verbose=False,
-        auth_info: schemas.AuthInfo = None,
         builder_env: typing.Optional[dict] = None,
         force_build: bool = False,
         with_mlrun=None,
@@ -291,7 +288,6 @@ class ApplicationRuntime(RemoteRuntime):
         :param project:                     Project name
         :param tag:                         Function tag
         :param verbose:                     Set True for verbose logging
-        :param auth_info:                   Service AuthInfo (deprecated and ignored)
         :param builder_env:                 Env vars dict for source archive config/credentials
                                             e.g. builder_env={"GIT_TOKEN": token}
         :param force_build:                 Set True for force building the application image
@@ -332,7 +328,6 @@ class ApplicationRuntime(RemoteRuntime):
             project=project,
             tag=tag,
             verbose=verbose,
-            auth_info=auth_info,
             builder_env=builder_env,
         )
         logger.info(

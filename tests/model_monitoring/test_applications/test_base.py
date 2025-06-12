@@ -85,6 +85,7 @@ class SampleDFAccessApp(ModelMonitoringApplicationBase):
             project=monitoring_context.project_name,
         )
         sample_df = monitoring_context.sample_df
+        assert sample_df is not None
         monitoring_context.logger.info(
             "Read the sample data",
             sample_df=sample_df,
@@ -146,17 +147,27 @@ class TestEvaluate:
         ), "The error message is different than expected or was not captured"
 
     @staticmethod
+    @pytest.mark.parametrize("method", ["to_job", "evaluate"])
     def test_valid_sample_df_access(
-        tmp_path: Path, capsys: pytest.CaptureFixture
+        method: str, tmp_path: Path, capsys: pytest.CaptureFixture
     ) -> None:
         project = mlrun.get_or_create_project(
             "local-test-sample-df", context=str(tmp_path)
         )
         project.artifact_path = str(tmp_path)
         sample_df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
-        ds_artifact = project.log_dataset("sample-df", df=sample_df)
-        job = SampleDFAccessApp.to_job(func_path=__file__)
-        run = job.run(local=True, inputs={"sample_data": ds_artifact.target_path})
+        ds_artifact_path = project.log_dataset("sample-df", df=sample_df).target_path
+
+        if method == "to_job":
+            job = SampleDFAccessApp.to_job(func_path=__file__)
+            run = job.run(local=True, inputs={"sample_data": ds_artifact_path})
+        elif method == "evaluate":
+            run = SampleDFAccessApp.evaluate(
+                func_path=__file__, run_local=True, sample_data=ds_artifact_path
+            )
+        else:
+            raise NotImplementedError
+
         assert run.state() == "completed"
         captured = capsys.readouterr()
         assert (

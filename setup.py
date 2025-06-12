@@ -80,6 +80,7 @@ setup(
         "Operating System :: MacOS",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Software Development :: Libraries",

@@ -585,8 +585,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param write_output:      Whether to write the results and metrics to the time-series DB. Can be ``True`` only
                                   if ``endpoints`` are passed.
                                   Note: the model monitoring infrastructure must be up for the writing to work.
-        :param stream_profile:    The stream profile, relevant only when running locally (``run_local=True``) and
-                                  ``write_output`` is ``True``.
+        :param stream_profile:    The stream datastore profile. It should be provided only when running locally and
+                                  writing the outputs to the database (i.e., when both ``run_local`` and
+                                  ``write_output`` are set to ``True``).
+                                  For more details on configuring the stream profile, see
+                                  :py:meth:`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
 
         :returns: The output of the
                   :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`

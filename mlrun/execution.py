@@ -457,8 +457,8 @@ class MLClientCtx:
         self._state = mlrun.common.runtimes.constants.RunStates.running
 
         status = attrs.get("status")
-        self._retry_count = status.get("retry_count", self._retry_count)
-        if include_status and status:
+        retry_configured = self._retry_spec and self._retry_spec.get("count")
+        if (include_status or retry_configured) and status:
             self._results = status.get("results", self._results)
             for artifact in status.get("artifacts", []):
                 artifact_obj = dict_to_artifact(artifact)
@@ -467,7 +467,10 @@ class MLClientCtx:
                 )
             for key, uri in status.get("artifact_uris", {}).items():
                 self._artifacts_manager.artifact_uris[key] = uri
-            self._state = status.get("state", self._state)
+            self._retry_count = status.get("retry_count", self._retry_count)
+            # if run is a retry, the state needs to move to running
+            if include_status:
+                self._state = status.get("state", self._state)
 
         # No need to store the run for every worker
         if store_run and self.is_logging_worker():

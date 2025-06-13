@@ -1758,7 +1758,7 @@ class BaseRuntimeHandler(ABC):
                 if retry_count < max_retries:
                     run_state = RunStates.pending_retry
                     message = f"Run failed attempt {retry_count + 1} of {max_retries} with error: {message}"
-                elif 0 < max_retries < retry_count:
+                elif 0 < max_retries <= retry_count:
                     message = (
                         f"Run failed after {retry_count} attempts with error: {message}"
                     )

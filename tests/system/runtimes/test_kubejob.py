@@ -696,10 +696,10 @@ def print_df(df):
             name="raise-func",
             kind="job",
             handler="handler",
-            image="datanode-registry.iguazio-platform.app.vmdev17.lab.iguazeng.com:80/quay.io/mlrun/mlrun:unstable",
+            # image="datanode-registry.iguazio-platform.app.vmdev17.lab.iguazeng.com:80/quay.io/mlrun/mlrun:unstable",
         )
 
-        function.set_image_pull_configuration(image_pull_policy="Always")
+        # function.set_image_pull_configuration(image_pull_policy="Always")
 
         retry_count = 3
         retry = mlrun.model.Retry(

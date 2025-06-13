@@ -454,7 +454,7 @@ class MLClientCtx:
         if start:
             start = parser.parse(start) if isinstance(start, str) else start
             self._start_time = start
-        self._state = "running"
+        self._state = mlrun.common.runtimes.constants.RunStates.running
 
         status = attrs.get("status")
         if include_status and status:
@@ -1112,13 +1112,13 @@ class MLClientCtx:
         :param completed: Mark run as completed
         """
         # Changing state to completed is allowed only when the execution is in running state
-        if self._state != "running":
+        if self._state != mlrun.common.runtimes.constants.RunStates.running:
             completed = False
 
         if message:
             self._annotations["message"] = message
         if completed:
-            self._state = "completed"
+            self._state = mlrun.common.runtimes.constants.RunStates.completed
 
         if self._parent:
             self._parent.update_child_iterations()

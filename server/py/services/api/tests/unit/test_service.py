@@ -34,7 +34,7 @@ class TestService(TestAPIBase):
     async def test_retry_job(self, db: Session):
         mlrun.mlconf.function.spec.retry.backoff.min_base_delay = "0s"
         run_uid = "test-job-uid"
-        run = self._generate_retry_job()
+        run = self._generate_retry_job(uid=run_uid)
         run_db = mlrun.db.get_run_db()
         with unittest.mock.patch(
             "framework.api.utils.submit_run_sync", return_value=unittest.mock.Mock()
@@ -46,7 +46,7 @@ class TestService(TestAPIBase):
 
     async def test_retry_job_retry_exhausted(self, db: Session):
         run_uid = "test-job-uid"
-        run = self._generate_retry_job(count=2, retry_count=2)
+        run = self._generate_retry_job(uid=run_uid, count=2, retry_count=2)
         assert (
             run["status"]["state"]
             == mlrun.common.runtimes.constants.RunStates.pending_retry
@@ -63,17 +63,39 @@ class TestService(TestAPIBase):
         assert run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.error
         assert run["status"]["status_text"] == "Run retries exhausted"
 
+    async def test_retried_jobs_cache(self, db: Session):
+        """This test ensures that the retry X is submitted exactly once."""
+        mlrun.mlconf.function.spec.retry.backoff.min_base_delay = "0s"
+        run_uid = "test-job-uid"
+        run = self._generate_retry_job(uid=run_uid)
+        run_db = mlrun.db.get_run_db()
+        with unittest.mock.patch(
+            "framework.api.utils.submit_run_sync", return_value=unittest.mock.Mock()
+        ) as mock_submit_run_sync:
+            run_db.store_run(struct=run, uid=run_uid, project=self._project)
+            await self._service._retry_jobs()
+            assert run_uid in self._service._retry_in_progress_run_uids
+            # Next retry should not submit the job again
+            await self._service._retry_jobs()
+            await asyncio.sleep(1)
+            mock_submit_run_sync.assert_called_once()
+            assert not self._service._retry_in_progress_run_uids
+
     def _generate_retry_job(
         self,
+        uid: str = "test-job-uid",
         project: typing.Optional[str] = None,
         state: typing.Optional[str] = None,
         count: int = 3,
         retry_count: int = 0,
     ):
+        import uuid
+
         return {
             "metadata": {
                 "name": "test-job",
                 "project": project or self._project,
+                "uid": uid or str(uuid.uuid4()),
             },
             "spec": {
                 "function": f"{self._project}/test@c37401e5c6bf55b826bafa336a2c6e796280292a",

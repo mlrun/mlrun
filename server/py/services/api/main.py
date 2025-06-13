@@ -22,6 +22,7 @@ import fastapi
 import fastapi.concurrency
 import sqlalchemy.orm
 
+import mlrun
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
@@ -82,6 +83,7 @@ class Service(framework.service.Service):
             (services.api.crud.Functions, "list_functions"),
             (services.api.crud.Artifacts, "list_artifacts"),
         ]
+        self._retry_in_progress_run_uids = set()
 
     async def _move_service_to_online(self):
         # scheduler is needed on both workers and chief
@@ -194,7 +196,7 @@ class Service(framework.service.Service):
             self._start_periodic_project_summaries_calculation()
         self._start_periodic_partition_management()
         self._start_periodic_refresh_smtp_configuration()
-        self._start_periodic_retry_job()
+        self._start_periodic_retry_jobs()
         if mlconf.httpdb.clusterization.chief.feature_gates.start_logs == "enabled":
             await self._start_periodic_logs_collection()
         if mlconf.httpdb.clusterization.chief.feature_gates.stop_logs == "enabled":
@@ -607,7 +609,7 @@ class Service(framework.service.Service):
                 refresh=True,
             )
 
-    def _start_periodic_retry_job(self):
+    def _start_periodic_retry_jobs(self):
         interval = int(mlconf.monitoring.runs.retry.interval)
         if interval > 0:
             self._logger.info("Starting periodic retry job", interval=interval)
@@ -950,7 +952,14 @@ class Service(framework.service.Service):
             futures = []
             for run_dict in runs:
                 run = mlrun.RunObject.from_dict(run_dict)
-                # retry_count may be None on the first attempt
+                if run.metadata.uid in self._retry_in_progress_run_uids:
+                    self._logger.debug(
+                        "Run is already being retried, skipping",
+                        run_uid=run.metadata.uid,
+                    )
+                    continue
+
+                    # retry_count may be None on the first attempt
                 run.status.retry_count = run.status.retry_count or 0
                 # sanity
                 if not run.status.retry_count < run.spec.retry.count:
@@ -975,30 +984,7 @@ class Service(framework.service.Service):
                     continue
 
                 try:
-                    delay = framework.utils.helpers.time_string_to_seconds(
-                        run.spec.retry.backoff.base_delay,
-                        mlrun.mlconf.function.spec.retry.backoff.min_base_delay,
-                    ) * (run.status.retry_count + 1)
-                    delta = (
-                        datetime.datetime.fromisoformat(run.status.end_time)
-                        + datetime.timedelta(seconds=delay)
-                        - datetime.datetime.now(datetime.timezone.utc)
-                    )
-                    call_after_seconds = max(delta.total_seconds(), 0)
-                    submit_job_body = {
-                        "task": run.to_dict(),
-                    }
-                    loop = asyncio.get_event_loop()
-                    # TODO: ensure not submitting the same run multiple times
-                    loop.call_later(
-                        call_after_seconds,
-                        framework.db.session.run_function_with_new_db_session,
-                        framework.api.utils.submit_run_sync,
-                        # auth is already masked on the function
-                        # TODO: pass values for param_file_secrets ?
-                        mlrun.common.schemas.AuthInfo(),
-                        submit_job_body,
-                    )
+                    self._submit_run_for_retry(run)
                 except Exception as exc:
                     self._logger.warning(
                         "Failed retrying run",
@@ -1018,6 +1004,45 @@ class Service(framework.service.Service):
 
         finally:
             await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+
+    def _submit_run_for_retry(self, run: mlrun.RunObject):
+        self._retry_in_progress_run_uids.add(run.metadata.uid)
+        loop = asyncio.get_event_loop()
+
+        # Calculate the delay based on the retry policy
+        delay = framework.utils.helpers.time_string_to_seconds(
+            run.spec.retry.backoff.base_delay,
+            mlrun.mlconf.function.spec.retry.backoff.min_base_delay,
+        ) * (run.status.retry_count + 1)
+        delta = (
+            datetime.datetime.fromisoformat(run.status.end_time)
+            + datetime.timedelta(seconds=delay)
+            - datetime.datetime.now(datetime.timezone.utc)
+        )
+        call_after_seconds = max(delta.total_seconds(), 0)
+
+        # Submit the job with the calculated delay
+        loop.call_later(
+            call_after_seconds,
+            self._submit_retry_wrapper,
+            run,
+        )
+
+    def _submit_retry_wrapper(self, run: mlrun.RunObject):
+        try:
+            submit_job_body = {
+                "task": run.to_dict(),
+            }
+            framework.db.session.run_function_with_new_db_session(
+                framework.api.utils.submit_run_sync,
+                # auth is already masked on the function
+                mlrun.common.schemas.AuthInfo(),
+                # TODO: pass values for param_file_secrets ?
+                submit_job_body,
+            )
+
+        finally:
+            self._retry_in_progress_run_uids.discard(run.metadata.uid)
 
 
 if __name__ == "__main__":

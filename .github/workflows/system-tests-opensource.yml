@@ -341,6 +341,6 @@ jobs:
           --cleanup-volumes \
           --skip-cleanup-registry-secret
 
-        # python automation/deployment/ce.py delete \
-        #   --namespace=${NAMESPACE} \
-        #   --cleanup-namespace
+        python automation/deployment/ce.py delete \
+          --namespace=${NAMESPACE} \
+          --cleanup-namespace

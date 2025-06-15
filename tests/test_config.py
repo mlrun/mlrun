@@ -503,7 +503,9 @@ def test_get_default_function_node_selector():
     assert mlrun.mlconf.get_default_function_node_selector() == {}
 
 
-def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Mocker):
+def test_setting_dbpath_does_not_trigger_connect(
+    requests_mock: requests_mock_package.Mocker,
+):
     api_url = "http://mlrun-api-url:8080"
     remote_host = "some-namespace"
     response_body = {
@@ -516,7 +518,7 @@ def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Moc
     )
     assert "" == mlrun.mlconf.remote_host
     mlrun.mlconf.dbpath = api_url
-    assert remote_host == mlrun.mlconf.remote_host
+    assert "" == mlrun.mlconf.remote_host
 
 
 def test_verify_security_context_enrichment_mode_is_allowed_success():

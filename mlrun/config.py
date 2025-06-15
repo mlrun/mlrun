@@ -1252,14 +1252,7 @@ class Config:
     def dbpath(self, value):
         self._dbpath = value
         if value:
-            # importing here to avoid circular dependency
-            import mlrun.db
-
-            # It ensures that SSL verification is set before establishing a connection
             _configure_ssl_verification(self.httpdb.http.verify)
-
-            # when dbpath is set we want to connect to it which will sync configuration from it to the client
-            mlrun.db.get_run_db(value, force_reconnect=True)
 
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
@@ -1435,6 +1428,11 @@ def _do_populate(env=None, skip_errors=False):
 
     _configure_ssl_verification(config.httpdb.http.verify)
     _validate_config(config)
+
+    if config.dbpath:
+        from mlrun.db import get_run_db
+
+        get_run_db(config.dbpath, force_reconnect=True)
 
 
 def _validate_config(config):

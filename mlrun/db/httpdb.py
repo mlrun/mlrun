@@ -46,6 +46,7 @@ import mlrun.utils
 from mlrun.alerts.alert import AlertConfig
 from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
+from mlrun.secrets import get_secret_or_env
 from mlrun_pipelines.utils import compile_pipeline
 
 from ..artifacts import Artifact
@@ -156,9 +157,9 @@ class HTTPRunDB(RunDBInterface):
 
         if config.auth_with_client_id.enabled:
             self.token_provider = OAuthClientIDTokenProvider(
-                token_endpoint=mlrun.get_secret_or_env("MLRUN_AUTH_TOKEN_ENDPOINT"),
-                client_id=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_ID"),
-                client_secret=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_SECRET"),
+                token_endpoint=get_secret_or_env("MLRUN_AUTH_TOKEN_ENDPOINT"),
+                client_id=get_secret_or_env("MLRUN_AUTH_CLIENT_ID"),
+                client_secret=get_secret_or_env("MLRUN_AUTH_CLIENT_SECRET"),
                 timeout=config.auth_with_client_id.request_timeout,
             )
         else:

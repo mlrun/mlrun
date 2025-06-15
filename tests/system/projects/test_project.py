@@ -1664,6 +1664,9 @@ class TestProject(TestMLRunSystem):
         project.build_image(
             target_dir=source_code_target_dir, base_image="mlrun/mlrun-kfp"
         )
+
+        # Workflow image must be set explicitly
+        project.spec._workflows["main"]["image"] = project.default_image
         project.save()
 
         run = project.run(

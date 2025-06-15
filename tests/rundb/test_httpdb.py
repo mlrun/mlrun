@@ -36,6 +36,7 @@ import mlrun.alerts
 import mlrun.artifacts
 import mlrun.artifacts.base
 import mlrun.common.formatters
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.projects.project
@@ -280,9 +281,13 @@ def test_runs(create_server):
         uid = f"uid_{i}"
         run_as_dict["metadata"]["name"] = "run-name"
         if i % 2 == 0:
-            run_as_dict["status"]["state"] = "completed"
+            run_as_dict["status"]["state"] = (
+                mlrun.common.runtimes.constants.RunStates.completed
+            )
         else:
-            run_as_dict["status"]["state"] = "created"
+            run_as_dict["status"]["state"] = (
+                mlrun.common.runtimes.constants.RunStates.created
+            )
         db.store_run(run_as_dict, uid, prj)
 
     # retrieve only the last run as it is partitioned by name
@@ -298,18 +303,26 @@ def test_runs(create_server):
     assert len(runs) == 7, "bad number of runs"
 
     # retrieve only created runs
-    runs = db.list_runs(project=prj, states=["created"])
+    runs = db.list_runs(
+        project=prj, states=[mlrun.common.runtimes.constants.RunStates.created]
+    )
     assert len(runs) == 3, "bad number of runs"
 
     # retrieve created and completed runs
-    runs = db.list_runs(project=prj, states=["created", "completed"])
+    runs = db.list_runs(
+        project=prj,
+        states=[
+            mlrun.common.runtimes.constants.RunStates.created,
+            mlrun.common.runtimes.constants.RunStates.completed,
+        ],
+    )
     assert len(runs) == 7, "bad number of runs"
 
     # delete runs in created state
-    db.del_runs(project=prj, state="created")
+    db.del_runs(project=prj, state=mlrun.common.runtimes.constants.RunStates.created)
 
     # delete runs in completed state
-    db.del_runs(project=prj, state="completed")
+    db.del_runs(project=prj, state=mlrun.common.runtimes.constants.RunStates.completed)
 
     runs = db.list_runs(project=prj)
     assert not runs, "found runs in after delete"
@@ -680,9 +693,9 @@ def test_feature_sets(create_server):
     feature_set = db.get_feature_set(name, project)
     assert len(feature_set.metadata.labels) == 2, "Labels didn't get updated"
 
-    features = db.list_features(project, "time")
+    features = db.list_features_v2(project, "time")
     # The feature-set with different labels also counts here
-    assert len(features) == count + 1
+    assert len(features["features"]) == count + 1
     # Only count, since we modified the entity of the last feature-set - other name, no labels
     entities = db.list_entities(project, "ticker")
     assert len(entities) == count

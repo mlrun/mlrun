@@ -16,28 +16,11 @@ import datetime
 import typing
 
 import pydantic.v1
-from deprecated import deprecated
 
 import mlrun.common.types
 
 from .common import ImageBuilder
 from .object import ObjectKind, ObjectStatus
-
-
-@deprecated(
-    version="1.7.0",
-    reason="mlrun.common.schemas.ProjectsFormat is deprecated and will be removed in 1.10.0. "
-    "Use mlrun.common.formatters.ProjectFormat instead.",
-    category=FutureWarning,
-)
-class ProjectsFormat(mlrun.common.types.StrEnum):
-    full = "full"
-    name_only = "name_only"
-    # minimal format removes large fields from the response (e.g. functions, workflows, artifacts)
-    # and is used for faster response times (in the UI)
-    minimal = "minimal"
-    # internal - allowed only in follower mode, only for the leader for upgrade purposes
-    leader = "leader"
 
 
 class ProjectMetadata(pydantic.v1.BaseModel):
@@ -162,6 +145,9 @@ class ProjectSummary(pydantic.v1.BaseModel):
     endpoint_alerts_count: int = 0
     job_alerts_count: int = 0
     other_alerts_count: int = 0
+    datasets_count: int = 0
+    documents_count: int = 0
+    llm_prompts_count: int = 0
 
 
 class IguazioProject(pydantic.v1.BaseModel):

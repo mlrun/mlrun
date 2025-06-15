@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.artifacts.helpers
 import mlrun.common.formatters
 import mlrun.common.schemas
 from mlrun.common.schemas.artifact import ArtifactsDeletionStrategies
@@ -62,6 +63,12 @@ async def create_artifact(
             auth_info,
         )
     )
+
+    if artifact.spec.parent_uri:
+        mlrun.artifacts.helpers.check_artifact_parent(
+            artifact_project=project,
+            expected_parent_uri=artifact.spec.parent_uri,
+        )
     artifact_uid = await run_in_threadpool(
         services.api.crud.Artifacts().create_artifact,
         db_session,
@@ -125,6 +132,11 @@ async def store_artifact(
             auth_info,
         )
     )
+    if artifact.spec.parent_uri:
+        mlrun.artifacts.helpers.check_artifact_parent(
+            artifact_project=project,
+            expected_parent_uri=artifact.spec.parent_uri,
+        )
     artifact_uid = await run_in_threadpool(
         services.api.crud.Artifacts().store_artifact,
         db_session,
@@ -161,6 +173,7 @@ async def list_artifacts(
     tree: Optional[str] = None,
     producer_uri: Optional[str] = None,
     best_iteration: bool = Query(False, alias="best-iteration"),
+    parent: Optional[str] = Query(None),
     format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
     limit: int = Query(
         None,
@@ -223,6 +236,7 @@ async def list_artifacts(
         until=mlrun.utils.datetime_from_iso(until),
         kind=kind,
         category=category,
+        parent=parent,
         iter=iter,
         best_iteration=best_iteration,
         format_=format_,

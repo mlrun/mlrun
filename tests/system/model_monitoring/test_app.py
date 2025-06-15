@@ -43,6 +43,10 @@ import mlrun.feature_store
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
 import mlrun.model_monitoring.api
+from mlrun.common.schemas.model_monitoring import ResultKindApp
+from mlrun.common.schemas.model_monitoring.model_endpoints import (
+    ModelEndpointMonitoringMetric,
+)
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfileKafkaSource,
@@ -650,9 +654,39 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         # Validate alert notification
         assert alert.count == 1
 
+    def _test_function_summaries(self):
+        self._logger.debug("Checking function summaries")
+        function_summaries = self.project.get_monitoring_function_summaries()
+        assert len(function_summaries) == 3 + len(self.apps_data)
+        function_summaries = self.project.get_monitoring_function_summaries(
+            include_infra=False
+        )
+        assert len(function_summaries) == len(self.apps_data)
+
+        evidently_func_summary_list = self.project.get_monitoring_function_summaries(
+            include_infra=False, names=[DemoEvidentlyMonitoringApp.NAME]
+        )
+        assert len(evidently_func_summary_list) == 1
+        evidently_func_summary = evidently_func_summary_list[0]
+        assert evidently_func_summary.name == DemoEvidentlyMonitoringApp.NAME
+        assert evidently_func_summary.status == mlrun.common.schemas.FunctionState.ready
+        assert evidently_func_summary.base_period == self.app_interval
+        assert not evidently_func_summary.stats
+
+        # now get function summary with stats
+        evidently_func_summary_list = self.project.get_monitoring_function_summaries(
+            include_infra=False,
+            names=[DemoEvidentlyMonitoringApp.NAME],
+            include_stats=True,
+        )
+        evidently_func_summary = evidently_func_summary_list[0]
+        assert evidently_func_summary.stats["potential_detection"] == 1
+        assert evidently_func_summary.stats["detected"] == 0
+
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set: bool) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
+        self._log_model(with_training_set)
 
         for i in range(len(self.apps_data)):
             if "with_training_set" in self.apps_data[i].kwargs:
@@ -710,6 +744,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         if _DefaultDataDriftAppData in self.apps_data:
             self._test_model_endpoint_stats(mep=mep)
         self._test_error_alert()
+        self._test_function_summaries()
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
@@ -1415,12 +1450,15 @@ class TestAppJob(TestMLRunSystem):
         # Prepare the data
         sample_data = pd.DataFrame({"a": [9, 10, -2, 1], "b": [0.11, 2.03, 0.55, 0]})
         reference_data = pd.DataFrame({"a": [12, 13], "b": [3.12, 4.12]})
+        reference_data_uri = self.project.log_dataset(
+            "reference_data", reference_data
+        ).uri
 
         # Call `.evaluate(...)`
         run_result = histogram_app_with_artifacts.HistogramDataDriftApplicationWithArtifacts.evaluate(
             func_path=histogram_app_with_artifacts.__file__,
             sample_data=sample_data,
-            reference_data=reference_data,
+            reference_data=reference_data_uri,
             run_local=run_local,
             image=self.image,  # Relevant for remote runs only
         )
@@ -1511,7 +1549,8 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
             executor.submit(self._deploy_model_serving)
 
     @pytest.mark.parametrize("run_local", [False, True])
-    def test_count_app(self, run_local: bool) -> None:
+    @pytest.mark.parametrize("write_output", [True])
+    def test_count_app(self, run_local: bool, write_output: bool) -> None:
         # Set up the serving function with a model endpoint, and the necessary infrastructure
         self._setup_resources()
 
@@ -1562,6 +1601,7 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
                 model_endpoint.metadata.name,
             ],
         ]
+
         for i, endpoints in enumerate(endpoints_params):
             run_result = CountApp.evaluate(
                 func_path=str(Path(__file__).parent / "assets/application.py"),
@@ -1572,6 +1612,10 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
                 run_local=run_local,
                 image=self.image,
                 base_period=1,
+                write_output=write_output,
+                stream_profile=(
+                    self.mm_stream_profile if run_local and write_output else None
+                ),
             )
 
             # Test the state
@@ -1606,6 +1650,32 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
                     "result_extra_data": "{}",
                 },
             ], "The outputs are different than expected"
+
+            if write_output:
+                # Test that the outputs were written in the database
+                db = typing.cast(mlrun.db.httpdb.HTTPRunDB, mlrun.get_run_db())
+                # Wait for the writer to get the data and write it
+                time.sleep(5)
+                metrics = db.get_model_endpoint_monitoring_metrics(
+                    project=self.project_name, endpoint_id=model_endpoint.metadata.uid
+                )
+                assert metrics == [
+                    ModelEndpointMonitoringMetric(
+                        project=self.project_name,
+                        app="CountApp",
+                        type="result",
+                        name="count",
+                        full_name=f"{self.project_name}.CountApp.result.count",
+                        kind=ResultKindApp.model_performance,
+                    ),
+                    ModelEndpointMonitoringMetric(
+                        project=self.project_name,
+                        app="mlrun-infra",
+                        type="metric",
+                        name="invocations",
+                        full_name=f"{self.project_name}.mlrun-infra.metric.invocations",
+                    ),
+                ], "The metrics from the database are different than expected"
 
 
 class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):

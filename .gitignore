@@ -28,6 +28,10 @@ tests/system/env.yml
 .vscode/
 # PyCharm settings
 .idea/
+# Global tags
+GPATH
+GRTAGS
+GTAGS
 # macOS Finder metadata
 .DS_Store
 

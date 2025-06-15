@@ -29,11 +29,9 @@ RUN apt-get update && \
     && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade \
     && rm -rf /var/lib/apt/lists/*
 
-# Remove system ensurepip from Python
-RUN rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
-
 ARG MLRUN_PIP_VERSION=25.0
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
+ARG MLRUN_PYTHON_VERSION=3.9
 
 WORKDIR /mlrun
 
@@ -52,8 +50,11 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 
 COPY . .
 
-RUN rm -rf ./server/go
-
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[kfp18]
+
+# Remove server related files that are not needed
+# Remove ensurepip folders from both conda and system python
+RUN rm -rf ./server/go \
+    && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip

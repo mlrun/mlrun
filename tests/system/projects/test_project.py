@@ -1166,7 +1166,8 @@ class TestProject(TestMLRunSystem):
         runs = []
         while len(runs) != 1:
             runs = project.list_runs(
-                labels=[f"workflow={workflow.run_id}"], state="running"
+                labels=[f"workflow={workflow.run_id}"],
+                states=[mlrun.common.runtimes.constants.RunStates.running],
             )
 
         # abort the first workflow step
@@ -1664,6 +1665,9 @@ class TestProject(TestMLRunSystem):
         project.build_image(
             target_dir=source_code_target_dir, base_image="mlrun/mlrun-kfp"
         )
+
+        # Workflow image must be set explicitly
+        project.spec._workflows["main"]["image"] = project.default_image
         project.save()
 
         run = project.run(

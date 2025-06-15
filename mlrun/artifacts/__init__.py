@@ -24,6 +24,7 @@ from .base import (
 )
 from .dataset import DatasetArtifact, TableArtifact, update_dataset_meta
 from .document import DocumentArtifact, DocumentLoaderSpec, MLRunLoader
+from .llm_prompt import LLMPromptArtifact, LLMPromptArtifactSpec
 from .manager import (
     ArtifactManager,
     ArtifactProducer,

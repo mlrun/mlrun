@@ -40,6 +40,7 @@ class ArtifactFormat(ObjectFormat, mlrun.common.types.StrEnum):
                     "spec.algorithm",
                     "spec.metrics",
                     "spec.target_path",
+                    "spec.parent_uri",
                 ]
             ),
         }[_format]

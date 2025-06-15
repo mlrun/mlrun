@@ -116,7 +116,7 @@ def test_add_code_metadata_stale_remote(repo):
         ),
         (
             {"a": "A", "b": "B"},
-            {mlrun.common.runtimes.constants.RunLabels.owner},
+            {mlrun_constants.MLRunInternalLabels.owner},
             {
                 "a": "A",
                 "b": "B",

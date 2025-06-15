@@ -168,7 +168,7 @@ def _get_metrics(
 def test_project_create_model_monitoring_alert_configs() -> None:
     db_mock = Mock(spec=RunDBInterface)
     db_mock.get_metrics_by_multiple_endpoints.side_effect = _get_metrics
-    project = mlrun.get_or_create_project("mm-project")
+    project = mlrun.get_or_create_project("mm-project", allow_cross_project=True)
 
     notification = Notification(
         kind=NotificationKind.mail,

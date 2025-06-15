@@ -386,6 +386,8 @@ async def test_list_and_get_project_summaries(
 
     # create runs for the project
     running_runs_count = 5
+    expected_running = running_runs_count * 3
+
     _create_runs(
         client,
         project_name,
@@ -405,6 +407,7 @@ async def test_list_and_get_project_summaries(
 
     # create completed runs for the project for less than 24 hours ago
     runs_completed_recent_count = 10
+    expected_completed = runs_completed_recent_count * 3  # each run created 3 instances
     one_hour_ago = datetime.datetime.now() - datetime.timedelta(hours=1)
     _create_runs(
         client,
@@ -435,6 +438,7 @@ async def test_list_and_get_project_summaries(
         mlrun.common.runtimes.constants.RunStates.aborted,
         one_hour_ago,
     )
+    expected_failed = (recent_failed_runs_count + recent_aborted_runs_count) * 3
 
     # create failed runs for the project for more than 24 hours ago to make sure we're not mistakenly counting them
     two_days_ago = datetime.datetime.now() - datetime.timedelta(hours=48)
@@ -477,9 +481,9 @@ async def test_list_and_get_project_summaries(
                 files_count,
                 feature_sets_count,
                 models_count,
-                runs_completed_recent_count,
-                recent_failed_runs_count + recent_aborted_runs_count,
-                running_runs_count,
+                expected_completed,
+                expected_failed,
+                expected_running,
                 running_pipelines_count,
             )
         else:
@@ -493,9 +497,9 @@ async def test_list_and_get_project_summaries(
         files_count,
         feature_sets_count,
         models_count,
-        runs_completed_recent_count,
-        recent_failed_runs_count + recent_aborted_runs_count,
-        running_runs_count,
+        expected_completed,
+        expected_failed,
+        expected_running,
         running_pipelines_count,
     )
 
@@ -1869,7 +1873,7 @@ def _create_runs(
 ):
     for index in range(runs_count):
         run_name = f"run-name-{str(uuid4())}"
-        # create several runs of the same name to verify we're not counting all instances, just all unique run names
+        # create several runs of the same name to verify we're counting all instances
         for _ in range(3):
             run_uid = str(uuid4())
             run = {

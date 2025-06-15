@@ -25,6 +25,7 @@ import pytest
 
 import mlrun
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
+from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,
     ModelMonitoringApplicationMetric,
@@ -85,6 +86,7 @@ class SampleDFAccessApp(ModelMonitoringApplicationBase):
             project=monitoring_context.project_name,
         )
         sample_df = monitoring_context.sample_df
+        assert sample_df is not None
         monitoring_context.logger.info(
             "Read the sample data",
             sample_df=sample_df,
@@ -100,7 +102,7 @@ class TestEvaluate:
     @staticmethod
     @pytest.fixture(autouse=True)
     def _set_project() -> Iterator[None]:
-        project = mlrun.get_or_create_project("test")
+        project = mlrun.get_or_create_project("test", allow_cross_project=True)
         with patch("mlrun.db.nopdb.NopDB.get_project", Mock(return_value=project)):
             yield
 
@@ -146,17 +148,27 @@ class TestEvaluate:
         ), "The error message is different than expected or was not captured"
 
     @staticmethod
+    @pytest.mark.parametrize("method", ["to_job", "evaluate"])
     def test_valid_sample_df_access(
-        tmp_path: Path, capsys: pytest.CaptureFixture
+        method: str, tmp_path: Path, capsys: pytest.CaptureFixture
     ) -> None:
         project = mlrun.get_or_create_project(
             "local-test-sample-df", context=str(tmp_path)
         )
         project.artifact_path = str(tmp_path)
         sample_df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
-        ds_artifact = project.log_dataset("sample-df", df=sample_df)
-        job = SampleDFAccessApp.to_job(func_path=__file__)
-        run = job.run(local=True, inputs={"sample_data": ds_artifact.target_path})
+        ds_artifact_path = project.log_dataset("sample-df", df=sample_df).target_path
+
+        if method == "to_job":
+            job = SampleDFAccessApp.to_job(func_path=__file__)
+            run = job.run(local=True, inputs={"sample_data": ds_artifact_path})
+        elif method == "evaluate":
+            run = SampleDFAccessApp.evaluate(
+                func_path=__file__, run_local=True, sample_data=ds_artifact_path
+            )
+        else:
+            raise NotImplementedError
+
         assert run.state() == "completed"
         captured = capsys.readouterr()
         assert (
@@ -167,6 +179,67 @@ class TestEvaluate:
         assert (
             "Read the sample data" in captured.out
         ), "The expected log message was not found in the captured output"
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("endpoints", "start", "end", "run_local", "write_output", "error_msg"),
+        [
+            (
+                [("ep-name", "ep-uid")],
+                datetime(2025, 5, 3),
+                datetime(2025, 5, 4),
+                False,
+                True,
+                "`stream_profile` is relevant only when running locally",
+            ),
+            (
+                [("ep-name", "ep-uid")],
+                datetime(2025, 5, 3),
+                datetime(2025, 5, 4),
+                True,
+                False,
+                "`stream_profile` is relevant only when writing the outputs",
+            ),
+            (
+                None,
+                datetime(2025, 5, 3),
+                datetime(2025, 5, 4),
+                False,
+                True,
+                "Custom `start` and `end` times .+ supported only with endpoints data",
+            ),
+            (
+                None,
+                None,
+                None,
+                False,
+                False,
+                "or passing `stream_profile` are supported only with endpoints data",
+            ),
+        ],
+    )
+    def test_invalid_params(
+        endpoints: Optional[list[tuple[str, str]]],
+        start: Optional[datetime],
+        end: Optional[datetime],
+        run_local: bool,
+        write_output: bool,
+        error_msg: str,
+    ) -> None:
+        with pytest.raises(mlrun.errors.MLRunValueError, match=error_msg):
+            ModelEndpointAccessApp.evaluate(
+                func_path=__file__,
+                endpoints=endpoints,
+                start=start,
+                end=end,
+                run_local=run_local,
+                write_output=write_output,
+                stream_profile=DatastoreProfileKafkaSource(
+                    name="should-not-be-passed-on-remote",
+                    brokers=["broker-address:9092"],
+                    topics=[],
+                ),
+            )
 
 
 @pytest.mark.parametrize(

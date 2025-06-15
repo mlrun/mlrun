@@ -41,7 +41,7 @@ assets_folder = Path(__file__).parent / "assets"
 
 @pytest.fixture
 def project(tmp_path: Path) -> mlrun.MlrunProject:
-    project = mlrun.get_or_create_project("temp")
+    project = mlrun.get_or_create_project("temp", allow_cross_project=True)
     project.artifact_path = str(tmp_path)
     return project
 

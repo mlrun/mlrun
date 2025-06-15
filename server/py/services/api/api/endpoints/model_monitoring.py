@@ -14,6 +14,7 @@
 
 import http
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Annotated, Optional
 
 import fastapi
@@ -53,7 +54,10 @@ class _CommonParams:
 
 
 async def _verify_authorization(
-    project: str, auth_info: mlrun.common.schemas.AuthInfo, client_version: str
+    project: str,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    client_version: str,
+    action: str = mlrun.common.schemas.AuthorizationAction.store,
 ) -> None:
     """Verify project authorization"""
     if (
@@ -70,7 +74,7 @@ async def _verify_authorization(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.function,
         project_name=project,
         resource_name=mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        action=mlrun.common.schemas.AuthorizationAction.store,
+        action=action,
         auth_info=auth_info,
     )
 
@@ -326,4 +330,102 @@ def set_model_monitoring_credentials(
         tsdb_profile_name=tsdb_profile_name,
         stream_profile_name=stream_profile_name,
         replace_creds=replace_creds,
+    )
+
+
+@dataclass
+class _FunctionSummariesParams:
+    project: str
+    auth_info: mlrun.common.schemas.AuthInfo
+    db_session: Session
+    start: datetime
+    end: datetime
+
+
+async def _common_function_parameters(
+    project: Annotated[
+        str,
+        Path(pattern=mlrun.common.schemas.model_monitoring.constants.PROJECT_PATTERN),
+    ],
+    auth_info: Annotated[
+        mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
+    ],
+    db_session: Annotated[Session, Depends(deps.get_db_session)],
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+) -> _FunctionSummariesParams:
+    """
+    Verify authorization and return common parameters.
+
+    :param project:         Project name.
+    :param auth_info:       The auth info of the request.
+    :param db_session:      A session that manages the current dialog with the database.
+    :returns:          A `_FunctionSummariesParams` object that contains the input data.
+    """
+
+    await _verify_authorization(
+        project=project,
+        auth_info=auth_info,
+        client_version=client_version,
+        action=mlrun.common.schemas.AuthorizationAction.read,
+    )
+    if start is None and end is None:
+        end = mlrun.utils.helpers.datetime_now()
+        start = end - timedelta(days=1)
+    elif start is not None and end is not None:
+        if start.tzinfo is None or end.tzinfo is None:
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                "Custom start and end times must contain the timezone."
+            )
+        if start > end:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The start time must be before the end time. Note that if end time is not provided, "
+                "the current time is used by default."
+            )
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Provided only one of start time, end time. Please provide both or neither."
+        )
+
+    return _FunctionSummariesParams(
+        project=project,
+        auth_info=auth_info,
+        db_session=db_session,
+        start=start,
+        end=end,
+    )
+
+
+@router.get("/function-summaries")
+async def get_model_monitoring_function_summaries(
+    commons: Annotated[_FunctionSummariesParams, Depends(_common_function_parameters)],
+    names: Optional[list[str]] = Query(None, alias="name"),
+    labels: list[str] = Query([], alias="label"),
+    include_stats: bool = Query(True, alias="include-stats"),
+    include_infra: bool = Query(True, alias="include-infra"),
+) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
+    """Get monitoring function summaries for the specified project.
+
+    :param commons: The common parameters of the request.
+    :param names: List of function names to filter by (optional).
+    :param labels: Labels to filter by (optional).
+    :param include_stats: Whether to include statistics in the response (default is True).
+    :param include_infra: whether to include model monitoring infrastructure functions (default is True).
+
+    :return: A list of FunctionSummary objects containing information about the monitoring functions.
+    """
+    return MonitoringDeployment(
+        project=commons.project,
+        auth_info=commons.auth_info,
+        db_session=commons.db_session,
+    ).function_summaries(
+        start=commons.start,
+        end=commons.end,
+        names=names,
+        labels=labels,
+        include_stats=include_stats,
+        include_infra=include_infra,
     )

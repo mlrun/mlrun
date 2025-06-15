@@ -153,6 +153,7 @@ class Artifacts(
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         producer_id: typing.Optional[str] = None,
         producer_uri: typing.Optional[str] = None,
+        parent: typing.Optional[str] = None,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         partition_by: typing.Optional[
@@ -189,6 +190,7 @@ class Artifacts(
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
+            parent_uri=parent,
         )
         return artifacts
 

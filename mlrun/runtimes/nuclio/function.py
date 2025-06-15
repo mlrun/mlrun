@@ -16,7 +16,6 @@ import asyncio
 import copy
 import json
 import typing
-import warnings
 from datetime import datetime
 from time import sleep
 
@@ -155,6 +154,7 @@ class NuclioSpec(KubeResourceSpec):
         add_templated_ingress_host_mode=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        serving_spec=None,
     ):
         super().__init__(
             command=command,
@@ -184,6 +184,7 @@ class NuclioSpec(KubeResourceSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             state_thresholds=state_thresholds,
+            serving_spec=serving_spec,
         )
 
         self.base_spec = base_spec or {}
@@ -607,7 +608,6 @@ class RemoteRuntime(KubeResource):
         project="",
         tag="",
         verbose=False,
-        auth_info: AuthInfo = None,
         builder_env: typing.Optional[dict] = None,
         force_build: bool = False,
     ):
@@ -616,16 +616,9 @@ class RemoteRuntime(KubeResource):
         :param project:    project name
         :param tag:        function tag
         :param verbose:    set True for verbose logging
-        :param auth_info:  service AuthInfo (deprecated and ignored)
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
         """
-        if auth_info:
-            # TODO: remove in 1.10.0
-            warnings.warn(
-                "'auth_info' is deprecated for nuclio runtimes in 1.7.0 and will be removed in 1.10.0",
-                FutureWarning,
-            )
 
         old_http_session = getattr(self, "_http_session", None)
         if old_http_session:

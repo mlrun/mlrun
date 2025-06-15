@@ -838,7 +838,6 @@ def is_mlrun_image(base_image):
     mlrun_images = [
         "mlrun/mlrun",
         "mlrun/mlrun-gpu",
-        "mlrun/ml-base",
         "mlrun/mlrun-kfp",
     ]
     return any([image in base_image for image in mlrun_images])

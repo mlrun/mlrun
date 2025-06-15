@@ -910,7 +910,7 @@ class MonitoringDeployment:
                 project=self.project, secret_provider=self._secret_provider
             )
 
-            detection_stats_dict = tsdb_connector.read_results_by_status(
+            detection_stats_dict = tsdb_connector.count_results_by_status(
                 start=start,
                 end=end,
                 result_status_list=[

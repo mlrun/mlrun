@@ -272,7 +272,6 @@ class ApplicationRuntime(RemoteRuntime):
         project="",
         tag="",
         verbose=False,
-        auth_info: schemas.AuthInfo = None,
         builder_env: typing.Optional[dict] = None,
         force_build: bool = False,
         with_mlrun=None,
@@ -289,7 +288,6 @@ class ApplicationRuntime(RemoteRuntime):
         :param project:                     Project name
         :param tag:                         Function tag
         :param verbose:                     Set True for verbose logging
-        :param auth_info:                   Service AuthInfo (deprecated and ignored)
         :param builder_env:                 Env vars dict for source archive config/credentials
                                             e.g. builder_env={"GIT_TOKEN": token}
         :param force_build:                 Set True for force building the application image
@@ -330,7 +328,6 @@ class ApplicationRuntime(RemoteRuntime):
             project=project,
             tag=tag,
             verbose=verbose,
-            auth_info=auth_info,
             builder_env=builder_env,
         )
         logger.info(

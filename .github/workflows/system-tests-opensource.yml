@@ -181,7 +181,7 @@ jobs:
       # by overriding the version specifier, we allow using mlrun/mlrun as well.
       # TODO: support patching jupyter as well (maybe on demand?)
       # and use --override-mlrun-jupyter-image when patching mlrun ce
-      skip_images: test,mlrun-gpu,base,jupyter
+      skip_images: test,mlrun-gpu,jupyter
     secrets: inherit
 
   run-system-tests-opensource-ci:

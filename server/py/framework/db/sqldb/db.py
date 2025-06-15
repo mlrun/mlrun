@@ -64,7 +64,12 @@ from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
     FeatureSetDigestSpecV2,
 )
-from mlrun.common.schemas.model_monitoring import EndpointType, ModelEndpointSchema, constants
+from mlrun.common.schemas.model_monitoring import (
+    EndpointType,
+    ModelEndpointSchema,
+    constants,
+)
+from mlrun.common.schemas import FunctionState
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, RunList
@@ -3887,13 +3892,17 @@ class SQLDB(DBInterface):
         }
         return project_to_feature_set_count
 
+    def _calculate_mm_functions_counters(
+        self, session
+    ) -> tuple[dict[str, int], dict[str, str]]:
 
-    def _calculate_mm_functions_counters(self, session) -> tuple [dict[str, int], dict[str, str]]:
-        labels = [f"{constants.ModelMonitoringAppLabel.KEY}={constants.ModelMonitoringAppLabel.VAL}"]
-
+        labels = [
+            f"{constants.ModelMonitoringAppLabel.KEY}={constants.ModelMonitoringAppLabel.VAL}"
+        ]
         query = session.query(Function.project, Function, Function.Tag.name)
-        query = query.join(Function.Tag, Function.id == Function.Tag.obj_id) # filter duplications
-
+        query = query.join(
+            Function.Tag, Function.id == Function.Tag.obj_id
+        )  # filter duplications
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)
 
@@ -3902,15 +3911,18 @@ class SQLDB(DBInterface):
         for project, function, name in query.all():
             project_to_running_mm_functions_count.setdefault(project, 0)
             project_to_failed_mm_functions_count.setdefault(project, 0)
-            if function.state == 'ready':
+            if function.state == FunctionState.ready:
                 project_to_running_mm_functions_count[project] += 1
-            if function.state == 'error':
+            if function.state == FunctionState.error:
                 project_to_failed_mm_functions_count[project] += 1
 
-        return project_to_running_mm_functions_count, project_to_failed_mm_functions_count
+        return (
+            project_to_running_mm_functions_count,
+            project_to_failed_mm_functions_count,
+        )
 
     @staticmethod
-    def _calculate_mep_counters(session) -> tuple [dict[str, int], dict[str, str]]:
+    def _calculate_mep_counters(session) -> tuple[dict[str, int], dict[str, str]]:
         query = session.query(ModelEndpoint.project, ModelEndpoint.endpoint_type)
 
         project_to_real_time_mep_count = {}

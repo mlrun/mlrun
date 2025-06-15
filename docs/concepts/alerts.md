@@ -1,7 +1,7 @@
 (alerts)=
 # Alerts 
 
-Learn how to create and modify alerts and model monitoring alerts.
+Alerts are a generic mechanism that allows you to define specific rules using events, such as: an event happens N times within a specified time period. They can also be used for model monitoring where the basic notification is just for jobs and workflows.
 
 **In this section**
 - [System configuration](#system-configuration)

@@ -149,7 +149,6 @@ class SQLRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[Union[str, list[str]]] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
         states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         iter: bool = False,
@@ -175,9 +174,7 @@ class SQLRunDB(RunDBInterface):
             uid=uid,
             project=project,
             labels=labels,
-            states=mlrun.utils.helpers.as_list(state)
-            if state is not None
-            else states or None,
+            states=states or None,
             sort=sort,
             iter=iter,
             start_time_from=start_time_from,

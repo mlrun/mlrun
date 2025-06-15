@@ -1277,12 +1277,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.11.0      | v1.8.0 |`mlrun.platforms.mount_v3io`                                                  |`.mounts.mount_v3io`|
 | v1.11.0      | v1.8.0 |`mlrun.platforms.set_env_variables`                                                  |`.mounts.set_env_variables`|
 | v1.11.0      | v1.8.0 |`mlrun.platforms.v3io_cred`                                                  |`.mounts.v3io_cred`|
-| v1.10.0      | v1.7.0 |`key`, `body`, `viewer`, `is_inline`, `format`, `size`, `target_path`, `project` and `src_path` in `mlrun.artifacts.base.Artifact`|`metadata` and `spec`|
-| v1.10.0      | v1.7.0 |`key`, `body`, `viewer`, `is_inline`, `format`, `size`, `target_path`, `project` and `src_path` in `mlrun.artifacts.base.LinkArtifact`|`metadata` and `spec`|
-| v1.10.0      | v1.7.0 |`key`, `format`, and `target_path` in `mlrun.artifacts.datasets.DatasetArtifact` |`metadata` and `spec` |
-| v1.10.0      | v1.7.0 |`key`, `body`, `format`, and `target_path` in `mlrun.artifacts.model.ModelArtifact`|`metadata` and `spec` |
-| v1.10.0      | v1.7.0 |`key`, `body`, `is_inline`, and `target_path` in `mlrun.artifacts.plots.PlotArtifact` |`metadata` and `spec` |
-| v1.10.0      | v1.7.0 |`key`, and `target_path` in `mlrun.artifacts.plots.PlotlyArtifact`  |`metadata` and `spec` |
 | v1.10.0      | v1.7.0 |`labels` in`get_or_create_ctx` |`spec` |
 | v1.10.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_function` |Default value changed to `True` |
 | v1.10.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_config` |Default value changed to `True` |

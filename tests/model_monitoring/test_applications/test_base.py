@@ -102,7 +102,7 @@ class TestEvaluate:
     @staticmethod
     @pytest.fixture(autouse=True)
     def _set_project() -> Iterator[None]:
-        project = mlrun.get_or_create_project("test")
+        project = mlrun.get_or_create_project("test", allow_cross_project=True)
         with patch("mlrun.db.nopdb.NopDB.get_project", Mock(return_value=project)):
             yield
 

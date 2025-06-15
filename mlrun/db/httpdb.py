@@ -901,9 +901,6 @@ class HTTPRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[
-            mlrun.common.runtimes.constants.RunStates
-        ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         iter: bool = False,
@@ -948,7 +945,6 @@ class HTTPRunDB(RunDBInterface):
             or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
-        :param state: Deprecated - List only runs whose state is specified (will be removed in 1.10.0)
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -976,7 +972,6 @@ class HTTPRunDB(RunDBInterface):
             uid=uid,
             project=project,
             labels=labels,
-            state=state,
             states=states,
             sort=sort,
             iter=iter,
@@ -2482,50 +2477,6 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed retrieving feature-set {project}/{name}"
         resp = self.api_call("GET", path, error_message)
         return FeatureSet.from_dict(resp.json())
-
-    def list_features(
-        self,
-        project: Optional[str] = None,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-    ) -> list[dict]:
-        """List feature-sets which contain specific features. This function may return multiple versions of the same
-        feature-set if a specific tag is not requested. Note that the various filters of this function actually
-        refer to the feature-set object containing the features, not to the features themselves.
-
-        :param project: Project which contains these features.
-        :param name: Name of the feature to look for. The name is used in a like query, and is not case-sensitive. For
-            example, looking for ``feat`` will return features which are named ``MyFeature`` as well as ``defeat``.
-        :param tag: Return feature-sets which contain the features looked for, and are tagged with the specific tag.
-        :param entities: Return only feature-sets which contain an entity whose name is contained in this list.
-        :param labels: Filter feature-sets by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
-        :returns: A list of mapping from feature to a digest of the feature-set, which contains the feature-set
-            meta-data. Multiple entries may be returned for any specific feature due to multiple tags or versions
-            of the feature-set.
-        """
-
-        project = project or config.active_project
-        labels = self._parse_labels(labels)
-        params = {
-            "name": name,
-            "tag": tag,
-            "entity": entities or [],
-            "label": labels,
-        }
-
-        path = f"projects/{project}/features"
-
-        error_message = f"Failed listing features, project: {project}, query: {params}"
-        resp = self.api_call("GET", path, error_message, params=params)
-        return resp.json()["features"]
 
     def list_features_v2(
         self,
@@ -5263,9 +5214,6 @@ class HTTPRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[
-            mlrun.common.runtimes.constants.RunStates
-        ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         iter: bool = False,
@@ -5299,20 +5247,12 @@ class HTTPRunDB(RunDBInterface):
                 "using the `with_notifications` flag."
             )
 
-        if state:
-            # TODO: Remove this in 1.10.0
-            warnings.warn(
-                "'state' is deprecated in 1.7.0 and will be removed in 1.10.0. Use 'states' instead.",
-                FutureWarning,
-            )
-
         labels = self._parse_labels(labels)
 
         if (
             not name
             and not uid
             and not labels
-            and not state
             and not states
             and not start_time_from
             and not start_time_to
@@ -5333,11 +5273,7 @@ class HTTPRunDB(RunDBInterface):
             "name": name,
             "uid": uid,
             "label": labels,
-            "state": (
-                mlrun.utils.helpers.as_list(state)
-                if state is not None
-                else states or None
-            ),
+            "states": states or None,
             "sort": bool2str(sort),
             "iter": bool2str(iter),
             "start_time_from": datetime_to_iso(start_time_from),

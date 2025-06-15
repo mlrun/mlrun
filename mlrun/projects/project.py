@@ -757,14 +757,7 @@ def _project_instance_from_struct(struct, name, allow_cross_project):
             "3. Use different project context dir."
         )
 
-        if allow_cross_project is None:
-            # TODO: Remove this warning in version 1.10.0 and also fix cli to support allow_cross_project
-            warnings.warn(
-                f"Project {name=} is different than specified on the context's project yaml. "
-                "This behavior is deprecated and will not be supported from version 1.10.0."
-            )
-            logger.warn(error_message)
-        elif allow_cross_project:
+        if allow_cross_project:
             logger.debug(
                 "Project name is different than specified on the context's project yaml. Overriding.",
                 existing_name=name_from_struct,
@@ -4996,9 +4989,6 @@ class MlrunProject(ModelObj):
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[
-            mlrun.common.runtimes.constants.RunStates
-        ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         iter: bool = False,
@@ -5042,7 +5032,6 @@ class MlrunProject(ModelObj):
                        - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
                          the specified key-value pairs or key existence.
 
-        :param state: Deprecated - List only runs whose state is specified.
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -5056,24 +5045,13 @@ class MlrunProject(ModelObj):
         :param end_time_from: Filter by run end time in ``[end_time_from, end_time_to]``.
         :param end_time_to: Filter by run end time in ``[end_time_from, end_time_to]``.
         """
-        if state:
-            # TODO: Remove this in 1.10.0
-            warnings.warn(
-                "'state' is deprecated in 1.7.0 and will be removed in 1.10.0. Use 'states' instead.",
-                FutureWarning,
-            )
-
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_runs(
             name,
             uid,
             self.metadata.name,
             labels=labels,
-            states=(
-                mlrun.utils.helpers.as_list(state)
-                if state is not None
-                else states or None
-            ),
+            states=states or None,
             sort=sort,
             iter=iter,
             start_time_from=start_time_from,

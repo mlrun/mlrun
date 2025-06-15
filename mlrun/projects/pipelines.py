@@ -1162,6 +1162,9 @@ def load_and_run_workflow(
         notifications=start_notifications,
         context=context,
     )
+    # Patch the current run object (the workflow-runner) with the workflow-id label
+    context.logger.info(f"Associating workflow-runner with workflow ID: {run.run_id}")
+    context.set_label("workflow-id", run.run_id)
     context.log_result(key="workflow_id", value=run.run_id)
     context.log_result(key="engine", value=run._engine.engine, commit=True)
 

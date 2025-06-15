@@ -901,9 +901,6 @@ class HTTPRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[
-            mlrun.common.runtimes.constants.RunStates
-        ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         iter: bool = False,
@@ -948,7 +945,6 @@ class HTTPRunDB(RunDBInterface):
             or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
-        :param state: Deprecated - List only runs whose state is specified (will be removed in 1.10.0)
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -976,7 +972,6 @@ class HTTPRunDB(RunDBInterface):
             uid=uid,
             project=project,
             labels=labels,
-            state=state,
             states=states,
             sort=sort,
             iter=iter,
@@ -5263,9 +5258,6 @@ class HTTPRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[
-            mlrun.common.runtimes.constants.RunStates
-        ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         iter: bool = False,
@@ -5299,20 +5291,12 @@ class HTTPRunDB(RunDBInterface):
                 "using the `with_notifications` flag."
             )
 
-        if state:
-            # TODO: Remove this in 1.10.0
-            warnings.warn(
-                "'state' is deprecated in 1.7.0 and will be removed in 1.10.0. Use 'states' instead.",
-                FutureWarning,
-            )
-
         labels = self._parse_labels(labels)
 
         if (
             not name
             and not uid
             and not labels
-            and not state
             and not states
             and not start_time_from
             and not start_time_to
@@ -5333,11 +5317,7 @@ class HTTPRunDB(RunDBInterface):
             "name": name,
             "uid": uid,
             "label": labels,
-            "state": (
-                mlrun.utils.helpers.as_list(state)
-                if state is not None
-                else states or None
-            ),
+            "states": states or None,
             "sort": bool2str(sort),
             "iter": bool2str(iter),
             "start_time_from": datetime_to_iso(start_time_from),

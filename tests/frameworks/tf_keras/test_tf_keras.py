@@ -166,6 +166,9 @@ def test_training(rundb_mock):
     test_directory.cleanup()
 
 
+@pytest.mark.skipif(
+    is_keras_3(), reason="Keras 3 test is freezing due to dead lock issue."
+)
 def test_evaluation(rundb_mock):
     """
     Test the `apply_mlrun` function with a simple TensorFlow Keras model training to evaluation flow.

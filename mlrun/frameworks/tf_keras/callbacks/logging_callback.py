@@ -442,8 +442,7 @@ class LoggingCallback(Callback):
 
         # Parse the value:
         if isinstance(value, (tf.Tensor, tf.Variable)) or (
-            is_keras_3()
-            and isinstance(value, (keras.KerasTensor, keras.Variable))
+            is_keras_3() and isinstance(value, (keras.KerasTensor, keras.Variable))
         ):
             if int(tf.size(value)) == 1:
                 value = float(value)

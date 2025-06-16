@@ -79,7 +79,7 @@ class TFKerasModelHandler(DLModelHandler):
         model: keras.Model = None,
         model_path: Optional[str] = None,
         model_name: Optional[str] = None,
-        model_format: str = None,
+        model_format: Optional[str] = None,
         context: mlrun.MLClientCtx = None,
         modules_map: Optional[
             Union[dict[str, Union[None, str, list[str]]], str]

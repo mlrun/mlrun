@@ -1,7 +1,7 @@
 (ingesting_data)=
 # Using data sources and items
 
-Learn how to access data by using the DataIem object, and how to process data.
+Learn how to access data by using the DataItem object, and how to process data.
 
 **In this section**
 - [Connecting to data sources](#connecting-to-data-sources)

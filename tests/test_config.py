@@ -24,14 +24,12 @@ from tempfile import NamedTemporaryFile
 import deepdiff
 import dotenv
 import pytest
-import requests_mock as requests_mock_package
 import yaml
 
 import mlrun
 import mlrun.errors
 import mlrun.projects.project
 from mlrun.common.schemas import SecurityContextEnrichmentModes
-from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import out_path
 
 assets_path = pathlib.Path(__file__).parent / "assets"
@@ -501,24 +499,6 @@ def test_get_default_function_node_selector():
 
     mlrun.mlconf.default_function_node_selector = "bnVsbA=="
     assert mlrun.mlconf.get_default_function_node_selector() == {}
-
-
-def test_setting_dbpath_does_not_trigger_connect(
-    requests_mock: requests_mock_package.Mocker,
-):
-    api_url = "http://mlrun-api-url:8080"
-    remote_host = "some-namespace"
-    response_body = {
-        "version": "some-version",
-        "remote_host": remote_host,
-    }
-    requests_mock.get(
-        f"{api_url}/{HTTPRunDB.get_api_path_prefix()}/client-spec",
-        json=response_body,
-    )
-    assert "" == mlrun.mlconf.remote_host
-    mlrun.mlconf.dbpath = api_url
-    assert "" == mlrun.mlconf.remote_host
 
 
 def test_db_connection_deferred_until_reload(monkeypatch):

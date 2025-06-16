@@ -896,11 +896,7 @@ class Config:
         return result
 
     def __setattr__(self, attr, value):
-        # in order for the dbpath setter to work
-        if attr == "dbpath":
-            super().__setattr__(attr, value)
-        else:
-            self._cfg[attr] = value
+        self._cfg[attr] = value
 
     def __dir__(self):
         return list(self._cfg) + dir(self.__class__)
@@ -1243,16 +1239,6 @@ class Config:
         # since the config class is used in a "recursive" way, we can't use property like we used in other places
         # since the property will need to be url, which exists in other structs as well
         return config.ui.url or config.ui_url
-
-    @property
-    def dbpath(self):
-        return self._dbpath
-
-    @dbpath.setter
-    def dbpath(self, value):
-        self._dbpath = value
-        if value:
-            _configure_ssl_verification(self.httpdb.http.verify)
 
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster

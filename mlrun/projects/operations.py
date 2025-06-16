@@ -281,7 +281,7 @@ def build_function(
     mlrun_version_specifier=None,
     builder_env: Optional[dict] = None,
     project_object=None,
-    overwrite_build_params: bool = False,
+    overwrite_build_params: bool = True,
     extra_args: Optional[str] = None,
     force_build: bool = False,
 ) -> Union[BuildStatus, mlrun_pipelines.models.PipelineNodeWrapper]:
@@ -308,13 +308,6 @@ def build_function(
         e.g. extra_args="--skip-tls-verify --build-arg A=val"
     :param force_build: Force building the image, even when no changes were made
     """
-    if not overwrite_build_params:
-        # TODO: change overwrite_build_params default to True in 1.10.0
-        warnings.warn(
-            "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.10.0.",
-            mlrun.utils.OverwriteBuildParamsWarning,
-        )
-
     engine, function = _get_engine_and_function(function, project_object)
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -340,22 +333,16 @@ def build_function(
             skip_deployed=skip_deployed,
         )
     else:
-        # TODO: remove filter once overwrite_build_params default is changed to True in 1.10.0
-        with warnings.catch_warnings():
-            warnings.simplefilter(
-                "ignore", category=mlrun.utils.OverwriteBuildParamsWarning
-            )
-
-            function.build_config(
-                image=image,
-                base_image=base_image,
-                commands=commands,
-                secret=secret_name,
-                requirements=requirements,
-                requirements_file=requirements_file,
-                overwrite=overwrite_build_params,
-                extra_args=extra_args,
-            )
+        function.build_config(
+            image=image,
+            base_image=base_image,
+            commands=commands,
+            secret=secret_name,
+            requirements=requirements,
+            requirements_file=requirements_file,
+            overwrite=overwrite_build_params,
+            extra_args=extra_args,
+        )
         ready = function.deploy(
             watch=True,
             with_mlrun=with_mlrun,

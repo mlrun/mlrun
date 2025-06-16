@@ -329,7 +329,7 @@ class TSDBConnector(ABC):
         """
 
     @abstractmethod
-    def read_results_by_status(
+    def count_results_by_status(
         self,
         start: Optional[Union[datetime, str]] = None,
         end: Optional[Union[datetime, str]] = None,

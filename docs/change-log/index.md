@@ -66,7 +66,6 @@ To upgrade the MLRun server:
 ### Infrastructure
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-2714|MLRun supports Confluent Kafka 7.8.|
 |ML-8314|KFP is no longer part of the MLRun images, except for the new `mlrun/mlrun-kfp`. This gives you greater flexibility for installing packages whose dependencies conflict with KFP 1.8. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images).|
 
 
@@ -1213,7 +1212,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-7746|In some cases, when the pipeline is extremely large it is not displayed in the graph.| NA | v1.7.0|      
 |ML-7820|`sync_functions` should only sync the functions in the workflow, and not all of the functions within the `project.yaml`.| NA | v1.7.0|        
 |ML-7955|The **Owner** field is blank for artifacts that are registered in the UI.| NA| v1.7.0| 
-|ML-8064|When using notifications with `when=running` the user always gets a default notification.|NA| v1.7.0|
 |ML-8419|When the MySQL server is unavailable, a project with non-V3IO model monitoring cannot be deleted.|Run `project.set_model_monitoring_credentials(endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io", replace_creds=True)` before deleting the project.|v1.7.1|
 |ML-8427|Missing FK constraints in DB causes migration to fail after upgrade. | Delete old runs before upgrading. |v1.7.0|
 |ML-8528|In rare circumstances, KF pipelines fail.|Retry the workflow.|v1.6.3|
@@ -1279,12 +1277,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.11.0      | v1.8.0 |`mlrun.platforms.mount_v3io`                                                  |`.mounts.mount_v3io`|
 | v1.11.0      | v1.8.0 |`mlrun.platforms.set_env_variables`                                                  |`.mounts.set_env_variables`|
 | v1.11.0      | v1.8.0 |`mlrun.platforms.v3io_cred`                                                  |`.mounts.v3io_cred`|
-| v1.10.0      | v1.7.0 |`key`, `body`, `viewer`, `is_inline`, `format`, `size`, `target_path`, `project` and `src_path` in `mlrun.artifacts.base.Artifact`|`metadata` and `spec`|
-| v1.10.0      | v1.7.0 |`key`, `body`, `viewer`, `is_inline`, `format`, `size`, `target_path`, `project` and `src_path` in `mlrun.artifacts.base.LinkArtifact`|`metadata` and `spec`|
-| v1.10.0      | v1.7.0 |`key`, `format`, and `target_path` in `mlrun.artifacts.datasets.DatasetArtifact` |`metadata` and `spec` |
-| v1.10.0      | v1.7.0 |`key`, `body`, `format`, and `target_path` in `mlrun.artifacts.model.ModelArtifact`|`metadata` and `spec` |
-| v1.10.0      | v1.7.0 |`key`, `body`, `is_inline`, and `target_path` in `mlrun.artifacts.plots.PlotArtifact` |`metadata` and `spec` |
-| v1.10.0      | v1.7.0 |`key`, and `target_path` in `mlrun.artifacts.plots.PlotlyArtifact`  |`metadata` and `spec` |
 | v1.10.0      | v1.7.0 |`labels` in`get_or_create_ctx` |`spec` |
 | v1.10.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_function` |Default value changed to `True` |
 | v1.10.0      | v1.7.0 |`overwrite_build_params` in `MlrunProject.build_config` |Default value changed to `True` |

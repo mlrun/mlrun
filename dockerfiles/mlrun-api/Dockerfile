@@ -44,9 +44,6 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-# Remove system ensurepip from Python
-RUN rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
-
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 
 WORKDIR /mlrun
@@ -71,9 +68,12 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[complete-api,kfp18] --python-version ${MLRUN_PYTHON_VERSION}
 
-# go code is irrelevant for the api server
-# pip is not needed anymore
-RUN rm -rf ./server/go && python -m pip uninstall pip -y
+# Remove server related files that are not needed in the base image
+# Remove ensurepip folders from both conda and system python
+# Remove pip is not needed anymore
+RUN rm -rf ./server/go \
+    && python -m pip uninstall pip -y \
+    && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
 
 VOLUME /mlrun/db
 ENV PYTHONPATH=/mlrun/server/py

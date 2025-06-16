@@ -1432,6 +1432,7 @@ def _do_populate(env=None, skip_errors=False):
     if config.dbpath:
         from mlrun.db import get_run_db
 
+        # when dbpath is set we want to connect to it which will sync configuration from it to the client
         get_run_db(config.dbpath, force_reconnect=True)
 
 

@@ -76,7 +76,7 @@ inferring results using one or more models, and driving actions.
 
 
 **Docs:**
-[Serving gen AI models](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving.html), GPU utilization](https://docs.mlrun.org/en/stable/genai/deployment/gpu_utilization.html), [Gen AI realtime serving graph](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving_graph.html)
+[Serving gen AI models](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving.html), [GPU utilization](https://docs.mlrun.org/en/stable/genai/deployment/gpu_utilization.html), [Gen AI realtime serving graph](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving_graph.html)
 **Tutorial:**
 [Deploy LLM using MLRun](https://docs.mlrun.org/en/stable/tutorials/genai_01_basic_tutorial.html)
 **Demos:**

@@ -1155,15 +1155,15 @@ class MLClientCtx:
         updates = {"status.last_update": now_date().isoformat()}
 
         if error is not None:
-            new_state = mlrun.common.runtimes.constants.RunStates.error
+            state = mlrun.common.runtimes.constants.RunStates.error
             max_retries = self._retry_spec.get("count", 0)
             self._retry_count = self._retry_count or 0
             if max_retries and self._retry_count < max_retries:
-                new_state = mlrun.common.runtimes.constants.RunStates.pending_retry
+                state = mlrun.common.runtimes.constants.RunStates.pending_retry
 
-            self._state = new_state
+            self._state = state
             self._error = str(error)
-            updates["status.state"] = new_state
+            updates["status.state"] = state
             updates["status.error"] = error
         elif (
             execution_state

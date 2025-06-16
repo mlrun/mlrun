@@ -200,7 +200,6 @@ class RunStates:
         return [
             RunStates.running,
             RunStates.pending,
-            # TODO: add aborting?
         ]
 
     @staticmethod

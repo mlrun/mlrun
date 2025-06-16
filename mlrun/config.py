@@ -122,7 +122,7 @@ default_config = {
                 # periodic job for triggering retries interval in seconds
                 "interval": "30",
                 # runs limit to fetch for retrying
-                "runs_limit": 1000,
+                "fetch_runs_limit": 1000,
             },
         },
         "projects": {
@@ -322,6 +322,7 @@ default_config = {
                     "project_summaries": "enabled",
                     "start_logs": "enabled",
                     "stop_logs": "enabled",
+                    "retry_jobs": "enabled",
                 },
             },
             "worker": {

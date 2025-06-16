@@ -196,7 +196,8 @@ class Service(framework.service.Service):
             self._start_periodic_project_summaries_calculation()
         self._start_periodic_partition_management()
         self._start_periodic_refresh_smtp_configuration()
-        self._start_periodic_retry_jobs()
+        if mlconf.httpdb.clusterization.chief.feature_gates.retry_jobs == "enabled":
+            self._start_periodic_retry_jobs()
         if mlconf.httpdb.clusterization.chief.feature_gates.start_logs == "enabled":
             await self._start_periodic_logs_collection()
         if mlconf.httpdb.clusterization.chief.feature_gates.stop_logs == "enabled":
@@ -939,10 +940,9 @@ class Service(framework.service.Service):
                 db_session,
                 project="*",
                 states=[mlrun.common.runtimes.constants.RunStates.pending_retry],
-                limit=mlconf.monitoring.runs.retry.runs_limit,
+                limit=mlconf.monitoring.runs.retry.fetch_runs_limit,
             )
             if not runs:
-                self._logger.debug("No runs to retry")
                 return
 
             self._logger.debug(
@@ -959,7 +959,7 @@ class Service(framework.service.Service):
                     )
                     continue
 
-                    # retry_count may be None on the first attempt
+                # retry_count may be None on the first attempt
                 run.status.retry_count = run.status.retry_count or 0
                 # sanity
                 if not run.status.retry_count < run.spec.retry.count:
@@ -1002,12 +1002,18 @@ class Service(framework.service.Service):
                             exc=err_to_str(exception),
                         )
 
+        except Exception as exc:
+            self._logger.warning(
+                "Failed retrying jobs",
+                exc=err_to_str(exc),
+                traceback=traceback.format_exc(),
+            )
         finally:
             await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
     def _submit_run_for_retry(self, run: mlrun.RunObject):
         self._retry_in_progress_run_uids.add(run.metadata.uid)
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         # Calculate the delay based on the retry policy
         delay = framework.utils.helpers.time_string_to_seconds(
@@ -1022,6 +1028,13 @@ class Service(framework.service.Service):
         call_after_seconds = max(delta.total_seconds(), 0)
 
         # Submit the job with the calculated delay
+        self._logger.debug(
+            "Submitting run for retry",
+            run_uid=run.metadata.uid,
+            delay=call_after_seconds,
+            retry_count=run.status.retry_count,
+            max_retry_count=run.spec.retry.count,
+        )
         loop.call_later(
             call_after_seconds,
             self._submit_retry_wrapper,

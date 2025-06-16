@@ -26,7 +26,6 @@ import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.runtimes
-import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
@@ -34,6 +33,7 @@ import mlrun.launcher.factory
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
+from mlrun.common.runtimes.constants import RunStates
 from mlrun.model import (
     BaseMetadata,
     HyperParamOptions,
@@ -601,19 +601,19 @@ class BaseRuntime(ModelObj):
         updates = None
         last_state = get_in(resp, "status.state", "")
         kind = get_in(resp, "metadata.labels.kind", "")
-        if (
-            last_state in mlrun.common.runtimes.constants.RunStates.error_states()
-            or err
-        ):
-            new_state = mlrun.common.runtimes.constants.RunStates.error
+        if last_state in RunStates.error_states() or err:
+            new_state = RunStates.error
             status_text = None
             max_retries = get_in(resp, "spec.retry.count", 0)
             retry_count = get_in(resp, "status.retry_count", 0) or 0
-            if max_retries and retry_count < max_retries:
-                new_state = mlrun.common.runtimes.constants.RunStates.pending_retry
-                status_text = f"Run failed attempt {retry_count + 1} of {max_retries}"
-            elif max_retries and retry_count >= max_retries:
-                status_text = f"Run failed after {retry_count} attempts"
+            if max_retries:
+                if retry_count < max_retries:
+                    new_state = RunStates.pending_retry
+                    status_text = (
+                        f"Run failed attempt {retry_count + 1} of {max_retries}"
+                    )
+                elif retry_count >= max_retries:
+                    status_text = f"Run failed after {retry_count} attempts"
 
             updates = {
                 "status.last_update": now_date().isoformat(),
@@ -631,9 +631,8 @@ class BaseRuntime(ModelObj):
 
         elif (
             not was_none
-            and last_state != mlrun.common.runtimes.constants.RunStates.completed
-            and last_state
-            not in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
+            and last_state != RunStates.completed
+            and last_state not in RunStates.error_and_abortion_states()
         ):
             try:
                 runtime_cls = mlrun.runtimes.get_runtime_class(kind)

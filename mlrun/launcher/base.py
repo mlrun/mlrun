@@ -363,7 +363,8 @@ class BaseLauncher(abc.ABC):
         run.spec.retry = retry or run.spec.retry
         if run.status.state == mlrun.common.runtimes.constants.RunStates.pending_retry:
             run.status.state = mlrun.common.runtimes.constants.RunStates.running
-            run.status.retry_count = (run.status.retry_count or 0) + 1
+            run.status.retry_count = run.status.retry_count or 0  # in case it is none
+            run.status.retry_count += 1  # increment by one
         return run
 
     @staticmethod

@@ -15,9 +15,7 @@
 import os
 import shutil
 import tarfile
-import traceback
 
-import requests
 from git import Repo
 
 # List of repositories to archive

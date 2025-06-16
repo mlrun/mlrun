@@ -16,16 +16,14 @@ from typing import Callable, Optional, Union
 
 import numpy as np
 import tensorflow as tf
-from tensorflow import Tensor, Variable
-from tensorflow.keras import KerasTensor
-from tensorflow.keras import Variable as TFKerasVariable
+from tensorflow import keras
 from tensorflow.python.keras.callbacks import Callback
 
 import mlrun
 
 from ..._common import LoggingMode
 from ..._dl_common.loggers import Logger
-from ..utils import TFKerasTypes
+from ..utils import TFKerasTypes, is_keras_3
 
 
 class LoggingCallback(Callback):
@@ -443,7 +441,10 @@ class LoggingCallback(Callback):
                     )
 
         # Parse the value:
-        if isinstance(value, (KerasTensor, TFKerasVariable, Tensor, Variable)):
+        if isinstance(value, (tf.Tensor, tf.Variable)) or (
+            is_keras_3()
+            and isinstance(value, (keras.KerasTensor, keras.Variable))
+        ):
             if int(tf.size(value)) == 1:
                 value = float(value)
             else:

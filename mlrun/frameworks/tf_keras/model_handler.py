@@ -29,7 +29,7 @@ from mlrun.features import Feature
 from .._common import without_mlrun_interface
 from .._dl_common import DLModelHandler
 from .mlrun_interface import TFKerasMLRunInterface
-from .utils import TFKerasUtils
+from .utils import TFKerasUtils, is_keras_3
 
 
 class TFKerasModelHandler(DLModelHandler):
@@ -41,7 +41,11 @@ class TFKerasModelHandler(DLModelHandler):
     FRAMEWORK_NAME = "tensorflow.keras"
 
     # Declare a type of an input sample:
-    IOSample = Union[tf.Tensor, tf.TensorSpec, keras.KerasTensor, np.ndarray]
+    IOSample = (
+        Union[tf.Tensor, tf.TensorSpec, keras.KerasTensor, np.ndarray]
+        if is_keras_3()
+        else Union[tf.Tensor, tf.TensorSpec, np.ndarray]
+    )
 
     class ModelFormats:
         """
@@ -53,7 +57,6 @@ class TFKerasModelHandler(DLModelHandler):
         H5 = "h5"
         JSON_ARCHITECTURE_H5_WEIGHTS = "json_h5"
 
-        # Set the default model format according to the available keras version:
         @classmethod
         def default(cls) -> str:
             """
@@ -61,12 +64,7 @@ class TFKerasModelHandler(DLModelHandler):
 
             :return: The default model format to use.
             """
-            return (
-                cls.KERAS
-                if hasattr(keras, "__version__")
-                and version.parse(keras.__version__) >= version.parse("3.0.0")
-                else cls.SAVED_MODEL
-            )
+            return cls.KERAS if is_keras_3() else cls.SAVED_MODEL
 
     class _LabelKeys:
         """
@@ -81,7 +79,7 @@ class TFKerasModelHandler(DLModelHandler):
         model: keras.Model = None,
         model_path: Optional[str] = None,
         model_name: Optional[str] = None,
-        model_format: str = ModelFormats.default(),
+        model_format: str = None,
         context: mlrun.MLClientCtx = None,
         modules_map: Optional[
             Union[dict[str, Union[None, str, list[str]]], str]
@@ -114,7 +112,7 @@ class TFKerasModelHandler(DLModelHandler):
                                          * If given a loaded model object and the model name is None, the name will be
                                            set to the model's object name / class.
         :param model_format:             The format to use for saving and loading the model. Should be passed as a
-                                         member of the class 'ModelFormats'. Default: 'ModelFormats.SAVED_MODEL'.
+                                         member of the class 'ModelFormats'.
         :param context:                  MLRun context to work with for logging the model.
         :param modules_map:              A dictionary of all the modules required for loading the model. Each key
                                          is a path to a module and its value is the object name to import from it. All
@@ -160,6 +158,8 @@ class TFKerasModelHandler(DLModelHandler):
                                           * 'save_traces' parameter was miss-used.
         """
         # Validate given format:
+        if not model_format:
+            model_format = TFKerasModelHandler.ModelFormats.default()
         if model_format not in [
             TFKerasModelHandler.ModelFormats.SAVED_MODEL,
             TFKerasModelHandler.ModelFormats.KERAS,
@@ -170,7 +170,7 @@ class TFKerasModelHandler(DLModelHandler):
                 f"Unrecognized model format: '{model_format}'. Please use one of the class members of "
                 "'TFKerasModelHandler.ModelFormats'"
             )
-        if version.parse(keras.__version__) < version.parse("3.0.0"):
+        if not is_keras_3():
             if model_format == TFKerasModelHandler.ModelFormats.KERAS:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "The 'keras' model format is only supported in Keras 3.0.0 and above. "
@@ -621,7 +621,9 @@ class TFKerasModelHandler(DLModelHandler):
         # Supported types:
         if isinstance(sample, np.ndarray):
             return super()._read_sample(sample=sample)
-        elif isinstance(sample, (keras.KerasTensor, tf.TensorSpec)):
+        elif isinstance(sample, tf.TensorSpec) or (
+            is_keras_3() and isinstance(sample, keras.KerasTensor)
+        ):
             return Feature(
                 name=sample.name,
                 value_type=TFKerasUtils.convert_tf_dtype_to_value_type(

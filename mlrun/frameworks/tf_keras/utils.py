@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import tensorflow as tf
+from packaging import version
 from tensorflow import keras
 
 import mlrun
@@ -117,3 +117,14 @@ class TFKerasUtils(DLUtils):
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"MLRun value type is not supporting the given tensorflow data type: '{tf_dtype}'."
         )
+
+
+def is_keras_3() -> bool:
+    """
+    Check if the current Keras version is 3.x.
+
+    :return: True if Keras version is 3.x, False otherwise.
+    """
+    return hasattr(keras, "__version__") and version.parse(
+        keras.__version__
+    ) >= version.parse("3.0.0")

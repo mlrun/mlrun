@@ -60,6 +60,7 @@ import mlrun.k8s_utils
 import mlrun.model
 import mlrun.utils.db
 from mlrun.artifacts.base import fill_artifact_object_hash
+from mlrun.common.schemas import FunctionState
 from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
     FeatureSetDigestSpecV2,
@@ -69,7 +70,6 @@ from mlrun.common.schemas.model_monitoring import (
     ModelEndpointSchema,
     constants,
 )
-from mlrun.common.schemas import FunctionState
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, RunList
@@ -3895,7 +3895,6 @@ class SQLDB(DBInterface):
     def _calculate_mm_functions_counters(
         self, session
     ) -> tuple[dict[str, int], dict[str, str]]:
-
         labels = [
             f"{constants.ModelMonitoringAppLabel.KEY}={constants.ModelMonitoringAppLabel.VAL}"
         ]

@@ -60,7 +60,6 @@ import mlrun.k8s_utils
 import mlrun.model
 import mlrun.utils.db
 from mlrun.artifacts.base import fill_artifact_object_hash
-from mlrun.common.schemas import FunctionState
 from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
     FeatureSetDigestSpecV2,
@@ -68,7 +67,7 @@ from mlrun.common.schemas.feature_store import (
 from mlrun.common.schemas.model_monitoring import (
     EndpointType,
     ModelEndpointSchema,
-    constants,
+    ModelMonitoringAppLabel,
 )
 from mlrun.config import config
 from mlrun.errors import err_to_str
@@ -3894,10 +3893,8 @@ class SQLDB(DBInterface):
 
     def _calculate_mm_functions_counters(
         self, session
-    ) -> tuple[dict[str, int], dict[str, str]]:
-        labels = [
-            f"{constants.ModelMonitoringAppLabel.KEY}={constants.ModelMonitoringAppLabel.VAL}"
-        ]
+    ) -> tuple[dict[str, int], dict[str, int]]:
+        labels = [f"{ModelMonitoringAppLabel.KEY}={ModelMonitoringAppLabel.VAL}"]
         query = session.query(Function.project, Function, Function.Tag.name)
         query = query.join(
             Function.Tag, Function.id == Function.Tag.obj_id
@@ -3910,9 +3907,9 @@ class SQLDB(DBInterface):
         for project, function, name in query.all():
             project_to_running_mm_functions_count.setdefault(project, 0)
             project_to_failed_mm_functions_count.setdefault(project, 0)
-            if function.state == FunctionState.ready:
+            if function.state == mlrun.common.schemas.FunctionState.ready:
                 project_to_running_mm_functions_count[project] += 1
-            if function.state == FunctionState.error:
+            if function.state == mlrun.common.schemas.FunctionState.error:
                 project_to_failed_mm_functions_count[project] += 1
 
         return (
@@ -3921,7 +3918,7 @@ class SQLDB(DBInterface):
         )
 
     @staticmethod
-    def _calculate_mep_counters(session) -> tuple[dict[str, int], dict[str, str]]:
+    def _calculate_mep_counters(session) -> tuple[dict[str, int], dict[str, int]]:
         query = session.query(ModelEndpoint.project, ModelEndpoint.endpoint_type)
 
         project_to_real_time_mep_count = {}

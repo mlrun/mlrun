@@ -40,8 +40,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun_pipelines.common.models
-from mlrun.common.schemas import FunctionState
-from mlrun.common.schemas.model_monitoring import EndpointType, constants
+from mlrun.common.schemas.model_monitoring import EndpointType, ModelMonitoringAppLabel
 
 import framework.api.utils
 import framework.utils.auth.verifier
@@ -1992,16 +1991,14 @@ def _create_running_and_failed_model_monitoring_functions(
     running_model_monitoring_functions,
     failed_model_monitoring_functions,
 ):
-    labels = {
-        constants.ModelMonitoringAppLabel.KEY: constants.ModelMonitoringAppLabel.VAL
-    }
+    labels = {ModelMonitoringAppLabel.KEY: ModelMonitoringAppLabel.VAL}
     _create_functions(
         client=client,
         project_name=project_name,
         functions_count=running_model_monitoring_functions,
         suffix="running",
         labels=labels,
-        state=FunctionState.ready,
+        state=mlrun.common.schemas.FunctionState.ready,
     )
     _create_functions(
         client=client,
@@ -2009,7 +2006,7 @@ def _create_running_and_failed_model_monitoring_functions(
         functions_count=failed_model_monitoring_functions,
         suffix="failed",
         labels=labels,
-        state=FunctionState.error,
+        state=mlrun.common.schemas.FunctionState.error,
     )
 
 

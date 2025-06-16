@@ -526,7 +526,6 @@ class BaseStep(ModelObj):
                 f"The graph already contains the model endpoints named - {common_endpoints_names}."
             )
         root.update_model_endpoints_names(step_model_endpoints_names)
-        root.include_model_runner = True
 
 
 class TaskStep(BaseStep):

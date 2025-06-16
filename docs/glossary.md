@@ -1,7 +1,7 @@
 (glossary)=
 # Glossary
 
-This page describes commonly used MLRun and industry termonology.
+This page describes commonly used MLRun and industry terminology.
 
 **In this section**
 - [MLRun terms](#mlrun-terms)

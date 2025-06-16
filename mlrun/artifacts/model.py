@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import tempfile
-import warnings
 from os import path
 from typing import Any, Optional, Union
 
@@ -189,12 +188,6 @@ class ModelArtifact(Artifact):
                                 Saved as a sub-dictionary under the parameter.
         :param kwargs:          Arguments to pass to the artifact class.
         """
-        if key or body or format or target_path:
-            warnings.warn(
-                "Artifact constructor parameters are deprecated in 1.7.0 and will be removed in 1.10.0. "
-                "Use the metadata and spec parameters instead.",
-                DeprecationWarning,
-            )
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         model_file = str(model_file or "")
         if model_file and model_url:

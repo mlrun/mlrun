@@ -51,10 +51,6 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_
 
 ENV PATH=/opt/conda/bin:$PATH
 
-# Remove ensurepip folders from both conda and system python
-RUN rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
-    && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
-
 # Install Open-MPI:
 ARG OMPI_VERSION=4.1.5
 RUN conda install -y -c conda-forge openmpi-mpicc=${OMPI_VERSION} && \
@@ -87,8 +83,12 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 
 COPY . .
 
-RUN rm -rf ./server/go
-
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION}
+
+# Remove server related files that are not needed
+# Remove ensurepip folders from both conda and system python
+RUN rm -rf ./server/go \
+    && rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
+    && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip

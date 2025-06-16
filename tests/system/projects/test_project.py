@@ -1166,7 +1166,8 @@ class TestProject(TestMLRunSystem):
         runs = []
         while len(runs) != 1:
             runs = project.list_runs(
-                labels=[f"workflow={workflow.run_id}"], state="running"
+                labels=[f"workflow={workflow.run_id}"],
+                states=[mlrun.common.runtimes.constants.RunStates.running],
             )
 
         # abort the first workflow step

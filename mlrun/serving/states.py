@@ -1037,7 +1037,7 @@ class Model(storey.ParallelExecutionRunnable):
         return None, None
 
 
-class ModelProviderModel(mlrun.serving.states.Model):
+class ModelProviderModel(Model):
     execution_mechanism = "naive"
 
     def __init__(

@@ -970,10 +970,24 @@ class Model(storey.ParallelExecutionRunnable):
         if artifact_uri is not None and not isinstance(artifact_uri, str):
             raise MLRunInvalidArgumentError("artifact_uri argument must be a string")
         self.artifact_uri = artifact_uri
+        self.invocation_artifact: Optional[LLMPromptArtifact] = None
+        self.model_artifact: Optional[ModelArtifact] = None
+        self.model: Optional[ModelProvider] = None
 
     def load(self) -> None:
         """Override to load model if needed."""
-        pass
+        artifact = self._get_artifact_object()
+        if isinstance(artifact, LLMPromptArtifact):
+            self.invocation_artifact = artifact
+            self.model_artifact = get_store_resource(
+                self.invocation_artifact.model_artifact
+            )
+        else:
+            self.model_artifact = artifact
+        self.model = mlrun.get_model_provider(
+            url=self.model_artifact.model_url,
+            default_invoke_kwargs=self.model_artifact.default_config,
+        )
 
     def _get_artifact_object(self) -> Union[ModelArtifact, LLMPromptArtifact, None]:
         if self.artifact_uri:
@@ -1035,41 +1049,6 @@ class Model(storey.ParallelExecutionRunnable):
             )
             return model_file, extra_dataitems
         return None, None
-
-
-class ModelProviderModel(Model):
-    execution_mechanism = "naive"
-
-    def __init__(
-        self,
-        name: str,
-        raise_exception: bool = True,
-        artifact_uri: Optional[str] = None,
-        **kwargs,
-    ):
-        super().__init__(
-            name=name,
-            raise_exception=raise_exception,
-            artifact_uri=artifact_uri,
-            **kwargs,
-        )
-        self.invocation_artifact: Optional[LLMPromptArtifact] = None
-        self.model_artifact: Optional[ModelArtifact] = None
-        self.model: Optional[ModelProvider] = None
-
-    def load(self):
-        artifact = self._get_artifact_object()
-        if isinstance(artifact, LLMPromptArtifact):
-            self.invocation_artifact = artifact
-            self.model_artifact = get_store_resource(
-                self.invocation_artifact.model_artifact
-            )
-        else:
-            self.model_artifact = artifact
-        self.model = mlrun.get_model_provider(
-            url=self.model_artifact.model_url,
-            default_invoke_kwargs=self.model_artifact.default_config,
-        )
 
 
 # user defined

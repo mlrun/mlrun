@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
+import warnings
 from abc import ABC
 from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar
@@ -141,7 +143,7 @@ class OpenAIProvider(AsyncModelProvider):
         try:
             from openai import OpenAI, AsyncOpenAI  # noqa
 
-            self._client = OpenAI(**self.options)
+            self._client = OpenAI(**self.options)  # TODO delete
             self._default_operation = self.client.chat.completions.create
 
             self._async_client = AsyncOpenAI(**self.options)
@@ -180,7 +182,7 @@ class OpenAIProvider(AsyncModelProvider):
         else:
             return self._default_async_operation(**invoke_kwargs, model=self.model)
 
-    def basic_llm_invoke(self, prompt: str, **invoke_kwargs) -> str:
+    def get_messages_parameter(self, prompt:str, **invoke_kwargs) -> (str, dict):
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         messages = [
             {
@@ -193,18 +195,32 @@ class OpenAIProvider(AsyncModelProvider):
                 "can not provide 'messages' as an invoke argument in "
                 "basic_llm_invoke"
             )
+        return messages, invoke_kwargs
+
+    async def async_basic_llm_invoke(self, prompt: str, **invoke_kwargs) -> Awaitable[str]:
+        messages, invoke_kwargs = self.get_messages_parameter(prompt=prompt, **invoke_kwargs)
+        response = await self._default_async_operation(
+            model=self.endpoint, messages=messages, **invoke_kwargs
+        )
+        return response.choices[0].message.content
+
+    def basic_llm_invoke(self, prompt: str, **invoke_kwargs) -> str:
+        messages, invoke_kwargs = self.get_messages_parameter(prompt=prompt, **invoke_kwargs)
         response = self._default_operation(
             model=self.endpoint, messages=messages, **invoke_kwargs
         )
         return response.choices[0].message.content
 
 
-def schema_to_model_provider(schema: str) -> type[ModelProvider]:
+def schema_to_model_provider(schema: str, raise_exception=True) -> type[ModelProvider]:
     #  TODO add hugging face and http
     schema_dict = {"openai": OpenAIProvider}
     provider_class = schema_dict.get(schema, None)
     if not provider_class:
-        raise ValueError(f"unsupported model provider scheme ({schema})")
+        if raise_exception:
+            raise ValueError(f"unsupported model provider schema ({schema})")
+        else:
+            warnings.warn(f"unsupported model provider schema: {schema}")
     return provider_class
 
 
@@ -229,7 +245,9 @@ class ModelProviderManager(BaseRemoteClientManager):
                 )
             )
 
-        model_provider_class = schema_to_model_provider(schema)
+        model_provider_class = schema_to_model_provider(schema, raise_exception=False)
+        if not model_provider_class:
+            warnings.warn("Model provider scheme not found. Returning None — model provider will not be supported.")
         endpoint, subpath = model_provider_class.parse_endpoint_and_path(
             endpoint=endpoint, subpath=subpath
         )

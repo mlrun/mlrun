@@ -3848,7 +3848,8 @@ class MlrunProject(ModelObj):
             )
 
         The replication factor and timeout configuration might need to be adjusted according to your Confluent cluster
-        type and settings.
+        type and settings. Nuclio annotations for the model monitoring infrastructure and application functions are
+        supported through ``kwargs_public={"nuclio_annotations": {...}, ...}``.
 
         :param tsdb_profile_name:         The datastore profile name of the time-series database to be used in model
                                           monitoring. The supported profiles are:

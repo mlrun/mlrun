@@ -521,6 +521,29 @@ def test_setting_dbpath_does_not_trigger_connect(
     assert "" == mlrun.mlconf.remote_host
 
 
+def test_db_connection_deferred_until_reload(monkeypatch):
+    """
+    This test verifies that setting `mlconf.dbpath` does not eagerly trigger a DB connection.
+    Instead, the connection should be established only at the end of `mlconf.reload()` when populating the config.
+    """
+
+    url = "https://mlrun-api"
+    monkeypatch.setenv("MLRUN_DBPATH", url)
+    import mlrun
+
+    with unittest.mock.patch("mlrun.db.get_run_db") as mock_get_run_db:
+        mlrun.mlconf.dbpath = url
+
+        # ensure setting dbpath does not trigger DB connection
+        mock_get_run_db.assert_not_called()
+
+        # this triggers config update and calls get_run_db at the end
+        mlrun.mlconf.reload()
+
+        # verify the connection happened
+        mock_get_run_db.assert_called_once_with(url, force_reconnect=True)
+
+
 def test_verify_security_context_enrichment_mode_is_allowed_success():
     mlrun.mlconf.verify_security_context_enrichment_mode_is_allowed()
 

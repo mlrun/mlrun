@@ -204,23 +204,6 @@ class FeatureStore(
             labels,
         )
 
-    # TODO: remove in 1.10.0
-    def list_entities(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        project: str,
-        name: str,
-        tag: typing.Optional[str] = None,
-        labels: typing.Optional[list[str]] = None,
-    ) -> mlrun.common.schemas.EntitiesOutput:
-        return framework.utils.singletons.db.get_db().list_entities(
-            db_session,
-            project,
-            name,
-            tag,
-            labels,
-        )
-
     def list_entities_v2(
         self,
         db_session: sqlalchemy.orm.Session,

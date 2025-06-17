@@ -19,6 +19,7 @@ from sys import executable
 
 import pandas as pd
 import pytest
+import v3io
 
 import mlrun
 import mlrun.common.schemas
@@ -685,3 +686,32 @@ def print_df(df):
         assert background_task.metadata.name in [
             task.metadata.name for task in background_tasks
         ]
+
+    def test_job_from_serving_runtime(self):
+        function = mlrun.new_function(
+            name="test",
+            kind="serving",
+        )
+        graph = function.set_topology("flow", engine="async")
+
+        graph.to(
+            name="parquet",
+            class_name="storey.ParquetTarget",
+            path=f"v3io:///projects/{self.project_name}/out.parquet",
+        )
+
+        job = function.to_job()
+
+        with open(str(self.assets_path / "test_data.csv")) as f:
+            csv_content = f.read()
+
+        v3io_client = v3io.Client()
+        try:
+            v3io_client.object.put(
+                "projects", f"{self.project_name}/in.csv", body=csv_content
+            )
+            inputs = {"data": f"v3io:///projects/{self.project_name}/in.csv"}
+            self.project.run_function(job, inputs=inputs, local=True)
+            v3io_client.object.get("projects", f"{self.project_name}/out.parquet")
+        finally:
+            v3io_client.close()

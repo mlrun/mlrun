@@ -901,9 +901,6 @@ class HTTPRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[
-            mlrun.common.runtimes.constants.RunStates
-        ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         iter: bool = False,
@@ -948,7 +945,6 @@ class HTTPRunDB(RunDBInterface):
             or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
-        :param state: Deprecated - List only runs whose state is specified (will be removed in 1.10.0)
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -976,7 +972,6 @@ class HTTPRunDB(RunDBInterface):
             uid=uid,
             project=project,
             labels=labels,
-            state=state,
             states=states,
             sort=sort,
             iter=iter,
@@ -2633,44 +2628,6 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed listing features, project: {project}, query: {params}"
         resp = self.api_call("GET", path, error_message, params=params, version="v2")
         return resp.json()
-
-    def list_entities(
-        self,
-        project: Optional[str] = None,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-    ) -> list[dict]:
-        """Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
-        to the :py:func:`~list_features` function, and uses the same logic. However, the entities are matched
-        against the name rather than the features.
-
-        :param project: The project containing the entities.
-        :param name: The name of the entities to retrieve.
-        :param tag: The tag of the specific entity version to retrieve.
-        :param labels: Filter entities by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
-        :returns: A list of entities.
-        """
-
-        project = project or config.active_project
-        labels = self._parse_labels(labels)
-        params = {
-            "name": name,
-            "tag": tag,
-            "label": labels,
-        }
-
-        path = f"projects/{project}/entities"
-
-        error_message = f"Failed listing entities, project: {project}, query: {params}"
-        resp = self.api_call("GET", path, error_message, params=params)
-        return resp.json()["entities"]
 
     def list_entities_v2(
         self,
@@ -5328,9 +5285,6 @@ class HTTPRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[
-            mlrun.common.runtimes.constants.RunStates
-        ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         iter: bool = False,
@@ -5364,20 +5318,12 @@ class HTTPRunDB(RunDBInterface):
                 "using the `with_notifications` flag."
             )
 
-        if state:
-            # TODO: Remove this in 1.10.0
-            warnings.warn(
-                "'state' is deprecated in 1.7.0 and will be removed in 1.10.0. Use 'states' instead.",
-                FutureWarning,
-            )
-
         labels = self._parse_labels(labels)
 
         if (
             not name
             and not uid
             and not labels
-            and not state
             and not states
             and not start_time_from
             and not start_time_to
@@ -5398,11 +5344,7 @@ class HTTPRunDB(RunDBInterface):
             "name": name,
             "uid": uid,
             "label": labels,
-            "state": (
-                mlrun.utils.helpers.as_list(state)
-                if state is not None
-                else states or None
-            ),
+            "states": states or None,
             "sort": bool2str(sort),
             "iter": bool2str(iter),
             "start_time_from": datetime_to_iso(start_time_from),

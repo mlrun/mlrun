@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import socket
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Any, Optional, Union, cast
 
@@ -23,12 +26,56 @@ import pandas as pd
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.datastore.datastore_profile as ds_profile
 import mlrun.errors
 import mlrun.model_monitoring.api as mm_api
 import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.results as mm_results
+import mlrun.model_monitoring.helpers as mm_helpers
 from mlrun.serving.utils import MonitoringApplicationToDict
 from mlrun.utils import logger
+
+
+def _serialize_context_and_result(
+    *,
+    context: mm_context.MonitoringApplicationContext,
+    result: Union[
+        mm_results.ModelMonitoringApplicationResult,
+        mm_results.ModelMonitoringApplicationMetric,
+        mm_results._ModelMonitoringApplicationStats,
+    ],
+) -> dict[mm_constants.WriterEvent, str]:
+    """
+    Serialize the returned result from a model monitoring application and its context
+    for the writer.
+    """
+    writer_event = {
+        mm_constants.WriterEvent.ENDPOINT_NAME: context.endpoint_name,
+        mm_constants.WriterEvent.APPLICATION_NAME: context.application_name,
+        mm_constants.WriterEvent.ENDPOINT_ID: context.endpoint_id,
+        mm_constants.WriterEvent.START_INFER_TIME: context.start_infer_time.isoformat(
+            sep=" ", timespec="microseconds"
+        ),
+        mm_constants.WriterEvent.END_INFER_TIME: context.end_infer_time.isoformat(
+            sep=" ", timespec="microseconds"
+        ),
+    }
+
+    if isinstance(result, mm_results.ModelMonitoringApplicationResult):
+        writer_event[mm_constants.WriterEvent.EVENT_KIND] = (
+            mm_constants.WriterEventKind.RESULT
+        )
+    elif isinstance(result, mm_results._ModelMonitoringApplicationStats):
+        writer_event[mm_constants.WriterEvent.EVENT_KIND] = (
+            mm_constants.WriterEventKind.STATS
+        )
+    else:
+        writer_event[mm_constants.WriterEvent.EVENT_KIND] = (
+            mm_constants.WriterEventKind.METRIC
+        )
+    writer_event[mm_constants.WriterEvent.DATA] = json.dumps(result.to_dict())
+
+    return writer_event
 
 
 class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
@@ -118,6 +165,43 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             ]
         return result
 
+    @staticmethod
+    @contextmanager
+    def _push_to_writer(
+        *,
+        write_output: bool,
+        stream_profile: Optional[ds_profile.DatastoreProfile],
+    ) -> Iterator[dict[str, list[tuple]]]:
+        endpoints_output: dict[str, list[tuple]] = defaultdict(list)
+        try:
+            yield endpoints_output
+        finally:
+            if write_output:
+                logger.debug(
+                    "Pushing model monitoring application job data to the writer stream",
+                    passed_stream_profile=str(stream_profile),
+                )
+                project_name = (
+                    mlrun.mlconf.active_project or mlrun.get_current_project().name
+                )
+                writer_stream = mm_helpers.get_output_stream(
+                    project=project_name,
+                    function_name=mm_constants.MonitoringFunctionNames.WRITER,
+                    profile=stream_profile,
+                )
+                for endpoint_id, outputs in endpoints_output.items():
+                    writer_stream.push(
+                        [
+                            _serialize_context_and_result(context=ctx, result=res)
+                            for ctx, res in outputs
+                        ],
+                        partition_key=endpoint_id,
+                    )
+                logger.debug(
+                    "Pushed the data to all the relevant model endpoints successfully",
+                    endpoints_output=endpoints_output,
+                )
+
     def _handler(
         self,
         context: "mlrun.MLClientCtx",
@@ -127,6 +211,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         start: Optional[str] = None,
         end: Optional[str] = None,
         base_period: Optional[int] = None,
+        write_output: bool = False,
+        stream_profile: Optional[ds_profile.DatastoreProfile] = None,
     ):
         """
         A custom handler that wraps the application's logic implemented in
@@ -134,46 +220,69 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         for an MLRun job.
         This method should not be called directly.
         """
+
+        if write_output and (
+            not endpoints or sample_data is not None or reference_data is not None
+        ):
+            raise mlrun.errors.MLRunValueError(
+                "Writing the results of an application to the TSDB is possible only when "
+                "working with endpoints, without any custom data-frame input"
+            )
+
         feature_stats = (
             mm_api.get_sample_set_statistics(reference_data)
             if reference_data is not None
             else None
         )
 
-        def call_do_tracking(event: Optional[dict] = None):
-            if event is None:
-                event = {}
-            monitoring_context = mm_context.MonitoringApplicationContext._from_ml_ctx(
-                event=event,
-                application_name=self.__class__.__name__,
-                context=context,
-                sample_df=sample_data,
-                feature_stats=feature_stats,
-            )
-            return self.do_tracking(monitoring_context)
+        with self._push_to_writer(
+            write_output=write_output, stream_profile=stream_profile
+        ) as endpoints_output:
 
-        if endpoints is not None:
-            for window_start, window_end in self._window_generator(
-                start, end, base_period
-            ):
-                for endpoint_name, endpoint_id in endpoints:
-                    result = call_do_tracking(
-                        event={
-                            mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
-                            mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
-                            mm_constants.ApplicationEvent.START_INFER_TIME: window_start,
-                            mm_constants.ApplicationEvent.END_INFER_TIME: window_end,
-                        }
-                    )
-                    result_key = (
-                        f"{endpoint_name}-{endpoint_id}_{window_start.isoformat()}_{window_end.isoformat()}"
-                        if window_start and window_end
-                        else f"{endpoint_name}-{endpoint_id}"
-                    )
+            def call_do_tracking(event: Optional[dict] = None):
+                nonlocal endpoints_output
 
-                    context.log_result(result_key, self._flatten_data_result(result))
-        else:
-            return self._flatten_data_result(call_do_tracking())
+                if event is None:
+                    event = {}
+                monitoring_context = (
+                    mm_context.MonitoringApplicationContext._from_ml_ctx(
+                        event=event,
+                        application_name=self.__class__.__name__,
+                        context=context,
+                        sample_df=sample_data,
+                        feature_stats=feature_stats,
+                    )
+                )
+                result = self.do_tracking(monitoring_context)
+                endpoints_output[monitoring_context.endpoint_id].append(
+                    (monitoring_context, result)
+                )
+                return result
+
+            if endpoints is not None:
+                for window_start, window_end in self._window_generator(
+                    start, end, base_period
+                ):
+                    for endpoint_name, endpoint_id in endpoints:
+                        result = call_do_tracking(
+                            event={
+                                mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
+                                mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
+                                mm_constants.ApplicationEvent.START_INFER_TIME: window_start,
+                                mm_constants.ApplicationEvent.END_INFER_TIME: window_end,
+                            }
+                        )
+                        result_key = (
+                            f"{endpoint_name}-{endpoint_id}_{window_start.isoformat()}_{window_end.isoformat()}"
+                            if window_start and window_end
+                            else f"{endpoint_name}-{endpoint_id}"
+                        )
+
+                        context.log_result(
+                            result_key, self._flatten_data_result(result)
+                        )
+            else:
+                return self._flatten_data_result(call_do_tracking())
 
     @staticmethod
     def _handle_endpoints_type_evaluate(
@@ -338,6 +447,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         * ``start``, ``datetime``
         * ``end``, ``datetime``
         * ``base_period``, ``int``
+        * ``write_output``, ``bool``
 
         For Git sources, add the source archive to the returned job and change the handler:
 
@@ -420,6 +530,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         base_period: Optional[int] = None,
+        write_output: bool = False,
+        stream_profile: Optional[ds_profile.DatastoreProfile] = None,
     ) -> "mlrun.RunObject":
         """
         Call this function to run the application's
@@ -470,6 +582,14 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   ..., (\\operatorname{start} +
                                   m\\cdot\\operatorname{base\\_period}, \\operatorname{end}]`,
                                   where :math:`m` is some positive integer.
+        :param write_output:      Whether to write the results and metrics to the time-series DB. Can be ``True`` only
+                                  if ``endpoints`` are passed.
+                                  Note: the model monitoring infrastructure must be up for the writing to work.
+        :param stream_profile:    The stream datastore profile. It should be provided only when running locally and
+                                  writing the outputs to the database (i.e., when both ``run_local`` and
+                                  ``write_output`` are set to ``True``).
+                                  For more details on configuring the stream profile, see
+                                  :py:meth:`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
 
         :returns: The output of the
                   :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
@@ -507,9 +627,24 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 )
                 params["end"] = end.isoformat() if isinstance(end, datetime) else end
                 params["base_period"] = base_period
+                params["write_output"] = write_output
+                if stream_profile:
+                    if not run_local:
+                        raise mlrun.errors.MLRunValueError(
+                            "Passing a `stream_profile` is relevant only when running locally"
+                        )
+                    if not write_output:
+                        raise mlrun.errors.MLRunValueError(
+                            "Passing a `stream_profile` is relevant only when writing the outputs"
+                        )
+                params["stream_profile"] = stream_profile
         elif start or end or base_period:
             raise mlrun.errors.MLRunValueError(
                 "Custom `start` and `end` times or base_period are supported only with endpoints data"
+            )
+        elif write_output or stream_profile:
+            raise mlrun.errors.MLRunValueError(
+                "Writing the application output or passing `stream_profile` are supported only with endpoints data"
             )
 
         inputs: dict[str, str] = {}

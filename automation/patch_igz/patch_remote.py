@@ -45,6 +45,8 @@ class Constants:
     mlrun_kfp = "mlrun-kfp"
     log_collector = "log-collector"
     default_namespace = "default-tenant"
+    workflow_controller = "workflow-controller"
+    alerts = "mlrun-alerts"
     targets_to_image_name = {
         api: api_container,
         mlrun: mlrun,
@@ -94,7 +96,7 @@ class MLRunPatcher:
             "mlrun-api-worker",
         ]
         if self._patch_alerts:
-            self._deployments.append("mlrun-alerts")
+            self._deployments.append(Constants.alerts)
 
     def patch(self):
         image_tag = self._get_current_version()
@@ -123,6 +125,13 @@ class MLRunPatcher:
         # Connect to the first node and start deployment patching process
         node = self._cluster_data_nodes[0]
         self._connect_to_node(node)
+
+        if self._patch_mlrun_image:
+            self._replace_deployment_images(
+                Constants.workflow_controller,
+                target_to_built_images[Constants.mlrun_kfp],
+            )
+
         if self._patch_log_collector_image:
             self._replace_deployment_images(
                 Constants.log_collector_container,

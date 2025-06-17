@@ -19,6 +19,9 @@ import mlrun_pipelines.common.models
 import mlrun_pipelines.helpers
 import mlrun_pipelines.imports
 
+if typing.TYPE_CHECKING:
+    import mlrun.utils
+
 
 def compile_pipeline(
     artifact_path,

@@ -1134,8 +1134,7 @@ class MonitoredStep(ABC, TaskStep, StepToDict):
         self._monitoring_data = None
 
     def _calculate_monitoring_data(self) -> dict[str, Any]:
-        """
-        Child class must override _calculate_monitoring_data() method and provide meaningful data-structure to the
+        """Child class must override _calculate_monitoring_data() method and provide meaningful data-structure to the
         pre-process step in monitoring flow.
         monitoring data structure should support the next schema:
         {
@@ -1148,6 +1147,7 @@ class MonitoredStep(ABC, TaskStep, StepToDict):
             "model_endpoint_uid" - model endpoint uid (added in deployment)
             "model_class" - the model class
         }
+
         """
         raise NotImplementedError
 

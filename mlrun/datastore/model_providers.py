@@ -55,6 +55,11 @@ class ModelProvider(BaseRemoteClient, ABC):
     def invoke(self, prompt, **invoke_kwargs) -> str:
         raise NotImplementedError("invoke method is not implemented")
 
+    def customized_invoke(
+        self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs
+    ) -> Optional[T]:
+        raise NotImplementedError("customized_invoke method is not implemented")
+
     @property
     def client(self):
         return self._client
@@ -102,6 +107,9 @@ class AsyncModelProvider(ModelProvider, ABC):
 
     async def async_customized_invoke(self, **kwargs):
         raise NotImplementedError("async_customized_invoke is not implemented")
+
+    async def async_invoke(self, prompt: str, **invoke_kwargs) -> Awaitable[str]:
+        raise NotImplementedError("async_invoke is not implemented")
 
 
 class OpenAIProvider(AsyncModelProvider):

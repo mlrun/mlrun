@@ -44,7 +44,7 @@ class MyOpenAILLM(mlrun.serving.states.Model):
 
     def predict(self, body):
         prompt = self.enrich_prompt(body)
-        body["result"] = self.model.basic_llm_invoke(
+        body["result"] = self.model.invoke(
             prompt=prompt, **(self.invocation_artifact.spec.model_configuration or {})
         )
         return body
@@ -127,21 +127,19 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         )
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == model_name
-        result = model_provider.basic_llm_invoke(
-            prompt="what is the capital of france?"
-        )
+        result = model_provider.invoke(prompt="what is the capital of france?")
         assert "paris" in result.lower()
 
         encoding = tiktoken.encoding_for_model(model_name)
 
-        result = model_provider.basic_llm_invoke(
+        result = model_provider.invoke(
             prompt="Write a very long detailed explanation about machine learning"
         )
         token_count = len(encoding.encode(result))
 
         assert token_count == 200
 
-        result = model_provider.basic_llm_invoke(
+        result = model_provider.invoke(
             prompt="Write a very long detailed explanation about machine learning",
             max_tokens=50,
         )
@@ -184,7 +182,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
 
 
 class TestOpenAIModel(TestBasicOpenAIProvider):
-    def test_model_runner_with_openai_model(self):
+    def test_model_runner_with_openai(self):
         project = mlrun.new_project("test-openai-model", save=False)
         model_url = self.url_prefix + self.basic_llm_model
         model_artifact = project.log_model(

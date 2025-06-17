@@ -52,8 +52,8 @@ class ModelProvider(BaseRemoteClient, ABC):
     def load_client(self) -> None:
         raise NotImplementedError("load_client method is not implemented")
 
-    def basic_llm_invoke(self, prompt, **invoke_kwargs) -> str:
-        raise NotImplementedError("basic_llm_invoke method is not implemented")
+    def invoke(self, prompt, **invoke_kwargs) -> str:
+        raise NotImplementedError("invoke method is not implemented")
 
     @property
     def client(self):
@@ -100,8 +100,8 @@ class AsyncModelProvider(ModelProvider, ABC):
     def async_client(self):
         return self._async_client
 
-    async def async_invoke(self, **kwargs):
-        raise NotImplementedError("async_invoke is not implemented")
+    async def async_customized_invoke(self, **kwargs):
+        raise NotImplementedError("async_customized_invoke is not implemented")
 
 
 class OpenAIProvider(AsyncModelProvider):
@@ -161,7 +161,7 @@ class OpenAIProvider(AsyncModelProvider):
         )
         return self._sanitize_options(res)
 
-    def invoke(
+    def customized_invoke(
         self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs
     ) -> Optional[T]:
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
@@ -170,7 +170,7 @@ class OpenAIProvider(AsyncModelProvider):
         else:
             return self._default_operation(**invoke_kwargs, model=self.model)
 
-    async def async_invoke(
+    async def async_customized_invoke(
         self,
         async_operation: Optional[Callable[..., Awaitable[T]]] = None,
         **invoke_kwargs,
@@ -191,14 +191,12 @@ class OpenAIProvider(AsyncModelProvider):
         ]
         if invoke_kwargs.get("messages"):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "can not provide 'messages' as an invoke argument in "
-                "basic_llm_invoke"
+                "can not provide 'messages' as an customized_invoke argument in "
+                "invoke"
             )
         return messages, invoke_kwargs
 
-    async def async_basic_llm_invoke(
-        self, prompt: str, **invoke_kwargs
-    ) -> Awaitable[str]:
+    async def async_invoke(self, prompt: str, **invoke_kwargs) -> Awaitable[str]:
         messages, invoke_kwargs = self.get_messages_parameter(
             prompt=prompt, **invoke_kwargs
         )
@@ -207,7 +205,7 @@ class OpenAIProvider(AsyncModelProvider):
         )
         return response.choices[0].message.content
 
-    def basic_llm_invoke(self, prompt: str, **invoke_kwargs) -> str:
+    def invoke(self, prompt: str, **invoke_kwargs) -> str:
         messages, invoke_kwargs = self.get_messages_parameter(
             prompt=prompt, **invoke_kwargs
         )

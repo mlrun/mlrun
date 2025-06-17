@@ -3901,16 +3901,38 @@ class SQLDB(DBInterface):
         )  # filter duplications
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)
+        query = query.with_entities(
+            Function.project.label("project"), Function.state.label("function_state")
+        )
+        subq = query.subquery()
+        query = session.query(
+            subq.c.project,
+            func.count(
+                case(
+                    (
+                        subq.c.function_state
+                        == mlrun.common.schemas.FunctionState.ready,
+                        1,
+                    )
+                )
+            ).label("running_count"),
+            func.count(
+                case(
+                    (
+                        subq.c.function_state
+                        == mlrun.common.schemas.FunctionState.error,
+                        1,
+                    )
+                )
+            ).label("failed_count"),
+        ).group_by(subq.c.project)
+        results = query.all()
 
         project_to_failed_mm_functions_count = {}
         project_to_running_mm_functions_count = {}
-        for project, function, name in query.all():
-            project_to_running_mm_functions_count.setdefault(project, 0)
-            project_to_failed_mm_functions_count.setdefault(project, 0)
-            if function.state == mlrun.common.schemas.FunctionState.ready:
-                project_to_running_mm_functions_count[project] += 1
-            if function.state == mlrun.common.schemas.FunctionState.error:
-                project_to_failed_mm_functions_count[project] += 1
+        for project, running_count, failed_count in results:
+            project_to_running_mm_functions_count[project] = running_count
+            project_to_failed_mm_functions_count[project] = failed_count
 
         return (
             project_to_running_mm_functions_count,
@@ -3919,17 +3941,20 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _calculate_mep_counters(session) -> tuple[dict[str, int], dict[str, int]]:
-        query = session.query(ModelEndpoint.project, ModelEndpoint.endpoint_type)
+        query = session.query(
+            ModelEndpoint.project,
+            func.count().label("mep_count"),
+            func.count(
+                case((ModelEndpoint.endpoint_type == EndpointType.BATCH_EP, 1))
+            ).label("batch_count"),
+        ).group_by(ModelEndpoint.project)
+        results = query.all()
 
         project_to_real_time_mep_count = {}
         project_to_batch_mep_count = {}
-        for project, endpoint_type in query.all():
-            project_to_real_time_mep_count.setdefault(project, 0)
-            project_to_batch_mep_count.setdefault(project, 0)
-            if endpoint_type == EndpointType.BATCH_EP:
-                project_to_batch_mep_count[project] += 1
-            else:
-                project_to_real_time_mep_count[project] += 1
+        for project, mep_count, batch_count in results:
+            project_to_real_time_mep_count[project] = mep_count - batch_count
+            project_to_batch_mep_count[project] = batch_count
 
         return project_to_real_time_mep_count, project_to_batch_mep_count
 

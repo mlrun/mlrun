@@ -1754,6 +1754,7 @@ class BaseRuntimeHandler(ABC):
                 # Should run be retried
                 retry_spec = run.get("spec", {}).get("retry")
                 max_retries = retry_spec.get("count") if retry_spec else -1
+                # Run status retry_count may be `None` if the run has never been retried
                 retry_count = run.get("status", {}).get("retry_count", 0) or 0
                 if retry_count < max_retries:
                     run_state = RunStates.pending_retry

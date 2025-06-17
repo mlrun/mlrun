@@ -28,6 +28,7 @@ from .constants import (
     ModelEndpointCreationStrategy,
     ModelEndpointMonitoringMetricType,
     ModelEndpointSchema,
+    ModelMonitoringAppLabel,
     ModelMonitoringMode,
     MonitoringFunctionNames,
     PredictionsQueryConstants,

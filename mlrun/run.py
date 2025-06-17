@@ -1023,7 +1023,10 @@ def wait_for_pipeline_completion(
             _wait_for_pipeline_completion,
         )
     else:
-        client = mlrun_pipelines.utils.get_client(namespace=namespace)
+        client = mlrun_pipelines.utils.get_client(
+            logger=logger,
+            namespace=namespace,
+        )
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
@@ -1084,7 +1087,10 @@ def get_pipeline(
         )
 
     else:
-        client = mlrun_pipelines.utils.get_client(namespace=namespace)
+        client = mlrun_pipelines.utils.get_client(
+            logger=logger,
+            namespace=namespace,
+        )
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()

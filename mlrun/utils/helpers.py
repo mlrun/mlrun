@@ -2290,6 +2290,7 @@ class Workflow:
         workflow_id: str,
     ) -> typing.Optional[mlrun_pipelines.models.PipelineManifest]:
         kfp_client = mlrun_pipelines.utils.get_client(
+            logger=logger,
             url=mlrun.mlconf.kfp_url,
             namespace=mlrun.mlconf.namespace,
         )

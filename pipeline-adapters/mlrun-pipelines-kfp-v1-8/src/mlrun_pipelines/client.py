@@ -15,7 +15,6 @@
 
 import copy
 import datetime
-import logging
 import os
 import re
 import tarfile
@@ -110,9 +109,11 @@ class Client(
 ):
     def __init__(
         self,
+        logger: "mlrun.utils.logger.Logger",
         host: Optional[str] = None,
         namespace: str = "mlrun",
     ):
+        self.logger = logger
         self._config: kfp_server_api.configuration.Configuration = self._load_config(
             host=host,
             namespace=namespace,
@@ -143,8 +144,8 @@ class Client(
             api_client=self._api_client,
         )
 
-    @staticmethod
     def _get_config_with_default_credentials(
+        self,
         config: kfp_server_api.configuration.Configuration,
     ) -> kfp_server_api.configuration.Configuration:
         """
@@ -161,7 +162,7 @@ class Client(
         try:
             credentials.refresh_api_key_hook(config_copy)
         except Exception:
-            logging.warning(
+            self.logger.warning(
                 "Failed to set up credentials. Proceeding without credentials..."
             )
             return config
@@ -202,7 +203,7 @@ class Client(
                 client_configuration=config,
             )
         except Exception:
-            logging.info("Failed to load kube config.")
+            self.logger.info("Failed to load kube config.")
             return config
 
         if config.host:
@@ -228,10 +229,10 @@ class Client(
             try:
                 return self._healthz_api.get_healthz()
             except kfp_server_api.ApiException:
-                logging.exception(
-                    "Failed to retrieve KFP healthz info on attempt %d of %d.",
-                    attempt,
-                    max_attempts,
+                self.logger.exception(
+                    "Failed to retrieve KFP healthz info",
+                    attemp=attempt,
+                    max_attempts=max_attempts,
                 )
                 time.sleep(interval_seconds)
         raise TimeoutError(
@@ -267,7 +268,7 @@ class Client(
                 raise error
 
         if not experiment:
-            logging.info("Creating experiment '%s'.", name)
+            self.logger.info("Creating experiment.", experiment_name=name)
             resource_references: list[kfp_server_api.models.ApiResourceReference] = []
             if namespace:
                 key = kfp_server_api.models.ApiResourceKey(
@@ -460,7 +461,7 @@ class Client(
         :param run_id: The unique ID of the run to retrieve.
         :return: An ApiRun object with the run details.
         """
-        logging.info("Getting run details for run ID: %s", run_id)
+        self.logger.info("Getting details for run", run_id=run_id)
         return self._run_api.get_run(
             run_id=run_id,
         )
@@ -498,7 +499,7 @@ class Client(
                 raise api_ex
             status = get_run_response.run.status
             elapsed_time: float = (datetime.datetime.now() - start_time).total_seconds()
-            logging.info("Waiting for the job to complete (status: %s)...", status)
+            self.logger.info("Waiting for the job to complete...", status=status)
             if elapsed_time > timeout:
                 raise TimeoutError(
                     f"Run {run_id} did not complete within {timeout} seconds."
@@ -630,10 +631,10 @@ class Client(
             )
             return new_run.id
         except kfp_server_api.OpenApiException as error:
-            logging.error(
-                "Could not trigger new run for run %s, error: %s",
-                run_id,
-                error,
+            self.logger.error(
+                "Could not trigger new run",
+                run_id=run_id,
+                error=error,
             )
             raise error
         finally:
@@ -656,10 +657,10 @@ class Client(
                 run_id=run_id,
             )
         except kfp_server_api.OpenApiException as error:
-            logging.error(
-                "Could not terminate run %s, error: %s",
-                run_id,
-                error,
+            self.logger.error(
+                "Could not terminate run",
+                run_id=run_id,
+                error=error,
             )
             raise error
 

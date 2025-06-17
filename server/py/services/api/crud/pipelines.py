@@ -430,6 +430,7 @@ class Pipelines(
         if namespace is None:
             namespace = mlrun.mlconf.namespace
         return mlrun_pipelines.utils.get_client(
+            logger=mlrun.utils.logger,
             url=mlrun.mlconf.kfp_url,
             namespace=namespace,
         )

@@ -42,8 +42,16 @@ def compile_pipeline(
 
 
 def get_client(
-    url: typing.Optional[str] = None, namespace: typing.Optional[str] = None
+    logger: "mlrun.utils.logger.Logger",
+    url: typing.Optional[str] = None,
+    namespace: typing.Optional[str] = None,
 ) -> mlrun_pipelines.client.Client:
     if url or namespace:
-        return mlrun_pipelines.client.Client(host=url, namespace=namespace)
-    return mlrun_pipelines.client.Client()
+        return mlrun_pipelines.client.Client(
+            logger=logger,
+            host=url,
+            namespace=namespace,
+        )
+    return mlrun_pipelines.client.Client(
+        logger=logger,
+    )

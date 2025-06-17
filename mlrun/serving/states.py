@@ -979,9 +979,7 @@ class Model(storey.ParallelExecutionRunnable):
         artifact = self._get_artifact_object()
         if isinstance(artifact, LLMPromptArtifact):
             self.invocation_artifact = artifact
-            self.model_artifact = get_store_resource(
-                self.invocation_artifact.model_artifact
-            )
+            self.model_artifact = self.invocation_artifact.model_artifact
         else:
             self.model_artifact = artifact
         self.model = mlrun.get_model_provider(
@@ -1123,7 +1121,9 @@ class ModelRunnerStep(TaskStep, StepToDict):
         self,
         endpoint_name: str,
         model_class: str,
-        model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
+        model_artifact: Optional[
+            Union[str, mlrun.artifacts.ModelArtifact, mlrun.artifacts.LLMPromptArtifact]
+        ] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy

@@ -483,7 +483,7 @@ class DatastoreProfileOpenAI(DatastoreProfile):
         return res
 
     def url(self, subpath):
-        return f"{self.type}://{subpath}"
+        return f"{self.type}://{subpath.lstrip('/')}"
 
 
 _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {

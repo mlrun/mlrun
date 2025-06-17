@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import unittest.mock
 from typing import cast
 
 import pytest
@@ -20,12 +21,15 @@ import tiktoken
 import yaml
 
 import mlrun
+import mlrun.artifacts
+import mlrun.serving.states
 from mlrun.datastore import model_provider_manager
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileOpenAI,
     register_temporary_client_datastore_profile,
 )
 from mlrun.datastore.model_providers import OpenAIProvider
+from mlrun.serving import ModelRunnerStep
 
 here = os.path.dirname(__file__)
 config = {}
@@ -33,6 +37,35 @@ config_file_path = os.path.join(here, "test-openai.yml")
 if os.path.exists(config_file_path):
     with open(config_file_path) as yaml_file:
         config = yaml.safe_load(yaml_file)
+
+
+class MyOpenAILLM(mlrun.serving.states.Model):
+    execution_mechanism = "naive"
+
+    def predict(self, body):
+        prompt = self.enrich_prompt(body)
+        body["result"] = self.model.basic_llm_invoke(
+            prompt=prompt, **(self.invocation_artifact.spec.model_configuration or {})
+        )
+        return body
+
+    def enrich_prompt(self, body) -> str:
+        if isinstance(self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact):
+            prompt_template = self.invocation_artifact.spec.prompt_string
+            needed_params = ["question", "depth_level", "persona", "tone"]
+            sub_dict = {k: body[k] for k in needed_params if k in body}
+            return prompt_template.format(**sub_dict)
+        return body["prompt"]
+
+
+def create_mocked_get_store_resource(uri_to_artifact: dict):
+    def mocked_get_store_resource(uri, **kwargs):
+        artifact = uri_to_artifact.get(uri)
+        if not artifact:
+            raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
+        return artifact
+
+    return mocked_get_store_resource
 
 
 def openai_configured():
@@ -46,17 +79,25 @@ def openai_configured():
     reason="Requires OPENAI_API_KEY and OPENAI_BASE_URL to be set under test-openai.yml",
 )
 @pytest.mark.parametrize("use_datastore_profile", [True, False])
-class TestOpenAIProvider:
+class TestBasicOpenAIProvider:
     profile_name = "openai_profile"
+    env_secrets = None
 
     @classmethod
     def setup_class(cls):
         cls.env_secrets = config["env"]
-        cls.basic_llm_model = "gpt-4"
+        cls.basic_llm_model = "gpt-4o"
+
+    @classmethod
+    def reset_env(cls):
+        for key, env_param in cls.env_secrets.items():
+            if env_param:
+                os.environ.pop(key, None)
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
         if use_datastore_profile:
+            # noinspection PyAttributeOutsideInit
             self.profile = DatastoreProfileOpenAI(
                 name=self.profile_name,
                 api_key=self.env_secrets.get("OPENAI_API_KEY"),
@@ -74,14 +115,11 @@ class TestOpenAIProvider:
                 if env_param:
                     os.environ[key] = env_param
             model_provider_manager.reset_secrets()
+            # noinspection PyAttributeOutsideInit
             self.url_prefix = "openai://"
 
-    @classmethod
-    def reset_env(cls):
-        for key, env_param in cls.env_secrets.items():
-            if env_param:
-                os.environ.pop(key, None)
 
+class TestOpenAIProvider(TestBasicOpenAIProvider):
     @staticmethod
     def check_basic_invoke(model_url: str, secrets: dict, model_name: str):
         model_provider = mlrun.get_model_provider(
@@ -142,6 +180,69 @@ class TestOpenAIProvider:
         self.check_basic_invoke(
             model_url=model_url, secrets=self.env_secrets, model_name=configurable_model
         )
+        # TODO add async test.
 
 
-# TODO add async test.
+class TestOpenAIModel(TestBasicOpenAIProvider):
+    def test_model_runner_with_openai_model(self):
+        project = mlrun.new_project("test-openai-model", save=False)
+        model_url = self.url_prefix + self.basic_llm_model
+        model_artifact = project.log_model(
+            "my_model",
+            model_url=model_url,
+            default_config={"max_tokens": 100},
+        )
+        prompt_template = (
+            "{question}. Explain {depth_level} as a {persona} in {tone} style."
+        )
+        llm_prompt_artifact = project.log_llm_prompt(
+            "my_llm_prompt",
+            prompt_string=prompt_template,
+            model_artifact=model_artifact.uri,
+        )
+        function = mlrun.new_function("tests", kind="serving")
+
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_model_runner")
+        model_runner_step.add_model(
+            model_class="MyOpenAILLM",
+            endpoint_name="my_endpoint",
+            model_artifact=llm_prompt_artifact,
+        )
+        graph.to(model_runner_step).respond()
+        # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
+        # # Mocked function used to verify artifact URI is passed correctly.
+        #
+        mocked_get_store_resource = create_mocked_get_store_resource(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with (
+            unittest.mock.patch(
+                "mlrun.serving.states.get_store_resource",
+                side_effect=mocked_get_store_resource,
+            ),
+            unittest.mock.patch(
+                "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+                side_effect=lambda *args, **kwargs: (
+                    mocked_get_store_resource(*args, **kwargs),
+                    None,
+                ),
+            ),
+        ):
+            server = function.to_mock_server()
+        try:
+            body = {
+                "question": "What is the capital of France, and give a brief historical overview.",
+                "depth_level": "detailed",
+                "persona": "teacher",
+                "tone": "casual",
+            }
+            result = server.test(body=body)["result"]
+            assert "paris" in result.lower()
+            encoding = tiktoken.encoding_for_model(self.basic_llm_model)
+            assert len(encoding.encode(result)) == 100
+        finally:
+            server.wait_for_completion()

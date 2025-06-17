@@ -4563,68 +4563,6 @@ class SQLDB(DBInterface):
             feature_set_digests=feature_set_digests_v2,
         )
 
-    def list_entities(
-        self,
-        session,
-        project: str,
-        name: typing.Optional[str] = None,
-        tag: typing.Optional[str] = None,
-        labels: typing.Optional[list[str]] = None,
-    ) -> mlrun.common.schemas.EntitiesOutput:
-        feature_set_id_tags = self._get_records_to_tags_map(
-            session, FeatureSet, project, tag, name=None
-        )
-
-        query = self._generate_feature_or_entity_list_query(
-            session, Entity, project, feature_set_id_tags.keys(), name, tag, labels
-        )
-
-        entities_results = []
-        transform_feature_set_model_to_schema = MemoizationCache(
-            self._transform_feature_set_model_to_schema
-        ).memoize
-        generate_feature_set_digest = MemoizationCache(
-            self._generate_feature_set_digest
-        ).memoize
-
-        for row in query:
-            entity_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Entity)
-            entity_name = entity_record.name
-
-            feature_sets = self._generate_records_with_tags_assigned(
-                row.FeatureSet,
-                transform_feature_set_model_to_schema,
-                feature_set_id_tags,
-                tag,
-            )
-
-            for feature_set in feature_sets:
-                # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
-                # in the DB)
-                entity = next(
-                    (
-                        entity
-                        for entity in feature_set.spec.entities
-                        if entity.name == entity_name
-                    ),
-                    None,
-                )
-                if not entity:
-                    raise mlrun.errors.MLRunInternalServerError(
-                        "Inconsistent data in DB - entities in DB not in feature-set document"
-                    )
-
-                feature_set_digest = generate_feature_set_digest(feature_set)
-
-                entities_results.append(
-                    mlrun.common.schemas.EntityListOutput(
-                        entity=entity,
-                        feature_set_digest=feature_set_digest,
-                    )
-                )
-
-        return mlrun.common.schemas.EntitiesOutput(entities=entities_results)
-
     def list_entities_v2(
         self,
         session,

@@ -391,15 +391,6 @@ class NopDB(RunDBInterface):
     ) -> mlrun.common.schemas.FeaturesOutputV2:
         pass
 
-    def list_entities(
-        self,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-    ) -> mlrun.common.schemas.EntitiesOutput:
-        pass
-
     def list_entities_v2(
         self,
         project: str,

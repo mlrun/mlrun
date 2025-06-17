@@ -1145,7 +1145,9 @@ def load_and_run_workflow(
         notification.when = ["running"]
 
     workflow_log_message = workflow_name or workflow_path
-    context.logger.info(f"Running workflow {workflow_log_message} from remote")
+    context.logger.info(
+        "Running workflow from remote", workflow_log_message=workflow_log_message
+    )
     run = project.run(
         name=workflow_name,
         workflow_path=workflow_path,
@@ -1162,6 +1164,11 @@ def load_and_run_workflow(
         notifications=start_notifications,
         context=context,
     )
+    # Patch the current run object (the workflow-runner) with the workflow-id label
+    context.logger.info(
+        "Associating workflow-runner with workflow ID", run_id=run.run_id
+    )
+    context.set_label("workflow-id", run.run_id)
     context.log_result(key="workflow_id", value=run.run_id)
     context.log_result(key="engine", value=run._engine.engine, commit=True)
 
@@ -1321,4 +1328,4 @@ def import_remote_project(
         sync_functions=True,
     )
 
-    context.logger.info(f"Loaded project {project.name} successfully")
+    context.logger.info("Loaded project successfully", project_name=project.name)

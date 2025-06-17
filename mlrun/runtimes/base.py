@@ -613,7 +613,7 @@ class BaseRuntime(ModelObj):
                         f"Run failed attempt {retry_count + 1} of {max_retries}"
                     )
                 elif retry_count >= max_retries:
-                    status_text = f"Run failed after {retry_count} attempts"
+                    status_text = f"Run failed after {retry_count + 1} attempts"
 
             updates = {
                 "status.last_update": now_date().isoformat(),

@@ -198,8 +198,6 @@ class BaseLauncher(abc.ABC):
 
     @staticmethod
     def _create_run_object(task):
-        valid_task_types = (dict, mlrun.run.RunTemplate, mlrun.run.RunObject)
-
         if not task:
             # if task passed generate default RunObject
             return mlrun.run.RunObject.from_dict(task)
@@ -210,18 +208,18 @@ class BaseLauncher(abc.ABC):
         if isinstance(task, str):
             task = ast.literal_eval(task)
 
-        if not isinstance(task, valid_task_types):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Task is not a valid object, type={type(task)}, expected types={valid_task_types}"
-            )
-
+        valid_task_types = (dict, mlrun.run.RunTemplate, mlrun.run.RunObject)
+        if isinstance(task, mlrun.run.RunObject):
+            # if task is already a RunObject, we can return it as is
+            return task
         if isinstance(task, mlrun.run.RunTemplate):
             return mlrun.run.RunObject.from_template(task)
         elif isinstance(task, dict):
             return mlrun.run.RunObject.from_dict(task)
 
-        # task is already a RunObject
-        return task
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Task is not a valid object, type={type(task)}, expected types={valid_task_types}"
+        )
 
     @staticmethod
     def _enrich_run(

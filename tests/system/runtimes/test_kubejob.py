@@ -14,7 +14,6 @@
 
 import json
 import subprocess
-import time
 from datetime import datetime, timedelta, timezone
 from sys import executable
 
@@ -696,10 +695,7 @@ def print_df(df):
             name="raise-func",
             kind="job",
             handler="handler",
-            # image="datanode-registry.iguazio-platform.app.vmdev17.lab.iguazeng.com:80/quay.io/mlrun/mlrun:unstable",
         )
-
-        # function.set_image_pull_configuration(image_pull_policy="Always")
 
         retry_count = 3
         retry = mlrun.model.Retry(
@@ -708,19 +704,30 @@ def print_df(df):
 
         with pytest.raises(mlrun.runtimes.utils.RunError):
             function.run(verbose=True, retry=retry)
-        runs = mlrun.get_run_db().list_runs(project=self.project_name)
+
+        runs = self._run_db.list_runs(project=self.project_name)
         assert len(runs) == 1
         run = mlrun.RunObject.from_dict(runs[0])
         assert run.status.retry_count is None
         assert (
             run.status.state == mlrun.common.runtimes.constants.RunStates.pending_retry
         )
-        assert run.status.status_text == f"Run failed attempt 1 of {retry_count}"
+        assert f"Run failed attempt 1 of {retry_count}" in run.status.status_text
 
-        time.sleep(90)  # wait for the retries to finish
-        runs = mlrun.get_run_db().list_runs(project=self.project_name)
-        assert len(runs) == 1
-        run = mlrun.RunObject.from_dict(runs[0])
-        assert run.status.retry_count == 3
-        assert run.status.state == mlrun.common.runtimes.constants.RunStates.error
-        assert run.status.status_text == f"Run failed after {retry_count} attempts"
+        def _assert_retry_count():
+            runs = self._run_db.list_runs(project=self.project_name)
+            assert len(runs) == 1
+            run = mlrun.RunObject.from_dict(runs[0])
+            assert run.status.retry_count == 3
+            assert run.status.state == mlrun.common.runtimes.constants.RunStates.error
+            assert (
+                run.status.status_text == f"Run failed after {retry_count + 1} attempts"
+            )
+
+        mlrun.utils.retry_until_successful(
+            1,
+            200,
+            self._logger,
+            True,
+            _assert_retry_count,
+        )

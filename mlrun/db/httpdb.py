@@ -2564,44 +2564,6 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", path, error_message, params=params, version="v2")
         return resp.json()
 
-    def list_entities(
-        self,
-        project: Optional[str] = None,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-    ) -> list[dict]:
-        """Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
-        to the :py:func:`~list_features` function, and uses the same logic. However, the entities are matched
-        against the name rather than the features.
-
-        :param project: The project containing the entities.
-        :param name: The name of the entities to retrieve.
-        :param tag: The tag of the specific entity version to retrieve.
-        :param labels: Filter entities by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
-        :returns: A list of entities.
-        """
-
-        project = project or config.active_project
-        labels = self._parse_labels(labels)
-        params = {
-            "name": name,
-            "tag": tag,
-            "label": labels,
-        }
-
-        path = f"projects/{project}/entities"
-
-        error_message = f"Failed listing entities, project: {project}, query: {params}"
-        resp = self.api_call("GET", path, error_message, params=params)
-        return resp.json()["entities"]
-
     def list_entities_v2(
         self,
         project: Optional[str] = None,

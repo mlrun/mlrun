@@ -64,7 +64,11 @@ from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
     FeatureSetDigestSpecV2,
 )
-from mlrun.common.schemas.model_monitoring import EndpointType, ModelEndpointSchema
+from mlrun.common.schemas.model_monitoring import (
+    EndpointType,
+    ModelEndpointSchema,
+    ModelMonitoringAppLabel,
+)
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, RunList
@@ -3693,6 +3697,10 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
@@ -3716,6 +3724,14 @@ class SQLDB(DBInterface):
                 self._calculate_alert_activations_counters,
                 projects_with_creation_time,
             ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_mm_functions_counters,
+            ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_mep_counters,
+            ),
         )
         (
             category_to_project_artifact_count,
@@ -3734,6 +3750,14 @@ class SQLDB(DBInterface):
                 project_to_endpoint_alerts_count,
                 project_to_job_alerts_count,
                 project_to_other_alerts_count,
+            ),
+            (
+                project_to_running_mm_functions,
+                project_to_failed_mm_functions_count,
+            ),
+            (
+                project_to_real_time_mep_count,
+                project_to_batch_mep_count,
             ),
         ) = results
         # TODO: counters by artifact categories should be expanded to include all categories (currently only models
@@ -3769,6 +3793,10 @@ class SQLDB(DBInterface):
                 mlrun.common.schemas.ArtifactCategories.llm_prompt,
                 collections.defaultdict(lambda: 0),
             ),
+            project_to_running_mm_functions,
+            project_to_failed_mm_functions_count,
+            project_to_real_time_mep_count,
+            project_to_batch_mep_count,
         )
 
     @staticmethod
@@ -3862,6 +3890,48 @@ class SQLDB(DBInterface):
             result[0]: result[1] for result in feature_sets_count_per_project
         }
         return project_to_feature_set_count
+
+    def _calculate_mm_functions_counters(
+        self, session
+    ) -> tuple[dict[str, int], dict[str, int]]:
+        labels = [f"{ModelMonitoringAppLabel.KEY}={ModelMonitoringAppLabel.VAL}"]
+        query = session.query(Function.project, Function, Function.Tag.name)
+        query = query.join(
+            Function.Tag, Function.id == Function.Tag.obj_id
+        )  # filter duplications
+        labels = label_set(labels)
+        query = self._add_labels_filter(session, query, Function, labels)
+
+        project_to_failed_mm_functions_count = {}
+        project_to_running_mm_functions_count = {}
+        for project, function, name in query.all():
+            project_to_running_mm_functions_count.setdefault(project, 0)
+            project_to_failed_mm_functions_count.setdefault(project, 0)
+            if function.state == mlrun.common.schemas.FunctionState.ready:
+                project_to_running_mm_functions_count[project] += 1
+            if function.state == mlrun.common.schemas.FunctionState.error:
+                project_to_failed_mm_functions_count[project] += 1
+
+        return (
+            project_to_running_mm_functions_count,
+            project_to_failed_mm_functions_count,
+        )
+
+    @staticmethod
+    def _calculate_mep_counters(session) -> tuple[dict[str, int], dict[str, int]]:
+        query = session.query(ModelEndpoint.project, ModelEndpoint.endpoint_type)
+
+        project_to_real_time_mep_count = {}
+        project_to_batch_mep_count = {}
+        for project, endpoint_type in query.all():
+            project_to_real_time_mep_count.setdefault(project, 0)
+            project_to_batch_mep_count.setdefault(project, 0)
+            if endpoint_type == EndpointType.BATCH_EP:
+                project_to_batch_mep_count[project] += 1
+            else:
+                project_to_real_time_mep_count[project] += 1
+
+        return project_to_real_time_mep_count, project_to_batch_mep_count
 
     @staticmethod
     def _calculate_artifact_counters_by_category(
@@ -4562,68 +4632,6 @@ class SQLDB(DBInterface):
             features=features_with_feature_set_index,
             feature_set_digests=feature_set_digests_v2,
         )
-
-    def list_entities(
-        self,
-        session,
-        project: str,
-        name: typing.Optional[str] = None,
-        tag: typing.Optional[str] = None,
-        labels: typing.Optional[list[str]] = None,
-    ) -> mlrun.common.schemas.EntitiesOutput:
-        feature_set_id_tags = self._get_records_to_tags_map(
-            session, FeatureSet, project, tag, name=None
-        )
-
-        query = self._generate_feature_or_entity_list_query(
-            session, Entity, project, feature_set_id_tags.keys(), name, tag, labels
-        )
-
-        entities_results = []
-        transform_feature_set_model_to_schema = MemoizationCache(
-            self._transform_feature_set_model_to_schema
-        ).memoize
-        generate_feature_set_digest = MemoizationCache(
-            self._generate_feature_set_digest
-        ).memoize
-
-        for row in query:
-            entity_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Entity)
-            entity_name = entity_record.name
-
-            feature_sets = self._generate_records_with_tags_assigned(
-                row.FeatureSet,
-                transform_feature_set_model_to_schema,
-                feature_set_id_tags,
-                tag,
-            )
-
-            for feature_set in feature_sets:
-                # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
-                # in the DB)
-                entity = next(
-                    (
-                        entity
-                        for entity in feature_set.spec.entities
-                        if entity.name == entity_name
-                    ),
-                    None,
-                )
-                if not entity:
-                    raise mlrun.errors.MLRunInternalServerError(
-                        "Inconsistent data in DB - entities in DB not in feature-set document"
-                    )
-
-                feature_set_digest = generate_feature_set_digest(feature_set)
-
-                entities_results.append(
-                    mlrun.common.schemas.EntityListOutput(
-                        entity=entity,
-                        feature_set_digest=feature_set_digest,
-                    )
-                )
-
-        return mlrun.common.schemas.EntitiesOutput(entities=entities_results)
 
     def list_entities_v2(
         self,

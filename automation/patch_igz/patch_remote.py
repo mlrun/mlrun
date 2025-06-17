@@ -44,6 +44,9 @@ class Constants:
     mlrun = "mlrun"
     mlrun_kfp = "mlrun-kfp"
     log_collector = "log-collector"
+    default_namespace = "default-tenant"
+    workflow_controller = "workflow-controller"
+    alerts = "mlrun-alerts"
     targets_to_image_name = {
         api: api_container,
         mlrun: mlrun,
@@ -65,6 +68,7 @@ class MLRunPatcher:
         patch_alerts: bool,
         no_build: bool,
         no_push: bool,
+        namespace: str,
     ):
         self._config = yaml.safe_load(conf_file)
         patch_yaml_data = yaml.safe_load(patch_file)
@@ -78,6 +82,7 @@ class MLRunPatcher:
         self._patch_alerts = patch_alerts
         self._no_build = no_build
         self._no_push = no_push
+        self._namespace = self._resolve_namespace(namespace)
 
         if self._skip_patch_api and self._patch_alerts:
             raise ValueError("Cannot skip api and patch alerts at the same time")
@@ -91,7 +96,7 @@ class MLRunPatcher:
             "mlrun-api-worker",
         ]
         if self._patch_alerts:
-            self._deployments.append("mlrun-alerts")
+            self._deployments.append(Constants.alerts)
 
     def patch(self):
         image_tag = self._get_current_version()
@@ -120,6 +125,13 @@ class MLRunPatcher:
         # Connect to the first node and start deployment patching process
         node = self._cluster_data_nodes[0]
         self._connect_to_node(node)
+
+        if self._patch_mlrun_image:
+            self._replace_deployment_images(
+                Constants.workflow_controller,
+                target_to_built_images[Constants.mlrun_kfp],
+            )
+
         if self._patch_log_collector_image:
             self._replace_deployment_images(
                 Constants.log_collector_container,
@@ -144,7 +156,7 @@ class MLRunPatcher:
             finally:
                 # Check status of pods after deployment
                 out = self._exec_remote(
-                    ["kubectl", "-n", "default-tenant", "get", "pods"]
+                    ["kubectl", "-n", self._namespace, "get", "pods"]
                 )
                 for line in out.splitlines():
                     if (
@@ -307,7 +319,7 @@ class MLRunPatcher:
                 [
                     "kubectl",
                     "-n",
-                    "default-tenant",
+                    self._namespace,
                     "patch",
                     "deployment",
                     deployment,
@@ -330,7 +342,7 @@ class MLRunPatcher:
                 [
                     "kubectl",
                     "-n",
-                    "default-tenant",
+                    self._namespace,
                     "set",
                     "image",
                     f"deployment/{deployment}",
@@ -345,7 +357,7 @@ class MLRunPatcher:
                 [
                     "kubectl",
                     "-n",
-                    "default-tenant",
+                    self._namespace,
                     "rollout",
                     "restart",
                     f"deployment/{deployment}",
@@ -359,7 +371,7 @@ class MLRunPatcher:
                 [
                     "kubectl",
                     "-n",
-                    "default-tenant",
+                    self._namespace,
                     "rollout",
                     "status",
                     "deployment",
@@ -387,7 +399,7 @@ class MLRunPatcher:
                     [
                         "kubectl",
                         "-n",
-                        "default-tenant",
+                        self._namespace,
                         "wait",
                         "pods",
                         "-l",
@@ -416,7 +428,7 @@ class MLRunPatcher:
                 [
                     "kubectl",
                     "-n",
-                    "default-tenant",
+                    self._namespace,
                     "get",
                     "deployments",
                     "--selector",
@@ -442,7 +454,7 @@ class MLRunPatcher:
             [
                 "kubectl",
                 "-n",
-                "default-tenant",
+                self._namespace,
                 "scale",
                 "deploy",
                 "--selector",
@@ -455,7 +467,7 @@ class MLRunPatcher:
             [
                 "kubectl",
                 "-n",
-                "default-tenant",
+                self._namespace,
                 "wait",
                 "--for=delete",
                 "--timeout=300s",
@@ -471,7 +483,7 @@ class MLRunPatcher:
             [
                 "kubectl",
                 "-n",
-                "default-tenant",
+                self._namespace,
                 "exec",
                 "-it",
                 "deployment/mlrun-db",
@@ -495,7 +507,7 @@ class MLRunPatcher:
                 [
                     "kubectl",
                     "-n",
-                    "default-tenant",
+                    self._namespace,
                     "scale",
                     "deploy",
                     deployment,
@@ -566,6 +578,11 @@ class MLRunPatcher:
 
         return docker_registry, overwrite_registry
 
+    def _resolve_namespace(self, namespace: str = "") -> str:
+        if namespace:
+            return namespace
+        return self._config.get("NAMESPACE", Constants.default_namespace)
+
 
 @click.command(help="mlrun-api deployer to remote system")
 @click.option("-v", "--verbose", is_flag=True, help="Print what we are doing")
@@ -629,6 +646,12 @@ class MLRunPatcher:
     is_flag=True,
     help="Skip pushing the image",
 )
+@click.option(
+    "-n",
+    "--namespace",
+    default="",
+    help="Kubernetes namespace to deploy to. If not set, defaults to 'default-tenant'.",
+)
 def main(
     verbose: bool,
     config: str,
@@ -641,6 +664,7 @@ def main(
     alerts: bool,
     no_build: bool,
     no_push: bool,
+    namespace: str,
 ):
     if verbose:
         coloredlogs.set_level(logging.DEBUG)
@@ -656,6 +680,7 @@ def main(
         patch_alerts=alerts,
         no_build=no_build,
         no_push=no_push,
+        namespace=namespace,
     ).patch()
 
 

@@ -17,7 +17,6 @@ import os
 import random
 import sys
 import time
-import warnings
 from collections import Counter
 from copy import copy
 from typing import Any, Optional, Union
@@ -409,7 +408,6 @@ class BaseStoreTarget(DataTargetBase):
         flush_after_seconds: Optional[int] = None,
         storage_options: Optional[dict[str, str]] = None,
         schema: Optional[dict[str, Any]] = None,
-        credentials_prefix=None,
     ):
         super().__init__(
             self.kind,
@@ -424,7 +422,6 @@ class BaseStoreTarget(DataTargetBase):
             max_events,
             flush_after_seconds,
             schema=schema,
-            credentials_prefix=credentials_prefix,
         )
 
         self.name = name or self.kind
@@ -440,13 +437,6 @@ class BaseStoreTarget(DataTargetBase):
         self.flush_after_seconds = flush_after_seconds
         self.storage_options = storage_options
         self.schema = schema or {}
-        self.credentials_prefix = credentials_prefix
-        if credentials_prefix:
-            warnings.warn(
-                "The 'credentials_prefix' parameter is deprecated in 1.7.0 and will be removed in "
-                "1.10.0. Please use datastore profiles instead.",
-                FutureWarning,
-            )
 
         self._target = None
         self._resource = None
@@ -457,18 +447,11 @@ class BaseStoreTarget(DataTargetBase):
             key,
             secret_provider=self._secrets,
             default=default_value,
-            prefix=self.credentials_prefix,
         )
 
     def _get_store_and_path(self):
-        credentials_prefix_secrets = (
-            {"CREDENTIALS_PREFIX": self.credentials_prefix}
-            if self.credentials_prefix
-            else None
-        )
         store, resolved_store_path, url = mlrun.store_manager.get_or_create_store(
-            self.get_target_path(),
-            credentials_prefix_secrets,
+            self.get_target_path()
         )
         return store, resolved_store_path, url
 
@@ -621,7 +604,6 @@ class BaseStoreTarget(DataTargetBase):
         driver.path = spec.path
         driver.attributes = spec.attributes
         driver.schema = spec.schema
-        driver.credentials_prefix = spec.credentials_prefix
 
         if hasattr(spec, "columns"):
             driver.columns = spec.columns
@@ -638,7 +620,6 @@ class BaseStoreTarget(DataTargetBase):
         driver.max_events = spec.max_events
         driver.flush_after_seconds = spec.flush_after_seconds
         driver.storage_options = spec.storage_options
-        driver.credentials_prefix = spec.credentials_prefix
 
         driver._resource = resource
         driver.run_id = spec.run_id
@@ -720,7 +701,6 @@ class BaseStoreTarget(DataTargetBase):
         target.key_bucketing_number = self.key_bucketing_number
         target.partition_cols = self.partition_cols
         target.time_partitioning_granularity = self.time_partitioning_granularity
-        target.credentials_prefix = self.credentials_prefix
 
         self._resource.status.update_target(target)
         return target
@@ -1213,7 +1193,6 @@ class SnowflakeTarget(BaseStoreTarget):
         flush_after_seconds: Optional[int] = None,
         storage_options: Optional[dict[str, str]] = None,
         schema: Optional[dict[str, Any]] = None,
-        credentials_prefix=None,
         url: Optional[str] = None,
         user: Optional[str] = None,
         db_schema: Optional[str] = None,
@@ -1249,7 +1228,6 @@ class SnowflakeTarget(BaseStoreTarget):
             flush_after_seconds=flush_after_seconds,
             storage_options=storage_options,
             schema=schema,
-            credentials_prefix=credentials_prefix,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
@@ -1488,7 +1466,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     writer_step_name = "RedisNoSqlTarget"
 
     @staticmethod
-    def get_server_endpoint(path, credentials_prefix=None):
+    def get_server_endpoint(path):
         endpoint, uri = parse_path(path)
         endpoint = endpoint or mlrun.mlconf.redis.url
         if endpoint.startswith("ds://"):
@@ -1506,15 +1484,8 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Provide Redis username and password only via secrets"
                 )
-            credentials_prefix = credentials_prefix or mlrun.get_secret_or_env(
-                key="CREDENTIALS_PREFIX"
-            )
-            user = mlrun.get_secret_or_env(
-                "REDIS_USER", default="", prefix=credentials_prefix
-            )
-            password = mlrun.get_secret_or_env(
-                "REDIS_PASSWORD", default="", prefix=credentials_prefix
-            )
+            user = mlrun.get_secret_or_env("REDIS_USER", default="")
+            password = mlrun.get_secret_or_env("REDIS_PASSWORD", default="")
             host = parsed_endpoint.hostname
             port = parsed_endpoint.port if parsed_endpoint.port else "6379"
             scheme = parsed_endpoint.scheme
@@ -1528,9 +1499,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         from storey import Table
         from storey.redis_driver import RedisDriver
 
-        endpoint, uri = self.get_server_endpoint(
-            self.get_target_path(), self.credentials_prefix
-        )
+        endpoint, uri = self.get_server_endpoint(self.get_target_path())
 
         return Table(
             uri,
@@ -1539,9 +1508,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        endpoint, uri = self.get_server_endpoint(
-            self.get_target_path(), self.credentials_prefix
-        )
+        endpoint, uri = self.get_server_endpoint(self.get_target_path())
         parsed_endpoint = urlparse(endpoint)
         store, path_in_store, path = self._get_store_and_path()
         return {
@@ -1592,7 +1559,6 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
             class_name="mlrun.datastore.storeytargets.RedisNoSqlStoreyTarget",
             columns=column_list,
             table=table,
-            credentials_prefix=self.credentials_prefix,
             **self.attributes,
         )
 
@@ -1648,7 +1614,6 @@ class KafkaTarget(BaseStoreTarget):
     :param path:                topic name e.g. "my_topic"
     :param after_step:          optional, after what step in the graph to add the target
     :param columns:             optional, which columns from data to write
-    :param bootstrap_servers:   Deprecated. Use the brokers parameter instead
     :param producer_options:    additional configurations for kafka producer
     :param brokers:             kafka broker as represented by a host:port pair, or a list of kafka brokers, e.g.
         "localhost:9092", or ["kafka-broker-1:9092", "kafka-broker-2:9092"]
@@ -1664,26 +1629,11 @@ class KafkaTarget(BaseStoreTarget):
     def __init__(
         self,
         *args,
-        bootstrap_servers=None,
         producer_options=None,
         brokers=None,
         **kwargs,
     ):
         attrs = {}
-
-        # TODO: Remove this in 1.10.0
-        if bootstrap_servers:
-            if brokers:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "KafkaTarget cannot be created with both the 'brokers' parameter and the deprecated "
-                    "'bootstrap_servers' parameter. Please use 'brokers' only."
-                )
-            warnings.warn(
-                "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.10.0, "
-                "use 'brokers' instead.",
-                FutureWarning,
-            )
-            brokers = bootstrap_servers
 
         if brokers:
             attrs["brokers"] = brokers

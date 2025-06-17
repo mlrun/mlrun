@@ -3181,7 +3181,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-base",
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
@@ -3751,7 +3751,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-base",
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4103,7 +4103,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-base",
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4224,7 +4224,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-base",
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4519,7 +4519,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-base",
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4585,7 +4585,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-base",
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4959,7 +4959,7 @@ class TestFeatureStore(TestMLRunSystem):
                 f"The following snowflake keys are missing: {snowflake_missing_keys}"
             )
         snowflake_spark_parameters = get_snowflake_spark_parameters()
-        schema = os.environ["SNOWFLAKE_SCHEMA"]
+        db_schema = os.environ["SNOWFLAKE_SCHEMA"]
         now = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         config_parameters = {} if local else {"image": "mlrun/mlrun"}
         run_config = fstore.RunConfig(local=local, **config_parameters)
@@ -4971,7 +4971,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = SnowflakeSource(
             "snowflake_source_for_ingest",
             query=f"select * from source_{now} order by ID limit 10",
-            schema=schema,
+            db_schema=db_schema,
             **snowflake_spark_parameters,
         )
         target = ParquetTarget(

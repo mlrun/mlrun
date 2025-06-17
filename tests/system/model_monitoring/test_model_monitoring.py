@@ -614,6 +614,45 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             and model_endpoints[1].metadata.name == "my-model-2"
         ), "expected model endpoints with the names my-model-1 and my-model-2"
 
+    def test_mep_with_remote_model(self):
+        model_name = "my_model"
+        model_url = "http://localhost:8080/v2/models/mymodel/infer"
+        default_config = {"model_version": "4"}
+        model_artifact = self.project.log_model(
+            model_name,
+            model_url=model_url,
+            default_config=default_config,
+        )
+        function = mlrun.code_to_function(
+            name="function_with_model",
+            kind="serving",
+            tag="latest",
+            project=self.project_name,
+            filename=str(self.assets_path / "models.py"),
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = mlrun.serving.states.ModelRunnerStep(
+            name="model-runner-step"
+        )
+        model_runner_step.add_model(
+            model_class="MyRemoteModel",
+            endpoint_name="my-model-1",
+            model_artifact=model_artifact.uri,
+        )
+        graph.to(model_runner_step, "runner").respond()
+
+        function.set_tracking()
+        function.deploy()
+
+        response = function.invoke(
+            f"v2/models/{model_name}/infer",
+            json.dumps({"prompt": "What is the capital of france?"}),
+        )
+        assert response["default_config"] == default_config
+        assert response["url"] == model_url
+        assert response["prompt"] == "What is the capital of france?"
+
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise

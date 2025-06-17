@@ -103,6 +103,7 @@ class KubeResourceSpec(FunctionSpec):
         "preemption_mode",
         "security_context",
         "state_thresholds",
+        "serving_spec",
     ]
     _default_fields_to_strip = FunctionSpec._default_fields_to_strip + [
         "volumes",
@@ -177,8 +178,8 @@ class KubeResourceSpec(FunctionSpec):
         tolerations=None,
         preemption_mode=None,
         security_context=None,
-        clone_target_dir=None,
         state_thresholds=None,
+        serving_spec=None,
     ):
         super().__init__(
             command=command,
@@ -192,7 +193,6 @@ class KubeResourceSpec(FunctionSpec):
             default_handler=default_handler,
             pythonpath=pythonpath,
             disable_auto_mount=disable_auto_mount,
-            clone_target_dir=clone_target_dir,
         )
         self._volumes = {}
         self._volume_mounts = {}
@@ -225,6 +225,7 @@ class KubeResourceSpec(FunctionSpec):
             state_thresholds
             or mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
         )
+        self.serving_spec = serving_spec
         # Termination grace period is internal for runtimes that have a pod termination hook hence it is not in the
         # _dict_fields and doesn't have a setter.
         self._termination_grace_period_seconds = None
@@ -1116,7 +1117,7 @@ class KubeResource(BaseRuntime):
         # Get the source target dir in case it was enriched due to loading source
         self.spec.build.source_code_target_dir = mlrun.utils.get_in(
             data, "data.spec.build.source_code_target_dir"
-        ) or mlrun.utils.get_in(data, "data.spec.clone_target_dir")
+        )
         ready = data.get("ready", False)
         if not ready:
             logger.info(

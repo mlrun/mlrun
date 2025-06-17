@@ -64,8 +64,9 @@ def test_demo_evidently_app(tmpdir: Path) -> None:
         sample_df=evidently_app.train_set, schedule_time=None
     )
     added_run_uid = evidently_app.evidently_workspace.add_run(
-        project_id=evidently_app.evidently_project_id, run=run
-    )
+        project_id=evidently_app.evidently_project_id,
+        run=run,
+    ).id
     assert evidently_app.evidently_workspace.list_runs(
         project_id=evidently_app.evidently_project_id
     ) == [added_run_uid], "Different project runs than expected"

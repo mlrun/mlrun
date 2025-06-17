@@ -23,7 +23,6 @@ from sys import executable
 import igz_mgmt
 import pandas as pd
 import pytest
-from kfp import dsl
 
 import mlrun
 import mlrun.common.runtimes.constants
@@ -31,6 +30,7 @@ import mlrun.common.schemas
 import mlrun.utils
 import mlrun.utils.logger
 import mlrun_pipelines.common.models
+import mlrun_pipelines.imports
 import tests.system.common.helpers.notifications as notification_helpers
 from mlrun.artifacts import Artifact
 from mlrun.common.runtimes.constants import RunStates
@@ -52,7 +52,7 @@ def exec_project(args):
 
 
 # pipeline for inline test (run pipeline from handler)
-@dsl.pipeline(name="test pipeline", description="test")
+@mlrun_pipelines.imports.dsl.pipeline(name="test pipeline", description="test")
 def pipe_test():
     # train the model using a library (hub://) function and the generated data
     funcs["auto-trainer"].as_step(
@@ -615,7 +615,7 @@ class TestProject(TestMLRunSystem):
         )
         project.save()
 
-        project.run(
+        run_id = project.run(
             workflow_name,
             engine="remote",
             workflow_runner_node_selector=runner_node_selector,
@@ -626,10 +626,11 @@ class TestProject(TestMLRunSystem):
             **project_default_function_node_selector,
             **runner_node_selector,
         }
+        assert runner_run_result["metadata"]["labels"]["workflow-id"] == run_id.run_id
 
         # Test scheduled workflow
         schedule = "0 0 30 2 *"
-        project.run(
+        run_id = project.run(
             workflow_name,
             engine="remote",
             workflow_runner_node_selector=runner_node_selector,
@@ -644,6 +645,7 @@ class TestProject(TestMLRunSystem):
             **project_default_function_node_selector,
             **runner_node_selector,
         }
+        assert runner_run_result["metadata"]["labels"]["workflow-id"] == run_id.run_id
 
     def test_remote_pipeline_with_kfp_engine_from_github(self):
         project_name = "rmtpipe-kfp-github"
@@ -1166,7 +1168,8 @@ class TestProject(TestMLRunSystem):
         runs = []
         while len(runs) != 1:
             runs = project.list_runs(
-                labels=[f"workflow={workflow.run_id}"], state="running"
+                labels=[f"workflow={workflow.run_id}"],
+                states=[mlrun.common.runtimes.constants.RunStates.running],
             )
 
         # abort the first workflow step
@@ -1664,6 +1667,9 @@ class TestProject(TestMLRunSystem):
         project.build_image(
             target_dir=source_code_target_dir, base_image="mlrun/mlrun-kfp"
         )
+
+        # Workflow image must be set explicitly
+        project.spec._workflows["main"].image = project.default_image
         project.save()
 
         run = project.run(

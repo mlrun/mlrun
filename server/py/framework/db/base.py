@@ -240,6 +240,8 @@ class DBInterface(ABC):
         uid: Optional[str] = None,
         producer_id: Optional[str] = None,
         producer_uri: Optional[str] = None,
+        most_recent: bool = False,
+        parent_uri: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         offset: Optional[int] = None,
         limit: Optional[int] = None,
@@ -577,6 +579,13 @@ class DBInterface(ABC):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
     ]:
         pass
 
@@ -692,23 +701,6 @@ class DBInterface(ABC):
         entities: Optional[list[str]] = None,
         labels: Optional[list[str]] = None,
     ) -> mlrun.common.schemas.FeaturesOutputV2:
-        pass
-
-    # TODO: remove in 1.10.0
-    @deprecated(
-        version="1.7.0",
-        reason="'list_entities' will be removed in 1.10.0, use 'list_entities_v2' instead",
-        category=FutureWarning,
-    )
-    @abstractmethod
-    def list_entities(
-        self,
-        session,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[list[str]] = None,
-    ) -> mlrun.common.schemas.EntitiesOutput:
         pass
 
     @abstractmethod

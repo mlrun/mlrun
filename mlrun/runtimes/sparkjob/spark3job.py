@@ -167,8 +167,8 @@ class Spark3JobSpec(KubeResourceSpec):
         driver_cores=None,
         executor_cores=None,
         security_context=None,
-        clone_target_dir=None,
         state_thresholds=None,
+        serving_spec=None,
     ):
         super().__init__(
             command=command,
@@ -197,8 +197,8 @@ class Spark3JobSpec(KubeResourceSpec):
             tolerations=tolerations,
             preemption_mode=preemption_mode,
             security_context=security_context,
-            clone_target_dir=clone_target_dir,
             state_thresholds=state_thresholds,
+            serving_spec=serving_spec,
         )
 
         self.driver_resources = driver_resources or {}
@@ -804,6 +804,12 @@ class Spark3Runtime(KubejobRuntime):
 
     @classmethod
     def deploy_default_image(cls, with_gpu=False):
+        if not mlrun.get_current_project(silent=True):
+            raise mlrun.errors.MLRunMissingProjectError(
+                "An active project is required to run deploy_default_image(). "
+                "This can be set by calling get_or_create_project()."
+            )
+
         sj = mlrun.new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
         sj.spec.build.image = cls._get_default_deployed_mlrun_image_name(with_gpu)
 

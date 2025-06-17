@@ -82,6 +82,7 @@ from ..artifacts import (
     DatasetArtifact,
     DocumentArtifact,
     DocumentLoaderSpec,
+    LLMPromptArtifact,
     ModelArtifact,
 )
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
@@ -756,14 +757,7 @@ def _project_instance_from_struct(struct, name, allow_cross_project):
             "3. Use different project context dir."
         )
 
-        if allow_cross_project is None:
-            # TODO: Remove this warning in version 1.10.0 and also fix cli to support allow_cross_project
-            warnings.warn(
-                f"Project {name=} is different than specified on the context's project yaml. "
-                "This behavior is deprecated and will not be supported from version 1.10.0."
-            )
-            logger.warn(error_message)
-        elif allow_cross_project:
+        if allow_cross_project:
             logger.debug(
                 "Project name is different than specified on the context's project yaml. Overriding.",
                 existing_name=name_from_struct,
@@ -1408,7 +1402,10 @@ class MlrunProject(ModelObj):
                               https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                               Note that "local" engine does not support this argument
         :param ttl:           Pipeline ttl in secs (after that the pods will be removed)
-        :param image:         Image for workflow runner job, only for scheduled and remote workflows
+        :param image:         Image for workflow runner job, only for scheduled and remote workflows.
+                              The image must have mlrun[kfp] installed which requires python 3.9.
+                              Therefore, the project default image will not be used for the workflow,
+                              and the image must be specified explicitly.
         :param args:          Argument values (key=value, ..)
         """
 
@@ -1799,6 +1796,8 @@ class MlrunProject(ModelObj):
         training_set=None,
         label_column=None,
         extra_data=None,
+        model_url: Optional[str] = None,
+        default_config=None,
         **kwargs,
     ) -> ModelArtifact:
         """Log a model artifact and optionally upload it to datastore
@@ -1841,7 +1840,9 @@ class MlrunProject(ModelObj):
         :param label_column:    which columns in the training set are the label (target) columns
         :param extra_data:      key/value list of extra files/charts to link with this dataset
                                 value can be absolute path | relative path (to model dir) | bytes | artifact object
-
+        :param model_url:       Remote model url.
+        :param default_config:  Default configuration for client building
+                                Saved as a sub-dictionary under the parameter.
         :returns: model artifact object
         """
 
@@ -1864,6 +1865,8 @@ class MlrunProject(ModelObj):
             feature_vector=feature_vector,
             feature_weights=feature_weights,
             extra_data=extra_data,
+            model_url=model_url,
+            default_config=default_config,
             **kwargs,
         )
         if training_set is not None:
@@ -1873,6 +1876,87 @@ class MlrunProject(ModelObj):
             ModelArtifact,
             self.log_artifact(
                 model,
+                artifact_path=artifact_path,
+                tag=tag,
+                upload=upload,
+                labels=labels,
+            ),
+        )
+        return item
+
+    def log_llm_prompt(
+        self,
+        key,
+        prompt_string: Optional[str] = None,
+        prompt_path: Optional[str] = None,
+        prompt_legend: Optional[dict] = None,
+        model_artifact: Union[ModelArtifact, str] = None,
+        model_configuration: Optional[dict] = None,
+        description: Optional[str] = None,
+        target_path: Optional[str] = None,
+        artifact_path: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[list[str], str]] = None,
+        upload: Optional[bool] = None,
+        **kwargs,
+    ) -> LLMPromptArtifact:
+        """
+        Log an LLM prompt artifact to the project.
+
+        This method creates and logs an `LLMPromptArtifact` which captures a prompt definition for large language model
+        (LLM) interactions. The prompt can be provided as a string or a file, and may include metadata like generation
+        parameters, a legend for variable injection, and references to a parent model artifact.
+
+        If the prompt content exceeds a certain length, it may be stored in a temporary file and logged accordingly.
+
+        Examples::
+
+            # Log a prompt from file
+            project.log_llm_prompt(
+                key="qa-prompt",
+                prompt_path="prompts/qa_template.txt",
+                prompt_legend={"question": "user_question"},
+                model_artifact=model,
+                tag="v2",
+            )
+
+        :param key: Unique key for the prompt artifact.
+        :param prompt_string: Raw prompt text. Mutually exclusive with `prompt_path`.
+        :param prompt_path: Path to a file containing the prompt. Mutually exclusive with `prompt_string`.
+        :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., ``{user_name}``)
+               and the value is a description or explanation of what that placeholder represents.
+               Useful for documenting and clarifying dynamic parts of the prompt.
+        :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
+        :param model_configuration: Configuration dictionary for model generation parameters
+               (e.g., temperature, max tokens).
+        :param description: Optional description of the prompt.
+        :param target_path: Optional local target path for saving prompt content.
+        :param artifact_path: Storage path for the logged artifact.
+        :param tag: Version tag for the artifact (e.g., "v1", "latest").
+        :param labels: Labels to tag the artifact for filtering and organization.
+        :param upload: Whether to upload the artifact to a remote datastore. Defaults to True.
+        :param kwargs: Additional attributes to pass into the `LLMPromptArtifact`.
+
+        :returns: The logged `LLMPromptArtifact` object.
+        """
+
+        llm_prompt = LLMPromptArtifact(
+            key=key,
+            project=self.name,
+            prompt_string=prompt_string,
+            prompt_path=prompt_path,
+            prompt_legend=prompt_legend,
+            model_artifact=model_artifact,
+            model_configuration=model_configuration,
+            target_path=target_path,
+            description=description,
+            **kwargs,
+        )
+
+        item = cast(
+            LLMPromptArtifact,
+            self.log_artifact(
+                llm_prompt,
                 artifact_path=artifact_path,
                 tag=tag,
                 upload=upload,
@@ -2434,7 +2518,6 @@ class MlrunProject(ModelObj):
 
     def enable_model_monitoring(
         self,
-        default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         *,
@@ -2450,7 +2533,6 @@ class MlrunProject(ModelObj):
         The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
         is detected. It processes the new events into statistics that are then written to statistics databases.
 
-        :param default_controller_image:          Deprecated.
         :param base_period:                       The time period in minutes in which the model monitoring controller
                                                   function is triggered. By default, the base period is 10 minutes
                                                   (which is also the minimum value for production environments).
@@ -2478,14 +2560,6 @@ class MlrunProject(ModelObj):
                                                   background, including the histogram data drift app if selected.
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         """
-        if default_controller_image != "mlrun/mlrun":
-            # TODO: Remove this in 1.10.0
-            warnings.warn(
-                "'default_controller_image' is deprecated in 1.7.0 and will be removed in 1.10.0, "
-                "use 'image' instead",
-                FutureWarning,
-            )
-            image = default_controller_image
         if base_period < 10:
             logger.warn(
                 "enable_model_monitoring: 'base_period' < 10 minutes is not supported in production environments",
@@ -3764,7 +3838,8 @@ class MlrunProject(ModelObj):
             )
 
         The replication factor and timeout configuration might need to be adjusted according to your Confluent cluster
-        type and settings.
+        type and settings. Nuclio annotations for the model monitoring infrastructure and application functions are
+        supported through ``kwargs_public={"nuclio_annotations": {...}, ...}``.
 
         :param tsdb_profile_name:         The datastore profile name of the time-series database to be used in model
                                           monitoring. The supported profiles are:
@@ -4020,7 +4095,7 @@ class MlrunProject(ModelObj):
         requirements: Optional[typing.Union[str, list[str]]] = None,
         mlrun_version_specifier: Optional[str] = None,
         builder_env: Optional[dict] = None,
-        overwrite_build_params: bool = False,
+        overwrite_build_params: bool = True,
         requirements_file: Optional[str] = None,
         extra_args: Optional[str] = None,
         force_build: bool = False,
@@ -4076,7 +4151,7 @@ class MlrunProject(ModelObj):
         commands: Optional[list] = None,
         secret_name: Optional[str] = None,
         requirements: Optional[typing.Union[str, list[str]]] = None,
-        overwrite_build_params: bool = False,
+        overwrite_build_params: bool = True,
         requirements_file: Optional[str] = None,
         builder_env: Optional[dict] = None,
         extra_args: Optional[str] = None,
@@ -4106,12 +4181,6 @@ class MlrunProject(ModelObj):
         :param source_code_target_dir: Path on the image where source code would be extracted
             (by default `/home/mlrun_code`)
         """
-        if not overwrite_build_params:
-            # TODO: change overwrite_build_params default to True in 1.10.0
-            warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.10.0.",
-                mlrun.utils.OverwriteBuildParamsWarning,
-            )
         default_image_name = mlrun.mlconf.default_project_image_name.format(
             name=self.name
         )
@@ -4145,7 +4214,7 @@ class MlrunProject(ModelObj):
         requirements: Optional[typing.Union[str, list[str]]] = None,
         mlrun_version_specifier: Optional[str] = None,
         builder_env: Optional[dict] = None,
-        overwrite_build_params: bool = False,
+        overwrite_build_params: bool = True,
         requirements_file: Optional[str] = None,
         extra_args: Optional[str] = None,
         target_dir: Optional[str] = None,
@@ -4185,60 +4254,47 @@ class MlrunProject(ModelObj):
                 base_image=base_image,
             )
 
-        if not overwrite_build_params:
-            # TODO: change overwrite_build_params default to True in 1.10.0
-            warnings.warn(
-                "The `overwrite_build_params` parameter default will change from 'False' to 'True' in 1.10.0.",
-                mlrun.utils.OverwriteBuildParamsWarning,
+        self.build_config(
+            image=image,
+            set_as_default=set_as_default,
+            base_image=base_image,
+            commands=commands,
+            secret_name=secret_name,
+            with_mlrun=with_mlrun,
+            requirements=requirements,
+            requirements_file=requirements_file,
+            overwrite_build_params=overwrite_build_params,
+        )
+
+        function = mlrun.new_function("mlrun--project--image--builder", kind="job")
+
+        if self.spec.source and not self.spec.load_source_on_run:
+            function.with_source_archive(
+                source=self.spec.source,
+                target_dir=target_dir,
+                pull_at_runtime=False,
             )
 
-        # TODO: remove filter once overwrite_build_params default is changed to True in 1.8.0
-        with warnings.catch_warnings():
-            warnings.simplefilter(
-                "ignore", category=mlrun.utils.OverwriteBuildParamsWarning
-            )
+        build = self.spec.build
+        result = self.build_function(
+            function=function,
+            with_mlrun=build.with_mlrun,
+            image=build.image,
+            base_image=build.base_image,
+            commands=build.commands,
+            secret_name=build.secret,
+            requirements=build.requirements,
+            overwrite_build_params=overwrite_build_params,
+            mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
+            extra_args=extra_args,
+            force_build=True,
+        )
 
-            self.build_config(
-                image=image,
-                set_as_default=set_as_default,
-                base_image=base_image,
-                commands=commands,
-                secret_name=secret_name,
-                with_mlrun=with_mlrun,
-                requirements=requirements,
-                requirements_file=requirements_file,
-                overwrite_build_params=overwrite_build_params,
-            )
-
-            function = mlrun.new_function("mlrun--project--image--builder", kind="job")
-
-            if self.spec.source and not self.spec.load_source_on_run:
-                function.with_source_archive(
-                    source=self.spec.source,
-                    target_dir=target_dir,
-                    pull_at_runtime=False,
-                )
-
-            build = self.spec.build
-            result = self.build_function(
-                function=function,
-                with_mlrun=build.with_mlrun,
-                image=build.image,
-                base_image=build.base_image,
-                commands=build.commands,
-                secret_name=build.secret,
-                requirements=build.requirements,
-                overwrite_build_params=overwrite_build_params,
-                mlrun_version_specifier=mlrun_version_specifier,
-                builder_env=builder_env,
-                extra_args=extra_args,
-                force_build=True,
-            )
-
-            # Get the enriched target dir from the function
-            self.spec.build.source_code_target_dir = (
-                function.spec.build.source_code_target_dir
-            )
+        # Get the enriched target dir from the function
+        self.spec.build.source_code_target_dir = (
+            function.spec.build.source_code_target_dir
+        )
 
         try:
             mlrun.db.get_run_db(secrets=self._secrets).delete_function(
@@ -4474,8 +4530,8 @@ class MlrunProject(ModelObj):
 
     def list_models(
         self,
-        name=None,
-        tag=None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since=None,
         until=None,
@@ -4486,7 +4542,7 @@ class MlrunProject(ModelObj):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
-    ):
+    ) -> list[ModelArtifact]:
         """List models in project, filtered by various parameters.
 
         Examples::
@@ -4589,6 +4645,155 @@ class MlrunProject(ModelObj):
             *args,
             project=self.metadata.name,
             kind=mlrun.artifacts.model.ModelArtifact.kind,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
+            **kwargs,
+        )
+
+    def list_llm_prompts(
+        self,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        iter: Optional[int] = None,
+        best_iteration: bool = False,
+        tree: Optional[str] = None,
+        model: Optional[Union[str, Artifact]] = None,
+        format_: Optional[
+            mlrun.common.formatters.ArtifactFormat
+        ] = mlrun.common.formatters.ArtifactFormat.full,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[
+            Union[mlrun.common.schemas.SortField, str]
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
+    ) -> list[mlrun.artifacts.llm_prompt.LLMPromptArtifact]:
+        """List LLM prompt artifacts in the project with support for filtering.
+
+        This method returns a list of LLM prompt artifacts, filtered by parameters such as name, tag, labels,
+        model association, iteration, and more. It can be used to retrieve the latest, best, or specific versions
+        of prompts tied to a model or general project context.
+
+        Examples::
+
+            # Get all latest tagged prompts
+            prompts = project.list_llm_prompts(tag="latest")
+
+            # Get prompts associated with a specific model
+            prompts = project.list_llm_prompts(model=ModelArtifact("m1"))
+
+            # Get prompts filtered by label
+            prompts = project.list_llm_prompts(labels={"use_case": "chatbot"})
+
+            # Get prompts using a name wildcard
+            prompts = project.list_llm_prompts(name="~chat")
+
+        :param name: Name of the prompt artifact. Prefix with '~' for wildcard search (case-insensitive).
+        :param tag: Filter artifacts by this tag (e.g., 'latest', 'prod').
+        :param labels: Filter llm-prompt artifacts by label key-value pairs or key existence. This can be provided as:
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
+        :param since: Return artifacts updated after this date (as datetime object).
+        :param until: Return artifacts updated before this date (as datetime object).
+        :param iter: Retrieve a specific iteration. Use `0` for root; `None` for all.
+        :param best_iteration: Returns the llm-prompt artifact which belongs to the best iteration of a given run,
+            in the case of artifacts generated from a hyper-param run. If only a single iteration exists, will return
+            the artifact from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
+        :param tree: Filter by artifact tree ID (e.g., for lineage filtering).
+        :param model: Return prompts associated with this model (can be `Artifact` URI or `Artifact` object).
+        :param format_: The format in which to return the artifacts. Default is 'full'.
+        :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
+            parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently the only allowed values are `created` and `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
+
+        :returns: A list of filtered `LLMPromptArtifact` objects matching the given parameters.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.list_artifacts(
+            name=name,
+            project=self.metadata.name,
+            tag=tag,
+            labels=labels,
+            since=since,
+            until=until,
+            iter=iter,
+            best_iteration=best_iteration,
+            kind=mlrun.artifacts.llm_prompt.LLMPromptArtifact.kind,
+            tree=tree,
+            parent=model.uri if isinstance(model, Artifact) else model,
+            format_=format_,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
+        ).to_objects()
+
+    def paginated_list_llm_prompts(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ) -> tuple[mlrun.lists.ArtifactList, Optional[str]]:
+        """Retrieve a paginated list of LLM prompt artifacts for the current project.
+
+        This method returns a list of LLM prompt artifacts, supporting both token-based and page-number-based
+        pagination. You can filter and navigate through the results using the optional `page`, `page_size`, and
+        `page_token` parameters.
+
+        Examples::
+
+            # Fetch the first page with up to 5 prompt artifacts
+            prompts, token = project.paginated_list_llm_prompts(page_size=5)
+
+            # Fetch the next page using the page token
+            prompts, token = project.paginated_list_llm_prompts(page_token=token)
+
+            # Fetch a specific page (e.g., page 3)
+            prompts, token = project.paginated_list_llm_prompts(page=3, page_size=5)
+
+            # Retrieve all prompt artifacts across pages
+            all_prompts = []
+            token = None
+            while True:
+                page_prompts, token = project.paginated_list_llm_prompts(
+                    page_token=token, page_size=5
+                )
+                all_prompts.extend(page_prompts)
+                if not token:
+                    break
+            print(f"Total retrieved prompts: {len(all_prompts)}")
+
+        :param page: Page number to retrieve (alternative to page_token).
+        :param page_size: Number of items per page. Defaults to `mlrun.mlconf.httpdb.pagination.default_page_size`.
+        :param page_token: Token for retrieving the next page of results (used for continuous iteration).
+
+        :returns: A tuple of (ArtifactList of LLM prompts, next page_token or None if no more pages).
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.paginated_list_artifacts(
+            *args,
+            project=self.metadata.name,
+            kind=mlrun.artifacts.llm_prompt.LLMPromptArtifact.kind,
             page=page,
             page_size=page_size,
             page_token=page_token,
@@ -4734,14 +4939,47 @@ class MlrunProject(ModelObj):
             labels=model_monitoring_labels_list,
         )
 
+    def get_monitoring_function_summaries(
+        self,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        names: Optional[Union[list[str], str]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        include_stats: bool = False,
+        include_infra: bool = True,
+    ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
+        """Get monitoring function summaries for the specified project.
+        :param start: Start time for filtering the results (optional).
+        :param end: End time for filtering the results (optional).
+        :param names: List of function names to filter by (optional).
+        :param labels: Labels to filter by (optional).
+        :param include_stats: Whether to include statistics in the response (default is False).
+        :param include_infra: whether to include model monitoring infrastructure functions (default is True).
+        :return: A list of FunctionSummary objects containing information about the monitoring functions.
+        """
+
+        if start is not None and end is not None:
+            if start.tzinfo is None or end.tzinfo is None:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    "Custom start and end times must contain the timezone."
+                )
+
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.get_monitoring_function_summaries(
+            project=self.metadata.name,
+            start=start,
+            end=end,
+            names=names,
+            labels=labels,
+            include_stats=include_stats,
+            include_infra=include_infra,
+        )
+
     def list_runs(
         self,
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[
-            mlrun.common.runtimes.constants.RunStates
-        ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         iter: bool = False,
@@ -4785,7 +5023,6 @@ class MlrunProject(ModelObj):
                        - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
                          the specified key-value pairs or key existence.
 
-        :param state: Deprecated - List only runs whose state is specified.
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -4799,24 +5036,13 @@ class MlrunProject(ModelObj):
         :param end_time_from: Filter by run end time in ``[end_time_from, end_time_to]``.
         :param end_time_to: Filter by run end time in ``[end_time_from, end_time_to]``.
         """
-        if state:
-            # TODO: Remove this in 1.10.0
-            warnings.warn(
-                "'state' is deprecated in 1.7.0 and will be removed in 1.10.0. Use 'states' instead.",
-                FutureWarning,
-            )
-
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_runs(
             name,
             uid,
             self.metadata.name,
             labels=labels,
-            states=(
-                mlrun.utils.helpers.as_list(state)
-                if state is not None
-                else states or None
-            ),
+            states=states or None,
             sort=sort,
             iter=iter,
             start_time_from=start_time_from,

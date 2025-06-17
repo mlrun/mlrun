@@ -257,7 +257,7 @@ class BackgroundTaskStatus(storey.MapClass):
         self.context = copy(context)
         self.server: mlrun.serving.GraphServer = getattr(self.context, "server", None)
         self._background_task_check_timestamp = None
-        self._background_task_status = mlrun.common.schemas.BackgroundTaskState.running
+        self._background_task_state = mlrun.common.schemas.BackgroundTaskState.running
         super().__init__(**kwargs)
 
     def do(self, event):
@@ -267,7 +267,7 @@ class BackgroundTaskStatus(storey.MapClass):
             return None
 
         if (
-            self._background_task_status
+            self._background_task_state
             == mlrun.common.schemas.BackgroundTaskState.running
             and (
                 self._background_task_check_timestamp is None
@@ -281,43 +281,43 @@ class BackgroundTaskStatus(storey.MapClass):
                 self.server.project, self.server.model_endpoint_creation_task_name
             )
             self._background_task_check_timestamp = mlrun.utils.now_date()
-            self._background_task_status = background_task.status.state
-            if self._background_task_succeeded(background_task):
+            self._log_background_task_state(background_task.status.state)
+            self._background_task_state = background_task.status.state
+            if (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.succeeded
+            ):
                 return event
             else:
                 return None
         elif (
-            self._background_task_status
+            self._background_task_state
             == mlrun.common.schemas.BackgroundTaskState.failed
         ):
             return None
         return event
 
-    def _background_task_succeeded(
-        self, background_task: mlrun.common.schemas.BackgroundTask
+    def _log_background_task_state(
+        self, background_task_state: mlrun.common.schemas.BackgroundTaskState
     ):
         logger.info(
             "Checking model endpoint creation task status",
             task_name=self.server.model_endpoint_creation_task_name,
         )
         if (
-            background_task.status.state
+            background_task_state
             in mlrun.common.schemas.BackgroundTaskState.terminal_states()
         ):
             logger.info(
-                f"Model endpoint creation task completed with state {background_task.status.state}"
+                f"Model endpoint creation task completed with state {background_task_state}"
             )
         else:  # in progress
             logger.info(
                 f"Model endpoint creation task is still in progress with the current state: "
-                f"{background_task.status.state}. Events will not be monitored for the next 15 seconds",
+                f"{background_task_state}. Events will not be monitored for the next 15 seconds",
                 name=self.name,
                 background_task_check_timestamp=self._background_task_check_timestamp.isoformat(),
             )
-        return (
-            background_task.status.state
-            == mlrun.common.schemas.BackgroundTaskState.succeeded
-        )
 
 
 class SamplingStep(storey.MapClass):

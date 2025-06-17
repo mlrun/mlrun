@@ -344,35 +344,38 @@ class GraphServer(ModelObj):
 
 
 def add_error_raiser_step(
-    graph: RootFlowStep, model_runner_steps: dict[str, MonitoredStep]
+    graph: RootFlowStep, monitored_steps: dict[str, MonitoredStep]
 ) -> RootFlowStep:
-    model_runner_raisers = {}
+    monitored_steps_raisers = {}
     user_steps = list(graph.steps.values())
-    for model_runner_step in model_runner_steps.values():
-        if model_runner_step.raise_exception:
+    for monitored_step in monitored_steps.values():
+        if monitored_step.raise_exception:
             error_step = graph.add_step(
                 class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
-                name=f"{model_runner_step.name}_error_raise",
-                after=model_runner_step.name,
+                name=f"{monitored_step.name}_error_raise",
+                after=monitored_step.name,
                 full_event=True,
-                raise_exception=model_runner_step.raise_exception,
-                models_names=list(model_runner_step.class_args["models"].keys()),
+                raise_exception=monitored_step.raise_exception,
+                models_names=list(monitored_step.class_args["models"].keys()),
                 model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
             )
-            if model_runner_step.responder:
-                model_runner_step.responder = False
+            if monitored_step.responder:
+                monitored_step.responder = False
                 error_step.respond()
-            model_runner_raisers[model_runner_step.name] = error_step.name
-            error_step.on_error = model_runner_step.on_error
+            monitored_steps_raisers[monitored_step.name] = error_step.name
+            error_step.on_error = monitored_step.on_error
     for step in user_steps:
         if step.after:
             if isinstance(step.after, list):
                 for i in range(len(step.after)):
-                    if step.after[i] in model_runner_raisers:
-                        step.after[i] = model_runner_raisers[step.after[i]]
+                    if step.after[i] in monitored_steps_raisers:
+                        step.after[i] = monitored_steps_raisers[step.after[i]]
             else:
-                if isinstance(step.after, str) and step.after in model_runner_raisers:
-                    step.after = model_runner_raisers[step.after]
+                if (
+                    isinstance(step.after, str)
+                    and step.after in monitored_steps_raisers
+                ):
+                    step.after = monitored_steps_raisers[step.after]
     return graph
 
 

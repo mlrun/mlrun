@@ -255,7 +255,7 @@ def run(
         # If run is a retry we need to maintain the run status therefore using RunObject instead of RunTemplate
         retry_count = config.get("status", {}).get("retry_count")
         if retry_count:
-            print(f"Retrying run - attempt: {retry_count + 1}")
+            logger.info(f"Retrying run - attempt: {retry_count + 1}")
             runobj = mlrun.RunObject.from_dict(config)
         else:
             runobj = RunTemplate.from_dict(config)

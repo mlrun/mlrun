@@ -963,7 +963,7 @@ class Service(framework.service.Service):
                 run.status.retry_count = run.status.retry_count or 0
                 # sanity
                 if not run.status.retry_count < run.spec.retry.count:
-                    self._logger.debug(
+                    self._logger.warn(
                         "Run has reached max retry count, skipping",
                         run_uid=run.metadata.uid,
                         retry_count=run.status.retry_count,

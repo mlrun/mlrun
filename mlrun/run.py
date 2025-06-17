@@ -916,7 +916,6 @@ def retry_pipeline(
     pipeline_run_id = mldb.retry_pipeline(
         run_id=run_id,
         project=project,
-        namespace=namespace,
     )
     if pipeline_run_id == run_id:
         logger.info(

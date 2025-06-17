@@ -324,7 +324,7 @@ with warnings.catch_warnings():
         __tablename__ = "functions"
         __table_args__ = (
             UniqueConstraint("name", "project", "uid", name="_functions_uc"),
-            Index("idx_function_state", "project", "state", unique=True),
+            Index("idx_function_state", "project", "state"),
         )
 
         Label = make_label(__tablename__)

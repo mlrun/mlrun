@@ -148,7 +148,10 @@ class BaseLauncher(abc.ABC):
         self._validate_run_params(run.spec.parameters)
         self._validate_output_path(runtime, run)
 
-        mlrun.utils.helpers.warn_on_deprecated_image(runtime.spec.image)
+        deprecated_image = "mlrun/ml-base"
+        images = [runtime.spec.image, getattr(runtime.spec.build, "base_image", None)]
+        if deprecated_image in images:
+            mlrun.utils.helpers.warn_on_deprecated_image(deprecated_image)
 
     @staticmethod
     def _validate_output_path(

@@ -40,12 +40,8 @@ class TFKerasModelHandler(DLModelHandler):
     # Framework name:
     FRAMEWORK_NAME = "tensorflow.keras"
 
-    # Declare a type of an input sample:
-    IOSample = (
-        Union[tf.Tensor, tf.TensorSpec, keras.KerasTensor, np.ndarray]
-        if is_keras_3()
-        else Union[tf.Tensor, tf.TensorSpec, np.ndarray]
-    )
+    # Declare a type of input sample (only from keras v3 there is a KerasTensor type):
+    IOSample = Union[tf.Tensor, tf.TensorSpec, "keras.KerasTensor", np.ndarray]
 
     class ModelFormats:
         """

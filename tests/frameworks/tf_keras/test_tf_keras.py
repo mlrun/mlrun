@@ -128,7 +128,8 @@ def evaluate(model: tf.keras.Model) -> dict:
 
 
 @pytest.mark.skipif(
-    is_keras_3(), reason="Keras 3 test is freezing due to dead lock issue."
+    is_keras_3(),
+    reason="Keras 3 test is freezing due to dead lock issue when running within PyTest.",
 )
 def test_training(rundb_mock):
     """
@@ -181,7 +182,8 @@ def test_training(rundb_mock):
 
 
 @pytest.mark.skipif(
-    is_keras_3(), reason="Keras 3 test is freezing due to dead lock issue."
+    is_keras_3(),
+    reason="Keras 3 test is freezing due to dead lock issue when running within PyTest.",
 )
 def test_evaluation(rundb_mock):
     """

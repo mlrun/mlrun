@@ -860,7 +860,10 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
 
         endpoint_id = self._record_results()
 
-        time.sleep(2.4 * self.app_interval_seconds)
+        time.sleep(
+            2 * self.app_interval_seconds
+            + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+        )
 
         mep = mlrun.db.get_run_db().get_model_endpoint(
             name=f"{self.name_prefix}-test",

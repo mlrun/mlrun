@@ -478,15 +478,16 @@ async def ingest_feature_set(
 
 # TODO: Remove in 1.10.0
 @router.get(
-    "/entities",
-    response_model=mlrun.common.schemas.EntitiesOutput,
+    "/features",
+    response_model=mlrun.common.schemas.FeaturesOutput,
     deprecated=True,
-    description="/entities v1 is deprecated in 1.7.0 and will be removed in 1.10.0. Use v2 instead.",
+    description="/features v1 is deprecated in 1.7.0 and will be removed in 1.10.0. Use v2 instead.",
 )
-async def list_entities(
+async def list_features(
     project: str,
     name: Optional[str] = None,
     tag: Optional[str] = None,
+    entities: list[str] = Query(None, alias="entity"),
     labels: list[str] = Query(None, alias="label"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -496,24 +497,25 @@ async def list_entities(
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
-    entities = await run_in_threadpool(
-        services.api.crud.FeatureStore().list_entities,
+    features = await run_in_threadpool(
+        services.api.crud.FeatureStore().list_features,
         db_session,
         project,
         name,
         tag,
+        entities,
         labels,
     )
-    entities = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.entity,
-        entities.entities,
-        lambda entity_list_output: (
-            entity_list_output.feature_set_digest.metadata.project,
-            entity_list_output.entity.name,
+    features = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.feature,
+        features.features,
+        lambda feature_list_output: (
+            feature_list_output.feature_set_digest.metadata.project,
+            feature_list_output.feature.name,
         ),
         auth_info,
     )
-    return mlrun.common.schemas.EntitiesOutput(entities=entities)
+    return mlrun.common.schemas.FeaturesOutput(features=features)
 
 
 @router.post(

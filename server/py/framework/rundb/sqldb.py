@@ -605,6 +605,24 @@ class SQLRunDB(RunDBInterface):
         )
         return feature_set.dict()
 
+    def list_features(
+        self,
+        project: str,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        entities: Optional[list[str]] = None,
+        labels: Optional[list[str]] = None,
+    ):
+        return self._transform_db_error(
+            services.api.crud.FeatureStore().list_features,
+            self.session,
+            project,
+            name,
+            tag,
+            entities,
+            labels,
+        )
+
     def list_features_v2(
         self,
         project: str,
@@ -620,22 +638,6 @@ class SQLRunDB(RunDBInterface):
             name,
             tag,
             entities,
-            labels,
-        )
-
-    def list_entities(
-        self,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[list[str]] = None,
-    ):
-        return self._transform_db_error(
-            services.api.crud.FeatureStore().list_entities,
-            self.session,
-            project,
-            name,
-            tag,
             labels,
         )
 

@@ -669,6 +669,24 @@ class DBInterface(ABC):
     ) -> mlrun.common.schemas.FeatureSet:
         pass
 
+    # TODO: remove in 1.10.0
+    @deprecated(
+        version="1.7.0",
+        reason="'list_features' will be removed in 1.10.0, use 'list_features_v2' instead",
+        category=FutureWarning,
+    )
+    @abstractmethod
+    def list_features(
+        self,
+        session,
+        project: str,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        entities: Optional[list[str]] = None,
+        labels: Optional[list[str]] = None,
+    ) -> mlrun.common.schemas.FeaturesOutput:
+        pass
+
     @abstractmethod
     def list_features_v2(
         self,
@@ -679,23 +697,6 @@ class DBInterface(ABC):
         entities: Optional[list[str]] = None,
         labels: Optional[list[str]] = None,
     ) -> mlrun.common.schemas.FeaturesOutputV2:
-        pass
-
-    # TODO: remove in 1.10.0
-    @deprecated(
-        version="1.7.0",
-        reason="'list_entities' will be removed in 1.10.0, use 'list_entities_v2' instead",
-        category=FutureWarning,
-    )
-    @abstractmethod
-    def list_entities(
-        self,
-        session,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[list[str]] = None,
-    ) -> mlrun.common.schemas.EntitiesOutput:
         pass
 
     @abstractmethod

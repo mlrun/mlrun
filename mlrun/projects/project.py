@@ -2518,7 +2518,6 @@ class MlrunProject(ModelObj):
 
     def enable_model_monitoring(
         self,
-        default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         *,
@@ -2534,7 +2533,6 @@ class MlrunProject(ModelObj):
         The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
         is detected. It processes the new events into statistics that are then written to statistics databases.
 
-        :param default_controller_image:          Deprecated.
         :param base_period:                       The time period in minutes in which the model monitoring controller
                                                   function is triggered. By default, the base period is 10 minutes
                                                   (which is also the minimum value for production environments).
@@ -2562,14 +2560,6 @@ class MlrunProject(ModelObj):
                                                   background, including the histogram data drift app if selected.
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         """
-        if default_controller_image != "mlrun/mlrun":
-            # TODO: Remove this in 1.10.0
-            warnings.warn(
-                "'default_controller_image' is deprecated in 1.7.0 and will be removed in 1.10.0, "
-                "use 'image' instead",
-                FutureWarning,
-            )
-            image = default_controller_image
         if base_period < 10:
             logger.warn(
                 "enable_model_monitoring: 'base_period' < 10 minutes is not supported in production environments",
@@ -3848,7 +3838,8 @@ class MlrunProject(ModelObj):
             )
 
         The replication factor and timeout configuration might need to be adjusted according to your Confluent cluster
-        type and settings.
+        type and settings. Nuclio annotations for the model monitoring infrastructure and application functions are
+        supported through ``kwargs_public={"nuclio_annotations": {...}, ...}``.
 
         :param tsdb_profile_name:         The datastore profile name of the time-series database to be used in model
                                           monitoring. The supported profiles are:

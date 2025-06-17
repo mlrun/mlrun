@@ -23,6 +23,7 @@ import taosws
 
 import mlrun.common.schemas
 import mlrun.runtimes
+from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
 
 import services.api
 import services.api.crud.model_monitoring.deployment as mm_dep
@@ -163,3 +164,62 @@ class TestAppDeployment:
             )
 
             secrets = monitoring_deployment._get_monitoring_mandatory_project_secrets()
+
+
+@pytest.mark.parametrize(
+    "nuclio_annotations",
+    [
+        {
+            "nuclio.io/kafka-metadata-retry-max": "10000",
+            "nuclio.io/kafka-metadata-timeout": "1200s",
+        },
+        None,
+    ],
+)
+@patch("mlrun.datastore.sources.KafkaSource.create_topics")
+def test_apply_and_create_kafka_source(
+    create_topics_mock: Mock,
+    nuclio_annotations: typing.Optional[dict[str, str]],
+    monitoring_deployment: mm_dep.MonitoringDeployment,
+) -> None:
+    """Test that the Kafka trigger is set correctly"""
+    replication_factor = 3
+
+    kafka_profile = DatastoreProfileKafkaSource(
+        name="test-kafka-profile",
+        brokers=["sub.confluent.cloud:9092"],
+        topics=[],
+        sasl_user="usr1",
+        sasl_pass="pass123",
+        kwargs_public={
+            "security_protocol": "SASL_SSL",
+            "api_version_auto_timeout_ms": 15_000,
+            "tls": {"enable": True},
+            "new_topic": {"replication_factor": replication_factor},
+            **(
+                {"nuclio_annotations": nuclio_annotations} if nuclio_annotations else {}
+            ),
+        },
+    )
+
+    fn = mlrun.runtimes.ServingRuntime()
+    monitoring_deployment._apply_and_create_kafka_source(
+        kafka_profile=kafka_profile,
+        function=fn,
+        function_name="test-confluent-trigger",
+        stream_args=mlrun.mlconf.model_endpoint_monitoring.serving_stream,
+        ignore_stream_already_exists_failure=True,
+    )
+
+    create_topics_mock.assert_called_once_with(
+        num_partitions=8, replication_factor=replication_factor
+    )
+
+    kafka_trigger_conf = fn.spec.config.get("spec.triggers.kafka")
+    assert kafka_trigger_conf, "Expected a Kafka trigger"
+    assert (
+        kafka_trigger_conf.get("kind") == "kafka-cluster"
+    ), "Expected `kafka-cluster` kind"
+    assert (
+        fn.spec.base_spec.get("metadata", {}).get("annotations") == nuclio_annotations
+    ), "The set annotations are different than expected"

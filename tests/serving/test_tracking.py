@@ -190,7 +190,7 @@ def rec_to_data(rec):
 
 @pytest.fixture
 def project() -> mlrun.MlrunProject:
-    return mlrun.get_or_create_project("test-tracking")
+    return mlrun.get_or_create_project("test-tracking", allow_cross_project=True)
 
 
 @pytest.fixture

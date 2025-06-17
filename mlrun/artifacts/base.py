@@ -223,28 +223,9 @@ class Artifact(ModelObj):
         target_path=None,
         project=None,
         src_path: typing.Optional[str] = None,
-        # All params up until here are legacy params for compatibility with legacy artifacts.
-        # TODO: remove them in 1.10.0.
         metadata: ArtifactMetadata = None,
         spec: ArtifactSpec = None,
     ):
-        if (
-            key
-            or body
-            or viewer
-            or is_inline
-            or format
-            or size
-            or target_path
-            or project
-            or src_path
-        ):
-            warnings.warn(
-                "Artifact constructor parameters are deprecated in 1.7.0 and will be removed in 1.10.0. "
-                "Use the metadata and spec parameters instead.",
-                DeprecationWarning,
-            )
-
         self._metadata = None
         self.metadata = metadata
         self._spec = None
@@ -769,17 +750,9 @@ class LinkArtifact(Artifact):
         link_key=None,
         link_tree=None,
         project=None,
-        # All params up until here are legacy params for compatibility with legacy artifacts.
-        # TODO: remove them in 1.10.0.
         metadata: ArtifactMetadata = None,
         spec: LinkArtifactSpec = None,
     ):
-        if key or target_path or link_iteration or link_key or link_tree or project:
-            warnings.warn(
-                "Artifact constructor parameters are deprecated in 1.7.0 and will be removed in 1.10.0. "
-                "Use the metadata and spec parameters instead.",
-                DeprecationWarning,
-            )
         super().__init__(
             key, target_path=target_path, project=project, metadata=metadata, spec=spec
         )

@@ -39,9 +39,6 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
 # Redeclare python version (used above in FROM)
 ARG MLRUN_PYTHON_VERSION=3.11
 
-# Remove system ensurepip from conda's Python
-RUN rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
-
 # Create and activate mlrun conda environment
 RUN conda create -y -n mlrun python=${MLRUN_PYTHON_VERSION} && \
     echo "source /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
@@ -97,8 +94,13 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 # Switch to root to clean up files that may have been written with root permissions
 USER root
 
-# cleanup, source code is not needed anymore
-RUN rm -rf /tmp/mlrun && rm -rf $HOME/.cache
+# Cleanup source code is not needed anymore
+# Remove system ensurepip Python runtimes
+RUN rm -rf /tmp/mlrun \
+    && rm -rf $HOME/.cache \
+    && rm -rf /opt/conda/envs/mlrun/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
+    && rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
+    && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
 
 USER $NB_UID
 

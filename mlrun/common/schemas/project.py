@@ -145,6 +145,13 @@ class ProjectSummary(pydantic.v1.BaseModel):
     endpoint_alerts_count: int = 0
     job_alerts_count: int = 0
     other_alerts_count: int = 0
+    datasets_count: int = 0
+    documents_count: int = 0
+    llm_prompts_count: int = 0
+    running_model_monitoring_functions: int = 0
+    failed_model_monitoring_functions: int = 0
+    real_time_model_endpoint_count: int = 0
+    batch_model_endpoint_count: int = 0
 
 
 class IguazioProject(pydantic.v1.BaseModel):

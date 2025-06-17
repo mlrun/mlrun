@@ -28,6 +28,7 @@ from .constants import (
     ModelEndpointCreationStrategy,
     ModelEndpointMonitoringMetricType,
     ModelEndpointSchema,
+    ModelMonitoringAppLabel,
     ModelMonitoringMode,
     MonitoringFunctionNames,
     PredictionsQueryConstants,
@@ -43,6 +44,7 @@ from .constants import (
     WriterEvent,
     WriterEventKind,
 )
+from .functions import FunctionsType, FunctionSummary
 from .grafana import (
     GrafanaColumn,
     GrafanaColumnType,

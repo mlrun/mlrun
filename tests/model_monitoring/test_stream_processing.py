@@ -47,7 +47,7 @@ def test_plot_monitoring_serving_graph(
     tsdb_profile: DatastoreProfile, stream_profile: DatastoreProfile
 ) -> None:
     project_name = "test-stream-processing"
-    project = mlrun.get_or_create_project(project_name)
+    project = mlrun.get_or_create_project(project_name, allow_cross_project=True)
 
     processor = EventStreamProcessor(project_name, 1000, 10, "mytarget")
 

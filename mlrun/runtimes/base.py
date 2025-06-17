@@ -74,7 +74,6 @@ spec_fields = [
     "pythonpath",
     "disable_auto_mount",
     "allow_empty_resources",
-    "clone_target_dir",
     "reset_on_run",
 ]
 
@@ -117,7 +116,6 @@ class FunctionSpec(ModelObj):
         default_handler=None,
         pythonpath=None,
         disable_auto_mount=False,
-        clone_target_dir=None,
     ):
         self.command = command or ""
         self.image = image or ""
@@ -134,9 +132,6 @@ class FunctionSpec(ModelObj):
         self.entry_points = entry_points or {}
         self.disable_auto_mount = disable_auto_mount
         self.allow_empty_resources = None
-        # The build.source is cloned/extracted to the specified clone_target_dir
-        # if a relative path is specified, it will be enriched with a temp dir path
-        self._clone_target_dir = clone_target_dir or None
 
     @property
     def build(self) -> ImageBuilder:
@@ -145,28 +140,6 @@ class FunctionSpec(ModelObj):
     @build.setter
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
-
-    @property
-    def clone_target_dir(self):
-        # TODO: remove this property in 1.10.0
-        if self.build.source_code_target_dir:
-            warnings.warn(
-                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.10.0. "
-                "Use spec.build.source_code_target_dir instead.",
-                FutureWarning,
-            )
-        return self.build.source_code_target_dir
-
-    @clone_target_dir.setter
-    def clone_target_dir(self, clone_target_dir):
-        # TODO: remove this property in 1.10.0
-        if clone_target_dir:
-            warnings.warn(
-                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.10.0. "
-                "Use spec.build.source_code_target_dir instead.",
-                FutureWarning,
-            )
-        self.build.source_code_target_dir = clone_target_dir
 
     def enrich_function_preemption_spec(self):
         pass

@@ -496,9 +496,7 @@ def build_image(
         user_unix_id = runtime.spec.security_context.run_as_user
         enriched_group_id = runtime.spec.security_context.run_as_group
 
-    source_code_target_dir = (
-        runtime.spec.build.source_code_target_dir or runtime.spec.clone_target_dir
-    )
+    source_code_target_dir = runtime.spec.build.source_code_target_dir
     if source_to_copy and (
         not source_code_target_dir or not os.path.isabs(source_code_target_dir)
     ):
@@ -840,7 +838,6 @@ def is_mlrun_image(base_image):
     mlrun_images = [
         "mlrun/mlrun",
         "mlrun/mlrun-gpu",
-        "mlrun/ml-base",
         "mlrun/mlrun-kfp",
     ]
     return any([image in base_image for image in mlrun_images])

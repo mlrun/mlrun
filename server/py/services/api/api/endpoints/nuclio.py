@@ -516,7 +516,7 @@ def _deploy_function(
 
         # Enrich runtime
         launcher = services.api.launcher.ServerSideLauncher(auth_info=auth_info)
-        launcher.enrich_runtime(runtime=fn, full=True)
+        launcher.enrich_runtime(runtime=fn, full=True, client_version=client_version)
 
         fn.pre_deploy_validation()
         # before saving function to DB, we need to mask some nuclio-specific fields

@@ -15,6 +15,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
+
 class AbstractClient(ABC):
     """
     Abstract Base Class for the Kubeflow Pipelines Client.

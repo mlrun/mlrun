@@ -17,6 +17,9 @@ import typing
 import mlrun_pipelines.imports
 import mlrun_pipelines.utils
 
+if typing.TYPE_CHECKING:
+    import mlrun.utils
+
 
 class Client:
     """

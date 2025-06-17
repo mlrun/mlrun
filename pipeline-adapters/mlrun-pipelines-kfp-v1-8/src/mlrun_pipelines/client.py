@@ -20,9 +20,8 @@ import re
 import tarfile
 import tempfile
 import time
-
-import zipfile
 import typing
+import zipfile
 
 import kfp_server_api
 import kubernetes as k8s
@@ -32,7 +31,6 @@ import yaml
 import mlrun_pipelines.common.client
 import mlrun_pipelines.common.models
 import mlrun_pipelines.models
-
 
 if typing.TYPE_CHECKING:
     import mlrun.utils

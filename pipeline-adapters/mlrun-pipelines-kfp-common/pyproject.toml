@@ -1,6 +1,6 @@
 [project]
 name = "mlrun-pipelines-kfp-common"
-version = "0.5.5"
+version = "0.5.6"
 description = "MLRun Pipelines adapter package for providing KFP common functionality"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -12,7 +12,7 @@ keywords = ["mlrun", "kfp"]
 urls = { homepage = "https://github.com/mlrun/mlrun" }
 dependencies = [
    # TODO remove the kfp_server_api version requirement once KFP 1.8 support is removed
-  "kfp_server_api>=1.8.5",
+  "kfp_server_api~=1.8",
   "kubernetes>=25.3"
 ]
 

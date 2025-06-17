@@ -7378,8 +7378,8 @@ class SQLDB(DBInterface):
             .filter(BackgroundTask.created < cutoff_time)
             .delete()
         )
-        db_session.commit()
         logger.info("Deleted old background tasks", count=deleted_count)
+        db_session.commit()
 
     def delete_background_task(self, session: Session, name: str, project: str):
         self._delete(session, BackgroundTask, name=name, project=project)

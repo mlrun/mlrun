@@ -203,12 +203,25 @@ class TestKFP(tests.system.base.TestMLRunSystem):
             project=self.project_name,
         )
 
-        # 3. give it a moment to start
-
-        time.sleep(30)
+        # 3. Wait for it to start
+        while True:
+            db = mlrun.get_run_db()
+            record = db.get_pipeline(run_id, project=self.project_name)
+            if record["run"].get("status") == RunStatuses.running:
+                break
+            time.sleep(1)
 
         # 4. issue a termination request
-        mlrun.terminate_pipeline(run_id, project=self.project_name)
+        terminate_task_id = mlrun.terminate_pipeline(run_id, project=self.project_name)
+
+        time.sleep(10)  # wait a bit to ensure the termination request is processed
+        duplicate_terminate_task_id = mlrun.terminate_pipeline(
+            run_id, project=self.project_name
+        )
+
+        assert (
+            terminate_task_id == duplicate_terminate_task_id
+        ), "Duplicate termination requests should return the same task ID"
 
         # 5. wait for it to finish, expecting failed status
         mlrun.wait_for_pipeline_completion(

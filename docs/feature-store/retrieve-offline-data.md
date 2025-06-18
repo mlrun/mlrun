@@ -1,6 +1,8 @@
 (retrieve-offline-data)=
 # Training with the feature store
 
+Learn how to train your model using an offline dataset created by the MLRun feature store.
+
 **In this section**
 - [Creating an offline dataset](#creating-an-offline-dataset)
 - [Training](#training)
@@ -11,7 +13,7 @@ An offline dataset is a specific instance of the {ref}`feature vector definition
 `get_offline_features(<feature_vector>, <target>)` function on the feature vector using the `store://<project_name>/<feature_vector>` 
 reference and an offline target (as in Parquet, CSV, etc.).
 
-You can add a time-based filter condition when running `get_offline_feature` with a given vector. You can also filter with the query argument on all the other features as you like. See {py:meth}`~mlrun.feature_store.get_offline_features`.
+You can add a time-based filter condition when running `get_offline_features` with a given vector. You can also filter with the query argument on all the other features as you like. See {py:meth}`~mlrun.feature_store.get_offline_features`.
 
 <br><img src="../_static/images/mlrun-feature-vector-ui.png" alt="feature-store-vector-ui" width="800"/><br>
 
@@ -31,7 +33,7 @@ Once instantiated with a target, the feature vector holds a reference to the ins
 
 You can also use MLRun's {py:meth}`~mlrun.projects.MlrunProject.log_dataset` to log the specific dataset to the project as a specific dataset resource.
 
-You can use the additional_filters attribute while reading from ParquetTarget, similar to additional_filters in [ParquetSource](sources-targets.md#parquet-source).
+You can use the `additional_filters` attribute while reading from a [ParquetTarget](sources-targets.md#parquet-target), similar to `additional_filters` in [ParquetSource](sources-targets.md#parquet-source).
 ## Training
 
 Training your model using the feature store is a fairly simple task. (The offline dataset can also be used for your EDA.)

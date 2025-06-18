@@ -1,7 +1,7 @@
 (local-remote)=
 # Local vs. remote workflows
 
-To run multiple functions, one after the other, or in parallel, such as: `jobs`, `serving` and `nuclio`, you can use a kfp pipeline. There are three types of pipeline engines:
+To run multiple functions, one after the other, or in parallel, such as: `jobs`, `serving` and `nuclio`, you can use a KFP pipeline. There are three types of pipeline engines:
 - [Remote on KFP](#remote-kfp)
 - [KFP](#kfp)
 - Local &mdash; Used to simulate a pipeline run without using KFP - it triggers the jobs directly, mainly for testing. Use (set `local=True in function.run()` to run the functions locally or `project.run(local=True)` to apply for all functions).
@@ -9,6 +9,10 @@ To run multiple functions, one after the other, or in parallel, such as: `jobs`,
 <img src="../_static/images/pipelines-flow.png" width="800" >
 
 All three types are configured by the `engine` flag, when running the workflow, see {py:class}`mlrun.projects.MlrunProject.run`.
+
+**In this section**
+- [Remote on KFP](#remote-kfp)
+- [KFP](#kfp)
  
 ## Remote-KFP 
 Remote workflows are used for [scheduled workflows](./scheduled-jobs.md#scheduling-a-workflow).  

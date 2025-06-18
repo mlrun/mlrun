@@ -1,7 +1,7 @@
 (alerts)=
 # Alerts 
 
-Alerts are a mechanism for informing you about possible problem situations. 
+Alerts are a generic mechanism that allows you to define specific rules using events, such as: an event happens N times within a specified time period. They can also be used for model monitoring where the basic notification is just for jobs and workflows.
 
 **In this section**
 - [System configuration](#system-configuration)
@@ -13,6 +13,9 @@ Alerts are a mechanism for informing you about possible problem situations.
 - [Alert reset policy](#alert-reset-policy)
 - [Alert templates](#alert-templates)
 - [Creating an alert with a template](#creating-an-alert-with-a-template)
+
+See also:
+- {ref}`alert_activations`: When an alert is activated by its configured trigger, MLRun saves the activation records that you can list, filter, etc. 
 
 ## System configuration 
 These variables control the basic alert behavior: 
@@ -200,10 +203,3 @@ alert_from_template.with_notifications(notifications=notifications)
 project.store_alert_config(alert_from_template)
 ```
 
-## Alert activations
-
-When an existing [alert](./alerts.md) is activated by its configured trigger, MLRun saves the activation record.
-There is a way to get all activations of alerts - see [alert activations tutorial](./alert_activations.ipynb)
-
-Alert activation records are stored in a partitioned table. The table is partitioned weekly and supports retention.
-The default retention period is 14 weeks, but it can be adjusted by setting `object_retentions.alert_activations` in the MLRun configuration. The value should be specified in days.

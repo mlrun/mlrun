@@ -14,7 +14,7 @@
 
 from typing import Any, Optional, Union
 
-from tensorflow import keras
+import tensorflow as tf
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -27,11 +27,11 @@ from .utils import TFKerasTypes, TFKerasUtils
 
 
 def apply_mlrun(
-    model: keras.Model = None,
+    model: tf.keras.Model = None,
     model_name: Optional[str] = None,
     tag: str = "",
     model_path: Optional[str] = None,
-    model_format: str = TFKerasModelHandler.ModelFormats.SAVED_MODEL,
+    model_format: Optional[str] = None,
     save_traces: bool = False,
     modules_map: Optional[Union[dict[str, Union[None, str, list[str]]], str]] = None,
     custom_objects_map: Optional[Union[dict[str, Union[str, list[str]]], str]] = None,
@@ -54,7 +54,7 @@ def apply_mlrun(
     :param model_path:                  The model's store object path. Mandatory for evaluation (to know which model to
                                         update). If model is not provided, it will be loaded from this path.
     :param model_format:                The format to use for saving and loading the model. Should be passed as a
-                                        member of the class 'ModelFormats'. Default: 'ModelFormats.SAVED_MODEL'.
+                                        member of the class 'ModelFormats'.
     :param save_traces:                 Whether or not to use functions saving (only available for the 'SavedModel'
                                         format) for loading the model later without the custom objects dictionary. Only
                                         from tensorflow version >= 2.4.0. Using this setting will increase the model

@@ -1,5 +1,7 @@
 (use-cases-serving)=
-# Use cases
+# Serving graph use cases
+
+Learn how serving graphs can simplify complex workflows as illustrated in these use cases.
 
 <!-- ## Data preparation, ## Model serving -->
 
@@ -12,7 +14,7 @@
 In addition to the examples in this section, see the:
 - [Distributed (multi-function) pipeline example](./distributed-graph.ipynb) that details how to run a pipeline that consists of multiple serverless functions (connected using streams).
 - [Advanced model serving graph notebook example](./graph-example.ipynb) that illustrates the flow, task, model, and ensemble router states; building tasks from custom handlers; classes and storey components; using custom error handlers; testing graphs locally; deploying a graph as a real-time serverless function.
-- [MLRun demos repository](https://github.com/mlrun/demos) for additional use cases and full end-to-end examples, including fraud prevention using the Iguazio feature store, a mask detection demo, and converting existing ML code to an MLRun project.
+- {ref}`MLRun demos <demos>` for additional use cases and full end-to-end examples, including GenAI serving.
 
 ## Data and feature engineering (using the feature store)
 
@@ -155,7 +157,7 @@ If you test a Nuclio function that has a serving graph with the async engine via
 In some cases it's useful to split your processing to multiple functions and use 
 streaming protocols to connect those functions. In this example the data 
 processing is in the first function/container and the NLP processing is in the second function. 
-In this example the GPU contained in the second function.
+In this example the GPU is contained in the second function.
 
 See the [full notebook example](./distributed-graph.ipynb).
 
@@ -194,4 +196,4 @@ child.spec.build.commands = [
 graph.plot()
 ```
 
-Currently queues support iguazio v3io and Kafka streams.
+Currently queues support Iguazio V3IO and Kafka streams.

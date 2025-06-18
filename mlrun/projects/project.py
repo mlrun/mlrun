@@ -4269,11 +4269,17 @@ class MlrunProject(ModelObj):
         function = mlrun.new_function("mlrun--project--image--builder", kind="job")
 
         if self.spec.source and not self.spec.load_source_on_run:
-            function.with_source_archive(
-                source=self.spec.source,
-                target_dir=target_dir,
-                pull_at_runtime=False,
-            )
+            if self.spec.source.startswith("db://"):
+                logger.debug(
+                    "Project source is 'db://', which refers to metadata stored in the MLRun DB."
+                    " Skipping source archive setup for image build"
+                )
+            else:
+                function.with_source_archive(
+                    source=self.spec.source,
+                    target_dir=target_dir,
+                    pull_at_runtime=False,
+                )
 
         build = self.spec.build
         result = self.build_function(

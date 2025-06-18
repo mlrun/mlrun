@@ -642,7 +642,9 @@ def test_feature_set_wrong_kind_failure(db: Session, client: TestClient) -> None
     assert response.status_code != HTTPStatus.OK.value
 
 
-def test_entities_list(db: Session, client: TestClient) -> None:
+def test_entities_list(
+    db: Session, client: TestClient, unversioned_client: TestClient
+) -> None:
     project_name = f"prj-{uuid4().hex}"
     services.api.tests.unit.api.utils.create_project(client, project_name)
 
@@ -660,14 +662,30 @@ def test_entities_list(db: Session, client: TestClient) -> None:
         ]
 
         _feature_set_create_and_assert(client, project_name, feature_set)
-    _list_and_assert_objects(client, "entities", project_name, "name=entity_0", 1)
-    _list_and_assert_objects(client, "entities", project_name, "name=~entity", count)
-    _list_and_assert_objects(client, "entities", project_name, "label=color", count)
     _list_and_assert_objects(
-        client, "entities", project_name, f"label=color={colors[1]}", count // 2
+        unversioned_client, "entities", project_name, "name=entity_0", 1, "v2"
     )
     _list_and_assert_objects(
-        client, "entities", project_name, "name=~entity&label=id=id_0", 1
+        unversioned_client, "entities", project_name, "name=~entity", count, "v2"
+    )
+    _list_and_assert_objects(
+        unversioned_client, "entities", project_name, "label=color", count, "v2"
+    )
+    _list_and_assert_objects(
+        unversioned_client,
+        "entities",
+        project_name,
+        f"label=color={colors[1]}",
+        count // 2,
+        "v2",
+    )
+    _list_and_assert_objects(
+        unversioned_client,
+        "entities",
+        project_name,
+        "name=~entity&label=id=id_0",
+        1,
+        "v2",
     )
 
     # set a new tag
@@ -678,15 +696,10 @@ def test_entities_list(db: Session, client: TestClient) -> None:
     )
     # Now expecting to get 2 objects, one with "latest" tag and one with "my-new-tag"
     entities_response = _list_and_assert_objects(
-        client, "entities", project_name, f"name=entity_{idx}", 2
+        unversioned_client, "entities", project_name, f"name=entity_{idx}", 2, "v2"
     )
-    assert (
-        entities_response["entities"][0]["feature_set_digest"]["metadata"]["tag"]
-        == "latest"
-    )
-    assert (
-        entities_response["entities"][1]["feature_set_digest"]["metadata"]["tag"] == tag
-    )
+    assert entities_response["feature_set_digests"][0]["metadata"]["tag"] == "latest"
+    assert entities_response["feature_set_digests"][1]["metadata"]["tag"] == tag
 
 
 def test_features_list(db: Session, client: TestClient) -> None:

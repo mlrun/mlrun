@@ -641,22 +641,6 @@ class SQLRunDB(RunDBInterface):
             labels,
         )
 
-    def list_entities(
-        self,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[list[str]] = None,
-    ):
-        return self._transform_db_error(
-            services.api.crud.FeatureStore().list_entities,
-            self.session,
-            project,
-            name,
-            tag,
-            labels,
-        )
-
     def list_entities_v2(
         self,
         project: str,

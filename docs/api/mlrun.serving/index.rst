@@ -22,3 +22,7 @@ mlrun.serving
 
 .. autoclass:: mlrun.serving.utils.StepToDict
    :members:
+
+.. autoclass:: mlrun.serving.states.MonitoredStep
+   :members:
+   :private-members: _calculate_monitoring_data

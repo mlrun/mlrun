@@ -1,6 +1,8 @@
 (submitting-tasks-jobs-to-functions)=
 #  Running a task (job)
 
+Learn how to submit a job using `run_function`, and use the `RunObject` to track the job and its results.
+
 **In this section**
 - [Submit tasks (jobs) using run_function](#submit-tasks-jobs-using-run_function)
 - [Run result object and UI](#run-result-object-and-ui)

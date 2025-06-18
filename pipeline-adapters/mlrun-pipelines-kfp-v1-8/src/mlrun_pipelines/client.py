@@ -15,14 +15,13 @@
 
 import copy
 import datetime
-import logging
 import os
 import re
 import tarfile
 import tempfile
 import time
+import typing
 import zipfile
-from typing import Any, Optional
 
 import kfp_server_api
 import kubernetes as k8s
@@ -32,6 +31,9 @@ import yaml
 import mlrun_pipelines.common.client
 import mlrun_pipelines.common.models
 import mlrun_pipelines.models
+
+if typing.TYPE_CHECKING:
+    import mlrun.utils
 
 IN_CLUSTER_DNS_NAME = "ml-pipeline.{}.svc.cluster.local:8888"
 KUBE_PROXY_PATH = "api/v1/namespaces/{}/services/ml-pipeline:http/proxy/"
@@ -47,7 +49,7 @@ INPUT_NAME_REGEX = re.compile(r"[^_0-9a-z]+")
 class ServiceAccountTokenVolumeCredentials:
     def __init__(
         self,
-        path: Optional[str] = None,
+        path: typing.Optional[str] = None,
     ):
         self._token_path: str = (
             path or os.getenv(KF_PIPELINES_SA_TOKEN_ENV) or KF_PIPELINES_SA_TOKEN_PATH
@@ -55,7 +57,7 @@ class ServiceAccountTokenVolumeCredentials:
 
     def _read_token_from_file(
         self,
-    ) -> Optional[str]:
+    ) -> typing.Optional[str]:
         """
         Retrieve the token from the configured file path.
 
@@ -110,9 +112,11 @@ class Client(
 ):
     def __init__(
         self,
-        host: Optional[str] = None,
+        logger: "mlrun.utils.logger.Logger",
+        host: typing.Optional[str] = None,
         namespace: str = "mlrun",
     ):
+        self.logger = logger
         self._config: kfp_server_api.configuration.Configuration = self._load_config(
             host=host,
             namespace=namespace,
@@ -143,8 +147,8 @@ class Client(
             api_client=self._api_client,
         )
 
-    @staticmethod
     def _get_config_with_default_credentials(
+        self,
         config: kfp_server_api.configuration.Configuration,
     ) -> kfp_server_api.configuration.Configuration:
         """
@@ -161,7 +165,7 @@ class Client(
         try:
             credentials.refresh_api_key_hook(config_copy)
         except Exception:
-            logging.warning(
+            self.logger.warning(
                 "Failed to set up credentials. Proceeding without credentials..."
             )
             return config
@@ -172,7 +176,7 @@ class Client(
 
     def _load_config(
         self,
-        host: Optional[str],
+        host: typing.Optional[str],
         namespace: str,
     ) -> kfp_server_api.configuration.Configuration:
         """
@@ -202,7 +206,7 @@ class Client(
                 client_configuration=config,
             )
         except Exception:
-            logging.info("Failed to load kube config.")
+            self.logger.info("Failed to load kube config.")
             return config
 
         if config.host:
@@ -213,7 +217,7 @@ class Client(
         self,
         max_attempts: int = 5,
         interval_seconds: int = 5,
-    ) -> Optional[kfp_server_api.ApiGetHealthzResponse]:
+    ) -> typing.Optional[kfp_server_api.ApiGetHealthzResponse]:
         """
         Retrieve the healthz status of the KFP API.
 
@@ -228,10 +232,10 @@ class Client(
             try:
                 return self._healthz_api.get_healthz()
             except kfp_server_api.ApiException:
-                logging.exception(
-                    "Failed to retrieve KFP healthz info on attempt %d of %d.",
-                    attempt,
-                    max_attempts,
+                self.logger.exception(
+                    "Failed to retrieve KFP healthz info",
+                    attemp=attempt,
+                    max_attempts=max_attempts,
                 )
                 time.sleep(interval_seconds)
         raise TimeoutError(
@@ -241,8 +245,8 @@ class Client(
     def create_experiment(
         self,
         name: str,
-        description: Optional[str] = None,
-        namespace: Optional[str] = None,
+        description: typing.Optional[str] = None,
+        namespace: typing.Optional[str] = None,
     ) -> kfp_server_api.ApiExperiment:
         """
         Create a new experiment if it does not already exist.
@@ -256,7 +260,7 @@ class Client(
         :return: An ApiExperiment object representing the experiment.
         :raises ValueError:  If multiple experiments with the same name are found.
         """
-        experiment: Optional[kfp_server_api.ApiExperiment] = None
+        experiment: typing.Optional[kfp_server_api.ApiExperiment] = None
         try:
             experiment = self.get_experiment(
                 experiment_name=name,
@@ -267,7 +271,7 @@ class Client(
                 raise error
 
         if not experiment:
-            logging.info("Creating experiment '%s'.", name)
+            self.logger.info("Creating experiment.", experiment_name=name)
             resource_references: list[kfp_server_api.models.ApiResourceReference] = []
             if namespace:
                 key = kfp_server_api.models.ApiResourceKey(
@@ -292,9 +296,9 @@ class Client(
 
     def get_experiment(
         self,
-        experiment_id: Optional[str] = None,
-        experiment_name: Optional[str] = None,
-        namespace: Optional[str] = None,
+        experiment_id: typing.Optional[str] = None,
+        experiment_name: typing.Optional[str] = None,
+        namespace: typing.Optional[str] = None,
     ) -> kfp_server_api.ApiExperiment:
         """
         Retrieve an experiment by ID or name.
@@ -348,13 +352,13 @@ class Client(
         self,
         experiment_id: str,
         job_name: str,
-        pipeline_package_path: Optional[str] = None,
-        params: Optional[dict[str, Any]] = None,
-        pipeline_id: Optional[str] = None,
-        version_id: Optional[str] = None,
-        pipeline_root: Optional[str] = None,
-        enable_caching: Optional[bool] = None,
-        service_account: Optional[str] = None,
+        pipeline_package_path: typing.Optional[str] = None,
+        params: typing.Optional[dict[str, typing.Any]] = None,
+        pipeline_id: typing.Optional[str] = None,
+        version_id: typing.Optional[str] = None,
+        pipeline_root: typing.Optional[str] = None,
+        enable_caching: typing.Optional[bool] = None,
+        service_account: typing.Optional[str] = None,
     ) -> kfp_server_api.ApiRun:
         """
         Run a pipeline within a specified experiment.
@@ -401,9 +405,9 @@ class Client(
         page_token: str = "",
         page_size: int = 10,
         sort_by: str = "",
-        experiment_id: Optional[str] = None,
-        namespace: Optional[str] = None,
-        filter: Optional[str] = None,
+        experiment_id: typing.Optional[str] = None,
+        namespace: typing.Optional[str] = None,
+        filter: typing.Optional[str] = None,
     ) -> kfp_server_api.ApiListRunsResponse:
         """
         List pipeline runs with optional filters.
@@ -460,7 +464,7 @@ class Client(
         :param run_id: The unique ID of the run to retrieve.
         :return: An ApiRun object with the run details.
         """
-        logging.info("Getting run details for run ID: %s", run_id)
+        self.logger.info("Getting details for run", run_id=run_id)
         return self._run_api.get_run(
             run_id=run_id,
         )
@@ -487,7 +491,7 @@ class Client(
         start_time: datetime.datetime = datetime.datetime.now()
         if isinstance(timeout, datetime.timedelta):
             timeout = int(timeout.total_seconds())
-        get_run_response: Optional[kfp_server_api.ApiRun] = None
+        get_run_response: typing.Optional[kfp_server_api.ApiRun] = None
 
         while status not in mlrun_pipelines.common.models.RunStatuses.stable_statuses():
             try:
@@ -498,7 +502,7 @@ class Client(
                 raise api_ex
             status = get_run_response.run.status
             elapsed_time: float = (datetime.datetime.now() - start_time).total_seconds()
-            logging.info("Waiting for the job to complete (status: %s)...", status)
+            self.logger.info("Waiting for the job to complete...", status=status)
             if elapsed_time > timeout:
                 raise TimeoutError(
                     f"Run {run_id} did not complete within {timeout} seconds."
@@ -510,8 +514,8 @@ class Client(
     def upload_pipeline(
         self,
         pipeline_package_path: str,
-        pipeline_name: Optional[str] = None,
-        description: Optional[str] = None,
+        pipeline_name: typing.Optional[str] = None,
+        description: typing.Optional[str] = None,
     ) -> kfp_server_api.ApiPipeline:
         """
         Upload a pipeline package file to Kubeflow Pipelines.
@@ -558,7 +562,7 @@ class Client(
         self,
         run_id: str,
         project: str,
-    ) -> Optional[str]:
+    ) -> typing.Optional[str]:
         """
         Retry a previous run by ID, or create a new run with the same pipeline and parameters.
 
@@ -573,7 +577,7 @@ class Client(
         :raises kfp_server_api.ApiException: If the creation of the new run fails.
         """
         existing_run_details = self.get_run(run_id).run
-        experiment_id: Optional[str] = next(
+        experiment_id: typing.Optional[str] = next(
             (
                 ref.key.id
                 for ref in existing_run_details.resource_references
@@ -592,7 +596,7 @@ class Client(
             )
 
         # Extract workflow manifest, if no pipeline_id is available
-        workflow_manifest_path: Optional[str] = None
+        workflow_manifest_path: typing.Optional[str] = None
         if not pipeline_spec.pipeline_id:
             with tempfile.NamedTemporaryFile(
                 mode="w",
@@ -630,24 +634,47 @@ class Client(
             )
             return new_run.id
         except kfp_server_api.OpenApiException as error:
-            logging.error(
-                "Could not trigger new run for run %s, error: %s",
-                run_id,
-                error,
+            self.logger.error(
+                "Could not trigger new run",
+                run_id=run_id,
+                error=error,
             )
             raise error
         finally:
             if workflow_manifest_path and os.path.exists(workflow_manifest_path):
                 os.remove(workflow_manifest_path)
 
+    def terminate_run(
+        self,
+        run_id: str,
+    ) -> None:
+        """
+        Terminate a run by ID.
+
+        :param run_id:  The ID of the run to terminate.
+        :raises kfp_server_api.ApiException: If the termination of the run fails.
+        """
+
+        try:
+            self._run_api.terminate_run(
+                run_id=run_id,
+            )
+        except kfp_server_api.OpenApiException as error:
+            self.logger.error(
+                "Could not terminate run",
+                run_id=run_id,
+                error=error,
+            )
+            raise error
+
     def _create_job_config(
         self,
         experiment_id: str,
-        params: Optional[dict[str, Any]],
-        pipeline_package_path: Optional[str],
-        pipeline_id: Optional[str],
-        version_id: Optional[str],
-        enable_caching: Optional[bool],
+        params: typing.Optional[dict[str, typing.Any]],
+        pipeline_package_path: typing.Optional[str],
+        pipeline_id: typing.Optional[str],
+        version_id: typing.Optional[str],
+        enable_caching: typing.Optional[bool],
     ) -> JobConfig:
         """
         Create a JobConfig object holding the pipeline spec and resource references.
@@ -664,7 +691,7 @@ class Client(
         :return: A fully configured JobConfig instance.
         """
         params = params or {}
-        pipeline_json_string: Optional[str] = None
+        pipeline_json_string: typing.Optional[str] = None
 
         if pipeline_package_path:
             pipeline_obj = self._parse_pipeline_obj(
@@ -724,7 +751,7 @@ class Client(
     @staticmethod
     def _parse_pipeline_obj(
         package_file: str,
-    ) -> Any:
+    ) -> typing.Any:
         """
         Extract the pipeline YAML from a package file.
 
@@ -780,7 +807,7 @@ class Client(
 
     @staticmethod
     def _override_caching_options(
-        workflow: dict[str, Any],
+        workflow: dict[str, typing.Any],
         enable_caching: bool,
     ) -> None:
         """

@@ -36,6 +36,7 @@ import mlrun.utils
 import mlrun.utils.singleton
 import mlrun_pipelines.client
 import mlrun_pipelines.utils
+from mlrun.utils import logger
 
 import framework.utils.clients.iguazio
 import framework.utils.projects.remotes.leader
@@ -149,7 +150,9 @@ def kfp_client_mock(monkeypatch):
         mock.Mock(return_value=mock_run_api),
     )
     monkeypatch.setattr("kubernetes.config.load_incluster_config", lambda: None)
-    kfp_client = mlrun_pipelines.client.Client()
+    kfp_client = mlrun_pipelines.client.Client(
+        logger=logger,
+    )
     mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
     monkeypatch.setattr(
         mlrun_pipelines.utils, "get_client", lambda *args, **get_client: kfp_client

@@ -1247,7 +1247,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             json.dumps({"inputs": [data_point, data_point]}),
         )
         time.sleep(
-            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 10
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 20
         )
 
         offline_response_df = ParquetTarget(

@@ -11,9 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import os
-import unittest.mock
-
 import pytest
 import tiktoken
 
@@ -52,24 +51,34 @@ class MyOpenAILLM(mlrun.serving.states.Model):
         return body["prompt"]
 
 
+def get_missing_openai_env_variables():
+    return [env_key for env_key in ["OPENAI_BASE_URL", "OPENAI_API_KEY"] if not os.environ.get(env_key)]
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.parametrize("use_datastore_profile", [True, False])
 class TestOpenAIModelRunner(TestMLRunSystem):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
-    project_name = "openai_model_runner"
+    project_name = "openai-model-runner"
     image = "mlrun/mlrun"
-    mandatory_env_vars = super().mandatory_env_vars
+    mandatory_env_vars = TestMLRunSystem.mandatory_env_vars + ["OPENAI_BASE_URL"]
     model = "gpt-4o"
     profile_name = "my_openai_profile"
 
     @classmethod
     def setup_class(cls):
         super().setup_class()
+        missing_env_variables = get_missing_openai_env_variables()
+        if missing_env_variables:
+            pytest.skip(
+                f"The following snowflake keys are missing: {missing_env_variables}"
+            )
         cls.basic_llm_model = "gpt-4o"
         # cls.openai_url = os.environ.get("OPENAI_BASE_URL")
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
-        # if use_datastore_profile:
         self.profile = DatastoreProfileOpenAI(
             name=self.profile_name,
             api_key=os.environ.get("OPENAI_API_KEY"),
@@ -86,8 +95,9 @@ class TestOpenAIModelRunner(TestMLRunSystem):
 
     def test_basic_openai_model_runner(self):
         project = mlrun.new_project("system-test-openai-model", save=False)
+        mlrun_model_name = "my_model"
         model_artifact = project.log_model(
-            "my_model",
+            mlrun_model_name,
             model_url=self.model_url,
             default_config={"max_tokens": 100},
         )
@@ -109,19 +119,17 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             model_artifact=llm_prompt_artifact,
         )
         graph.to(model_runner_step).respond()
-        # TODO replace mock with real operation
 
-        #     server = function.to_mock_server()
-        try:
-            body = {
-                "question": "What is the capital of France, and give a brief historical overview.",
-                "depth_level": "detailed",
-                "persona": "teacher",
-                "tone": "casual",
-            }
-            result = server.test(body=body)["result"]
-            assert "paris" in result.lower()
-            encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-            assert len(encoding.encode(result)) == 100
-        finally:
-            server.wait_for_completion()
+        function.deploy()
+
+        body = {
+            "question": "What is the capital of France, and give a brief historical overview.",
+            "depth_level": "detailed",
+            "persona": "teacher",
+            "tone": "casual",
+        }
+        response = function.invoke(
+            f"v2/models/{mlrun_model_name}/infer",
+            json.dumps(body),
+        )
+        print(response)

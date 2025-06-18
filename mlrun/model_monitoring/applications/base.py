@@ -166,13 +166,29 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         return result
 
     @staticmethod
+    def _check_writer_is_up(project: "mlrun.MlrunProject") -> None:
+        try:
+            project.get_function(
+                mm_constants.MonitoringFunctionNames.WRITER, ignore_cache=True
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            raise mlrun.errors.MLRunValueError(
+                "The model monitoring infrastructure was disabled - cannot write outputs to the databases.\n"
+                "To allow `write_output=True`, re-enable model monitoring with `project.enable_model_monitoring()`."
+            )
+
+    @classmethod
     @contextmanager
     def _push_to_writer(
+        cls,
         *,
         write_output: bool,
         stream_profile: Optional[ds_profile.DatastoreProfile],
+        project: "mlrun.MlrunProject",
     ) -> Iterator[dict[str, list[tuple]]]:
         endpoints_output: dict[str, list[tuple]] = defaultdict(list)
+        if write_output:
+            cls._check_writer_is_up(project)
         try:
             yield endpoints_output
         finally:
@@ -239,7 +255,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         )
 
         with self._push_to_writer(
-            write_output=write_output, stream_profile=stream_profile
+            write_output=write_output, stream_profile=stream_profile, project=project
         ) as endpoints_output:
 
             def call_do_tracking(event: Optional[dict] = None):

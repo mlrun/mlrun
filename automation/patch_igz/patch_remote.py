@@ -45,7 +45,6 @@ class Constants:
     mlrun_kfp = "mlrun-kfp"
     log_collector = "log-collector"
     default_namespace = "default-tenant"
-    workflow_controller = "workflow-controller"
     alerts = "mlrun-alerts"
     targets_to_image_name = {
         api: api_container,

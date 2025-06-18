@@ -3,15 +3,7 @@
 
 (quick-start-tutorial)=
 
-````{card} Make sure you start with the Quick start tutorial to understand the basics
-```{button-link} ./01-mlrun-basics.ipynb
-:color: primary
-:shadow:
-:expand:
-:click-parent:
-Introduction to MLRun - Use serverless functions to train and deploy models
-```
-````
+Each of these  MLRun tutorials is a dedicated Jupyter notebook, illustrating different capabilities of MLRun. You can download them by clicking the download icon <img src="../_static/images/icon-download.png"> at the top of each page.
 
 ```{toctree}
 :maxdepth: 1
@@ -27,8 +19,15 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 mlflow
 ```
 
-
-Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the download icon <img src="../_static/images/icon-download.png"> at the top of each page.
+````{card} Make sure you start with the Quick start tutorial to understand the basics
+```{button-link} ./01-mlrun-basics.ipynb
+:color: primary
+:shadow:
+:expand:
+:click-parent:
+Introduction to MLRun - Use serverless functions to train and deploy models
+```
+````
 
 - {ref}`quick-start-ml`
 - {ref}`model-training-tutorial`

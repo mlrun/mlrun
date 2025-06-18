@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
 import json
 import os
 import warnings
@@ -482,6 +481,7 @@ class ServingRuntime(RemoteRuntime):
                 state = TaskStep(
                     class_name,
                     class_args,
+                    name=key,
                     handler=handler,
                     function=child_function,
                     model_endpoint_creation_strategy=creation_strategy,
@@ -751,13 +751,10 @@ class ServingRuntime(RemoteRuntime):
             set_paths(workdir)
             os.chdir(workdir)
 
-        system_graph = None
-        if isinstance(self.spec.graph, RootFlowStep):
-            system_graph = add_system_steps_to_graph(copy.deepcopy(self.spec.graph))
         server = create_graph_server(
             parameters=self.spec.parameters,
             load_mode=self.spec.load_mode,
-            graph=system_graph or self.spec.graph,
+            graph=self.spec.graph,
             verbose=self.verbose,
             current_function=current_function,
             graph_initializer=self.spec.graph_initializer,
@@ -777,6 +774,18 @@ class ServingRuntime(RemoteRuntime):
             is_mock=True,
             monitoring_mock=self.spec.track_models,
         )
+
+        if (
+            isinstance(self.spec.graph, RootFlowStep)
+            and self.spec.graph.include_monitored_step()
+        ):
+            server.graph = add_system_steps_to_graph(
+                server.project,
+                server.graph,
+                self.spec.track_models,
+                server.context,
+                self.spec,
+            )
 
         if workdir:
             os.chdir(old_workdir)

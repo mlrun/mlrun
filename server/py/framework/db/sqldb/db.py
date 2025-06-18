@@ -41,6 +41,7 @@ from sqlalchemy import (
     or_,
     select,
     text,
+    tuple_,
 )
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
@@ -64,7 +65,11 @@ from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
     FeatureSetDigestSpecV2,
 )
-from mlrun.common.schemas.model_monitoring import EndpointType, ModelEndpointSchema
+from mlrun.common.schemas.model_monitoring import (
+    EndpointType,
+    ModelEndpointSchema,
+    ModelMonitoringAppLabel,
+)
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, RunList
@@ -107,6 +112,7 @@ from framework.db.sqldb.models import (
     Artifact,
     ArtifactV2,
     BackgroundTask,
+    BackgroundTaskLabel,
     Base,
     DatastoreProfile,
     DataVersion,
@@ -3693,6 +3699,10 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
@@ -3716,6 +3726,14 @@ class SQLDB(DBInterface):
                 self._calculate_alert_activations_counters,
                 projects_with_creation_time,
             ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_mm_functions_counters,
+            ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_mep_counters,
+            ),
         )
         (
             category_to_project_artifact_count,
@@ -3734,6 +3752,14 @@ class SQLDB(DBInterface):
                 project_to_endpoint_alerts_count,
                 project_to_job_alerts_count,
                 project_to_other_alerts_count,
+            ),
+            (
+                project_to_running_mm_functions,
+                project_to_failed_mm_functions_count,
+            ),
+            (
+                project_to_real_time_mep_count,
+                project_to_batch_mep_count,
             ),
         ) = results
         # TODO: counters by artifact categories should be expanded to include all categories (currently only models
@@ -3769,6 +3795,10 @@ class SQLDB(DBInterface):
                 mlrun.common.schemas.ArtifactCategories.llm_prompt,
                 collections.defaultdict(lambda: 0),
             ),
+            project_to_running_mm_functions,
+            project_to_failed_mm_functions_count,
+            project_to_real_time_mep_count,
+            project_to_batch_mep_count,
         )
 
     @staticmethod
@@ -3862,6 +3892,48 @@ class SQLDB(DBInterface):
             result[0]: result[1] for result in feature_sets_count_per_project
         }
         return project_to_feature_set_count
+
+    def _calculate_mm_functions_counters(
+        self, session
+    ) -> tuple[dict[str, int], dict[str, int]]:
+        labels = [f"{ModelMonitoringAppLabel.KEY}={ModelMonitoringAppLabel.VAL}"]
+        query = session.query(Function.project, Function, Function.Tag.name)
+        query = query.join(
+            Function.Tag, Function.id == Function.Tag.obj_id
+        )  # filter duplications
+        labels = label_set(labels)
+        query = self._add_labels_filter(session, query, Function, labels)
+
+        project_to_failed_mm_functions_count = {}
+        project_to_running_mm_functions_count = {}
+        for project, function, name in query.all():
+            project_to_running_mm_functions_count.setdefault(project, 0)
+            project_to_failed_mm_functions_count.setdefault(project, 0)
+            if function.state == mlrun.common.schemas.FunctionState.ready:
+                project_to_running_mm_functions_count[project] += 1
+            if function.state == mlrun.common.schemas.FunctionState.error:
+                project_to_failed_mm_functions_count[project] += 1
+
+        return (
+            project_to_running_mm_functions_count,
+            project_to_failed_mm_functions_count,
+        )
+
+    @staticmethod
+    def _calculate_mep_counters(session) -> tuple[dict[str, int], dict[str, int]]:
+        query = session.query(ModelEndpoint.project, ModelEndpoint.endpoint_type)
+
+        project_to_real_time_mep_count = {}
+        project_to_batch_mep_count = {}
+        for project, endpoint_type in query.all():
+            project_to_real_time_mep_count.setdefault(project, 0)
+            project_to_batch_mep_count.setdefault(project, 0)
+            if endpoint_type == EndpointType.BATCH_EP:
+                project_to_batch_mep_count[project] += 1
+            else:
+                project_to_real_time_mep_count[project] += 1
+
+        return project_to_real_time_mep_count, project_to_batch_mep_count
 
     @staticmethod
     def _calculate_artifact_counters_by_category(
@@ -7223,6 +7295,7 @@ class SQLDB(DBInterface):
         state: str = mlrun.common.schemas.BackgroundTaskState.running,
         timeout: typing.Optional[int] = None,
         error: typing.Optional[str] = None,
+        labels: Optional[dict[str, str]] = None,
     ):
         error = framework.db.sqldb.helpers.ensure_max_length(error)
         background_task_record = self._query(
@@ -7232,6 +7305,7 @@ class SQLDB(DBInterface):
             project=project,
         ).one_or_none()
         now = mlrun.utils.now_date()
+        task_labels = []
         if background_task_record:
             # we don't want to be able to change state after it reached terminal state
             if (
@@ -7261,7 +7335,20 @@ class SQLDB(DBInterface):
                 timeout=int(timeout) if timeout else None,
                 error=error,
             )
-        self._upsert(session, [background_task_record])
+            session.add(background_task_record)
+            if labels is not None:
+                for label_name, label_value in labels.items():
+                    task_labels.append(
+                        BackgroundTaskLabel(
+                            name=label_name,
+                            value=label_value,
+                            task=background_task_record,
+                        )
+                    )
+        objects = [background_task_record]
+        if task_labels:
+            objects.extend(task_labels)
+        self._upsert(session, objects)
 
     def get_background_task(
         self,
@@ -7280,6 +7367,33 @@ class SQLDB(DBInterface):
         )
 
         return self._transform_background_task_record_to_schema(background_task_record)
+
+    def get_background_task_by_state_and_labels(
+        self,
+        session: Session,
+        status: mlrun.common.schemas.BackgroundTaskState,
+        labels: dict[str, str],
+    ) -> Optional[mlrun.common.schemas.BackgroundTask]:
+        if not labels:
+            raise mlrun.errors.MLRunInvalidArgumentError("Labels must not be empty")
+
+        query = (
+            session.query(BackgroundTask)
+            .filter(BackgroundTask.state == status)
+            .join(BackgroundTaskLabel)
+            .filter(
+                tuple_(BackgroundTaskLabel.name, BackgroundTaskLabel.value).in_(
+                    labels.items()
+                )
+            )
+            .group_by(BackgroundTask.id)
+            .having(func.count() == len(labels))
+        )
+
+        background_task = query.one_or_none()
+        if background_task is None:
+            return None
+        return self._transform_background_task_record_to_schema(background_task)
 
     def list_background_tasks(
         self,
@@ -7323,6 +7437,20 @@ class SQLDB(DBInterface):
 
         return background_tasks
 
+    def cleanup_old_background_tasks(
+        self,
+        db_session: Session,
+        max_age_seconds: int,
+    ) -> None:
+        cutoff_time = mlrun.utils.now_date() - timedelta(seconds=max_age_seconds)
+        deleted_count = (
+            db_session.query(BackgroundTask)
+            .filter(BackgroundTask.created < cutoff_time)
+            .delete()
+        )
+        logger.info("Deleted old background tasks", count=deleted_count)
+        db_session.commit()
+
     def delete_background_task(self, session: Session, name: str, project: str):
         self._delete(session, BackgroundTask, name=name, project=project)
 
@@ -7359,6 +7487,7 @@ class SQLDB(DBInterface):
     ) -> mlrun.common.schemas.BackgroundTask:
         return mlrun.common.schemas.BackgroundTask(
             metadata=mlrun.common.schemas.BackgroundTaskMetadata(
+                id=background_task_record.id,
                 name=background_task_record.name,
                 project=background_task_record.project,
                 created=background_task_record.created,

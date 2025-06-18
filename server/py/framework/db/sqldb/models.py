@@ -31,6 +31,7 @@ from sqlalchemy import (
     Table,
     UniqueConstraint,
 )
+from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -402,16 +403,23 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}/{self.iteration}"
 
-    class BackgroundTask(Base, mlrun.utils.db.BaseModel):
+    class BackgroundTask(
+        Base,
+        mlrun.utils.db.BaseModel,
+    ):
         __tablename__ = "background_tasks"
         __table_args__ = (
             UniqueConstraint("name", "project", name="_background_tasks_uc"),
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        name = Column(
+            String(255, collation=SQLTypesUtil.collation()),
+            nullable=False,
+        )
         project = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255, collation=SQLTypesUtil.collation()),
+            nullable=False,
         )
         created = Column(
             SQLTypesUtil.timestamp(),
@@ -420,13 +428,58 @@ with warnings.catch_warnings():
         updated = Column(
             SQLTypesUtil.timestamp(),
             default=lambda: datetime.now(timezone.utc),
+            onupdate=lambda: datetime.now(timezone.utc),
         )
-        state = Column(String(255, collation=SQLTypesUtil.collation()))
-        error = Column(String(255, collation=SQLTypesUtil.collation()))
-        timeout = Column(Integer)
+        state = Column(
+            String(255, collation=SQLTypesUtil.collation()),
+            nullable=True,
+            index=True,
+        )
+        error = Column(
+            String(255, collation=SQLTypesUtil.collation()),
+            nullable=True,
+        )
+        timeout = Column(Integer, nullable=True)
+
+        labels = relationship(
+            "BackgroundTaskLabel",
+            back_populates="task",
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
+
+    class BackgroundTaskLabel(Base):
+        __tablename__ = "background_task_labels"
+        __table_args__ = (
+            UniqueConstraint(
+                "task_id", "name", name="uq_bg_task_labels_task_id_and_name"
+            ),
+        )
+
+        id = Column(Integer, primary_key=True)
+        task_id = Column(
+            Integer,
+            ForeignKey("background_tasks.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+        name = Column(
+            String(255, collation=SQLTypesUtil.collation()),
+            nullable=False,
+        )
+        value = Column(
+            String(255, collation=SQLTypesUtil.collation()),
+            nullable=True,
+        )
+
+        task = relationship(
+            "BackgroundTask",
+            back_populates="labels",
+        )
+        project = association_proxy("task", "project")
 
     class Schedule(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "schedules_v2"

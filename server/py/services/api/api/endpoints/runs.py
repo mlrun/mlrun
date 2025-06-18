@@ -478,6 +478,7 @@ async def abort_run(
         services.api.crud.Runs().abort_run,
         mlrun.mlconf.background_tasks.default_timeouts.operations.run_abortion,
         new_background_task_id,
+        None,
         # args for abort_run
         db_session,
         project,
@@ -530,6 +531,7 @@ async def push_notifications(
         framework.utils.background_tasks.BackgroundTaskKinds.push_notification.format(
             project, uid
         ),
+        None,
         db_session,
         run,
     )

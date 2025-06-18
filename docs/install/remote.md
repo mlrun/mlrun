@@ -37,10 +37,12 @@ Run ```pip install mlrun```
 - See more about images in {ref}`images-usage`
 - To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number. 
 ```
-```{admonition} Note for ARM64 (Apple Silicon) Users and Python 3.9
+
+:::{admonition} Note for ARM64 (Apple Silicon) Users and Python 3.9
+:name: apple-silicon
 When using ARM64 (Apple Silicon) and **Python 3.9**, you need to use **conda** to install protobuf by running the following command:
 ```conda install "protobuf>=3.20.3, <4" -y```
-```
+:::
 
 2. **Advanced** <br> 
    - If you expect to connect to, or work with, cloud providers (Azure/Google Cloud/S3), you can install additional packages. This is not 

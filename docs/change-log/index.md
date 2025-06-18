@@ -263,7 +263,7 @@ To upgrade the MLRun server:
 | ID      | Description                                                                                                 |
 |---------|-------------------------------------------------------------------------------------------------------------|
 | ML-6052 | New page: {ref}`log-artifacts`.                                                                             |
-| ML-7480 | New topic: [Setup for ARM64 (Apple Silicon) Users](../install/remote.md#note-for-arm64-apple-silicon-users) |
+| ML-7480 | New note: [ARM64 (Apple Silicon) Users and Python 3.9](#apple-silicon). |
 | ML-7669 | New topic: [Setting the log level](../runtimes/configuring-job-resources.md#setting-the-log-level).         |
 | NA      | New tutorial: {ref}`genai-02-mm-llm`.                                                                       |
 | NA      | New page: {ref}`mm-applications`.                                                                           |

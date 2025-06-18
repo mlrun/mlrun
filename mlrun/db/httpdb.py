@@ -2352,8 +2352,7 @@ class HTTPRunDB(RunDBInterface):
     ):
         """
         Retry a specific pipeline run using its run ID. This function sends an API request
-        to retry a pipeline run. If a project is specified, the run must belong to that
-        project; otherwise, all projects are queried.
+        to retry a pipeline run.
 
         :param run_id: The unique ID of the pipeline run to retry.
         :param namespace: Kubernetes namespace where the pipeline is running. Optional.
@@ -2394,7 +2393,7 @@ class HTTPRunDB(RunDBInterface):
                 namespace=namespace,
                 response_code=resp_code,
                 response_text=resp_text,
-                error=str(exc),
+                error=err_to_str(exc),
             )
             if isinstance(exc, mlrun.errors.MLRunHTTPError):
                 raise exc  # Re-raise known HTTP errors
@@ -2404,6 +2403,72 @@ class HTTPRunDB(RunDBInterface):
 
         logger.info(
             "Successfully retried pipeline run",
+            run_id=run_id,
+            project=project,
+            namespace=namespace,
+        )
+        return resp.json()
+
+    def terminate_pipeline(
+        self,
+        run_id: str,
+        project: str,
+        namespace: Optional[str] = None,
+        timeout: int = 30,
+    ):
+        """
+        Terminate a specific pipeline run using its run ID. This function sends an API request
+        to terminate a pipeline run.
+
+        :param run_id: The unique ID of the pipeline run to terminate.
+        :param namespace: Kubernetes namespace where the pipeline is running. Optional.
+        :param timeout: Timeout (in seconds) for the API call. Defaults to 30 seconds.
+        :param project: Name of the MLRun project associated with the pipeline.
+
+        :raises ValueError: Raised if the API response is not successful or contains an
+            error.
+
+        :return: JSON response containing details of the terminate pipeline run background task.
+        """
+
+        params = {}
+        if namespace:
+            params["namespace"] = namespace
+
+        resp_text = ""
+        resp_code = None
+        try:
+            resp = self.api_call(
+                "POST",
+                f"projects/{project}/pipelines/{run_id}/terminate",
+                params=params,
+                timeout=timeout,
+            )
+            resp_code = resp.status_code
+            resp_text = resp.text
+            if not resp.ok:
+                raise mlrun.errors.MLRunHTTPError(
+                    f"Failed to retry pipeline run '{run_id}'. "
+                    f"HTTP {resp_code}: {resp_text}"
+                )
+        except Exception as exc:
+            logger.error(
+                "Failed to invoke terminate pipeline API",
+                run_id=run_id,
+                project=project,
+                namespace=namespace,
+                response_code=resp_code,
+                response_text=resp_text,
+                error=err_to_str(exc),
+            )
+            if isinstance(exc, mlrun.errors.MLRunHTTPError):
+                raise exc  # Re-raise known HTTP errors
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Unexpected error while terminating pipeline run '{run_id}'."
+            ) from exc
+
+        logger.info(
+            "Successfully scheduled terminate pipeline run background task",
             run_id=run_id,
             project=project,
             namespace=namespace,

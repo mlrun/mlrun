@@ -3,6 +3,20 @@
 
 This section lists the data stores, development tools, services, platforms, etc., supported by MLRun's open ecosystem. 
 
+**In this section**
+- [Data stores](#data-stores)
+- [Sources](#sources)
+- [Streaming frameworks](#streaming-frameworks)
+- [Targets](#targets)
+- [TSDB](#tsdb)
+- [Event sources](#event-sources)
+- [Execution frameworks](#execution-frameworks)
+- [Dev environments](#dev-environments)
+- [Machine learning frameworks](#machine-learning-frameworks)
+- [Platforms](#platforms)
+- [CI/CD](#ci-cd)
+- [Browser](#browser)
+
 ## Data stores
 
 - Object (S3, GS, GCS, az)
@@ -88,7 +102,7 @@ This section lists the data stores, development tools, services, platforms, etc.
 - Docker 
    - Linux/KVM 
    - NVIDIA DGX 
-
+(ci-cd)=
 ## CI/CD 
 
 - Jenkins 

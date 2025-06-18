@@ -40,6 +40,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun_pipelines.common.models
+from mlrun.common.schemas.background_task import BackGroundTaskLabel
 from mlrun.common.schemas.model_monitoring import EndpointType, ModelMonitoringAppLabel
 
 import framework.api.utils
@@ -1539,6 +1540,9 @@ def _create_resources_of_all_kinds(
         name="task",
         project=project,
         state=mlrun.common.schemas.BackgroundTaskState.running,
+        labels={
+            BackGroundTaskLabel.pipeline: "test_pipeline",
+        },
     )
 
     ds_profile = mlrun.common.schemas.DatastoreProfile(
@@ -1649,6 +1653,7 @@ def _assert_db_resources_in_project(
         # Logs are saved as files, the DB table is not really in use
         # in follower mode the DB project tables are irrelevant
         # alert_templates are not tied to project and are pre-populated anyway
+        # background_task_labels are optional
         if (
             cls.__name__ == "User"
             or cls.__tablename__ == "runs_tags"
@@ -1769,6 +1774,13 @@ def _assert_db_resources_in_project(
                     db_session.query(ModelEndpoint)
                     .join(cls)
                     .filter(ModelEndpoint.project == project)
+                    .count()
+                )
+            if cls.__tablename__ == "background_task_labels":
+                number_of_cls_records = (
+                    db_session.query(BackGroundTaskLabel)
+                    .join(cls)
+                    .filter(BackGroundTaskLabel.project == project)
                     .count()
                 )
             if cls.__tablename__ == "artifacts_labels":

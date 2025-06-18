@@ -38,6 +38,7 @@ import framework.constants
 import framework.db.base
 import framework.db.sqldb.db
 import framework.service
+import framework.utils.background_tasks
 import framework.utils.clients.chief
 import framework.utils.clients.log_collector
 import framework.utils.clients.messaging
@@ -193,6 +194,7 @@ class Service(framework.service.Service):
             self._start_periodic_project_summaries_calculation()
         self._start_periodic_partition_management()
         self._start_periodic_refresh_smtp_configuration()
+        self._start_periodic_background_task_cleanup()
         if mlconf.httpdb.clusterization.chief.feature_gates.start_logs == "enabled":
             await self._start_periodic_logs_collection()
         if mlconf.httpdb.clusterization.chief.feature_gates.stop_logs == "enabled":
@@ -603,6 +605,25 @@ class Service(framework.service.Service):
                 False,
                 framework.utils.notifications.notification_pusher.RunNotificationPusher.get_mail_notification_default_params,
                 refresh=True,
+            )
+
+    def _start_periodic_background_task_cleanup(self):
+        interval = int(mlconf.background_task_cleanup_interval)
+        if interval > 0:
+            self._logger.info(
+                "Starting periodic background task cleanup",
+                interval=interval,
+            )
+
+            cleanup_func = framework.utils.background_tasks.ProjectBackgroundTasksHandler().cleanup_old_background_tasks
+            func = framework.db.session.run_function_with_new_db_session(
+                cleanup_func, int(mlconf.background_task_max_age)
+            )
+            run_function_periodically(
+                interval=interval,
+                name=cleanup_func.__name__,
+                replace=False,
+                function=func,
             )
 
     @staticmethod

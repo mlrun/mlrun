@@ -1,6 +1,8 @@
 (sources-targets)=
 # Sources and targets
 
+MLRun supports a variety of sources (for batch and real-time ingestion) and targets for working with the feature store.
+
 - [Sources](#sources)
 - [Targets](#targets)
 
@@ -121,8 +123,8 @@ which works similarly to the filtering functionality in pandas (based on pyarrow
 This can increase performance when reading large Parquet files.
 
 Pay attention!
--  When using the additional_filters on a column, values None, NaN, NaT will be filtered out from the filter result.
--  Specifying additional_filters as Datetime object is not supported.
+-  When using the `additional_filters` on a column, the values `None`, `NaN`, `NaT` are filtered out from the filter result.
+-  Specifying `additional_filters` as Datetime object is not supported.
 
 
 
@@ -176,9 +178,9 @@ df = fs.ingest(feature_set, source=source)
 
 # Targets
 
-By default, the feature sets are saved in parquet and the Iguazio NoSQL DB ({py:class}`~mlrun.datastore.NoSqlTarget`). <br>
-The Parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application 
-since it supports low latency data retrieval based on key access. 
+By default, the feature sets are saved in Parquet and the Iguazio NoSQL DB ({py:class}`~mlrun.datastore.NoSqlTarget`). <br>
+The Parquet file is ideal for fetching large sets of data for training while the key value is ideal for online applications 
+since it supports low-latency data retrieval based on key access. 
 
 ```{admonition} Note
 When working with the Iguazio MLOps platform the default feature set storage location is under the "Projects" container: `<project name>/fs/..` folder. 

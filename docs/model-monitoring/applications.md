@@ -1,6 +1,8 @@
 (mm-applications)=
 # Writing a model monitoring application
 
+Learn how to create your own model monitoring applications for LLMs, gen AI, deep-learning models, etc., based on the ModelMonitoringApplicationBase class. 
+
 **In this section**
 - [Basics](#basics)
 - [Using the application context](#using-the-application-context)
@@ -21,8 +23,7 @@ from mlrun.model_monitoring.applications import (
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
 ```
 
-Then, write the application itself by inheriting from the `ModelMonitoringApplicationBase` base class.
-You have to implement the `do_tracking` method.
+Then, write the application itself by inheriting from the {py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase` class. You have to implement the do_tracking` method.
 Here is a "dummy" app that returns a constant result for each monitoring window:
 
 ```py
@@ -41,7 +42,7 @@ class ServingMonitoring(ModelMonitoringApplicationBase):
 The `do_tracking` method of the application object is called for each "closed" monitoring time window
 of each monitored model-endpoint and returns a result.
 The result may be just one result, as in the example above, or a list of results
-`ModelMonitoringApplicationResult` and metrics `ModelMonitoringApplicationMetric`.
+({py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationResult`) and metrics ({py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationMetric`).
 
 The application class may implement a custom `__init__` constructor with arguments.
 

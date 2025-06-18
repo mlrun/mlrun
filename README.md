@@ -5,7 +5,7 @@
 [![Documentation](https://readthedocs.org/projects/mlrun/badge/?version=latest)](https://mlrun.readthedocs.io/en/latest/?badge=latest)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/w/mlrun/mlrun)
-![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/mlrun/mlrun?sort=semver)
+[![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/mlrun/mlrun?sort=semver)](https://github.com/mlrun/mlrun/releases)
 [![Join MLOps Live](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://mlopslive.slack.com)
 
 <div>
@@ -53,9 +53,9 @@ Removing inappropriate data at an early stage saves resources that would otherwi
 [Vector databases](https://docs.mlrun.org/en/stable/genai/data-mgmt/vector-databases.html)
 [Guardrails for data management](https://docs.mlrun.org/en/stable/genai/data-mgmt/guardrails-data.html)
 **Demo:**
-[Call center demo](https://github.com/mlrun/demo-call-center>`
+[Call center demo](https://github.com/mlrun/demo-call-center)
 **Video:**
-[Call center](https://youtu.be/YycMbxRgLBA>`
+[Call center](https://youtu.be/YycMbxRgLBA)
 
 ### Development
 Use MLRun to build an automated ML pipeline to: collect data, 
@@ -76,13 +76,13 @@ inferring results using one or more models, and driving actions.
 
 
 **Docs:**
-[Serving gen AI models](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving.html), GPU utilization](https://docs.mlrun.org/en/stable/genai/deployment/gpu_utilization.html), [Gen AI realtime serving graph](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving_graph.html)
+[Serving gen AI models](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving.html), [GPU utilization](https://docs.mlrun.org/en/stable/genai/deployment/gpu_utilization.html), [Gen AI realtime serving graph](https://docs.mlrun.org/en/stable/genai/deployment/genai_serving_graph.html)
 **Tutorial:**
 [Deploy LLM using MLRun](https://docs.mlrun.org/en/stable/tutorials/genai_01_basic_tutorial.html)
 **Demos:**
-[Call center demo](https://github.com/mlrun/demo-call-center), [Build & deploy custom(fine-tuned)]LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main), [Interactive bot demo using LLMs]<https://github.com/mlrun/demo-llm-bot/blob/main)
+[Call center demo](https://github.com/mlrun/demo-call-center), [Build & deploy custom(fine-tuned)LLM models and applications](https://github.com/mlrun/demo-llm-tuning/blob/main), [Interactive bot demo using LLMs](https://github.com/mlrun/demo-llm-bot/blob/main)
 **Video:**
-[Call center]<https://youtu.be/YycMbxRgLBA)
+[Call center](https://youtu.be/YycMbxRgLBA)
 
 
 ### Live Ops

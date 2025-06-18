@@ -15,6 +15,7 @@
 import concurrent.futures
 import json
 import pickle
+import threading
 import time
 import typing
 import uuid
@@ -69,6 +70,8 @@ from .assets.application import (
     NoCheckDemoMonitoringApp,
 )
 from .assets.custom_evidently_app import DemoEvidentlyMonitoringApp
+
+lock = threading.Lock()
 
 
 @dataclass
@@ -1249,16 +1252,16 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         time.sleep(
             mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 20
         )
+        with lock:
+            offline_response_df = ParquetTarget(
+                name="temp",
+                path=fstore.get_feature_set(feature_set_uri).spec.targets[0].path,
+            ).as_df()
 
-        offline_response_df = ParquetTarget(
-            name="temp",
-            path=fstore.get_feature_set(feature_set_uri).spec.targets[0].path,
-        ).as_df()
-
-        is_schema_saved = set(model_dict.get("schema")).issubset(
-            offline_response_df.columns
-        )
-        has_all_the_events = offline_response_df.shape[0] == 3
+            is_schema_saved = set(model_dict.get("schema")).issubset(
+                offline_response_df.columns
+            )
+            has_all_the_events = offline_response_df.shape[0] == 3
 
         return {
             "model_name": endpoint_name,

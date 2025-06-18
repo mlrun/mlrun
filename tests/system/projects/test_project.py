@@ -23,7 +23,6 @@ from sys import executable
 import igz_mgmt
 import pandas as pd
 import pytest
-from kfp import dsl
 
 import mlrun
 import mlrun.common.runtimes.constants
@@ -31,6 +30,7 @@ import mlrun.common.schemas
 import mlrun.utils
 import mlrun.utils.logger
 import mlrun_pipelines.common.models
+import mlrun_pipelines.imports
 import tests.system.common.helpers.notifications as notification_helpers
 from mlrun.artifacts import Artifact
 from mlrun.common.runtimes.constants import RunStates
@@ -52,7 +52,7 @@ def exec_project(args):
 
 
 # pipeline for inline test (run pipeline from handler)
-@dsl.pipeline(name="test pipeline", description="test")
+@mlrun_pipelines.imports.dsl.pipeline(name="test pipeline", description="test")
 def pipe_test():
     # train the model using a library (hub://) function and the generated data
     funcs["auto-trainer"].as_step(
@@ -1666,7 +1666,7 @@ class TestProject(TestMLRunSystem):
         )
 
         # Workflow image must be set explicitly
-        project.spec._workflows["main"]["image"] = project.default_image
+        project.spec._workflows["main"].image = project.default_image
         project.save()
 
         run = project.run(

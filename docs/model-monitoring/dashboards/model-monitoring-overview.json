@@ -22,7 +22,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 30,
+  "id": 11,
   "links": [
     {
       "icon": "external link",
@@ -54,7 +54,6 @@
       "url": "d/gVrVlU7Iz/model-monitoring-applications"
     }
   ],
-  "liveNow": false,
   "panels": [
     {
       "datasource": "model-monitoring",
@@ -90,6 +89,7 @@
         "graphMode": "none",
         "justifyMode": "center",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "mean"
@@ -97,9 +97,11 @@
           "fields": "",
           "values": false
         },
-        "textMode": "value"
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
       },
-      "pluginVersion": "9.2.20",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": "model-monitoring",
@@ -157,6 +159,7 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "mean"
@@ -164,9 +167,11 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "9.2.20",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": "iguazio",
@@ -218,6 +223,7 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "mean"
@@ -225,9 +231,11 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "9.2.20",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": "iguazio",
@@ -302,6 +310,7 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "sum"
@@ -309,9 +318,11 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "9.2.20",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": "iguazio",
@@ -347,7 +358,9 @@
         "defaults": {
           "custom": {
             "align": "center",
-            "displayMode": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
             "filterable": true,
             "inspect": false
           },
@@ -523,8 +536,11 @@
                 ]
               },
               {
-                "id": "custom.displayMode",
-                "value": "color-background"
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
               }
             ]
           },
@@ -556,7 +572,9 @@
       },
       "id": 22,
       "options": {
+        "cellHeight": "sm",
         "footer": {
+          "countRows": false,
           "fields": "",
           "reducer": [
             "sum"
@@ -571,7 +589,7 @@
           }
         ]
       },
-      "pluginVersion": "9.2.20",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": "model-monitoring",
@@ -635,15 +653,6 @@
       "type": "table"
     },
     {
-      "cards": {},
-      "color": {
-        "cardColor": "#b4ff00",
-        "colorScale": "sqrt",
-        "colorScheme": "interpolatePlasma",
-        "exponent": 0.5,
-        "mode": "spectrum"
-      },
-      "dataFormat": "timeseries",
       "datasource": "iguazio",
       "description": "Heatmap displaying the average number of predictions per 5-minute interval. This value excludes `router` model endpoints and reflects the invocation count for non-router models only",
       "fieldConfig": {
@@ -667,13 +676,7 @@
         "x": 0,
         "y": 16
       },
-      "heatmap": {},
-      "hideZeroBuckets": false,
-      "highlightCards": true,
       "id": 18,
-      "legend": {
-        "show": false
-      },
       "options": {
         "calculate": true,
         "calculation": {},
@@ -702,7 +705,8 @@
         },
         "showValue": "never",
         "tooltip": {
-          "show": true,
+          "mode": "single",
+          "showColorScale": false,
           "yHistogram": false
         },
         "yAxis": {
@@ -711,8 +715,7 @@
           "unit": "short"
         }
       },
-      "pluginVersion": "9.2.20",
-      "reverseYBuckets": false,
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": "iguazio",
@@ -723,32 +726,10 @@
         }
       ],
       "title": "Predictions/s (5 Minute Average)",
-      "tooltip": {
-        "show": true,
-        "showHistogram": false
-      },
       "transparent": true,
-      "type": "heatmap",
-      "xAxis": {
-        "show": true
-      },
-      "yAxis": {
-        "format": "short",
-        "logBase": 1,
-        "show": true
-      },
-      "yBucketBound": "auto"
+      "type": "heatmap"
     },
     {
-      "cards": {},
-      "color": {
-        "cardColor": "#b4ff00",
-        "colorScale": "sqrt",
-        "colorScheme": "interpolatePlasma",
-        "exponent": 0.5,
-        "mode": "spectrum"
-      },
-      "dataFormat": "timeseries",
       "datasource": "iguazio",
       "description": "Heatmap displaying average latency per 1-hour interval. Important Notes:\n- This KPI is based on the sampled invocations. If the sampling percentage is less than 100, the actual value may be different.\n- This value excludes `router` model endpoints and reflects the average latency for non-router models only.",
       "fieldConfig": {
@@ -772,13 +753,7 @@
         "x": 8,
         "y": 16
       },
-      "heatmap": {},
-      "hideZeroBuckets": false,
-      "highlightCards": true,
       "id": 19,
-      "legend": {
-        "show": false
-      },
       "options": {
         "calculate": true,
         "calculation": {},
@@ -807,7 +782,8 @@
         },
         "showValue": "never",
         "tooltip": {
-          "show": true,
+          "mode": "single",
+          "showColorScale": false,
           "yHistogram": false
         },
         "yAxis": {
@@ -816,8 +792,7 @@
           "unit": "short"
         }
       },
-      "pluginVersion": "9.2.20",
-      "reverseYBuckets": false,
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": "iguazio",
@@ -828,21 +803,8 @@
         }
       ],
       "title": "Average Latency (1 Hour)",
-      "tooltip": {
-        "show": true,
-        "showHistogram": false
-      },
       "transparent": true,
-      "type": "heatmap",
-      "xAxis": {
-        "show": true
-      },
-      "yAxis": {
-        "format": "short",
-        "logBase": 1,
-        "show": true
-      },
-      "yBucketBound": "auto"
+      "type": "heatmap"
     },
     {
       "datasource": "iguazio",
@@ -853,6 +815,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisGridShow": true,
@@ -861,6 +824,7 @@
             "axisSoftMax": 1,
             "axisSoftMin": 0,
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
@@ -869,6 +833,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineStyle": {
               "fill": "solid"
@@ -919,11 +884,12 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "9.2.20",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "datasource": "iguazio",
@@ -934,37 +900,32 @@
         }
       ],
       "title": "Errors",
-      "transformations": [],
       "transparent": true,
       "type": "timeseries"
     }
   ],
+  "preload": false,
   "refresh": "30s",
-  "schemaVersion": 37,
-  "style": "dark",
+  "schemaVersion": 40,
   "tags": [],
   "templating": {
     "list": [
       {
-        "current": {},
+        "current": {
+          "text": "default",
+          "value": "default"
+        },
         "datasource": "model-monitoring",
         "definition": "target_endpoint=list_projects",
         "description": "Project Name",
-        "hide": 0,
         "includeAll": false,
         "label": "Project",
-        "multi": false,
         "name": "PROJECT",
         "options": [],
         "query": "target_endpoint=list_projects",
         "refresh": 1,
         "regex": "",
-        "skipUrlSync": false,
-        "sort": 0,
-        "tagValuesQuery": "",
-        "tagsQuery": "",
-        "type": "query",
-        "useTags": false
+        "type": "query"
       }
     ]
   },
@@ -976,6 +937,6 @@
   "timezone": "",
   "title": "Model Monitoring - Overview",
   "uid": "g0M4uh0Mz",
-  "version": 9,
+  "version": 2,
   "weekStart": ""
 }

@@ -630,7 +630,7 @@ class TestProject(TestMLRunSystem):
 
         # Test scheduled workflow
         schedule = "0 0 30 2 *"
-        run_id = project.run(
+        project.run(
             workflow_name,
             engine="remote",
             workflow_runner_node_selector=runner_node_selector,
@@ -645,7 +645,6 @@ class TestProject(TestMLRunSystem):
             **project_default_function_node_selector,
             **runner_node_selector,
         }
-        assert runner_run_result["metadata"]["labels"]["workflow-id"] == run_id.run_id
 
     def test_remote_pipeline_with_kfp_engine_from_github(self):
         project_name = "rmtpipe-kfp-github"

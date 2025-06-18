@@ -175,7 +175,12 @@ async def list_runs(
     name: Optional[str] = None,
     uid: list[str] = Query([]),
     labels: list[str] = Query([], alias="label"),
-    states: list[str] = Query([], alias="state"),
+    state: list[str] = Query(
+        [],
+        deprecated=True,
+        description="'state' query param is deprecated in 1.10.0 and will be removed in 1.12.0, Use 'states' instead",
+    ),
+    states: list[str] = Query([]),
     sort: bool = True,
     iter: bool = True,
     start_time_from: Optional[str] = None,
@@ -235,7 +240,7 @@ async def list_runs(
         uid=uid,
         project=allowed_project_names,
         labels=labels,
-        states=states,
+        states=list(set(state + states)),
         sort=sort,
         iter=iter,
         start_time_from=start_time_from,
@@ -295,7 +300,7 @@ async def delete_runs(
             name,
             project=project,
             labels=labels,
-            state=state,
+            states=[state] if state else None,
             start_time_from=start_time_from,
             return_as_run_structs=False,
         )
@@ -473,6 +478,7 @@ async def abort_run(
         services.api.crud.Runs().abort_run,
         mlrun.mlconf.background_tasks.default_timeouts.operations.run_abortion,
         new_background_task_id,
+        None,
         # args for abort_run
         db_session,
         project,
@@ -525,6 +531,7 @@ async def push_notifications(
         framework.utils.background_tasks.BackgroundTaskKinds.push_notification.format(
             project, uid
         ),
+        None,
         db_session,
         run,
     )

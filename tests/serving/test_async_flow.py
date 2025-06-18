@@ -19,8 +19,9 @@ from typing import Optional
 import pytest
 
 import mlrun
+import mlrun.common.schemas as schemas
 from mlrun.errors import MLRunInvalidArgumentError
-from mlrun.serving import Model, ModelRunnerStep, ModelSelector
+from mlrun.serving import Model, ModelRunnerStep, ModelSelector, RouterStep
 from mlrun.utils import logger
 from tests.conftest import results
 
@@ -175,6 +176,9 @@ class MyModel(Model):
     async def predict_async(self, body):
         return self.predict(body)
 
+    def do(self, event):
+        return self.predict(event)
+
 
 class MyRemoteModel(Model):
     execution_mechanism = "naive"
@@ -252,13 +256,17 @@ def test_model_runner_add_model(method: str):
     if method == "add_step":
         graph.add_step(model_runner_step).respond()
     elif method == "to":
-        graph.to(name="echo", class_name="Echo").to(model_runner_step).respond()
+        graph.to(
+            name="echo",
+            class_name="Echo",
+            model_endpoint_creation_strategy=schemas.ModelEndpointCreationStrategy.SKIP,
+        ).to(model_runner_step).respond()
     elif method == "set_flow":
         graph.set_flow([model_runner_step]).respond()
-    assert [
+    assert set(graph.model_endpoints_names) == {
         "my_model_1",
         "my_model_2",
-    ] == graph.model_endpoints_names, "model endpoints name not in graph"
+    }, "model endpoints name not in graph"
 
     server = function.to_mock_server()
     try:
@@ -309,6 +317,82 @@ def test_model_runner_add_model_failure(method: str):
         pytest.fail(
             "Expected 'mlrun.serving.states.GraphError' using the same model name twice in graph"
         )
+
+
+@pytest.mark.parametrize("model_runner_first", [True, False])
+@pytest.mark.parametrize("method", ["add_step", "to"])
+def test_model_runner_with_route_failure(model_runner_first: bool, method: str):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model", inc=1)
+    graph.to(class_name=RouterStep())
+
+    if method == "add_step":
+        adding_method = graph.add_step
+    elif method == "to":
+        adding_method = graph.to
+    else:
+        return
+
+    if model_runner_first:
+        adding_method(model_runner_step)
+        try:
+            with pytest.raises(mlrun.serving.states.GraphError):
+                function.add_model(class_name="MyModel", key="my_model")
+        except AssertionError:
+            pytest.fail(
+                "Expected 'mlrun.serving.states.GraphError' using the same model name with router and ModelRunnerStep"
+            )
+    else:
+        function.add_model(class_name="MyModel", key="my_model")
+        try:
+            with pytest.raises(mlrun.serving.states.GraphError):
+                adding_method(model_runner_step)
+        except AssertionError:
+            pytest.fail(
+                "Expected 'mlrun.serving.states.GraphError' using the same model name with router and ModelRunnerStep"
+            )
+
+
+@pytest.mark.parametrize("model_runner_first", [True, False])
+@pytest.mark.parametrize("method", ["add_step", "to"])
+def test_model_runner_with_route(model_runner_first: bool, method: str):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner_with_route")
+    model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model", inc=1)
+    graph.to(class_name=RouterStep()).respond()
+
+    if method == "add_step":
+        adding_method = graph.add_step
+    elif method == "to":
+        adding_method = graph.to
+    else:
+        return
+
+    if model_runner_first:
+        adding_method(model_runner_step)
+
+    function.add_model(
+        "my_model_1",
+        ".",
+        class_name="MyModel",
+        name="my_model_1",
+        inc=1,
+    )
+
+    if not model_runner_first:
+        adding_method(model_runner_step)
+
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body={"n": 1})
+        assert resp["n"] == 2
+        assert graph.model_endpoints_names == ["my_model"]
+        assert graph.model_endpoints_routes_names == ["my_model_1"]
+    finally:
+        server.wait_for_completion()
 
 
 @pytest.mark.parametrize("raise_error", (True, False))

@@ -142,6 +142,22 @@ class EventFieldType:
     EFFECTIVE_SAMPLE_COUNT = "effective_sample_count"
 
 
+class StreamProcessingEvent:
+    MODEL = "model"
+    MODEL_CLASS = "model_class"
+    MICROSEC = "microsec"
+    WHEN = "when"
+    ERROR = "error"
+    ENDPOINT_ID = "endpoint_id"
+    SAMPLING_PERCENTAGE = "sampling_percentage"
+    EFFECTIVE_SAMPLE_COUNT = "effective_sample_count"
+    LABELS = "labels"
+    FUNCTION_URI = "function_uri"
+    REQUEST = "request"
+    RESPONSE = "resp"
+    METRICS = "metrics"
+
+
 class FeatureSetFeatures(MonitoringStrEnum):
     LATENCY = EventFieldType.LATENCY
     METRICS = EventFieldType.METRICS
@@ -416,12 +432,20 @@ class ResultStatusApp(IntEnum):
     detected = 2
 
 
-class ModelMonitoringAppLabel:
+class ModelMonitoringLabel:
     KEY = mlrun.common.constants.MLRunInternalLabels.mlrun_type
-    VAL = "mlrun__model-monitoring-application"
+    VAL = ""
 
     def __str__(self) -> str:
         return f"{self.KEY}={self.VAL}"
+
+
+class ModelMonitoringAppLabel(ModelMonitoringLabel):
+    VAL = "mlrun__model-monitoring-application"
+
+
+class ModelMonitoringInfraLabel(ModelMonitoringLabel):
+    VAL = "mlrun__model-monitoring-infra"
 
 
 class HistogramDataDriftApplicationConstants:
@@ -436,6 +460,10 @@ class PredictionsQueryConstants:
 
 class SpecialApps:
     MLRUN_INFRA = "mlrun-infra"
+
+
+class ModelMonitoringLabels:
+    MLRUN_MODEL_MONITORING_INFRA = "mlrun-model-monitoring-infra"
 
 
 _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]

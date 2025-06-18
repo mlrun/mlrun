@@ -2,7 +2,7 @@
 # Install MLRun CE on AWS
 
 
-These instructions install the community edition (CE). No pre-installation or pre-configuration is required. This procedure 
+These instructions install the community edition (CE) on your Amazon EKS cluster. No pre-installation or pre-configuration is required. This procedure 
 installs an EKS cluster, an EBS volume, an S3 bucket, load balancing, etc. When you complete this procedure, you'll have 
 the Community Edition of MLRun running on your EKS cluster.
 

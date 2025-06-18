@@ -1,8 +1,7 @@
 (load-project)=
 # Load projects
 
-Project code, metadata, and configuration are stored and versioned in source control systems like Git or archives (zip, tar) 
-and can be loaded into your work environment or CI system with a single SDK or CLI command.
+Project code, metadata, and configuration are stored and versioned in source control systems like Git or archives (zip, tar) and can be loaded into your work environment or CI system with a single SDK or CLI command.
 
 <p align="center"><img src="../_static/images/project-lifecycle.png" alt="project-lifecycle" width="700"/></p><br>
 

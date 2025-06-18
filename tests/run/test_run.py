@@ -315,7 +315,7 @@ def test_get_or_create_ctx_run_kind():
 
 
 def test_get_or_create_ctx_run_kind_local_from_function():
-    project = mlrun.get_or_create_project("dummy-project")
+    project = mlrun.get_or_create_project("dummy-project", allow_cross_project=True)
     project.set_function(
         name="func",
         func=f"{assets_path}/simple.py",

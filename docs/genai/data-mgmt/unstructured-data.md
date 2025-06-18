@@ -1,23 +1,18 @@
 (unstructured-data)=
 # Using LLMs to process unstructured data
 
-Unstructured data, such as text, images, and audio files, has become a significant challenge for many industries. The sheer volume of unorganized data can be overwhelming, making it difficult to extract valuable insights or information. This is where Large Language Models (LLMs) come into play.
+Large Language Models (LLMs) address the significant challenge posed by unstructured data, such as text, images, and audio files, making it possible to extract valuable insights or information from very large quantities of data.
 
 ## The challenge of unstructured data
 
 Unstructured data is the opposite of structured data, which has a predefined format or schema. Text documents, social media posts, emails, and even audio and video recordings are all examples of unstructured data. Processing this type of data can be time-consuming and labor-intensive, often requiring human intervention to extract meaningful information.
 
-
 ### How LLMs can help
 
 LLMs have been trained on large amounts of text data, enabling them to identify patterns, relationships, and context within the data. By applying these capabilities to unstructured text data, LLMs can perform tasks such as:
-
 - **Extract keywords and phrases**: Identify relevant terms and concepts from large bodies of text.
-
 - **Classify and categorize**: Organize unstructured text into predefined categories or classes based on content, sentiment, or intent.
-
 - **Summarize and abstract**: Condense lengthy texts into concise summaries, preserving the most important information.
-
 - **Calculate subjective metrics**: Calculate metrics such as "professionalism" or how well a call center agent adhered to a given script. These are both subjective metrics that are difficult to quantify without a model that has an understanding of patterns and relationships in text.
 
 ### Turning unstructured data into structured data

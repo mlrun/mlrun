@@ -19,6 +19,7 @@ import traceback
 import typing
 import uuid
 from asyncio import Semaphore
+from datetime import datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
 
@@ -28,14 +29,15 @@ import kafka.errors
 import nuclio
 import sqlalchemy.orm
 import v3io.dataplane
-import v3io.dataplane.response
 from fastapi import BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.formatters
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.schemas.model_monitoring.functions as mm_functions
 import mlrun.datastore.datastore_profile
 import mlrun.model_monitoring
 import mlrun.model_monitoring.api
@@ -392,6 +394,13 @@ class MonitoringDeployment:
                 raise exc
 
         function = stream_source.add_nuclio_trigger(function)
+        if nuclio_annotations := profile_attributes.get("nuclio_annotations"):
+            if not isinstance(nuclio_annotations, dict):
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    "The Kafka datastore profile includes an invalid `nuclio_annotations` configuration. "
+                    f"Expected a dictionary or `None`, but received: {nuclio_annotations = }"
+                )
+            function.with_annotations(nuclio_annotations)
         function.spec.min_replicas = stream_args.kafka.min_replicas
         function.spec.max_replicas = stream_args.kafka.max_replicas
 
@@ -472,8 +481,9 @@ class MonitoringDeployment:
                 filename=_STREAM_PROCESSING_FUNCTION_PATH,
                 kind=mlrun.run.RuntimeKinds.serving,
                 image=stream_image,
-                # The label is used to identify the stream function in Prometheus
-                labels={"type": mm_constants.MonitoringFunctionNames.STREAM},
+                labels={
+                    mm_constants.ModelMonitoringInfraLabel.KEY: mm_constants.ModelMonitoringInfraLabel.VAL
+                },
             ),
         )
         function.set_db_connection(
@@ -531,6 +541,9 @@ class MonitoringDeployment:
             kind=mlrun.run.RuntimeKinds.nuclio,
             image=image,
             handler="handler",
+            labels={
+                mm_constants.ModelMonitoringInfraLabel.KEY: mm_constants.ModelMonitoringInfraLabel.VAL
+            },
         )
         function.set_db_connection(
             framework.api.utils.get_run_db_instance(self.db_session)
@@ -615,6 +628,9 @@ class MonitoringDeployment:
                 filename=_MONITORING_WRITER_FUNCTION_PATH,
                 kind=mlrun.run.RuntimeKinds.serving,
                 image=writer_image,
+                labels={
+                    mm_constants.ModelMonitoringInfraLabel.KEY: mm_constants.ModelMonitoringInfraLabel.VAL
+                },
             ),
         )
         function.set_db_connection(
@@ -741,16 +757,206 @@ class MonitoringDeployment:
             project=self.project, profile=tsdb_profile
         ).create_tables()
 
-    def list_model_monitoring_functions(self) -> list:
-        """Retrieve a list of all the model monitoring functions."""
-        model_monitoring_labels_list = [
-            f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
-        ]
+    def list_model_monitoring_functions(
+        self,
+        labels: typing.Optional[list[str]] = None,
+        format_: str = mlrun.common.formatters.FunctionFormat.full,
+        function_type: mm_functions.FunctionsType = mm_functions.FunctionsType.APPLICATION,
+    ) -> list[dict]:
+        """Retrieve a list of dictionaries, representing all the model monitoring functions."""
+
+        labels = labels or []
+        if function_type == mm_functions.FunctionsType.INFRA:
+            # Model monitoring infrastructure functions
+            labels.append(
+                f"{mm_constants.ModelMonitoringInfraLabel.KEY}={mm_constants.ModelMonitoringInfraLabel.VAL}"
+            )
+        elif function_type == mm_functions.FunctionsType.APPLICATION:
+            # Model monitoring applications
+            labels.append(
+                f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
+            )
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported model monitoring function type: {function_type}"
+            )
+
         return services.api.crud.Functions().list_functions(
             db_session=self.db_session,
             project=self.project,
-            labels=model_monitoring_labels_list,
+            labels=labels,
+            format_=format_,
+            tag="*",
         )
+
+    def function_summaries(
+        self,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
+        names: typing.Optional[list[str]] = None,
+        labels: typing.Optional[list[str]] = None,
+        include_stats: bool = True,
+        include_infra: bool = True,
+    ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
+        """
+        Retrieve a list of all the model monitoring functions with their summaries. Note that the response includes
+        both monitoring application real time functions and monitoring infrastructure functions.
+        :param start:            The start time of the statistics of the monitoring applications. Applicable
+                                 only when `include_status` is set to True. If not set, the default is 24 hours ago.
+        :param end:              The start time of the statistics of the monitoring applications. Applicable only
+                                 when `include_status` is set to True. If not set, the default is now.
+        :param names:            List of monitoring application function names to filter the response. Default is None.
+        :param labels:           List of labels to filter the response. Default is None.
+        :param include_stats:    If True, the function will include the statistics of the monitoring applications.
+                                 Currently, the statistics include the number of detections and possible detections.
+        :param include_infra:    If True, include the model monitoring infrastructure functions in the response.
+
+        :return:                A list of FunctionSummary objects, each representing a model monitoring function.
+        """
+
+        # Enrich response with infra functions
+        infra_function_summaries_list, base_period = self._get_function_summary_infra(
+            enrich_with_infra=include_infra
+        )
+
+        # Enrich response with monitoring applications
+        application_function_summaries_list = self._get_function_summary_applications(
+            base_period=base_period,
+            start=start,
+            end=end,
+            names=names,
+            labels=labels,
+            include_stats=include_stats,
+        )
+
+        return infra_function_summaries_list + application_function_summaries_list
+
+    def _get_function_summary_infra(
+        self,
+        enrich_with_infra: bool = True,
+    ) -> tuple[list[mlrun.common.schemas.model_monitoring.FunctionSummary], int]:
+        """
+        Enrich the function summaries list with the model monitoring infrastructure functions.
+        In addition, it returns the base period of the controller function.
+
+        :param enrich_with_infra: If True, include the model monitoring infrastructure functions in the response.
+
+        :return: a tuple containing a list of FunctionSummary objects and the base period of the controller
+                 function. If `enrich_with_infra` is False, the list will be empty.
+        """
+        function_summaries_list = []
+        base_period = 0
+        if enrich_with_infra:
+            infra_mm_functions = self.list_model_monitoring_functions(
+                format_=mlrun.common.formatters.FunctionFormat.full,
+                function_type=mm_functions.FunctionsType.INFRA,
+            )
+
+            if not infra_mm_functions:
+                logger.info("No model monitoring infrastructure functions found")
+            for function in infra_mm_functions:
+                function_summary = mlrun.common.schemas.model_monitoring.FunctionSummary.from_function_dict(
+                    function, func_type="infra"
+                )
+                function_summaries_list.append(function_summary)
+                if (
+                    function["metadata"]["name"]
+                    == mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+                ):
+                    base_period = self._get_base_period(controller_func=function)
+        else:
+            # getting the base period from the controller function
+            try:
+                controller_func = services.api.crud.Functions().get_function(
+                    db_session=self.db_session,
+                    name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+                    project=self.project,
+                )
+                base_period = self._get_base_period(controller_func=controller_func)
+            except mlrun.errors.MLRunNotFoundError:
+                logger.info(
+                    "Model monitoring controller function not found. "
+                    "Try to re-enable model monitoring.",
+                    project=self.project,
+                )
+        return function_summaries_list, base_period
+
+    def _get_function_summary_applications(
+        self,
+        base_period: typing.Optional[float] = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
+        names: typing.Optional[list[str]] = None,
+        labels: typing.Optional[list[str]] = None,
+        include_stats: bool = True,
+    ):
+        """
+        Return function summaries list with the model monitoring applications.
+        """
+        mm_functions_list = self.list_model_monitoring_functions(
+            labels=labels, format_=mlrun.common.formatters.FunctionFormat.minimal
+        )
+        function_summaries_list = []
+
+        if not mm_functions_list:
+            logger.info("No model monitoring applications found")
+            return []
+        if names:
+            mm_functions_list = [
+                fn for fn in mm_functions_list if fn["metadata"]["name"] in names
+            ]
+
+        detection_stats_dict = {}
+        if include_stats:
+            # enrich func stats with #detections and #possible_detections
+            now = mlrun.utils.datetime_now()
+            start = start or (now - timedelta(hours=24))
+            end = end or now
+            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                project=self.project, secret_provider=self._secret_provider
+            )
+
+            detection_stats_dict = tsdb_connector.count_results_by_status(
+                start=start,
+                end=end,
+                result_status_list=[
+                    mm_constants.ResultStatusApp.detected.value,
+                    mm_constants.ResultStatusApp.potential_detection.value,
+                ],
+            )
+
+        for function in mm_functions_list:
+            function_summary = mlrun.common.schemas.model_monitoring.FunctionSummary.from_function_dict(
+                func_dict=function, base_period=base_period
+            )
+            if detection_stats_dict:
+                # enrich func stats with #detections and #possible_detections
+                function_summary.stats = {
+                    mm_constants.ResultStatusApp.detected.name: detection_stats_dict.get(
+                        (
+                            function_summary.name,
+                            mm_constants.ResultStatusApp.detected.value,
+                        ),
+                        0,
+                    ),
+                    mm_constants.ResultStatusApp.potential_detection.name: detection_stats_dict.get(
+                        (
+                            function_summary.name,
+                            mm_constants.ResultStatusApp.potential_detection.value,
+                        ),
+                        0,
+                    ),
+                }
+            function_summaries_list.append(function_summary)
+        return function_summaries_list
+
+    @staticmethod
+    def _get_base_period(controller_func: dict[str, typing.Any]) -> int:
+        base_period = 0
+        for env in controller_func["spec"]["env"]:
+            if env["name"] == mm_constants.EventFieldType.BATCH_INTERVALS_DICT:
+                base_period = json.loads(env["value"])["minutes"]
+        return base_period
 
     async def disable_model_monitoring(
         self,
@@ -886,6 +1092,7 @@ class MonitoringDeployment:
             MonitoringDeployment.delete_monitoring_function,
             mlrun.mlconf.background_tasks.default_timeouts.operations.delete_function,
             background_task_name,
+            None,
             db_session,
             project_name,
             function_name,
@@ -1783,6 +1990,7 @@ class MonitoringDeployment:
             MonitoringDeployment.create_model_endpoints,
             mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_creation,
             background_task_name,
+            None,
             function_name,
             function_tag,
             project_name,

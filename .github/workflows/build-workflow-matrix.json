@@ -20,16 +20,6 @@
     "include-suffix":""
   },
   {
-    "image-name":"base",
-    "python-version":"3.9",
-    "include-suffix":"true"
-  },
-  {
-    "image-name":"base",
-    "python-version":"3.11",
-    "include-suffix":""
-  },
-  {
     "image-name": "mlrun-gpu",
     "python-version":"3.9",
     "include-suffix":"true"

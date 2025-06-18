@@ -11,16 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import math
 import pathlib
 import sys
+import tempfile
 
 import pytest
 
 import mlrun.launcher.local
+from mlrun import MLRunInvalidArgumentError
 
 assets_path = pathlib.Path(__file__).parent / "assets"
 func_path = assets_path / "sample_function.py"
+custom_classes_path = assets_path / "custom_classes.py"
+input_csv_path = assets_path / "input.csv"
 handler = "hello_world"
 
 
@@ -187,3 +191,85 @@ def func_b():
     # rerunning temp_b with temp_a dependence and verifying with the updated temp_a code
     run = project.run_function("func", local=True, reset_on_run=True)
     assert run.output("return") == "dummy value updated"
+
+
+@pytest.mark.parametrize(
+    ["batching", "batch_size"], [(False, None), (True, None), (True, 10), (True, 77)]
+)
+def test_run_local_serving_job(batching, batch_size):
+    project = mlrun.new_project("some-project")
+    function = mlrun.code_to_function(
+        name="test", kind="serving", filename=str(custom_classes_path)
+    )
+    graph = function.set_topology("flow", engine="async")
+    graph.to(name="increaser", class_name="SepalLengthIncreaser").respond()
+    job = function.to_job()
+
+    inputs = {"data": str(input_csv_path)}
+    params = {"batching": batching, "batch_size": batch_size}
+
+    result = project.run_function(job, inputs=inputs, params=params, local=True)
+    responses = result.status.results["return"]
+
+    num_input_rows = 150  # number of rows in input file
+    if batching:
+        num_expected_responses = (
+            math.ceil(num_input_rows / batch_size) if batch_size else 1
+        )
+    else:
+        num_expected_responses = 150
+    assert len(responses) == num_expected_responses
+
+    first_response = responses[0]
+    if batching:
+        first_response = first_response[0]
+    assert first_response == {  # based on the first row in input file
+        "sepal_length": 6.1,
+        "sepal_width": 3.5,
+        "petal_length": 1.4,
+        "petal_width": 0.2,
+        "species": "setosa",
+    }
+
+
+def test_run_local_serving_job_with_target():
+    project = mlrun.new_project("some-project")
+    function = mlrun.code_to_function(
+        name="test", kind="serving", filename=str(custom_classes_path)
+    )
+    graph = function.set_topology("flow", engine="async")
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        graph.to(name="increaser", class_name="SepalLengthIncreaser")
+        graph.to(name="parquet", class_name="storey.ParquetTarget", path=tmp_dir)
+
+        job = function.to_job()
+
+        inputs = {"data": str(input_csv_path)}
+
+        project.run_function(job, inputs=inputs, local=True)
+
+        assert pathlib.Path(tmp_dir).exists()
+
+
+def test_to_job_on_function_with_children():
+    function = mlrun.code_to_function(
+        name="test", kind="serving", filename=str(custom_classes_path)
+    )
+    graph = function.set_topology("flow", engine="async")
+
+    child = function.add_child_function(
+        "my-child-function", __file__, image="some-image"
+    )
+
+    graph.to(name="increaser", class_name="SepalLengthIncreaser")
+    graph.to(name="queue", class_name=">>", path="some/path")
+    graph.to(
+        name="parquet", class_name="storey.ParquetTarget", path="some/path", func=child
+    )
+
+    with pytest.raises(
+        MLRunInvalidArgumentError,
+        match="Cannot convert function 'test' to a job because it has child functions",
+    ):
+        function.to_job()

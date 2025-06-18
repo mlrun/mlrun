@@ -46,10 +46,12 @@ import mlrun.utils
 from mlrun.alerts.alert import AlertConfig
 from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
+from mlrun.secrets import get_secret_or_env
 from mlrun_pipelines.utils import compile_pipeline
 
 from ..artifacts import Artifact
 from ..common.schemas import AlertActivations
+from ..common.schemas.model_monitoring import FunctionSummary
 from ..config import config
 from ..datastore.datastore_profile import DatastoreProfile2Json
 from ..feature_store import FeatureSet, FeatureVector
@@ -155,9 +157,9 @@ class HTTPRunDB(RunDBInterface):
 
         if config.auth_with_client_id.enabled:
             self.token_provider = OAuthClientIDTokenProvider(
-                token_endpoint=mlrun.get_secret_or_env("MLRUN_AUTH_TOKEN_ENDPOINT"),
-                client_id=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_ID"),
-                client_secret=mlrun.get_secret_or_env("MLRUN_AUTH_CLIENT_SECRET"),
+                token_endpoint=get_secret_or_env("MLRUN_AUTH_TOKEN_ENDPOINT"),
+                client_id=get_secret_or_env("MLRUN_AUTH_CLIENT_ID"),
+                client_secret=get_secret_or_env("MLRUN_AUTH_CLIENT_SECRET"),
                 timeout=config.auth_with_client_id.request_timeout,
             )
         else:
@@ -900,9 +902,6 @@ class HTTPRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[
-            mlrun.common.runtimes.constants.RunStates
-        ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         iter: bool = False,
@@ -947,7 +946,6 @@ class HTTPRunDB(RunDBInterface):
             or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
-        :param state: Deprecated - List only runs whose state is specified (will be removed in 1.10.0)
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -975,7 +973,6 @@ class HTTPRunDB(RunDBInterface):
             uid=uid,
             project=project,
             labels=labels,
-            state=state,
             states=states,
             sort=sort,
             iter=iter,
@@ -2356,8 +2353,7 @@ class HTTPRunDB(RunDBInterface):
     ):
         """
         Retry a specific pipeline run using its run ID. This function sends an API request
-        to retry a pipeline run. If a project is specified, the run must belong to that
-        project; otherwise, all projects are queried.
+        to retry a pipeline run.
 
         :param run_id: The unique ID of the pipeline run to retry.
         :param namespace: Kubernetes namespace where the pipeline is running. Optional.
@@ -2398,7 +2394,7 @@ class HTTPRunDB(RunDBInterface):
                 namespace=namespace,
                 response_code=resp_code,
                 response_text=resp_text,
-                error=str(exc),
+                error=err_to_str(exc),
             )
             if isinstance(exc, mlrun.errors.MLRunHTTPError):
                 raise exc  # Re-raise known HTTP errors
@@ -2408,6 +2404,72 @@ class HTTPRunDB(RunDBInterface):
 
         logger.info(
             "Successfully retried pipeline run",
+            run_id=run_id,
+            project=project,
+            namespace=namespace,
+        )
+        return resp.json()
+
+    def terminate_pipeline(
+        self,
+        run_id: str,
+        project: str,
+        namespace: Optional[str] = None,
+        timeout: int = 30,
+    ):
+        """
+        Terminate a specific pipeline run using its run ID. This function sends an API request
+        to terminate a pipeline run.
+
+        :param run_id: The unique ID of the pipeline run to terminate.
+        :param namespace: Kubernetes namespace where the pipeline is running. Optional.
+        :param timeout: Timeout (in seconds) for the API call. Defaults to 30 seconds.
+        :param project: Name of the MLRun project associated with the pipeline.
+
+        :raises ValueError: Raised if the API response is not successful or contains an
+            error.
+
+        :return: JSON response containing details of the terminate pipeline run background task.
+        """
+
+        params = {}
+        if namespace:
+            params["namespace"] = namespace
+
+        resp_text = ""
+        resp_code = None
+        try:
+            resp = self.api_call(
+                "POST",
+                f"projects/{project}/pipelines/{run_id}/terminate",
+                params=params,
+                timeout=timeout,
+            )
+            resp_code = resp.status_code
+            resp_text = resp.text
+            if not resp.ok:
+                raise mlrun.errors.MLRunHTTPError(
+                    f"Failed to retry pipeline run '{run_id}'. "
+                    f"HTTP {resp_code}: {resp_text}"
+                )
+        except Exception as exc:
+            logger.error(
+                "Failed to invoke terminate pipeline API",
+                run_id=run_id,
+                project=project,
+                namespace=namespace,
+                response_code=resp_code,
+                response_text=resp_text,
+                error=err_to_str(exc),
+            )
+            if isinstance(exc, mlrun.errors.MLRunHTTPError):
+                raise exc  # Re-raise known HTTP errors
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Unexpected error while terminating pipeline run '{run_id}'."
+            ) from exc
+
+        logger.info(
+            "Successfully scheduled terminate pipeline run background task",
             run_id=run_id,
             project=project,
             namespace=namespace,
@@ -2567,44 +2629,6 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed listing features, project: {project}, query: {params}"
         resp = self.api_call("GET", path, error_message, params=params, version="v2")
         return resp.json()
-
-    def list_entities(
-        self,
-        project: Optional[str] = None,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-    ) -> list[dict]:
-        """Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
-        to the :py:func:`~list_features` function, and uses the same logic. However, the entities are matched
-        against the name rather than the features.
-
-        :param project: The project containing the entities.
-        :param name: The name of the entities to retrieve.
-        :param tag: The tag of the specific entity version to retrieve.
-        :param labels: Filter entities by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
-        :returns: A list of entities.
-        """
-
-        project = project or config.active_project
-        labels = self._parse_labels(labels)
-        params = {
-            "name": name,
-            "tag": tag,
-            "label": labels,
-        }
-
-        path = f"projects/{project}/entities"
-
-        error_message = f"Failed listing entities, project: {project}, query: {params}"
-        resp = self.api_call("GET", path, error_message, params=params)
-        return resp.json()["entities"]
 
     def list_entities_v2(
         self,
@@ -4118,6 +4142,52 @@ class HTTPRunDB(RunDBInterface):
             params={**credentials, "replace_creds": replace_creds},
         )
 
+    def get_monitoring_function_summaries(
+        self,
+        project: str,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        names: Optional[Union[list[str], str]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        include_stats: bool = False,
+        include_infra: bool = True,
+    ) -> list[FunctionSummary]:
+        """
+        Get monitoring function summaries for the specified project.
+
+        :param project: The name of the project.
+        :param start: Start time for filtering the results (optional).
+        :param end: End time for filtering the results (optional).
+        :param names: List of function names to filter by (optional).
+        :param labels: Labels to filter by (optional).
+        :param include_stats: Whether to include statistics in the response (default is False).
+        :param include_infra: whether to include model monitoring infrastructure functions (default is True).
+
+        :return: A list of FunctionSummary objects containing information about the monitoring functions.
+        """
+
+        path = f"projects/{project}/model-monitoring/function-summaries"
+        labels = self._parse_labels(labels)
+        if names and isinstance(names, str):
+            names = [names]
+        response = self.api_call(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path=path,
+            params={
+                "start": datetime_to_iso(start),
+                "end": datetime_to_iso(end),
+                "name": names,
+                "label": labels,
+                "include-stats": include_stats,
+                "include-infra": include_infra,
+            },
+        )
+
+        results = []
+        for item in response.json():
+            results.append(FunctionSummary(**item))
+        return results
+
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
     ):
@@ -5216,9 +5286,6 @@ class HTTPRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[
-            mlrun.common.runtimes.constants.RunStates
-        ] = None,  # Backward compatibility
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         iter: bool = False,
@@ -5252,20 +5319,12 @@ class HTTPRunDB(RunDBInterface):
                 "using the `with_notifications` flag."
             )
 
-        if state:
-            # TODO: Remove this in 1.10.0
-            warnings.warn(
-                "'state' is deprecated in 1.7.0 and will be removed in 1.10.0. Use 'states' instead.",
-                FutureWarning,
-            )
-
         labels = self._parse_labels(labels)
 
         if (
             not name
             and not uid
             and not labels
-            and not state
             and not states
             and not start_time_from
             and not start_time_to
@@ -5286,11 +5345,7 @@ class HTTPRunDB(RunDBInterface):
             "name": name,
             "uid": uid,
             "label": labels,
-            "state": (
-                mlrun.utils.helpers.as_list(state)
-                if state is not None
-                else states or None
-            ),
+            "states": states or None,
             "sort": bool2str(sort),
             "iter": bool2str(iter),
             "start_time_from": datetime_to_iso(start_time_from),

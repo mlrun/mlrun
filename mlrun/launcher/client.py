@@ -23,6 +23,7 @@ import mlrun.lists
 import mlrun.model
 import mlrun.runtimes
 import mlrun.utils
+import mlrun.utils.version
 
 
 class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
@@ -35,6 +36,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         runtime: "mlrun.runtimes.base.BaseRuntime",
         project_name: Optional[str] = "",
         full: bool = True,
+        client_version: str = "",
     ):
         runtime.try_auto_mount_based_on_config()
         runtime._fill_credentials()
@@ -59,6 +61,8 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
             and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
         ):
             image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
+
+        mlrun.utils.helpers.warn_on_deprecated_image(image)
 
         # TODO: need a better way to decide whether a function requires a build
         if require_build and image and not runtime.spec.build.base_image:

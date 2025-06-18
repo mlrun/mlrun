@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
 import json
 import os
 import warnings
@@ -43,6 +42,8 @@ from mlrun.serving.states import (
 )
 from mlrun.utils import get_caller_globals, logger, set_paths
 
+from .. import KubejobRuntime
+from ..pod import KubeResourceSpec
 from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions
 
 serving_subkind = "serving_v2"
@@ -147,10 +148,10 @@ class ServingSpec(NuclioSpec):
         security_context=None,
         service_type=None,
         add_templated_ingress_host_mode=None,
-        clone_target_dir=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
         model_endpoint_creation_task_name=None,
+        serving_spec=None,
     ):
         super().__init__(
             command=command,
@@ -190,8 +191,8 @@ class ServingSpec(NuclioSpec):
             security_context=security_context,
             service_type=service_type,
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
-            clone_target_dir=clone_target_dir,
             disable_default_http_trigger=disable_default_http_trigger,
+            serving_spec=serving_spec,
         )
 
         self.models = models or {}
@@ -480,6 +481,7 @@ class ServingRuntime(RemoteRuntime):
                 state = TaskStep(
                     class_name,
                     class_args,
+                    name=key,
                     handler=handler,
                     function=child_function,
                     model_endpoint_creation_strategy=creation_strategy,
@@ -631,7 +633,6 @@ class ServingRuntime(RemoteRuntime):
         project="",
         tag="",
         verbose=False,
-        auth_info: schemas.AuthInfo = None,
         builder_env: Optional[dict] = None,
         force_build: bool = False,
     ):
@@ -640,8 +641,6 @@ class ServingRuntime(RemoteRuntime):
         :param project:   optional, override function specified project name
         :param tag:       specify unique function tag (a different function service is created for every tag)
         :param verbose:   verbose logging
-        :param auth_info: The auth info to use to communicate with the Nuclio dashboard, required only when providing
-                          dashboard
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
         """
@@ -686,7 +685,6 @@ class ServingRuntime(RemoteRuntime):
             project,
             tag,
             verbose,
-            auth_info,
             builder_env=builder_env,
             force_build=force_build,
         )
@@ -709,6 +707,7 @@ class ServingRuntime(RemoteRuntime):
             "track_models": self.spec.track_models,
             "default_content_type": self.spec.default_content_type,
             "model_endpoint_creation_task_name": self.spec.model_endpoint_creation_task_name,
+            "filename": getattr(self.spec, "filename", None),
         }
 
         if self.spec.secret_sources:
@@ -716,6 +715,10 @@ class ServingRuntime(RemoteRuntime):
             serving_spec["secret_sources"] = self._secrets.to_serial()
 
         return json.dumps(serving_spec)
+
+    @property
+    def serving_spec(self):
+        return self._get_serving_spec()
 
     def to_mock_server(
         self,
@@ -748,13 +751,10 @@ class ServingRuntime(RemoteRuntime):
             set_paths(workdir)
             os.chdir(workdir)
 
-        system_graph = None
-        if isinstance(self.spec.graph, RootFlowStep):
-            system_graph = add_system_steps_to_graph(copy.deepcopy(self.spec.graph))
         server = create_graph_server(
             parameters=self.spec.parameters,
             load_mode=self.spec.load_mode,
-            graph=system_graph or self.spec.graph,
+            graph=self.spec.graph,
             verbose=self.verbose,
             current_function=current_function,
             graph_initializer=self.spec.graph_initializer,
@@ -774,6 +774,18 @@ class ServingRuntime(RemoteRuntime):
             is_mock=True,
             monitoring_mock=self.spec.track_models,
         )
+
+        if (
+            isinstance(self.spec.graph, RootFlowStep)
+            and self.spec.graph.include_monitored_step()
+        ):
+            server.graph = add_system_steps_to_graph(
+                server.project,
+                server.graph,
+                self.spec.track_models,
+                server.context,
+                self.spec,
+            )
 
         if workdir:
             os.chdir(old_workdir)
@@ -812,3 +824,40 @@ class ServingRuntime(RemoteRuntime):
             "Turn off the mock (mock=False) and make sure Nuclio is installed for real deployment to Nuclio"
         )
         self._mock_server = self.to_mock_server()
+
+    def to_job(self) -> KubejobRuntime:
+        """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job."""
+        if self.spec.function_refs:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Cannot convert function '{self.metadata.name}' to a job because it has child functions"
+            )
+
+        spec = KubeResourceSpec(
+            image=self.spec.image,
+            mode=self.spec.mode,
+            volumes=self.spec.volumes,
+            volume_mounts=self.spec.volume_mounts,
+            env=self.spec.env,
+            resources=self.spec.resources,
+            default_handler="mlrun.serving.server.execute_graph",
+            pythonpath=self.spec.pythonpath,
+            entry_points=self.spec.entry_points,
+            description=self.spec.description,
+            workdir=self.spec.workdir,
+            image_pull_secret=self.spec.image_pull_secret,
+            node_name=self.spec.node_name,
+            node_selector=self.spec.node_selector,
+            affinity=self.spec.affinity,
+            disable_auto_mount=self.spec.disable_auto_mount,
+            priority_class_name=self.spec.priority_class_name,
+            tolerations=self.spec.tolerations,
+            preemption_mode=self.spec.preemption_mode,
+            security_context=self.spec.security_context,
+            state_thresholds=self.spec.state_thresholds,
+            serving_spec=self._get_serving_spec(),
+        )
+        job = KubejobRuntime(
+            spec=spec,
+            metadata=self.metadata,
+        )
+        return job

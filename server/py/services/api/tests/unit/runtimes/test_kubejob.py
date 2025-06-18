@@ -1016,7 +1016,7 @@ def my_func(context):
 
         assert runtime.spec.build.base_image == "mlrun/mlrun"
 
-        runtime.build_config(commands=["python -m pip install numpy"])
+        runtime.build_config(commands=["python -m pip install numpy"], overwrite=False)
         expected_commands = [
             "python -m pip install pandas",
             "python -m pip install numpy",
@@ -1030,9 +1030,7 @@ def my_func(context):
             == {}
         )
 
-        runtime.build_config(
-            commands=["python -m pip install scikit-learn"], overwrite=True
-        )
+        runtime.build_config(commands=["python -m pip install scikit-learn"])
         expected_commands = ["python -m pip install scikit-learn"]
         assert (
             deepdiff.DeepDiff(
@@ -1066,7 +1064,7 @@ def my_func(context):
             == {}
         )
 
-        runtime.build_config(requirements=["scikit-learn"], overwrite=True)
+        runtime.build_config(requirements=["scikit-learn"])
         expected_requirements = ["scikit-learn"]
         assert (
             deepdiff.DeepDiff(

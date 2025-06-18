@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
 from mlrun.common.schemas import SecurityContextEnrichmentModes
@@ -1275,114 +1276,184 @@ def test_generate_function_and_task_from_submit_run_body_imported_function_proje
     assert parsed_function_object.metadata.project == PROJECT
 
 
-def test_get_obj_path(db: Session, client: TestClient):
-    cases = [
-        {
-            "path": "/local/path",
-            "schema": "v3io",
-            "expected_path": "v3io:///local/path",
-        },
-        {"path": "/User/my/path", "expected_path": "v3io:///users/admin/my/path"},
-        {
-            "path": "/User/my/path",
-            "schema": "v3io",
-            "expected_path": "v3io:///users/admin/my/path",
-        },
-        {
-            "path": "/User/my/path",
-            "user": "hedi",
-            "expected_path": "v3io:///users/hedi/my/path",
-        },
-        {
-            "path": "/v3io/projects/my-proj/my/path",
-            "expected_path": "v3io:///projects/my-proj/my/path",
-        },
-        {
-            "path": "/v3io/projects/my-proj/my/path",
-            "schema": "v3io",
-            "expected_path": "v3io:///projects/my-proj/my/path",
-        },
-        {
-            "path": "/home/jovyan/data/my/path",
-            "data_volume": "/home/jovyan/data",
-            "real_path": "/root",
-            "expected_path": "/root/my/path",
-        },
-        {
-            "path": "/home/jovyan/data/my/path",
-            "data_volume": "/home/jovyan/data/",
-            "real_path": "/root",
-            "expected_path": "/root/my/path",
-        },
-        {
-            "path": "/home/jovyan/data/my/path",
-            "data_volume": "/home/jovyan/data/",
-            "real_path": "/root/",
-            "expected_path": "/root/my/path",
-        },
-        {
-            "path": "/home/jovyan/data/my/path",
-            "data_volume": "/home/jovyan/data",
-            "real_path": "/root/",
-            "expected_path": "/root/my/path",
-        },
-        {"path": "/local/path", "expect_error": True},
-        {
-            "path": "/home/jovyan/data/my/path",
-            "data_volume": "/home/jovyan/data",
-            "expect_error": True,
-        },
-        {
-            "path": "gcs://bucket/and/path",
-            "allowed_paths": "http://, gcs:// ",
-            "expected_path": "gcs://bucket/and/path",
-        },
-        {
-            "path": "bucket/and/path",
-            "schema": "gs",
-            "allowed_paths": " gs://, gcs:// ",
-            "expected_path": "gs://bucket/and/path",
-        },
-        {
-            "path": "gcs://bucket/and/path",
-            "allowed_paths": "s3://",
-            "expect_error": True,
-        },
-        {
-            "path": "/local/file/security/breach",
-            "allowed_paths": "/local",
-            "expect_error": True,
-        },
-    ]
-    for case in cases:
-        logger.info("Testing case", case=case)
-        old_real_path = mlrun.mlconf.httpdb.real_path
-        old_data_volume = mlrun.mlconf.httpdb.data_volume
-        old_allowed_file_paths = mlrun.mlconf.httpdb.allowed_file_paths
-        if case.get("real_path"):
-            mlrun.mlconf.httpdb.real_path = case["real_path"]
-        if case.get("data_volume"):
-            mlrun.mlconf.httpdb.data_volume = case["data_volume"]
-        if case.get("allowed_paths"):
-            mlrun.mlconf.httpdb.allowed_file_paths = case["allowed_paths"]
-        if case.get("expect_error"):
+@pytest.mark.parametrize(
+    "path, schema, user, data_volume, real_path, allowed_paths, expected_path, expect_error",
+    [
+        ("/local/path", "v3io", None, None, None, None, "v3io:///local/path", False),
+        (
+            "/User/my/path",
+            None,
+            None,
+            None,
+            None,
+            None,
+            "v3io:///users/admin/my/path",
+            False,
+        ),
+        (
+            "/User/my/path",
+            "v3io",
+            None,
+            None,
+            None,
+            None,
+            "v3io:///users/admin/my/path",
+            False,
+        ),
+        (
+            "/User/my/path",
+            None,
+            "hedi",
+            None,
+            None,
+            None,
+            "v3io:///users/hedi/my/path",
+            False,
+        ),
+        (
+            "/v3io/projects/my-proj/my/path",
+            None,
+            None,
+            None,
+            None,
+            None,
+            "v3io:///projects/my-proj/my/path",
+            False,
+        ),
+        (
+            "/v3io/projects/my-proj/my/path",
+            "v3io",
+            None,
+            None,
+            None,
+            None,
+            "v3io:///projects/my-proj/my/path",
+            False,
+        ),
+        (
+            "/home/jovyan/data/my/path",
+            None,
+            None,
+            "/home/jovyan/data",
+            "/root",
+            None,
+            "/root/my/path",
+            False,
+        ),
+        (
+            "/home/jovyan/data/my/path",
+            None,
+            None,
+            "/home/jovyan/data/",
+            "/root",
+            None,
+            "/root/my/path",
+            False,
+        ),
+        (
+            "/home/jovyan/data/my/path",
+            None,
+            None,
+            "/home/jovyan/data/",
+            "/root/",
+            None,
+            "/root/my/path",
+            False,
+        ),
+        (
+            "/home/jovyan/data/my/path",
+            None,
+            None,
+            "/home/jovyan/data",
+            "/root/",
+            None,
+            "/root/my/path",
+            False,
+        ),
+        ("/local/path", None, None, None, None, None, None, True),
+        (
+            "/home/jovyan/data/my/path",
+            None,
+            None,
+            "/home/jovyan/data",
+            None,
+            None,
+            None,
+            True,
+        ),
+        (
+            "gcs://bucket/and/path",
+            None,
+            None,
+            None,
+            None,
+            "http://, gcs:// ",
+            "gcs://bucket/and/path",
+            False,
+        ),
+        (
+            "bucket/and/path",
+            "gs",
+            None,
+            None,
+            None,
+            " gs://, gcs:// ",
+            "gs://bucket/and/path",
+            False,
+        ),
+        ("gcs://bucket/and/path", None, None, None, None, "s3://", None, True),
+        ("/local/file/security/breach", None, None, None, None, "/local", None, True),
+    ],
+)
+def test_get_obj_path(
+    path,
+    schema,
+    user,
+    data_volume,
+    real_path,
+    allowed_paths,
+    expected_path,
+    expect_error,
+):
+    logger.info(
+        "Testing get_obj_path",
+        path=path,
+        schema=schema,
+        user=user,
+        data_volume=data_volume,
+        real_path=real_path,
+        allowed_paths=allowed_paths,
+        expected_path=expected_path,
+        expect_error=expect_error,
+    )
+
+    # Save current config
+    old_real_path = mlrun.mlconf.httpdb.real_path
+    old_data_volume = mlrun.mlconf.httpdb.data_volume
+    old_allowed_file_paths = mlrun.mlconf.httpdb.allowed_file_paths
+
+    # Apply test case config
+    if real_path:
+        mlrun.mlconf.httpdb.real_path = real_path
+    if data_volume:
+        mlrun.mlconf.httpdb.data_volume = data_volume
+    if allowed_paths:
+        mlrun.mlconf.httpdb.allowed_file_paths = allowed_paths
+
+    try:
+        if expect_error:
             with pytest.raises(
                 mlrun.errors.MLRunAccessDeniedError, match="Unauthorized path"
             ):
-                framework.api.utils.get_obj_path(
-                    case.get("schema"), case.get("path"), case.get("user")
-                )
+                framework.api.utils.get_obj_path(schema, path, user)
         else:
-            result_path = framework.api.utils.get_obj_path(
-                case.get("schema"), case.get("path"), case.get("user")
-            )
-            assert result_path == case["expected_path"]
-            if case.get("real_path"):
-                mlrun.mlconf.httpdb.real_path = old_real_path
-            if case.get("data_volume"):
-                mlrun.mlconf.httpdb.data_volume = old_data_volume
-            if case.get("allowed_paths"):
-                mlrun.mlconf.httpdb.allowed_file_paths = old_allowed_file_paths
+            result = framework.api.utils.get_obj_path(schema, path, user)
+            assert result == expected_path
+    finally:
+        # Restore config after each test
+        mlrun.mlconf.httpdb.real_path = old_real_path
+        mlrun.mlconf.httpdb.data_volume = old_data_volume
+        mlrun.mlconf.httpdb.allowed_file_paths = old_allowed_file_paths
 
 
 def _mock_import_function(monkeypatch):
@@ -1722,7 +1793,7 @@ async def test_update_functions_with_deletion_info(db: sqlalchemy.orm.Session):
             "x",
             "",
             "1.8.0",
-            "x",
+            "mlrun/mlrun-kfp",
         ),
         (
             "x",

@@ -41,10 +41,11 @@ from sqlalchemy import (
     or_,
     select,
     text,
+    tuple_,
 )
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
-from sqlalchemy.orm import Session, aliased, load_only, selectinload
+from sqlalchemy.orm import Query, Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 import mlrun
@@ -64,7 +65,11 @@ from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
     FeatureSetDigestSpecV2,
 )
-from mlrun.common.schemas.model_monitoring import EndpointType, ModelEndpointSchema
+from mlrun.common.schemas.model_monitoring import (
+    EndpointType,
+    ModelEndpointSchema,
+    ModelMonitoringAppLabel,
+)
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, RunList
@@ -107,6 +112,7 @@ from framework.db.sqldb.models import (
     Artifact,
     ArtifactV2,
     BackgroundTask,
+    BackgroundTaskLabel,
     Base,
     DatastoreProfile,
     DataVersion,
@@ -1835,48 +1841,7 @@ class SQLDB(DBInterface):
                 with_tagged=True,
             )
         if parent_uri:
-            (
-                parent_project,
-                parent_key,
-                parent_iteration,
-                parent_tag,
-                parent_tree,
-                parent_uid,
-            ) = [None] * 6
-            if mlrun.datastore.is_store_uri(parent_uri):
-                _, uri = mlrun.datastore.parse_store_uri(parent_uri)
-                (
-                    parent_project,
-                    parent_key,
-                    parent_iteration,
-                    parent_tag,
-                    parent_tree,
-                    parent_uid,
-                ) = parse_artifact_uri(uri)
-            elif ":" in parent_uri:
-                parent_key, parent_tag = parent_uri.split(":", maxsplit=1)
-            else:
-                parent_key = parent_uri
-
-            ref_alias = aliased(ArtifactV2)
-
-            # Join on reference_artifact_id -> ArtifactV2.id
-            query = query.join(ref_alias, ArtifactV2.parent_id == ref_alias.id)
-
-            if parent_project:
-                query = query.filter(ref_alias.project == parent_project)
-            if parent_key:
-                query = query.filter(ref_alias.key == parent_key)
-            if parent_iteration:
-                query = query.filter(ref_alias.iteration == parent_iteration)
-            if parent_tree:
-                query = query.filter(ref_alias.producer_id == parent_tree)
-            if parent_uid:
-                query = query.filter(ref_alias.uid == parent_uid)
-            if parent_tag:
-                ref_tag = aliased(ArtifactV2.Tag)
-                query = query.join(ref_tag, ref_tag.obj_id == ref_alias.id)
-                query = query.filter(ref_tag.name == parent_tag)
+            query = self._add_artifact_parent_query(query=query, parent_uri=parent_uri)
 
         if limit:
             # Order the results before applying the limit to ensure that the limit is applied to the correctly
@@ -2070,14 +2035,98 @@ class SQLDB(DBInterface):
             return query
 
         if name.startswith("~"):
-            # Escape special chars (_,%) since we still need to do a like query.
-            exact_name = self._escape_characters_for_like_query(name)
-            # Use Like query to find substring matches
-            return query.filter(
-                ArtifactV2.key.ilike(f"%{exact_name[1:]}%", escape="\\")
+            return self._partial_querying(
+                query=query,
+                name=name,
+                column=ArtifactV2.key,
             )
 
         return query.filter(ArtifactV2.key == name)
+
+    def _partial_querying(self, query: Query, name: str, column: Any):
+        # Escape special chars (_,%) since we still need to do a like query.
+        exact_name = self._escape_characters_for_like_query(name)
+        # Use Like query to find substring matches
+        return query.filter(column.ilike(f"%{exact_name[1:]}%", escape="\\"))
+
+    def _add_artifact_parent_query(self, query: Query, parent_uri: str):
+        """
+        Augments a SQLAlchemy query to filter artifacts based on a given parent artifact URI or shorthand notation.
+
+        This function supports filtering artifacts that are linked (via `parent_id`) to a specific parent artifact.
+        The parent artifact can be referenced using:
+          - A full store URI (e.g., `store://artifacts/<project>/<key>:<tag>`),
+          - A shorthand `key:tag` format,
+          - Or a simple key.
+
+        Partial matching behavior:
+        - **Key (name)** and **tag** filters use a SQL `ILIKE` clause for case-insensitive substring matching.
+          For example, filtering by `parent_key="m1"` will match parent keys such as `"m11"` or `"M1"`.
+        - This allows flexibility in referencing parent artifacts without requiring the full exact name or tag.
+
+        :param query: SQLAlchemy query object to be augmented with parent artifact filters.
+        :param parent_uri: A string identifying the parent artifact. Can be a full MLRun store URI, a `key:tag` pair,
+                           or just a key.
+        :return: A SQLAlchemy query object with added filters for the parent artifact.
+        """
+        (
+            parent_project,
+            parent_key,
+            parent_iteration,
+            parent_tag,
+            parent_tree,
+            parent_uid,
+        ) = [None] * 6
+        if mlrun.datastore.is_store_uri(parent_uri):
+            # Parse the parent URI to extract project, key, iteration, tag, tree, and uid
+            _, uri = mlrun.datastore.parse_store_uri(parent_uri)
+            (
+                parent_project,
+                parent_key,
+                parent_iteration,
+                parent_tag,
+                parent_tree,
+                parent_uid,
+            ) = parse_artifact_uri(uri)
+        elif ":" in parent_uri:
+            parent_key, parent_tag = parent_uri.split(":", maxsplit=1)
+        else:
+            parent_key = parent_uri
+
+        ref_alias = aliased(ArtifactV2)
+
+        # Join on reference_artifact_id -> ArtifactV2.id
+        query = query.join(ref_alias, ArtifactV2.parent_id == ref_alias.id)
+
+        if parent_project:
+            query = query.filter(ref_alias.project == parent_project)
+        if parent_key:
+            parent_key = (
+                f"~{parent_key}" if not parent_key.startswith("~") else parent_key
+            )
+            query = self._partial_querying(
+                query=query,
+                name=parent_key,
+                column=ref_alias.key,
+            )
+        if parent_iteration:
+            query = query.filter(ref_alias.iteration == parent_iteration)
+        if parent_tree:
+            query = query.filter(ref_alias.producer_id == parent_tree)
+        if parent_uid:
+            query = query.filter(ref_alias.uid == parent_uid)
+        if parent_tag:
+            ref_tag = aliased(ArtifactV2.Tag)
+            query = query.join(ref_tag, ref_tag.obj_id == ref_alias.id)
+            parent_tag = (
+                f"~{parent_tag}" if not parent_tag.startswith("~") else parent_tag
+            )
+            query = self._partial_querying(
+                query=query,
+                name=parent_tag,
+                column=ref_tag.name,
+            )
+        return query
 
     @staticmethod
     def _add_artifact_category_query(category, query):
@@ -3645,6 +3694,13 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
@@ -3668,6 +3724,14 @@ class SQLDB(DBInterface):
                 self._calculate_alert_activations_counters,
                 projects_with_creation_time,
             ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_mm_functions_counters,
+            ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_mep_counters,
+            ),
         )
         (
             category_to_project_artifact_count,
@@ -3686,6 +3750,14 @@ class SQLDB(DBInterface):
                 project_to_endpoint_alerts_count,
                 project_to_job_alerts_count,
                 project_to_other_alerts_count,
+            ),
+            (
+                project_to_running_mm_functions,
+                project_to_failed_mm_functions_count,
+            ),
+            (
+                project_to_real_time_mep_count,
+                project_to_batch_mep_count,
             ),
         ) = results
         # TODO: counters by artifact categories should be expanded to include all categories (currently only models
@@ -3709,6 +3781,22 @@ class SQLDB(DBInterface):
             project_to_endpoint_alerts_count,
             project_to_job_alerts_count,
             project_to_other_alerts_count,
+            category_to_project_artifact_count.get(
+                mlrun.common.schemas.ArtifactCategories.dataset,
+                collections.defaultdict(lambda: 0),
+            ),
+            category_to_project_artifact_count.get(
+                mlrun.common.schemas.ArtifactCategories.document,
+                collections.defaultdict(lambda: 0),
+            ),
+            category_to_project_artifact_count.get(
+                mlrun.common.schemas.ArtifactCategories.llm_prompt,
+                collections.defaultdict(lambda: 0),
+            ),
+            project_to_running_mm_functions,
+            project_to_failed_mm_functions_count,
+            project_to_real_time_mep_count,
+            project_to_batch_mep_count,
         )
 
     @staticmethod
@@ -3802,6 +3890,48 @@ class SQLDB(DBInterface):
             result[0]: result[1] for result in feature_sets_count_per_project
         }
         return project_to_feature_set_count
+
+    def _calculate_mm_functions_counters(
+        self, session
+    ) -> tuple[dict[str, int], dict[str, int]]:
+        labels = [f"{ModelMonitoringAppLabel.KEY}={ModelMonitoringAppLabel.VAL}"]
+        query = session.query(Function.project, Function, Function.Tag.name)
+        query = query.join(
+            Function.Tag, Function.id == Function.Tag.obj_id
+        )  # filter duplications
+        labels = label_set(labels)
+        query = self._add_labels_filter(session, query, Function, labels)
+
+        project_to_failed_mm_functions_count = {}
+        project_to_running_mm_functions_count = {}
+        for project, function, name in query.all():
+            project_to_running_mm_functions_count.setdefault(project, 0)
+            project_to_failed_mm_functions_count.setdefault(project, 0)
+            if function.state == mlrun.common.schemas.FunctionState.ready:
+                project_to_running_mm_functions_count[project] += 1
+            if function.state == mlrun.common.schemas.FunctionState.error:
+                project_to_failed_mm_functions_count[project] += 1
+
+        return (
+            project_to_running_mm_functions_count,
+            project_to_failed_mm_functions_count,
+        )
+
+    @staticmethod
+    def _calculate_mep_counters(session) -> tuple[dict[str, int], dict[str, int]]:
+        query = session.query(ModelEndpoint.project, ModelEndpoint.endpoint_type)
+
+        project_to_real_time_mep_count = {}
+        project_to_batch_mep_count = {}
+        for project, endpoint_type in query.all():
+            project_to_real_time_mep_count.setdefault(project, 0)
+            project_to_batch_mep_count.setdefault(project, 0)
+            if endpoint_type == EndpointType.BATCH_EP:
+                project_to_batch_mep_count[project] += 1
+            else:
+                project_to_real_time_mep_count[project] += 1
+
+        return project_to_real_time_mep_count, project_to_batch_mep_count
 
     @staticmethod
     def _calculate_artifact_counters_by_category(
@@ -4502,68 +4632,6 @@ class SQLDB(DBInterface):
             features=features_with_feature_set_index,
             feature_set_digests=feature_set_digests_v2,
         )
-
-    def list_entities(
-        self,
-        session,
-        project: str,
-        name: typing.Optional[str] = None,
-        tag: typing.Optional[str] = None,
-        labels: typing.Optional[list[str]] = None,
-    ) -> mlrun.common.schemas.EntitiesOutput:
-        feature_set_id_tags = self._get_records_to_tags_map(
-            session, FeatureSet, project, tag, name=None
-        )
-
-        query = self._generate_feature_or_entity_list_query(
-            session, Entity, project, feature_set_id_tags.keys(), name, tag, labels
-        )
-
-        entities_results = []
-        transform_feature_set_model_to_schema = MemoizationCache(
-            self._transform_feature_set_model_to_schema
-        ).memoize
-        generate_feature_set_digest = MemoizationCache(
-            self._generate_feature_set_digest
-        ).memoize
-
-        for row in query:
-            entity_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Entity)
-            entity_name = entity_record.name
-
-            feature_sets = self._generate_records_with_tags_assigned(
-                row.FeatureSet,
-                transform_feature_set_model_to_schema,
-                feature_set_id_tags,
-                tag,
-            )
-
-            for feature_set in feature_sets:
-                # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
-                # in the DB)
-                entity = next(
-                    (
-                        entity
-                        for entity in feature_set.spec.entities
-                        if entity.name == entity_name
-                    ),
-                    None,
-                )
-                if not entity:
-                    raise mlrun.errors.MLRunInternalServerError(
-                        "Inconsistent data in DB - entities in DB not in feature-set document"
-                    )
-
-                feature_set_digest = generate_feature_set_digest(feature_set)
-
-                entities_results.append(
-                    mlrun.common.schemas.EntityListOutput(
-                        entity=entity,
-                        feature_set_digest=feature_set_digest,
-                    )
-                )
-
-        return mlrun.common.schemas.EntitiesOutput(entities=entities_results)
 
     def list_entities_v2(
         self,
@@ -7225,6 +7293,7 @@ class SQLDB(DBInterface):
         state: str = mlrun.common.schemas.BackgroundTaskState.running,
         timeout: typing.Optional[int] = None,
         error: typing.Optional[str] = None,
+        labels: Optional[dict[str, str]] = None,
     ):
         error = framework.db.sqldb.helpers.ensure_max_length(error)
         background_task_record = self._query(
@@ -7234,6 +7303,7 @@ class SQLDB(DBInterface):
             project=project,
         ).one_or_none()
         now = mlrun.utils.now_date()
+        task_labels = []
         if background_task_record:
             # we don't want to be able to change state after it reached terminal state
             if (
@@ -7263,7 +7333,20 @@ class SQLDB(DBInterface):
                 timeout=int(timeout) if timeout else None,
                 error=error,
             )
-        self._upsert(session, [background_task_record])
+            session.add(background_task_record)
+            if labels is not None:
+                for label_name, label_value in labels.items():
+                    task_labels.append(
+                        BackgroundTaskLabel(
+                            name=label_name,
+                            value=label_value,
+                            task=background_task_record,
+                        )
+                    )
+        objects = [background_task_record]
+        if task_labels:
+            objects.extend(task_labels)
+        self._upsert(session, objects)
 
     def get_background_task(
         self,
@@ -7282,6 +7365,33 @@ class SQLDB(DBInterface):
         )
 
         return self._transform_background_task_record_to_schema(background_task_record)
+
+    def get_background_task_by_state_and_labels(
+        self,
+        session: Session,
+        status: mlrun.common.schemas.BackgroundTaskState,
+        labels: dict[str, str],
+    ) -> Optional[mlrun.common.schemas.BackgroundTask]:
+        if not labels:
+            raise mlrun.errors.MLRunInvalidArgumentError("Labels must not be empty")
+
+        query = (
+            session.query(BackgroundTask)
+            .filter(BackgroundTask.state == status)
+            .join(BackgroundTaskLabel)
+            .filter(
+                tuple_(BackgroundTaskLabel.name, BackgroundTaskLabel.value).in_(
+                    labels.items()
+                )
+            )
+            .group_by(BackgroundTask.id)
+            .having(func.count() == len(labels))
+        )
+
+        background_task = query.one_or_none()
+        if background_task is None:
+            return None
+        return self._transform_background_task_record_to_schema(background_task)
 
     def list_background_tasks(
         self,
@@ -7325,6 +7435,20 @@ class SQLDB(DBInterface):
 
         return background_tasks
 
+    def cleanup_old_background_tasks(
+        self,
+        db_session: Session,
+        max_age_seconds: int,
+    ) -> None:
+        cutoff_time = mlrun.utils.now_date() - timedelta(seconds=max_age_seconds)
+        deleted_count = (
+            db_session.query(BackgroundTask)
+            .filter(BackgroundTask.created < cutoff_time)
+            .delete()
+        )
+        logger.info("Deleted old background tasks", count=deleted_count)
+        db_session.commit()
+
     def delete_background_task(self, session: Session, name: str, project: str):
         self._delete(session, BackgroundTask, name=name, project=project)
 
@@ -7361,6 +7485,7 @@ class SQLDB(DBInterface):
     ) -> mlrun.common.schemas.BackgroundTask:
         return mlrun.common.schemas.BackgroundTask(
             metadata=mlrun.common.schemas.BackgroundTaskMetadata(
+                id=background_task_record.id,
                 name=background_task_record.name,
                 project=background_task_record.project,
                 created=background_task_record.created,

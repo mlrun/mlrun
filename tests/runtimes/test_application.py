@@ -333,7 +333,7 @@ def test_deploy_reverse_proxy_image(rundb_mock, igz_version_mock):
 
 
 def test_application_from_local_file_validation():
-    project = mlrun.get_or_create_project("test-application")
+    project = mlrun.get_or_create_project("test-application", allow_cross_project=True)
     func_path = assets_path / "sample_function.py"
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,

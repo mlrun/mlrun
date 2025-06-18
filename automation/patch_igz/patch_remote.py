@@ -126,12 +126,6 @@ class MLRunPatcher:
         node = self._cluster_data_nodes[0]
         self._connect_to_node(node)
 
-        if self._patch_mlrun_image:
-            self._replace_deployment_images(
-                Constants.workflow_controller,
-                target_to_built_images[Constants.mlrun_kfp],
-            )
-
         if self._patch_log_collector_image:
             self._replace_deployment_images(
                 Constants.log_collector_container,
@@ -234,6 +228,25 @@ class MLRunPatcher:
                 "MLRUN_VERSION": image_tag,
                 "MLRUN_DOCKER_REPO": mlrun_docker_registry,
             }
+
+            if Constants.mlrun_kfp in targets:
+                # Set the MLRUN_KFP_IMAGE environment variable in the mlrun-api deployment patch,
+                # so that workflow pods will use the correct KFP image from the internal registry.
+                _, overwrite_registry = self._resolve_overwrite_registry()
+                kfp_image_uri = (
+                    f"{overwrite_registry}/mlrun/{Constants.mlrun_kfp}:{image_tag}"
+                )
+
+                mlrun_api_container = self._deploy_patch["mlrun_api"]["spec"][
+                    "template"
+                ]["spec"]["containers"][0]
+                mlrun_api_container.setdefault("env", []).append(
+                    {
+                        "name": "MLRUN_KFP_IMAGE",
+                        "value": kfp_image_uri,
+                    }
+                )
+
             cmd = ["make"]
             cmd.extend(targets)
             self._exec_local(cmd, live=True, env=env)

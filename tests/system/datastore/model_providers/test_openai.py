@@ -37,8 +37,8 @@ def get_missing_openai_env_variables():
 class TestOpenAIModelRunner(TestMLRunSystem):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
-    project_name = "openai-model-runner5"
-    image = "artifactory.iguazeng.com:10557/tomerm/mlrun:remote-models2"
+    project_name = "openai-system-test"
+    image = "mlrun/mlrun"
     profile_name = "my_openai_profile"
 
     @classmethod
@@ -63,7 +63,8 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             timeout=os.environ.get("OPENAI_TIMEOUT"),
             max_retries=os.environ.get("OPENAI_MAX_RETRIES"),
         )
-        register_temporary_client_datastore_profile(self.profile)
+        #register_temporary_client_datastore_profile(self.profile)
+        self.project.register_datastore_profile(self.profile)
         self.url_prefix = f"ds://{self.profile_name}/"
         # self.reset_env()
         self.model_url = self.url_prefix + self.basic_llm_model
@@ -113,4 +114,8 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             f"v2/models/{mlrun_model_name}/infer",
             json.dumps(body),
         )
-        print(response)
+        result = response["result"]
+        assert "paris" in result.lower()
+        encoding = tiktoken.encoding_for_model(self.basic_llm_model)
+        token_count = len(encoding.encode(result))
+        assert token_count == 100

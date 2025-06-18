@@ -13,9 +13,10 @@
 # limitations under the License.
 
 import json
+import tempfile
 
 import pytest
-import tempfile
+
 import mlrun
 from mlrun.frameworks._ml_common import AlgorithmFunctionality, MLPlanStages
 from mlrun.frameworks.lgbm import LGBMArtifactsLibrary

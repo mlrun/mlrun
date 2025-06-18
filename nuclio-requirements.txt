@@ -1,2 +1,5 @@
+# link to requirements in the nuclio repo:
+# https://github.com/nuclio/nuclio/blob/development/pkg/processor/runtime/python/py/requirements/common.txt
+# which is the source of truth for this file
 nuclio-sdk==0.5.15
 msgpack==1.1.0

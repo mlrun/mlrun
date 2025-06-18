@@ -49,7 +49,7 @@ For production, **create your own images** to ensure that the image is fixed. Se
 
 With Python 3.11: You must use the remote engine (engine=`remote`), which automatically uses the `mlrun/mlrun-kfp` image, unless you specify otherwise, for example, if you have specific python package requirements.
 
-If you are using Python 3.9 you have the option of compiling your workflow locally (meaning you are not working with a remote source). In this case make sure you installed mlrun with kfp (`pip install mlrun[kfp]`).
+If you are using Python 3.9 you have the option of compiling your workflow locally (meaning you are not working with a remote source). In this case make sure you installed mlrun with kfp (`pip install mlrun[kfp18]`).
 
 Unless you are using KFP-specific code inside the MLRun job, you do not need to use the `mlrun-kfp image`. Generally speaking, all MLRun code works without KFP except, of course, for creating and running pipelines.
 

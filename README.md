@@ -4,7 +4,7 @@
 [![PyPI version fury.io](https://badge.fury.io/py/mlrun.svg)](https://pypi.python.org/pypi/mlrun/)
 [![Documentation](https://readthedocs.org/projects/mlrun/badge/?version=latest)](https://mlrun.readthedocs.io/en/latest/?badge=latest)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-![GitHub commit activity](https://img.shields.io/github/commit-activity/w/mlrun/mlrun)
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/w/mlrun/mlrun)](https://github.com/mlrun/mlrun/commits/main)
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/mlrun/mlrun?sort=semver)](https://github.com/mlrun/mlrun/releases)
 [![Join MLOps Live](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://mlopslive.slack.com)
 

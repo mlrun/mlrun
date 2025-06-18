@@ -220,6 +220,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         for an MLRun job.
         This method should not be called directly.
         """
+        project = context.get_project_object()
+        if not project:
+            raise mlrun.errors.MLRunValueError("Could not load project from context")
 
         if write_output and (
             not endpoints or sample_data is not None or reference_data is not None
@@ -249,6 +252,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         event=event,
                         application_name=self.__class__.__name__,
                         context=context,
+                        project=project,
                         sample_df=sample_data,
                         feature_stats=feature_stats,
                     )

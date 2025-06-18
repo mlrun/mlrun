@@ -239,12 +239,21 @@ class MLRunPatcher:
                 mlrun_api_container = self._deploy_patch["mlrun_api"]["spec"][
                     "template"
                 ]["spec"]["containers"][0]
-                mlrun_api_container.setdefault("env", []).append(
-                    {
-                        "name": "MLRUN_KFP_IMAGE",
-                        "value": kfp_image_uri,
-                    }
+                env_vars = mlrun_api_container.setdefault("env", [])
+                existing_var = next(
+                    (var for var in env_vars if var.get("name") == "MLRUN_KFP_IMAGE"),
+                    None,
                 )
+
+                if existing_var:
+                    existing_var["value"] = kfp_image_uri
+                else:
+                    env_vars.append(
+                        {
+                            "name": "MLRUN_KFP_IMAGE",
+                            "value": kfp_image_uri,
+                        }
+                    )
 
             cmd = ["make"]
             cmd.extend(targets)

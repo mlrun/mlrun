@@ -61,6 +61,7 @@ from .run import (
     import_function,
     new_function,
     retry_pipeline,
+    terminate_pipeline,
     wait_for_pipeline_completion,
 )
 from .runtimes import mounts, new_model_server
@@ -217,5 +218,6 @@ def set_env_from_file(env_file: str, return_dict: bool = False) -> Optional[dict
     for key, value in env_vars.items():
         environ[key] = value
 
-    mlconf.reload()  # reload mlrun configuration
+    # reload mlrun configuration
+    mlconf.reload()
     return env_vars if return_dict else None

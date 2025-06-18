@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import tempfile
 
 import pytest
 
@@ -41,16 +42,16 @@ FRAMEWORKS = {
         SKLearnArtifactsLibrary,
         MetricsLibrary,
     ),
-}  # type: Dict[str, Tuple[MLFunctions, ArtifactsLibrary, MetricsLibrary]]
+}  # type: dict[str, tuple[type["MLFunctions"], type["ArtifactsLibrary"], type[MetricsLibrary]]]
 FRAMEWORKS_KEYS = [
     FrameworkKeys.XGBOOST,
     FrameworkKeys.SKLEARN,
-]  # type: List[str]
+]  # type: list[str]
 ALGORITHM_FUNCTIONALITIES = [
     algorithm_functionality.value
     for algorithm_functionality in AlgorithmFunctionality
     if "Unknown" not in algorithm_functionality.value
-]  # type: List[str]
+]  # type: list[str]
 FRAMEWORKS_ALGORITHM_FUNCTIONALITIES = [
     (framework, algorithm_functionality)
     for framework in FRAMEWORKS_KEYS
@@ -60,7 +61,7 @@ FRAMEWORKS_ALGORITHM_FUNCTIONALITIES = [
         or algorithm_functionality
         != AlgorithmFunctionality.MULTI_OUTPUT_MULTICLASS_CLASSIFICATION.value
     )
-]  # type: List[Tuple[str, str]]
+]  # type: list[tuple[str, str]]
 
 
 def framework_algorithm_functionality_pair_ids(
@@ -78,32 +79,35 @@ def framework_algorithm_functionality_pair_ids(
 def test_training(rundb_mock, framework_algorithm_functionality_pair: tuple[str, str]):
     framework, algorithm_functionality = framework_algorithm_functionality_pair
     # Unpack the framework classes:
-    (functions, artifacts_library, metrics_library) = FRAMEWORKS[framework]  # type: MLFunctions, ArtifactsLibrary, MetricsLibrary
+    (functions, artifacts_library, metrics_library) = FRAMEWORKS[framework]  # type: "MLFunctions", "ArtifactsLibrary", MetricsLibrary
 
-    # Run training:
-    train_run = mlrun.new_function().run(
-        artifact_path="./temp",
-        handler=functions.train,
-        params={"algorithm_functionality": algorithm_functionality},
-    )
+    with tempfile.TemporaryDirectory() as test_directory:
+        # Run training:
+        train_run = mlrun.new_function().run(
+            artifact_path=test_directory,
+            handler=functions.train,
+            params={"algorithm_functionality": algorithm_functionality},
+        )
 
-    # Print the outputs for manual validation:
-    print(json.dumps(train_run.outputs, indent=4))
+        # Print the outputs for manual validation:
+        mlrun.utils.logger.info(json.dumps(train_run.outputs, indent=4))
 
-    # Get assertion parameters:
-    algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
-    dummy_model = functions.get_model(algorithm_functionality=algorithm_functionality)
-    _, dummy_y = functions.get_dataset(
-        algorithm_functionality=algorithm_functionality, for_training=False
-    )
-    expected_artifacts = artifacts_library.get_plans(model=dummy_model, y=dummy_y)
-    expected_results = metrics_library.get_metrics(model=dummy_model, y=dummy_y)
+        # Get assertion parameters:
+        algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
+        dummy_model = functions.get_model(
+            algorithm_functionality=algorithm_functionality
+        )
+        _, dummy_y = functions.get_dataset(
+            algorithm_functionality=algorithm_functionality, for_training=False
+        )
+        expected_artifacts = artifacts_library.get_plans(model=dummy_model, y=dummy_y)
+        expected_results = metrics_library.get_metrics(model=dummy_model, y=dummy_y)
 
-    # Validate artifacts (model artifact shouldn't be counted, hence the '-1'):
-    assert len(train_run.status.artifacts) - 1 == len(expected_artifacts)
+        # Validate artifacts (model artifact shouldn't be counted, hence the '-1'):
+        assert len(train_run.status.artifacts) - 1 == len(expected_artifacts)
 
-    # Validate results:
-    assert len(train_run.status.results) == len(expected_results)
+        # Validate results:
+        assert len(train_run.status.results) == len(expected_results)
 
 
 @pytest.mark.parametrize(
@@ -117,47 +121,50 @@ def test_evaluation(
 ):
     framework, algorithm_functionality = framework_algorithm_functionality_pair
     # Unpack the framework classes:
-    (functions, artifacts_library, metrics_library) = FRAMEWORKS[framework]  # type: MLFunctions, ArtifactsLibrary, MetricsLibrary
+    (functions, artifacts_library, metrics_library) = FRAMEWORKS[framework]  # type: "MLFunctions", "ArtifactsLibrary", MetricsLibrary
 
-    # Run training:
-    train_run = mlrun.new_function().run(
-        artifact_path="./temp2",
-        handler=functions.train,
-        params={"algorithm_functionality": algorithm_functionality},
-    )
-
-    # Run evaluation (on the model that was just trained):
-    evaluate_run = mlrun.new_function().run(
-        artifact_path="./temp2",
-        handler=functions.evaluate,
-        params={
-            "algorithm_functionality": algorithm_functionality,
-            "model_path": train_run.outputs["model"],
-        },
-    )
-
-    # Print the outputs for manual validation:
-    print(json.dumps(evaluate_run.outputs, indent=4))
-
-    # Get assertion parameters:
-    algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
-    dummy_model = functions.get_model(algorithm_functionality=algorithm_functionality)
-    _, dummy_y = functions.get_dataset(
-        algorithm_functionality=algorithm_functionality, for_training=False
-    )
-    expected_artifacts = [
-        plan
-        for plan in artifacts_library.get_plans(model=dummy_model, y=dummy_y)
-        if not (
-            # Count only pre and post prediction artifacts (evaluation artifacts).
-            plan.is_ready(stage=MLPlanStages.POST_FIT, is_probabilities=False)
-            or plan.is_ready(stage=MLPlanStages.PRE_FIT, is_probabilities=False)
+    with tempfile.TemporaryDirectory() as test_directory:
+        # Run training:
+        train_run = mlrun.new_function().run(
+            artifact_path=test_directory,
+            handler=functions.train,
+            params={"algorithm_functionality": algorithm_functionality},
         )
-    ]
-    expected_results = metrics_library.get_metrics(model=dummy_model, y=dummy_y)
 
-    # Validate artifacts:
-    assert len(evaluate_run.status.artifacts) == len(expected_artifacts)
+        # Run evaluation (on the model that was just trained):
+        evaluate_run = mlrun.new_function().run(
+            artifact_path=test_directory,
+            handler=functions.evaluate,
+            params={
+                "algorithm_functionality": algorithm_functionality,
+                "model_path": train_run.outputs["model"],
+            },
+        )
 
-    # Validate results:
-    assert len(evaluate_run.status.results) == len(expected_results)
+        # Print the outputs for manual validation:
+        mlrun.utils.logger.info(json.dumps(evaluate_run.outputs, indent=4))
+
+        # Get assertion parameters:
+        algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
+        dummy_model = functions.get_model(
+            algorithm_functionality=algorithm_functionality
+        )
+        _, dummy_y = functions.get_dataset(
+            algorithm_functionality=algorithm_functionality, for_training=False
+        )
+        expected_artifacts = [
+            plan
+            for plan in artifacts_library.get_plans(model=dummy_model, y=dummy_y)
+            if not (
+                # Count only pre and post prediction artifacts (evaluation artifacts).
+                plan.is_ready(stage=MLPlanStages.POST_FIT, is_probabilities=False)
+                or plan.is_ready(stage=MLPlanStages.PRE_FIT, is_probabilities=False)
+            )
+        ]
+        expected_results = metrics_library.get_metrics(model=dummy_model, y=dummy_y)
+
+        # Validate artifacts:
+        assert len(evaluate_run.status.artifacts) == len(expected_artifacts)
+
+        # Validate results:
+        assert len(evaluate_run.status.results) == len(expected_results)

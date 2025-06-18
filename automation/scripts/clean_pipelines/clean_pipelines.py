@@ -19,6 +19,7 @@ import pandas as pd
 from kfp import Client
 
 import mlrun
+import mlrun.utils
 import mlrun_pipelines
 from mlrun_pipelines.models import PipelineRun
 
@@ -81,7 +82,9 @@ def delete_project_old_pipelines(
 def _get_kfp_client(
     kfp_url=mlrun.mlconf.kfp_url, namespace: str = mlrun.mlconf.namespace
 ) -> Client:
-    kfp_client = mlrun_pipelines.utils.get_client(kfp_url, namespace)
+    kfp_client = mlrun_pipelines.utils.get_client(
+        mlrun.utils.logger, kfp_url, namespace
+    )
     return kfp_client
 
 

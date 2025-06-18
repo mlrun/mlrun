@@ -1,11 +1,16 @@
 (scheduled-jobs)=
 # Scheduled jobs and workflows
 
-Oftentimes you may want to run a `job` on a regular schedule. For example, fetching from a datasource every morning, compiling an analytics report every month, or detecting model drift every hour.
+Oftentimes you may want to run a `job` on a regular schedule, for example, fetching from a datasource every morning, compiling an analytics report every month, or detecting model drift every hour.
 
-> Schedules have a minimum interval that will be allowed between two scheduled jobs. By default, a job is not allowed to be scheduled twice in a 10-minute period 
-> Currently, schedules like */13 * * * * (every 13th minute), in which the job would trigger at the 52nd minute and then again at the start of the next hour (minute 0) (with only 8 minutes between runs) are not allowed. 
-> See mlrun.mlconf.httpdb.scheduling for service schedules configuration. 
+- Schedules have a minimum interval that will be allowed between two scheduled jobs. By default, a job is not allowed to be scheduled twice in a 10-minute period.
+- Currently, schedules like */13 * * * * (every 13th minute), in which the job would trigger at the 52nd minute and then again at the start of the next hour (minute 0) (with only 8 minutes between runs) are not allowed. 
+- See scheduling in the [`mlrun config`](https://github.com/mlrun/mlrun/blob/development/mlrun/config.py#L52) for more details. 
+
+**In this section**
+
+- [Creating a job and scheduling it](#creating-a-job-and-scheduling-it)
+- [Scheduling a workflow](#scheduling-a-workflow)
 
 ## Creating a job and scheduling it
 

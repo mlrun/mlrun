@@ -1059,6 +1059,7 @@ def create_function_deletion_background_task(
         _delete_function,
         mlrun.mlconf.background_tasks.default_timeouts.operations.delete_function,
         background_task_name,
+        None,
         db_session,
         project_name,
         function_name,

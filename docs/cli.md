@@ -1,6 +1,8 @@
 (cli)=
 # Command-Line Interface
+Learn about the CLI commands and how to use them with Git and source archives.
 
+**In this section**
 - [CLI commands](#cli-commands)
 - [Building and running a function from a Git Repository](#building-and-running-a-function-from-a-git-repository)
 - [Using a sources archive](#using-a-sources-archive)

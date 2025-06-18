@@ -287,3 +287,43 @@ class TestBackgroundTasks(TestDatabaseBase):
         background_task_names = [task.metadata.name for task in background_tasks]
         for name in [failed, succeeded]:
             assert name in background_task_names
+
+    def test_cleanup_old_background_tasks(self):
+        project = "test-project"
+        recent = "recent_task"
+        old = "old_task"
+
+        self._db.store_background_task(
+            self._db_session,
+            recent,
+            timeout=600,
+            project=project,
+        )
+
+        with unittest.mock.patch(
+            "mlrun.utils.now_date",
+            return_value=datetime.datetime.now(datetime.timezone.utc)
+            - datetime.timedelta(seconds=10),
+        ):
+            self._db.store_background_task(
+                self._db_session,
+                old,
+                timeout=600,
+                project=project,
+            )
+
+        self._db.cleanup_old_background_tasks(
+            self._db_session,
+            max_age_seconds=5,
+        )
+
+        remaining = self._db.list_background_tasks(
+            self._db_session,
+            project=project,
+            background_task_exceeded_timeout_func=background_task_exceeded_timeout,
+        )
+        remaining_names = {task.metadata.name for task in remaining}
+
+        assert recent in remaining_names
+        assert old not in remaining_names
+        assert len(remaining_names) == 1

@@ -2339,6 +2339,7 @@ def test_set_source():
             "/target/path/for/source",
         ),
         ("git://some/repo", True, None, ".some-image", "/target/path"),
+        ("db://project-name", None, None, ".some-image", None),
     ],
 )
 def test_project_build_image(
@@ -2365,9 +2366,15 @@ def test_project_build_image(
         assert build_config.source is None
         assert source_code_target_dir is None
     else:
-        assert not build_config.load_source_on_run
-        assert build_config.source == source_url
-        assert source_code_target_dir == target_dir
+        if source_url and source_url.startswith("db://"):
+            # db:// is metadata-only, not an actual build source
+            assert build_config.source is None
+            assert source_code_target_dir is None
+            assert build_config.load_source_on_run is None
+        else:
+            assert not build_config.load_source_on_run
+            assert build_config.source == source_url
+            assert source_code_target_dir == target_dir
 
     assert build_config.image == image_name
     # If no base image was used, then mlrun/mlrun is expected

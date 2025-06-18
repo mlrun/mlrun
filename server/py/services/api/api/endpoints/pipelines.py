@@ -186,7 +186,8 @@ async def terminate_pipeline(
             auth_info,
         )
     )
-    run = services.api.crud.pipelines.Pipelines().get_run(
+    run = await fastapi.concurrency.run_in_threadpool(
+        func=services.api.crud.pipelines.Pipelines().get_run,
         run_id=run_id,
         project=project,
         namespace=namespace,

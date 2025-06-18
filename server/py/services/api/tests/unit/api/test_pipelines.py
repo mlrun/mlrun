@@ -840,17 +840,23 @@ def test_terminate_pipeline_success(
     assert response.status_code == 202
     assert response.json() == new_task.dict()
 
-    mock_get_run.assert_called_once_with(
+    # Act again to ensure idempotency
+    second_response = client.post(f"/projects/{PROJECT}/pipelines/{RUN_ID}/terminate")
+
+    # Assert second invocation returns the same task
+    assert second_response.json() == response.json()
+
+    mock_get_run.assert_called_with(
         run_id=RUN_ID,
         project=PROJECT,
         namespace=unittest.mock.ANY,
     )
-    mock_get_bg.assert_called_once_with(
+    mock_get_bg.assert_called_with(
         db_session=unittest.mock.ANY,
         status=BackgroundTaskState.running,
         labels={BackGroundTaskLabel.pipeline: RUN_ID},
     )
-    mock_create_bg.assert_called_once_with(
+    mock_create_bg.assert_called_with(
         unittest.mock.ANY,  # db_session
         PROJECT,  # project
         unittest.mock.ANY,  # background_tasks

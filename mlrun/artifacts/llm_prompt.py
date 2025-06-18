@@ -127,8 +127,9 @@ class LLMPromptArtifact(Artifact):
         if self.spec._model_artifact:
             return self.spec._model_artifact
         if self.spec.model_uri:
+            # TODO delete allow_empty_resources option
             self.spec._model_artifact, _ = (
-                mlrun.datastore.store_manager.get_store_artifact(self.spec.model_uri)
+                mlrun.datastore.store_manager.get_store_artifact(self.spec.model_uri, allow_empty_resources=True)
             )
             return self.spec._model_artifact
         return None

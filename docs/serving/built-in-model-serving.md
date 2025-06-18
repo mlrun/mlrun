@@ -1,7 +1,7 @@
 (using_built_in_model_serving_classes)=
 # Using built-in model serving classes
 
-MLRun includes built-in classes for commonly used frameworks. While you can {ref}`create your own class <custom-model-serving-class>`, 
+MLRun includes built-in serving classes for commonly used frameworks. While you can {ref}`create your own class <custom-model-serving-class>`, 
 it is often not necessary to write one if you use these standard classes.
 
 The following table specifies, for each framework, the corresponding MLRun `ModelServer` serving class and its dependencies:

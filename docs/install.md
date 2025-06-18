@@ -1,7 +1,7 @@
 (install-setup-guide)=
 # Installation and setup guide <!-- omit in toc -->
 
-This guide outlines the steps for installing and running MLRun. 
+This guide outlines the steps for installing the MLRun service and client and for running MLRun. 
 
 MLRun has two main components, the service and the client (SDK and UI):
 

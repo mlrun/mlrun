@@ -384,15 +384,15 @@ class V2ModelServer(StepToDict):
         return event
 
     def logged_results(self, request: dict, response: dict, op: str):
-        """hook for controlling which results are tracked by the model monitoring
+        """Hook for controlling which results are tracked by the model monitoring
 
-        this hook allows controlling which input/output data is logged by the model monitoring
-        allow filtering out columns or adding custom values, can also be used to monitor derived metrics
-        for example in image classification calculate and track the RGB values vs the image bitmap
+        This hook allows controlling which input/output data is logged by the model monitoring.
+        It allows filtering out columns or adding custom values, and can also be used to monitor derived metrics,
+        for example in image classification to calculate and track the RGB values vs the image bitmap.
 
-        the request["inputs"] holds a list of input values/arrays, the response["outputs"] holds a list of
-        corresponding output values/arrays (the schema of the input/output fields is stored in the model object),
-        this method should return lists of alternative inputs and outputs which will be monitored
+        The request ["inputs"] holds a list of input values/arrays, the response ["outputs"] holds a list of
+        corresponding output values/arrays (the schema of the input/output fields is stored in the model object).
+        This method should return lists of alternative inputs and outputs which will be monitored.
 
         :param request:   predict/explain request, see model serving docs for details
         :param response:  result from the model predict/explain (after postprocess())
@@ -422,6 +422,7 @@ class V2ModelServer(StepToDict):
 
     def predict(self, request: dict) -> list:
         """model prediction operation
+
         :return: list with the model prediction results (can be multi-port) or list of lists for multiple predictions
         """
         raise NotImplementedError()
@@ -436,7 +437,7 @@ class V2ModelServer(StepToDict):
         where the internal list order is according to the ArtifactModel inputs.
 
         :param request: event
-        :return: evnet body converting the inputs to be list of lists
+        :return: event body converting the inputs to be list of lists
         """
         if self.model_spec and self.model_spec.inputs:
             input_order = [feature.name for feature in self.model_spec.inputs]

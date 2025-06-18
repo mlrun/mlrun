@@ -218,5 +218,6 @@ def set_env_from_file(env_file: str, return_dict: bool = False) -> Optional[dict
     for key, value in env_vars.items():
         environ[key] = value
 
-    mlconf.reload()  # reload mlrun configuration
+    # reload mlrun configuration
+    mlconf.reload()
     return env_vars if return_dict else None

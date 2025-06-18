@@ -1,0 +1,2 @@
+nuclio-sdk==0.5.15
+msgpack==1.1.0

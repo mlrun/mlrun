@@ -402,6 +402,7 @@ async def get_metrics_by_multiple_endpoints(
     type: Literal["results", "metrics", "all"] = "all",
     endpoint_ids: list[EndpointIDAnnotation] = Query([], alias="endpoint-id"),
     events_format: mm_constants.GetEventsFormat = Query(None, alias="events-format"),
+    db_session: Session = Depends(deps.get_db_session),
 ) -> dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]:
     """
     :param project:       The name of the project.
@@ -431,6 +432,19 @@ async def get_metrics_by_multiple_endpoints(
         )
 
     await asyncio.gather(*permissions_tasks)
+
+    # verify all endpoints exist in the project
+    endpoints_data = await services.api.crud.ModelEndpoints().list_model_endpoints(
+        project=project,
+        uids=endpoint_ids,
+        db_session=db_session,
+    )
+    returned_uids = [endpoint.metadata.uid for endpoint in endpoints_data.endpoints]
+    if len(returned_uids) < len(endpoint_ids):
+        missing_endpoints = set(endpoint_ids) - set(returned_uids)
+        raise mlrun.errors.MLRunNotFoundError(
+            f"Model endpoints with ids {missing_endpoints} were not found in project {project}."
+        )
 
     task_results = await _collect_get_metrics_tasks_results(
         endpoint_ids=endpoint_ids,

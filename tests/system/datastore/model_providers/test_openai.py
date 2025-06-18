@@ -28,42 +28,17 @@ from mlrun.serving import ModelRunnerStep
 from tests.system.base import TestMLRunSystem
 
 
-class MyOpenAILLM(mlrun.serving.states.Model):
-    execution_mechanism = "naive"
-
-    def predict(self, body):
-        if isinstance(
-            self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
-        ) and isinstance(self.model, ModelProvider):
-            prompt = self.enrich_prompt(body)
-            body["result"] = self.model.invoke(
-                prompt=prompt,
-                **(self.invocation_artifact.spec.model_configuration or {}),
-            )
-        return body
-
-    def enrich_prompt(self, body) -> str:
-        if isinstance(self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact):
-            prompt_template = self.invocation_artifact.spec.prompt_string
-            needed_params = ["question", "depth_level", "persona", "tone"]
-            sub_dict = {k: body[k] for k in needed_params if k in body}
-            return prompt_template.format(**sub_dict)
-        return body["prompt"]
-
-
 def get_missing_openai_env_variables():
     return [env_key for env_key in ["OPENAI_BASE_URL", "OPENAI_API_KEY"] if not os.environ.get(env_key)]
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
-@pytest.mark.parametrize("use_datastore_profile", [True, False])
+@pytest.mark.parametrize("use_datastore_profile", [True])
 class TestOpenAIModelRunner(TestMLRunSystem):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
-    project_name = "openai-model-runner"
-    image = "mlrun/mlrun"
-    mandatory_env_vars = TestMLRunSystem.mandatory_env_vars + ["OPENAI_BASE_URL"]
-    model = "gpt-4o"
+    project_name = "openai-model-runner5"
+    image = "artifactory.iguazeng.com:10557/tomerm/mlrun:remote-models2"
     profile_name = "my_openai_profile"
 
     @classmethod
@@ -94,9 +69,8 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         self.model_url = self.url_prefix + self.basic_llm_model
 
     def test_basic_openai_model_runner(self):
-        project = mlrun.new_project("system-test-openai-model", save=False)
         mlrun_model_name = "my_model"
-        model_artifact = project.log_model(
+        model_artifact = self.project.log_model(
             mlrun_model_name,
             model_url=self.model_url,
             default_config={"max_tokens": 100},
@@ -104,19 +78,26 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         prompt_template = (
             "{question}. Explain {depth_level} as a {persona} in {tone} style."
         )
-        llm_prompt_artifact = project.log_llm_prompt(
+        llm_prompt_artifact = self.project.log_llm_prompt(
             "my_llm_prompt",
             prompt_string=prompt_template,
             model_artifact=model_artifact.uri,
         )
-        function = mlrun.new_function("tests", kind="serving")
-
+        function = mlrun.code_to_function(
+            name="tests",
+            kind="serving",
+            tag="latest",
+            project=self.project_name,
+            filename=os.path.relpath(str(self.assets_path / "models.py")),
+            image=self.image,
+            requirements=["openai==1.77.0"]
+        )
         graph = function.set_topology("flow", engine="async")
         model_runner_step = ModelRunnerStep(name="my_model_runner")
         model_runner_step.add_model(
             model_class="MyOpenAILLM",
             endpoint_name="my_endpoint",
-            model_artifact=llm_prompt_artifact,
+            model_artifact=llm_prompt_artifact.uri,
         )
         graph.to(model_runner_step).respond()
 

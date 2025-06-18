@@ -237,9 +237,15 @@ class MLRunPatcher:
                 for target in targets
             }
             if Constants.mlrun in targets and self._build_py39:
-                env["MLRUN_PYTHON_VERSION"] = "3.9"
-                env["INCLUDE_PYTHON_VERSION_SUFFIX"] = "True"
-                self._exec_local(["make", Constants.mlrun], live=True, env=env)
+                self._exec_local(
+                    ["make", "mlrun"],
+                    live=True,
+                    env={
+                        **env,
+                        "MLRUN_PYTHON_VERSION": "3.9",
+                        "INCLUDE_PYTHON_VERSION_SUFFIX": "true",
+                    },
+                )
                 target_to_image[f"{Constants.mlrun}-py39"] = (
                     f"{mlrun_docker_registry}/{Constants.targets_to_image_name[Constants.mlrun]}:{image_tag}-py39"
                 )

@@ -5,7 +5,7 @@ You can write your code on a local machine while running your functions on a rem
 
 **In this section**
 - [Prerequisites](#prerequisites)
-- [Set up a Python 3.11 client environment](#set-up-a-python-311-client-environment)
+- [Set up your client environment](#set-up-your-client-environment)
 - [Configure remote environment](#configure-remote-environment)
 
 <a id="prerequisites"></a>
@@ -25,7 +25,7 @@ The MLRun client supports:
 - Mac
 - Windows via WSL
 
-## Set up a Python 3.11 client environment
+## Set up your client environment
 
 1.  **Basic** <br> 
 Run ```pip install mlrun```
@@ -39,7 +39,7 @@ Run ```pip install mlrun```
 :::{admonition} Note for ARM64 (Apple Silicon) Users and Python 3.9
 :name: apple-silicon
 When using ARM64 (Apple Silicon) and **Python 3.9**, you need to use **conda** to install protobuf by running the following command:
-```conda install "protobuf>=3.20.3, <4" -y```
+<br>```conda install "protobuf>=3.20.3, <4" -y```
 :::
 
 2. **Advanced** <br> 

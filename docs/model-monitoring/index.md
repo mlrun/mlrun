@@ -13,6 +13,7 @@ Take a deeper dive into model monitoring functionality, including its APIs, mode
 - [Batch inputs](#batch-inputs)
 - [Alerts and notifications](#alerts-and-notifications)
 - [Scale limitations](#scale-limitations)
+- [How to upgrade from v1.7.x to v1.8.0 and higher](#upgrade-from-17)
 
 ## Overview
 

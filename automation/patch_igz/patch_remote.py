@@ -45,7 +45,6 @@ class Constants:
     mlrun_kfp = "mlrun-kfp"
     log_collector = "log-collector"
     default_namespace = "default-tenant"
-    workflow_controller = "workflow-controller"
     alerts = "mlrun-alerts"
     targets_to_image_name = {
         api: api_container,
@@ -125,12 +124,6 @@ class MLRunPatcher:
         # Connect to the first node and start deployment patching process
         node = self._cluster_data_nodes[0]
         self._connect_to_node(node)
-
-        if self._patch_mlrun_image:
-            self._replace_deployment_images(
-                Constants.workflow_controller,
-                target_to_built_images[Constants.mlrun_kfp],
-            )
 
         if self._patch_log_collector_image:
             self._replace_deployment_images(
@@ -234,6 +227,34 @@ class MLRunPatcher:
                 "MLRUN_VERSION": image_tag,
                 "MLRUN_DOCKER_REPO": mlrun_docker_registry,
             }
+
+            if Constants.mlrun_kfp in targets:
+                # Set the MLRUN_KFP_IMAGE environment variable in the mlrun-api deployment patch,
+                # so that workflow pods will use the correct KFP image from the internal registry.
+                _, overwrite_registry = self._resolve_overwrite_registry()
+                kfp_image_uri = (
+                    f"{overwrite_registry}/mlrun/{Constants.mlrun_kfp}:{image_tag}"
+                )
+
+                mlrun_api_container = self._deploy_patch["mlrun_api"]["spec"][
+                    "template"
+                ]["spec"]["containers"][0]
+                env_vars = mlrun_api_container.setdefault("env", [])
+                existing_var = next(
+                    (var for var in env_vars if var.get("name") == "MLRUN_KFP_IMAGE"),
+                    None,
+                )
+
+                if existing_var:
+                    existing_var["value"] = kfp_image_uri
+                else:
+                    env_vars.append(
+                        {
+                            "name": "MLRUN_KFP_IMAGE",
+                            "value": kfp_image_uri,
+                        }
+                    )
+
             cmd = ["make"]
             cmd.extend(targets)
             self._exec_local(cmd, live=True, env=env)

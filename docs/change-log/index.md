@@ -3,6 +3,7 @@
 
 The change log lists updates per release, open issues, limitations, and deprecations.
 
+- [v1.9.0](#v190)
 - [v1.8.0](#v180)
 - [v1.7.2](#v172-16-january-2025) | [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
 - [v1.6.4](#v164-2-july-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
@@ -15,6 +16,27 @@ The change log lists updates per release, open issues, limitations, and deprecat
 - [Open issues](#open-issues)
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
+
+(v190)=
+## v1.9.0 (June 2025)
+
+### Infrastructure
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-9326| MLRun supports Python 3.11 and KFP 2.x server (and continues to support KFP 1.8 server depending on the Iguazio version). MLRun v1.9.0 CE supports KFP 2.x. MLRun continues to support Python 3.9.<ul><li>If you are using Python 3.11, then you need to use `engine="remote"`.</li><li>Client code and workflow code and syntax (DSL) is still the KFP 1.8 syntax. Working with the newer KFP 2.x syntax is not yet supported by MLRun. KFP workflows written with KFP 2.0 syntax/APIs and run from outside MLRun are not visible in the MLRun UI. [See more about the SDK changes when migrating to KFP v2](https://www.kubeflow.org/docs/components/pipelines/user-guides/migration/).</li><li>As in MLRun v1.8.0, KFP is not pre-installed on images such as `mlrun/mlrun`. The image `mlrun/mlrun-kfp` includes KFP, but works with Python 3.9.</li><li>You can install KFP manually (`pip install kfp`), for example, to run KFP pipelines locally using the KFP 1.8 client, and thereby requiring Python 3.9.</li><li>protobuf compilation is not needed anymore for python 3.11 environments.</li></ul>|
+
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-4767|PyTorch 2.1.0 is now compatible with `mlrun-gpu` image.|
+|ML-9894|Logging artifacts to the V3IO store does not result in an "EOF occurred in violation of protocol" error.|
+
+## Model monitoring
+
+```{admonition} Notes
+- You must use the v1.8.0 client or higher to utilize model monitoring on a v1.9.0 server.
+```
+
 
 (v180)=
 ## v1.8.0 (June 2025)
@@ -243,7 +265,7 @@ To upgrade the MLRun server:
 | ID      | Description                                                                                                 |
 |---------|-------------------------------------------------------------------------------------------------------------|
 | ML-6052 | New page: {ref}`log-artifacts`.                                                                             |
-| ML-7480 | New topic: [Setup for ARM64 (Apple Silicon) Users](../install/remote.md#note-for-arm64-apple-silicon-users) |
+| ML-7480 | New note: [ARM64 (Apple Silicon) Users and Python 3.9](#apple-silicon). |
 | ML-7669 | New topic: [Setting the log level](../runtimes/configuring-job-resources.md#setting-the-log-level).         |
 | NA      | New tutorial: {ref}`genai-02-mm-llm`.                                                                       |
 | NA      | New page: {ref}`mm-applications`.                                                                           |
@@ -481,16 +503,17 @@ To upgrade the MLRun server:
 | ML-5576 | FeatureSet can now ingest data that contains single quotes.                                                                                                                                       |
 | ML-5746 | Labels no longer create partial projects that cannot be deleted.                                                                                                                                  |
 
-## v1.5.2 (30 November 2023)
+## v1.5.x
+### v1.5.2 (30 November 2023)
 
-###  Closed issues
+####  Closed issues
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
 |ML-4960|Fixed browser caching so the **Members** tab is always presented for projects.|
 
-## v1.5.1 (2 November 2023)
+### v1.5.1 (2 November 2023)
 
-###  Closed issues
+####  Closed issues
 | ID          | Description                                                                                                                                  |
 |----------|----------------------------------------------------------------------------------------------------------------------------------------------|
 |ML-3480| Add details about `label_feature` parameter. See [Creating a feature vector](../feature-store/feature-vectors.md#creating-a-feature-vector). | 
@@ -498,20 +521,20 @@ To upgrade the MLRun server:
 |ML-4860| Fixed creating and running functions with no parameters from the UI.                                                                         |
 |ML-4872| Fixed synchronizing functions from project yaml.                                                                                             |
 
-## v1.5.0 (23 October 2023)
+### v1.5.0 (23 October 2023)
 
-### Data store
+#### Data store
 | ID     | Description                                                                                                                                                                                                     |
 |----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |ML-2296| Add ability to manage Redis datastore credentials with datastore profiles. See [Using data store profiles](../store/datastore.md#data-store-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
 |ML-3500| Support for DBFS data store (Databricks file system). See [Databricks file system](../store/datastore.md#databricks-file-system), [view in Git](https://github.com/mlrun/mlrun/pull/3626).                      |
 
-### Feature store
+#### Feature store
 | ID     | Description                                                                                                                                                                                                                                                                                                                |
 |---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |ML-3784| Support for feature vector-defined feature-set relations and join-type (per-join). Tech Preview. See [Feature vector with different entities and complex joins](../feature-store/feature-vectors.md#feature-vectors-with-different-entities-and-complex-joins) and [view in Git](https://github.com/mlrun/mlrun/pull/3947). |
 
-### Infrastructure
+#### Infrastructure
 | ID      | Description                                                                                                                                                                                                                                                |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-3370 | Accessing the MLRun hub is now available through a service API. This will enable implementing better function version selection and combining hub functions from different sources. Tech Preview. [View in Git](https://github.com/mlrun/mlrun/pull/3384). |
@@ -519,14 +542,14 @@ To upgrade the MLRun server:
 | ML-4132 | The `invoke` function can now receive any parameter supported in the `requests.request` method. See {py:meth}`~mlrun.runtimes.RemoteRuntime.invoke` and [view in Git](https://github.com/mlrun/mlrun/pull/3872).                                           |
 | NA      | From v1.5, clients must be running Python 3.9.                                                                                                                                                                                                             |
 
-### Runtimes
+#### Runtimes
 | ID     | Description                                                                                                                                                                                                                                                      |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |ML-3501| Support for running Spark jobs on Databricks cluster. See [Databricks](../runtimes/databricks.ipynb). [View in Git](https://github.com/mlrun/mlrun/pull/3996).                                                                                                   |
 |ML-3854| Support for webhook notification. See webhook in [Notification Kinds](../concepts/notifications.md#notification-kinds) and [view in Git](https://github.com/mlrun/mlrun/pull/3946).                                                                              |
 |ML-4059| Support for adding env vars or secrets to the docker build during runtime. See [Extra arguments](../runtimes/image-build.md#extra-arguments),  {py:meth}`~mlrun.projects.MlrunProject.build_config` and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
 
-### UI
+#### UI
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
 |ML-2811|New Batch Inference wizard. Tech Preview.                                                           |
@@ -538,25 +561,25 @@ To upgrade the MLRun server:
 |ML-4756|The Recents list in Jobs and Workflows (Projects pane) now displays a maximum of the last 48 hours. |
 |ML-4511|You can now change the image and add new requirements (such as `xgboost`) in the Batch Infer wizard.  |
 
-### Documentation
+#### Documentation
 | ID      | Description                                                                                                                                                          |
 |---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-3763 | Add description of configuring number of workers per GPU. See updated [Number of workers/GPUs](../runtimes/configuring-job-resources.md#number-of-workers-and-gpus). |
 | ML-4420 | Add configuration of memory in Spark Operator. See [Spark Operator runtime](../runtimes/spark-operator.ipynb).                                                       |
 | ML-2380 | Add details of V3IO and Spark runtime. See [Spark Operator runtime](../runtimes/spark-operator.ipynb) and {py:meth}`~mlrun.runtimes.SparkRuntime.invoke`.            |
 
-### Breaking changes
+#### Breaking changes
 | ID     | Description                                                                                                                                                                                                                                                                      |
 |---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |ML-3823| The default format of `list projects` returns project names only. You can either get names or projects (`name_only`) and do a `get` only on the specific project you want (preferable), or get the full list (`full`).  [View in Git](https://github.com/mlrun/mlrun/pull/4198). |
 |ML-4171| The Redis target implementation changed. Features-sets that use Redis as online targets must be recreated. [View in Git](https://github.com/mlrun/storey/pull/449).                                                                                                              |
 |ML-4366| The MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` were deprecated and removed. The new image mlrun/mlrun-gpu is added. Additional dependencies must be installed on an as-need basis. See [MLRun images](../runtimes/images.md#building-mlrun-images).                |
 
-### Deprecations
+#### Deprecations
 
 See [Deprecations and removed code](#deprecations-and-removed-code).
 
-###  Closed issues
+####  Closed issues
 | ID     | Description                                                                   |
 |---------|-------------------------------------------------------------------------------|
 |ML-1584| Can now run `code_to_function` when filename contains special characters.     |
@@ -572,17 +595,16 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 |ML-4501| Fixed: UI  shows error after deleting a function, then viewing a related job. |
 |ML-4533| UI: ML functions can now be created with upper-case letters.                  |
 
-## v1.4.1 (8 August 2023)
+## v1.4.v
+### v1.4.1 (8 August 2023)
 
-### Closed issues
+#### Closed issues
 | ID     |Description                                            |
 |---------|--------------------------------------------------------|
 |ML-4303|Archive out-of-sync leader projects.                   |
 |ML-4232|Consumer group names cannot include the character "-". |
 
-## v1.4.0 (23 July 2023)
-
-### New and updated features
+### v1.4.0 (23 July 2023)
 
 #### Functions
 | ID     |Description                                                                                                                                                                                             |
@@ -626,7 +648,7 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 - {ref}`git-repo-as-hub`
 - {ref}`ci-cd-automate`
 
-### Breaking changes
+#### Breaking changes
 | ID     |Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 |---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |ML-3733|`mlrun.get_run_db().list_model_endpoints()` returns `list`. Previously, it returned `mlrun.api.schemas.model_endpoints.ModelEndpointList`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -652,10 +674,10 @@ run2 = func2.run(..., inputs={"artifact": run1.outputs["my_artifact"]})
 # But passing it through a parameter won't work as the string value is now a store path and not a target path:
 run2 = func2.run(..., params={"artifact": run1.outputs["my_artifact"]})
 ```
-### Deprecations and future deprecations
+#### Deprecations and future deprecations
 See [Deprecations and removed code](#deprecations-and-removed-code).
 
-### Closed issues
+#### Closed issues
 
 | ID      | Description                                                                                                                                                                                                                                                                                           |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -679,23 +701,24 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 | ML-3900 | Improved error message when ingesting into a feature set (online target) and no features found on retrieval. [View in Git](https://github.com/mlrun/mlrun/pull/3687).                                                                                                                                 |
 | ML-4129 | Errors from BigQuerySource are now forwarded to MLRun. [View in Git](https://github.com/mlrun/mlrun/pull/3887).                                                                                                                                                                                       |
 
-## v1.3.4 (23 August 2023)
+## v1.3.x
+### v1.3.4 (23 August 2023)
 
-### Closed issues
+#### Closed issues
 | ID     |Description                                                                    |
 |---------|--------------------------------------------------------------------------------|
 |ML-4409|Importing a project.yaml now does not overwrite the artifacts with older tags. |
 
-## v1.3.3 (7 Jun 2023)
+### v1.3.3 (7 Jun 2023)
 
-### Closed issues
+#### Closed issues
 | ID     |Description                                                                                                                |
 |---------|----------------------------------------------------------------------------------------------------------------------------|
 |ML-3940 |MLRun does not initiate log collection for runs in aborted state. [View in Git](https://github.com/mlrun/mlrun/pull/3698). |
 
-## v1.3.2 (4 Jun 2023)
+### v1.3.2 (4 Jun 2023)
 
-### Closed issues
+#### Closed issues
 
 | ID     |Description                                                                                                             |
 |---------|-------------------------------------------------------------------------------------------------------------------------|
@@ -704,9 +727,9 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 |ML-3917|Reduced number of logs. [View in Git](https://github.com/mlrun/mlrun/pull/3674).                                        |
 |ML-3934|Logs are no longer collected for run pods in an unknown state. [View in Git](https://github.com/mlrun/mlrun/pull/3690). |
 
-## v1.3.1 (18 May 2023)
+### v1.3.1 (18 May 2023)
 
-### Closed issues
+#### Closed issues
 
 | ID     |Description                                                                                                                                                       |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -715,12 +738,12 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 |ML-3819|Reduce overly-verbose logs on the backend side. [View in Git](https://github.com/mlrun/mlrun/pull/3531). [View in Git](https://github.com/mlrun/mlrun/pull/3553). |
 |ML-3823|Optimized `/projects` endpoint to work faster. [View in Git](https://github.com/mlrun/mlrun/pull/3560).                                                           |
 
-### Documentation
+#### Documentation
 New sections describing [Git best practices](../projects/git-best-practices.ipynb) and an example [Nuclio function](../concepts/nuclio-real-time-functions.ipynb#nuclio-real-time-functions).
 
-## v1.3.0 (22 March 2023)
+### v1.3.0 (22 March 2023)
 
-### Client/server matrix, prerequisites, and installing
+#### Client/server matrix, prerequisites, and installing
 
 The MLRun server is now based on Python 3.9. It's recommended to move the client to Python 3.9 as well. 
 
@@ -730,7 +753,7 @@ python 3.7 have the suffix: `-py37`. The correct version is automatically chosen
 MLRun v1.3.x maintains support for mlrun base images that are based on a python 3.7 environment. To differentiate between the images, the images based on
 python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images).
 
-For a Python 3.9 environment see [Set up a Python 3.9 client environment](../install/remote.md#set-up-a-python-39-client-environment).
+For a Python 3.9 environment see [Set up a Python 3.9 client environment](https://docs.mlrun.org/en/v1.8.0/install/remote.html#set-up-a-python-3-9-client-environment).
 
 #### Set up a Python 3.7 client environment (Iguazio versions up to and including v3.5.2)
 
@@ -758,8 +781,6 @@ conda activate python39
 ```
 ./align_mlrun.sh
 ```
-    
-### New and updated features
 
 #### Feature store
 | ID      | Description                                                                                                                                                                                                                                                                                                                                     |
@@ -823,7 +844,7 @@ Improvements to [Set up your environment](../install/remote.md).
 |ML-2609 |MLRun server is based on Python 3.9.                                                                                                                                                                                                                                                                                                                                                                                                        |
 |ML-2732|The new log collection service improves the performance and reduces heavy IO operations from the API container. The new MLRun log collector service is a gRPC server, which runs as sidecar in the mlrun-api pod (chief and worker). The service is responsible for collecting logs from run pods, writing to persisted files, and reading them on request. The new service is transparent to the end-user: there are no UI or API changes. |
 
-### Breaking changes 
+#### Breaking changes 
 
 
 - The behavior of ingest with aggregation changed in v1.3.0 (storey, spark, pandas engines). Now, when you ingest a "timestamp" column, it returns <br>
@@ -834,7 +855,7 @@ Improvements to [Set up your environment](../install/remote.md).
 ### Deprecated and removed APIs
 Starting with v1.3.0, and continuing in subsequent releases, obsolete functions are getting removed from the code. See [Deprecations and removed code](#deprecations-and-removed-code).
 
-### Closed issues
+#### Closed issues
 
 | ID             | Description                                                                                                                                                                                                                                                                                         |
 |----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -858,9 +879,11 @@ Starting with v1.3.0, and continuing in subsequent releases, obsolete functions 
 | ML-3446        | Fix: Failed MLRun Nuclio deploy needs better error messages. [View in Git](https://github.com/mlrun/mlrun/pull/3241).                                                                                                                                                                               |
 | ML-3482        | Fixed model-monitoring incompatibility issue with mlrun client running v1.1.x and a server running v1.2.x. [View in Git](https://github.com/mlrun/mlrun/pull/3180).                                                                                                                                 |
 
-## v1.2.3 (15 May 2023)
+## v1.2.x
 
-### Closed issues
+### v1.2.3 (15 May 2023)
+
+#### Closed issues
 
 | ID     |Description                                                                                                                                   |
 |---------|-----------------------------------------------------------------------------------------------------------------------------------------------|
@@ -868,17 +891,15 @@ Starting with v1.3.0, and continuing in subsequent releases, obsolete functions 
 |ML-3801|Optimized `/projects` endpoint to work faster [View in Git](https://github.com/mlrun/ui/pull/1715).                                           |
 |ML-3819|Reduce overly-verbose logs on the backend side. [View in Git](https://github.com/mlrun/mlrun/pull/3531).                                      |
 
-## v1.2.2 (8 May 2023)
+### v1.2.2 (8 May 2023)
 
-### Closed issues
+#### Closed issues
 
 | ID              |Description                                                                                                 |
 |------------------|-------------------------------------------------------------------------------------------------------------|
 |ML-3797, ML-3798|Fixed presenting and serving large-sized projects. [View in Git](https://github.com/mlrun/mlrun/pull/3477). |
 
-## v1.2.1 (8 January 2023)
-
-### New and updated features
+### v1.2.1 (8 January 2023)
 
 #### Feature store
 - Supports ingesting Avro-encoded Kafka records. [View in Git](https://github.com/mlrun/mlrun/issues/2649).
@@ -886,7 +907,7 @@ Starting with v1.3.0, and continuing in subsequent releases, obsolete functions 
 #### Third party integrations
 - Supports Confluent Kafka as a feature store data-source (Tech Preview). See [Confluent Kafka data source](../feature-store/sources-targets.md#kafka-source).
     
-### Closed issues
+#### Closed issues
 
 - Fix: the **Projects|Jobs|Monitor Workflows** view is now accurate when filtering for > 1 hour. [View in Git](https://github.com/mlrun/mlrun/pull/2786).
 - The Kubernetes **Pods** tab in **Monitor Workflows** now shows the complete pod details. [View in Git](https://github.com/mlrun/mlrun/pull/1576).
@@ -899,13 +920,11 @@ DB to connect to. [View in Git](https://github.com/mlrun/mlrun/pull/2856).
 - When previewing a **DirArtifact** in the UI, it now returns the requested directory. Previously it was returning the directory list from the root of the container. [View in Git](https://github.com/mlrun/mlrun/pull/2592).
 - Load source at runtime or build time now fully supports .zip files, which were not fully supported previously.
 
-### See more
+#### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.2.1)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.2.1)
 
-## v1.2.0 (1 December 2022)
-
-### New and updated features
+### v1.2.0 (1 December 2022)
 
 #### Artifacts
 - Support for artifact tagging:
@@ -953,12 +972,12 @@ with GCP clients, only compatible packages are installed.
 which pulls the logs of the run to figure out the run state. 
 The new behavior can be enabled using a feature flag configured in the API.
 
-### Breaking changes
+#### Breaking changes
 
 - Feature store: Ingestion using pandas now takes the dataframe and creates indices out of the entity column 
 (and removes it as a column in this df). This could cause breakage for existing custom steps when using a pandas engine.
 
-### Closed issues
+#### Closed issues
 
 - Support logging artifacts larger than 5GB to V3IO. [View in Git](https://github.com/mlrun/mlrun/issues/2455).
 - Limit KFP to kfp~=1.8.0, <1.8.14 due to non-backwards changes done in 1.8.14 for ParallelFor, which isn’t compatible with the MLRun managed KFP server (1.8.1). [View in Git](https://github.com/mlrun/mlrun/issues/2516).
@@ -977,13 +996,14 @@ was closed before the task was done. [View in Git](https://github.com/mlrun/mlru
 - Fix scheduled jobs failed on GKE with resource quota error. [View in Git](https://github.com/mlrun/mlrun/pull/2520).
 - Can now delete a model via tag. [View in Git](https://github.com/mlrun/mlrun/pull/2433).
 
-### See more
+#### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.2.0)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.2.0)
 
-## v1.1.3 (28 December 2022)
+## v1.1.x
+### v1.1.3 (28 December 2022)
 
-### Closed issues
+#### Closed issues
 
 - The CLI supports overwriting the schedule when creating scheduling workflow. [View in Git](https://github.com/mlrun/mlrun/pull/2651).
 - Slack now notifies when a project fails in `load_and_run()`. [View in Git](https://github.com/mlrun/mlrun/pull/2794).
@@ -991,25 +1011,21 @@ was closed before the task was done. [View in Git](https://github.com/mlrun/mlru
 - Uvicorn Keep Alive Timeout (`http_connection_timeout_keep_alive`) is now configurable, with default=11. This maintains 
 API-client connections. [View in Git](https://github.com/mlrun/mlrun/pull/2613).
 
-### See more
+#### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.3)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.3)
 
-## v1.1.2 (20 November 2022)
+### v1.1.2 (20 November 2022)
 
-### New and updated features
-
-**V3IO**
+### V3IO
 - v3io-py bumped to 0.5.19.
 - v3io-fs bumped to 0.1.15.
 
-### See more
+#### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.2)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.2-rc3)
 
-## v1.1.1 (18 October 2022)
-
-### New and updated features
+### v1.1.1 (18 October 2022)
 
 #### API
 - Supports workflow scheduling.
@@ -1021,9 +1037,7 @@ API-client connections. [View in Git](https://github.com/mlrun/mlrun/pull/2613).
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.1)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.1)
 
-## v1.1.0 (6 September 2022)
-
-### New and updated features
+#### v1.1.0 (6 September 2022)
 
 #### API
 -  MLRun scalability: Workers are used to handle the connection to the MLRun database and can be increased to 
@@ -1056,13 +1070,15 @@ capabilities of Iguazio, and provide quick access to common tasks.
 #### Workflows
 - The steps in **Workflows** are color-coded to identify their status: blue=running; green=completed; red=error.
 
-### See more
+#### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.0)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.0)
 
-## v1.0.6 (16 August 2022)
+## 1.0.x
 
-### Closed issues
+### v1.0.6 (16 August 2022)
+
+#### Closed issues
 - Import from mlrun fails with "ImportError: cannot import name dataclass_transform".
    Workaround for previous releases:
    Install `pip install pydantic==1.9.2` after `align_mlrun.sh`.
@@ -1070,55 +1086,55 @@ capabilities of Iguazio, and provide quick access to common tasks.
 - MLRun `Accesskey` presents as clear text in the mlrun yaml, when the mlrun function is created by feature set 
    request from the UI. [View in Git](https://github.com/mlrun/mlrun/pull/2250).
    
-### See more
+#### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.6)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.6)
 
-## v1.0.5 (11 August 2022)
+### v1.0.5 (11 August 2022)
 
-### Closed issues
+#### Closed issues
 - MLRun: remove root permissions. [View in Git](https://github.com/mlrun/mlrun/pull/).
 - Users running a pipeline via CLI project run (watch=true) can now set the timeout (previously was 1 hour). [View in Git](https://github.com/mlrun/mlrun/pull/).
 - MLRun: Supports pushing images to ECR. [View in Git](https://github.com/mlrun/mlrun/pull/).
 
-### See more
+#### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.5)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.5)
 
-## v1.0.4 (13 June 2022)
+### v1.0.4 (13 June 2022)
 
-### New and updated features
+#### New and updated features
 - Bump storey to 1.0.6.
 - Add typing-extensions explicitly.
 - Add vulnerability check to CI and fix vulnerabilities.
 
-### Closed issues
+#### Closed issues
 - Limit Azure transitive dependency to avoid new bug. [View in Git](https://github.com/mlrun/mlrun/pull/2034).
 - Fix GPU image to have new signing keys. [View in Git](https://github.com/mlrun/mlrun/pull/2030).
 - Spark: Allow mounting v3io on driver but not executors. [View in Git](https://github.com/mlrun/mlrun/pull/2023).
 - Tests: Send only string headers to align to new requests limitation. [View in Git](https://github.com/mlrun/mlrun/pull/2039).
 
 
-### See more
+#### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.4)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.4)
 
-## v1.0.3 (7 June 2022)
+### v1.0.3 (7 June 2022)
 
-### New and updated features
+#### New and updated features
 - Jupyter Image: Relax `artifact_path` settings and add README notebook. [View in Git](https://github.com/mlrun/mlrun/pull/2011).
 - Images: Fix security vulnerabilities. [View in Git](https://github.com/mlrun/mlrun/pull/1997).
 
-### Closed issues
+#### Closed issues
 
 - API: Fix projects leader to sync enrichment to followers. [View in Git](https://github.com/mlrun/mlrun/pull/2009).
 - Projects: Fixes and usability improvements for working with archives. [View in Git](https://github.com/mlrun/mlrun/pull/2006).
 
-### See more
+#### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.3)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.3)
 
-## v1.0.2 (19 May 2022)
+### v1.0.2 (19 May 2022)
 
 ### New and updated features
 
@@ -1137,32 +1153,32 @@ capabilities of Iguazio, and provide quick access to common tasks.
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.2)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.2)
 
-## v1.0.0 (22 April 2022)
+### v1.0.0 (22 April 2022)
 
-### New and updated features
+#### New and updated features
 
-#### Feature store
+##### Feature store
 - Supports snowflake as a datasource for the feature store.
 
-#### Graph
+##### Graph
 - A new tab under **Projects|Models** named **Real-time pipelines** displays the real time pipeline graph, 
 with a drill-down to view the steps and their details. [Tech Preview]
 
-#### Projects
+##### Projects
 - Setting owner and members are in a dedicated **Project Settings** section.
 - The **Project Monitoring** report has a new tile named **Consumer groups (v3io streams)** that shows the total number
    of consumer groups, with drill-down capabilities for more details.
 
-#### Resource management
+##### Resource management
 - Supports preemptible nodes.
 - Supports configuring CPU, GPU, and memory default limits for user jobs.
 
-#### UI
+##### UI
 - Supports configuring pod priority.
 - Enhanced masking of sensitive data.
 - The dataset tab is now in the **Projects** main menu (was previously under the Feature store).
 
-### See more
+#### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.0)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.0)
 
@@ -1225,7 +1241,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-9235|If in v1.7 there was one untagged artifact and another artifact with the same artifact key, project, iteration, that was logged earlier and includes the `latest` tag (meaning the latest tag does not actually point to the real latest artifact), then after migration to version 1.8, both artifacts have the `latest` tag. If such an artifact is used in a job with the latest tag and key, the job fails with the error 'multiple rows were found.' This is because there are two artifacts with the same key and tag but different UIDs.|NA|v1.8.0|
 |ML-9336|Attempts to delete more than 200 artifacts fail, and you are prompted to use a more granular filter.|Configure the limit with `mlrun.mlconf.artifacts.limits.max_deletions`.|v1.8.0|
 |ML-9338|If the same project+key were created from both a hyper-param run and single run, and you removed the latest tag from everything, MLRun assigns latest to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results: it might not be the actual latest.|NA|v1.8.0|
-|ML-9894|In rare cases, logging artifacts to v3io store may result in an "EOF occurred in violation of protocol" error in some rare cases.
 |ML-9913|UI: There may be a discrepancy in the artifact count between the Project monitoring page and the Artifacts page when running hyper-param jobs without a best-iteration. |Always provide a selection criteria for `best-iteration`.|v1.8.0|
 
 

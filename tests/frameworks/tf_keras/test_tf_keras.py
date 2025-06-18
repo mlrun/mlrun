@@ -40,7 +40,7 @@ def preprocess_data(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarra
 
 def train(epochs=1, batch_size=32):
     # Load the MNIST dataset
-    print("\nLoading MNIST dataset...")
+    mlrun.utils.logger.info("\nLoading MNIST dataset...")
     (x_train, y_train), (_, _) = tf.keras.datasets.mnist.load_data()
     x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.1)
     x_train, y_train = preprocess_data(x=x_train, y=y_train)
@@ -106,20 +106,20 @@ def evaluate(model: tf.keras.Model) -> dict:
         model = model_handler.model
 
     # Load the MNIST dataset
-    print("\nLoading MNIST dataset...")
+    mlrun.utils.logger.info("\nLoading MNIST dataset...")
     (_, _), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
 
     # Preprocess the data
     x_test, y_test = preprocess_data(x=x_test, y=y_test)
 
-    print("\nApplying MLRun to the model...")
+    mlrun.utils.logger.info("\nApplying MLRun to the model...")
     apply_mlrun(model=model, model_path=model_path, model_name="mnist_cpu_model")
 
     # Evaluate the model on the test data
-    print("\nEvaluating the model on the test set...")
+    mlrun.utils.logger.info("\nEvaluating the model on the test set...")
     loss, accuracy = model.evaluate(x_test, y_test, verbose=0)
-    print(f"Test Loss: {loss:.4f}")
-    print(f"Test Accuracy: {accuracy:.4f}")
+    mlrun.utils.logger.info(f"Test Loss: {loss:.4f}")
+    mlrun.utils.logger.info(f"Test Accuracy: {accuracy:.4f}")
 
     return {
         "loss": loss,
@@ -135,50 +135,47 @@ def test_training(rundb_mock):
     """
     Test the `apply_mlrun` function with a simple TensorFlow Keras model training.
     """
-    test_directory = tempfile.TemporaryDirectory()
+    with tempfile.TemporaryDirectory() as test_directory:
+        # Run training:
+        train_run = mlrun.new_function().run(
+            artifact_path=test_directory,
+            handler=train,
+            local=True,
+        )
 
-    # Run training:
-    train_run = mlrun.new_function().run(
-        artifact_path=test_directory.name,
-        handler=train,
-        local=True,
-    )
+        # Print the outputs for manual validation:
+        mlrun.utils.logger.info(json.dumps(train_run.outputs, indent=4))
 
-    # Print the outputs for manual validation:
-    print(json.dumps(train_run.outputs, indent=4))
+        # Get assertion parameters:
+        expected_artifacts = [
+            "accuracy_summary.html",
+            "learning_rate_values.html",
+            "loss_summary.html",
+            "model",
+            "training_accuracy.html",
+            "training_loss.html",
+            "validation_accuracy.html",
+            "validation_loss.html",
+        ]
+        expected_results = [
+            "learning_rate",
+            "training_accuracy",
+            "training_loss",
+            "validation_accuracy",
+            "validation_loss",
+        ]
 
-    # Get assertion parameters:
-    expected_artifacts = [
-        "accuracy_summary.html",
-        "learning_rate_values.html",
-        "loss_summary.html",
-        "model",
-        "training_accuracy.html",
-        "training_loss.html",
-        "validation_accuracy.html",
-        "validation_loss.html",
-    ]
-    expected_results = [
-        "learning_rate",
-        "training_accuracy",
-        "training_loss",
-        "validation_accuracy",
-        "validation_loss",
-    ]
+        # Validate artifacts:
+        for expected_artifact in expected_artifacts:
+            assert expected_artifact in train_run.status.artifact_uris
+        assert len(train_run.status.artifacts) == len(expected_artifacts)
 
-    # Validate artifacts:
-    for expected_artifact in expected_artifacts:
-        assert expected_artifact in train_run.status.artifact_uris
-    assert len(train_run.status.artifacts) == len(expected_artifacts)
-
-    # Validate results:
-    for expected_result in expected_results:
-        assert expected_result in train_run.status.results
-    assert (
-        len(train_run.status.results) == len(expected_results) + 1
-    )  # +1 for the returned model.
-
-    test_directory.cleanup()
+        # Validate results:
+        for expected_result in expected_results:
+            assert expected_result in train_run.status.results
+        assert (
+            len(train_run.status.results) == len(expected_results) + 1
+        )  # +1 for the returned model.
 
 
 @pytest.mark.skipif(
@@ -189,42 +186,39 @@ def test_evaluation(rundb_mock):
     """
     Test the `apply_mlrun` function with a simple TensorFlow Keras model training to evaluation flow.
     """
-    test_directory = tempfile.TemporaryDirectory()
+    with tempfile.TemporaryDirectory() as test_directory:
+        # Run training:
+        train_run = mlrun.new_function().run(
+            artifact_path=test_directory,
+            handler=train,
+            local=True,
+        )
 
-    # Run training:
-    train_run = mlrun.new_function().run(
-        artifact_path=test_directory.name,
-        handler=train,
-        local=True,
-    )
+        # Run evaluation (on the model that was just trained):
+        evaluate_run = mlrun.new_function().run(
+            artifact_path=test_directory,
+            handler=evaluate,
+            params={
+                "model": train_run.outputs["model"],
+            },
+            local=True,
+        )
 
-    # Run evaluation (on the model that was just trained):
-    evaluate_run = mlrun.new_function().run(
-        artifact_path=test_directory.name,
-        handler=evaluate,
-        params={
-            "model": train_run.outputs["model"],
-        },
-        local=True,
-    )
+        # Print the outputs for manual validation:
+        mlrun.utils.logger.info(json.dumps(evaluate_run.outputs, indent=4))
 
-    # Print the outputs for manual validation:
-    print(json.dumps(evaluate_run.outputs, indent=4))
+        # Get assertion parameters:
+        expected_artifacts = ["evaluation_loss.html", "evaluation_accuracy.html"]
+        expected_results = ["evaluation_loss", "evaluation_accuracy"]
 
-    # Get assertion parameters:
-    expected_artifacts = ["evaluation_loss.html", "evaluation_accuracy.html"]
-    expected_results = ["evaluation_loss", "evaluation_accuracy"]
+        # Validate artifacts:
+        for expected_artifact in expected_artifacts:
+            assert expected_artifact in evaluate_run.status.artifact_uris
+        assert len(evaluate_run.status.artifacts) == len(expected_artifacts)
 
-    # Validate artifacts:
-    for expected_artifact in expected_artifacts:
-        assert expected_artifact in evaluate_run.status.artifact_uris
-    assert len(evaluate_run.status.artifacts) == len(expected_artifacts)
-
-    # Validate results:
-    for expected_result in expected_results:
-        assert expected_result in evaluate_run.status.results
-    assert (
-        len(evaluate_run.status.results) == len(expected_results) + 2
-    )  # +1 for the returned dictionary and +1 for the updated model.
-
-    test_directory.cleanup()
+        # Validate results:
+        for expected_result in expected_results:
+            assert expected_result in evaluate_run.status.results
+        assert (
+            len(evaluate_run.status.results) == len(expected_results) + 2
+        )  # +1 for the returned dictionary and +1 for the updated model.

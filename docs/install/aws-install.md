@@ -330,6 +330,12 @@ The MLRun CE (Community Edition) includes the following services:
    ```
    my_func.spec.spark_conf['spark.hadoop.fs.s3a.aws.credentials.provider'] = 'com.amazonaws.auth.WebIdentityTokenCredentialsProvider'
    ```
+2. To configure Spark to work with Minio:
+   ```
+   func.spec.spark_conf["spark.hadoop.fs.s3a.endpoint"] = 'http://minio.mlrun.svc.cluster.local:9000' 
+   func.spec.spark_conf['spark.hadoop.fs.s3a.path.style.access'] = 'true'
+   ```
+
 2. [Optional] Add access to the EKS API for additional users. See: [Grant IAM users and roles access to Kubernetes APIs - Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/grant-k8s-access.html).
 2. [Optional] Grant access to the S3 bucket for additional users. See the AWS walkthrough example: [Bucket owner granting its users bucket permissions - Amazon Simple Storage Service](https://docs.aws.amazon.com/AmazonS3/latest/userguide/example-walkthroughs-managing-access-example1.html).
 2. [Optional] Install PySpark for running local Spark jobs.

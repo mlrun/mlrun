@@ -63,7 +63,6 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             timeout=os.environ.get("OPENAI_TIMEOUT"),
             max_retries=os.environ.get("OPENAI_MAX_RETRIES"),
         )
-        #register_temporary_client_datastore_profile(self.profile)
         self.project.register_datastore_profile(self.profile)
         self.url_prefix = f"ds://{self.profile_name}/"
         # self.reset_env()

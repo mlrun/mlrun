@@ -1,1 +1,1 @@
-protobuf>=4, <5
+protobuf>=4, <7

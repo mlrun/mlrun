@@ -21,6 +21,12 @@ import mlrun.common.schemas
 
 import framework.db.sqldb.db
 
+# Abort import of this file unless the Postgres extra is available
+pytest.importorskip(
+    "pytest_mock_resources.postgres",
+    reason="pytest-mock-resources[postgres] not installed",
+)
+
 
 @pytest.mark.usefixtures("pmr_postgres_container")
 def test_create_partitions_postgres(alembic_engine):

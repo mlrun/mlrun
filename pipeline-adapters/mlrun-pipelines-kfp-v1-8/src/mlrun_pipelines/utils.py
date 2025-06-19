@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import tempfile
 import typing
 
@@ -19,6 +18,9 @@ import mlrun_pipelines.client
 import mlrun_pipelines.common.models
 import mlrun_pipelines.helpers
 import mlrun_pipelines.imports
+
+if typing.TYPE_CHECKING:
+    import mlrun.utils
 
 
 def compile_pipeline(
@@ -43,8 +45,16 @@ def compile_pipeline(
 
 
 def get_client(
-    url: typing.Optional[str] = None, namespace: typing.Optional[str] = None
+    logger: "mlrun.utils.logger.Logger",
+    url: typing.Optional[str] = None,
+    namespace: typing.Optional[str] = None,
 ) -> mlrun_pipelines.client.Client:
     if url or namespace:
-        return mlrun_pipelines.client.Client(host=url, namespace=namespace)
-    return mlrun_pipelines.client.Client()
+        return mlrun_pipelines.client.Client(
+            logger=logger,
+            host=url,
+            namespace=namespace,
+        )
+    return mlrun_pipelines.client.Client(
+        logger=logger,
+    )

@@ -22,6 +22,10 @@ import mlrun.common.types
 from .object import ObjectKind
 
 
+class BackGroundTaskLabel(mlrun.common.types.StrEnum):
+    pipeline = "pipeline"
+
+
 class BackgroundTaskState(mlrun.common.types.StrEnum):
     succeeded = "succeeded"
     failed = "failed"
@@ -37,6 +41,7 @@ class BackgroundTaskState(mlrun.common.types.StrEnum):
 
 class BackgroundTaskMetadata(pydantic.v1.BaseModel):
     name: str
+    id: typing.Optional[int]
     kind: typing.Optional[str]
     project: typing.Optional[str]
     created: typing.Optional[datetime.datetime]

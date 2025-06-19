@@ -2961,19 +2961,6 @@ class MlrunProject(ModelObj):
             mlrun.db.get_run_db().delete_function(name=name, project=self.metadata.name)
         self.spec.remove_function(name)
 
-    def remove_model_monitoring_function(self, name: Union[str, list[str]]):
-        """delete the specified model-monitoring-app function/s
-
-        :param name: name of the model-monitoring-function/s (under the project)
-        """
-        # TODO: Remove this in 1.10.0
-        warnings.warn(
-            "'remove_model_monitoring_function' is deprecated in 1.7.0 and will be removed in 1.10.0. "
-            "Please use `delete_model_monitoring_function` instead.",
-            FutureWarning,
-        )
-        self.delete_model_monitoring_function(name)
-
     def delete_model_monitoring_function(self, name: Union[str, list[str]]):
         """delete the specified model-monitoring-app function/s
 
@@ -4269,11 +4256,17 @@ class MlrunProject(ModelObj):
         function = mlrun.new_function("mlrun--project--image--builder", kind="job")
 
         if self.spec.source and not self.spec.load_source_on_run:
-            function.with_source_archive(
-                source=self.spec.source,
-                target_dir=target_dir,
-                pull_at_runtime=False,
-            )
+            if self.spec.source.startswith("db://"):
+                logger.debug(
+                    "Project source is 'db://', which refers to metadata stored in the MLRun DB."
+                    " Skipping source archive setup for image build"
+                )
+            else:
+                function.with_source_archive(
+                    source=self.spec.source,
+                    target_dir=target_dir,
+                    pull_at_runtime=False,
+                )
 
         build = self.spec.build
         result = self.build_function(

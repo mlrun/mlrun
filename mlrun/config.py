@@ -107,6 +107,8 @@ default_config = {
     "submit_timeout": "280",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
+    "background_task_cleanup_interval": "86400",  # 24 hours in seconds
+    "background_task_max_age": "21600",  # 6 hours in seconds
     "monitoring": {
         "runs": {
             # runs monitoring interval in seconds
@@ -234,6 +236,7 @@ default_config = {
                 "delete_function": "900",
                 "model_endpoint_creation": "600",
                 "model_endpoint_tsdb_leftovers": "900",
+                "terminate_pipeline": "300",
             },
             "runtimes": {
                 "dask": "600",
@@ -639,6 +642,7 @@ default_config = {
         "offline_storage_path": "model-endpoints/{kind}",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
+        "model_endpoint_creation_check_period": "15",
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -897,11 +901,7 @@ class Config:
         return result
 
     def __setattr__(self, attr, value):
-        # in order for the dbpath setter to work
-        if attr == "dbpath":
-            super().__setattr__(attr, value)
-        else:
-            self._cfg[attr] = value
+        self._cfg[attr] = value
 
     def __dir__(self):
         return list(self._cfg) + dir(self.__class__)
@@ -1245,23 +1245,6 @@ class Config:
         # since the property will need to be url, which exists in other structs as well
         return config.ui.url or config.ui_url
 
-    @property
-    def dbpath(self):
-        return self._dbpath
-
-    @dbpath.setter
-    def dbpath(self, value):
-        self._dbpath = value
-        if value:
-            # importing here to avoid circular dependency
-            import mlrun.db
-
-            # It ensures that SSL verification is set before establishing a connection
-            _configure_ssl_verification(self.httpdb.http.verify)
-
-            # when dbpath is set we want to connect to it which will sync configuration from it to the client
-            mlrun.db.get_run_db(value, force_reconnect=True)
-
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
         # when there is a cluster the .namespace is set
@@ -1436,6 +1419,12 @@ def _do_populate(env=None, skip_errors=False):
 
     _configure_ssl_verification(config.httpdb.http.verify)
     _validate_config(config)
+
+    if config.dbpath:
+        from mlrun.db import get_run_db
+
+        # when dbpath is set we want to connect to it which will sync configuration from it to the client
+        get_run_db(config.dbpath, force_reconnect=True)
 
 
 def _validate_config(config):

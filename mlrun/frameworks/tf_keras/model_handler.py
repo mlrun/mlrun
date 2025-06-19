@@ -29,7 +29,7 @@ from mlrun.features import Feature
 from .._common import without_mlrun_interface
 from .._dl_common import DLModelHandler
 from .mlrun_interface import TFKerasMLRunInterface
-from .utils import TFKerasUtils
+from .utils import TFKerasUtils, is_keras_3
 
 
 class TFKerasModelHandler(DLModelHandler):
@@ -40,8 +40,8 @@ class TFKerasModelHandler(DLModelHandler):
     # Framework name:
     FRAMEWORK_NAME = "tensorflow.keras"
 
-    # Declare a type of an input sample:
-    IOSample = Union[tf.Tensor, tf.TensorSpec, np.ndarray]
+    # Declare a type of input sample (only from keras v3 there is a KerasTensor type):
+    IOSample = Union[tf.Tensor, tf.TensorSpec, "keras.KerasTensor", np.ndarray]
 
     class ModelFormats:
         """
@@ -49,8 +49,18 @@ class TFKerasModelHandler(DLModelHandler):
         """
 
         SAVED_MODEL = "SavedModel"
+        KERAS = "keras"
         H5 = "h5"
         JSON_ARCHITECTURE_H5_WEIGHTS = "json_h5"
+
+        @classmethod
+        def default(cls) -> str:
+            """
+            Get the default model format to use for saving and loading the model based on the keras version.
+
+            :return: The default model format to use.
+            """
+            return cls.KERAS if is_keras_3() else cls.SAVED_MODEL
 
     class _LabelKeys:
         """
@@ -65,7 +75,7 @@ class TFKerasModelHandler(DLModelHandler):
         model: keras.Model = None,
         model_path: Optional[str] = None,
         model_name: Optional[str] = None,
-        model_format: str = ModelFormats.SAVED_MODEL,
+        model_format: Optional[str] = None,
         context: mlrun.MLClientCtx = None,
         modules_map: Optional[
             Union[dict[str, Union[None, str, list[str]]], str]
@@ -98,7 +108,7 @@ class TFKerasModelHandler(DLModelHandler):
                                          * If given a loaded model object and the model name is None, the name will be
                                            set to the model's object name / class.
         :param model_format:             The format to use for saving and loading the model. Should be passed as a
-                                         member of the class 'ModelFormats'. Default: 'ModelFormats.SAVED_MODEL'.
+                                         member of the class 'ModelFormats'.
         :param context:                  MLRun context to work with for logging the model.
         :param modules_map:              A dictionary of all the modules required for loading the model. Each key
                                          is a path to a module and its value is the object name to import from it. All
@@ -144,8 +154,11 @@ class TFKerasModelHandler(DLModelHandler):
                                           * 'save_traces' parameter was miss-used.
         """
         # Validate given format:
+        if not model_format:
+            model_format = TFKerasModelHandler.ModelFormats.default()
         if model_format not in [
             TFKerasModelHandler.ModelFormats.SAVED_MODEL,
+            TFKerasModelHandler.ModelFormats.KERAS,
             TFKerasModelHandler.ModelFormats.H5,
             TFKerasModelHandler.ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS,
         ]:
@@ -153,6 +166,22 @@ class TFKerasModelHandler(DLModelHandler):
                 f"Unrecognized model format: '{model_format}'. Please use one of the class members of "
                 "'TFKerasModelHandler.ModelFormats'"
             )
+        if not is_keras_3():
+            if model_format == TFKerasModelHandler.ModelFormats.KERAS:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "The 'keras' model format is only supported in Keras 3.0.0 and above. "
+                    f"Current version is {keras.__version__}."
+                )
+        else:
+            if (
+                model_format == TFKerasModelHandler.ModelFormats.SAVED_MODEL
+                or model_format
+                == TFKerasModelHandler.ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The '{model_format}' model format is not supported in Keras 3.0.0 and above. "
+                    f"Current version is {keras.__version__}."
+                )
 
         # Validate 'save_traces':
         if save_traces:
@@ -239,11 +268,19 @@ class TFKerasModelHandler(DLModelHandler):
             self._model_file = f"{self._model_name}.h5"
             self._model.save(self._model_file)
 
+        # ModelFormats.keras - Save as a keras file:
+        elif self._model_format == self.ModelFormats.KERAS:
+            self._model_file = f"{self._model_name}.keras"
+            self._model.save(self._model_file)
+
         # ModelFormats.SAVED_MODEL - Save as a SavedModel directory and zip its file:
         elif self._model_format == TFKerasModelHandler.ModelFormats.SAVED_MODEL:
             # Save it in a SavedModel format directory:
+            # Note: Using keras>=3.0.0 can save in this format via `model.export` but then it won't be able to load it
+            # back, only for inference. So, we use the `save` method instead for keras 2 and validate the user won't use
+            # keras 3 and this model format.
             if self._save_traces is True:
-                # Save traces can only be used in versions >= 2.4, so only if its true we use it in the call:
+                # Save traces can only be used in versions >= 2.4, so only if it's true, we use it in the call:
                 self._model.save(self._model_name, save_traces=self._save_traces)
             else:
                 self._model.save(self._model_name)
@@ -299,6 +336,12 @@ class TFKerasModelHandler(DLModelHandler):
 
         # ModelFormats.H5 - Load from a h5 file:
         if self._model_format == TFKerasModelHandler.ModelFormats.H5:
+            self._model = keras.models.load_model(
+                self._model_file, custom_objects=self._custom_objects
+            )
+
+        # ModelFormats.KERAS - Load from a keras file:
+        elif self._model_format == TFKerasModelHandler.ModelFormats.KERAS:
             self._model = keras.models.load_model(
                 self._model_file, custom_objects=self._custom_objects
             )
@@ -434,7 +477,10 @@ class TFKerasModelHandler(DLModelHandler):
             )
 
         # Read the inputs:
-        input_signature = [input_layer.type_spec for input_layer in self._model.inputs]
+        input_signature = [
+            getattr(input_layer, "type_spec", input_layer)
+            for input_layer in self._model.inputs
+        ]
 
         # Set the inputs:
         self.set_inputs(from_sample=input_signature)
@@ -453,7 +499,8 @@ class TFKerasModelHandler(DLModelHandler):
 
         # Read the outputs:
         output_signature = [
-            output_layer.type_spec for output_layer in self._model.outputs
+            getattr(output_layer, "type_spec", output_layer)
+            for output_layer in self._model.outputs
         ]
 
         # Set the outputs:
@@ -509,6 +556,17 @@ class TFKerasModelHandler(DLModelHandler):
                     f"'{self._model_path}'"
                 )
 
+        # ModelFormats.KERAS - Get the keras model file:
+        elif self._model_format == TFKerasModelHandler.ModelFormats.KERAS:
+            self._model_file = os.path.join(
+                self._model_path, f"{self._model_name}.keras"
+            )
+            if not os.path.exists(self._model_file):
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"The model file '{self._model_name}.keras' was not found within the given 'model_path': "
+                    f"'{self._model_path}'"
+                )
+
         # ModelFormats.SAVED_MODEL - Get the zip file and extract it, or simply locate the directory:
         elif self._model_format == TFKerasModelHandler.ModelFormats.SAVED_MODEL:
             self._model_file = os.path.join(self._model_path, f"{self._model_name}.zip")
@@ -559,7 +617,9 @@ class TFKerasModelHandler(DLModelHandler):
         # Supported types:
         if isinstance(sample, np.ndarray):
             return super()._read_sample(sample=sample)
-        elif isinstance(sample, tf.TensorSpec):
+        elif isinstance(sample, tf.TensorSpec) or (
+            is_keras_3() and isinstance(sample, keras.KerasTensor)
+        ):
             return Feature(
                 name=sample.name,
                 value_type=TFKerasUtils.convert_tf_dtype_to_value_type(

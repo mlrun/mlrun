@@ -895,7 +895,6 @@ def _run_pipeline(
 def retry_pipeline(
     run_id: str,
     project: str,
-    namespace: Optional[str] = None,
 ) -> str:
     """Retry a pipeline run.
 
@@ -904,7 +903,6 @@ def retry_pipeline(
 
     :param run_id: ID of the pipeline run to retry.
     :param project: name of the project associated with the pipeline run.
-    :param namespace: Optional; Kubernetes namespace to use if not the default.
 
     :returns: ID of the retried pipeline run or the ID of a cloned run if the original run is not retryable.
     :raises ValueError: If access to the remote API service is not available.
@@ -919,7 +917,6 @@ def retry_pipeline(
     pipeline_run_id = mldb.retry_pipeline(
         run_id=run_id,
         project=project,
-        namespace=namespace,
     )
     if pipeline_run_id == run_id:
         logger.info(
@@ -930,6 +927,35 @@ def retry_pipeline(
             f"Copy of pipeline {run_id} was retried as run ID={pipeline_run_id}, check UI for progress."
         )
     return pipeline_run_id
+
+
+def terminate_pipeline(
+    run_id: str,
+    project: str,
+) -> str:
+    """Terminate a pipeline run.
+
+    This function terminates a running pipeline with the specified run ID. If the run is not in a
+    terminable state, an error is raised.
+
+    :param run_id: ID of the pipeline run to terminate.
+    :param project: name of the project associated with the pipeline run.
+
+    :returns: ID of the terminate pipeline run background task.
+    :raises ValueError: If access to the remote API service is not available.
+    """
+    mldb = mlrun.db.get_run_db()
+    if mldb.kind != "http":
+        raise ValueError(
+            "Terminating a pipeline requires access to remote API service. "
+            "Please set the dbpath URL."
+        )
+
+    pipeline_run_task = mldb.terminate_pipeline(
+        run_id=run_id,
+        project=project,
+    )
+    return pipeline_run_task["metadata"]["id"]
 
 
 def wait_for_pipeline_completion(
@@ -998,7 +1024,10 @@ def wait_for_pipeline_completion(
             _wait_for_pipeline_completion,
         )
     else:
-        client = mlrun_pipelines.utils.get_client(namespace=namespace)
+        client = mlrun_pipelines.utils.get_client(
+            logger=logger,
+            namespace=namespace,
+        )
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
@@ -1059,7 +1088,10 @@ def get_pipeline(
         )
 
     else:
-        client = mlrun_pipelines.utils.get_client(namespace=namespace)
+        client = mlrun_pipelines.utils.get_client(
+            logger=logger,
+            namespace=namespace,
+        )
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()

@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -69,6 +69,7 @@ async def create_project_background_task(
         background_tasks,
         function,
         timeout,
+        None,
         None,
         *args,
     )
@@ -523,6 +524,49 @@ async def test_list_timed_out_project_background_task(
                 background_task.status.state
                 == mlrun.common.schemas.BackgroundTaskState.running
             )
+
+
+def test_old_project_background_task_cleanup(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    prefix,
+    monkeypatch,
+):
+    """
+    Create two tasks—one "old" and one "recent"—then invoke the DB-level
+    cleanup helper and verify via the public API that only the recent task
+    remains.
+    """
+    project = "my-proj"
+
+    response = client.post(f"/test/projects/{project}/background-tasks")
+    recent_task = _assert_background_task_creation(project, response)
+
+    with unittest.mock.patch(
+        "mlrun.utils.now_date",
+        return_value=datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(seconds=10),
+    ):
+        response = client.post(f"/test/projects/{project}/background-tasks")
+        old_task = _assert_background_task_creation(project, response)
+
+    response = client.get(f"{prefix}/projects/{project}/background-tasks")
+    assert response.status_code == http.HTTPStatus.OK.value
+    tasks_before = mlrun.common.schemas.BackgroundTaskList(**response.json())
+    assert len(tasks_before.background_tasks) == 2
+
+    framework.utils.singletons.db.get_db().cleanup_old_background_tasks(
+        db, max_age_seconds=5
+    )
+
+    response = client.get(f"{prefix}/projects/{project}/background-tasks")
+    assert response.status_code == http.HTTPStatus.OK.value
+    tasks_after = mlrun.common.schemas.BackgroundTaskList(**response.json())
+
+    remaining_names = {task.metadata.name for task in tasks_after.background_tasks}
+    assert recent_task.metadata.name in remaining_names
+    assert old_task.metadata.name not in remaining_names
+    assert len(remaining_names) == 1
 
 
 def _generate_background_task(

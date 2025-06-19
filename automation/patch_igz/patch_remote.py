@@ -45,7 +45,6 @@ class Constants:
     mlrun_kfp = "mlrun-kfp"
     log_collector = "log-collector"
     default_namespace = "default-tenant"
-    workflow_controller = "workflow-controller"
     alerts = "mlrun-alerts"
     targets_to_image_name = {
         api: api_container,
@@ -64,6 +63,7 @@ class MLRunPatcher:
         image_tag: str,
         patch_log_collector_image: bool,
         patch_mlrun_image: bool,
+        build_py39: bool,
         skip_patch_api: bool,
         patch_alerts: bool,
         no_build: bool,
@@ -78,6 +78,7 @@ class MLRunPatcher:
         self._patch_log_collector_image = bool(patch_log_collector_image)
         self._validate_config()
         self._patch_mlrun_image = patch_mlrun_image
+        self._build_py39 = build_py39
         self._skip_patch_api = skip_patch_api
         self._patch_alerts = patch_alerts
         self._no_build = no_build
@@ -125,12 +126,6 @@ class MLRunPatcher:
         # Connect to the first node and start deployment patching process
         node = self._cluster_data_nodes[0]
         self._connect_to_node(node)
-
-        if self._patch_mlrun_image:
-            self._replace_deployment_images(
-                Constants.workflow_controller,
-                target_to_built_images[Constants.mlrun_kfp],
-            )
 
         if self._patch_log_collector_image:
             self._replace_deployment_images(
@@ -234,14 +229,56 @@ class MLRunPatcher:
                 "MLRUN_VERSION": image_tag,
                 "MLRUN_DOCKER_REPO": mlrun_docker_registry,
             }
+
+            if Constants.mlrun_kfp in targets:
+                # Set the MLRUN_KFP_IMAGE environment variable in the mlrun-api deployment patch,
+                # so that workflow pods will use the correct KFP image from the internal registry.
+                _, overwrite_registry = self._resolve_overwrite_registry()
+                kfp_image_uri = (
+                    f"{overwrite_registry}/mlrun/{Constants.mlrun_kfp}:{image_tag}"
+                )
+
+                mlrun_api_container = self._deploy_patch["mlrun_api"]["spec"][
+                    "template"
+                ]["spec"]["containers"][0]
+                env_vars = mlrun_api_container.setdefault("env", [])
+                existing_var = next(
+                    (var for var in env_vars if var.get("name") == "MLRUN_KFP_IMAGE"),
+                    None,
+                )
+
+                if existing_var:
+                    existing_var["value"] = kfp_image_uri
+                else:
+                    env_vars.append(
+                        {
+                            "name": "MLRUN_KFP_IMAGE",
+                            "value": kfp_image_uri,
+                        }
+                    )
+
             cmd = ["make"]
             cmd.extend(targets)
             self._exec_local(cmd, live=True, env=env)
+            target_to_image = {
+                target: f"{mlrun_docker_registry}/{Constants.targets_to_image_name[target]}:{image_tag}"
+                for target in targets
+            }
+            if Constants.mlrun in targets and self._build_py39:
+                self._exec_local(
+                    ["make", "mlrun"],
+                    live=True,
+                    env={
+                        **env,
+                        "MLRUN_PYTHON_VERSION": "3.9",
+                        "INCLUDE_PYTHON_VERSION_SUFFIX": "true",
+                    },
+                )
+                target_to_image[f"{Constants.mlrun}-py39"] = (
+                    f"{mlrun_docker_registry}/{Constants.targets_to_image_name[Constants.mlrun]}:{image_tag}-py39"
+                )
 
-        return {
-            target: f"{mlrun_docker_registry}/{Constants.targets_to_image_name[target]}:{image_tag}"
-            for target in targets
-        }
+        return target_to_image
 
     def _connect_to_node(self, node):
         logger.debug(f"Connecting to {node}")
@@ -290,22 +327,48 @@ class MLRunPatcher:
 
         return resolve_built_images or built_images
 
-    def _push_docker_images(self, built_images):
-        logger.info(f"Pushing mlrun docker images: {built_images}")
-        with ThreadPoolExecutor(max_workers=len(built_images)) as executor:
-            futures = {
-                executor.submit(
-                    self._exec_local, cmd=["docker", "push", image], live=True
-                ): image
-                for image in built_images
-            }
-            for future in as_completed(futures):
-                image = futures[future]
+    def _push_docker_images(self, built_images, max_workers: int = 2, retries: int = 3):
+        """
+        Push docker images with limited parallelism and retry logic to
+        handle transient network/proxy timeouts.
+        """
+        # Ensure the Docker client waits long enough before timing out.
+        os.environ.setdefault("DOCKER_CLIENT_TIMEOUT", "300")
+        os.environ.setdefault("COMPOSE_HTTP_TIMEOUT", "300")
+
+        logger.info("Pushing mlrun docker images: %s", built_images)
+
+        def _push(image: str):
+            attempt = 0
+            while True:
+                attempt += 1
                 try:
-                    future.result()
+                    self._exec_local(["docker", "push", image], live=True)
+                    return
                 except Exception as exc:
-                    logger.error(f"Error pushing image {image}: {exc}")
-                    raise
+                    if attempt >= retries:
+                        logger.error(
+                            "Failed pushing %s after %d attempts", image, attempt
+                        )
+                        raise
+                    wait = 5 * attempt
+                    logger.warning(
+                        "Push %s failed (attempt %d/%d: %s). Retrying in %ss",
+                        image,
+                        attempt,
+                        retries,
+                        exc,
+                        wait,
+                    )
+                    time.sleep(wait)
+
+        # Use a conservative number of concurrent uploads to avoid registry throttling
+        with ThreadPoolExecutor(
+            max_workers=min(max_workers, len(built_images))
+        ) as pool:
+            futures = {pool.submit(_push, image): image for image in built_images}
+            for future in as_completed(futures):
+                future.result()
 
     def _patch_deployment_from_file(self):
         for deployment in self._deployments:
@@ -624,6 +687,12 @@ class MLRunPatcher:
     help="Deploy the mlrun image",
 )
 @click.option(
+    "-39",
+    "--py39",
+    is_flag=True,
+    help="Build Python 3.9 MLRun image",
+)
+@click.option(
     "-sa",
     "--skip-api",
     is_flag=True,
@@ -660,6 +729,7 @@ def main(
     tag: str,
     log_collector: bool,
     mlrun: bool,
+    py39: bool,
     skip_api: bool,
     alerts: bool,
     no_build: bool,
@@ -676,6 +746,7 @@ def main(
         image_tag=tag,
         patch_log_collector_image=log_collector,
         patch_mlrun_image=mlrun,
+        build_py39=py39,
         skip_patch_api=skip_api,
         patch_alerts=alerts,
         no_build=no_build,

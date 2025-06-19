@@ -19,7 +19,9 @@ from sqlalchemy.orm import (
     sessionmaker as SessionMaker,  # noqa: N812 - `sessionmaker` is a class
 )
 
-from mlrun.config import config
+import mlrun.common.db.dialects
+import mlrun.common.types
+import mlrun.config
 
 # TODO: wrap the following functions in a singleton class
 _engines: dict[str, Engine] = {}
@@ -29,7 +31,7 @@ _session_makers: dict[str, SessionMaker] = {}
 # doing lazy load to allow tests to initialize the engine
 def get_engine(dsn=None) -> Engine:
     global _engines
-    dsn = dsn or config.httpdb.dsn
+    dsn = dsn or mlrun.config.config.httpdb.dsn
     if dsn not in _engines:
         _init_engine(dsn=dsn)
     return _engines[dsn]
@@ -43,7 +45,7 @@ def create_session(dsn=None) -> Session:
 # doing lazy load to allow tests to initialize the engine
 def _get_session_maker(dsn) -> SessionMaker:
     global _session_makers
-    dsn = dsn or config.httpdb.dsn
+    dsn = dsn or mlrun.config.config.httpdb.dsn
     if dsn not in _session_makers:
         _init_session_maker(dsn=dsn)
     return _session_makers[dsn]
@@ -53,21 +55,21 @@ def _get_session_maker(dsn) -> SessionMaker:
 #  overridable by tests (today when you import the config it is already being initialized.. should be lazy load)
 def _init_engine(dsn=None):
     global _engines
-    dsn = dsn or config.httpdb.dsn
+    dsn = dsn or mlrun.config.config.httpdb.dsn
     kwargs = {}
-    if "mysql" in dsn:
-        pool_size = config.httpdb.db.connections_pool_size
+    if not dsn.startswith(mlrun.common.db.dialects.Dialects.SQLITE):
+        pool_size = mlrun.config.config.httpdb.db.connections_pool_size
         if pool_size is None:
-            pool_size = config.httpdb.max_workers
-        max_overflow = config.httpdb.db.connections_pool_max_overflow
+            pool_size = mlrun.config.config.httpdb.max_workers
+        max_overflow = mlrun.config.config.httpdb.db.connections_pool_max_overflow
         if max_overflow is None:
-            max_overflow = config.httpdb.max_workers
+            max_overflow = mlrun.config.config.httpdb.max_workers
 
         kwargs = {
             "pool_size": pool_size,
             "max_overflow": max_overflow,
-            "pool_pre_ping": config.httpdb.db.connections_pool_pre_ping,
-            "pool_recycle": config.httpdb.db.connections_pool_recycle,
+            "pool_pre_ping": mlrun.config.config.httpdb.db.connections_pool_pre_ping,
+            "pool_recycle": mlrun.config.config.httpdb.db.connections_pool_recycle,
         }
     engine = create_engine(dsn, **kwargs)
     _engines[dsn] = engine

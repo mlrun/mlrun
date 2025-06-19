@@ -71,7 +71,15 @@ def test_fqn_parsing(
 @pytest.mark.parametrize(
     ("flat_mep", "validate", "expectation"),
     [
-        ({"project": "proj-1", "uid": "ok_30", "name": "test"}, True, does_not_raise()),
+        (
+            {
+                "project": "proj-1",
+                "uid": "81d488cf-0104-4bb4-98c4-e4fd1204e82f",
+                "name": "test",
+            },
+            True,
+            does_not_raise(),
+        ),
         ({}, True, pytest.raises(pydantic.v1.ValidationError)),
         (
             {"project": "im-fine-10"},
@@ -91,12 +99,10 @@ def test_fqn_parsing(
             True,
             pytest.raises(
                 pydantic.v1.ValidationError,
-                match=(
-                    re.escape(
-                        "1 validation error for ModelEndpointMetadata\nuid\n  "
-                        "string does not match regex "
-                        '"^[a-zA-Z0-9_-]+$" (type=value_error.str.regex; pattern=^[a-zA-Z0-9_-]+$)'
-                    )
+                match=re.escape(
+                    "1 validation error for ModelEndpointMetadata\nuid\n  "
+                    "string does not match regex "
+                    '"^[a-zA-Z0-9_-]+$" (type=value_error.str.regex; pattern=^[a-zA-Z0-9_-]+$)'
                 ),
             ),
         ),

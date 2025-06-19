@@ -1,7 +1,9 @@
 (tutorials-all)=
 # Tutorials and Examples
 
-The following tutorials provide a hands-on introduction to using MLRun to implement a data science workflow and automate machine-learning operations (MLOps).
+The MLRun tutorials provide a hands-on introduction to using MLRun to implement data science workflows and to automate both gen AI and machine-learning operations (MLOps) tasks.
+
+**In this section**
 
 - [**Gen AI tutorials**](#gen-ai-tutorials)
 - [**Machine learning tutorials**](#other-tutorial)

@@ -1,8 +1,7 @@
 (build-function-image)=
 # Build function image
 
-As discussed in {ref}`images-usage`, MLRun provides pre-built images which contain the components necessary to execute
-an MLRun runtime. In some cases, however, custom images need to be created. 
+As discussed in {ref}`images-usage`, MLRun provides pre-built images which contain the components necessary to execute an MLRun runtime. In some cases, however, custom images need to be created. 
 This page details this process and the available options.
 
 ## When is a build required?

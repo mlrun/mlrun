@@ -93,7 +93,7 @@ Notice how this maps to the parameter `model` that you passed into your `outputs
 ### Model artifacts
 <!-- exists in standalone file in store -->
 
-By storing multiple models, you can experiment with them,  
+By storing multiple models, you can experiment with them, 
 and compare their performance, without having to worry about losing the previous results.
 
 The simplest way to store a model named `my_model` is with the following code:

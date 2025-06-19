@@ -33,7 +33,6 @@ import mlrun.launcher.factory
 import mlrun.runtimes.utils
 import mlrun.utils.singleton
 from mlrun import mlconf
-from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
@@ -45,6 +44,7 @@ import framework.utils.runtimes.nuclio
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s
 import framework.utils.singletons.project_member
+from framework.db.sqldb.sql_session import _init_engine, create_session
 from services.api.initial_data import init_data
 
 

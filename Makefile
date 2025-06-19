@@ -175,7 +175,14 @@ install-docs-requirements: ## Install all requirements needed for compiling mlru
 
 .PHONY: install-conda-requirements
 install-conda-requirements: ## Install all requirements needed for development with specific conda packages for arm64
-	conda install --yes --file conda-arm64-requirements.txt
+ifeq ($(MLRUN_PYTHON_VERSION),3.11)
+	conda install --yes --file conda-arm64-requirements-python311.txt
+else ifeq ($(MLRUN_PYTHON_VERSION),3.9)
+	conda install --yes --file conda-arm64-requirements-python39.txt
+else
+	@echo "Unsupported Python version: $(MLRUN_PYTHON_VERSION)" >&2
+	@exit 1
+endif
 	make install-requirements
 
 .PHONY: install-complete-requirements

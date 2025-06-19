@@ -982,10 +982,11 @@ class Model(storey.ParallelExecutionRunnable):
             self.model_artifact = self.invocation_artifact.model_artifact
         else:
             self.model_artifact = artifact
-        self.model = mlrun.get_model_provider(
-            url=self.model_artifact.model_url,
-            default_invoke_kwargs=self.model_artifact.default_config,
-        )
+        if self.model_artifact:
+            self.model = mlrun.get_model_provider(
+                url=self.model_artifact.model_url,
+                default_invoke_kwargs=self.model_artifact.default_config,
+            )
 
     def _get_artifact_object(self) -> Union[ModelArtifact, LLMPromptArtifact, None]:
         if self.artifact_uri:

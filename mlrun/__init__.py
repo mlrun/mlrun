@@ -32,7 +32,7 @@ from typing import Optional
 import dotenv
 
 from .config import config as mlconf
-from .datastore import DataItem, ModelProvider, model_provider_manager, store_manager
+from .datastore import DataItem, ModelProvider, store_manager
 from .db import get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx

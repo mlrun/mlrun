@@ -11,11 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
 from typing import Optional
+
+from mergedeep import merge
 
 import mlrun
 import mlrun.errors
-from mlrun.datastore.abstract_base import BaseRemoteClientManager, parse_url
+from mlrun.artifacts.model import ModelArtifact
+from mlrun.datastore.abstract_base import (
+    parse_url,
+)
+from mlrun.datastore.datastore_profile import datastore_profile_read
+from mlrun.datastore.model_providers import ModelProvider, schema_to_model_provider
 from mlrun.errors import err_to_str
 from mlrun.utils.helpers import get_local_file_schema
 
@@ -23,7 +31,7 @@ from ..utils import DB_SCHEMA, RunKeys
 from .base import DataItem, DataStore, HttpStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
-from .store_resources import get_store_resource, is_store_uri
+from .store_resources import ResourceRemoteClient, get_store_resource, is_store_uri
 from .v3io import V3ioStore
 
 in_memory_store = InMemoryStore()
@@ -91,9 +99,10 @@ def uri_to_ipython(link):
     return schema_to_store(schema).uri_to_ipython(endpoint, parsed_url.path)
 
 
-class StoreManager(BaseRemoteClientManager):
+class StoreManager:
     def __init__(self, secrets=None, db=None):
-        super().__init__(secrets=secrets, db=db)
+        self._secrets = secrets or {}
+        self._db = db
         self._stores = {}
 
     def from_dict(self, struct: dict):
@@ -211,3 +220,121 @@ class StoreManager(BaseRemoteClientManager):
         if not secrets and not mlrun.config.is_running_as_api():
             self._stores[store_key] = store
         return store, subpath, url
+
+    @staticmethod
+    def _resolve_datastore_profile(
+        url,
+        secrets: Optional[dict] = None,
+        project_name="",
+        subpath: Optional[str] = None,
+    ):
+        datastore_profile = datastore_profile_read(url, project_name, secrets)
+        if secrets and datastore_profile.secrets():
+            secrets = merge(secrets, datastore_profile.secrets())
+        else:
+            secrets = secrets or datastore_profile.secrets()
+        url = datastore_profile.url(subpath)
+        schema, endpoint, parsed_url = parse_url(url)
+        subpath = parsed_url.path
+        return secrets, url, schema, endpoint, parsed_url, subpath
+
+    def set(self, secrets=None, db=None):
+        if db and not self._db:
+            self._db = db
+        if secrets:
+            for key, val in secrets.items():
+                self._secrets[key] = val
+        return self
+
+    def secret(self, key):
+        return self._secrets.get(key)
+
+    def _get_db(self):
+        if not self._db:
+            self._db = mlrun.get_run_db(secrets=self._secrets)
+        return self._db
+
+    def reset_secrets(self):
+        self._secrets = {}
+
+    def get_or_create_model_provider(
+        self,
+        url,
+        secrets: Optional[dict] = None,
+        project_name="",
+        default_invoke_kwargs: Optional[dict] = None,
+    ) -> (ModelProvider, str, str):
+        schema, endpoint, parsed_url = parse_url(url)
+        subpath = parsed_url.path
+
+        if schema == "ds":
+            secrets, url, schema, endpoint, parsed_url, subpath = (
+                self._resolve_datastore_profile(
+                    url=url, secrets=secrets, project_name=project_name, subpath=subpath
+                )
+            )
+
+        model_provider_class = schema_to_model_provider(schema, raise_exception=False)
+        if not model_provider_class:
+            warnings.warn(
+                "Model provider scheme not found. Returning None — model provider will not be supported."
+            )
+        endpoint, subpath = model_provider_class.parse_endpoint_and_path(
+            endpoint=endpoint, subpath=subpath
+        )
+        key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"
+
+        model_provider = model_provider_class(
+            parent=self,
+            name=key,
+            kind=schema,
+            endpoint=endpoint,
+            secrets=secrets,
+            default_invoke_kwargs=default_invoke_kwargs,
+        )
+        return model_provider
+
+    def get_model_artifact(
+        self, url, project="", allow_empty_resources=None, secrets=None
+    ):
+        try:
+            resource = get_store_resource(
+                url,
+                db=self._get_db(),
+                secrets=self._secrets,
+                project=project,
+                data_store_secrets=secrets,
+                fallback_manager=ResourceRemoteClient.MODEL_PROVIDER,
+            )
+        except Exception as exc:
+            raise OSError(f"artifact {url} not found, {err_to_str(exc)}")
+        if not isinstance(resource, ModelArtifact):
+            raise mlrun.errors.MLRunRuntimeError("The resource is not a ModelArtifact")
+        url = resource.model_url
+        if not url and not allow_empty_resources:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Resource {url} does not have model url"
+            )
+        return resource
+
+    def model_provider_object(
+        self,
+        url,
+        project="",
+        allow_empty_resources=None,
+        secrets: Optional[dict] = None,
+        default_invoke_kwargs: Optional[dict] = None,
+    ) -> ModelProvider:
+        if mlrun.datastore.is_store_uri(url):
+            resource = self.get_model_artifact(
+                url, project, allow_empty_resources, secrets
+            )
+            url = resource.model_url
+            default_invoke_kwargs = default_invoke_kwargs or resource.default_config
+        model_provider = self.get_or_create_model_provider(
+            url,
+            secrets=secrets,
+            project_name=project,
+            default_invoke_kwargs=default_invoke_kwargs,
+        )
+        return model_provider

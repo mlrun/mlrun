@@ -42,7 +42,7 @@ from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
 
 from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
-from .datastore import model_provider_manager, store_manager
+from .datastore import store_manager
 from .errors import MLRunInvalidArgumentError, MLRunTimeoutError
 from .execution import MLClientCtx
 from .model import RunObject, RunTemplate
@@ -1125,8 +1125,10 @@ def get_model_provider(
     url, secrets=None, db=None, default_invoke_kwargs: Optional[dict] = None
 ) -> ModelProvider:
     """get mlrun dataitem object (from path/url)"""
-    model_provider = model_provider_manager.set(secrets, db=db)
-    return model_provider.object(url=url, default_invoke_kwargs=default_invoke_kwargs)
+    store_manager.set(secrets, db=db)
+    return store_manager.model_provider_object(
+        url=url, default_invoke_kwargs=default_invoke_kwargs
+    )
 
 
 def download_object(url, target, secrets=None):

@@ -204,5 +204,7 @@ def get_store_resource(
             stores = mlrun.store_manager.set(secrets, db=db)
             return stores.object(url=uri, secrets=data_store_secrets)
         elif fallback_manager == ResourceRemoteClient.MODEL_PROVIDER:
-            model_providers = mlrun.model_provider_manager.set(secrets, db=db)
-            return model_providers.object(url=uri, secrets=data_store_secrets)
+            model_providers = mlrun.store_manager.set(secrets, db=db)
+            return model_providers.model_provider_object(
+                url=uri, secrets=data_store_secrets
+            )

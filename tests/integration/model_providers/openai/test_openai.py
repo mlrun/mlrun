@@ -23,7 +23,7 @@ import yaml
 import mlrun
 import mlrun.artifacts
 import mlrun.serving.states
-from mlrun.datastore import model_provider_manager
+from mlrun.datastore import store_manager
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileOpenAI,
     register_temporary_client_datastore_profile,
@@ -118,7 +118,7 @@ class TestBasicOpenAIProvider:
             for key, env_param in self.env_secrets.items():
                 if env_param:
                     os.environ[key] = env_param
-            model_provider_manager.reset_secrets()
+            store_manager.reset_secrets()
             # noinspection PyAttributeOutsideInit
             self.url_prefix = "openai://"
 

@@ -839,9 +839,7 @@ def get_artifact_meta(artifact):
         artifact = artifact.artifact_url
 
     if mlrun.datastore.is_store_uri(artifact):
-        artifact_spec, _ = mlrun.datastore.store_manager.get_store_artifact(
-            artifact
-        )
+        artifact_spec, _ = mlrun.datastore.store_manager.get_store_artifact(artifact)
 
     elif artifact.lower().endswith(".yaml"):
         data = mlrun.datastore.store_manager.object(url=artifact).get()

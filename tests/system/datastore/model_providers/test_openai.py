@@ -13,6 +13,7 @@
 # limitations under the License.
 import json
 import os
+
 import pytest
 import tiktoken
 
@@ -21,15 +22,17 @@ import mlrun.artifacts
 import mlrun.serving.states
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileOpenAI,
-    register_temporary_client_datastore_profile,
 )
-from mlrun.datastore.model_providers import ModelProvider
 from mlrun.serving import ModelRunnerStep
 from tests.system.base import TestMLRunSystem
 
 
 def get_missing_openai_env_variables():
-    return [env_key for env_key in ["OPENAI_BASE_URL", "OPENAI_API_KEY"] if not os.environ.get(env_key)]
+    return [
+        env_key
+        for env_key in ["OPENAI_BASE_URL", "OPENAI_API_KEY"]
+        if not os.environ.get(env_key)
+    ]
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -90,7 +93,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             project=self.project_name,
             filename=os.path.relpath(str(self.assets_path / "models.py")),
             image=self.image,
-            requirements=["openai==1.77.0"]
+            requirements=["openai==1.77.0"],
         )
         graph = function.set_topology("flow", engine="async")
         model_runner_step = ModelRunnerStep(name="my_model_runner")

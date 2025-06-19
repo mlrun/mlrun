@@ -17,15 +17,9 @@ from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar
 
 import mlrun
-from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.abstract_base import (
     BaseRemoteClient,
-    BaseRemoteClientManager,
-    parse_url,
 )
-from mlrun.errors import err_to_str
-
-from .store_resources import ResourceRemoteClient, get_store_resource
 
 T = TypeVar("T")
 
@@ -233,91 +227,3 @@ def schema_to_model_provider(schema: str, raise_exception=True) -> type[ModelPro
         else:
             warnings.warn(f"unsupported model provider schema: {schema}")
     return provider_class
-
-
-class ModelProviderManager(BaseRemoteClientManager):
-    def __init__(self, secrets=None, db=None):
-        super().__init__(secrets=secrets, db=db)
-
-    def get_or_create_model_provider(
-        self,
-        url,
-        secrets: Optional[dict] = None,
-        project_name="",
-        default_invoke_kwargs: Optional[dict] = None,
-    ) -> (ModelProvider, str, str):
-        schema, endpoint, parsed_url = parse_url(url)
-        subpath = parsed_url.path
-
-        if schema == "ds":
-            secrets, url, schema, endpoint, parsed_url, subpath = (
-                self._resolve_datastore_profile(
-                    url=url, secrets=secrets, project_name=project_name, subpath=subpath
-                )
-            )
-
-        model_provider_class = schema_to_model_provider(schema, raise_exception=False)
-        if not model_provider_class:
-            warnings.warn(
-                "Model provider scheme not found. Returning None — model provider will not be supported."
-            )
-        endpoint, subpath = model_provider_class.parse_endpoint_and_path(
-            endpoint=endpoint, subpath=subpath
-        )
-        key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"
-
-        model_provider = model_provider_class(
-            parent=self,
-            name=key,
-            kind=schema,
-            endpoint=endpoint,
-            secrets=secrets,
-            default_invoke_kwargs=default_invoke_kwargs,
-        )
-        return model_provider
-
-    def get_model_artifact(
-        self, url, project="", allow_empty_resources=None, secrets=None
-    ):
-        try:
-            resource = get_store_resource(
-                url,
-                db=self._get_db(),
-                secrets=self._secrets,
-                project=project,
-                data_store_secrets=secrets,
-                fallback_manager=ResourceRemoteClient.MODEL_PROVIDER,
-            )
-        except Exception as exc:
-            raise OSError(f"artifact {url} not found, {err_to_str(exc)}")
-        if not isinstance(resource, ModelArtifact):
-            raise mlrun.errors.MLRunRuntimeError("The resource is not a ModelArtifact")
-        url = resource.model_url
-        if not url and not allow_empty_resources:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Resource {url} does not have model url"
-            )
-        return resource
-
-    def object(
-        self,
-        url,
-        key="",
-        project="",
-        allow_empty_resources=None,
-        secrets: Optional[dict] = None,
-        default_invoke_kwargs: Optional[dict] = None,
-    ) -> ModelProvider:
-        if mlrun.datastore.is_store_uri(url):
-            resource = self.get_model_artifact(
-                url, project, allow_empty_resources, secrets
-            )
-            url = resource.model_url
-            default_invoke_kwargs = default_invoke_kwargs or resource.default_config
-        model_provider = self.get_or_create_model_provider(
-            url,
-            secrets=secrets,
-            project_name=project,
-            default_invoke_kwargs=default_invoke_kwargs,
-        )
-        return model_provider

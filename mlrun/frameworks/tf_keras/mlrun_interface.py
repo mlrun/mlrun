@@ -281,9 +281,9 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
         # Adjust learning rate based on the number of GPUs:
         if hasattr(self.optimizer, "lr"):
-            optimizer.lr = optimizer.lr * self._hvd.size()
+            optimizer.lr *= self._hvd.size()
         else:
-            optimizer.learning_rate = optimizer.learning_rate * self._hvd.size()
+            optimizer.learning_rate *= self._hvd.size()
 
         # Wrap the optimizer in horovod's distributed optimizer: 'hvd.DistributedOptimizer'.
         optimizer = self._hvd.DistributedOptimizer(optimizer)

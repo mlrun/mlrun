@@ -214,7 +214,7 @@ sudo apt-get install -y libpq-dev build-essential python3-dev postgresql-client
 
 And then install the relevant Python package:
 ```shell
-pip install pytest-mock-resources[mysql,postgres]
+pip install pytest-mock-resources[postgres]
 ```
 
 ### Adding System Tests

@@ -64,6 +64,7 @@ def extra_requirements() -> dict[str, list[str]]:
             # because confluent kafka supports avro format by default
             "avro~=1.11",
         ],
+        "postgres": "pytest-mock-resources[postgres]~=2.12",
         "redis": ["redis~=4.3"],
         "mlflow": ["mlflow~=2.22"],
         "databricks-sdk": ["databricks-sdk~=0.20.0"],

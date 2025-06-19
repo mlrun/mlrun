@@ -3894,45 +3894,42 @@ class SQLDB(DBInterface):
     def _calculate_mm_functions_counters(
         self, session
     ) -> tuple[dict[str, int], dict[str, int]]:
-        labels = [f"{ModelMonitoringAppLabel.KEY}={ModelMonitoringAppLabel.VAL}"]
-        query = session.query(Function.project, Function, Function.Tag.name)
+        query = session.query(
+            Function.project.label("project"),
+            Function.state.label("function_state"),
+            func.count().label("state_count"),
+        )
         query = query.join(
             Function.Tag, Function.id == Function.Tag.obj_id
         )  # filter duplications
-        labels = label_set(labels)
-        query = self._add_labels_filter(session, query, Function, labels)
-        query = query.with_entities(
-            Function.project.label("project"), Function.state.label("function_state")
+
+        labels = label_set(
+            [f"{ModelMonitoringAppLabel.KEY}={ModelMonitoringAppLabel.VAL}"]
         )
-        subq = query.subquery()
-        query = session.query(
-            subq.c.project,
-            func.count(
-                case(
-                    (
-                        subq.c.function_state
-                        == mlrun.common.schemas.FunctionState.ready,
-                        1,
-                    )
-                )
-            ).label("running_count"),
-            func.count(
-                case(
-                    (
-                        subq.c.function_state
-                        == mlrun.common.schemas.FunctionState.error,
-                        1,
-                    )
-                )
-            ).label("failed_count"),
-        ).group_by(subq.c.project)
+        labels = label_set(labels)
+        query = self._add_labels_filter(
+            session, query, Function, labels
+        )  # keep only model-monitoring functions
+
+        query = query.filter(
+            Function.state.in_(
+                [
+                    mlrun.common.schemas.FunctionState.ready,
+                    mlrun.common.schemas.FunctionState.error,
+                ]
+            )
+        )  # keep only relevant states
+
+        query = query.group_by(Function.project, Function.state)
         results = query.all()
 
         project_to_failed_mm_functions_count = {}
         project_to_running_mm_functions_count = {}
-        for project, running_count, failed_count in results:
-            project_to_running_mm_functions_count[project] = running_count
-            project_to_failed_mm_functions_count[project] = failed_count
+        for project, state, count in results:
+            if state == mlrun.common.schemas.FunctionState.ready:
+                project_to_running_mm_functions_count[project] = count
+            elif state == mlrun.common.schemas.FunctionState.error:
+                project_to_failed_mm_functions_count[project] = count
 
         return (
             project_to_running_mm_functions_count,

@@ -1,7 +1,7 @@
 (secrets)=
 # Working with secrets<!-- omit in toc -->
-When executing jobs through MLRun, the code might need access to specific secrets, for example to access data 
-residing on a data-store that requires credentials (such as a private S3 bucket), or many other similar needs.
+
+When executing jobs through MLRun, the code might need access to specific secrets, for example to access data residing on a data-store that requires credentials (such as a private S3 bucket), or many other similar needs.
 
 MLRun provides some facilities that allow handling secrets and passing those secrets to execution jobs. It's 
 important to understand how these facilities work, as this has implications on the level of security they provide

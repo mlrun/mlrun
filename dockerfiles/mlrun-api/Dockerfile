@@ -42,6 +42,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   mariadb-client \
   curl \
   ca-certificates \
+  libpq-dev \
+  python3-dev \
  && rm -rf /var/lib/apt/lists/*
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1

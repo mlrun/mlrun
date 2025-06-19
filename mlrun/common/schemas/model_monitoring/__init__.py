@@ -37,6 +37,7 @@ from .constants import (
     ResultKindApp,
     ResultStatusApp,
     SpecialApps,
+    StreamProcessingEvent,
     TDEngineSuperTables,
     TSDBTarget,
     V3IOTSDBTables,

@@ -38,6 +38,7 @@ import framework.constants
 import framework.db.base
 import framework.db.sqldb.db
 import framework.service
+import framework.utils.background_tasks
 import framework.utils.clients.chief
 import framework.utils.clients.log_collector
 import framework.utils.clients.messaging
@@ -193,6 +194,7 @@ class Service(framework.service.Service):
             self._start_periodic_project_summaries_calculation()
         self._start_periodic_partition_management()
         self._start_periodic_refresh_smtp_configuration()
+        self._start_periodic_background_task_cleanup()
         if mlconf.httpdb.clusterization.chief.feature_gates.start_logs == "enabled":
             await self._start_periodic_logs_collection()
         if mlconf.httpdb.clusterization.chief.feature_gates.stop_logs == "enabled":
@@ -576,7 +578,7 @@ class Service(framework.service.Service):
                 retention_days=retention_days,
             )
             partition_interval = framework.db.session.run_function_with_new_db_session(
-                services.api.utils.db.partitioner.MySQLPartitioner().get_partition_interval,
+                services.api.utils.db.partitioner.DBPartitioner().get_partition_interval,
                 table_name=table_name,
             )
             interval_in_seconds = int(
@@ -605,11 +607,30 @@ class Service(framework.service.Service):
                 refresh=True,
             )
 
+    def _start_periodic_background_task_cleanup(self):
+        interval = int(mlconf.background_task_cleanup_interval)
+        if interval > 0:
+            self._logger.info(
+                "Starting periodic background task cleanup",
+                interval=interval,
+            )
+
+            cleanup_func = framework.utils.background_tasks.ProjectBackgroundTasksHandler().cleanup_old_background_tasks
+            func = framework.db.session.run_function_with_new_db_session(
+                cleanup_func, int(mlconf.background_task_max_age)
+            )
+            run_function_periodically(
+                interval=interval,
+                name=cleanup_func.__name__,
+                replace=False,
+                function=func,
+            )
+
     @staticmethod
     async def _manage_partitions(table_name, retention_days):
         await fastapi.concurrency.run_in_threadpool(
             framework.db.session.run_function_with_new_db_session,
-            services.api.utils.db.partitioner.MySQLPartitioner().create_and_drop_partitions,
+            services.api.utils.db.partitioner.DBPartitioner().create_and_drop_partitions,
             table_name=table_name,
             retention_days=retention_days,
         )

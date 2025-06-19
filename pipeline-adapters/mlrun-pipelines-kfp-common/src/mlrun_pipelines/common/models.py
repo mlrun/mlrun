@@ -118,3 +118,12 @@ class RunStatuses(StrEnum):
             RunStatuses.unknown,
             RunStatuses.runtime_state_unspecified,
         ]
+
+    @classmethod
+    def terminable_statuses(cls):
+        return [
+            RunStatuses.running,
+            RunStatuses.pending,
+            RunStatuses.paused,
+            RunStatuses.runtime_state_unspecified,
+        ]

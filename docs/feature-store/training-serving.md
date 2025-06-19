@@ -1,13 +1,15 @@
 (training-serving)=
 # Serving with the feature store
 
+Learn how to use the feature store to create online features and then to serve the model.
+
 **In this section**
 - [Get online features](#get-online-features)
 - [Incorporating to the serving model](#incorporating-to-the-serving-model)
 
 ## Get online features
 
-The online features are created using MLRun's feature store online feature service and are served from the **NoSQL** target for real-time performance needs.
+The online features are created using MLRun's online feature service in the feature store and are served from the **NoSQL** target for real-time performance needs.
 
 To use it, first create an online feature service with the feature vector.
 
@@ -35,7 +37,7 @@ You define a serving model class and the computational graph required to run you
 To embed the online feature service in your model server, just create the feature vector service once when the model initializes, and then use it to retrieve the feature vectors of incoming keys.
 
 You can import ready-made classes and functions from the MLRun [Function Hub](https://www.mlrun.org/hub/) or write your own.
-As example of a scikit-learn based model server:
+An example of a model server based on scikit-learn:
 <!--- (taken from the [feature store demo](./end-to-end-demo/03-deploy-serving-model.ipynb#define-model-class)) --->
 
 ```python

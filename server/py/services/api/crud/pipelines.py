@@ -197,16 +197,28 @@ class Pipelines(
                     failed=experiments_failed,
                 )
 
-    def get_pipeline(
+    def get_run(
         self,
-        db_session: sqlalchemy.orm.Session,
         run_id: str,
-        project: typing.Optional[str] = None,
+        project: str,
         namespace: typing.Optional[str] = None,
-        format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.summary,
-    ):
+    ) -> mlrun_pipelines.models.PipelineRun:
+        """
+        Get a Kubeflow Pipeline (KFP) run by its ID.
+
+        :param run_id: The unique identifier of the pipeline run.
+        :param project: The name of the MLRun project associated with the pipeline run.
+        :param namespace: (Optional) The Kubernetes namespace in which the pipeline is running.
+                          Defaults to the configured namespace if not specified.
+        :raises MLRunNotFoundError: If the pipeline run does not belong to the specified project
+                                    or if the run ID is not found.
+        :raises MLRunRuntimeError: If there is an error retrieving the pipeline run details.
+        :raises MLRunHTTPStatusError: If there is an HTTP error interacting with KFP.
+        :return: The pipeline run object.
+        :rtype: mlrun_pipelines.models.PipelineRun
+        """
+
         kfp_client = self.initialize_kfp_client(namespace)
-        run = None
         try:
             api_run_detail = kfp_client.get_run(run_id)
             run = mlrun_pipelines.models.PipelineRun(api_run_detail)
@@ -218,14 +230,6 @@ class Pipelines(
                             f"Pipeline run with id {run_id} is not of project {project}"
                         )
 
-                mlrun.utils.logger.debug(
-                    "Got kfp run",
-                    run_id=run_id,
-                    run_name=run.get("name"),
-                    project=project,
-                    format_=format_,
-                )
-                run = self._format_run(run, format_, kfp_client)
         except kfp_server_api.ApiException as exc:
             raise mlrun.errors.err_for_status_code(
                 exc.status, mlrun.errors.err_to_str(exc)
@@ -236,12 +240,33 @@ class Pipelines(
             raise mlrun.errors.MLRunRuntimeError(
                 f"Failed getting KFP run: {mlrun.errors.err_to_str(exc)}"
             ) from exc
+        return run
 
+    def get_formatted_pipeline(
+        self,
+        run_id: str,
+        project: typing.Optional[str] = None,
+        namespace: typing.Optional[str] = None,
+        format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.summary,
+    ) -> dict:
+        kfp_client = self.initialize_kfp_client(namespace)
+        try:
+            run = self.get_run(
+                run_id=run_id,
+                project=project,
+                namespace=namespace,
+            )
+            run = self._format_run(run, format_, kfp_client)
+        except mlrun.errors.MLRunHTTPError as exc:
+            raise exc
+        except Exception as exc:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed getting KFP run: {mlrun.errors.err_to_str(exc)}"
+            ) from exc
         return run
 
     def retry_pipeline(
         self,
-        db_session: sqlalchemy.orm.Session,
         run_id: str,
         project: str,
         namespace: typing.Optional[str] = None,
@@ -249,7 +274,6 @@ class Pipelines(
         """
         Retry a Kubeflow Pipeline (KFP) run.
 
-        :param db_session: The SQLAlchemy session used for retrieving and storing pipeline information.
         :param run_id: The unique identifier of the pipeline run to retry.
         :param project: The name of the MLRun project associated with the pipeline run.
         :param namespace: (Optional) The Kubernetes namespace in which the pipeline is running.
@@ -262,27 +286,11 @@ class Pipelines(
         :return: The unique identifier of the retried pipeline run.
         :rtype: str
         """
-        kfp_client = self.initialize_kfp_client(namespace)
-        try:
-            api_run_detail = kfp_client.get_run(run_id)
-        except kfp_server_api.ApiException as exc:
-            raise mlrun.errors.err_for_status_code(
-                exc.status, mlrun.errors.err_to_str(exc)
-            ) from exc
-        except mlrun.errors.MLRunHTTPStatusError:
-            raise
-        except Exception as exc:
-            raise mlrun.errors.MLRunRuntimeError(
-                f"Failed getting KFP run: {mlrun.errors.err_to_str(exc)}"
-            ) from exc
-        run = mlrun_pipelines.models.PipelineRun(api_run_detail)
-
-        if project:
-            run_project = self.resolve_project_from_pipeline(run)
-            if run_project != project:
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Pipeline run with id {run_id} is not of project {project}"
-                )
+        run = self.get_run(
+            run_id=run_id,
+            project=project,
+            namespace=namespace,
+        )
 
         # Check if the pipeline is in a completed state
         if (
@@ -299,9 +307,57 @@ class Pipelines(
             run_name=run.get("name"),
             project=project,
         )
+        kfp_client = self.initialize_kfp_client(namespace)
         return kfp_client.retry_run(
             run_id=run_id,
-            project=run_project,
+            project=project,
+        )
+
+    def terminate_pipeline(
+        self,
+        run_id: str,
+        project: str,
+        namespace: typing.Optional[str] = None,
+    ) -> str:
+        """
+        Terminate a Kubeflow Pipeline (KFP) run.
+
+        :param run_id: The unique identifier of the pipeline run to terminate.
+        :param project: The name of the MLRun project associated with the pipeline run.
+        :param namespace: (Optional) The Kubernetes namespace in which the pipeline is running.
+                          Defaults to the configured namespace if not specified.
+        :raises MLRunBadRequestError: If the pipeline run is not in a terminable state.
+        :raises MLRunNotFoundError: If the pipeline run does not belong to the specified project
+                                    or if the run ID is not found.
+        :raises MLRunRuntimeError: If there is an error retrieving the pipeline run details.
+        :raises MLRunHTTPStatusError: If there is an HTTP error interacting with KFP.
+        :return: The unique identifier of the terminated pipeline run.
+        :rtype: str
+        """
+        run = self.get_run(
+            run_id=run_id,
+            project=project,
+            namespace=namespace,
+        )
+
+        # Check if the pipeline is in a terminable state
+        if (
+            run.status
+            not in mlrun_pipelines.common.models.RunStatuses.terminable_statuses()
+        ):
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Pipeline run {run_id} is not in a terminable state. Current status: {run.status}"
+            )
+
+        mlrun.utils.logger.info(
+            "Terminating KFP run",
+            run_id=run_id,
+            run_name=run.get("name"),
+            project=project,
+        )
+        kfp_client = self.initialize_kfp_client(namespace)
+        kfp_client.terminate_run(
+            run_id=run_id,
         )
 
     def create_pipeline(
@@ -368,10 +424,13 @@ class Pipelines(
         return run
 
     @staticmethod
-    def initialize_kfp_client(namespace: typing.Optional[str] = None):
+    def initialize_kfp_client(
+        namespace: typing.Optional[str] = None,
+    ) -> mlrun_pipelines.client.Client:
         if namespace is None:
             namespace = mlrun.mlconf.namespace
         return mlrun_pipelines.utils.get_client(
+            logger=mlrun.utils.logger,
             url=mlrun.mlconf.kfp_url,
             namespace=namespace,
         )

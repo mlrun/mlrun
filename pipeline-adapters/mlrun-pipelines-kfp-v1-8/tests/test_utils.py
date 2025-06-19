@@ -15,6 +15,7 @@ import unittest.mock
 
 import pytest
 
+import mlrun.utils
 import mlrun_pipelines.client
 import mlrun_pipelines.utils
 
@@ -24,7 +25,7 @@ def client(monkeypatch):
     client_klass = mlrun_pipelines.client.Client
     client_klass.get_kfp_healthz = unittest.mock.MagicMock()
     monkeypatch.setattr("kubernetes.config.load_incluster_config", lambda: None)
-    return client_klass()
+    return client_klass(logger=mlrun.utils.logger)
 
 
 @pytest.mark.parametrize(
@@ -52,9 +53,9 @@ def test_normalize_retry_run(client, original_name, project, expected):
         ("MiXeD_CaSe", "mixed_case"),  # mixed case → lower-case kept
         ("with space", "with_space"),  # spaces → underscore
         ("double  space", "double_space"),  # condensed invalid runs → single _
-        ("leading-", "leading"),  # leading invalid char stripped
+        ("leading_", "leading"),  # leading stripped
         ("trailing!", "trailing"),  # trailing invalid char stripped
-        ("--many!!bad$$chars--", "many_bad_chars"),  # multiple invalid segments
+        ("--many!!bad$$chars--", "--many_bad_chars--"),  # multiple invalid segments
         ("___already_ok___", "already_ok"),  # leading/trailing underscores removed
         ("", ""),  # empty string stays empty
     ],

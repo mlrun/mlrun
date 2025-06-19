@@ -2,7 +2,9 @@
 
 # Notifications
 
-MLRun supports configuring notifications on jobs and scheduled jobs. This section describes the SDK for notifications.
+Notifications are used to notify you of the system events, for example, start/finish of processes, and error messages. MLRun supports configuring notifications on jobs and scheduled jobs. This section describes the notifications SDK and its usage.
+
+**In this section**
 
 - [The notification object](#the-notification-object)
 - [Local vs. remote](#local-vs-remote)

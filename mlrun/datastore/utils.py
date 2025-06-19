@@ -150,7 +150,6 @@ def _generate_sql_query_with_time_filter(
     table = sqlalchemy.Table(
         table_name,
         sqlalchemy.MetaData(),
-        autoload=True,
         autoload_with=engine,
     )
     query = sqlalchemy.select(table)

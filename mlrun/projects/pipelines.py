@@ -39,7 +39,12 @@ from mlrun.utils import (
 
 from ..common.helpers import parse_versioned_object_uri
 from ..config import config
-from ..run import _run_pipeline, retry_pipeline, wait_for_pipeline_completion
+from ..run import (
+    _run_pipeline,
+    retry_pipeline,
+    terminate_pipeline,
+    wait_for_pipeline_completion,
+)
 from ..runtimes.pod import AutoMountType
 
 
@@ -696,6 +701,24 @@ class _KFPRunner(_PipelineRunner):
         )
         return run_id
 
+    @classmethod
+    def terminate(
+        cls,
+        run: "_PipelineRunStatus",
+        project: typing.Optional["mlrun.projects.MlrunProject"] = None,
+    ) -> str:
+        project_name = project.metadata.name if project else ""
+        logger.info(
+            "Terminating pipeline",
+            run_id=run.run_id,
+            project=project_name,
+        )
+        run_id = terminate_pipeline(
+            run.run_id,
+            project=project_name,
+        )
+        return run_id
+
     @staticmethod
     def wait_for_completion(
         run: "_PipelineRunStatus",
@@ -1130,6 +1153,7 @@ def load_and_run_workflow(
     project = mlrun.get_or_create_project(
         context=project_context or f"./{project_name}",
         name=project_name,
+        allow_cross_project=True,
     )
 
     # extract "start" notification if exists
@@ -1222,6 +1246,7 @@ def pull_remote_project_files(
             subpath=subpath,
             clone=clone,
             save=False,
+            allow_cross_project=True,
         )
     except Exception as error:
         notify_scheduled_workflow_failure(

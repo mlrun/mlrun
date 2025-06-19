@@ -40,6 +40,8 @@ from mlrun.utils import (
 )
 
 import framework.constants
+import framework.db
+import framework.db.session
 import framework.db.sqldb.db
 import framework.db.sqldb.models
 import framework.utils.db.mysql
@@ -47,9 +49,6 @@ import framework.utils.pagination_cache
 import services.api.utils.db.alembic
 import services.api.utils.db.backup
 import services.api.utils.scheduler
-from framework.db import init_db
-from framework.db.session import close_session, create_session
-from framework.db.sqldb.models import ProjectSummary
 
 
 def init_data(
@@ -103,12 +102,12 @@ def init_data(
     logger.info("Creating initial data")
     config.httpdb.state = mlrun.common.schemas.APIStates.migrations_in_progress
 
-    db_session = create_session()
+    db_session = framework.db.session.create_session()
     try:
         if is_migration_from_scratch or is_migration_needed:
             try:
                 _perform_schema_migrations(alembic_util)
-                init_db()
+                framework.db.init_db.init_db()
                 _add_initial_data(db_session)
                 _perform_data_migrations(db_session)
             except Exception:
@@ -120,7 +119,7 @@ def init_data(
         # initialize system id
         _init_system_id(db_session)
     finally:
-        close_session(db_session)
+        framework.db.session.close_session(db_session)
 
     # if the above process actually ran a migration - initializations that were skipped on the API initialization
     # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
@@ -132,7 +131,7 @@ def init_data(
 
     if not from_scratch:
         # Cleanup pagination cache on api startup
-        session = create_session()
+        session = framework.db.session.create_session()
         framework.utils.pagination_cache.PaginationCache().cleanup_pagination_cache(
             session
         )
@@ -152,12 +151,12 @@ latest_data_version = 9
 
 def update_default_configuration_data():
     logger.debug("Updating default configuration data")
-    db_session = create_session()
+    db_session = framework.db.session.create_session()
     try:
         db = framework.db.sqldb.db.SQLDB()
         _add_default_hub_source_if_needed(db, db_session)
     finally:
-        close_session(db_session)
+        framework.db.session.close_session(db_session)
 
 
 def _resolve_needed_operations(
@@ -210,13 +209,13 @@ def _perform_schema_migrations(alembic_util: services.api.utils.db.alembic.Alemb
 
 
 def _is_latest_data_version():
-    db_session = create_session()
+    db_session = framework.db.session.create_session()
     db = framework.db.sqldb.db.SQLDB()
 
     try:
         current_data_version = _resolve_current_data_version(db, db_session)
     finally:
-        close_session(db_session)
+        framework.db.session.close_session(db_session)
 
     return current_data_version == latest_data_version
 
@@ -1168,7 +1167,7 @@ def _create_project_summaries(db, db_session):
         db_session, format_=mlrun.common.formatters.ProjectFormat.name_only
     )
     project_summaries = [
-        ProjectSummary(
+        framework.db.sqldb.models.ProjectSummary(
             project=project_name,
             summary=mlrun.common.schemas.ProjectSummary(name=project_name).dict(),
         )

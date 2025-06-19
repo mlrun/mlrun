@@ -1,6 +1,6 @@
 (genai-development)=
 # Developing a gen AI pipeline
-Model development includes: Prompt library, experiment tracking, automatic distribution, fine-tuning, RLHF, fine parameter tuning.
+Learn how to use MLRun for model development, including: working with RAG, evaluationg LLMS, and fine tuning LLMs.
 
 **In this section**
 

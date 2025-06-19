@@ -2,11 +2,7 @@
 <a id="architecture"></a>
 # MLRun architecture
 
-MLRun started as a community effort to map the different components in the ML project lifecycle, provide a common metadata layer, and automate the operationalization process (a.k.a MLOps).
- 
-Instead of a siloed, complex, and manual process, MLRun enables production pipeline design using a modular strategy, 
-where the different parts contribute to a continuous, automated, and far simpler path from research and development to scalable 
-production pipelines without refactoring code, adding glue logic, or spending significant efforts on data and ML engineering. **MLRun simplifies and accelerates the time to production.**
+Instead of a siloed, complex, and manual process, MLRun enables production pipeline design using a modular strategy, where the different parts contribute to a continuous, automated, and far simpler path from research and development to scalable production pipelines without refactoring code, adding glue logic, or spending significant efforts on data and ML engineering. **MLRun simplifies and accelerates the time to production.**
 
 MLRun uses **Serverless Function** technology: write the code once, using your preferred development environment and 
 simple "local" semantics, and then run it as-is on different platforms and at scale. MLRun automates the build process, execution, 

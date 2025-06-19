@@ -23,6 +23,7 @@ __all__ = [
 import os
 import pathlib
 import traceback
+from abc import ABC
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Any, Optional, Union, cast
@@ -392,7 +393,8 @@ class BaseStep(ModelObj):
             raise GraphError(
                 f"step {self.name} parent is not set or it's not part of a graph"
             )
-
+        if not name and isinstance(class_name, BaseStep):
+            name = class_name.name
         name, step = params_to_step(
             class_name,
             name,
@@ -405,7 +407,8 @@ class BaseStep(ModelObj):
             class_args=class_args,
             model_endpoint_creation_strategy=model_endpoint_creation_strategy,
         )
-
+        # Make sure model endpoint was not introduce in ModelRunnerStep
+        self.check_model_endpoint_existence(step, model_endpoint_creation_strategy)
         self.verify_model_runner_step(step)
 
         step = parent._steps.update(name, step)
@@ -452,17 +455,58 @@ class BaseStep(ModelObj):
     def supports_termination(self):
         return False
 
-    def verify_model_runner_step(self, step: "ModelRunnerStep"):
+    def check_model_endpoint_existence(self, step, model_endpoint_creation_strategy):
+        """
+        Verify that model endpoint name is not duplicate, in flow graph.
+        :param step: ModelRunnerStep to verify
+        :param model_endpoint_creation_strategy: model_endpoint_creation_strategy: Strategy for creating or updating
+               the model endpoint:
+        """
+        if (
+            isinstance(step, TaskStep)
+            and not isinstance(step, ModelRunnerStep)
+            and model_endpoint_creation_strategy
+            != schemas.ModelEndpointCreationStrategy.SKIP
+        ):
+            root = self._extract_root_step()
+            if not isinstance(root, RootFlowStep):
+                return
+            models = []
+            if isinstance(step, RouterStep):
+                for route in step.routes.values():
+                    if route.name in root.model_endpoints_names:
+                        raise GraphError(
+                            f"The graph already contains the model endpoints named - {route.name}."
+                        )
+                    models.append(route.name)
+            else:
+                if step.name in root.model_endpoints_names:
+                    raise GraphError(
+                        f"The graph already contains the model endpoints named - {step.name}."
+                    )
+                models.append(step.name)
+            root.update_model_endpoints_routes_names(models)
+            return
+
+    def _extract_root_step(self):
+        root = self
+        while root.parent is not None:
+            root = root.parent
+        return root
+
+    def verify_model_runner_step(
+        self,
+        step: "ModelRunnerStep",
+    ):
         """
         Verify ModelRunnerStep, can be part of Flow graph and models can not repeat in graph.
         :param step: ModelRunnerStep to verify
         """
+
         if not isinstance(step, ModelRunnerStep):
             return
 
-        root = self
-        while root.parent is not None:
-            root = root.parent
+        root = self._extract_root_step()
 
         if not isinstance(root, RootFlowStep):
             raise GraphError(
@@ -474,13 +518,14 @@ class BaseStep(ModelObj):
         # Get all model_endpoints names that are in both lists
         common_endpoints_names = list(
             set(root.model_endpoints_names) & set(step_model_endpoints_names)
+        ) or list(
+            set(root.model_endpoints_routes_names) & set(step_model_endpoints_names)
         )
         if common_endpoints_names:
             raise GraphError(
                 f"The graph already contains the model endpoints named - {common_endpoints_names}."
             )
-        else:
-            root.extend_model_endpoints_names(step_model_endpoints_names)
+        root.update_model_endpoints_names(step_model_endpoints_names)
 
 
 class TaskStep(BaseStep):
@@ -663,7 +708,7 @@ class TaskStep(BaseStep):
             # todo invoke remote via REST call
             return event
 
-        if self.context.verbose:
+        if self.context and self.context.verbose:
             self.context.logger.info(f"step {self.name} got event {event.body}")
 
         # inject context parameter if it is expected by the handler
@@ -873,7 +918,6 @@ class RouterStep(TaskStep):
                            2. Create a new model endpoint with the same name and set it to `latest`.
 
         """
-
         if len(self.routes.keys()) >= MAX_MODELS_PER_ROUTER and key not in self.routes:
             raise mlrun.errors.MLRunModelLimitExceededError(
                 f"Router cannot support more than {MAX_MODELS_PER_ROUTER} model endpoints. "
@@ -887,14 +931,16 @@ class RouterStep(TaskStep):
             route = TaskStep(
                 class_name,
                 class_args,
+                name=key,
                 handler=handler,
                 model_endpoint_creation_strategy=creation_strategy,
                 endpoint_type=schemas.EndpointType.LEAF_EP
                 if self.class_name and "serving.VotingEnsemble" in self.class_name
                 else schemas.EndpointType.NODE_EP,
             )
-        route.function = function or route.function
 
+        route.function = function or route.function
+        self.check_model_endpoint_existence(route, creation_strategy)
         route = self._routes.update(key, route)
         route.set_parent(self)
         return route
@@ -1057,16 +1103,67 @@ class ModelRunner(storey.ParallelExecution):
       event. Optional. If not passed, all models will be run.
     """
 
-    def __init__(self, *args, model_selector: Optional[ModelSelector] = None, **kwargs):
+    def __init__(
+        self, *args, context, model_selector: Optional[ModelSelector] = None, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.model_selector = model_selector or ModelSelector()
+        self.context = context
+
+    def preprocess_event(self, event):
+        if not hasattr(event, "_metadata"):
+            event._metadata = {}
+
+        event._metadata["model_runner_name"] = self.name
+        event._metadata["inputs"] = deepcopy(event.body)
+
+        return event
 
     def select_runnables(self, event):
         models = cast(list[Model], self.runnables)
         return self.model_selector.select(event, models)
 
 
-class ModelRunnerStep(TaskStep, StepToDict):
+class MonitoredStep(ABC, TaskStep, StepToDict):
+    kind = "monitored"
+    _dict_fields = TaskStep._dict_fields + ["raise_exception"]
+
+    def __init__(self, *args, name: str, raise_exception=True, **kwargs):
+        super().__init__(*args, name=name, **kwargs)
+        self.raise_exception = raise_exception
+        self._monitoring_data = None
+
+    def _calculate_monitoring_data(self) -> dict[str, Any]:
+        """
+        Child class must override `_calculate_monitoring_data()` method and provide meaningful data-structure
+        to the pre-process step in the monitoring flow.
+
+        Monitoring data structure should support the following schema:
+
+        ::
+
+            {
+                "inputs": inputs features,
+                "outputs": output schema expected,
+                "input_path": the path where inputs are,
+                "result_path": the path where results are,
+                "creation_strategy": model endpoint creation strategy,
+                "labels": model endpoint labels,
+                "model_endpoint_uid": model endpoint uid (added in deployment),
+                "model_class": the model class
+            }
+
+        """
+
+        raise NotImplementedError
+
+    @property
+    def monitoring_data(self) -> dict[str, Any]:
+        self._monitoring_data = self._calculate_monitoring_data()
+        return self._monitoring_data
+
+
+class ModelRunnerStep(MonitoredStep):
     """
     Runs multiple Models on each event.
 
@@ -1080,20 +1177,27 @@ class ModelRunnerStep(TaskStep, StepToDict):
       event. Optional. If not passed, all models will be run.
     :param raise_exception:  If True, an error will be raised when model selection fails or if one of the models raised
       an error. If False, the error will appear in the output event.
+
+    :raise ModelRunnerError - when a model raise an error the ModelRunnerStep will handle it, collect errors and outputs
+                              from added models, If raise_exception is True will raise ModelRunnerError Else will add
+                              the error msg as part of the event body mapped by model name if more than one model was
+                              added to the ModelRunnerStep
     """
 
     kind = "model_runner"
-    _dict_fields = TaskStep._dict_fields + ["raise_exception"]
 
     def __init__(
         self,
         *args,
+        name: Optional[str] = None,
         model_selector: Optional[Union[str, ModelSelector]] = None,
         raise_exception: bool = True,
         **kwargs,
     ):
         super().__init__(
             *args,
+            name=name,
+            raise_exception=raise_exception,
             class_name="mlrun.serving.ModelRunner",
             class_args=dict(model_selector=model_selector),
             **kwargs,
@@ -1112,6 +1216,7 @@ class ModelRunnerStep(TaskStep, StepToDict):
         inputs: Optional[list[str]] = None,
         outputs: Optional[list[str]] = None,
         input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
         override: bool = False,
         **model_parameters,
     ) -> None:
@@ -1140,11 +1245,18 @@ class ModelRunnerStep(TaskStep, StepToDict):
                                     equal to the model_class predict method outputs (length, and order)
         :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
                                     (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
+        :param result_path:         result path inside the user output event, expect scopes to be defined by dot
+                                    notation (e.g "outputs.my_model_outputs") expects list or dictionary type object in
+                                    path.
         :param override:            bool allow override existing model on the current ModelRunnerStep.
         :param model_parameters:    Parameters for model instantiation
         """
         # TODO allow model_class as Model object as part of ML-9924
         model_parameters = model_parameters or {}
+        if outputs is None and isinstance(
+            model_artifact, mlrun.artifacts.ModelArtifact
+        ):
+            outputs = [feature.name for feature in model_artifact.spec.outputs]
         model_artifact = (
             model_artifact.uri
             if isinstance(model_artifact, mlrun.artifacts.Artifact)
@@ -1173,12 +1285,65 @@ class ModelRunnerStep(TaskStep, StepToDict):
             schemas.MonitoringData.INPUTS: inputs,
             schemas.MonitoringData.OUTPUTS: outputs,
             schemas.MonitoringData.INPUT_PATH: input_path,
+            schemas.MonitoringData.RESULT_PATH: result_path,
             schemas.MonitoringData.CREATION_STRATEGY: creation_strategy,
             schemas.MonitoringData.LABELS: labels,
             schemas.MonitoringData.MODEL_PATH: model_artifact,
+            schemas.MonitoringData.MODEL_CLASS: model_class,
         }
         self.class_args[schemas.ModelRunnerStepData.MODELS] = models
         self.class_args[schemas.ModelRunnerStepData.MONITORING_DATA] = monitoring_data
+
+    @staticmethod
+    def _get_model_output_schema(
+        model: str, monitoring_data: dict[str, dict[str, str]]
+    ) -> list[str]:
+        output_schema = None
+        if monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH) is not None:
+            artifact = get_store_resource(
+                monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH)
+            )
+            output_schema = [feature.name for feature in artifact.spec.outputs]
+        return output_schema
+
+    @staticmethod
+    def _split_path(path: str) -> Union[str, list[str], None]:
+        if path is not None:
+            parsed_path = path.split(".")
+            if len(parsed_path) == 1:
+                parsed_path = parsed_path[0]
+            return parsed_path
+        return path
+
+    def _calculate_monitoring_data(self) -> dict[str, dict[str, str]]:
+        monitoring_data = deepcopy(
+            self.class_args.get(
+                mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+            )
+        )
+        if isinstance(monitoring_data, dict):
+            for model in monitoring_data:
+                monitoring_data[model][schemas.MonitoringData.OUTPUTS] = (
+                    monitoring_data[model][schemas.MonitoringData.OUTPUTS]
+                    or self._get_model_output_schema(model, monitoring_data)
+                )
+                # Prevent calling _get_model_output_schema for same model more than once
+                self.class_args[
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
+                ][model][schemas.MonitoringData.OUTPUTS] = monitoring_data[model][
+                    schemas.MonitoringData.OUTPUTS
+                ]
+                monitoring_data[model][schemas.MonitoringData.INPUT_PATH] = (
+                    self._split_path(
+                        monitoring_data[model][schemas.MonitoringData.INPUT_PATH]
+                    )
+                )
+                monitoring_data[model][schemas.MonitoringData.RESULT_PATH] = (
+                    self._split_path(
+                        monitoring_data[model][schemas.MonitoringData.RESULT_PATH]
+                    )
+                )
+            return monitoring_data
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         model_selector = self.class_args.get("model_selector")
@@ -1198,6 +1363,8 @@ class ModelRunnerStep(TaskStep, StepToDict):
         self._async_object = ModelRunner(
             model_selector=model_selector,
             runnables=model_objects,
+            name=self.name,
+            context=context,
         )
 
 
@@ -1435,6 +1602,8 @@ class FlowStep(BaseStep):
         :param class_args:  class init arguments
         """
 
+        if not name and isinstance(class_name, BaseStep):
+            name = class_name.name
         name, step = params_to_step(
             class_name,
             name,
@@ -1448,6 +1617,8 @@ class FlowStep(BaseStep):
             class_args=class_args,
         )
 
+        # Make sure model endpoint was not introduce in ModelRunnerStep
+        self.check_model_endpoint_existence(step, model_endpoint_creation_strategy)
         self.verify_model_runner_step(step)
 
         after_list = after if isinstance(after, list) else [after]
@@ -1876,6 +2047,7 @@ class RootFlowStep(FlowStep):
         "final_step",
         "on_error",
         "model_endpoints_names",
+        "model_endpoints_routes_names",
     ]
 
     def __init__(
@@ -1893,18 +2065,43 @@ class RootFlowStep(FlowStep):
             engine,
             final_step,
         )
-        self._models = []
+        self._models = set()
+        self._route_models = set()
 
     @property
     def model_endpoints_names(self) -> list[str]:
-        return self._models
+        return list(self._models)
 
     @model_endpoints_names.setter
     def model_endpoints_names(self, models: list[str]):
-        self._models = models
+        self._models = set(models)
 
-    def extend_model_endpoints_names(self, model_endpoints_names: list):
-        self._models.extend(model_endpoints_names)
+    def update_model_endpoints_names(self, model_endpoints_names: list):
+        self._models.update(model_endpoints_names)
+
+    @property
+    def model_endpoints_routes_names(self) -> list[str]:
+        return list(self._route_models)
+
+    @model_endpoints_routes_names.setter
+    def model_endpoints_routes_names(self, models: list[str]):
+        self._route_models = set(models)
+
+    def update_model_endpoints_routes_names(self, model_endpoints_names: list):
+        self._route_models.update(model_endpoints_names)
+
+    def include_monitored_step(self) -> bool:
+        for step in self.steps.values():
+            if isinstance(step, mlrun.serving.MonitoredStep):
+                return True
+        return False
+
+    def get_monitored_steps(self) -> dict[str, "MonitoredStep"]:
+        return {
+            step.name: step
+            for step in self.steps.values()
+            if isinstance(step, mlrun.serving.MonitoredStep)
+        }
 
 
 classes_map = {

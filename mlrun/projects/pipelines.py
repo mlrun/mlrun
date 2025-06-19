@@ -1153,6 +1153,7 @@ def load_and_run_workflow(
     project = mlrun.get_or_create_project(
         context=project_context or f"./{project_name}",
         name=project_name,
+        allow_cross_project=True,
     )
 
     # extract "start" notification if exists
@@ -1245,6 +1246,7 @@ def pull_remote_project_files(
             subpath=subpath,
             clone=clone,
             save=False,
+            allow_cross_project=True,
         )
     except Exception as error:
         notify_scheduled_workflow_failure(

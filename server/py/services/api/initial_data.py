@@ -31,6 +31,7 @@ from sqlalchemy_utils import create_database, database_exists
 import mlrun.artifacts
 import mlrun.artifacts.base
 import mlrun.common.formatters
+import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -121,7 +122,7 @@ def init_data(
             if is_migration_from_scratch or is_migration_needed:
                 try:
                     _perform_schema_migrations(alembic_util)
-                    framework.db.init_db()
+                    framework.db.init_db.init_db()
                     _add_initial_data(db_session)
                     _perform_data_migrations(db_session)
                 except Exception:

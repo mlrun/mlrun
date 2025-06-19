@@ -24,26 +24,26 @@ import dateutil.parser
 import pymysql.err
 import sqlalchemy.exc
 import sqlalchemy.orm
+from alembic import command
+from alembic.config import Config
+from sqlalchemy_utils import create_database, database_exists
 
 import mlrun.artifacts
 import mlrun.artifacts.base
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.config
+import mlrun.errors
+import mlrun.utils
 import mlrun.utils.regex
-from mlrun.artifacts.base import fill_artifact_object_hash
-from mlrun.config import config
-from mlrun.errors import MLRunPreconditionFailedError, err_to_str
-from mlrun.utils import (
-    is_legacy_artifact,
-    is_link_artifact,
-    logger,
-)
 
 import framework.constants
 import framework.db
 import framework.db.session
 import framework.db.sqldb.db
+import framework.db.sqldb.helpers
 import framework.db.sqldb.models
+import framework.db.sqldb.sql_session
 import framework.utils.db.mysql
 import framework.utils.pagination_cache
 import services.api.utils.db.alembic
@@ -54,90 +54,108 @@ import services.api.utils.scheduler
 def init_data(
     from_scratch: bool = False, perform_migrations_if_needed: bool = False
 ) -> None:
-    logger.info("Initializing DB data")
+    mlrun.utils.logger.info("Initializing DB data")
 
     alembic_util = None
-
-    # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
-    mysql_util = framework.utils.db.mysql.MySQLUtil(logger)
-    if mysql_util.get_mysql_dsn_data():
-        mysql_util.wait_for_db_liveness()
-        mysql_util.set_modes(mlrun.mlconf.httpdb.db.mysql.modes)
-
-        alembic_util = _create_alembic_util()
-        (
-            is_migration_needed,
-            is_migration_from_scratch,
-            is_backup_needed,
-        ) = _resolve_needed_operations(alembic_util, from_scratch)
+    engine = framework.db.sqldb.sql_session.get_engine()
+    url = engine.url
+    if not database_exists(url):
+        create_database(url)
+        framework.db.sqldb.models.Base.metadata.create_all(bind=engine)
+        dir_path = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
+        alembic_config_path = dir_path / "alembic.ini"
+        cfg = Config(alembic_config_path)
+        command.stamp(cfg, "head")
+        mlrun.config.config.httpdb.state = mlrun.common.schemas.APIStates.online
     else:
-        dsn = mysql_util.get_dsn()
-        if "sqlite" in dsn:
-            logger.debug("SQLite DB is used, liveness check not needed")
+        # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
+        mysql_util = framework.utils.db.mysql.MySQLUtil(mlrun.utils.logger)
+        if mysql_util.get_mysql_dsn_data():
+            mysql_util.wait_for_db_liveness()
+            mysql_util.set_modes(mlrun.mlconf.httpdb.db.mysql.modes)
+
+            alembic_util = _create_alembic_util()
+            (
+                is_migration_needed,
+                is_migration_from_scratch,
+                is_backup_needed,
+            ) = _resolve_needed_operations(alembic_util, from_scratch)
         else:
-            logger.warn(
-                f"Invalid mysql dsn: {dsn}, assuming live and skipping liveness verification"
+            dsn = mysql_util.get_dsn()
+            if "sqlite" in dsn:
+                mlrun.utils.logger.debug("SQLite DB is used, liveness check not needed")
+            else:
+                mlrun.utils.logger.warn(
+                    f"Invalid mysql dsn: {dsn}, assuming live and skipping liveness verification"
+                )
+
+            # migration is not needed for sqlite, but we mark it as from scratch to initialize the db
+            is_migration_from_scratch = True
+            is_migration_needed = False
+            is_backup_needed = False
+
+        if (
+            not is_migration_from_scratch
+            and not perform_migrations_if_needed
+            and is_migration_needed
+        ):
+            state = mlrun.common.schemas.APIStates.waiting_for_migrations
+            mlrun.utils.logger.info(
+                "Migration is needed, changing API state", state=state
             )
+            mlrun.config.config.httpdb.state = state
+            return
 
-        # migration is not needed for sqlite, but we mark it as from scratch to initialize the db
-        is_migration_from_scratch = True
-        is_migration_needed = False
-        is_backup_needed = False
+        if is_backup_needed:
+            mlrun.utils.logger.info("DB Backup is needed, backing up...")
+            db_backup = services.api.utils.db.backup.DBBackupUtil()
+            db_backup.backup_database()
 
-    if (
-        not is_migration_from_scratch
-        and not perform_migrations_if_needed
-        and is_migration_needed
-    ):
-        state = mlrun.common.schemas.APIStates.waiting_for_migrations
-        logger.info("Migration is needed, changing API state", state=state)
-        config.httpdb.state = state
-        return
-
-    if is_backup_needed:
-        logger.info("DB Backup is needed, backing up...")
-        db_backup = services.api.utils.db.backup.DBBackupUtil()
-        db_backup.backup_database()
-
-    logger.info("Creating initial data")
-    config.httpdb.state = mlrun.common.schemas.APIStates.migrations_in_progress
-
-    db_session = framework.db.session.create_session()
-    try:
-        if is_migration_from_scratch or is_migration_needed:
-            try:
-                _perform_schema_migrations(alembic_util)
-                framework.db.init_db.init_db()
-                _add_initial_data(db_session)
-                _perform_data_migrations(db_session)
-            except Exception:
-                state = mlrun.common.schemas.APIStates.migrations_failed
-                logger.warning("Migrations failed, changing API state", state=state)
-                config.httpdb.state = state
-                raise
-
-        # initialize system id
-        _init_system_id(db_session)
-    finally:
-        framework.db.session.close_session(db_session)
-
-    # if the above process actually ran a migration - initializations that were skipped on the API initialization
-    # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
-    # therefore moving to migration_completed state, and other component will take care of moving to online
-    if alembic_util and not is_migration_from_scratch and is_migration_needed:
-        config.httpdb.state = mlrun.common.schemas.APIStates.migrations_completed
-    else:
-        config.httpdb.state = mlrun.common.schemas.APIStates.online
-
-    if not from_scratch:
-        # Cleanup pagination cache on api startup
-        session = framework.db.session.create_session()
-        framework.utils.pagination_cache.PaginationCache().cleanup_pagination_cache(
-            session
+        mlrun.utils.logger.info("Creating initial data")
+        mlrun.config.config.httpdb.state = (
+            mlrun.common.schemas.APIStates.migrations_in_progress
         )
-        session.commit()
 
-    logger.info("Initial data created")
+        db_session = framework.db.session.create_session()
+        try:
+            if is_migration_from_scratch or is_migration_needed:
+                try:
+                    _perform_schema_migrations(alembic_util)
+                    framework.db.init_db()
+                    _add_initial_data(db_session)
+                    _perform_data_migrations(db_session)
+                except Exception:
+                    state = mlrun.common.schemas.APIStates.migrations_failed
+                    mlrun.utils.logger.warning(
+                        "Migrations failed, changing API state", state=state
+                    )
+                    mlrun.config.config.httpdb.state = state
+                    raise
+
+            # initialize system id
+            _init_system_id(db_session)
+        finally:
+            framework.db.session.close_session(db_session)
+
+        # if the above process actually ran a migration - initializations that were skipped on the API initialization
+        # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
+        # therefore moving to migration_completed state, and other component will take care of moving to online
+        if alembic_util and not is_migration_from_scratch and is_migration_needed:
+            mlrun.config.config.httpdb.state = (
+                mlrun.common.schemas.APIStates.migrations_completed
+            )
+        else:
+            mlrun.config.config.httpdb.state = mlrun.common.schemas.APIStates.online
+
+        if not from_scratch:
+            # Cleanup pagination cache on api startup
+            session = framework.db.session.create_session()
+            framework.utils.pagination_cache.PaginationCache().cleanup_pagination_cache(
+                session
+            )
+            session.commit()
+
+    mlrun.utils.logger.info("Initial data created")
 
 
 # If the data_table version doesn't exist, we can assume the data version is 1.
@@ -150,7 +168,7 @@ latest_data_version = 9
 
 
 def update_default_configuration_data():
-    logger.debug("Updating default configuration data")
+    mlrun.utils.logger.debug("Updating default configuration data")
     db_session = framework.db.session.create_session()
     try:
         db = framework.db.sqldb.db.SQLDB()
@@ -169,17 +187,17 @@ def _resolve_needed_operations(
     is_schema_migration_needed = alembic_util.is_schema_migration_needed()
     is_data_migration_needed = (
         not _is_latest_data_version()
-        and config.httpdb.db.data_migrations_mode == "enabled"
+        and mlrun.config.config.httpdb.db.data_migrations_mode == "enabled"
     )
     is_migration_needed = not is_migration_from_scratch and (
         is_schema_migration_needed or is_data_migration_needed
     )
     is_backup_needed = (
-        config.httpdb.db.backup.mode == "enabled"
+        mlrun.config.config.httpdb.db.backup.mode == "enabled"
         and is_migration_needed
         and not is_migration_from_scratch
     )
-    logger.info(
+    mlrun.utils.logger.info(
         "Checking if migration is needed",
         is_migration_from_scratch=is_migration_from_scratch,
         is_schema_migration_needed=is_schema_migration_needed,
@@ -204,7 +222,7 @@ def _create_alembic_util() -> services.api.utils.db.alembic.AlembicUtil:
 
 def _perform_schema_migrations(alembic_util: services.api.utils.db.alembic.AlembicUtil):
     if alembic_util:
-        logger.info("Performing schema migration")
+        mlrun.utils.logger.info("Performing schema migration")
         alembic_util.init_alembic()
 
 
@@ -221,17 +239,17 @@ def _is_latest_data_version():
 
 
 def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
-    if config.httpdb.db.data_migrations_mode == "enabled":
+    if mlrun.config.config.httpdb.db.data_migrations_mode == "enabled":
         db = framework.db.sqldb.db.SQLDB()
         current_data_version = int(db.get_current_data_version(db_session))
         if current_data_version != latest_data_version:
-            logger.info(
+            mlrun.utils.logger.info(
                 "Performing data migrations",
                 current_data_version=current_data_version,
                 latest_data_version=latest_data_version,
             )
             if current_data_version < 1:
-                raise MLRunPreconditionFailedError(
+                raise mlrun.errors.MLRunPreconditionFailedError(
                     "Data migration from data version 0 is not supported. "
                     "Upgrade to MLRun <= 1.5.0 before performing this migration"
                 )
@@ -269,7 +287,7 @@ def _perform_version_2_data_migrations(
 def _align_runs_table(
     db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    logger.info("Aligning runs")
+    mlrun.utils.logger.info("Aligning runs")
     runs = db._find_runs(db_session, None, "*", None).all()
     for run in runs:
         run_dict = run.struct
@@ -316,7 +334,7 @@ def _perform_version_3_data_migrations(
 def _rename_marketplace_kind_to_hub(
     db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    logger.info("Renaming 'Marketplace' kinds to 'Hub'")
+    mlrun.utils.logger.info("Renaming 'Marketplace' kinds to 'Hub'")
 
     hubs = db._list_hub_sources_without_transform(db_session)
     for hub in hubs:
@@ -343,7 +361,7 @@ def _add_default_hub_source_if_needed(
     default_hub_source = mlrun.common.schemas.HubSource.generate_default_source()
     # hub_source will be None if the configuration has hub.default_source.create=False
     if not default_hub_source:
-        logger.info("Not adding default hub source, per configuration")
+        mlrun.utils.logger.info("Not adding default hub source, per configuration")
         return
 
     hub_source = db.get_hub_source(
@@ -355,7 +373,7 @@ def _add_default_hub_source_if_needed(
     # update the default hub if configured url has changed
     hub_source_path = hub_source.source.spec.path if hub_source else None
     if not hub_source_path or hub_source_path != default_hub_source.spec.path:
-        logger.debug(
+        mlrun.utils.logger.debug(
             "Updating default hub source",
             hub_source_path=hub_source_path,
             default_hub_source_path=default_hub_source.spec.path,
@@ -373,11 +391,11 @@ def _update_default_hub_source(
     """
     hub_source = hub_source or mlrun.common.schemas.HubSource.generate_default_source()
     if not hub_source:
-        logger.info("Not adding default hub source, per configuration")
+        mlrun.utils.logger.info("Not adding default hub source, per configuration")
         return
 
     _delete_default_hub_source(db_session)
-    logger.info("Adding default hub source")
+    mlrun.utils.logger.info("Adding default hub source")
     # Not using db.store_hub_source() since it doesn't allow changing the default hub source.
     hub_record = db._transform_hub_source_schema_to_record(
         mlrun.common.schemas.IndexedHubSource(
@@ -403,11 +421,11 @@ def _delete_default_hub_source(db_session: sqlalchemy.orm.Session):
         .one_or_none()
     )
     if default_record:
-        logger.info(f"Deleting default hub source {default_record.name}")
+        mlrun.utils.logger.info(f"Deleting default hub source {default_record.name}")
         db_session.delete(default_record)
         db_session.commit()
     else:
-        logger.info("Default hub source not found")
+        mlrun.utils.logger.info("Default hub source not found")
 
 
 def _add_data_version(
@@ -415,7 +433,7 @@ def _add_data_version(
 ):
     if db.get_current_data_version(db_session, raise_on_not_found=False) is None:
         data_version = _resolve_current_data_version(db, db_session)
-        logger.info(
+        mlrun.utils.logger.info(
             "No data version, setting data version",
             data_version=data_version,
         )
@@ -448,25 +466,25 @@ def _resolve_current_data_version(
 
         # heuristic - if there are no projects it's a new DB - data version is latest
         if not projects or not projects.projects:
-            logger.info(
+            mlrun.utils.logger.info(
                 "No projects in DB, assuming latest data version",
-                exc=err_to_str(exc),
+                exc=mlrun.errors.err_to_str(exc),
                 latest_data_version=latest_data_version,
             )
             return latest_data_version
         elif "no such table" in str(exc) or (
             "Table" in str(exc) and "doesn't exist" in str(exc)
         ):
-            logger.info(
+            mlrun.utils.logger.info(
                 "Data version table does not exist, assuming prior version",
-                exc=err_to_str(exc),
+                exc=mlrun.errors.err_to_str(exc),
                 data_version_prior_to_table_addition=data_version_prior_to_table_addition,
             )
             return data_version_prior_to_table_addition
         elif isinstance(exc, mlrun.errors.MLRunNotFoundError):
-            logger.info(
+            mlrun.utils.logger.info(
                 "Data version table exist without version, assuming prior version",
-                exc=err_to_str(exc),
+                exc=mlrun.errors.err_to_str(exc),
                 data_version_prior_to_table_addition=data_version_prior_to_table_addition,
             )
             return data_version_prior_to_table_addition
@@ -496,14 +514,14 @@ def _migrate_artifacts_table_v2(
     ).count()
 
     if total_artifacts_count == 0:
-        logger.info("No v1 artifacts in the system, skipping migration")
+        mlrun.utils.logger.info("No v1 artifacts in the system, skipping migration")
         return
 
-    logger.info(
+    mlrun.utils.logger.info(
         "Migrating artifacts to artifacts_v2 table",
         total_artifacts_count=total_artifacts_count,
     )
-    batch_size = config.artifacts.artifact_migration_batch_size
+    batch_size = mlrun.config.config.artifacts.artifact_migration_batch_size
 
     # get the id of the last migrated artifact and the list of all link artifacts ids from the state file
     last_migrated_artifact_id, link_artifact_ids = _get_migration_state()
@@ -528,7 +546,9 @@ def _migrate_artifacts_table_v2(
     # delete the state file
     _delete_state_file()
 
-    logger.debug("Deleting old artifacts table, including their labels and tags")
+    mlrun.utils.logger.debug(
+        "Deleting old artifacts table, including their labels and tags"
+    )
 
     # drop the old artifacts table, including their labels and tags tables
     db.delete_table_records(
@@ -543,7 +563,9 @@ def _migrate_artifacts_table_v2(
         db_session, framework.db.sqldb.models.Artifact, raise_on_not_exists=False
     )
 
-    logger.info("Finished migrating artifacts to artifacts_v2 table successfully")
+    mlrun.utils.logger.info(
+        "Finished migrating artifacts to artifacts_v2 table successfully"
+    )
 
 
 def _migrate_artifacts_batch(
@@ -573,14 +595,14 @@ def _migrate_artifacts_batch(
         # we're done
         return None, None
 
-    logger.debug("Migrating artifacts batch", batch_size=len(artifacts))
+    mlrun.utils.logger.debug("Migrating artifacts batch", batch_size=len(artifacts))
 
     for artifact in artifacts:
         new_artifact = framework.db.sqldb.models.ArtifactV2()
 
         artifact_dict = artifact.struct
 
-        if is_legacy_artifact(artifact_dict):
+        if mlrun.utils.is_legacy_artifact(artifact_dict):
             # convert the legacy artifact to the new format, by setting a metadata field and spec field
             # and copying the old fields to the spec
             artifact_dict = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
@@ -588,7 +610,7 @@ def _migrate_artifacts_batch(
             ).to_dict()
 
         # if it is a link artifact, keep its id. we will use it later to update the best iteration artifacts
-        if is_link_artifact(artifact_dict):
+        if mlrun.utils.is_link_artifact(artifact_dict):
             link_artifact_ids.append(artifact.id)
             continue
 
@@ -633,7 +655,7 @@ def _migrate_artifacts_batch(
             artifact_dict["metadata"]["key"] = key
 
         # uid - calculate as the hash of the artifact object
-        uid = fill_artifact_object_hash(
+        uid = mlrun.artifacts.base.fill_artifact_object_hash(
             artifact_dict, new_artifact.iteration, new_artifact.producer_id
         )
         new_artifact.uid = uid
@@ -759,7 +781,7 @@ def _mark_best_iteration_artifacts(
     # get all the artifacts that are attached to the link artifacts
     for link_artifact in link_artifacts:
         link_artifact_dict = link_artifact.struct
-        if is_legacy_artifact(link_artifact_dict):
+        if mlrun.utils.is_legacy_artifact(link_artifact_dict):
             # convert the legacy artifact to the new format, so we can use the same logic
             link_artifact_dict = (
                 mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
@@ -776,7 +798,7 @@ def _mark_best_iteration_artifacts(
         link_tree = link_artifact_dict.get("spec").get("link_tree", None)
 
         if not link_iteration:
-            logger.warning(
+            mlrun.utils.logger.warning(
                 "Link artifact is missing link iteration, skipping",
                 link_artifact_key=link_artifact_key,
                 link_artifact_id=link_artifact.id,
@@ -795,7 +817,7 @@ def _mark_best_iteration_artifacts(
 
         artifact = query.one_or_none()
         if not artifact:
-            logger.warning(
+            mlrun.utils.logger.warning(
                 "Link artifact is pointing to a non-existent artifact, skipping",
                 link_artifact_key=link_artifact_key,
                 link_iteration=link_iteration,
@@ -815,7 +837,9 @@ def _get_migration_state():
     If the state file does not exist, return 0.
     """
     try:
-        with open(config.artifacts.artifact_migration_state_file_path) as state_file:
+        with open(
+            mlrun.config.config.artifacts.artifact_migration_state_file_path
+        ) as state_file:
             state = json.load(state_file)
             return state.get("last_migrated_id", 0), set(
                 state.get("link_artifact_ids", [])
@@ -829,7 +853,7 @@ def _update_state_file(last_migrated_id: int, link_artifact_ids: set):
 
     :param last_migrated_id: The id of the last migrated artifact.
     """
-    state_file_path = config.artifacts.artifact_migration_state_file_path
+    state_file_path = mlrun.config.config.artifacts.artifact_migration_state_file_path
     state_file_dir = os.path.dirname(state_file_path)
     if not os.path.exists(state_file_dir):
         os.makedirs(state_file_dir)
@@ -844,7 +868,7 @@ def _update_state_file(last_migrated_id: int, link_artifact_ids: set):
 def _delete_state_file():
     """Delete the state file."""
     try:
-        os.remove(config.artifacts.artifact_migration_state_file_path)
+        os.remove(mlrun.config.config.artifacts.artifact_migration_state_file_path)
     except FileNotFoundError:
         pass
 
@@ -923,7 +947,9 @@ def _add_producer_uri_to_artifact(
     db_session: sqlalchemy.orm.Session,
     chunk_size: typing.Optional[int] = None,
 ):
-    chunk_size = chunk_size or config.artifacts.artifact_migration_v9_batch_size
+    chunk_size = (
+        chunk_size or mlrun.config.config.artifacts.artifact_migration_v9_batch_size
+    )
 
     def handle_artifact_producer_uri(record):
         record.producer_uri = (
@@ -958,10 +984,10 @@ def _migrate_data(
     records = db._query(db_session, model).filter(filter_func).limit(chunk_size).all()
 
     if not records:
-        logger.info(f"No records to migrate for {model.__name__.lower()}")
+        mlrun.utils.logger.info(f"No records to migrate for {model.__name__.lower()}")
         return
 
-    logger.info(
+    mlrun.utils.logger.info(
         f"Starting migration for {len(records)} {model.__name__.lower()} records"
     )
 
@@ -970,7 +996,7 @@ def _migrate_data(
 
         # Commit if there are records to migrate
         if to_commit:
-            logger.info(
+            mlrun.utils.logger.info(
                 "Committing migrated records",
                 model=model.__name__,
                 count=len(to_commit),
@@ -985,14 +1011,16 @@ def _migrate_data(
 
         # If no records left to migrate, stop
         if not records:
-            logger.info("No more records to migrate", model=model.__name__)
+            mlrun.utils.logger.info("No more records to migrate", model=model.__name__)
             break
 
 
 def _ensure_latest_tag_for_artifacts(
     db_session: sqlalchemy.orm.Session, chunk_size: typing.Optional[int] = None
 ):
-    chunk_size = chunk_size or config.artifacts.artifact_migration_v9_batch_size
+    chunk_size = (
+        chunk_size or mlrun.config.config.artifacts.artifact_migration_v9_batch_size
+    )
 
     # Note: when logging the same artifact and spawning tags in version < 1.8  and then migrating to 1.8,
     # two artifacts should remain at the end
@@ -1088,13 +1116,13 @@ def _ensure_latest_tag_for_artifacts(
         )
 
         if not artifacts_to_tag:
-            logger.info(
+            mlrun.utils.logger.info(
                 "No artifacts without 'latest' were found",
                 model=framework.db.sqldb.models.ArtifactV2.Tag,
             )
             break
 
-        logger.info(
+        mlrun.utils.logger.info(
             "Starting artifacts without 'latest' tag migration",
             model=framework.db.sqldb.models.ArtifactV2.Tag,
             count=len(artifacts_to_tag),
@@ -1117,7 +1145,7 @@ def _ensure_latest_tag_for_artifacts(
             processed_artifacts.add(artifact_id)
 
         if new_tags:
-            logger.info(
+            mlrun.utils.logger.info(
                 "Committing migrated records",
                 model=framework.db.sqldb.models.ArtifactV2.Tag,
                 count=len(new_tags),
@@ -1125,7 +1153,7 @@ def _ensure_latest_tag_for_artifacts(
             db_session.add_all(new_tags)
             db_session.commit()
 
-    logger.info("No more artifacts to migrate.")
+    mlrun.utils.logger.info("No more artifacts to migrate.")
 
 
 def _tag_artifact(
@@ -1189,16 +1217,18 @@ def _init_system_id(db_session: sqlalchemy.orm.Session):
     system_id = db.get_system_id(db_session)
 
     if system_id is not None:
-        logger.debug("Existing system id found in the database", system_id=system_id)
+        mlrun.utils.logger.debug(
+            "Existing system id found in the database", system_id=system_id
+        )
         mlrun.mlconf.system_id = system_id
         return
 
-    logger.debug("System id not found in DB")
+    mlrun.utils.logger.debug("System id not found in DB")
     # check if the system id is already set in the config
     system_id = _get_configured_system_id()
 
     if system_id:
-        logger.debug("Using configured system id", system_id=system_id)
+        mlrun.utils.logger.debug("Using configured system id", system_id=system_id)
     else:
         # if no system id is found, generate a new one
         system_id = _generate_system_id()
@@ -1207,7 +1237,7 @@ def _init_system_id(db_session: sqlalchemy.orm.Session):
     # set the system id in mlrun config
     mlrun.mlconf.system_id = system_id
 
-    logger.info("Initialized system ID", system_id=system_id)
+    mlrun.utils.logger.info("Initialized system ID", system_id=system_id)
 
 
 def _get_configured_system_id() -> typing.Optional[str]:

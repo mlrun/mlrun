@@ -527,11 +527,22 @@ class TFKerasModelHandler(DLModelHandler):
             self._model_file = os.path.join(
                 os.path.dirname(self._model_file), self._model_name
             )
+        elif self._model_format == TFKerasModelHandler.ModelFormats.KERAS:
+            # When keras tried to load it, it validates the suffix. The `artifacts.model.get_model` function is
+            # downloading the keras file to a temp file with a `pkl` suffix, so it needs to be replaced:
+            self._model_file = self._model_file.rsplit(".pkl", 1)[0] + ".keras"
+        elif self._model_format == TFKerasModelHandler.ModelFormats.H5:
+            # When keras tried to load it, it validates the suffix. The `artifacts.model.get_model` function is
+            # downloading the keras file to a temp file with a `pkl` suffix, so it needs to be replaced:
+            self._model_file = self._model_file.rsplit(".pkl", 1)[0] + ".h5"
         # # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS - Get the weights file:
         elif (
             self._model_format
             == TFKerasModelHandler.ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS
         ):
+            # When keras tried to load it, it validates the suffix. The `artifacts.model.get_model` function is
+            # downloading the keras file to a temp file with a `pkl` suffix, so it needs to be replaced:
+            self._model_file = self._model_file.rsplit(".pkl", 1)[0] + ".json"
             # Get the weights file:
             self._weights_file = self._extra_data[
                 self._get_weights_file_artifact_name()

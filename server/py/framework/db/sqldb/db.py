@@ -3933,7 +3933,6 @@ class SQLDB(DBInterface):
         labels = label_set(
             [f"{ModelMonitoringAppLabel.KEY}={ModelMonitoringAppLabel.VAL}"]
         )
-        labels = label_set(labels)
         query = self._add_labels_filter(
             session, query, Function, labels
         )  # keep only model-monitoring functions

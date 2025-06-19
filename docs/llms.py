@@ -4,6 +4,12 @@ import re
 
 EXCLUDE_DIRS = {"_build", ".git", "venv"}
 BASE_DOCS_URL = "https://docs.mlrun.org/en/stable/"
+# Abbreviations to ignore dots in
+abbreviations = {"e.g.", "i.e.", "etc.", "U.S.", "vs."}
+
+# Precompile a pattern for common file extensions and URLs
+file_ext_pattern = re.compile(r"\.\w+\b")
+url_pattern = re.compile(r"https?://|www\.")
 
 
 def generate_llm_txt(root_dir, prefix="", output_path=None, exclude_dirs=None):
@@ -120,7 +126,6 @@ def extract_ipynb_first_title(nb_path):
     """
     with open(nb_path, encoding="utf-8") as file:
         notebook = json.load(file)
-
     for cell in notebook.get("cells", []):
         if cell.get("cell_type") == "markdown":
             lines = cell.get("source", [])
@@ -146,7 +151,11 @@ def extract_ipynb_first_sentence(nb_path):
 
     for cell in notebook.get("cells", []):
         if cell.get("cell_type") == "markdown":
-            for line in cell.get("source", []):
+            lines = cell.get("source", [])
+            if isinstance(lines, str):
+                # if the source is a single string, convert it into a list of strings
+                lines = [lines]
+            for line in lines:
                 if result := valid_first_sentence(line):
                     return result
     raise Exception(f"No description found in file {nb_path}")
@@ -154,13 +163,36 @@ def extract_ipynb_first_sentence(nb_path):
 
 def valid_first_sentence(line):
     line = line.strip()
-    # Skip title lines and empty lines
-    if line.startswith("#") or line.startswith("<"):
+    # Skip title lines, empty lines, and lines with `{admonition}`
+    if (
+        not line
+        or line.startswith("#")
+        or line.startswith("<")
+        or "{admonition}" in line
+    ):
         return None
     if re.match(r"^\(.*\)=", line):
         # Skip anchor-like metadata lines
         return None
-    if line:
-        # After skipping header lines
-        # Extract first sentence after header
-        return line.split(".")[0] + "."
+    if not line:
+        return None
+    words = line.split()
+    sentence_words = []
+
+    for i, word in enumerate(words):
+        sentence_words.append(word)
+
+        # If this word ends in a dot, we need to check:
+        if word.endswith("."):
+            clean_word = word.strip(",;:!?")  # strip punctuation around
+            lowercase_clean = clean_word.lower()
+
+            # Check for known exceptions
+            if lowercase_clean in (abbr.lower() for abbr in abbreviations):
+                continue
+            if url_pattern.search(word) or file_ext_pattern.search(word):
+                continue
+            # Otherwise, assume it's a sentence-ending dot
+            break
+
+    return " ".join(sentence_words).strip()

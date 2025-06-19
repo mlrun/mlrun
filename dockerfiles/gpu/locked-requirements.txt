@@ -2340,9 +2340,9 @@ multipledispatch==1.0.0 \
     # via
     #   dask-glm
     #   dask-ml
-narwhals==1.43.1 ; python_full_version >= '3.11' \
-    --hash=sha256:1ee508fa4dc0e05aa5b88717ba11613d8d9ccf0dd1e48513d4a3afb237dba9f2 \
-    --hash=sha256:6ff56d600da67a0a0980b83bd5577d076772fdba96474076ba4e76c920dbc1e5
+narwhals==1.43.0 ; python_full_version >= '3.11' \
+    --hash=sha256:5a28119401fccb4d344704f806438a983bb0a5b3f4a638760d25b1d521a18a79 \
+    --hash=sha256:7accb0eae172f5697ada3635f46221dfcc98e9419f694df628c0745526d5c514
     # via bokeh
 nbclient==0.10.2 \
     --hash=sha256:4ffee11e788b4a27fabeb7955547e4318a5298f34342a4bfd01f2e1faaeadc3d \

@@ -27,6 +27,7 @@ from mlrun.datastore.model_providers import ModelProvider, schema_to_model_provi
 from mlrun.errors import err_to_str
 from mlrun.utils.helpers import get_local_file_schema
 
+from ..artifacts.base import verify_target_artifact
 from ..utils import DB_SCHEMA, RunKeys
 from .base import DataItem, DataStore, HttpStore
 from .filestore import FileStore
@@ -142,12 +143,16 @@ class StoreManager:
         except Exception as exc:
             raise OSError(f"artifact {url} not found, {err_to_str(exc)}")
         target = resource.get_target_path()
+
         # the allow_empty.. flag allows us to have functions which dont depend on having targets e.g. a function
         # which accepts a feature vector uri and generate the offline vector (parquet) for it if it doesnt exist
-        if not target and not allow_empty_resources:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Resource {url} does not have a valid/persistent offline target"
-            )
+        if not allow_empty_resources:
+            if not target and not (
+                isinstance(resource, ModelArtifact) and resource.model_url
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Resource {url} does not have a valid/persistent offline target or model_url"
+                )
         return resource, target or ""
 
     def object(
@@ -165,6 +170,7 @@ class StoreManager:
             meta, url = self.get_store_artifact(
                 url, project, allow_empty_resources, secrets
             )
+            verify_target_artifact(meta)
 
         store, subpath, url = self.get_or_create_store(
             url, secrets=secrets, project_name=project
@@ -326,9 +332,13 @@ class StoreManager:
         default_invoke_kwargs: Optional[dict] = None,
     ) -> ModelProvider:
         if mlrun.datastore.is_store_uri(url):
-            resource = self.get_model_artifact(
+            resource = self.get_store_artifact(
                 url, project, allow_empty_resources, secrets
             )
+            if not isinstance(resource, ModelArtifact) or not resource.model_url:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "unable to create the model provider from the given resource URI"
+                )
             url = resource.model_url
             default_invoke_kwargs = default_invoke_kwargs or resource.default_config
         model_provider = self.get_or_create_model_provider(

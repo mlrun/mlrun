@@ -940,3 +940,11 @@ def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
             object_dict["spec"][key] = value
 
     return uid
+
+
+def verify_target_artifact(artifact: Artifact):
+    if not artifact.get_target_path():
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"artifact {artifact.uri} "
+            f"does not have a valid/persistent offline target"
+        )

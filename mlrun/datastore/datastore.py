@@ -285,6 +285,7 @@ class StoreManager:
             warnings.warn(
                 "Model provider scheme not found. Returning None — model provider will not be supported."
             )
+            return None
         endpoint, subpath = model_provider_class.parse_endpoint_and_path(
             endpoint=endpoint, subpath=subpath
         )

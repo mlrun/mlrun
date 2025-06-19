@@ -182,7 +182,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         self.check_basic_invoke(
             model_url=model_url, secrets=self.env_secrets, model_name=configurable_model
         )
-        # TODO add async test.
+        # TODO add async and customized invoke tests.
 
 
 class TestOpenAIModel(TestBasicOpenAIProvider):

@@ -31,6 +31,7 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 # do not specify the patch version so that we can easily upgrade it when needed - it is determined by the base image
 # mainly used for mlrun and mlrun-gpu. mlrun API version >= 1.3.0 should always have python 3.9
 MLRUN_PYTHON_VERSION ?= 3.11
+PYTHON_VERSION ?= $(shell python --version)
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 25.0.0
@@ -175,12 +176,12 @@ install-docs-requirements: ## Install all requirements needed for compiling mlru
 
 .PHONY: install-conda-requirements
 install-conda-requirements: ## Install all requirements needed for development with specific conda packages for arm64
-ifeq ($(MLRUN_PYTHON_VERSION),3.11)
+ifeq ($(findstring 3.11.,$(PYTHON_VERSION)),3.11.)
 	conda install --yes --file conda-arm64-requirements-python311.txt
-else ifeq ($(MLRUN_PYTHON_VERSION),3.9)
+else ifeq ($(findstring 3.9.,$(PYTHON_VERSION)),3.9.)
 	conda install --yes --file conda-arm64-requirements-python39.txt
 else
-	@echo "Unsupported Python version: $(MLRUN_PYTHON_VERSION)" >&2
+	@echo "Unsupported Python version: $(PYTHON_VERSION)" >&2
 	@exit 1
 endif
 	make install-requirements

@@ -1234,21 +1234,22 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         self, endpoint_name, feature_set_uri, model_dict
     ) -> dict[str, typing.Any]:
         serving_fn = self.project.get_function(self.function_name)
-        data_point = model_dict.get("data_point")
-        if endpoint_name == "img_one_to_one":
-            data_point = [data_point]
-        serving_fn.invoke(
-            f"v2/models/{endpoint_name}/infer",
-            json.dumps(
-                {"inputs": data_point},
-            ),
-        )
-        if endpoint_name == "img_one_to_one":
-            data_point = data_point[0]
-        serving_fn.invoke(
-            f"v2/models/{endpoint_name}/infer",
-            json.dumps({"inputs": [data_point, data_point]}),
-        )
+        with lock:
+            data_point = model_dict.get("data_point")
+            if endpoint_name == "img_one_to_one":
+                data_point = [data_point]
+            serving_fn.invoke(
+                f"v2/models/{endpoint_name}/infer",
+                json.dumps(
+                    {"inputs": data_point},
+                ),
+            )
+            if endpoint_name == "img_one_to_one":
+                data_point = data_point[0]
+            serving_fn.invoke(
+                f"v2/models/{endpoint_name}/infer",
+                json.dumps({"inputs": [data_point, data_point]}),
+            )
         time.sleep(
             mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 20
         )
@@ -1263,12 +1264,12 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             )
             has_all_the_events = offline_response_df.shape[0] == 3
 
-        return {
-            "model_name": endpoint_name,
-            "is_schema_saved": is_schema_saved,
-            "has_all_the_events": has_all_the_events,
-            "df": offline_response_df,
-        }
+            return {
+                "model_name": endpoint_name,
+                "is_schema_saved": is_schema_saved,
+                "has_all_the_events": has_all_the_events,
+                "df": offline_response_df,
+            }
 
     def test_different_kind_of_serving(self) -> None:
         self.function_name = "serving-router"

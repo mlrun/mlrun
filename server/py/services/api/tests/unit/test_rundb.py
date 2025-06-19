@@ -18,13 +18,13 @@ import pytest
 
 import mlrun.db.factory
 import mlrun.errors
-from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.db.base import RunDBInterface
 from tests.conftest import new_run, run_now
 
 import framework.utils.singletons.db
 import framework.utils.singletons.project_member
+from framework.db.sqldb.sql_session import _init_engine, create_session
 from framework.rundb import sqldb
 from framework.utils.singletons.db import initialize_db
 from services.api.initial_data import init_data

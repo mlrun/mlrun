@@ -12,59 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sqlalchemy.dialects.mysql
 
 from .mysql import MySQLUtil
 
 
-class SQLTypesUtil:
-    class _Collations:
-        # with sqlite we use the default collation
-        sqlite = None
-        mysql = "utf8mb3_bin"
-
-    class _Timestamp:
-        sqlite = sqlalchemy.TIMESTAMP
-        mysql = sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3)
-
-    class _Datetime:
-        sqlite = sqlalchemy.DATETIME(timezone=True)
-
-        @staticmethod
-        def mysql(fsp=6):
-            return sqlalchemy.dialects.mysql.DATETIME(timezone=True, fsp=fsp)
-
-    class _Blob:
-        sqlite = sqlalchemy.BLOB
-        mysql = sqlalchemy.dialects.mysql.MEDIUMBLOB
+# TODO: Remove this class and usages once old alembic migrations that use it are squashed.
+class Collations:
+    sqlite = None
+    mysql = "utf8mb3_bin"
 
     @classmethod
     def collation(cls):
-        return cls._return_type(cls._Collations)
-
-    @classmethod
-    def timestamp(cls):
-        """
-        Use `SQLTypesUtil.datetime()` in new columns.
-        See ML-6921.
-        """
-        return cls._return_type(cls._Timestamp)
-
-    @classmethod
-    def datetime(cls, fsp=6):
-        return cls._return_type(cls._Datetime, fsp=fsp)
-
-    @classmethod
-    def blob(cls):
-        return cls._return_type(cls._Blob)
-
-    @staticmethod
-    def _return_type(type_cls: type, *args, **kwargs):
         mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
         if mysql_dsn_data:
-            # If the mysql attribute is callable (as it is for _Datetime), call it with extra arguments.
-            if callable(getattr(type_cls, "mysql", None)):
-                return type_cls.mysql(*args, **kwargs)
-            # Otherwise just return the attribute (as for _Collations or _Timestamp).
-            return type_cls.mysql
-        return type_cls.sqlite
+            return cls.mysql
+        return cls.sqlite
+
+
+class SQLTypesUtil:
+    @classmethod
+    def collation(cls):
+        return Collations.collation()

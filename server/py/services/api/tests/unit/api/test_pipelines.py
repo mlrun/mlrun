@@ -12,13 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import datetime
 import http
 import importlib
 import json
 import unittest.mock
+import uuid
 
 import deepdiff
+import fastapi.concurrency
 import fastapi.testclient
 import kfp_server_api.models
 import pytest
@@ -41,8 +45,17 @@ import mlrun_pipelines.common.models
 import mlrun_pipelines.imports
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
+from mlrun.common.schemas import (
+    BackgroundTask,
+    BackgroundTaskMetadata,
+    BackgroundTaskSpec,
+    BackgroundTaskState,
+    BackgroundTaskStatus,
+)
+from mlrun.common.schemas.background_task import BackGroundTaskLabel
 
 import framework.utils.auth.verifier
+import services.api.api.endpoints.pipelines
 import services.api.crud
 import services.api.tests.unit.conftest
 
@@ -395,19 +408,16 @@ def mock_pipeline_run(api_run_status: str) -> ApiRunDetail:
     :param api_run_status: The status of the run.
     :return: An ApiRunDetail object.
     """
-    # Create an instance of ApiPipelineSpec
     pipeline_spec = ApiPipelineSpec(
         pipeline_id=None,
         workflow_manifest='{"mock_workflow_key": "mock_workflow_value"}',
         parameters=None,
     )
 
-    # Create an instance of ApiPipelineRuntime
     pipeline_runtime = ApiPipelineRuntime(
         workflow_manifest='{"status": {"phase": "Succeeded"}}',
     )
 
-    # Create resource references
     resource_references = [
         ApiResourceReference(
             key=ApiResourceKey(
@@ -418,7 +428,6 @@ def mock_pipeline_run(api_run_status: str) -> ApiRunDetail:
         )
     ]
 
-    # Create an instance of ApiRun
     run = ApiRun(
         id="test-run-id",
         name="test-run-name",
@@ -431,7 +440,6 @@ def mock_pipeline_run(api_run_status: str) -> ApiRunDetail:
         resource_references=resource_references,
     )
 
-    # Create an instance of ApiRunDetail
     api_run_detail = ApiRunDetail(
         run=run,
         pipeline_runtime=pipeline_runtime,
@@ -788,3 +796,104 @@ def _assert_get_pipeline_response(expected_response: dict, response):
         )
         == {}
     )
+
+
+RUN_ID = str(uuid.UUID("00000000-0000-0000-0000-000000000001"))
+PROJECT = "my-proj"
+
+
+@unittest.mock.patch(
+    "framework.utils.background_tasks.ProjectBackgroundTasksHandler.create_background_task"
+)
+@unittest.mock.patch(
+    "framework.utils.background_tasks.ProjectBackgroundTasksHandler.get_background_task_by_state_and_labels"
+)
+@unittest.mock.patch("services.api.crud.pipelines.Pipelines.get_run")
+def test_terminate_pipeline_success(
+    mock_get_run: unittest.mock.Mock,
+    mock_get_bg: unittest.mock.Mock,
+    mock_create_bg: unittest.mock.Mock,
+    client: fastapi.testclient.TestClient,
+) -> None:
+    # Arrange: pipeline is in a terminable state
+    fake_run = unittest.mock.Mock(
+        status=mlrun_pipelines.common.models.RunStatuses.running
+    )
+    mock_get_run.return_value = fake_run
+
+    # No existing terminate task
+    mock_get_bg.return_value = None
+
+    # Create returns a real BackgroundTask
+    new_task = BackgroundTask(
+        id=1,
+        metadata=BackgroundTaskMetadata(name="terminate-1", project=PROJECT),
+        spec=BackgroundTaskSpec(),
+        status=BackgroundTaskStatus(state=BackgroundTaskState.running),
+    )
+    mock_create_bg.return_value = new_task
+
+    # Act
+    response = client.post(f"/projects/{PROJECT}/pipelines/{RUN_ID}/terminate")
+
+    # Assert
+    assert response.status_code == 202
+    assert response.json() == new_task.dict()
+
+    # Act again to ensure idempotency
+    second_response = client.post(f"/projects/{PROJECT}/pipelines/{RUN_ID}/terminate")
+
+    # Assert second invocation returns the same task
+    assert second_response.json() == response.json()
+
+    mock_get_run.assert_called_with(
+        run_id=RUN_ID,
+        project=PROJECT,
+        namespace=unittest.mock.ANY,
+    )
+    mock_get_bg.assert_called_with(
+        db_session=unittest.mock.ANY,
+        status=BackgroundTaskState.running,
+        labels={BackGroundTaskLabel.pipeline: RUN_ID},
+    )
+    mock_create_bg.assert_called_with(
+        unittest.mock.ANY,  # db_session
+        PROJECT,  # project
+        unittest.mock.ANY,  # background_tasks
+        unittest.mock.ANY,  # function
+        mlrun.mlconf.background_tasks.default_timeouts.operations.terminate_pipeline,  # timeout
+        unittest.mock.ANY,  # name
+        {BackGroundTaskLabel.pipeline: RUN_ID},  # labels
+        RUN_ID,  # run_id
+        PROJECT,  # project
+    )
+
+
+@unittest.mock.patch(
+    "framework.utils.background_tasks.ProjectBackgroundTasksHandler.create_background_task"
+)
+@unittest.mock.patch(
+    "framework.utils.background_tasks.ProjectBackgroundTasksHandler.get_background_task_by_state_and_labels"
+)
+@unittest.mock.patch("services.api.crud.pipelines.Pipelines.get_run")
+def test_terminate_pipeline_not_terminable(
+    mock_get_run: unittest.mock.Mock,
+    mock_get_bg: unittest.mock.Mock,
+    mock_create_bg: unittest.mock.Mock,
+    client: fastapi.testclient.TestClient,
+) -> None:
+    # Arrange: pipeline is already finished
+    fake_run = unittest.mock.Mock(
+        status=mlrun_pipelines.common.models.RunStatuses.succeeded
+    )
+    mock_get_run.return_value = fake_run
+
+    # Act
+    response = client.post(f"/projects/{PROJECT}/pipelines/{RUN_ID}/terminate")
+
+    # Assert
+    assert response.status_code == 400
+    assert "not in a terminable state" in response.text
+
+    mock_get_bg.assert_not_called()
+    mock_create_bg.assert_not_called()

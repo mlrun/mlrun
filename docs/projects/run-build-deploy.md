@@ -1,6 +1,8 @@
 (run_project_functions)=
 # Run, build, and deploy functions
 
+The set of methods used to deploy and run project functions can be used interactively or inside a pipeline (for example, Kubeflow). When used inside a pipeline, each method is automatically mapped to the relevant pipeline engine command.
+
 **In this section**
 - [Overview](#overview)
 - [run_function](#run_function)
@@ -13,8 +15,7 @@
 <a id="overview"></a>
 ## Overview
 
-There is a set of methods used to deploy and run project functions. They can be used interactively or inside a pipeline (e.g. Kubeflow). 
-When used inside a pipeline, each method is automatically mapped to the relevant pipeline engine command.
+The methods are:
 
 * {py:meth}`~mlrun.projects.run_function` &mdash; Run a local or remote task as part of local or remote batch/scheduled task
 * {py:meth}`~mlrun.projects.build_function` &mdash; deploy an ML function, build a container with its dependencies for use in runs

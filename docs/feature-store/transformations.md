@@ -1,9 +1,7 @@
 (transformations)=
 # Feature set transformations
 
-A feature set contains an execution graph of operations that are performed when data is ingested, or 
-when simulating data flow for inferring its metadata. This graph utilizes MLRun's
-{ref}`serving-graph`.
+A feature set contains an execution graph of operations that are performed when data is ingested, or when simulating data flow for inferring its metadata. This graph utilizes MLRun's {ref}`serving-graph`.
 
 The graph contains steps that represent data sources and targets, and may also contain steps whose
 purpose is transformations and enrichment of the data passed through the feature set. These transformations

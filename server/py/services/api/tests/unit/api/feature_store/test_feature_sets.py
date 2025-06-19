@@ -702,7 +702,9 @@ def test_entities_list(
     assert entities_response["feature_set_digests"][1]["metadata"]["tag"] == tag
 
 
-def test_features_list(db: Session, client: TestClient) -> None:
+def test_features_list(
+    db: Session, client: TestClient, unversioned_client: TestClient
+) -> None:
     project_name = f"prj-{uuid4().hex}"
     services.api.tests.unit.api.utils.create_project(client, project_name)
 
@@ -721,10 +723,16 @@ def test_features_list(db: Session, client: TestClient) -> None:
     ]
     _feature_set_create_and_assert(client, project_name, feature_set)
 
-    _list_and_assert_objects(client, "features", project_name, "name=feature1", 1)
+    _list_and_assert_objects(
+        unversioned_client, "features", project_name, "name=feature1", 1, "v2"
+    )
     # name is a like query, so expecting all 4 features to return
-    _list_and_assert_objects(client, "features", project_name, "name=~feature", 4)
-    _list_and_assert_objects(client, "features", project_name, "label=owner=me", 1)
+    _list_and_assert_objects(
+        unversioned_client, "features", project_name, "name=~feature", 4, "v2"
+    )
+    _list_and_assert_objects(
+        unversioned_client, "features", project_name, "label=owner=me", 1, "v2"
+    )
 
     # set a new tag
     tag = "my-new-tag"
@@ -732,18 +740,15 @@ def test_features_list(db: Session, client: TestClient) -> None:
     _store_and_assert_feature_set(client, project_name, name, tag, feature_set)
     # Now expecting to get 2 objects, one with "latest" tag and one with "my-new-tag"
     features_response = _list_and_assert_objects(
-        client, "features", project_name, "name=feature3", 2
+        unversioned_client, "features", project_name, "name=feature3", 2, "v2"
     )
-    assert (
-        features_response["features"][0]["feature_set_digest"]["metadata"]["tag"]
-        == "latest"
-    )
-    assert (
-        features_response["features"][1]["feature_set_digest"]["metadata"]["tag"] == tag
-    )
+    assert features_response["feature_set_digests"][0]["metadata"]["tag"] == "latest"
+    assert features_response["feature_set_digests"][1]["metadata"]["tag"] == tag
 
 
-def test_feature_set_add_feature_labels(db: Session, client: TestClient) -> None:
+def test_feature_set_add_feature_labels(
+    db: Session, client: TestClient, unversioned_client: TestClient
+) -> None:
     project_name = f"prj-{uuid4().hex}"
     services.api.tests.unit.api.utils.create_project(client, project_name)
     tag = "my_tag1"
@@ -762,7 +767,7 @@ def test_feature_set_add_feature_labels(db: Session, client: TestClient) -> None
     )
 
     # validate the features are stored
-    _list_and_assert_objects(client, "features", project_name, "", 2)
+    _list_and_assert_objects(unversioned_client, "features", project_name, "", 2, "v2")
 
     label_key = "some-key"
     label_value = "some-value"
@@ -785,11 +790,13 @@ def test_feature_set_add_feature_labels(db: Session, client: TestClient) -> None
     _store_and_assert_feature_set(client, project_name, name, tag, feature_set)
 
     # validate the feature was stored with the labels
-    _list_and_assert_objects(client, "features", project_name, f"label={label_key}", 1)
+    _list_and_assert_objects(
+        unversioned_client, "features", project_name, f"label={label_key}", 1, "v2"
+    )
 
 
 def test_no_feature_leftovers_when_storing_feature_sets(
-    db: Session, client: TestClient
+    db: Session, client: TestClient, unversioned_client: TestClient
 ) -> None:
     project_name = f"prj-{uuid4().hex}"
     services.api.tests.unit.api.utils.create_project(client, project_name)
@@ -804,7 +811,12 @@ def test_no_feature_leftovers_when_storing_feature_sets(
             client, project_name, name, "latest", feature_set, versioned=False
         )
         _list_and_assert_objects(
-            client, "features", project_name, None, len(feature_set["spec"]["features"])
+            unversioned_client,
+            "features",
+            project_name,
+            None,
+            len(feature_set["spec"]["features"]),
+            "v2",
         )
 
     # Now create different features each time we store, make sure no leftovers remain
@@ -814,7 +826,12 @@ def test_no_feature_leftovers_when_storing_feature_sets(
             client, project_name, name, "latest", feature_set, versioned=False
         )
         _list_and_assert_objects(
-            client, "features", project_name, None, len(feature_set["spec"]["features"])
+            unversioned_client,
+            "features",
+            project_name,
+            None,
+            len(feature_set["spec"]["features"]),
+            "v2",
         )
 
     response = client.delete(f"projects/{project_name}/feature-sets/{name}")
@@ -832,7 +849,12 @@ def test_no_feature_leftovers_when_storing_feature_sets(
             feature_set["spec"]["features"]
         )
         _list_and_assert_objects(
-            client, "features", project_name, None, expected_number_of_features
+            unversioned_client,
+            "features",
+            project_name,
+            None,
+            expected_number_of_features,
+            "v2",
         )
 
 

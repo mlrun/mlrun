@@ -578,7 +578,7 @@ class Service(framework.service.Service):
                 retention_days=retention_days,
             )
             partition_interval = framework.db.session.run_function_with_new_db_session(
-                services.api.utils.db.partitioner.MySQLPartitioner().get_partition_interval,
+                services.api.utils.db.partitioner.DBPartitioner().get_partition_interval,
                 table_name=table_name,
             )
             interval_in_seconds = int(
@@ -630,7 +630,7 @@ class Service(framework.service.Service):
     async def _manage_partitions(table_name, retention_days):
         await fastapi.concurrency.run_in_threadpool(
             framework.db.session.run_function_with_new_db_session,
-            services.api.utils.db.partitioner.MySQLPartitioner().create_and_drop_partitions,
+            services.api.utils.db.partitioner.DBPartitioner().create_and_drop_partitions,
             table_name=table_name,
             retention_days=retention_days,
         )

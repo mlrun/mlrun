@@ -15,7 +15,9 @@ import abc
 import json
 from datetime import datetime
 from typing import Any, NamedTuple, Optional, TypeVar
+from uuid import UUID
 
+from pydantic import validator  # use `validator` if you’re still on Pydantic v1
 from pydantic.v1 import BaseModel, Field, constr
 
 # TODO: remove the unused import below after `mlrun.datastore` and `mlrun.utils` usage is removed.
@@ -120,6 +122,12 @@ class ModelEndpointMetadata(ObjectMetadata, ModelEndpointParser):
     @classmethod
     def mutable_fields(cls):
         return ["labels"]
+
+    @validator("uid", pre=True)
+    def _uid_to_str(cls, v):  # noqa: N805
+        if isinstance(v, UUID):
+            return str(v)
+        return v
 
 
 class ModelEndpointSpec(ObjectSpec, ModelEndpointParser):

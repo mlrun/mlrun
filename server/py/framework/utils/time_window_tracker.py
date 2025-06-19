@@ -120,7 +120,7 @@ async def run_with_time_window_tracker(
         framework.db.session.run_function_with_new_db_session, cycle_tracker.get_window
     )
     now = datetime.datetime.now(datetime.timezone.utc)
-    db_session = await run_in_threadpool(framework.db.create_session)
+    db_session = await run_in_threadpool(framework.db.session.create_session)
     try:
         await framework.utils.asyncio.maybe_coroutine(
             callback(db_session, last_update_time, *args, **kwargs)
@@ -133,7 +133,7 @@ async def run_with_time_window_tracker(
         # The window update succeeded above, no need to ensure it
         ensure_window_update = False
     finally:
-        await run_in_threadpool(framework.db.close_session, db_session)
+        await run_in_threadpool(framework.db.session.close_session, db_session)
         if ensure_window_update:
             # Sessions are not thread-safe, so we need to create a new one
             await run_in_threadpool(

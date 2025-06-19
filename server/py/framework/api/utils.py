@@ -45,20 +45,20 @@ from mlrun.utils import get_in, logger
 
 import framework.constants
 import framework.db.session
+import framework.db.sqldb.db
+import framework.rundb.sqldb
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.iguazio
 import framework.utils.helpers
 import framework.utils.notifications
+import framework.utils.singletons.db
 import framework.utils.singletons.k8s
+import framework.utils.singletons.project_member
 import services.api.crud
-from framework.db.sqldb.db import SQLDB
-from framework.rundb.sqldb import SQLRunDB
-from framework.utils.singletons.db import get_db
-from framework.utils.singletons.project_member import get_project_member
-from services.api.crud.runtimes.nuclio import delete_nuclio_functions_in_batches
-from services.api.utils.singletons.logs_dir import get_logs_dir
-from services.api.utils.singletons.scheduler import get_scheduler
+import services.api.crud.runtimes.nuclio
+import services.api.utils.singletons.logs_dir
+import services.api.utils.singletons.scheduler
 
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
@@ -71,7 +71,7 @@ def log_path(project, uid) -> Path:
 
 
 def project_logs_path(project) -> Path:
-    return get_logs_dir() / project
+    return services.api.utils.singletons.logs_dir.get_logs_dir() / project
 
 
 def get_obj_path(schema, path, user=""):
@@ -147,9 +147,9 @@ def get_run_db_instance(
 ):
     # TODO: getting the run db should be done seamlessly by the run db factory and not require this logic to
     #  inject the session
-    db = get_db()
-    if isinstance(db, SQLDB):
-        run_db = SQLRunDB(db.dsn, db_session)
+    db = framework.utils.singletons.db.get_db()
+    if isinstance(db, framework.db.sqldb.db.SQLDB):
+        run_db = framework.rundb.sqldb.SQLRunDB(db.dsn, db_session)
     else:
         run_db = db.db
     run_db.connect()
@@ -182,7 +182,7 @@ def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
             )
         else:
             project, name, tag, hash_key = parse_versioned_object_uri(function_url)
-            function_record = get_db().get_function(
+            function_record = framework.utils.singletons.db.get_db().get_function(
                 db_session, name=name, project=project, tag=tag, hash_key=hash_key
             )
             if not function_record:
@@ -763,16 +763,18 @@ def submit_run_sync(
             data.pop("function_url", None)
             task["spec"]["function"] = function_uri.replace("db://", "")
 
-            is_update = get_scheduler().store_schedule(
-                db_session,
-                auth_info,
-                task["metadata"]["project"],
-                task["metadata"]["name"],
-                mlrun.common.schemas.ScheduleKinds.job,
-                data,
-                cron_trigger,
-                schedule_labels,
-                fn_kind=fn.kind,
+            is_update = (
+                services.api.utils.singletons.scheduler.get_scheduler().store_schedule(
+                    db_session,
+                    auth_info,
+                    task["metadata"]["project"],
+                    task["metadata"]["name"],
+                    mlrun.common.schemas.ScheduleKinds.job,
+                    data,
+                    cron_trigger,
+                    schedule_labels,
+                    fn_kind=fn.kind,
+                )
             )
 
             project = task["metadata"]["project"]
@@ -952,7 +954,7 @@ async def _delete_project(
     project_name = project.metadata.name
     try:
         await run_in_threadpool(
-            get_project_member().delete_project,
+            framework.utils.singletons.project_member.get_project_member().delete_project,
             db_session,
             project_name,
             deletion_strategy,
@@ -998,14 +1000,18 @@ async def _delete_project(
             auth_info,
         )
 
-    await get_project_member().post_delete_project(project_name)
+    await framework.utils.singletons.project_member.get_project_member().post_delete_project(
+        project_name
+    )
 
 
 def verify_project_is_deleted(project_name, auth_info):
     def _verify_project_is_deleted():
         try:
             project = framework.db.session.run_function_with_new_db_session(
-                get_project_member().get_project, project_name, auth_info.session
+                framework.utils.singletons.project_member.get_project_member().get_project,
+                project_name,
+                auth_info.session,
             )
         except mlrun.errors.MLRunNotFoundError:
             return
@@ -1116,8 +1122,10 @@ async def _delete_function(
             for function in nuclio_functions
         ]
         # delete Nuclio functions associated with the function tags in batches
-        failed_requests = await delete_nuclio_functions_in_batches(
-            auth_info, project, nuclio_function_names
+        failed_requests = (
+            await services.api.crud.runtimes.nuclio.delete_nuclio_functions_in_batches(
+                auth_info, project, nuclio_function_names
+            )
         )
         if failed_requests:
             error_message = f"Failed to delete function {function_name}. {';'.join(failed_requests)}"

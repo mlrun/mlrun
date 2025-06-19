@@ -53,6 +53,7 @@ class RunStatuses(StrEnum):
     error = "Error"  # available only on KFP 1.8 or lower
     running = "Running"
     unknown = "Unknown"
+    terminating = "Terminating"  # available only on KFP 1.8 or lower
 
     # States available only on KFP 2.0
     runtime_state_unspecified = "Runtime_State_Unspecified"
@@ -126,4 +127,6 @@ class RunStatuses(StrEnum):
             RunStatuses.pending,
             RunStatuses.paused,
             RunStatuses.runtime_state_unspecified,
+            RunStatuses.canceling,
+            RunStatuses.terminating,
         ]

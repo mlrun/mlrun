@@ -935,72 +935,72 @@ class Service(framework.service.Service):
         self._logger.debug("Retrying jobs with retry policy configured")
         db_session = await fastapi.concurrency.run_in_threadpool(create_session)
         try:
-            runs = await fastapi.concurrency.run_in_threadpool(
+            offset = 0
+            while runs := await fastapi.concurrency.run_in_threadpool(
                 get_db().list_runs,
                 db_session,
                 project="*",
                 states=[mlrun.common.runtimes.constants.RunStates.pending_retry],
-                limit=mlconf.monitoring.runs.retry.fetch_runs_limit,
-            )
-            if not runs:
-                return
+                limit=int(mlconf.monitoring.runs.retry.fetch_runs_limit),
+                offset=offset,
+            ):
+                self._logger.debug(
+                    "Found runs to retry", runs_count=len(runs), offset=offset
+                )
+                offset = offset + len(runs)
 
-            self._logger.debug(
-                "Found runs to retry",
-                runs_count=len(runs),
-            )
-            futures = []
-            for run_dict in runs:
-                run = mlrun.RunObject.from_dict(run_dict)
-                if run.metadata.uid in self._retry_in_progress_run_uids:
-                    self._logger.debug(
-                        "Run is already being retried, skipping",
-                        run_uid=run.metadata.uid,
-                    )
-                    continue
-
-                # retry_count may be None on the first attempt
-                run.status.retry_count = run.status.retry_count or 0
-                # sanity
-                if not run.status.retry_count < run.spec.retry.count:
-                    self._logger.warn(
-                        "Run has reached max retry count, skipping",
-                        run_uid=run.metadata.uid,
-                        retry_count=run.status.retry_count,
-                        max_retry_count=run.spec.retry.count,
-                    )
-                    futures.append(
-                        fastapi.concurrency.run_in_threadpool(
-                            framework.db.session.run_function_with_new_db_session,
-                            get_db().update_run,
-                            updates={
-                                "status.state": mlrun.common.runtimes.constants.RunStates.error,
-                                "status.status_text": "Run retries exhausted",
-                            },
-                            uid=run.metadata.uid,
-                            project=run.metadata.project,
+                futures = []
+                for run_dict in runs:
+                    run = mlrun.RunObject.from_dict(run_dict)
+                    if run.metadata.uid in self._retry_in_progress_run_uids:
+                        self._logger.debug(
+                            "Run is already being retried, skipping",
+                            run_uid=run.metadata.uid,
                         )
-                    )
-                    continue
+                        continue
 
-                try:
-                    self._submit_run_for_retry(run)
-                except Exception as exc:
-                    self._logger.warning(
-                        "Failed retrying run",
-                        run_uid=run.metadata.uid,
-                        exc=err_to_str(exc),
-                        traceback=traceback.format_exc(),
-                    )
+                    # retry_count may be None on the first attempt
+                    run.status.retry_count = run.status.retry_count or 0
+                    # sanity
+                    if not run.status.retry_count < run.spec.retry.count:
+                        self._logger.warn(
+                            "Run has reached max retry count, skipping",
+                            run_uid=run.metadata.uid,
+                            retry_count=run.status.retry_count,
+                            max_retry_count=run.spec.retry.count,
+                        )
+                        futures.append(
+                            fastapi.concurrency.run_in_threadpool(
+                                framework.db.session.run_function_with_new_db_session,
+                                get_db().update_run,
+                                updates={
+                                    "status.state": mlrun.common.runtimes.constants.RunStates.error,
+                                    "status.status_text": "Run retries exhausted",
+                                },
+                                uid=run.metadata.uid,
+                                project=run.metadata.project,
+                            )
+                        )
+                        continue
 
-            if futures:
-                exceptions = await asyncio.gather(*futures, return_exceptions=True)
-                for exception in exceptions:
-                    if isinstance(exception, Exception):
+                    try:
+                        self._submit_run_for_retry(run)
+                    except Exception as exc:
                         self._logger.warning(
-                            "Failed task in retry job",
-                            exc=err_to_str(exception),
+                            "Failed retrying run",
+                            run_uid=run.metadata.uid,
+                            exc=err_to_str(exc),
+                            traceback=traceback.format_exc(),
                         )
+
+                if futures:
+                    exceptions = await asyncio.gather(*futures, return_exceptions=True)
+                    for exception in exceptions:
+                        if isinstance(exception, Exception):
+                            self._logger.warning(
+                                "Failed task in retry job",
+                                exc=err_to_str(exception),
+                            )
 
         except Exception as exc:
             self._logger.warning(

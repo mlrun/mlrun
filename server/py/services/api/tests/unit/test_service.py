@@ -15,6 +15,7 @@ import asyncio
 import datetime
 import typing
 import unittest.mock
+import uuid
 
 from sqlalchemy.orm import Session
 
@@ -80,6 +81,34 @@ class TestService(TestAPIBase):
             await asyncio.sleep(1)
             mock_submit_run_sync.assert_called_once()
             assert not self._service._retry_in_progress_run_uids
+
+    async def test_retry_job_paginated_list_runs(self, db: Session):
+        mlrun.mlconf.monitoring.runs.retry.fetch_runs_limit = 3
+        mlrun.mlconf.function.spec.retry.backoff.min_base_delay = "0s"
+        run_uids = [str(uuid.uuid4()) for _ in range(10)]
+        for run_uid in run_uids:
+            run = self._generate_retry_job(uid=run_uid)
+            mlrun.db.get_run_db().store_run(
+                struct=run, uid=run_uid, project=self._project
+            )
+
+        # Create a running job - should be filtered out
+        running_run_uid = "running_run"
+        run = self._generate_retry_job(
+            uid=running_run_uid, state=mlrun.common.runtimes.constants.RunStates.running
+        )
+        mlrun.db.get_run_db().store_run(
+            struct=run, uid=running_run_uid, project=self._project
+        )
+
+        # There seems to be some OS level caching that prevents the new db session from seeing the new runs immediately.
+        # Also, waiting less than a second does not work.
+        await asyncio.sleep(1)
+        with unittest.mock.patch(
+            "framework.api.utils.submit_run_sync", return_value=unittest.mock.Mock()
+        ) as mock_submit_run_sync:
+            await self._service._retry_jobs()
+            assert mock_submit_run_sync.call_count == 10
 
     def _generate_retry_job(
         self,

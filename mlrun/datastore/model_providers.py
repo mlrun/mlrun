@@ -150,7 +150,7 @@ class OpenAIProvider(AsyncModelProvider):
             self._async_client = AsyncOpenAI(**self.options)
             self._default_async_operation = self.async_client.chat.completions.create
         except ImportError as exc:
-            raise ImportError("openai package not installed") from exc
+            raise ImportError("openai package is not installed") from exc
 
     def get_client_options(self):
         res = dict(

@@ -153,10 +153,11 @@ def test_requirement_specifiers_convention():
         "scikit-learn": {"~=1.5.1"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
+        "dask[complete]": {'~=2024.12.1; python_version >= "3.11"'},
         "dask": {
             '~=2024.12.1; python_version >= "3.11"',
-            '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
             '~=2023.12.1; python_version < "3.11"',
+            '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
         },
         "distributed": {
             '~=2024.12.1; python_version >= "3.11"',
@@ -223,7 +224,6 @@ def test_requirement_specifiers_inconsistencies():
             '~=2024.12.1; python_version >= "3.11"',
             '~=2023.12.1; python_version < "3.11"',
         },
-        "mlrun-pipelines-kfp-v1-8": {"~=0.5.4", '~=0.5.4; python_version < "3.11"'},
     }
 
     all_keys_verified = set(ignored_inconsistencies_map.keys())

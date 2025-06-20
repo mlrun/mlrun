@@ -1,53 +1,65 @@
-# Copyright 2025 Iguazio
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#   http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
+# ---- logging endpoint -------------------------------------------------
 import logging
+import os
 
 import fastapi
+from fastapi import Request
+from fastapi.openapi.models import Response
 
 from mlrun.common.schemas.internal.logging import LogLevelMapping
 from mlrun.errors import MLRunBadRequestError
 
+import services.discovery.service
+
 router = fastapi.APIRouter(prefix="/log_levels")
+_discovery_service = services.discovery.service.K8sServiceDiscovery(
+    namespace=os.getenv("MLRUN_NAMESPACE"),
+)
 
 
-@router.post(path="")
-async def set_log_levels(log_config: LogLevelMapping):
-    for domain, level in log_config.domain_to_levels.items():
-        numeric_level = getattr(logging, level.upper(), None)
-        if numeric_level is None:
-            raise MLRunBadRequestError(f"Invalid log level: {level}")
-        if log_config.recursive:
-            for logger_name, logger_obj in logging.root.manager.loggerDict.items():
-                if isinstance(logger_obj, logging.Logger) and (
-                    logger_name == domain or logger_name.startswith(f"{domain}.")
+def _apply_log_level_locally(
+    cfg: LogLevelMapping,
+) -> None:
+    for domain, level in cfg.domain_to_levels.items():
+        num = getattr(logging, level.upper(), None)
+        if num is None:
+            raise MLRunBadRequestError(f"Invalid log level '{level}'")
+        if cfg.recursive:
+            for name, logger in logging.root.manager.loggerDict.items():
+                if isinstance(logger, logging.Logger) and (
+                    name == domain or name.startswith(f"{domain}.")
                 ):
-                    logger_obj.setLevel(numeric_level)
+                    logger.setLevel(num)
         else:
-            logger_instance = logging.getLogger(domain)
-            logger_instance.setLevel(numeric_level)
-    return {"message": "Log levels updated successfully"}
+            logging.getLogger(domain).setLevel(num)
+
+
+@router.post("")
+async def set_log_levels(
+    cfg: LogLevelMapping,
+    request: Request,
+):
+    _apply_log_level_locally(cfg)
+    await _discovery_service.broadcast(
+        excluded_services=["mlrun-api-chief"],
+        path="/_internal/log_levels",
+        json_payload=cfg.dict(),
+        timeout=10.0,
+        headers=dict(request.headers),
+    )
+    return Response(status_code=200)
 
 
 @router.get(
-    path="",
+    "",
     response_model=LogLevelMapping,
 )
 async def get_log_levels():
-    domain_to_levels = {}
-    for name, logger_obj in logging.root.manager.loggerDict.items():
-        if isinstance(logger_obj, logging.Logger):
-            level = logging.getLevelName(logger_obj.getEffectiveLevel())
-            domain_to_levels[name] = level
-    return LogLevelMapping(domain_to_levels=domain_to_levels, recursive=False)
+    return LogLevelMapping(
+        domain_to_levels={
+            n: logging.getLevelName(lg.getEffectiveLevel())
+            for n, lg in logging.root.manager.loggerDict.items()
+            if isinstance(lg, logging.Logger)
+        },
+        recursive=False,
+    )

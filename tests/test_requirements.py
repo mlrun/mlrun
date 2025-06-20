@@ -41,9 +41,15 @@ def test_extras_requirement_file_aligned():
     extras_requirements_file_specifiers_map = _parse_requirement_specifiers_list(
         extras_requirements_file_specifiers
     )
-    # Since these packages are only present in the mlrun-kfp image, and also can't coexist with each other,
-    # we exclude them from the comparison
-    excluded_packages = ["mlrun_pipelines_kfp_v1_8", "mlrun_pipelines_kfp_v2"]
+
+    excluded_packages = [
+        # Since these packages are only present in the mlrun-kfp image, and also can't coexist with each other,
+        # we exclude them from the comparison
+        "mlrun_pipelines_kfp_v1_8[kfp]",
+        "mlrun_pipelines_kfp_v2[kfp]",
+        # This is an optional extra currently only used for testing purposes
+        "pytest-mock-resources[postgres]",
+    ]
     for package in excluded_packages:
         if package in setup_py_extras_requirements_specifiers_map:
             setup_py_extras_requirements_specifiers_map.pop(package)
@@ -284,32 +290,33 @@ def _generate_all_requirement_specifiers_map() -> dict[str, set]:
     return _parse_requirement_specifiers_list(requirement_specifiers)
 
 
-def _parse_requirement_specifiers_list(
-    requirement_specifiers,
-) -> dict[str, set]:
+def _parse_requirement_specifiers_list(requirement_specifiers) -> dict[str, set]:
+    """
+    Map each (package | package[extra]) to the set of *version/location* specifiers it
+    appears with.
+    """
     specific_module_regex = (
         r"^"
-        r"(?P<requirementName>[a-zA-Z\-0-9_]+)"
-        r"(?P<requirementExtra>\[[a-zA-Z\-0-9_]+\])?"
+        r"(?P<requirementName>[A-Za-z0-9_\-]+)"
+        r"(?P<requirementExtra>\[[A-Za-z0-9_\-]+\])?"  # capture extras
         r"(?P<requirementSpecifier>.*)"
     )
     remote_location_regex = (
         r"^(?P<requirementSpecifier>.*)#egg=(?P<requirementName>[^#]+)"
     )
-    requirement_specifiers_map = collections.defaultdict(set)
-    for requirement_specifier in requirement_specifiers:
-        regex = (
-            remote_location_regex
-            if "#egg=" in requirement_specifier
-            else specific_module_regex
-        )
-        match = re.fullmatch(regex, requirement_specifier)
-        assert (
-            match is not None
-        ), f"Requirement specifier did not matched regex. {requirement_specifier}"
-        requirement_name = match.groupdict()["requirementName"].lower()
-        requirement_specifier = match.groupdict()["requirementSpecifier"]
-        requirement_specifiers_map[requirement_name].add(requirement_specifier)
+
+    requirement_specifiers_map: dict[str, set] = collections.defaultdict(set)
+
+    for raw in requirement_specifiers:
+        regex = remote_location_regex if "#egg=" in raw else specific_module_regex
+        match = re.fullmatch(regex, raw)
+        assert match, f"Requirement specifier did not match regex: {raw}"
+
+        gd = match.groupdict()
+        # include extras (if any) in the dictionary key
+        pkg_key = (gd["requirementName"] + (gd.get("requirementExtra") or "")).lower()
+        requirement_specifiers_map[pkg_key].add(gd["requirementSpecifier"])
+
     return requirement_specifiers_map
 
 

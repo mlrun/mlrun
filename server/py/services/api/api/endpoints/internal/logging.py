@@ -25,9 +25,6 @@ import mlrun.errors
 import services.discovery.service
 
 router = fastapi.APIRouter(prefix="/log_levels")
-_discovery_service = services.discovery.service.K8sServiceDiscovery(
-    namespace=os.getenv("MLRUN_NAMESPACE"),
-)
 
 
 def _apply_log_level_locally(
@@ -52,8 +49,12 @@ async def set_log_levels(
     cfg: mlrun.common.schemas.internal.logging.LogLevelMapping,
     request: Request,
 ):
+    discovery_service = services.discovery.service.K8sServiceDiscovery(
+        namespace=os.getenv("MLRUN_NAMESPACE"),
+    )
+
     _apply_log_level_locally(cfg)
-    await _discovery_service.broadcast(
+    await discovery_service.broadcast(
         excluded_services=["mlrun-api-chief"],
         path="/_internal/log_levels",
         json_payload=cfg.dict(),

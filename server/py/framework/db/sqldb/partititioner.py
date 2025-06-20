@@ -23,7 +23,7 @@ class RangePartitioner:
     def __new__(cls, dialect: str):
         if dialect.startswith(mlrun.common.db.dialects.Dialects.MYSQL):
             return super().__new__(MySQLRangePartitioner)
-        if dialect.startswith(mlrun.common.db.dialects.Dialects.POSTGRES):
+        if dialect.startswith(mlrun.common.db.dialects.Dialects.POSTGRESQL):
             return super().__new__(PostgresRangePartitioner)
         raise ValueError(dialect)
 

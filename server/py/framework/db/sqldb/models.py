@@ -1071,7 +1071,7 @@ def bootstrap_partitions(table, connection, **_):
     dialect = connection.dialect.name
     if dialect not in (
         mlrun.common.db.dialects.Dialects.MYSQL,
-        mlrun.common.db.dialects.Dialects.POSTGRES,
+        mlrun.common.db.dialects.Dialects.POSTGRESQL,
     ):
         return
 

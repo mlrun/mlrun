@@ -37,12 +37,14 @@ from sqlalchemy import (
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Mapper, declared_attr, relationship
+from sqlalchemy.orm import Mapper, Session, declared_attr, relationship
 
 import mlrun.common.db.dialects
 import mlrun.common.schemas
 import mlrun.db.sql_types
 import mlrun.utils.db
+
+import framework.db.sqldb.partititioner
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -941,9 +943,6 @@ with warnings.catch_warnings():
             {
                 "mysql_engine": "InnoDB",
                 "mysql_charset": "utf8mb4",
-                "mysql_partition_by": f"RANGE ({_expr})",
-                "mysql_partition_options": f"(PARTITION p{_pname} VALUES LESS THAN ({_pval}))",
-                "postgresql_partition_by": f"RANGE ({_expr})",
             },
         )
 
@@ -1065,6 +1064,36 @@ def _sqlite_autoincrement(
             text("SELECT COALESCE(MAX(id),0) + 1 FROM alert_activations")
         ).scalar_one()
         target.id = next_id
+
+
+@event.listens_for(AlertActivation.__table__, "after_create")
+def bootstrap_partitions(table, connection, **_):
+    dialect = connection.dialect.name
+    if dialect not in (
+        mlrun.common.db.dialects.Dialects.MYSQL,
+        mlrun.common.db.dialects.Dialects.POSTGRES,
+    ):
+        return
+
+    interval_name = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
+    interval = mlrun.common.schemas.PartitionInterval(interval_name)
+
+    expr = interval.get_partition_expression("activation_time")
+    pname, pval = interval.get_partition_info(datetime.utcnow())[0]
+
+    session = Session(bind=connection)
+    try:
+        framework.db.sqldb.partititioner.RangePartitioner(dialect).bootstrap(
+            session=session,
+            table_name=table.name,
+            partition_expression=expr,
+            first_partition_name=pname,
+            first_partition_upper_bound=pval,
+        )
+        retention_days = mlrun.mlconf.object_retentions.get(table.name)
+        session.commit()
+    finally:
+        session.close()
 
 
 def get_partitioned_table_names():

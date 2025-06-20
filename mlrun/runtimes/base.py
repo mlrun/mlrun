@@ -33,6 +33,14 @@ import mlrun.launcher.factory
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
+from mlrun.model import (
+    BaseMetadata,
+    HyperParamOptions,
+    ImageBuilder,
+    ModelObj,
+    RunObject,
+    RunTemplate,
+)
 from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 from mlrun_pipelines.common.ops import mlrun_op
 
@@ -40,7 +48,6 @@ from ..config import config
 from ..datastore import store_manager
 from ..errors import err_to_str
 from ..lists import RunList
-from ..model import BaseMetadata, HyperParamOptions, ImageBuilder, ModelObj, RunObject
 from ..utils import (
     dict_to_json,
     dict_to_yaml,
@@ -67,7 +74,6 @@ spec_fields = [
     "pythonpath",
     "disable_auto_mount",
     "allow_empty_resources",
-    "clone_target_dir",
     "reset_on_run",
 ]
 
@@ -110,7 +116,6 @@ class FunctionSpec(ModelObj):
         default_handler=None,
         pythonpath=None,
         disable_auto_mount=False,
-        clone_target_dir=None,
     ):
         self.command = command or ""
         self.image = image or ""
@@ -127,9 +132,6 @@ class FunctionSpec(ModelObj):
         self.entry_points = entry_points or {}
         self.disable_auto_mount = disable_auto_mount
         self.allow_empty_resources = None
-        # The build.source is cloned/extracted to the specified clone_target_dir
-        # if a relative path is specified, it will be enriched with a temp dir path
-        self._clone_target_dir = clone_target_dir or None
 
     @property
     def build(self) -> ImageBuilder:
@@ -138,28 +140,6 @@ class FunctionSpec(ModelObj):
     @build.setter
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
-
-    @property
-    def clone_target_dir(self):
-        # TODO: remove this property in 1.9.0
-        if self.build.source_code_target_dir:
-            warnings.warn(
-                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.9.0. "
-                "Use spec.build.source_code_target_dir instead.",
-                FutureWarning,
-            )
-        return self.build.source_code_target_dir
-
-    @clone_target_dir.setter
-    def clone_target_dir(self, clone_target_dir):
-        # TODO: remove this property in 1.9.0
-        if clone_target_dir:
-            warnings.warn(
-                "The clone_target_dir attribute is deprecated in 1.6.2 and will be removed in 1.9.0. "
-                "Use spec.build.source_code_target_dir instead.",
-                FutureWarning,
-            )
-        self.build.source_code_target_dir = clone_target_dir
 
     def enrich_function_preemption_spec(self):
         pass
@@ -338,6 +318,7 @@ class BaseRuntime(ModelObj):
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
+        output_path: Optional[str] = "",
         **launcher_kwargs,
     ) -> RunObject:
         """
@@ -351,9 +332,9 @@ class BaseRuntime(ModelObj):
         :param inputs:         Input objects to pass to the handler. Type hints can be given so the input will be parsed
                                during runtime from `mlrun.DataItem` to the given type hint. The type hint can be given
                                in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
-        :param out_path:       Default artifact output path.
-        :param artifact_path:  Default artifact output path (will replace out_path).
-        :param workdir:        Default input artifacts path.
+        :param out_path:       (deprecated) Default artifact output path.
+        :param artifact_path:  (deprecated) Default artifact output path (will replace out_path).
+        :param workdir:        Working directory of the executed job and the default path for artifact inputs
         :param watch:          Watch/follow run log.
         :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string
                                (which will be converted to the class using its `from_crontab` constructor),
@@ -395,8 +376,18 @@ class BaseRuntime(ModelObj):
         :param reset_on_run: When True, function python modules would reload prior to code execution.
                              This ensures latest code changes are executed. This argument must be used in
                              conjunction with the local=True argument.
+        :param output_path:    Default artifact output path.
         :return: Run context object (RunObject) with run metadata, results and status
         """
+        if artifact_path or out_path:
+            deprecated_param = "artifact_path" if artifact_path else "out_path"
+            warnings.warn(
+                f"'{deprecated_param}' parameter is deprecated in 1.10.0 and will be removed in 1.12.0, "
+                "use 'output_path' instead.",
+                # TODO: Remove this in 1.12.0
+                FutureWarning,
+            )
+        output_path = output_path or out_path or artifact_path
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
             self._is_remote, local=local, **launcher_kwargs
         )
@@ -408,9 +399,8 @@ class BaseRuntime(ModelObj):
             project=project,
             params=params,
             inputs=inputs,
-            out_path=out_path,
             workdir=workdir,
-            artifact_path=artifact_path,
+            output_path=output_path,
             watch=watch,
             schedule=schedule,
             hyperparams=hyperparams,
@@ -453,14 +443,14 @@ class BaseRuntime(ModelObj):
         :return: Dictionary with all the variables that could be parsed
         """
         runtime_env = {
-            "MLRUN_DEFAULT_PROJECT": self.metadata.project or config.default_project
+            "MLRUN_ACTIVE_PROJECT": self.metadata.project or config.active_project
         }
         if runobj:
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
                 exclude_notifications_params=True
             )
             if runobj.metadata.project:
-                runtime_env["MLRUN_DEFAULT_PROJECT"] = runobj.metadata.project
+                runtime_env["MLRUN_ACTIVE_PROJECT"] = runobj.metadata.project
             if runobj.spec.verbose:
                 runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
         if config.httpdb.api_url:
@@ -482,7 +472,7 @@ class BaseRuntime(ModelObj):
     def _store_function(self, runspec, meta, db):
         meta.labels["kind"] = self.kind
         mlrun.runtimes.utils.enrich_run_labels(
-            meta.labels, [mlrun.common.runtimes.constants.RunLabels.owner]
+            meta.labels, [mlrun_constants.MLRunInternalLabels.owner]
         )
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
@@ -668,7 +658,7 @@ class BaseRuntime(ModelObj):
 
     def as_step(
         self,
-        runspec: RunObject = None,
+        runspec: Union[RunObject, RunTemplate] = None,
         handler=None,
         name: str = "",
         project: str = "",
@@ -704,7 +694,7 @@ class BaseRuntime(ModelObj):
                                 given in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
         :param outputs:         list of outputs which can pass in the workflow
         :param artifact_path:   default artifact output path (replace out_path)
-        :param workdir:         default input artifacts path
+        :param workdir:         working directory of the executed job and the default path for artifact inputs
         :param image:           container image to use
         :param labels:          labels to tag the job/run with ({key:val, ..})
         :param use_db:          save function spec in the db (vs the workflow file)

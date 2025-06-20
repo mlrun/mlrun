@@ -18,6 +18,7 @@ import copy
 import json
 import traceback
 import typing
+from datetime import timedelta
 from enum import Enum
 from io import BytesIO
 from typing import Union
@@ -78,6 +79,9 @@ class BaseModelRouter(RouterToDict):
         self.inputs_key = "instances" if self.protocol == "v1" else "inputs"
         self._input_path = input_path
         self._result_path = result_path
+        self._background_task_check_timestamp = None
+        self._background_task_terminate = False
+        self._background_task_current_state = None
         self.kwargs = kwargs
 
     def parse_event(self, event):
@@ -135,6 +139,7 @@ class BaseModelRouter(RouterToDict):
             raise ValueError(
                 f"illegal path prefix {urlpath}, must start with {self.url_prefix}"
             )
+        self._update_background_task_state(event)
         return event
 
     def do_event(self, event, *args, **kwargs):
@@ -159,6 +164,63 @@ class BaseModelRouter(RouterToDict):
     def postprocess(self, event):
         """run tasks after processing the event"""
         return event
+
+    def _get_background_task_status(
+        self,
+    ) -> mlrun.common.schemas.BackgroundTaskState:
+        self._background_task_check_timestamp = now_date()
+        server: mlrun.serving.GraphServer = getattr(
+            self.context, "_server", None
+        ) or getattr(self.context, "server", None)
+        if not self.context.is_mock:
+            if server.model_endpoint_creation_task_name:
+                background_task = mlrun.get_run_db().get_project_background_task(
+                    server.project, server.model_endpoint_creation_task_name
+                )
+                logger.debug(
+                    "Checking model endpoint creation task status",
+                    task_name=server.model_endpoint_creation_task_name,
+                )
+                if (
+                    background_task.status.state
+                    in mlrun.common.schemas.BackgroundTaskState.terminal_states()
+                ):
+                    logger.debug(
+                        f"Model endpoint creation task completed with state {background_task.status.state}"
+                    )
+                    self._background_task_terminate = True
+                else:  # in progress
+                    logger.debug(
+                        f"Model endpoint creation task is still in progress with the current state: "
+                        f"{background_task.status.state}. Events will not be monitored for the next 15 seconds",
+                        name=self.name,
+                        background_task_check_timestamp=self._background_task_check_timestamp.isoformat(),
+                    )
+                return background_task.status.state
+            else:
+                logger.debug(
+                    "Model endpoint creation task name not provided",
+                )
+        elif self.context.monitoring_mock:
+            self._background_task_terminate = (
+                True  # If mock monitoring we return success and terminate task check.
+            )
+            return mlrun.common.schemas.BackgroundTaskState.succeeded
+        self._background_task_terminate = True  # If mock without monitoring we return failed and terminate task check.
+        return mlrun.common.schemas.BackgroundTaskState.failed
+
+    def _update_background_task_state(self, event):
+        if not self._background_task_terminate and (
+            self._background_task_check_timestamp is None
+            or now_date() - self._background_task_check_timestamp
+            >= timedelta(seconds=15)
+        ):
+            self._background_task_current_state = self._get_background_task_status()
+        if event.body:
+            event.body["background_task_state"] = (
+                self._background_task_current_state
+                or mlrun.common.schemas.BackgroundTaskState.running
+            )
 
 
 class ModelRouter(BaseModelRouter):
@@ -599,75 +661,29 @@ class VotingEnsemble(ParallelRun):
         self.log_router = True
         self.prediction_col_name = prediction_col_name or "prediction"
         self.format_response_with_col_name_flag = format_response_with_col_name_flag
-        self.model_endpoint_uid = None
-        self.model_endpoint = None
+        self.model_endpoint_uid = kwargs.get("model_endpoint_uid", None)
         self.shard_by_endpoint = shard_by_endpoint
+        self._model_logger = None
         self.initialized = False
 
     def post_init(self, mode="sync", **kwargs):
         self._update_weights(self.weights)
 
-    def _lazy_init(self, event_id):
-        server: mlrun.serving.GraphServer = getattr(
-            self.context, "_server", None
-        ) or getattr(self.context, "server", None)
-        if not server:
-            logger.warn("GraphServer not initialized for VotingEnsemble instance")
-            return
-        if not self.context.is_mock or self.context.monitoring_mock:
-            if server.model_endpoint_creation_task_name:
-                background_task = mlrun.get_run_db().get_project_background_task(
-                    server.project, server.model_endpoint_creation_task_name
+    def _lazy_init(self, event):
+        if event and isinstance(event, dict):
+            background_task_state = event.get("background_task_state", None)
+            if (
+                background_task_state
+                == mlrun.common.schemas.BackgroundTaskState.succeeded
+            ):
+                self._model_logger = (
+                    _ModelLogPusher(self, self.context)
+                    if self.context
+                    and self.context.stream.enabled
+                    and self.model_endpoint_uid
+                    else None
                 )
-                logger.info(
-                    "Checking model endpoint creation task status",
-                    task_name=server.model_endpoint_creation_task_name,
-                )
-                if (
-                    background_task.status.state
-                    in mlrun.common.schemas.BackgroundTaskState.terminal_states()
-                ):
-                    logger.info(
-                        f"Model endpoint creation task completed with state {background_task.status.state}"
-                    )
-                else:  # in progress
-                    logger.debug(
-                        f"Model endpoint creation task is still in progress with the current state: "
-                        f"{background_task.status.state}. This event will not be monitored.",
-                        name=self.name,
-                        event_id=event_id,
-                    )
-                    self.initialized = False
-                    return
-            else:
-                logger.info(
-                    "Model endpoint creation task name not provided",
-                )
-            try:
-                self.model_endpoint_uid = (
-                    mlrun.get_run_db()
-                    .get_model_endpoint(
-                        project=server.project,
-                        name=self.name,
-                        function_name=server.function_name,
-                        function_tag=server.function_tag or "latest",
-                        tsdb_metrics=False,
-                    )
-                    .metadata.uid
-                )
-            except mlrun.errors.MLRunNotFoundError:
-                logger.info(
-                    "Model endpoint not found for this step; monitoring for this model will not be performed",
-                    function_name=server.function_name,
-                    name=self.name,
-                )
-                self.model_endpoint_uid = None
-        self._model_logger = (
-            _ModelLogPusher(self, self.context)
-            if self.context and self.context.stream.enabled and self.model_endpoint_uid
-            else None
-        )
-        self.initialized = True
+                self.initialized = True
 
     def _resolve_route(self, body, urlpath):
         """Resolves the appropriate model to send the event to.
@@ -872,14 +888,14 @@ class VotingEnsemble(ParallelRun):
         Response
             Event response after running the requested logic
         """
-        if not self.initialized:
-            self._lazy_init(event.id)
         start = now_date()
         # Handle and verify the request
         original_body = event.body
         event.body = _extract_input_data(self._input_path, event.body)
         event = self.preprocess(event)
         event = self._pre_handle_event(event)
+        if not self.initialized:
+            self._lazy_init(event.body)
 
         # Should we terminate the event?
         if hasattr(event, "terminated") and event.terminated:

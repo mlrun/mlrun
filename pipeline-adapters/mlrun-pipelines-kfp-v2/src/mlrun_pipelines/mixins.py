@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import json
 
 import mlrun
@@ -78,7 +78,7 @@ class PipelineProviderMixin:
                 else:
                     raise NotImplementedError(f"Unknown action: {action}")
 
-        return mlrun.mlconf.default_project
+        raise mlrun.errors.MLRunMissingProjectError()
 
     @staticmethod
     def resolve_error_from_pipeline(pipeline):

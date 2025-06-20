@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import string
 import typing
 import unittest.mock
@@ -21,14 +21,15 @@ import sqlalchemy.exc
 import sqlalchemy.orm
 
 import mlrun
-import mlrun.common.db.sql_session
+import mlrun.common.db.dialects
 import mlrun.common.schemas
-from mlrun.config import config
+import mlrun.config
 
 import framework.constants
 import framework.db.init_db
 import framework.db.sqldb.db
 import framework.db.sqldb.models
+import framework.db.sqldb.sql_session
 import framework.utils.singletons.db
 import services.api.initial_data
 
@@ -164,7 +165,7 @@ def test_resolve_current_data_version_version_exists():
 
 
 @pytest.mark.parametrize("table_exists", [True, False])
-@pytest.mark.parametrize("db_type", ["mysql", "sqlite"])
+@pytest.mark.parametrize("db_type", mlrun.common.db.dialects.Dialects.all())
 def test_resolve_current_data_version_before_and_after_projects(table_exists, db_type):
     db, db_session = _initialize_db_without_migrations()
 
@@ -174,11 +175,14 @@ def test_resolve_current_data_version_before_and_after_projects(table_exists, db
     if not table_exists:
         # simulating table doesn't exist in DB
         db.get_current_data_version = unittest.mock.Mock()
-        if db_type == "sqlite":
+        if db_type == mlrun.common.db.dialects.Dialects.SQLITE:
             db.get_current_data_version.side_effect = sqlalchemy.exc.OperationalError(
                 "no such table", None, None
             )
-        elif db_type == "mysql":
+        elif db_type in (
+            mlrun.common.db.dialects.Dialects.MYSQL,
+            mlrun.common.db.dialects.Dialects.POSTGRESQL,
+        ):
             db.get_current_data_version.side_effect = sqlalchemy.exc.ProgrammingError(
                 "Table 'mlrun.data_versions' doesn't exist", None, None
             )
@@ -212,16 +216,16 @@ def test_add_default_hub_source_if_needed():
         db_session,
         index=mlrun.common.schemas.hub.last_source_index,
     )
-    assert hub_source.source.spec.path == config.hub.default_source.url
+    assert hub_source.source.spec.path == mlrun.config.config.hub.default_source.url
 
     # Change the config and make sure the hub source is updated
-    config.hub.default_source.url = "http://some-other-url"
+    mlrun.config.config.hub.default_source.url = "http://some-other-url"
     services.api.initial_data._add_default_hub_source_if_needed(db, db_session)
     hub_source = db.get_hub_source(
         db_session,
         index=mlrun.common.schemas.hub.last_source_index,
     )
-    assert hub_source.source.spec.path == config.hub.default_source.url
+    assert hub_source.source.spec.path == mlrun.config.config.hub.default_source.url
 
     # Make sure the hub source is not updated if it already exists
     with unittest.mock.patch(
@@ -232,6 +236,7 @@ def test_add_default_hub_source_if_needed():
 
 
 def test_migrate_function_kind_and_state():
+    project = "some-project"
     db, db_session = _initialize_db_without_migrations()
     num_of_functions = 10
     chunk_size = 1
@@ -239,20 +244,25 @@ def test_migrate_function_kind_and_state():
     # Insert multiple functions
     for fn_counter in range(num_of_functions):
         fn_name = f"name-{fn_counter}"
-        _insert_function(db, db_session, fn_name)
+        _insert_function(db, db_session, fn_name, project)
 
     # Insert a function with None as kind
     fn_name_none_kind = "name-10"
-    _insert_function(db, db_session, fn_name_none_kind, function_kind=None)
+    _insert_function(db, db_session, fn_name_none_kind, project, function_kind=None)
 
     # Insert a function with None state
     fn_name_none_state = "name-11"
-    _insert_function(db, db_session, fn_name_none_state, function_state=None)
+    _insert_function(db, db_session, fn_name_none_state, project, function_state=None)
 
     # Insert a function with both kind and state as None
     fn_name_none_kind_state = "name-12"
     _insert_function(
-        db, db_session, fn_name_none_kind_state, function_kind=None, function_state=None
+        db,
+        db_session,
+        fn_name_none_kind_state,
+        project,
+        function_kind=None,
+        function_state=None,
     )
 
     # Migrate function kind
@@ -267,6 +277,7 @@ def test_migrate_function_kind_and_state():
             db,
             db_session,
             fn_name,
+            project=project,
             attribute_name="kind",
             attribute_path="kind",
             expected_value="remote",
@@ -275,6 +286,7 @@ def test_migrate_function_kind_and_state():
             db,
             db_session,
             fn_name,
+            project=project,
             attribute_name="state",
             attribute_path="status.state",
             expected_value="ready",
@@ -285,6 +297,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_kind,
+        project=project,
         attribute_name="kind",
         attribute_path="kind",
         expected_value="",
@@ -293,6 +306,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_kind,
+        project=project,
         attribute_name="state",
         attribute_path="status.state",
         expected_value="ready",
@@ -303,6 +317,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_state,
+        project=project,
         attribute_name="kind",
         attribute_path="kind",
         expected_value="remote",
@@ -311,6 +326,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_state,
+        project=project,
         attribute_name="state",
         attribute_path="status.state",
         expected_value="",
@@ -321,6 +337,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_kind_state,
+        project=project,
         attribute_name="kind",
         attribute_path="kind",
         expected_value="",
@@ -329,6 +346,7 @@ def test_migrate_function_kind_and_state():
         db,
         db_session,
         fn_name_none_kind_state,
+        project=project,
         attribute_name="state",
         attribute_path="status.state",
         expected_value="",
@@ -416,6 +434,7 @@ def test_align_schedule_labels(
 
 
 def test_add_producer_uri_to_artifact():
+    project = "some-project"
     db, db_session = _initialize_db_without_migrations()
     num_of_artifacts = 10
     chunk_size = 1
@@ -425,14 +444,27 @@ def test_add_producer_uri_to_artifact():
     for artifact_counter in range(num_of_artifacts):
         artifact_key = f"name-{artifact_counter}"
         _insert_artifact(
-            db, db_session, artifact_key, f"{producer_uri}-{artifact_counter}"
+            db,
+            db_session,
+            artifact_key=artifact_key,
+            project=project,
+            artifact_uri=f"{producer_uri}-{artifact_counter}",
         )
 
     # Create artifact when uri field is not exists in spec.producer
-    _insert_artifact(db, db_session, f"name-{10}", None, with_uri=False)
+    _insert_artifact(
+        db,
+        db_session,
+        artifact_key=f"name-{10}",
+        project=project,
+        artifact_uri=None,
+        with_uri=False,
+    )
 
     # Create artifact with producer_uri is None in spec.producer.uri
-    _insert_artifact(db, db_session, f"name-{11}", None)
+    _insert_artifact(
+        db, db_session, artifact_key=f"name-{11}", project=project, artifact_uri=None
+    )
 
     # migrate the artifact producer_uri
     services.api.initial_data._add_producer_uri_to_artifact(
@@ -684,12 +716,12 @@ def _initialize_db_without_migrations() -> (
 ):
     dsn = "sqlite:///:memory:?check_same_thread=false"
     mlrun.mlconf.httpdb.dsn = dsn
-    mlrun.common.db.sql_session._init_engine(dsn=dsn)
+    framework.db.sqldb.sql_session._init_engine(dsn=dsn)
     framework.utils.singletons.db.initialize_db()
-    db_session = mlrun.common.db.sql_session.create_session(dsn=dsn)
+    db_session = framework.db.sqldb.sql_session.create_session(dsn=dsn)
     db = framework.db.sqldb.db.SQLDB(dsn)
     db.initialize(db_session)
-    framework.db.init_db()
+    framework.db.init_db.init_db()
     return db, db_session
 
 
@@ -697,6 +729,7 @@ def _insert_function(
     db,
     db_session,
     fn_name,
+    project: str,
     function_kind: typing.Optional[str] = "remote",
     function_state: typing.Optional[str] = "ready",
 ):
@@ -708,7 +741,7 @@ def _insert_function(
     }
 
     # Insert function via db
-    db.store_function(db_session, function_body, fn_name)
+    db.store_function(db_session, function=function_body, name=fn_name, project=project)
 
     # Ensure the function is inserted the legacy way
     db_function, _ = db._get_function_db_object(db_session, fn_name)
@@ -727,23 +760,27 @@ def _insert_function(
 
 
 def _verify_function_attr(
-    db, db_session, fn_name, attribute_name, attribute_path, expected_value
+    db, db_session, fn_name, attribute_name, project, attribute_path, expected_value
 ):
-    db_function, _ = db._get_function_db_object(db_session, fn_name)
+    db_function, _ = db._get_function_db_object(db_session, fn_name, project)
     assert not mlrun.utils.get_in(db_function.struct, attribute_path)
     assert getattr(db_function, attribute_name) == expected_value
 
     # Verify migration was stored correctly
-    migrated_function = db.get_function(db_session, fn_name)
+    migrated_function = db.get_function(db_session, name=fn_name, project=project)
     assert mlrun.utils.get_in(migrated_function, attribute_path) == expected_value
 
 
-def _insert_artifact(db, db_session, artifact_key, artifact_uri=None, with_uri=True):
+def _insert_artifact(
+    db, db_session, artifact_key, project, artifact_uri=None, with_uri=True
+):
     artifact = {
         "metadata": {"key": artifact_key},
         "spec": {"producer": {"uri": artifact_uri} if with_uri else {}},
     }
-    uid = db.store_artifact(db_session, key=artifact_key, artifact=artifact)
+    uid = db.store_artifact(
+        db_session, key=artifact_key, artifact=artifact, project=project
+    )
 
     # Legacy insert: set producer_uri to None
     db_artifact = db._query(

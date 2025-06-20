@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import copy
 import os
 import pathlib
@@ -112,7 +112,7 @@ class TestMLRunIntegration:
 
             if value:
                 os.environ[env_var] = value
-        # reload the config so changes to the env vars will take affect
+        # reload the config so changes to the env vars will take effect
         mlrun.mlconf.reload()
 
     def _teardown_env(self):
@@ -121,7 +121,7 @@ class TestMLRunIntegration:
             if env_var in os.environ:
                 del os.environ[env_var]
         os.environ.update(self._old_env)
-        # reload the config so changes to the env vars will take affect
+        # reload the config so changes to the env vars will take effect
         mlrun.mlconf.reload()
 
     @classmethod

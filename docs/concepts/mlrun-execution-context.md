@@ -1,8 +1,7 @@
 (mlrun-execution-context)=
 # MLRun execution context
 
-After running a job, you need to be able to track it. To gain the maximum value, MLRun uses the job `context` object inside 
-the code. This provides access to job metadata, parameters, inputs, secrets, and API for logging and monitoring the results, as well as log text, files, artifacts, and labels.
+MLRun uses the job `context` object inside the code to provide access to job metadata, parameters, inputs, secrets, and API for logging and monitoring the results, as well as log text, files, artifacts, and labels.
 
 Inside the function you can access the parameters/inputs by simply adding them as parameters to the function, or you can get them from the 
 context object (using `get_param()` and ` get_input()`).
@@ -90,6 +89,3 @@ if __name__ == "__main__":
 The context object is expected to be used as part of a run. If you are looking for a similar API to use on 
 your local environment (outside a local run) you can use the {py:meth}`~mlrun.projects.MlrunProject` object.
 ```
-
-> Note: The context object is expected to be used as part of a run. If you are looking for a similar API to use on your local environment (outside a local run) you can use the '~mlrun.projects.MLRunProject' object. 
-

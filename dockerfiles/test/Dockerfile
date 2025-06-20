@@ -40,6 +40,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
         graphviz \
         make \
         software-properties-common \
+        libpq-dev \
+        python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # set initial git config
@@ -52,7 +54,7 @@ RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /mlrun
 
-ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 ARG MLRUN_PYTHON_VERSION=3.9
 # explicitly set the python version to ensure uv installs the correct version
 # as per the python version or we will handle situtations where python 3.11 tries to install
@@ -69,3 +71,8 @@ RUN rm -rf ./server/go
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION}
+
+# Install the pipeline adapters development versions since we release them only after merging
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common --python-version ${MLRUN_PYTHON_VERSION} && \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}

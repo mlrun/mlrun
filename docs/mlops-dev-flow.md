@@ -1,14 +1,15 @@
 (mlops-dev-flow)=
 # MLOps development workflow <!-- omit in toc -->
 
-ML applications require you to implement the following stages in a scalable and reproducible way:
+MLRun automates the MLOps workflow end-to-end, simplifying and accelerating the time to production, in a scalable and reproducible way.
+
+**In this section**
 
 1. [Ingest and process data](#ingest-and-process-data)
 2. [Develop and train models](#develop-and-train-models)
 2. [Deploy models and applications](#deploy-models-and-applications)
 2. [Monitor and alert](#monitor-and-alert)
 
-MLRun automates the MLOps work. It simplifies & accelerates the time to production
 
 ## Ingest and process data
 

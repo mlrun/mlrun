@@ -1,7 +1,7 @@
 (models)=
 # Model Artifacts
 
-An essential piece of artifact management and versioning is storing a model version. This allows the users to experiment with different models and compare their performance, without having to worry about losing their previous results.
+An essential piece of artifact management and versioning is storing a model version. This allows you to experiment with different models and compare their performance, without having to worry about losing their previous results.
 
 The simplest way to store a model named `my_model` is with the following code:
 
@@ -69,7 +69,7 @@ gen_func = code_to_function(
 train_iris_func = project.set_function(gen_func).apply(auto_mount())
 
 train_iris = train_iris_func.run(
-    name="train_iris", handler="train_iris", artifact_path=artifact_path
+    name="train_iris", handler="train_iris", output_path=output_path
 )
 ```
 
@@ -130,7 +130,7 @@ run = func.run(
         "models_path": train_iris.outputs["model"],
         "test_set": "https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv",
     },
-    artifact_path=artifact_path,
+    output_path=output_path,
 )
 ```
 

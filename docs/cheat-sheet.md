@@ -1,7 +1,10 @@
 (cheat-sheet)=
 # MLRun cheat sheet
 
-## Table of contents
+The cheat sheet provides simple code examples of many of MLRun's features.
+
+**In this section**
+
 - [MLRun setup](#mlrun-setup)
 - [MLRun projects](#mlrun-projects)
     - [General workflow](#general-workflow)
@@ -286,7 +289,7 @@ spark.with_igz_spark()
 spark.spec.replicas = 2
 
 spark.deploy()  # build image
-spark.run(artifact_path="/User")  # run spark job
+spark.run(output_path="/User")  # run spark job
 ```
 
 ### Resource management

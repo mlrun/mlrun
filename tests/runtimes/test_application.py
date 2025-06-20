@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import base64
 import pathlib
 
@@ -175,25 +175,29 @@ def test_pre_deploy_validation(sidecars, expected_error_message):
 
 
 def test_image_enriched_on_build_application_image(remote_builder_mock):
+    project = "test-project"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test",
         kind="application",
+        project=project,
     )
     fn._build_application_image()
-    assert fn.spec.image == ".mlrun/func-default-application-test:latest"
+    assert fn.spec.image == f".mlrun/func-{project}-application-test:latest"
     assert fn.status.state == mlrun.common.schemas.FunctionState.ready
 
 
 def test_application_image_build(remote_builder_mock, igz_version_mock):
+    project = "test-project"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test",
         kind="application",
         requirements=["mock"],
+        project=project,
     )
     assert fn.requires_build()
     fn.deploy()
     _assert_application_post_deploy_spec(
-        fn, ".mlrun/func-default-application-test:latest"
+        fn, f".mlrun/func-{project}-application-test:latest"
     )
 
 
@@ -329,7 +333,7 @@ def test_deploy_reverse_proxy_image(rundb_mock, igz_version_mock):
 
 
 def test_application_from_local_file_validation():
-    project = mlrun.get_or_create_project("test-application")
+    project = mlrun.get_or_create_project("test-application", allow_cross_project=True)
     func_path = assets_path / "sample_function.py"
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,

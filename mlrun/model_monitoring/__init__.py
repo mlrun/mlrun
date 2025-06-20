@@ -16,4 +16,3 @@ from mlrun.common.schemas import ModelEndpoint, ModelEndpointList
 
 from .db import get_tsdb_connector
 from .helpers import get_stream_path
-from .tracking_policy import TrackingPolicy

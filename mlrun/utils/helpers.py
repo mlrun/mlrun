@@ -41,6 +41,7 @@ import inflection
 import numpy as np
 import packaging.version
 import pandas
+import pytz
 import semver
 import yaml
 from dateutil import parser
@@ -59,6 +60,7 @@ import mlrun_pipelines.common.constants
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
+from mlrun.common.schemas import ArtifactCategories
 from mlrun.config import config
 from mlrun_pipelines.models import PipelineRun
 
@@ -82,10 +84,6 @@ DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
 DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
 
 
-class OverwriteBuildParamsWarning(FutureWarning):
-    pass
-
-
 class StorePrefix:
     """map mlrun store objects to prefixes"""
 
@@ -95,6 +93,7 @@ class StorePrefix:
     Model = "models"
     Dataset = "datasets"
     Document = "documents"
+    LLMPrompt = "llm-prompts"
 
     @classmethod
     def is_artifact(cls, prefix):
@@ -106,6 +105,7 @@ class StorePrefix:
             "model": cls.Model,
             "dataset": cls.Dataset,
             "document": cls.Document,
+            "llm-prompt": cls.LLMPrompt,
         }
         return kind_map.get(kind, cls.Artifact)
 
@@ -118,6 +118,7 @@ class StorePrefix:
             cls.FeatureSet,
             cls.FeatureVector,
             cls.Document,
+            cls.LLMPrompt,
         ]
 
 
@@ -130,7 +131,16 @@ def get_artifact_target(item: dict, project=None):
     kind = item.get("kind")
     uid = item["metadata"].get("uid")
 
-    if kind in {"dataset", "model", "artifact"} and db_key:
+    if (
+        kind
+        in {
+            ArtifactCategories.dataset,
+            ArtifactCategories.model,
+            ArtifactCategories.llm_prompt,
+            "artifact",
+        }
+        and db_key
+    ):
         target = (
             f"{DB_SCHEMA}://{StorePrefix.kind_to_prefix(kind)}/{project_str}/{db_key}"
         )
@@ -146,7 +156,7 @@ def get_artifact_target(item: dict, project=None):
     return item["spec"].get("target_path")
 
 
-# TODO: left for migrations testing purposes. Remove in 1.8.0.
+# TODO: Remove once data migration v5 is obsolete
 def is_legacy_artifact(artifact):
     if isinstance(artifact, dict):
         return "metadata" not in artifact
@@ -498,7 +508,6 @@ def get_in(obj, keys, default=None):
     """
     if isinstance(keys, str):
         keys = keys.split(".")
-
     for key in keys:
         if not obj or key not in obj:
             return default
@@ -876,19 +885,43 @@ def enrich_image_url(
     client_version: Optional[str] = None,
     client_python_version: Optional[str] = None,
 ) -> str:
+    image_url = image_url.strip()
+
+    # Add python version tag if needed
+    if image_url == "python" and client_python_version:
+        image_tag = ".".join(client_python_version.split(".")[:2])
+        image_url = f"python:{image_tag}"
+
     client_version = _convert_python_package_version_to_image_tag(client_version)
     server_version = _convert_python_package_version_to_image_tag(
         mlrun.utils.version.Version().get()["version"]
     )
-    image_url = image_url.strip()
     mlrun_version = config.images_tag or client_version or server_version
-    tag = mlrun_version
-    tag += resolve_image_tag_suffix(
-        mlrun_version=mlrun_version, python_version=client_python_version
-    )
+    tag = mlrun_version or ""
+
+    # TODO: Remove condition when mlrun/mlrun-kfp image is also supported
+    if "mlrun-kfp" not in image_url:
+        tag += resolve_image_tag_suffix(
+            mlrun_version=mlrun_version, python_version=client_python_version
+        )
 
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
+
+    if is_mlrun_image and "mlrun/ml-base" in image_url:
+        if tag:
+            if mlrun.utils.helpers.validate_component_version_compatibility(
+                "mlrun-client", "1.10.0", mlrun_client_version=tag
+            ):
+                warnings.warn(
+                    "'mlrun/ml-base' image is deprecated in 1.10.0 and will be removed in 1.12.0, "
+                    "use 'mlrun/mlrun' instead.",
+                    # TODO: Remove this in 1.12.0
+                    FutureWarning,
+                )
+                image_url = image_url.replace("mlrun/ml-base", "mlrun/mlrun")
+        else:
+            image_url = "mlrun/mlrun"
 
     if is_mlrun_image and tag and ":" not in image_url:
         image_url = f"{image_url}:{tag}"
@@ -917,7 +950,7 @@ def resolve_image_tag_suffix(
     mlrun_version: Optional[str] = None, python_version: Optional[str] = None
 ) -> str:
     """
-    resolves what suffix should be appended to the image tag
+    Resolves what suffix to be appended to the image tag
     :param mlrun_version: the mlrun version
     :param python_version: the requested python version
     :return: the suffix to append to the image tag
@@ -929,19 +962,19 @@ def resolve_image_tag_suffix(
     # mlrun version is higher than 1.3.0, but we can check the python version and if python version was passed it
     # means it 1.3.0-rc or higher, so we can add the suffix of the python version.
     if mlrun_version.startswith("0.0.0-") or "unstable" in mlrun_version:
-        if python_version.startswith("3.7"):
-            return "-py37"
+        if python_version.startswith("3.9"):
+            return "-py39"
         return ""
 
-    # For mlrun 1.3.x and 1.4.x, we support mlrun runtimes images with both python 3.7 and 3.9 images.
-    # While the python 3.9 images will continue to have no suffix, the python 3.7 images will have a '-py37' suffix.
-    # Python 3.8 images will not be supported for mlrun 1.3.0, meaning that if the user has client with python 3.8
-    # and mlrun 1.3.x then the image will be pulled without a suffix (which is the python 3.9 image).
+    # For mlrun 1.9.x and 1.10.x, we support mlrun runtimes images with both python 3.9 and 3.11 images.
+    # While the python 3.11 images will continue to have no suffix, the python 3.9 images will have a '-py39' suffix.
+    # Python 3.10 images are not supported in mlrun 1.9.0, meaning that if the user has client with python 3.10
+    # and mlrun 1.9.x then the image will be pulled without a suffix (which is the python 3.11 image).
     # using semver (x.y.z-X) to include rc versions as well
-    if semver.VersionInfo.parse("1.5.0-X") > semver.VersionInfo.parse(
+    if semver.VersionInfo.parse("1.11.0-X") > semver.VersionInfo.parse(
         mlrun_version
-    ) >= semver.VersionInfo.parse("1.3.0-X") and python_version.startswith("3.7"):
-        return "-py37"
+    ) >= semver.VersionInfo.parse("1.9.0-X") and python_version.startswith("3.9"):
+        return "-py39"
     return ""
 
 
@@ -1129,21 +1162,83 @@ def get_workflow_url(
     return url
 
 
-def get_kfp_project_filter(project_name: str) -> str:
+def get_kfp_list_runs_filter(
+    project_name: Optional[str] = None,
+    end_date: Optional[str] = None,
+    start_date: Optional[str] = None,
+) -> str:
     """
-    Generates a filter string for KFP runs, using a substring predicate
-    on the run's 'name' field. This is used as a heuristic to retrieve runs that are associated
-    with a specific project. The 'op: 9' operator indicates that the filter checks if the
-    project name appears as a substring in the run's name, ensuring that we can identify
-    runs belonging to the desired project.
+    Generates a filter for listing Kubeflow Pipelines (KFP) runs.
+
+    :param project_name: The name of the project. If "*", it won't filter by project.
+    :param end_date: The latest creation date for filtering runs (ISO 8601 format).
+    :param start_date: The earliest creation date for filtering runs (ISO 8601 format).
+    :return: A JSON-formatted filter string for KFP.
     """
-    is_substring_op = 9
-    project_name_filter = {
-        "predicates": [
-            {"key": "name", "op": is_substring_op, "string_value": project_name}
-        ]
-    }
-    return json.dumps(project_name_filter)
+
+    # KFP filter operation codes
+    kfp_less_than_or_equal_op = 7  # '<='
+    kfp_greater_than_or_equal_op = 5  # '>='
+    kfp_substring_op = 9  # Substring match
+
+    filters = {"predicates": []}
+
+    if end_date:
+        filters["predicates"].append(
+            {
+                "key": "created_at",
+                "op": kfp_less_than_or_equal_op,
+                "timestamp_value": end_date,
+            }
+        )
+
+    if project_name and project_name != "*":
+        filters["predicates"].append(
+            {
+                "key": "name",
+                "op": kfp_substring_op,
+                "string_value": project_name,
+            }
+        )
+    if start_date:
+        filters["predicates"].append(
+            {
+                "key": "created_at",
+                "op": kfp_greater_than_or_equal_op,
+                "timestamp_value": start_date,
+            }
+        )
+    return json.dumps(filters)
+
+
+def validate_and_convert_date(date_input: str) -> str:
+    """
+    Converts any recognizable date string into a standardized RFC 3339 format.
+    :param date_input: A date string in a recognizable format.
+    """
+    try:
+        dt_object = parser.parse(date_input)
+        if dt_object.tzinfo is not None:
+            # Convert to UTC if it's in a different timezone
+            dt_object = dt_object.astimezone(pytz.utc)
+        else:
+            # If no timezone info is present, assume it's in local time
+            local_tz = pytz.timezone("UTC")
+            dt_object = local_tz.localize(dt_object)
+
+        # Convert the datetime object to an RFC 3339-compliant string.
+        # RFC 3339 requires timestamps to be in ISO 8601 format with a 'Z' suffix for UTC time.
+        # The isoformat() method adds a "+00:00" suffix for UTC by default,
+        # so we replace it with "Z" to ensure compliance.
+        formatted_date = dt_object.isoformat().replace("+00:00", "Z")
+        formatted_date = formatted_date.rstrip("Z") + "Z"
+
+        return formatted_date
+    except (ValueError, OverflowError) as e:
+        raise ValueError(
+            f"Invalid date format: {date_input}."
+            f" Date format must adhere to the RFC 3339 standard (e.g., 'YYYY-MM-DDTHH:MM:SSZ' for UTC)."
+        ) from e
 
 
 def are_strings_in_exception_chain_messages(
@@ -1372,6 +1467,21 @@ def has_timezone(timestamp):
         return False
 
 
+def format_datetime(dt: datetime, fmt: Optional[str] = None) -> str:
+    if dt is None:
+        return ""
+
+    # If the datetime is naive
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    # TODO: Once Python 3.12 is the minimal version, use %:z to format the timezone offset with a colon
+    formatted_time = dt.strftime(fmt or "%Y-%m-%d %H:%M:%S.%f%z")
+
+    # For versions earlier than Python 3.12, we manually insert the colon in the timezone offset
+    return formatted_time[:-2] + ":" + formatted_time[-2:]
+
+
 def as_list(element: Any) -> list[Any]:
     return element if isinstance(element, list) else [element]
 
@@ -1422,7 +1532,9 @@ def _fill_project_path_template(artifact_path, project):
 
 
 def to_non_empty_values_dict(input_dict: dict) -> dict:
-    return {key: value for key, value in input_dict.items() if value}
+    return (
+        {key: value for key, value in input_dict.items() if value} if input_dict else {}
+    )
 
 
 def get_enriched_gpu_limits(function_limits: dict) -> dict[str, int]:
@@ -2009,24 +2121,79 @@ def join_urls(base_url: Optional[str], path: Optional[str]) -> str:
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}" if path else base_url
 
 
+def warn_on_deprecated_image(image: Optional[str]):
+    """
+    Warn if the provided image is the deprecated 'mlrun/ml-base' image.
+    This image is deprecated as of 1.10.0 and will be removed in 1.12.0.
+    """
+    deprecated_images = ["mlrun/ml-base"]
+    if image and any(
+        image in deprecated_image for deprecated_image in deprecated_images
+    ):
+        warnings.warn(
+            "'mlrun/ml-base' image is deprecated in 1.10.0 and will be replaced by 'mlrun/mlrun'. "
+            "This behavior will be removed in 1.12.0 ",
+            # TODO: Remove this in 1.12.0
+            FutureWarning,
+        )
+
+
 class Workflow:
     @staticmethod
-    def get_workflow_steps(workflow_id: str, project: str) -> list:
+    def get_workflow_steps(
+        db: "mlrun.db.RunDBInterface", workflow_id: str, project: str
+    ) -> list:
         steps = []
-        db = mlrun.get_run_db()
 
         def _add_run_step(_step: mlrun_pipelines.models.PipelineStep):
+            # on kfp 1.8 argo sets the pod hostname differently than what we have with kfp 2.5
+            # therefore, the heuristic needs to change. what we do here is first trying against 1.8 conventions
+            # and if we can't find it then falling back to 2.5
             try:
-                _run = db.list_runs(
+                # runner_pod = x-y-N
+                _runs = db.list_runs(
                     project=project,
                     labels=f"{mlrun_constants.MLRunInternalLabels.runner_pod}={_step.node_name}",
-                )[0]
+                )
+                if not _runs:
+                    try:
+                        # x-y-N -> x-y, N
+                        node_name_initials, node_name_generated_id = (
+                            _step.node_name.rsplit("-", 1)
+                        )
+
+                    except ValueError:
+                        # defensive programming, if the node name is not in the expected format
+                        node_name_initials = _step.node_name
+                        node_name_generated_id = ""
+
+                    # compile the expected runner pod hostname as per kfp >= 2.4
+                    # x-y, Z, N -> runner_pod = x-y-Z-N
+                    runner_pod_value = "-".join(
+                        [
+                            node_name_initials,
+                            _step.display_name,
+                            node_name_generated_id,
+                        ]
+                    ).rstrip("-")
+                    logger.debug(
+                        "No run found for step, trying with different node name",
+                        step_node_name=runner_pod_value,
+                    )
+                    _runs = db.list_runs(
+                        project=project,
+                        labels=f"{mlrun_constants.MLRunInternalLabels.runner_pod}={runner_pod_value}",
+                    )
+
+                _run = _runs[0]
             except IndexError:
+                logger.warning("No run found for step", step=_step.to_dict())
                 _run = {
                     "metadata": {
                         "name": _step.display_name,
                         "project": project,
                     },
+                    "status": {},
                 }
             _run["step_kind"] = _step.step_type
             if _step.skipped:
@@ -2139,10 +2306,15 @@ class Workflow:
     def _get_workflow_manifest(
         workflow_id: str,
     ) -> typing.Optional[mlrun_pipelines.models.PipelineManifest]:
-        kfp_client = mlrun_pipelines.utils.get_client(mlrun.mlconf.kfp_url)
+        kfp_client = mlrun_pipelines.utils.get_client(
+            logger=logger,
+            url=mlrun.mlconf.kfp_url,
+            namespace=mlrun.mlconf.namespace,
+        )
 
-        # arbitrary timeout of 5 seconds, the workflow should be done by now
-        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 5)
+        # arbitrary timeout of 30 seconds, the workflow should be done by now, however sometimes kfp takes a few
+        # seconds to update the workflow status
+        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 30)
         if not kfp_run:
             return None
 

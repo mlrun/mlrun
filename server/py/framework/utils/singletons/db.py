@@ -11,16 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import re
 
 import mlrun.db
-from mlrun.common.db.sql_session import create_session
 from mlrun.config import config
 from mlrun.utils import logger
 
 import framework.utils.db.mysql
 from framework.db.base import DBInterface
+from framework.db.session import create_session
 from framework.db.sqldb.db import SQLDB
 
 # TODO: something nicer

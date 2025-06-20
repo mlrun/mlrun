@@ -1,13 +1,19 @@
 (project-setup)=
 # MLRun project bootstrapping with `project_setup.py`
 
-## Overview
-
 The `project_setup.py` script in MLRun automates project initialization and configuration, facilitating seamless setup of MLRun projects by registering functions, workflows, Git sources, Docker images, and more. It ensures consistency by registering and updating all functions and workflows within the project.
 
-Upon loading an MLRun project via {py:meth}`~mlrun.projects.get_or_create_project` or {py:meth}`~mlrun.projects.load_project`, the system automatically invokes the `project_setup.py` script.
+**In this section**
+- [Overview](#overview)
+- [Format](#format)
+- [Example usage](#example-usage)
+- [Common operations](#common-operations)
 
-**Note:** Ensure the script resides in the root of the project context.
+## Overview
+
+```{Admonition} Note
+Ensure that the script resides in the root of the project context.
+```
 
 ```python
 import mlrun
@@ -25,8 +31,7 @@ The `project_setup.py` script returns the updated MLRun project after applying t
 def setup(project: mlrun.projects.MlrunProject) -> mlrun.projects.MlrunProject:
     # ... (setup configurations)
 
-    # Save and return the project:
-    project.save()
+    # Return the project
     return project
 ```
 
@@ -89,8 +94,7 @@ def setup(project: mlrun.projects.MlrunProject) -> mlrun.projects.MlrunProject:
     # MLRun Workflows - note that paths are relative to the project context (./src)
     project.set_workflow("main", "workflows/main_workflow.py")
 
-    # Save and return the project:
-    project.save()
+    # Return the project
     return project
 ```
 

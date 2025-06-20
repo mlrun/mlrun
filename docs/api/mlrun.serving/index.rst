@@ -4,7 +4,7 @@ mlrun.serving
 ==============
 
 .. autoclass:: mlrun.serving.states.BaseStep
-   :members: to, error_handler
+   :members: to, error_handler, set_flow
    :private-members:
 
 .. automodule:: mlrun.serving
@@ -22,3 +22,7 @@ mlrun.serving
 
 .. autoclass:: mlrun.serving.utils.StepToDict
    :members:
+
+.. autoclass:: mlrun.serving.states.MonitoredStep
+   :members:
+   :private-members: _calculate_monitoring_data

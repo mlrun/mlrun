@@ -22,9 +22,13 @@ class DemoMonitoringApp(ModelMonitoringApplicationBase):
     ) -> list[mm_results.ModelMonitoringApplicationResult]:
         monitoring_context.logger.info("Running demo app")
         monitoring_context.nuclio_logger.info("Running demo app")
+        # The artifact key validation is preventing the inclusion of the characters "+", ":", and spaces.
+        formatted_start_infer_time = monitoring_context.start_infer_time.strftime(
+            "%Y-%m-%dT%H_%M_%S%z"
+        ).replace("+", "P")
         monitoring_context.log_artifact(
             TableArtifact(
-                f"sample_df_{monitoring_context.start_infer_time}",
+                f"sample_df_{formatted_start_infer_time}",
                 df=monitoring_context.sample_df,
             )
         )

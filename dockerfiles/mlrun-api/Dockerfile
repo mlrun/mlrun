@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG MLRUN_PYTHON_VERSION=3.9
+ARG MLRUN_PYTHON_VERSION=3.11
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
@@ -42,32 +42,40 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   mariadb-client \
   curl \
   ca-certificates \
+  libpq-dev \
+  python3-dev \
  && rm -rf /var/lib/apt/lists/*
 
-ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 
 WORKDIR /mlrun
 
+# need to be redeclared since used in the from
+ARG MLRUN_PYTHON_VERSION=3.11
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/mlrun-api/locked-requirements.txt,target=locked-requirements.txt \
-    uv pip sync --require-hashes locked-requirements.txt
+    uv pip sync --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
 
 COPY ./pipeline-adapters ./pipeline-adapters
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common --python-version ${MLRUN_PYTHON_VERSION} && \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
 
 COPY . .
+RUN chmod -R a+rX /mlrun/server/py/schemas/proto
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete-api,kfp18]
+    uv pip install .[complete-api,kfp18] --python-version ${MLRUN_PYTHON_VERSION}
 
-# go code is irrelevant for the api server
-# pip is not needed anymore
-RUN rm -rf ./server/go && python -m pip uninstall pip -y
+# Remove server related files that are not needed in the base image
+# Remove ensurepip folders from both conda and system python
+# Remove pip is not needed anymore
+RUN rm -rf ./server/go \
+    && python -m pip uninstall pip -y \
+    && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
 
 VOLUME /mlrun/db
 ENV PYTHONPATH=/mlrun/server/py

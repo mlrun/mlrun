@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import pathlib
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
 import pytest
+import sqlalchemy.orm
 from fastapi.testclient import TestClient
 
 import mlrun.common.runtimes.constants
@@ -53,6 +54,7 @@ def test_create_server_side_launcher(is_remote, local, expectation):
 def test_enrich_runtime_with_auth_info(
     monkeypatch, k8s_secrets_mock, client: TestClient
 ):
+    project = "some-project"
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
     monkeypatch.setattr(
         framework.utils.clients.iguazio,
@@ -63,9 +65,7 @@ def test_enrich_runtime_with_auth_info(
         access_key="access_key",
         username="username",
     )
-    services.api.tests.unit.api.utils.create_project(
-        client, mlrun.mlconf.default_project
-    )
+    services.api.tests.unit.api.utils.create_project(client, project)
 
     launcher_kwargs = {"auth_info": auth_info}
     launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
@@ -77,12 +77,13 @@ def test_enrich_runtime_with_auth_info(
     function = mlrun.new_function(
         name="launcher-test",
         kind="job",
+        project=project,
     )
     function.metadata.credentials.access_key = (
         mlrun.model.Credentials.generate_access_key
     )
 
-    launcher.enrich_runtime(function)
+    launcher.enrich_runtime(function, project)
     assert (
         function.get_env("MLRUN_AUTH_SESSION").secret_key_ref.name
         == "secret-ref-username-access_key"
@@ -141,10 +142,14 @@ def test_validate_state_thresholds_failure(state_thresholds, expected_error):
     assert expected_error in str(exc.value)
 
 
-def test_new_function_args_with_default_image_pull_secret(rundb_mock):
+def test_new_function_args_with_default_image_pull_secret(
+    db: sqlalchemy.orm.Session, client: TestClient
+):
+    project = "some-project"
     assets_path = pathlib.Path(__file__).parent / "assets"
     func_path = assets_path / "sample_function.py"
     handler = "hello_word"
+    services.api.tests.unit.api.utils.create_project(client, project)
 
     mlrun.mlconf.function.spec.image_pull_secret = Config(
         {"default": "adam-docker-registry-auth"}
@@ -158,12 +163,17 @@ def test_new_function_args_with_default_image_pull_secret(rundb_mock):
         filename=str(func_path),
         handler=handler,
         image="mlrun/mlrun",
+        project=project,
     )
     uid = "123"
-    run = mlrun.run.RunObject(
-        metadata=mlrun.model.RunMetadata(uid=uid),
-    )
-    rundb_mock.store_run(run, uid)
+    run = {
+        "metadata": {
+            "uid": uid,
+            "name": "test",
+        },
+    }
+    rundb = mlrun.get_run_db()
+    rundb.store_run(run, uid, project)
     run = launcher._create_run_object(run)
 
     run = launcher._enrich_run(
@@ -174,54 +184,8 @@ def test_new_function_args_with_default_image_pull_secret(rundb_mock):
         run.spec.image_pull_secret
         == mlrun.mlconf.function.spec.image_pull_secret.default
     )
-    launcher.enrich_runtime(runtime, full=True)
+    launcher.enrich_runtime(runtime, project, full=True)
     assert (
         runtime.spec.image_pull_secret
         == mlrun.mlconf.function.spec.image_pull_secret.default
     )
-
-
-@pytest.mark.parametrize(
-    "end_time, run_state, should_update",
-    [
-        (None, mlrun.common.runtimes.constants.RunStates.completed, True),
-        (None, mlrun.common.runtimes.constants.RunStates.error, True),
-        (
-            "2024-01-28T12:00:00Z",
-            mlrun.common.runtimes.constants.RunStates.completed,
-            False,
-        ),
-        (
-            "2024-01-28T12:00:00Z",
-            mlrun.common.runtimes.constants.RunStates.error,
-            False,
-        ),
-        (None, mlrun.common.runtimes.constants.RunStates.running, False),
-        (
-            "2024-01-28T12:00:00Z",
-            mlrun.common.runtimes.constants.RunStates.running,
-            False,
-        ),
-    ],
-)
-def test_update_end_time_if_terminal_state(end_time, run_state, should_update):
-    runtime = unittest.mock.MagicMock()
-    runtime._get_db.return_value = unittest.mock.MagicMock()
-
-    uid = "123"
-    run = mlrun.run.RunObject(metadata=mlrun.model.RunMetadata(uid=uid))
-    run.status.state = run_state
-    run.status.end_time = end_time
-
-    services.api.launcher.ServerSideLauncher._update_end_time_if_terminal_state(
-        runtime, run
-    )
-
-    if should_update:
-        db = runtime._get_db()
-        db.update_run.assert_called_once()
-        updates = db.update_run.call_args[0][0]
-        assert "status.end_time" in updates
-        assert updates["status.end_time"] is not None
-    else:
-        runtime._get_db().update_run.assert_not_called()

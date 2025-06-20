@@ -64,7 +64,7 @@ default_config = {
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
     "nuclio_version": "",
-    "default_nuclio_runtime": "python:3.9",
+    "default_nuclio_runtime": "python:3.11",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
@@ -78,12 +78,12 @@ default_config = {
     "vendor_images_registry": "",
     # comma separated list of images that are in the specified images_registry, and therefore will be enriched with this
     # registry when used. default to mlrun/* which means any image which is of the mlrun repository (mlrun/mlrun,
-    # mlrun/ml-base, etc...)
-    "images_to_enrich_registry": "^mlrun/*,python:3.9",
+    # mlrun/mlrun-kfp, etc...)
+    "images_to_enrich_registry": "^mlrun/*,^python:3.(9|11)$",
     "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
-    "dask_kfp_image": "mlrun/ml-base",  # image to use for dask KFP runner
+    "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
@@ -94,7 +94,7 @@ default_config = {
     "default_base_image": "mlrun/mlrun",  # default base image when doing .deploy()
     # template for project default image name. Parameter {name} will be replaced with project name
     "default_project_image_name": ".mlrun-project-image-{name}",
-    "default_project": "default",  # default project name
+    "active_project": "",  # active project name
     "default_archive": "",  # default remote archive URL (for build tar.gz)
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
     "ipython_widget": True,
@@ -107,6 +107,8 @@ default_config = {
     "submit_timeout": "280",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
+    "background_task_cleanup_interval": "86400",  # 24 hours in seconds
+    "background_task_max_age": "21600",  # 6 hours in seconds
     "monitoring": {
         "runs": {
             # runs monitoring interval in seconds
@@ -232,8 +234,13 @@ default_config = {
                 "delete_project": "900",
                 "delete_function": "900",
                 "model_endpoint_creation": "600",
+                "model_endpoint_tsdb_leftovers": "900",
+                "terminate_pipeline": "300",
             },
-            "runtimes": {"dask": "600"},
+            "runtimes": {
+                "dask": "600",
+                "dask_cluster_start": "300",
+            },
             "push_notifications": "60",
         },
     },
@@ -283,9 +290,9 @@ default_config = {
             "serving": "mlrun/mlrun",
             "nuclio": "mlrun/mlrun",
             "remote": "mlrun/mlrun",
-            "dask": "mlrun/ml-base",
+            "dask": "mlrun/mlrun",
             "mpijob": "mlrun/mlrun",
-            "application": "python:3.9",
+            "application": "python",
         },
         # see enrich_function_preemption_spec for more info,
         # and mlrun.common.schemas.function.PreemptionModes for available options
@@ -485,6 +492,11 @@ default_config = {
             "iguazio_client_job_cache_ttl": "20 minutes",
             "nuclio_project_deletion_verification_timeout": "300 seconds",
             "nuclio_project_deletion_verification_interval": "5 seconds",
+            "summaries": {
+                # Number of days back to include when calculating the project pipeline summary.
+                "list_pipelines_time_period_in_days": 7,
+            },
+            "resource_deletion_batch_size": 10000,
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -507,7 +519,7 @@ default_config = {
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
             "kaniko_image": "gcr.io/kaniko-project/executor:v1.23.2",  # kaniko builder image
-            "kaniko_init_container_image": "alpine:3.18",
+            "kaniko_init_container_image": "alpine:3.20",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.17.16",
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
@@ -548,6 +560,10 @@ default_config = {
         },
     },
     "model_endpoint_monitoring": {
+        # Scaling Rule
+        # The fundamental scaling rule to maintain is: Shards/Partitions = Replicas * Workers
+        # In other words, the number of shards (V3IO) or partitions (Kafka) must be equal to the
+        # total number of worker processes across all pods.
         "serving_stream": {
             "v3io": {
                 "shard_count": 2,
@@ -566,33 +582,33 @@ default_config = {
         },
         "application_stream_args": {
             "v3io": {
-                "shard_count": 1,
+                "shard_count": 4,
                 "retention_period_hours": 24,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
             "kafka": {
-                "partition_count": 1,
+                "partition_count": 4,
                 "replication_factor": 1,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
         },
         "writer_stream_args": {
             "v3io": {
-                "shard_count": 1,
+                "shard_count": 4,
                 "retention_period_hours": 24,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
             "kafka": {
-                "partition_count": 1,
+                "partition_count": 4,
                 # TODO: add retention period configuration
                 "replication_factor": 1,
-                "num_workers": 1,
+                "num_workers": 4,
                 "min_replicas": 1,
                 "max_replicas": 1,
             },
@@ -625,10 +641,7 @@ default_config = {
         "offline_storage_path": "model-endpoints/{kind}",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
-        "tdengine": {
-            "timeout": 10,
-            "retries": 1,
-        },
+        "model_endpoint_creation_check_period": "15",
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -821,6 +834,8 @@ default_config = {
         # maximum allowed alert config cache size in alert's CRUD
         # for the best performance, it is recommended to set this value to the maximum number of alerts
         "max_allowed_cache_size": 20000,
+        # default limit for listing alert configs
+        "default_list_alert_configs_limit": 2000,
     },
     "auth_with_client_id": {
         "enabled": False,
@@ -885,11 +900,7 @@ class Config:
         return result
 
     def __setattr__(self, attr, value):
-        # in order for the dbpath setter to work
-        if attr == "dbpath":
-            super().__setattr__(attr, value)
-        else:
-            self._cfg[attr] = value
+        self._cfg[attr] = value
 
     def __dir__(self):
         return list(self._cfg) + dir(self.__class__)
@@ -1032,12 +1043,9 @@ class Config:
         )
 
     def is_preemption_nodes_configured(self):
-        if (
-            not self.get_preemptible_tolerations()
-            and not self.get_preemptible_node_selector()
-        ):
-            return False
-        return True
+        return (
+            self.get_preemptible_tolerations() or self.get_preemptible_node_selector()
+        )
 
     @staticmethod
     def get_valid_function_priority_class_names():
@@ -1236,23 +1244,6 @@ class Config:
         # since the property will need to be url, which exists in other structs as well
         return config.ui.url or config.ui_url
 
-    @property
-    def dbpath(self):
-        return self._dbpath
-
-    @dbpath.setter
-    def dbpath(self, value):
-        self._dbpath = value
-        if value:
-            # importing here to avoid circular dependency
-            import mlrun.db
-
-            # It ensures that SSL verification is set before establishing a connection
-            _configure_ssl_verification(self.httpdb.http.verify)
-
-            # when dbpath is set we want to connect to it which will sync configuration from it to the client
-            mlrun.db.get_run_db(value, force_reconnect=True)
-
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
         # when there is a cluster the .namespace is set
@@ -1427,6 +1418,12 @@ def _do_populate(env=None, skip_errors=False):
 
     _configure_ssl_verification(config.httpdb.http.verify)
     _validate_config(config)
+
+    if config.dbpath:
+        from mlrun.db import get_run_db
+
+        # when dbpath is set we want to connect to it which will sync configuration from it to the client
+        get_run_db(config.dbpath, force_reconnect=True)
 
 
 def _validate_config(config):

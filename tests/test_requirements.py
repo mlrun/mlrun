@@ -72,8 +72,12 @@ def test_requirement_specifiers_convention():
     invalid_requirement_specifiers_map = collections.defaultdict(set)
     for requirement_name, requirement_specifiers in requirement_specifiers_map.items():
         for requirement_specifier in requirement_specifiers:
-            # we don't care about what's coming after the ; (it will be something like "python_version < '3.7'")
-            tested_requirement_specifier = requirement_specifier.split(";")[0]
+            # Remove any optional extras ([…]) and environment markers (; …) so we only
+            # validate the core "~=X.Y(.Z)" specifier.
+            raw = requirement_specifier.split(";", 1)[0]
+            if raw.startswith("["):
+                raw = raw.split("]", 1)[1]
+            tested_requirement_specifier = raw
             invalid_requirement = False
             if not tested_requirement_specifier.startswith("~="):
                 invalid_requirement = True
@@ -118,10 +122,9 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.16"},
-        "storey": {"~=1.8.9"},
+        "storey": {"~=1.10.2"},
         "pydantic": {">=1.10.15", ">=1,<2"},
         "nuclio-sdk": {">=0.5"},
-        "sphinx-book-theme": {"~=1.0.1"},
         "scipy": {"~=1.13.0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
@@ -134,7 +137,7 @@ def test_requirement_specifiers_convention():
         "databricks-sdk": {"~=0.20.0"},
         "docstring_parser": {"~=0.16"},
         "gitpython": {"~=3.1, >=3.1.41"},
-        "jinja2": {"~=3.1, >=3.1.3"},
+        "jinja2": {"~=3.1, >=3.1.6"},
         "pyopenssl": {">=23"},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
         # due to a bug in apscheduler with python 3.9 https://github.com/agronholm/apscheduler/issues/770
@@ -159,6 +162,8 @@ def test_requirement_specifiers_convention():
         },
         "v3io-frames": {'>=0.13.0; python_version >= "3.11"'},
         "grpcio": {"~=1.70.0"},
+        "snowballstemmer": {"!=3.0.0"},
+        "kafka-python": {"~=2.1.0"},
     }
 
     for (
@@ -212,6 +217,7 @@ def test_requirement_specifiers_inconsistencies():
             '~=2024.12.1; python_version >= "3.11"',
             '~=2023.12.1; python_version < "3.11"',
         },
+        "mlrun-pipelines-kfp-v1-8": {"~=0.5.4", '~=0.5.4; python_version < "3.11"'},
     }
 
     all_keys_verified = set(ignored_inconsistencies_map.keys())

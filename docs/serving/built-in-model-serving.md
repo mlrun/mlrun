@@ -1,14 +1,14 @@
 (using_built_in_model_serving_classes)=
 # Using built-in model serving classes
 
-MLRun includes built-in classes for commonly used frameworks. While you can {ref}`create your own class <custom-model-serving-class>`, 
+MLRun includes built-in serving classes for commonly used frameworks. While you can {ref}`create your own class <custom-model-serving-class>`, 
 it is often not necessary to write one if you use these standard classes.
 
 The following table specifies, for each framework, the corresponding MLRun `ModelServer` serving class and its dependencies:
 
 | Framework        | Serving class                                         | Dependencies   |
 |------------------|-------------------------------------------------------|----------------|
-| scikit-learn     | `mlrun.frameworks.sklearn.SklearnModelServer`         | `scikit-learn` |
+| scikit-learn     | `mlrun.frameworks.sklearn.SKLearnModelServer`         | `scikit-learn` |
 | TensorFlow.Keras | `mlrun.frameworks.tf_keras.TFKerasModelServer`        | `tensorflow`   |
 | ONNX             | `mlrun.frameworks.onnx.ONNXModelServer`               | `onnxruntime`  |
 | XGBoost          | `mlrun.frameworks.xgboost.XGBoostModelServer`         | `xgboost`      |
@@ -43,7 +43,7 @@ project = mlrun.get_or_create_project(
 )
 
 serving_function_image = "mlrun/mlrun"
-serving_model_class_name = "mlrun.frameworks.sklearn.SklearnModelServer"
+serving_model_class_name = "mlrun.frameworks.sklearn.SKLearnModelServer"
 
 # Create a serving function
 serving_fn = project.set_function(

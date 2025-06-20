@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 from fastapi import APIRouter, Depends
 
 from framework.api import deps
@@ -39,7 +39,6 @@ from services.api.api.endpoints import (
     grafana_proxy,
     hub,
     internal,
-    jobs,
     logs,
     model_endpoints,
     model_monitoring,
@@ -145,7 +144,6 @@ api_router.include_router(
 api_router.include_router(grafana_proxy.router, tags=["grafana", "model-endpoints"])
 api_router.include_router(model_endpoints.router, tags=["model-endpoints"])
 api_router.include_router(model_monitoring.router, tags=["model-monitoring"])
-api_router.include_router(jobs.router, tags=["jobs"])
 api_router.include_router(
     hub.router,
     tags=["hub"],

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import collections
 import datetime
@@ -282,7 +282,6 @@ class Projects(
         project: typing.Optional[str] = None,
         **project_filters,
     ) -> list[str]:
-        project = project or mlrun.mlconf.default_project
         if project != "*":
             await (
                 framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -312,7 +311,6 @@ class Projects(
         project: typing.Optional[str] = None,
         **project_filters,
     ) -> list[tuple[str, datetime.datetime]]:
-        project = project or mlrun.mlconf.default_project
         if project != "*":
             await (
                 framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -446,6 +444,13 @@ class Projects(
             project_to_endpoint_alerts_count,
             project_to_job_alerts_count,
             project_to_other_alerts_count,
+            project_to_datasets_count,
+            project_to_documents_count,
+            project_to_llm_prompts_count,
+            project_to_running_mm_functions,
+            project_to_failed_mm_functions_count,
+            project_to_real_time_mep_count,
+            project_to_batch_mep_count,
         ) = project_counters
         (
             project_to_recent_completed_pipelines_count,
@@ -500,6 +505,21 @@ class Projects(
                     other_alerts_count=project_to_other_alerts_count.get(
                         project_name, 0
                     ),
+                    datasets_count=project_to_datasets_count.get(project_name, 0),
+                    documents_count=project_to_documents_count.get(project_name, 0),
+                    llm_prompts_count=project_to_llm_prompts_count.get(project_name, 0),
+                    running_model_monitoring_functions=project_to_running_mm_functions.get(
+                        project_name, 0
+                    ),
+                    failed_model_monitoring_functions=project_to_failed_mm_functions_count.get(
+                        project_name, 0
+                    ),
+                    real_time_model_endpoint_count=project_to_real_time_mep_count.get(
+                        project_name, 0
+                    ),
+                    batch_model_endpoint_count=project_to_batch_mep_count.get(
+                        project_name, 0
+                    ),
                 )
             )
         await fastapi.concurrency.run_in_threadpool(
@@ -513,9 +533,10 @@ class Projects(
         session,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_token: str = "",
+        filter_: str = "",
     ):
         return services.api.crud.Pipelines().list_pipelines(
-            session, "*", format_=format_, page_token=page_token
+            session, "*", format_=format_, page_token=page_token, filter_=filter_
         )
 
     async def _calculate_pipelines_counters(
@@ -538,6 +559,15 @@ class Projects(
                 project_to_running_pipelines_count,
             )
 
+        # include pipelines created in the past x days.
+        start_date = mlrun.utils.validate_and_convert_date(
+            str(
+                datetime.datetime.now()
+                - datetime.timedelta(
+                    days=mlrun.mlconf.httpdb.projects.summaries.list_pipelines_time_period_in_days
+                )
+            )
+        )
         try:
             next_page_token = ""
             while True:
@@ -549,6 +579,7 @@ class Projects(
                     framework.db.session.run_function_with_new_db_session,
                     self._list_pipelines,
                     page_token=next_page_token,
+                    filter_=mlrun.utils.get_kfp_list_runs_filter(start_date=start_date),
                 )
 
                 for pipeline in pipelines:

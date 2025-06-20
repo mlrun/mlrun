@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import warnings
 from datetime import datetime
 from typing import Optional, Union
 
@@ -414,11 +413,15 @@ class FeatureSet(ModelObj):
     @property
     def fullname(self) -> str:
         """full name in the form ``{project}/{name}[:{tag}]``"""
-        fullname = (
-            f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
-        )
-        if self._metadata.tag:
-            fullname += ":" + self._metadata.tag
+        project = self._metadata.project or mlconf.active_project
+        name = self._metadata.name
+        tag = self._metadata.tag
+
+        fullname = name
+        if project:
+            fullname = f"{project}/{fullname}"
+        if tag:
+            fullname += f":{tag}"
         return fullname
 
     def _get_run_db(self):
@@ -447,7 +450,6 @@ class FeatureSet(ModelObj):
         targets=None,
         with_defaults=True,
         default_final_step=None,
-        default_final_state=None,
     ):
         """set the desired target list or defaults
 
@@ -457,17 +459,7 @@ class FeatureSet(ModelObj):
         :param default_final_step: the final graph step after which we add the
                                     target writers, used when the graph branches and
                                     the end cant be determined automatically
-        :param default_final_state: *Deprecated* - use default_final_step instead
         """
-        if default_final_state:
-            warnings.warn(
-                "The 'default_final_state' parameter is deprecated in 1.3.0 and will be remove in 1.5.0. "
-                "Use 'default_final_step' instead.",
-                # TODO: remove in 1.5.0
-                FutureWarning,
-            )
-            default_final_step = default_final_step or default_final_state
-
         if targets is not None and not isinstance(targets, list):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "targets can only be None or a list of kinds or DataTargetBase derivatives"
@@ -983,7 +975,7 @@ class FeatureSet(ModelObj):
     def save(self, tag="", versioned=False):
         """save to mlrun db"""
         db = self._get_run_db()
-        self.metadata.project = self.metadata.project or mlconf.default_project
+        self.metadata.project = self.metadata.project or mlconf.active_project
         tag = tag or self.metadata.tag or "latest"
         as_dict = self.to_dict()
         as_dict["spec"]["features"] = as_dict["spec"].get(

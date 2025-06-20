@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 from http import HTTPStatus
 
@@ -142,13 +142,6 @@ class TestFeatureStore(tests.integration.sdk_api.base.TestMLRunIntegration):
             results["features"][0]["feature_set_index"]
             == results["feature_set_digests"][0]["feature_set_index"]
         )
-
-        response = await async_client.get(
-            f"v1/projects/{project_name}/entities?name=ticker"
-        )
-        assert response.status_code == HTTPStatus.OK.value
-        results = response.json()
-        assert len(results["entities"]) == 1
 
         response = await async_client.get(
             f"v2/projects/{project_name}/entities?name=ticker"

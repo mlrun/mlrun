@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import collections
 import datetime
@@ -38,6 +38,7 @@ import framework.constants
 import framework.db.base
 import framework.db.sqldb.db
 import framework.service
+import framework.utils.background_tasks
 import framework.utils.clients.chief
 import framework.utils.clients.log_collector
 import framework.utils.clients.messaging
@@ -193,6 +194,7 @@ class Service(framework.service.Service):
             self._start_periodic_project_summaries_calculation()
         self._start_periodic_partition_management()
         self._start_periodic_refresh_smtp_configuration()
+        self._start_periodic_background_task_cleanup()
         if mlconf.httpdb.clusterization.chief.feature_gates.start_logs == "enabled":
             await self._start_periodic_logs_collection()
         if mlconf.httpdb.clusterization.chief.feature_gates.stop_logs == "enabled":
@@ -241,23 +243,18 @@ class Service(framework.service.Service):
         collect logs.
         :param start_logs_limit: Semaphore which limits the number of concurrent log collection tasks
         """
-        db_session = await fastapi.concurrency.run_in_threadpool(create_session)
-        try:
-            await framework.utils.time_window_tracker.run_with_time_window_tracker(
-                db_session,
-                key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
-                # If the API was down for more than the grace period, we will only collect logs for runs which reached
-                # terminal state within the grace period and not since the API actually went down.
-                max_window_size_seconds=min(
-                    int(mlconf.log_collector.api_downtime_grace_period),
-                    int(mlconf.runtime_resources_deletion_grace_period),
-                ),
-                ensure_window_update=True,
-                callback=self._verify_log_collection_started,
-                start_logs_limit=start_logs_limit,
-            )
-        finally:
-            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+        await framework.utils.time_window_tracker.run_with_time_window_tracker(
+            key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
+            # If the API was down for more than the grace period, we will only collect logs for runs which reached
+            # terminal state within the grace period and not since the API actually went down.
+            max_window_size_seconds=min(
+                int(mlconf.log_collector.api_downtime_grace_period),
+                int(mlconf.runtime_resources_deletion_grace_period),
+            ),
+            ensure_window_update=True,
+            callback=self._verify_log_collection_started,
+            start_logs_limit=start_logs_limit,
+        )
 
     async def _verify_log_collection_started(
         self, db_session, last_update_time: datetime.datetime, start_logs_limit
@@ -581,7 +578,7 @@ class Service(framework.service.Service):
                 retention_days=retention_days,
             )
             partition_interval = framework.db.session.run_function_with_new_db_session(
-                services.api.utils.db.partitioner.MySQLPartitioner().get_partition_interval,
+                services.api.utils.db.partitioner.DBPartitioner().get_partition_interval,
                 table_name=table_name,
             )
             interval_in_seconds = int(
@@ -610,11 +607,30 @@ class Service(framework.service.Service):
                 refresh=True,
             )
 
+    def _start_periodic_background_task_cleanup(self):
+        interval = int(mlconf.background_task_cleanup_interval)
+        if interval > 0:
+            self._logger.info(
+                "Starting periodic background task cleanup",
+                interval=interval,
+            )
+
+            cleanup_func = framework.utils.background_tasks.ProjectBackgroundTasksHandler().cleanup_old_background_tasks
+            func = framework.db.session.run_function_with_new_db_session(
+                cleanup_func, int(mlconf.background_task_max_age)
+            )
+            run_function_periodically(
+                interval=interval,
+                name=cleanup_func.__name__,
+                replace=False,
+                function=func,
+            )
+
     @staticmethod
     async def _manage_partitions(table_name, retention_days):
         await fastapi.concurrency.run_in_threadpool(
             framework.db.session.run_function_with_new_db_session,
-            services.api.utils.db.partitioner.MySQLPartitioner().create_and_drop_partitions,
+            services.api.utils.db.partitioner.DBPartitioner().create_and_drop_partitions,
             table_name=table_name,
             retention_days=retention_days,
         )
@@ -724,7 +740,6 @@ class Service(framework.service.Service):
                 )
         try:
             await framework.utils.time_window_tracker.run_with_time_window_tracker(
-                db_session,
                 key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.run_monitoring,
                 max_window_size_seconds=int(
                     mlconf.runtime_resources_deletion_grace_period
@@ -765,22 +780,36 @@ class Service(framework.service.Service):
         db: framework.db.base.DBInterface,
     ):
         """
-        Get all runs with notification configs which became terminal since the last call to the function
+        Get all runs with notification configs which became terminal since the last call to the function (- grace)
         and push their notifications if they haven't been pushed yet.
+        On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
+        and their notifications haven't been sent yet.
         """
 
-        # When pushing notifications, push notifications only for runs that entered a terminal state
-        # since the last time we pushed notifications.
-        # On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
-        # and their notifications haven't been sent yet.
+        # Calculation of end_time_from creates an overlap between the current and the previous window to make sure we
+        # don't miss any runs that ended just before the current window (ML-9572)
+        end_time_from = last_update_time - datetime.timedelta(
+            seconds=min(int(mlconf.monitoring.runs.interval) // 2, 5)
+        )
+        self._logger.debug(
+            "Checking notifications since last end time",
+            last_update_time=last_update_time,
+            end_time_from=end_time_from,
+        )
 
         runs = db.list_runs(
             db_session,
             project="*",
             states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
-            end_time_from=last_update_time,
+            end_time_from=end_time_from,
             with_notifications=True,
         )
+
+        if not len(runs):
+            self._logger.debug(
+                "No runs ended during the current window",
+                end_time_from=end_time_from,
+            )
 
         if not len(runs):
             return

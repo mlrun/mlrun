@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import collections
 import os
 import time
@@ -64,7 +64,12 @@ def post_report_session_finish_to_slack(
     reporter: TerminalReporter = session.config.pluginmanager.get_plugin(
         "terminalreporter"
     )
-    test_duration = time.time() - reporter._sessionstarttime
+
+    # pytest < 8.4
+    if hasattr(reporter, "_sessionstarttime"):
+        test_duration = time.time() - reporter._sessionstarttime
+    else:
+        test_duration = reporter._session_start.elapsed().seconds
     mlrun_version = os.getenv("MLRUN_VERSION", "")
     mlrun_current_branch = os.getenv("MLRUN_SYSTEM_TESTS_BRANCH", "")
     mlrun_system_tests_component = os.getenv("MLRUN_SYSTEM_TESTS_COMPONENT", "")

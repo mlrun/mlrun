@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import typing
 
@@ -30,8 +29,6 @@ def resolve_client_default_kfp_image(
 ) -> str:
     if workflow_spec and workflow_spec.image:
         image = workflow_spec.image
-    elif project and project.spec.default_image:
-        image = project.spec.default_image
     else:
         must_use_mlrun_image = False
         if client_version and "unstable" not in client_version:

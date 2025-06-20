@@ -113,7 +113,7 @@ def test_parse_url_preserve_case():
 @pytest.mark.parametrize(
     "url,expected_project,expected_key,expected_tag,expected_iter,expected_tree,expected_uid",
     [
-        ("store:///artifact_key", "default", "artifact_key", None, 0, None, None),
+        ("store:///artifact_key", None, "artifact_key", None, 0, None, None),
         (
             "store://project_name/artifact_key",
             "project_name",
@@ -161,7 +161,7 @@ def test_parse_url_preserve_case():
         ),
         (
             "store:///ArtifacT_key#1:some_Tag",
-            "default",
+            None,
             "ArtifacT_key",
             "some_Tag",
             1,
@@ -170,7 +170,7 @@ def test_parse_url_preserve_case():
         ),
         (
             "store:///ArtifacT_key#1@Some_Tree",
-            "default",
+            None,
             "ArtifacT_key",
             None,
             1,
@@ -208,8 +208,12 @@ def test_get_store_artifact_url_parsing(
 ):
     db = Mock()
 
+    active_project = "test-project"
+    mlrun.mlconf.active_project = active_project
+
     def mock_read_artifact(key, tag=None, iter=None, project="", tree=None, uid=None):
-        assert expected_project == project, f"Project mismatch for URL: {url}"
+        expected_proj = expected_project or active_project
+        assert expected_proj == project, f"Project mismatch for URL: {url}"
         assert expected_key == key, f"Key mismatch for URL: {url}"
         assert expected_tag == tag, f"Tag mismatch for URL: {url}"
         assert expected_iter == iter, f"Iteration mismatch for URL: {url}"

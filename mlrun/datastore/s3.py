@@ -165,6 +165,7 @@ class S3Store(DataStore):
             key=access_key_id,
             secret=secret,
             token=token,
+            use_listings_cache=False,
         )
 
         if endpoint_url:

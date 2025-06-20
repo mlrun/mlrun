@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import copy
 import inspect
 import json
@@ -26,6 +26,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.jobs import RunLifeCycleState, RunResultState
 
 import mlrun
+import mlrun.common.runtimes.constants
 import tests.system.base
 from mlrun.errors import MLRunRuntimeError
 from mlrun.runtimes.function_reference import FunctionReference
@@ -85,7 +86,9 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
 
     def _abort_run(self):
         self._logger.info("start aborting")
-        mlrun_runs = self.project.list_runs(state="running")
+        mlrun_runs = self.project.list_runs(
+            states=[mlrun.common.runtimes.constants.RunStates.running]
+        )
         if len(mlrun_runs) < 1:
             raise MLRunRuntimeError(
                 f"No active runs related to project {self.project_name} could be found"

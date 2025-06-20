@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import asyncio
 import logging
@@ -26,8 +25,7 @@ from aiohttp_retry.client import _RequestContext
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.errors import raise_for_status as ml_raise_for_status
-
-from .helpers import logger as mlrun_logger
+from mlrun.utils.helpers import logger as mlrun_logger
 
 DEFAULT_BLACKLISTED_METHODS = [
     "POST",

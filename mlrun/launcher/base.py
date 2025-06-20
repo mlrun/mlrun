@@ -57,6 +57,7 @@ class BaseLauncher(abc.ABC):
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
+        output_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[
             Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
@@ -81,6 +82,7 @@ class BaseLauncher(abc.ABC):
         runtime: "mlrun.runtimes.base.BaseRuntime",
         project_name: Optional[str] = "",
         full: bool = True,
+        client_version: str = "",
     ):
         pass
 
@@ -145,6 +147,12 @@ class BaseLauncher(abc.ABC):
 
         self._validate_run_params(run.spec.parameters)
         self._validate_output_path(runtime, run)
+
+        for image in [
+            runtime.spec.image,
+            getattr(runtime.spec.build, "base_image", None),
+        ]:
+            mlrun.utils.helpers.warn_on_deprecated_image(image)
 
     @staticmethod
     def _validate_output_path(
@@ -234,8 +242,7 @@ class BaseLauncher(abc.ABC):
         hyper_param_options=None,
         verbose=None,
         scrape_metrics=None,
-        out_path=None,
-        artifact_path=None,
+        output_path=None,
         workdir=None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
@@ -273,7 +280,7 @@ class BaseLauncher(abc.ABC):
             project_name
             or run.metadata.project
             or runtime.metadata.project
-            or mlrun.mlconf.default_project
+            or mlrun.mlconf.active_project
         )
         run.spec.parameters = params or run.spec.parameters
         run.spec.inputs = inputs or run.spec.inputs
@@ -301,7 +308,7 @@ class BaseLauncher(abc.ABC):
         meta = run.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
 
-        run.spec.output_path = out_path or artifact_path or run.spec.output_path
+        run.spec.output_path = output_path or run.spec.output_path
 
         if not run.spec.output_path:
             if run.metadata.project:
@@ -401,7 +408,6 @@ class BaseLauncher(abc.ABC):
                 status=run.status.state,
                 name=run.metadata.name,
             )
-            self._update_end_time_if_terminal_state(runtime, run)
             if (
                 run.status.state
                 in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
@@ -416,21 +422,6 @@ class BaseLauncher(abc.ABC):
             return run
 
         return None
-
-    @staticmethod
-    def _update_end_time_if_terminal_state(
-        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
-    ):
-        if (
-            run.status.state
-            in mlrun.common.runtimes.constants.RunStates.terminal_states()
-            and not run.status.end_time
-        ):
-            end_time = mlrun.utils.now_date().isoformat()
-            updates = {"status.end_time": end_time}
-            runtime._get_db().update_run(
-                updates, run.metadata.uid, run.metadata.project
-            )
 
     @staticmethod
     def _refresh_function_metadata(runtime: "mlrun.runtimes.BaseRuntime"):

@@ -21,7 +21,6 @@ import tempfile
 import time
 import typing
 import uuid
-import warnings
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
@@ -36,9 +35,9 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
+import mlrun_pipelines.utils
 from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
-from mlrun_pipelines.utils import get_client
 
 from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
@@ -206,7 +205,6 @@ def get_or_create_ctx(
     rundb: Union[str, "mlrun.db.RunDBInterface"] = "",
     project: str = "",
     upload_artifacts: bool = False,
-    labels: Optional[dict] = None,
 ) -> MLClientCtx:
     """
     Called from within the user program to obtain a run context.
@@ -223,10 +221,9 @@ def get_or_create_ctx(
     :param spec:     dictionary holding run spec
     :param with_env: look for context in environment vars, default True
     :param rundb:    path/url to the metadata and artifact database
-    :param project:  project to initiate the context in (by default `mlrun.mlconf.default_project`)
+    :param project:  project to initiate the context in (by default `mlrun.mlconf.active_project`)
     :param upload_artifacts:  when using local context (not as part of a job/run), upload artifacts to the
                               system default artifact path location
-    :param labels: (deprecated - use spec instead) dict of the context labels.
     :return: execution context
 
     Examples::
@@ -259,21 +256,6 @@ def get_or_create_ctx(
         context.log_artifact("results.html", body=b"<b> Some HTML <b>", viewer="web-app")
 
     """
-    if labels:
-        warnings.warn(
-            "The `labels` argument is deprecated and will be removed in 1.9.0. "
-            "Please use `spec` instead, e.g.:\n"
-            "spec={'metadata': {'labels': {'key': 'value'}}}",
-            FutureWarning,
-        )
-        if spec is None:
-            spec = {}
-        if "metadata" not in spec:
-            spec["metadata"] = {}
-        if "labels" not in spec["metadata"]:
-            spec["metadata"]["labels"] = {}
-        spec["metadata"]["labels"].update(labels)
-
     if global_context.get() and not spec and not event:
         return global_context.get()
 
@@ -298,7 +280,7 @@ def get_or_create_ctx(
         newspec = {}
         if upload_artifacts:
             artifact_path = mlrun.utils.helpers.template_artifact_path(
-                mlconf.artifact_path, project or mlconf.default_project
+                mlconf.artifact_path, project or mlconf.active_project
             )
             update_in(newspec, ["spec", RunKeys.output_path], artifact_path)
 
@@ -312,7 +294,7 @@ def get_or_create_ctx(
         logger.info(f"Logging run results to: {out}")
 
     newspec["metadata"]["project"] = (
-        newspec["metadata"].get("project") or project or mlconf.default_project
+        newspec["metadata"].get("project") or project or mlconf.active_project
     )
 
     newspec["metadata"].setdefault("labels", {})
@@ -369,9 +351,9 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
         url, is_hub_uri = extend_hub_uri_if_needed(url)
         runtime = import_function_to_dict(url, secrets)
     function = new_function(runtime=runtime)
-    project = project or mlrun.mlconf.default_project
+    project = project or mlrun.mlconf.active_project
     # When we're importing from the hub we want to assign to a target project, otherwise any store on it will
-    # simply default to the default project
+    # simply default to the active project
     if project and is_hub_uri:
         function.metadata.project = project
     if new_name:
@@ -437,7 +419,7 @@ def new_function(
     mode: Optional[str] = None,
     handler: Optional[str] = None,
     source: Optional[str] = None,
-    requirements: Optional[Union[str, list[str]]] = None,
+    requirements: Optional[list[str]] = None,
     kfp: Optional[bool] = None,
     requirements_file: str = "",
 ):
@@ -464,7 +446,7 @@ def new_function(
            f = new_function().run(task, handler=myfunction)
 
     :param name:     function name
-    :param project:  function project (none for 'default')
+    :param project:  function project (none for the active project)
     :param tag:      function version tag (none for 'latest')
 
     :param kind:     runtime type (local, job, nuclio, spark, mpijob, dask, ..)
@@ -523,7 +505,7 @@ def new_function(
 
     runner.metadata.name = name
     runner.metadata.project = (
-        runner.metadata.project or project or mlconf.default_project
+        runner.metadata.project or project or mlconf.active_project
     )
     if tag:
         runner.metadata.tag = tag
@@ -637,10 +619,10 @@ def code_to_function(
     - databricks: run code on Databricks cluster (python scripts, Spark etc.)
     - application: run a long living application (e.g. a web server, UI, etc.)
 
-    Learn more about [Kinds of function (runtimes)](../concepts/functions-overview.html).
+    Learn more about :doc:`../../concepts/functions-overview`
 
     :param name:         function name, typically best to use hyphen-case
-    :param project:      project used to namespace the function, defaults to 'default'
+    :param project:      project used to namespace the function, defaults to the active project
     :param tag:          function tag to track multiple versions of the same function, defaults to 'latest'
     :param filename:     path to .py/.ipynb file, defaults to current jupyter notebook
     :param handler:      The default function handler to call for the job or nuclio function, in batch functions
@@ -729,7 +711,7 @@ def code_to_function(
                 fn.spec.volume_mounts.append(vol.get("volumeMount"))
 
         fn.spec.description = description
-        fn.metadata.project = project or mlconf.default_project
+        fn.metadata.project = project or mlconf.active_project
         fn.metadata.tag = tag
         fn.metadata.categories = categories
         fn.metadata.labels = labels or fn.metadata.labels
@@ -912,7 +894,6 @@ def _run_pipeline(
 def retry_pipeline(
     run_id: str,
     project: str,
-    namespace: Optional[str] = None,
 ) -> str:
     """Retry a pipeline run.
 
@@ -921,7 +902,6 @@ def retry_pipeline(
 
     :param run_id: ID of the pipeline run to retry.
     :param project: name of the project associated with the pipeline run.
-    :param namespace: Optional; Kubernetes namespace to use if not the default.
 
     :returns: ID of the retried pipeline run or the ID of a cloned run if the original run is not retryable.
     :raises ValueError: If access to the remote API service is not available.
@@ -936,7 +916,6 @@ def retry_pipeline(
     pipeline_run_id = mldb.retry_pipeline(
         run_id=run_id,
         project=project,
-        namespace=namespace,
     )
     if pipeline_run_id == run_id:
         logger.info(
@@ -947,6 +926,35 @@ def retry_pipeline(
             f"Copy of pipeline {run_id} was retried as run ID={pipeline_run_id}, check UI for progress."
         )
     return pipeline_run_id
+
+
+def terminate_pipeline(
+    run_id: str,
+    project: str,
+) -> str:
+    """Terminate a pipeline run.
+
+    This function terminates a running pipeline with the specified run ID. If the run is not in a
+    terminable state, an error is raised.
+
+    :param run_id: ID of the pipeline run to terminate.
+    :param project: name of the project associated with the pipeline run.
+
+    :returns: ID of the terminate pipeline run background task.
+    :raises ValueError: If access to the remote API service is not available.
+    """
+    mldb = mlrun.db.get_run_db()
+    if mldb.kind != "http":
+        raise ValueError(
+            "Terminating a pipeline requires access to remote API service. "
+            "Please set the dbpath URL."
+        )
+
+    pipeline_run_task = mldb.terminate_pipeline(
+        run_id=run_id,
+        project=project,
+    )
+    return pipeline_run_task["metadata"]["id"]
 
 
 def wait_for_pipeline_completion(
@@ -1015,7 +1023,10 @@ def wait_for_pipeline_completion(
             _wait_for_pipeline_completion,
         )
     else:
-        client = get_client(namespace=namespace)
+        client = mlrun_pipelines.utils.get_client(
+            logger=logger,
+            namespace=namespace,
+        )
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
@@ -1076,7 +1087,10 @@ def get_pipeline(
         )
 
     else:
-        client = get_client(namespace=namespace)
+        client = mlrun_pipelines.utils.get_client(
+            logger=logger,
+            namespace=namespace,
+        )
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()

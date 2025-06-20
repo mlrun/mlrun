@@ -17,6 +17,7 @@ from .alert import (
     AlertActivations,
     AlertActiveState,
     AlertConfig,
+    AlertCriteria,
     AlertNotification,
     AlertTemplate,
     Event,
@@ -213,6 +214,7 @@ from .secret import (
     SecretsData,
     UserSecretCreationRequest,
 )
+from .serving import ModelRunnerStepData, MonitoringData
 from .tag import Tag, TagObjects
 from .workflow import (
     GetWorkflowResponse,

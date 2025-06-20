@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import traceback
 import typing
 import uuid
@@ -1602,9 +1602,7 @@ class BaseRuntimeHandler(ABC):
         resource: mlrun.common.schemas.RuntimeResource,
     ):
         if mlrun_constants.MLRunInternalLabels.uid in resource.labels:
-            project = resource.labels.get(
-                mlrun_constants.MLRunInternalLabels.project, config.default_project
-            )
+            project = resource.labels.get(mlrun_constants.MLRunInternalLabels.project)
             uid = resource.labels[mlrun_constants.MLRunInternalLabels.uid]
             self._add_resource_to_grouped_by_field_resources_response(
                 project, uid, resources, resource_field_name, resource
@@ -1755,18 +1753,13 @@ class BaseRuntimeHandler(ABC):
                 reason, message = self._resolve_container_error_status(runtime_resource)
 
         logger.info("Updating run state", run_uid=uid, run_state=run_state)
-        last_update_time = now_date().isoformat()
         run_updates = {
             "status.state": run_state,
-            "status.last_update": last_update_time,
             "status.reason": reason or "",
             "status.status_text": message or "",
             "status.error": "",
         }
-        if run_state in RunStates.terminal_states():
-            run_updates["status.end_time"] = last_update_time
-
-        run = db.update_run(db_session, run_updates, uid, project)
+        run = db.update_run(db_session, updates=run_updates, uid=uid, project=project)
 
         return True, run_state, run
 
@@ -1827,7 +1820,7 @@ class BaseRuntimeHandler(ABC):
             .get(mlrun_constants.MLRunInternalLabels.project)
         )
         if not project:
-            project = config.default_project
+            raise mlrun.errors.MLRunMissingProjectError()
         uid = (
             runtime_resource.get("metadata", {})
             .get("labels", {})

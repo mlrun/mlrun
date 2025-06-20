@@ -11,15 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-from mlrun.common.db.sql_session import get_engine
 
 import framework.db.sqldb.models
+import framework.db.sqldb.sql_session
 
 
 def init_db() -> None:
-    engine = get_engine()
+    engine = framework.db.sqldb.sql_session.get_engine()
     partitioned_table_names = framework.db.sqldb.models.get_partitioned_table_names()
     if engine.name == "sqlite":
         tables_to_create = [

@@ -81,6 +81,18 @@ class TSDBConnector(ABC):
         """
 
     @abstractmethod
+    def delete_tsdb_records(
+        self,
+        endpoint_ids: list[str],
+    ) -> None:
+        """
+        Delete model endpoint records from the TSDB connector.
+        :param endpoint_ids: List of model endpoint unique identifiers.
+        :param delete_timeout: The timeout in seconds to wait for the deletion to complete.
+        """
+        pass
+
+    @abstractmethod
     def delete_tsdb_resources(self):
         """
         Delete all project resources in the TSDB connector, such as model endpoints data and drift results.
@@ -199,8 +211,7 @@ class TSDBConnector(ABC):
         endpoint_ids: Union[str, list[str]],
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-        get_raw: bool = False,
-    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
+    ) -> Union[pd.DataFrame, dict[str, float]]:
         """
         Fetches data from the predictions TSDB table and returns the most recent request
         timestamp for each specified endpoint.
@@ -208,11 +219,11 @@ class TSDBConnector(ABC):
         :param endpoint_ids:    A list of model endpoint identifiers.
         :param start:           The start time for the query.
         :param end:             The end time for the query.
-        :param get_raw:         Whether to return the request as raw frames rather than a pandas dataframe. Defaults
-          to False. This can greatly improve performance when a dataframe isn't needed.
 
-        :return: A pd.DataFrame containing the columns [endpoint_id, last_request, last_latency].
-        If an endpoint has not been invoked within the specified time range, it will not appear in the result.
+        :return: A pd.DataFrame containing the columns [endpoint_id, last_request, last_latency] or a dictionary
+        containing the endpoint_id as the key and the last request timestamp as the value.
+        if an endpoint has not been invoked within the specified time range, it will not appear in the result (relevant
+        only to non-v3io connector).
         """
 
     @abstractmethod
@@ -317,11 +328,42 @@ class TSDBConnector(ABC):
         If an endpoint has not been invoked within the specified time range, it will not appear in the result.
         """
 
+    @abstractmethod
+    def count_results_by_status(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        endpoint_ids: Optional[Union[str, list[str]]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+        result_status_list: Optional[list[int]] = None,
+    ) -> dict[tuple[str, int], int]:
+        """
+        Read results status from the TSDB and return a dictionary of results statuses by application name.
+
+        :param start:              The start time in which to read the results. By default, the last 24 hours are read.
+        :param end:                The end time in which to read the results. Default is the current time (now).
+        :param endpoint_ids:       Optional list of endpoint ids to filter the results by. By default, all
+                                   endpoint ids are included.
+        :param application_names:  Optional list of application names to filter the results by. By default, all
+                                   application are included.
+        :param result_status_list: Optional list of result statuses to filter the results by. By default, all
+                                   result statuses are included.
+
+        :return: A dictionary where the key is a tuple of (application_name, result_status) and the value is the total
+                 number of results with that status for that application.
+                 For example:
+                 {
+                    ('app1', 1): 10,
+                    ('app1', 2): 5
+                 }
+        """
+
     async def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
         run_in_threadpool: Callable,
+        metric_list: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         raise NotImplementedError()
 

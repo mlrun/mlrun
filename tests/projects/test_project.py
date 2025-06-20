@@ -252,8 +252,8 @@ def test_build_project_from_minimal_dict():
             3,
             True,
             "",
-            False,
-            "",
+            True,
+            "Project name mismatch",
         ),
         (
             pathlib.Path(tests.conftest.tests_root_directory)
@@ -286,7 +286,7 @@ def test_build_project_from_minimal_dict():
             "",
         ),
         (
-            "git://github.com/mlrun/project-demo.git#refs/heads/main",
+            "git://github.com/mlrun/project-demo.git#refs/commits/38699adc4016bf29d1f4ab11ddd70dcc4e569388",
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             True,
@@ -356,7 +356,7 @@ def test_build_project_from_minimal_dict():
             "projects/assets/body.txt' already exists and is not an empty directory",
         ),
         (
-            "git://github.com/mlrun/project-demo.git#refs/heads/main",
+            "git://github.com/mlrun/project-demo.git#refs/commits/38699adc4016bf29d1f4ab11ddd70dcc4e569388",
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             False,
@@ -565,29 +565,29 @@ def test_project_setup_must_return_project_object(
 
 
 @pytest.mark.parametrize(
-    "sync,expected_num_of_funcs, save",
+    "sync, has_functions, save",
     [
         (
             False,
-            0,
+            False,
             False,
         ),
         (
             True,
-            5,
+            True,
             False,
         ),
         (
             True,
-            5,
+            True,
             True,
         ),
     ],
 )
 def test_load_project_and_sync_functions(
-    context, rundb_mock, sync, expected_num_of_funcs, save
+    context, rundb_mock, sync, has_functions, save
 ):
-    url = "git://github.com/mlrun/project-demo.git"
+    url = "git://github.com/mlrun/project-demo.git#refs/commits/38699adc4016bf29d1f4ab11ddd70dcc4e569388"
     project = mlrun.load_project(
         context=str(context),
         url=url,
@@ -595,16 +595,15 @@ def test_load_project_and_sync_functions(
         save=save,
         allow_cross_project=True,
     )
-    assert len(project.spec._function_objects) == expected_num_of_funcs
+    assert has_functions == (len(project.spec._function_objects) > 0)
 
     if sync:
         function_names = project.spec._function_definitions.keys()
-        assert len(function_names) == expected_num_of_funcs
-        for func in function_names:
-            fn = project.get_function(func)
-            normalized_name = mlrun.utils.helpers.normalize_name(func)
+        assert has_functions == (len(function_names) > 0)
+        for function_name in function_names:
+            fn = project.get_function(function_name)
+            normalized_name = mlrun.utils.helpers.normalize_name(function_name)
             assert fn.metadata.name == normalized_name, "func did not return"
-
             if save:
                 assert normalized_name in rundb_mock._functions
 
@@ -1315,6 +1314,7 @@ def test_function_receives_project_artifact_path(rundb_mock):
     rundb_mock.reset()
 
     proj1.spec.artifact_path = "/var"
+    mlrun.get_run_db().store_project("proj1", proj1)
 
     func2 = mlrun.code_to_function(
         "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
@@ -1333,13 +1333,6 @@ def test_function_receives_project_artifact_path(rundb_mock):
 
     rundb_mock.reset()
     mlrun.pipeline_context.clear(with_project=True)
-
-    func3 = mlrun.code_to_function(
-        "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
-    )
-    # expected to call `get_project`, but the project wasn't saved yet, so it will use the default artifact path
-    run5 = func3.run(local=True, project="proj1")
-    assert run5.spec.output_path == mlrun.mlconf.artifact_path
 
     proj1.set_function(func_path, "func", kind="job", image="mlrun/mlrun")
     run = proj1.run_function("func", local=True)
@@ -1477,6 +1470,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
     assert run1.spec.output_path == mlrun.mlconf.artifact_path
     rundb_mock.reset()
 
+    mlrun.get_run_db().store_project("proj1", proj1)
     proj1.spec.artifact_path = "/var"
 
     run2 = proj1.run_function("f1", local=True)
@@ -1502,7 +1496,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
 
 
 @pytest.mark.parametrize(
-    "workflow_path,exception",
+    "workflow_path,exception,engine",
     [
         (
             "./",
@@ -1515,6 +1509,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                     )
                 ),
             ),
+            None,
         ),
         (
             "https://test",
@@ -1526,6 +1521,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                     )
                 ),
             ),
+            None,
         ),
         (
             "",
@@ -1533,25 +1529,48 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                 mlrun.errors.MLRunInvalidArgumentError,
                 match=str(re.escape("workflow_path must be provided.")),
             ),
+            None,
         ),
-        ("https://test.py", does_not_raise()),
+        ("https://test.py", does_not_raise(), None),
         # relative path
-        ("./workflow.py", does_not_raise()),
-        ("./assets/handler.py", does_not_raise()),
+        ("./workflow.py", does_not_raise(), None),
+        ("./assets/handler.py", does_not_raise(), None),
         # only file name
-        ("workflow.py", does_not_raise()),
-        ("assets/handler.py", does_not_raise()),
+        ("workflow.py", does_not_raise(), None),
+        ("assets/handler.py", does_not_raise(), None),
         # absolute path
         (
             str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
             does_not_raise(),
+            None,
         ),
+        # absolute path that doesn't exist
+        (
+            str(pathlib.Path("/non_existing_file.py")),
+            pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': '/non_existing_file.py'. Got a path to a non-existing file. "
+                        "Path must be absolute or relative to the project code path i.e. "
+                        "<project.spec.get_code_path()>/<workflow_path>)."
+                    )
+                ),
+            ),
+            None,
+        ),
+        # relative path with engine="remote", should not raise an error since the file does not need to exist locally
+        ("./remote_workflow.py", does_not_raise(), "remote"),
+        ("./remote_workflow.py", does_not_raise(), "remote:local"),
+        ("./remote_workflow.py", does_not_raise(), "remote:kfp"),
     ],
 )
-def test_set_workflow_path_validation(chdir_to_test_location, workflow_path, exception):
+def test_set_workflow_path_validation(
+    chdir_to_test_location, workflow_path, exception, engine
+):
     proj = mlrun.new_project("proj", save=False)
     with exception:
-        proj.set_workflow("main", workflow_path)
+        proj.set_workflow("main", workflow_path, engine=engine)
 
 
 def test_set_workflow_local_engine():
@@ -1622,10 +1641,9 @@ def test_validating_large_int_params(
     rundb_mock, parameters, hyperparameters, expectation, run_saved
 ):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
-    proj1 = mlrun.new_project("proj1", save=False)
+    proj1 = mlrun.new_project("proj1")
     proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
 
-    rundb_mock.reset()
     with expectation:
         proj1.run_function(
             "f1",
@@ -1845,7 +1863,6 @@ def test_init_function_from_dict_function_in_spec():
                 },
                 "description": "",
                 "disable_auto_mount": False,
-                "clone_target_dir": "/home/mlrun_code/",
                 "replicas": 1,
                 "image_pull_policy": "Always",
                 "priority_class_name": "dummy-class",
@@ -2322,6 +2339,7 @@ def test_set_source():
             "/target/path/for/source",
         ),
         ("git://some/repo", True, None, ".some-image", "/target/path"),
+        ("db://project-name", None, None, ".some-image", None),
     ],
 )
 def test_project_build_image(
@@ -2338,19 +2356,25 @@ def test_project_build_image(
 
     (
         build_config,
-        clone_target_dir,
+        source_code_target_dir,
     ) = remote_builder_mock.get_build_config_and_target_dir()
 
     # If pull-at-runtime, then source will not be provided to the build process since no configuration is needed
-    # at build time. Also, there will be no clone_target_dir, since no pulling/cloning is happening at build.
+    # at build time. Also, there will be no source_code_target_dir, since no pulling/cloning is happening at build.
     if pull_at_runtime:
         assert build_config.load_source_on_run is None
         assert build_config.source is None
-        assert clone_target_dir is None
+        assert source_code_target_dir is None
     else:
-        assert not build_config.load_source_on_run
-        assert build_config.source == source_url
-        assert clone_target_dir == target_dir
+        if source_url and source_url.startswith("db://"):
+            # db:// is metadata-only, not an actual build source
+            assert build_config.source is None
+            assert source_code_target_dir is None
+            assert build_config.load_source_on_run is None
+        else:
+            assert not build_config.load_source_on_run
+            assert build_config.source == source_url
+            assert source_code_target_dir == target_dir
 
     assert build_config.image == image_name
     # If no base image was used, then mlrun/mlrun is expected
@@ -2492,6 +2516,49 @@ def test_run_project_sync_functions_fails_silently(rundb_mock):
     run_status = proj.run(name)
     assert run_status.state == RunStatuses.failed
     assert "Function tstfunc not found" in str(run_status.exc)
+
+
+@pytest.mark.parametrize(
+    "engine, should_call",
+    [
+        ("remote", False),
+        ("remote:local", False),
+        ("remote:kfp", False),
+        (None, True),
+    ],
+)
+def test_run_remote_engine_not_syncing_functions(rundb_mock, engine, should_call):
+    mlrun.mlconf.force_run_local = False
+    proj = mlrun.new_project("proj", save=False)
+    proj.spec._function_definitions = {
+        "prep-data": {
+            "url": "prep_data.py",
+            "image": "mlrun/mlrun",
+            "handler": "prep_data",
+        },
+        "train": {
+            "url": "/User/some-notebook.ipynb",  # Absolute path
+            "name": "train",
+            "kind": "job",
+            "image": "mlrun/mlrun",
+            "handler": "trainer",
+        },
+    }
+    name = "my-pipeline"
+    proj.set_workflow(
+        name=name,
+        workflow_path=str(assets_path() / "localpipe.py"),
+        handler="my_pipe",
+    )
+
+    with unittest.mock.patch(
+        "mlrun.projects.project.MlrunProject.sync_functions"
+    ) as mock_sync:
+        proj.run(name, engine=engine)
+        if should_call:
+            mock_sync.assert_called_once()
+        else:
+            mock_sync.assert_not_called()
 
 
 class TestModelMonitoring:

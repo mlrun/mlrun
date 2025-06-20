@@ -11,13 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import base64
+import gzip
 from copy import deepcopy
 from typing import Optional, Union
 
+import semver
 from dependency_injector import containers, providers
 
 import mlrun.common.constants as mlrun_constants
-import mlrun.common.db.sql_session
 import mlrun.common.schemas.schedule
 import mlrun.config
 import mlrun.execution
@@ -32,11 +34,16 @@ import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.regex
 from mlrun.model import RunSpec, RunTemplate
+from mlrun.runtimes import KubejobRuntime, RemoteRuntime
 
 import framework.api.utils
 import framework.utils.helpers
 import services.api.crud
 import services.api.runtime_handlers
+from framework.db.sqldb.sql_session import create_session
+
+# Configmap objects on Kubernetes have 10Mb size limit
+SERVING_SPEC_MAX_LENGTH = 10485760
 
 
 class ServerSideLauncher(launcher.BaseLauncher):
@@ -68,6 +75,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
+        output_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[
             Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
@@ -101,8 +109,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             hyper_param_options=hyper_param_options,
             verbose=verbose,
             scrape_metrics=scrape_metrics,
-            out_path=out_path,
-            artifact_path=artifact_path,
+            output_path=output_path,
             workdir=workdir,
             notifications=notifications,
             state_thresholds=state_thresholds,
@@ -194,8 +201,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         hyper_param_options=None,
         verbose=None,
         scrape_metrics=None,
-        out_path=None,
-        artifact_path=None,
+        output_path=None,
         workdir=None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
@@ -213,37 +219,77 @@ class ServerSideLauncher(launcher.BaseLauncher):
             hyper_param_options=hyper_param_options,
             verbose=verbose,
             scrape_metrics=scrape_metrics,
-            out_path=out_path,
-            artifact_path=artifact_path,
+            output_path=output_path,
             workdir=workdir,
             notifications=notifications,
             state_thresholds=state_thresholds,
         )
 
         run = self._pre_run_image_pull_secret_enrichment(run)
-        return self._pre_run_node_selector_enrichement(runtime, run)
+        return self._pre_run_scheduling_constraints_enrichment(runtime, run)
 
-    def _pre_run_node_selector_enrichement(
+    def _pre_run_scheduling_constraints_enrichment(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
         run: mlrun.run.RunObject,
     ):
         """
+        Enrich the run object with node selector, tolerations, and affinity before execution.
+
         Enrich the run object with the project's default node selector.
         This ensures the node selector is correctly set on the run
         while maintaining the runtime's integrity from system-specific project settings.
+
+        Then, we apply preemption mode enrichment (if defined on the function).
+        Preemption mode takes precedence over user-defined values,  and may modify or remove the node_selector,
+        affinity, and tolerations fields to enforce scheduling behavior on preemptible/non-preemptible nodes.
+
+        This ensures the pod will reflect the correct intent based on both user config and system scheduling policies.
         """
-        run.spec.node_selector = deepcopy(runtime.spec.node_selector)
+        # Start with function-level selector
+        run.spec.node_selector = deepcopy(getattr(runtime.spec, "node_selector", {}))
+
+        # Apply project-level enrichment if available
         if runtime._get_db():
             project = runtime._get_db().get_project(run.metadata.project)
-            project_node_selector = project.spec.default_function_node_selector
-            resolved_node_selectors = mlrun.runtimes.utils.resolve_node_selectors(
-                project_node_selector, run.spec.node_selector
-            )
-            # Validate node selectors before enrichment
-            mlrun.k8s_utils.validate_node_selectors(resolved_node_selectors)
-            run.spec.node_selector = resolved_node_selectors
+            if project:
+                project_node_selector = project.spec.default_function_node_selector
+                resolved_node_selectors = mlrun.runtimes.utils.resolve_node_selectors(
+                    project_node_selector, run.spec.node_selector
+                )
+                mlrun.k8s_utils.validate_node_selectors(resolved_node_selectors)
+                run.spec.node_selector = resolved_node_selectors
+        self._enrich_run_with_preemption_mode(runtime, run)
         return run
+
+    def _enrich_run_with_preemption_mode(
+        self,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        run: mlrun.run.RunObject,
+    ):
+        """
+        Apply preemption mode logic to node selector / affinity / tolerations on the run.
+        """
+        preemption_mode = getattr(runtime.spec, "preemption_mode", None)
+        if not preemption_mode:
+            return
+
+        node_selector, tolerations, affinity = mlrun.k8s_utils.enrich_preemption_mode(
+            preemption_mode,
+            getattr(run.spec, "node_selector", None),
+            getattr(runtime.spec, "tolerations", None),
+            getattr(runtime.spec, "affinity", None),
+        )
+        self._set_run_spec_with_enriched_params(
+            run,
+            node_selector=node_selector,
+            tolerations=tolerations,
+            affinity=affinity,
+        )
+
+    def _set_run_spec_with_enriched_params(self, run, **fields):
+        for key, value in fields.items():
+            setattr(run.spec, key, value)
 
     def _pre_run_image_pull_secret_enrichment(self, run: Union[RunSpec, RunTemplate]):
         """
@@ -258,11 +304,87 @@ class ServerSideLauncher(launcher.BaseLauncher):
         )
         return run
 
+    @staticmethod
+    def _configure_serving_spec(
+        client_version,
+        function,
+        project: str,
+        serving_spec,
+    ):
+        serving_spec_volume = None
+        if serving_spec is not None:
+            # since environment variables have a limited size,
+            # large serving specs are stored in config maps that are mounted to the pod
+            serving_spec_len = len(serving_spec.encode("utf-8"))
+            if serving_spec_len >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff:
+                if serving_spec_len >= SERVING_SPEC_MAX_LENGTH:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}."
+                    )
+                if (
+                    not client_version
+                    or semver.Version.parse(client_version)
+                    >= semver.Version.parse("1.8.0-rc20")
+                    or "unstable" in client_version
+                ):
+                    # Compress and encode the serving spec
+                    compressed_serving_spec = gzip.compress(
+                        serving_spec.encode("utf-8")
+                    )
+                    encoded_serving_spec = base64.b64encode(
+                        compressed_serving_spec
+                    ).decode("utf-8")
+                else:
+                    # TODO: remove in 1.11.0.
+                    if (
+                        serving_spec_len >= SERVING_SPEC_MAX_LENGTH / 10
+                    ):  # 1MB limitation as it were before the zip
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}."
+                        )
+                    mlrun.utils.logger.info(
+                        "Client version does not support passing serving spec as zip via ConfigMap",
+                        FutureWarning,
+                    )
+                    encoded_serving_spec = serving_spec
+
+                function_name = mlrun.runtimes.nuclio.function.get_fullname(
+                    function.metadata.name, project, function.metadata.tag
+                )
+                k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
+                confmap_name = k8s_helper.ensure_configmap(
+                    mlrun.common.constants.MLRUN_SERVING_CONF,
+                    function_name,
+                    {
+                        mlrun.common.constants.MLRUN_SERVING_SPEC_FILENAME: encoded_serving_spec
+                    },
+                    labels={mlrun_constants.MLRunInternalLabels.created: "true"},
+                    project=project,
+                )
+                volume_name = mlrun.common.constants.MLRUN_SERVING_CONF
+                volume_mount = {
+                    "name": volume_name,
+                    "mountPath": mlrun.common.constants.MLRUN_SERVING_SPEC_MOUNT_PATH,
+                    "readOnly": True,
+                }
+
+                serving_spec_volume = {
+                    "volume": {
+                        "name": volume_name,
+                        "configMap": {"name": confmap_name},
+                    },
+                    "volumeMount": volume_mount,
+                }
+            else:
+                function.spec.env["SERVING_SPEC_ENV"] = serving_spec
+        return serving_spec_volume
+
     def enrich_runtime(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
         project_name: Optional[str] = "",
         full: bool = True,
+        client_version: str = "",
     ):
         """
         Enrich the runtime object with the project spec and metadata.
@@ -272,6 +394,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         :param project_name:    the project name of the project to enrich the runtime with
         :param full:            whether to enrich the runtime with the project's full spec (before run)
                                 e.g. mount, service account, etc.
+        :param client_version:  MLRun client version
         """
 
         # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
@@ -286,9 +409,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
         framework.api.utils.mask_function_sensitive_data(runtime, self._auth_info)
 
         # ensure the runtime has a project before we enrich it with the project's spec
-        runtime.metadata.project = (
-            project_name or runtime.metadata.project or mlrun.mlconf.default_project
-        )
+        runtime.metadata.project = project_name or runtime.metadata.project
+        if not runtime.metadata.project:
+            raise mlrun.errors.MLRunMissingProjectError("Runtime must have a project")
         project = runtime._get_db().get_project(runtime.metadata.project)
         # this is mainly for tests with nop db
         # in normal use cases if no project is found we will get an error
@@ -309,6 +432,22 @@ class ServerSideLauncher(launcher.BaseLauncher):
             runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
                 runtime.kind
             ]
+
+        serving_spec = getattr(runtime, "serving_spec", None)
+        if serving_spec and isinstance(runtime, (KubejobRuntime, RemoteRuntime)):
+            serving_spec_volume = self._configure_serving_spec(
+                client_version=client_version,
+                function=runtime,
+                project=project.name,
+                serving_spec=serving_spec,
+            )
+            if serving_spec_volume:
+                runtime.spec.volumes = runtime.spec.volumes + [
+                    serving_spec_volume["volume"]
+                ]
+                runtime.spec.volume_mounts = runtime.spec.volume_mounts + [
+                    serving_spec_volume["volumeMount"]
+                ]
 
     def _enrich_full_spec(
         self,
@@ -337,7 +476,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # If in the api server, we can assume that watch=False, so we save notification
         # configs to the DB, for the run monitor to later pick up and push.
-        session = mlrun.common.db.sql_session.create_session()
+        session = create_session()
         services.api.crud.Notifications().store_run_notifications(
             session,
             runobj.spec.notifications,

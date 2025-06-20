@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import pytest
 
 import mlrun
@@ -50,7 +50,9 @@ def test_parallel(executor):
     server = fn.to_mock_server()
 
     resp = server.test(body={"x": 8})
+    resp.pop("background_task_state", None)
     assert resp == {"x": 8, "a": 1, "b": 2, "c": 7, "mul": 16}
 
     resp = server.test("", {"x": 9})
+    resp.pop("background_task_state", None)
     assert resp == {"x": 9, "a": 1, "b": 2, "c": 7, "mul": 18}

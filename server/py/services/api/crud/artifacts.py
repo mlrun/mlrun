@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import typing
 
+import sqlalchemy.exc
 import sqlalchemy.orm
 
 import mlrun.artifacts.base
@@ -48,34 +49,31 @@ class Artifacts(
         producer_id: typing.Optional[str] = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
-        project = project or mlrun.mlconf.default_project
-        # In case project is an empty string the setdefault won't catch it
-        if not artifact.setdefault("project", project):
-            artifact["project"] = project
-
-        if artifact["project"] != project:
+        artifact_project = artifact.get("project")
+        if artifact_project and artifact_project != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Conflicting project name - storing artifact with project {artifact['project']}"
                 f" into a different project: {project}."
             )
+        artifact["project"] = project
 
         # calculate the size of the artifact
         self._resolve_artifact_size(artifact, auth_info)
 
-        # TODO: remove this in 1.8.0
+        # TODO: Remove once data migration v5 is obsolete
         if mlrun.utils.helpers.is_legacy_artifact(artifact):
             artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
                 artifact
             ).to_dict()
 
         return framework.utils.singletons.db.get_db().store_artifact(
-            db_session,
-            key,
-            artifact,
-            object_uid,
-            iter,
-            tag,
-            project,
+            session=db_session,
+            key=key,
+            artifact=artifact,
+            uid=object_uid,
+            iter=iter,
+            tag=tag,
+            project=project,
             producer_id=producer_id,
         )
 
@@ -90,18 +88,15 @@ class Artifacts(
         project: typing.Optional[str] = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
-        project = project or mlrun.mlconf.default_project
-        # In case project is an empty string the setdefault won't catch it
-        if not artifact.setdefault("project", project):
-            artifact["project"] = project
-
-        best_iteration = artifact.get("metadata", {}).get("best_iteration", False)
-
-        if artifact["project"] != project:
+        artifact_project = artifact.get("project")
+        if artifact_project and artifact_project != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Conflicting project name - storing artifact with project {artifact['project']}"
                 f" into a different project: {project}."
             )
+        artifact["project"] = project
+
+        best_iteration = artifact.get("metadata", {}).get("best_iteration", False)
 
         # calculate the size of the artifact
         self._resolve_artifact_size(artifact, auth_info)
@@ -129,16 +124,15 @@ class Artifacts(
         object_uid: typing.Optional[str] = None,
         raise_on_not_found: bool = True,
     ) -> dict:
-        project = project or mlrun.mlconf.default_project
         artifact = framework.utils.singletons.db.get_db().read_artifact(
-            db_session,
-            key,
-            tag,
-            iter,
-            project,
-            producer_id,
-            object_uid,
-            raise_on_not_found,
+            session=db_session,
+            key=key,
+            tag=tag,
+            iter=iter,
+            project=project,
+            producer_id=producer_id,
+            uid=object_uid,
+            raise_on_not_found=raise_on_not_found,
             format_=format_,
         )
         return artifact
@@ -159,6 +153,7 @@ class Artifacts(
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         producer_id: typing.Optional[str] = None,
         producer_uri: typing.Optional[str] = None,
+        parent: typing.Optional[str] = None,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         partition_by: typing.Optional[
@@ -172,21 +167,20 @@ class Artifacts(
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
     ) -> list:
-        project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
         artifacts = framework.utils.singletons.db.get_db().list_artifacts(
             db_session,
-            name,
-            project,
-            tag,
-            labels,
-            since,
-            until,
-            kind,
-            category,
-            iter,
-            best_iteration,
+            name=name,
+            project=project,
+            tag=tag,
+            labels=labels,
+            since=since,
+            until=until,
+            kind=kind,
+            category=category,
+            iter=iter,
+            best_iteration=best_iteration,
             producer_id=producer_id,
             producer_uri=producer_uri,
             format_=format_,
@@ -196,6 +190,7 @@ class Artifacts(
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
+            parent_uri=parent,
         )
         return artifacts
 
@@ -219,7 +214,6 @@ class Artifacts(
         project: typing.Optional[str] = None,
         category: mlrun.common.schemas.ArtifactCategories = None,
     ):
-        project = project or mlrun.mlconf.default_project
         return framework.utils.singletons.db.get_db().list_artifact_tags(
             db_session, project, category
         )
@@ -239,24 +233,30 @@ class Artifacts(
         secrets: typing.Optional[dict] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        project = project or mlrun.mlconf.default_project
-
+        artifact = framework.utils.singletons.db.get_db().validate_artifact_removal_preconditions(
+            session=db_session,
+            key=key,
+            tag=tag,
+            iter=iteration,
+            project=project,
+            producer_id=producer_id,
+            uid=object_uid,
+        )
+        if not artifact:
+            return None
         # delete artifacts data by deletion strategy
         if deletion_strategy in [
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_optional,
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force,
         ]:
             self._delete_artifact_data(
-                db_session=db_session,
                 key=key,
                 tag=tag,
                 project=project,
-                object_uid=object_uid,
-                producer_id=producer_id,
-                iteration=iteration,
                 deletion_strategy=deletion_strategy,
                 secrets=secrets,
                 auth_info=auth_info,
+                artifact=artifact,
             )
 
         return framework.utils.singletons.db.get_db().del_artifact(
@@ -279,9 +279,17 @@ class Artifacts(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         producer_id: typing.Optional[str] = None,
     ):
-        project = project or mlrun.mlconf.default_project
+        # TODO : If, in the future, this API is extended to delete the artifact data as well,
+        #  we should include the validation we added in validate_artifact_removal_preconditions
+        #  before attempting the data deletion. Currently, deleting artifacts linked to model
+        #  endpoints will fail with IntegrityError.
         framework.utils.singletons.db.get_db().del_artifacts(
-            db_session, name, project, tag, labels, producer_id=producer_id
+            db_session,
+            name=name,
+            project=project,
+            tag=tag,
+            labels=labels,
+            producer_id=producer_id,
         )
 
     @staticmethod
@@ -307,32 +315,19 @@ class Artifacts(
 
     def _delete_artifact_data(
         self,
-        db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
         project: typing.Optional[str] = None,
-        object_uid: typing.Optional[str] = None,
-        producer_id: typing.Optional[str] = None,
-        iteration: typing.Optional[int] = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
         secrets: typing.Optional[dict] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        artifact: typing.Optional[dict] = None,
     ):
         logger.debug("Deleting artifact data", project=project, key=key, tag=tag)
 
         try:
-            artifact = self.get_artifact(
-                db_session,
-                key,
-                tag,
-                project=project,
-                producer_id=producer_id,
-                object_uid=object_uid,
-                iter=iteration,
-            )
-
             path = artifact["spec"]["target_path"]
 
             # Data artifacts that are ModelArtifact, DirArtifact must not be removed because we do not yet

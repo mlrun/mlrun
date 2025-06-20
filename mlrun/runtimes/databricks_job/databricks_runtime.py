@@ -82,7 +82,6 @@ class DatabricksSpec(pod.KubeResourceSpec):
         tolerations=None,
         preemption_mode=None,
         security_context=None,
-        clone_target_dir=None,
         state_thresholds=None,
     ):
         super().__init__(
@@ -112,7 +111,6 @@ class DatabricksSpec(pod.KubeResourceSpec):
             tolerations=tolerations,
             preemption_mode=preemption_mode,
             security_context=security_context,
-            clone_target_dir=clone_target_dir,
             state_thresholds=state_thresholds,
         )
         self._termination_grace_period_seconds = 60
@@ -234,6 +232,7 @@ def run_mlrun_databricks_job(context,task_parameters: dict, **kwargs):
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
+        output_path: Optional[str] = "",
         **launcher_kwargs,
     ) -> RunObject:
         if local:
@@ -247,7 +246,7 @@ def run_mlrun_databricks_job(context,task_parameters: dict, **kwargs):
             inputs=inputs,
             out_path=out_path,
             workdir=workdir,
-            artifact_path=artifact_path,
+            output_path=output_path,
             watch=watch,
             schedule=schedule,
             hyperparams=hyperparams,

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 """alert_activation_plural_name
 
@@ -22,6 +21,7 @@ Create Date: 2024-12-09 13:47:42.398038
 """
 
 from alembic import op
+from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision = "d259d95707b3"
@@ -36,7 +36,7 @@ def upgrade():
     check_table_sql = """
             SHOW TABLES LIKE 'alert_activation';
         """
-    result = op.get_bind().execute(check_table_sql).fetchone()
+    result = op.get_bind().execute(text(check_table_sql)).fetchone()
 
     if result:
         # Rename table only if it exists

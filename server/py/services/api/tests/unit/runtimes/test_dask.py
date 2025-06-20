@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import base64
 import json
 import os
@@ -89,7 +89,6 @@ class TestDaskRuntime(TestRuntimeBase):
         mlconf.remote_host = "http://remote_host"
         os.environ["V3IO_USERNAME"] = self.v3io_user
         os.environ["V3IO_ACCESS_KEY"] = self.v3io_access_key
-        mlconf.default_project = self.project
         mlconf.artifact_path = self.artifact_path
 
         dask_cluster = mlrun.new_function(
@@ -439,10 +438,13 @@ class TestDaskRuntime(TestRuntimeBase):
     def test_enrich_dask_cluster(self):
         function_label_name, function_label_val = "kubernetes.io/os", "linux"
         config_label_name, config_label_val = "kubernetes.io/hostname", "k8s-node1"
+        preemptible_ns, preemptible_val = "lifecycle", "spot"
         mlrun.mlconf.default_function_node_selector = base64.b64encode(
             json.dumps({config_label_name: config_label_val}).encode("utf-8")
         )
-
+        mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+            json.dumps({preemptible_ns: preemptible_val}).encode("utf-8")
+        )
         function = mlrun.runtimes.DaskCluster(
             metadata=dict(
                 name="test",
@@ -460,13 +462,15 @@ class TestDaskRuntime(TestRuntimeBase):
                     {"name": "TEST_DUP", "value": "A"},
                     {"name": "TEST_DUP", "value": "B"},
                 ],
-                node_selector={function_label_name: function_label_val},
+                node_selector={
+                    function_label_name: function_label_val,
+                    preemptible_ns: preemptible_val,
+                },
             ),
         )
 
         function.generate_runtime_k8s_env = unittest.mock.Mock(
             return_value=[
-                {"name": "MLRUN_DEFAULT_PROJECT", "value": self.project},
                 {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
             ]
         )
@@ -474,13 +478,13 @@ class TestDaskRuntime(TestRuntimeBase):
         # add default envvars that expected to be on enriched pods
         # do it to verify later on it is not duplicated and appears only once
         function.spec.env.extend(function.generate_runtime_k8s_env())
+        function.with_preemption_mode("prevent")
 
         expected_resources = {
             "limits": {"memory": "1Gi"},
             "requests": {},
         }
         expected_env = [
-            {"name": "MLRUN_DEFAULT_PROJECT", "value": self.project},
             {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
             k8s_client.V1EnvVar(name="MLRUN_TAG", value="latest"),
             {"name": "TEST_DUP", "value": "A"},
@@ -500,6 +504,25 @@ class TestDaskRuntime(TestRuntimeBase):
             config_label_name: config_label_val,
         }
 
+        expected_affinity = k8s_client.V1Affinity(
+            node_affinity=k8s_client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=k8s_client.V1NodeSelector(
+                    node_selector_terms=[
+                        k8s_client.V1NodeSelectorTerm(
+                            match_expressions=[
+                                k8s_client.V1NodeSelectorRequirement(
+                                    key="lifecycle",
+                                    operator="NotIn",
+                                    values=["spot"],
+                                )
+                            ]
+                        )
+                    ]
+                )
+            ),
+            pod_affinity=None,
+            pod_anti_affinity=None,
+        )
         secrets = []
         client_version = "1.6.0"
         client_python_version = "3.9"
@@ -527,9 +550,37 @@ class TestDaskRuntime(TestRuntimeBase):
         assert worker_pod.spec.containers[0].env == expected_env
         assert scheduler_pod.spec.containers[0].env == expected_env
         assert scheduler_pod.spec.node_selector == expected_node_selector
+        assert worker_pod.spec.node_selector == expected_node_selector
+        assert scheduler_pod.spec.affinity == expected_affinity
+        assert worker_pod.spec.affinity == expected_affinity
 
         # used once by test, once by enrich_dask_cluster
         assert function.generate_runtime_k8s_env.call_count == 2
+
+    def test_dask_cluster_enriches_image(self):
+        """
+        Test that the deprecated 'mlrun/ml-base' image is correctly enriched and replaced with 'mlrun/mlrun'
+        when the client version is >= 1.10.0. This test ensures that the image used in both the scheduler and
+        worker pods is updated accordingly.
+        """
+        function = mlrun.runtimes.DaskCluster(
+            metadata={"name": "test", "project": self.project},
+            spec={"image": "mlrun/ml-base"},
+        )
+
+        client_version = "1.10.0"
+        scheduler_pod, worker_pod, _, _ = (
+            services.api.runtime_handlers.daskjob.enrich_dask_cluster(
+                function=function,
+                secrets=[],
+                client_version=client_version,
+            )
+        )
+
+        expected_image = "mlrun/mlrun:1.10.0"
+
+        assert scheduler_pod.spec.containers[0].image == expected_image
+        assert worker_pod.spec.containers[0].image == expected_image
 
     def test_deploy_dask_function_with_enriched_security_context(
         self, db: Session, client: TestClient, k8s_secrets_mock: APIK8sSecretsMock

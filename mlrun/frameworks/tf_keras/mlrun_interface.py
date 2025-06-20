@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import importlib
 import os
 from abc import ABC
@@ -280,7 +280,10 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             print(f"Horovod worker #{self._hvd.rank()} is using CPU")
 
         # Adjust learning rate based on the number of GPUs:
-        optimizer.lr = optimizer.lr * self._hvd.size()
+        if hasattr(self.optimizer, "lr"):
+            optimizer.lr *= self._hvd.size()
+        else:
+            optimizer.learning_rate *= self._hvd.size()
 
         # Wrap the optimizer in horovod's distributed optimizer: 'hvd.DistributedOptimizer'.
         optimizer = self._hvd.DistributedOptimizer(optimizer)

@@ -42,12 +42,10 @@ class ModelEndpointSchema(MonitoringStrEnum):
     # spec
     FUNCTION_NAME = "function_name"
     FUNCTION_TAG = "function_tag"
-    FUNCTION_UID = "function_uid"
     MODEL_NAME = "model_name"
-    MODEL_DB_KEY = "model_db_key"
-    MODEL_TAG = "model_tag"
+    MODEL_TAGS = "model_tags"
+    MODEL_PATH = "model_path"
     MODEL_CLASS = "model_class"
-    MODEL_UID = "model_uid"
     FEATURE_NAMES = "feature_names"
     LABEL_NAMES = "label_names"
     FEATURE_STATS = "feature_stats"
@@ -144,6 +142,22 @@ class EventFieldType:
     EFFECTIVE_SAMPLE_COUNT = "effective_sample_count"
 
 
+class StreamProcessingEvent:
+    MODEL = "model"
+    MODEL_CLASS = "model_class"
+    MICROSEC = "microsec"
+    WHEN = "when"
+    ERROR = "error"
+    ENDPOINT_ID = "endpoint_id"
+    SAMPLING_PERCENTAGE = "sampling_percentage"
+    EFFECTIVE_SAMPLE_COUNT = "effective_sample_count"
+    LABELS = "labels"
+    FUNCTION_URI = "function_uri"
+    REQUEST = "request"
+    RESPONSE = "resp"
+    METRICS = "metrics"
+
+
 class FeatureSetFeatures(MonitoringStrEnum):
     LATENCY = EventFieldType.LATENCY
     METRICS = EventFieldType.METRICS
@@ -163,6 +177,7 @@ class ApplicationEvent:
     END_INFER_TIME = "end_infer_time"
     ENDPOINT_ID = "endpoint_id"
     ENDPOINT_NAME = "endpoint_name"
+    ENDPOINT_UPDATED = "endpoint_updated"
 
 
 class WriterEvent(MonitoringStrEnum):
@@ -192,7 +207,13 @@ class ControllerEvent(MonitoringStrEnum):
     ENDPOINT_TYPE = "endpoint_type"
     ENDPOINT_POLICY = "endpoint_policy"
     # Note: currently under endpoint policy we will have a dictionary including the keys: "application_names"
-    # and "base_period"
+    # "base_period", and "updated_endpoint" stand for when the MEP was updated
+
+
+class ControllerEventEndpointPolicy(MonitoringStrEnum):
+    BASE_PERIOD = "base_period"
+    MONITORING_APPLICATIONS = "monitoring_applications"
+    ENDPOINT_UPDATED = "endpoint_updated"
 
 
 class ControllerEventKind(MonitoringStrEnum):
@@ -276,11 +297,17 @@ class FileTargetKind:
     MONITORING_APPLICATION = "monitoring_application"
     ERRORS = "errors"
     STATS = "stats"
+    LAST_REQUEST = "last_request"
 
 
 class ModelMonitoringMode(StrEnum):
     enabled = "enabled"
     disabled = "disabled"
+
+
+class ScheduleChiefFields(StrEnum):
+    LAST_REQUEST = "last_request"
+    LAST_ANALYZED = "last_analyzed"
 
 
 class EndpointType(IntEnum):
@@ -405,12 +432,20 @@ class ResultStatusApp(IntEnum):
     detected = 2
 
 
-class ModelMonitoringAppLabel:
+class ModelMonitoringLabel:
     KEY = mlrun.common.constants.MLRunInternalLabels.mlrun_type
-    VAL = "mlrun__model-monitoring-application"
+    VAL = ""
 
     def __str__(self) -> str:
         return f"{self.KEY}={self.VAL}"
+
+
+class ModelMonitoringAppLabel(ModelMonitoringLabel):
+    VAL = "mlrun__model-monitoring-application"
+
+
+class ModelMonitoringInfraLabel(ModelMonitoringLabel):
+    VAL = "mlrun__model-monitoring-infra"
 
 
 class HistogramDataDriftApplicationConstants:
@@ -425,6 +460,10 @@ class PredictionsQueryConstants:
 
 class SpecialApps:
     MLRUN_INFRA = "mlrun-infra"
+
+
+class ModelMonitoringLabels:
+    MLRUN_MODEL_MONITORING_INFRA = "mlrun-model-monitoring-infra"
 
 
 _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]

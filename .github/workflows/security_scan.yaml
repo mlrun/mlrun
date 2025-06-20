@@ -11,11 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 # Currently supported running against prebuilt images
 name: Security Scan
 run-name: Scanning ${{ inputs.tag }}
+
+permissions:
+  contents: read
 
 on:
   workflow_dispatch:
@@ -108,7 +110,7 @@ jobs:
           fi
 
       - name: Scan image
-        uses: anchore/scan-action@v6
+        uses: anchore/scan-action@be7a22da4f22dde446c4c4c099887ff5b256526c # 6.3.0
         id: scan
         with:
           image: ${{ steps.resolve_image_name.outputs.image_name }}
@@ -146,7 +148,7 @@ jobs:
           fi
 
       - name: Scan fs
-        uses: anchore/scan-action@v6
+        uses: anchore/scan-action@be7a22da4f22dde446c4c4c099887ff5b256526c # 6.3.0
         id: scan
         with:
           path: "."

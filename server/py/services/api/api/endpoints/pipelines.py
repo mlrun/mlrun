@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import ast
 import datetime
 import http
@@ -23,15 +23,17 @@ import fastapi.concurrency
 import sqlalchemy.orm
 import yaml
 from fastapi import BackgroundTasks, Depends
-from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.common.schemas.background_task
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
 import mlrun.utils.notifications
+import mlrun_pipelines.common.models
 import mlrun_pipelines.models
+import mlrun_pipelines.utils
 
 import framework.api
 import framework.api.deps
@@ -143,9 +145,6 @@ async def retry_pipeline(
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        framework.api.deps.get_db_session
-    ),
 ):
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -158,12 +157,65 @@ async def retry_pipeline(
     )
     run_id = await fastapi.concurrency.run_in_threadpool(
         services.api.crud.Pipelines().retry_pipeline,
-        db_session,
         run_id,
         project,
         namespace,
     )
     return run_id
+
+
+@router.post("/{run_id}/terminate")
+async def terminate_pipeline(
+    run_id: str,
+    project: str,
+    background_tasks: BackgroundTasks,
+    namespace: str = fastapi.Query(mlrun.config.config.namespace),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        framework.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        framework.api.deps.get_db_session
+    ),
+):
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
+            project,
+            run_id,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
+    )
+    run = await fastapi.concurrency.run_in_threadpool(
+        func=services.api.crud.pipelines.Pipelines().get_run,
+        run_id=run_id,
+        project=project,
+        namespace=namespace,
+    )
+
+    # Check if the pipeline is in a terminable state
+    if (
+        run.status
+        not in mlrun_pipelines.common.models.RunStatuses.terminable_statuses()
+    ):
+        raise mlrun.errors.MLRunBadRequestError(
+            f"Pipeline run {run_id} is not in a terminable state. Current status: {run.status}"
+        )
+
+    task = await _terminate_pipeline(
+        db_session=db_session,
+        background_tasks=background_tasks,
+        run_id=run_id,
+        project=project,
+    )
+
+    return fastapi.Response(
+        status_code=202,
+        content=task.json(),
+        headers={
+            "content-type": "application/json",
+        },
+    )
 
 
 @router.post(
@@ -174,7 +226,7 @@ async def push_notifications(
     project: str,
     run_id: str,
     background_tasks: BackgroundTasks,
-    db_session: Session = Depends(framework.api.deps.get_db_session),
+    db_session: sqlalchemy.orm.Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
@@ -200,6 +252,8 @@ async def push_notifications(
         framework.utils.background_tasks.BackgroundTaskKinds.push_kfp_notification.format(
             project, run_id, time.time()
         ),
+        None,
+        db_session,
         run_id,
         project,
         notifications,
@@ -223,8 +277,7 @@ async def get_pipeline(
     ),
 ):
     pipeline = await fastapi.concurrency.run_in_threadpool(
-        services.api.crud.Pipelines().get_pipeline,
-        db_session,
+        services.api.crud.Pipelines().get_formatted_pipeline,
         run_id,
         project,
         namespace,
@@ -260,8 +313,7 @@ async def _get_pipeline_without_project(
     permissions
     """
     run = await fastapi.concurrency.run_in_threadpool(
-        services.api.crud.Pipelines().get_pipeline,
-        db_session,
+        services.api.crud.Pipelines().get_formatted_pipeline,
         run_id,
         namespace=namespace,
         # minimal format that includes the project
@@ -357,7 +409,12 @@ def _try_resolve_project_from_body(
     )
 
 
-def _push_notifications(run_id, project, notifications):
+def _push_notifications(
+    db_session: sqlalchemy.orm.Session,
+    run_id: str,
+    project: str,
+    notifications: typing.Optional[list[mlrun.common.schemas.Notification]] = None,
+):
     if not notifications:
         return
     unmasked_notifications = []
@@ -379,5 +436,58 @@ def _push_notifications(run_id, project, notifications):
     )
     default_params = run_notification_pusher.resolve_notifications_default_params()
     framework.utils.notifications.notification_pusher.KFPNotificationPusher(
-        project, run_id, unmasked_notifications, default_params
+        db_session, project, run_id, unmasked_notifications, default_params
     ).push()
+
+
+async def _terminate_pipeline(
+    db_session: sqlalchemy.orm.Session,
+    background_tasks: BackgroundTasks,
+    run_id: str,
+    project: str,
+) -> mlrun.common.schemas.BackgroundTask:
+    background_task_handler = (
+        framework.utils.background_tasks.ProjectBackgroundTasksHandler()
+    )
+    existing_terminate_pipeline_task = await fastapi.concurrency.run_in_threadpool(
+        background_task_handler.get_background_task_by_state_and_labels,
+        db_session=db_session,
+        status=mlrun.common.schemas.BackgroundTaskState.running,
+        labels={
+            mlrun.common.schemas.background_task.BackGroundTaskLabel.pipeline: run_id,
+        },
+    )
+
+    if existing_terminate_pipeline_task is not None:
+        mlrun.utils.logger.info(
+            "Found existing terminate pipeline task, returning it",
+            run_id=run_id,
+            task_name=existing_terminate_pipeline_task.metadata.name,
+        )
+        return existing_terminate_pipeline_task
+    else:
+        terminate_pipeline_task = await fastapi.concurrency.run_in_threadpool(
+            framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
+            db_session,
+            project,
+            background_tasks,
+            services.api.crud.pipelines.Pipelines().terminate_pipeline,
+            mlrun.mlconf.background_tasks.default_timeouts.operations.terminate_pipeline,
+            framework.utils.background_tasks.BackgroundTaskKinds.terminate_pipeline.format(
+                project,
+                run_id,
+                time.time(),
+            ),
+            {
+                mlrun.common.schemas.background_task.BackGroundTaskLabel.pipeline: run_id,
+            },
+            run_id,
+            project,
+        )
+
+        mlrun.utils.logger.info(
+            "Created new terminate pipeline task",
+            run_id=run_id,
+            task_name=terminate_pipeline_task.metadata.name,
+        )
+        return terminate_pipeline_task

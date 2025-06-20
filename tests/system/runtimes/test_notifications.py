@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
+import datetime
+
 import pytest
 
 import mlrun
@@ -33,6 +35,14 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
                 with_notifications=True,
             )
             assert len(runs) == 1
+            assert runs[0]["status"]["end_time"]
+            assert runs[0]["status"]["last_update"]
+            end_time = datetime.datetime.fromisoformat(runs[0]["status"]["end_time"])
+            last_updated_time = datetime.datetime.fromisoformat(
+                runs[0]["status"]["last_update"]
+            )
+            assert last_updated_time >= end_time
+
             assert len(runs[0]["status"]["notifications"]) == 2
             for notification_name, notification in runs[0]["status"][
                 "notifications"

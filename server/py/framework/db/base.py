@@ -18,6 +18,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
 from deprecated import deprecated
+from sqlalchemy.orm import Session
 
 import mlrun.alerts
 import mlrun.common.formatters
@@ -75,7 +76,7 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def update_run(self, session, updates: dict, uid, project="", iter=0):
+    def update_run(self, session, updates: dict, uid, project, iter=0):
         pass
 
     @abstractmethod
@@ -102,7 +103,7 @@ class DBInterface(ABC):
         self,
         session,
         uid: str,
-        project: Optional[str] = None,
+        project: str,
         iter: int = 0,
         with_notifications: bool = False,
         populate_existing: bool = False,
@@ -113,9 +114,9 @@ class DBInterface(ABC):
     def list_runs(
         self,
         session,
+        project: typing.Union[str, list[str]],
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
-        project: typing.Optional[typing.Union[str, list[str]]] = None,
         labels: Optional[Union[str, list[str]]] = None,
         states: Optional[list[str]] = None,
         sort: bool = True,
@@ -140,12 +141,12 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def del_run(self, session, uid, project="", iter=0):
+    def del_run(self, session, uid, project, iter=0):
         pass
 
     @abstractmethod
     def del_runs(
-        self, session, name="", project="", labels=None, state="", days_ago=0, uids=None
+        self, session, project, name="", labels=None, state="", days_ago=0, uids=None
     ):
         pass
 
@@ -182,10 +183,10 @@ class DBInterface(ABC):
         session,
         key,
         artifact,
+        project,
         uid=None,
         iter=None,
         tag="",
-        project="",
         producer_id=None,
         best_iteration=False,
         always_overwrite=False,
@@ -212,9 +213,9 @@ class DBInterface(ABC):
         self,
         session,
         key,
+        project,
         tag="",
         iter=None,
-        project="",
         producer_id: Optional[str] = None,
         uid: Optional[str] = None,
         raise_on_not_found: bool = True,
@@ -226,8 +227,8 @@ class DBInterface(ABC):
     def list_artifacts(
         self,
         session,
+        project,
         name="",
-        project="",
         tag="",
         labels=None,
         since: Optional[datetime.datetime] = None,
@@ -240,6 +241,8 @@ class DBInterface(ABC):
         uid: Optional[str] = None,
         producer_id: Optional[str] = None,
         producer_uri: Optional[str] = None,
+        most_recent: bool = False,
+        parent_uri: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         offset: Optional[int] = None,
         limit: Optional[int] = None,
@@ -258,15 +261,22 @@ class DBInterface(ABC):
     def list_artifacts_for_producer_id(
         self,
         session,
-        producer_id: str,
         project: str,
+        producer_id: str,
         artifact_identifiers: list[tuple] = "",
     ):
         pass
 
     @abstractmethod
     def del_artifact(
-        self, session, key, tag="", project="", uid=None, producer_id=None, iter=None
+        self,
+        session,
+        key,
+        project,
+        tag="",
+        uid=None,
+        producer_id=None,
+        iter=None,
     ):
         pass
 
@@ -274,8 +284,8 @@ class DBInterface(ABC):
     def del_artifacts(
         self,
         session,
+        project,
         name="",
-        project="",
         tag="*",
         labels=None,
         ids=None,
@@ -288,10 +298,40 @@ class DBInterface(ABC):
     ):
         return []
 
-    # TODO: remove in 1.8.0
+    def validate_artifact_removal_preconditions(
+        self,
+        session,
+        key: str,
+        project: str,
+        tag: str = "",
+        iter: Optional[str] = None,
+        producer_id: Optional[str] = None,
+        uid: Optional[str] = None,
+    ) -> Optional[dict[str, Any]]:
+        """
+        Validate whether an artifact can be safely removed from the system.
+
+        This method checks if the specified artifact is currently in use by other resources,
+        such as model endpoints. If it is, the deletion will be blocked, and an appropriate
+        exception should be raised (MLRunConflictError).
+
+        :param session:     Active SQLAlchemy DB session for querying.
+        :param key:         Artifact key.
+        :param tag:         Specific tag for the artifact.
+        :param iter:        Artifact iteration number, if applicable.
+        :param project:     Project to which the artifact belongs.
+        :param producer_id: Identifier of the artifact's producer.
+        :param uid:         UID of the artifact object.
+
+        :return: An artifact dictionary.
+        :raises MLRunConflictError: If the artifact is in use and cannot be deleted.
+        """
+        pass
+
+    # TODO: Remove once data migration v5 is obsolete
     @deprecated(
-        version="1.8.0",
-        reason="'store_artifact_v1' will be removed from this file in 1.8.0, use "
+        version="1.7.0",
+        reason="'store_artifact_v1' will be removed from this file in 1.10.0, use "
         "'store_artifact' instead",
         category=FutureWarning,
     )
@@ -301,9 +341,9 @@ class DBInterface(ABC):
         key,
         artifact,
         uid,
+        project,
         iter=None,
         tag="",
-        project="",
         tag_artifact=True,
     ):
         """
@@ -312,14 +352,21 @@ class DBInterface(ABC):
         """
         pass
 
-    # TODO: remove in 1.8.0
+    # TODO: Remove once data migration v5 is obsolete
     @deprecated(
-        version="1.8.0",
-        reason="'read_artifact_v1' will be removed from this file in 1.8.0, use "
+        version="1.7.0",
+        reason="'read_artifact_v1' will be removed from this file in 1.10.0, use "
         "'read_artifact' instead",
         category=FutureWarning,
     )
-    def read_artifact_v1(self, session, key, tag="", iter=None, project=""):
+    def read_artifact_v1(
+        self,
+        session,
+        key,
+        project,
+        tag="",
+        iter=None,
+    ):
         """
         Read artifact v1 from the DB, this is the deprecated legacy artifact format
         and is only left for testing purposes
@@ -332,7 +379,7 @@ class DBInterface(ABC):
         session,
         function,
         name,
-        project="",
+        project,
         tag="",
         versioned=False,
     ) -> str:
@@ -342,8 +389,8 @@ class DBInterface(ABC):
     def get_function(
         self,
         session,
+        project: str,
         name: Optional[str] = None,
-        project: Optional[str] = None,
         tag: Optional[str] = None,
         hash_key: Optional[str] = None,
         format_: Optional[str] = None,
@@ -364,8 +411,8 @@ class DBInterface(ABC):
     def list_functions(
         self,
         session,
+        project: Union[str, list[str]],
         name: Optional[str] = None,
-        project: Optional[Union[str, list[str]]] = None,
         tag: Optional[str] = None,
         kind: Optional[str] = None,
         labels: Optional[list[str]] = None,
@@ -385,7 +432,7 @@ class DBInterface(ABC):
         session,
         name,
         updates: dict,
-        project: Optional[str] = None,
+        project: str,
         tag: Optional[str] = None,
         hash_key: Optional[str] = None,
     ):
@@ -397,7 +444,7 @@ class DBInterface(ABC):
         session,
         name: str,
         url: str,
-        project: str = "",
+        project: str,
         tag: str = "",
         hash_key: str = "",
         operation: mlrun.common.types.Operation = mlrun.common.types.Operation.ADD,
@@ -533,6 +580,13 @@ class DBInterface(ABC):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
     ]:
         pass
 
@@ -620,10 +674,10 @@ class DBInterface(ABC):
     ) -> mlrun.common.schemas.FeatureSet:
         pass
 
-    # TODO: remove in 1.9.0
+    # TODO: remove in 1.10.0
     @deprecated(
-        version="1.9.0",
-        reason="'list_features' will be removed in 1.9.0, use 'list_features_v2' instead",
+        version="1.7.0",
+        reason="'list_features' will be removed in 1.10.0, use 'list_features_v2' instead",
         category=FutureWarning,
     )
     @abstractmethod
@@ -648,23 +702,6 @@ class DBInterface(ABC):
         entities: Optional[list[str]] = None,
         labels: Optional[list[str]] = None,
     ) -> mlrun.common.schemas.FeaturesOutputV2:
-        pass
-
-    # TODO: remove in 1.9.0
-    @deprecated(
-        version="1.9.0",
-        reason="'list_entities' will be removed in 1.9.0, use 'list_entities_v2' instead",
-        category=FutureWarning,
-    )
-    @abstractmethod
-    def list_entities(
-        self,
-        session,
-        project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[list[str]] = None,
-    ) -> mlrun.common.schemas.EntitiesOutput:
         pass
 
     @abstractmethod
@@ -843,12 +880,28 @@ class DBInterface(ABC):
         state: str = mlrun.common.schemas.BackgroundTaskState.running,
         timeout: Optional[int] = None,
         error: Optional[str] = None,
+        labels: Optional[dict[str, str]] = None,
     ):
         pass
 
     def get_background_task(
         self, session, name: str, project: str, background_task_exceeded_timeout_func
     ) -> mlrun.common.schemas.BackgroundTask:
+        pass
+
+    def get_background_task_by_state_and_labels(
+        self,
+        session,
+        status: mlrun.common.schemas.BackgroundTaskState,
+        labels: dict[str, str],
+    ) -> mlrun.common.schemas.BackgroundTask:
+        """
+        Get a background task by its status and labels.
+        :param session: The database session.
+        :param status: The status of the background task to filter by.
+        :param labels: A dictionary of labels to filter the background task.
+        :return: The background task matching the labels.
+        """
         pass
 
     def list_background_tasks(
@@ -903,6 +956,8 @@ class DBInterface(ABC):
         session,
         project: typing.Optional[typing.Union[str, list[str]]] = None,
         exclude_updated: bool = False,
+        limit: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         pass
 
@@ -964,7 +1019,7 @@ class DBInterface(ABC):
         pass
 
     @staticmethod
-    def table_exist(
+    def table_exists(
         session,
         table_name: str,
     ) -> bool:
@@ -1088,9 +1143,9 @@ class DBInterface(ABC):
     def delete_run_notifications(
         self,
         session,
+        project: str,
         name: Optional[str] = None,
         run_uid: Optional[str] = None,
-        project: Optional[str] = None,
         commit: bool = True,
     ):
         pass
@@ -1234,14 +1289,19 @@ class DBInterface(ABC):
         self,
         session,
         model_endpoints: list[mlrun.common.schemas.ModelEndpoint],
+        function_name: str,
+        function_tag: str,
         project: str,
     ) -> None:
         """
         Store list of model endpoints in the DB.
+        Note all the model endpoints should have the same function name and tag.
 
         :param session:         The database session.
         :param model_endpoints: Model endpoints object to store.
         :param project:         The project name.
+        :param function_name:   The function name.
+        :param function_tag:    The function tag.
         """
         pass
 
@@ -1330,7 +1390,11 @@ class DBInterface(ABC):
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         order_by: typing.Optional[str] = None,
-    ) -> mlrun.common.schemas.ModelEndpointList:
+        as_dict: bool = False,
+    ) -> Union[
+        mlrun.common.schemas.ModelEndpointList,
+        dict[str, framework.db.sqldb.models.ModelEndpoint],
+    ]:
         """
         List model endpoints by project and optional filters.
 
@@ -1350,6 +1414,7 @@ class DBInterface(ABC):
         :param offset:          SQL query offset.
         :param limit:           SQL query limit.
         :param order_by:        Name of column to order by it (in ascending order).
+        :param as_dict:         Allow returning endpoints as list of framework.db.sqldb.models.ModelEndpoint dictionary.
         :return:                A list of model endpoints.
         """
         pass
@@ -1387,5 +1452,25 @@ class DBInterface(ABC):
 
         :param session: The database session.
         :param project: The project name.
+        """
+        pass
+
+    def delete_feature_sets(
+        self,
+        session,
+        project: str,
+        uids: typing.Optional[list[str]] = None,
+    ) -> None:
+        """
+        Delete multiple feature sets.
+        :param session: The database session.
+        :param project: The project name.
+        :param uids:    The feature set uids to delete.
+        """
+        pass
+
+    def cleanup_old_background_tasks(self, db_session: Session, max_age_seconds: int):
+        """
+        Cleanup old background tasks that are older than the specified age.
         """
         pass

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import http
 import traceback
@@ -39,7 +39,7 @@ import framework.utils.auth.verifier
 import framework.utils.clients.async_nuclio
 import framework.utils.clients.chief
 import framework.utils.singletons.project_member
-import services.api.crud.model_monitoring.deployment
+import services.api.crud.model_monitoring.deployment as mm_deployment
 import services.api.crud.runtimes.nuclio.function
 import services.api.launcher
 from framework.api import deps
@@ -271,18 +271,29 @@ async def deploy_function(
         background_tasks=[]
     )
     if function.get("kind") == mlrun.runtimes.RuntimeKinds.serving:
+        monitoring_deployment = mm_deployment.MonitoringDeployment(project=project)
+        (
+            model_endpoints_instructions,
+            function,
+        ) = await monitoring_deployment._create_model_endpoints_instructions(
+            db_session=db_session,
+            function=function,
+            function_name=name,
+            project=project,
+        )
         logger.info(
             "Creating Background Task for model endpoints creation",
             project=project,
             function=name,
         )
         returned_background_task = await run_in_threadpool(
-            framework.db.session.run_function_with_new_db_session,
-            services.api.crud.model_monitoring.deployment.MonitoringDeployment._create_model_endpoint_background_task,
+            monitoring_deployment._create_model_endpoint_background_task,
+            db_session=db_session,
             background_tasks=background_tasks,
             project_name=project,
             function_name=name,
-            function=function,
+            function_tag=function.get("metadata", {}).get("tag") or "latest",
+            model_endpoints_instructions=model_endpoints_instructions,
         )
         returned_background_tasks.background_tasks.append(returned_background_task)
 
@@ -320,9 +331,11 @@ async def deploy_status(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: sqlalchemy.orm.Session = Depends(deps.get_db_session),
 ):
+    if not project:
+        raise mlrun.errors.MLRunMissingProjectError()
     await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
-        project or mlrun.mlconf.default_project,
+        project,
         name,
         # store since with the current mechanism we update the status (and store the function) in the DB when a client
         # query for the status
@@ -503,12 +516,19 @@ def _deploy_function(
 
         # Enrich runtime
         launcher = services.api.launcher.ServerSideLauncher(auth_info=auth_info)
-        launcher.enrich_runtime(runtime=fn, full=True)
+        launcher.enrich_runtime(runtime=fn, full=True, client_version=client_version)
 
         fn.pre_deploy_validation()
+        # before saving function to DB, we need to mask some nuclio-specific fields
+        # which later in Nuclio will be masked and saved to secrets
+        raw_config = fn.mask_sensitive_data_in_config()
+
+        # save the function to DB
         fn.save(versioned=False)
         fn.spec.model_endpoint_creation_task_name = model_endpoint_creation_task_name
 
+        # after saving function to DB, we need to restore the original config so that the sensitive data won't be stored
+        fn.spec.config = raw_config
         fn = _deploy_nuclio_runtime(
             auth_info,
             builder_env,
@@ -517,7 +537,9 @@ def _deploy_function(
             db_session,
             fn,
         )
-        fn.save(versioned=True)
+        # after deploying the function, we need to re-mask the sensitive data again and save to the db
+        fn.mask_sensitive_data_in_config()
+        fn.save(versioned=False)
         logger.info("Resolved function", fn=fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
@@ -549,13 +571,11 @@ def _deploy_nuclio_runtime(
         else:
             model_monitoring_access_key = None
 
-        monitoring_deployment = (
-            services.api.crud.model_monitoring.deployment.MonitoringDeployment(
-                project=fn.metadata.project,
-                auth_info=auth_info,
-                db_session=db_session,
-                model_monitoring_access_key=model_monitoring_access_key,
-            )
+        monitoring_deployment = mm_deployment.MonitoringDeployment(
+            project=fn.metadata.project,
+            auth_info=auth_info,
+            db_session=db_session,
+            model_monitoring_access_key=model_monitoring_access_key,
         )
         try:
             monitoring_deployment.check_if_credentials_are_set()
@@ -575,6 +595,7 @@ def _deploy_nuclio_runtime(
                 function=fn,
                 function_name=fn.metadata.name,
                 stream_args=config.model_endpoint_monitoring.application_stream_args,
+                ignore_stream_already_exists_failure=True,
             )
 
         if serving_to_monitor:
@@ -653,6 +674,9 @@ def _handle_nuclio_deploy_status(
     # add api gateway's URLs
     if api_gateway_urls:
         external_invocation_urls += api_gateway_urls
+        # add api gateway's URLs to the function status response from nuclio to not
+        # affect _is_nuclio_deploy_status_changed
+        status["externalInvocationUrls"] = external_invocation_urls
 
     # on earlier versions of mlrun, address used to represent the nodePort external invocation url
     # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
@@ -695,6 +719,7 @@ def _handle_nuclio_deploy_status(
             tag,
             versioned=versioned,
         )
+        logger.info("Updating function status", function=fn)
 
     return Response(
         content=text,

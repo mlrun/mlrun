@@ -11,19 +11,19 @@ We recommend using [pyenv](https://github.com/pyenv/pyenv#installation) to manag
 Once you have pyenv installed, you can create a new environment by running:
 
 ```bash
-pyenv install 3.9
+pyenv install 3.11
 ```
 
 To activate the environment, run:
 
 ```bash
-pyenv shell 3.9
+pyenv shell 3.11
 ```
 
 Or, set as default by running:
 
 ```bash
-pyenv global 3.9
+pyenv global 3.11
 ```
 
 
@@ -66,7 +66,7 @@ cd mlrun
 
 Create a [Conda](https://docs.anaconda.com/free/anaconda/install/index.html) environment and activate it
 ```shell script
-conda create -n mlrun python=3.9
+conda create -n mlrun python=3.11
 conda activate mlrun
 ```
 
@@ -327,6 +327,32 @@ def function_name(parameter1, parameter2):
 	# Function implementation
 ```
 
+Bulleted lists in docstrings do not throw an error if they are incorrectly formatted. Build the doc locally to 
+check the formatting. The basic rules are:
+- Add a blank line before and after bulleted lines
+- Nested bulleted lists also need a blank line before and after
+- If the text of the bullet exceeds one line, indent the second line by 2 spaces.
+Example:
+```
+        :param creation_strategy: Strategy for creating or updating the model endpoint:
+
+                           - **overwrite**:
+                           
+                           1. If model endpoints with the same name exist, delete the `latest` one.
+                           2. Create a new model endpoint entry and set it as `latest`.
+
+                           - **inplace** (default):
+                           
+                           1. If model endpoints with the same name exist, update the `latest` entry.
+                           2. Otherwise, create a new entry.
+
+        :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                         
+        :param since: Not in use in :py:class:`HTTPRunDB`.					
+```
 15. When calling functions with multiple parameters, prefer using keyword arguments to improve readability and clarity.
 16. Logging: use structured variable instead of f-strings, for example: `logger.debug("Message", var1=var1, ...)`, and
 try to avoid logging large objects which are hard to decipher.

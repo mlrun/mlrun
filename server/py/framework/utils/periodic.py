@@ -28,7 +28,7 @@ def run_function_periodically(
     interval: typing.Union[float, int],
     name: str,
     replace: bool,
-    function,
+    function: typing.Callable,
     *args,
     **kwargs,
 ):

@@ -55,7 +55,7 @@ class RunList(list):
         for run in self:
             iterations = get_in(run, "status.iterations", "")
             row = [
-                get_in(run, "metadata.project", config.default_project),
+                get_in(run, "metadata.project", config.active_project),
                 get_in(run, "metadata.uid", ""),
                 get_in(run, "metadata.iteration", ""),
                 get_in(run, "status.start_time", ""),

@@ -1090,7 +1090,6 @@ def bootstrap_partitions(table, connection, **_):
             first_partition_name=pname,
             first_partition_upper_bound=pval,
         )
-        retention_days = mlrun.mlconf.object_retentions.get(table.name)
         session.commit()
     finally:
         session.close()

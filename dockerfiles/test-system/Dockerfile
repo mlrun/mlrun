@@ -52,7 +52,7 @@ RUN rm -rf ./server/go
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete]
+    uv pip install .[complete,postgres]
 
 RUN mv tests /tests && mv Makefile /Makefile
 

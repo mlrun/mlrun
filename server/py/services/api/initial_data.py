@@ -63,11 +63,14 @@ def init_data(
     if not database_exists(url):
         create_database(url)
         framework.db.sqldb.models.Base.metadata.create_all(bind=engine)
-        dir_path = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
-        alembic_config_path = dir_path / "alembic.ini"
-        cfg = Config(alembic_config_path)
-        command.stamp(cfg, "head")
+
+        cfg = Config(str(pathlib.Path(__file__).parent / "alembic.ini"))
+        cfg.set_main_option("sqlalchemy.url", str(url))
+        with engine.begin() as conn:
+            cfg.attributes["connection"] = conn
+            command.stamp(cfg, "head")
         mlrun.config.config.httpdb.state = mlrun.common.schemas.APIStates.online
+
     else:
         # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
         mysql_util = framework.utils.db.mysql.MySQLUtil(mlrun.utils.logger)

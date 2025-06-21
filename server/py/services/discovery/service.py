@@ -23,7 +23,7 @@ import mlrun.utils
 
 SERVICE_PORTS = {
     "mlrun-api-chief": 8080,
-    "mlrun-worker": 8080,
+    "mlrun-api": 8080,
     "mlrun-alerts": 8080,
 }
 

@@ -17,6 +17,7 @@ from typing import Any, Optional
 import alembic
 import sqlalchemy
 import sqlalchemy.dialects
+import sqlalchemy.engine
 import sqlalchemy.exc
 import sqlalchemy.pool
 import sqlalchemy.sql.type_api
@@ -139,42 +140,37 @@ def run_migrations_offline():
 
 
 def run_migrations_online():
-    """Run migrations in 'online' mode.
+    """Run migrations in 'online' mode."""
 
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
-    connectable = alembic.context.config.attributes.get("connection", None)
-
-    if connectable is None:
-        connect_args = {}
-        connectable = sqlalchemy.engine_from_config(
-            config.get_section(config.config_ini_section),
-            prefix="sqlalchemy.",
-            poolclass=sqlalchemy.pool.NullPool,
-            connect_args=connect_args,
-        )
-
-    with connectable.connect() as connection:
+    def _migrate(conn: sqlalchemy.engine.Connection):
         try:
-            lock_killer = framework.db.sqldb.lock_killer.LockKiller(connection)
+            framework.db.sqldb.lock_killer.LockKiller(conn).kill_locks()
         except NotImplementedError:
             mlrun.utils.logger.info(
-                "No lock logic for dialect",
-                dialect=connection.dialect.name,
+                "Dialect does not require lock killing", dialect=conn.dialect.name
             )
-        else:
-            lock_killer.kill_locks()
 
         alembic.context.configure(
-            connection=connection,
+            connection=conn,
             target_metadata=target_metadata,
             compare_type=compare_type,
         )
-
         with alembic.context.begin_transaction():
             alembic.context.run_migrations()
+
+    connection = alembic.context.config.attributes.get("connection")
+    if isinstance(connection, sqlalchemy.engine.Connection):
+        _migrate(connection)
+        return
+
+    engine = connection or sqlalchemy.engine_from_config(
+        config.get_section(config.config_ini_section),
+        prefix="sqlalchemy.",
+        poolclass=sqlalchemy.pool.NullPool,
+    )
+
+    with engine.connect() as connection:
+        _migrate(connection)
 
 
 if alembic.context.is_offline_mode():

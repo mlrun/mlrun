@@ -53,7 +53,8 @@ import services.api.utils.scheduler
 
 
 def init_data(
-    from_scratch: bool = False, perform_migrations_if_needed: bool = False
+    from_scratch: bool = False,
+    perform_migrations_if_needed: bool = False,
 ) -> None:
     mlrun.utils.logger.info("Initializing DB data")
 
@@ -66,9 +67,11 @@ def init_data(
 
         cfg = Config(str(pathlib.Path(__file__).parent / "alembic.ini"))
         cfg.set_main_option("sqlalchemy.url", str(url))
+
         with engine.begin() as conn:
             cfg.attributes["connection"] = conn
             command.stamp(cfg, "head")
+
         mlrun.config.config.httpdb.state = mlrun.common.schemas.APIStates.online
 
     else:

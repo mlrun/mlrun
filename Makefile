@@ -666,6 +666,7 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 test-migrations: clean ## Run mlrun db migrations tests
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/migration_tests.coverage"} && \
+	export COVERAGE_FILE && \
 	$(SETUP_COVERAGE) && \
 	bash -c 'set -euo pipefail; \
 	  python -u $(COVERAGE_ADDITION) -m pytest -vvv \

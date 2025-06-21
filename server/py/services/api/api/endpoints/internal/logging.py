@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import http
 import logging
 import os
 
 import fastapi
-from fastapi import Request
-from fastapi.openapi.models import Response
 
 import mlrun.common.schemas.internal.logging
 import mlrun.errors
@@ -47,7 +46,7 @@ def _apply_log_level_locally(
 @router.post("")
 async def set_log_levels(
     cfg: mlrun.common.schemas.internal.logging.LogLevelMapping,
-    request: Request,
+    request: fastapi.Request,
 ):
     discovery_service = services.discovery.service.K8sServiceDiscovery(
         namespace=os.getenv("MLRUN_NAMESPACE"),
@@ -61,7 +60,7 @@ async def set_log_levels(
         timeout=10.0,
         headers=dict(request.headers),
     )
-    return Response(status_code=200)
+    return fastapi.Response(status_code=http.HTTPStatus.OK.value)
 
 
 @router.get(

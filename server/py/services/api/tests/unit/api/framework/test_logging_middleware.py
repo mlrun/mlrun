@@ -12,19 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import io
+import collections.abc
+import http
 import logging
-from collections.abc import Iterator
-from http import HTTPStatus
 
 import fastapi
+import fastapi.exception_handlers
+import fastapi.testclient
 import pydantic.v1
 import pytest
-from fastapi.exception_handlers import http_exception_handler
-from fastapi.testclient import TestClient
 
-from mlrun.utils import logger
-from mlrun.utils.logger import Logger, create_logger
+import mlrun.utils
+import mlrun.utils.logger
+
+import services.discovery.service
 
 
 class Handled1Error(Exception):
@@ -39,19 +40,25 @@ class UnhandledError(Exception):
     pass
 
 
-async def handler_returning_response(request: fastapi.Request, exc: Handled1Error):
-    logger.warning("Handler caught Handled1Error exception, returning 204 response")
-    return fastapi.Response(status_code=HTTPStatus.NO_CONTENT.value)
+async def handler_returning_response(
+    request: fastapi.Request,
+    exc: Handled1Error,
+) -> fastapi.Response:
+    mlrun.utils.logger.warning(
+        "Handler caught Handled1Error exception, returning 204 response"
+    )
+    return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
 
 async def handler_returning_http_exception(
-    request: fastapi.Request, exc: Handled2Error
-):
-    logger.warning(
+    request: fastapi.Request,
+    exc: Handled2Error,
+) -> fastapi.Response:
+    mlrun.utils.logger.warning(
         "Handler caught Handled2Error exception, returning HTTPException with 401"
     )
-    return await http_exception_handler(
-        request, fastapi.HTTPException(status_code=HTTPStatus.UNAUTHORIZED.value)
+    return await fastapi.exception_handlers.http_exception_handler(
+        request, fastapi.HTTPException(status_code=http.HTTPStatus.UNAUTHORIZED.value)
     )
 
 
@@ -60,13 +67,13 @@ test_router = fastapi.APIRouter()
 
 @test_router.get("/success")
 def success():
-    logger.info("Success endpoint received request, returning 202")
+    mlrun.utils.logger.info("Success endpoint received request, returning 202")
     return fastapi.Response(status_code=202)
 
 
 @test_router.get("/handled_1_error")
 def handled_1_error():
-    logger.info(
+    mlrun.utils.logger.info(
         "handled_exception_1 endpoint received request, raising handled 1 error"
     )
     raise Handled1Error("handled 1 error")
@@ -74,7 +81,7 @@ def handled_1_error():
 
 @test_router.get("/handled_2_error")
 def handled_2_error():
-    logger.info(
+    mlrun.utils.logger.info(
         "handled_exception_2 endpoint received request, raising handled 2 error"
     )
     raise Handled2Error("handled 2 error")
@@ -82,7 +89,9 @@ def handled_2_error():
 
 @test_router.get("/unhandled_exception")
 def unhandled_exception():
-    logger.info("unhandled endpoint received request, raising unhandled exception")
+    mlrun.utils.logger.info(
+        "unhandled endpoint received request, raising unhandled exception"
+    )
     raise UnhandledError("Unhandled exception")
 
 
@@ -91,8 +100,10 @@ class SomeScheme(pydantic.v1.BaseModel):
 
 
 @test_router.post("/fastapi_handled_exception")
-def fastapi_handled_exception(model: SomeScheme):
-    logger.info("Should not get here, will fail on body validation")
+def fastapi_handled_exception(
+    model: SomeScheme,
+):
+    mlrun.utils.logger.info("Should not get here, will fail on body validation")
 
 
 middleware_modes = [
@@ -101,11 +112,11 @@ middleware_modes = [
 ]
 
 
-# must add it here since we're adding routes
 @pytest.fixture(params=middleware_modes)
 def client(
-    request: pytest.FixtureRequest, app: fastapi.FastAPI
-) -> Iterator[TestClient]:
+    request: pytest.FixtureRequest,
+    app: fastapi.FastAPI,
+) -> collections.abc.Iterator[fastapi.testclient.TestClient]:
     app.add_exception_handler(Handled1Error, handler_returning_response)
     app.add_exception_handler(Handled2Error, handler_returning_http_exception)
 
@@ -117,7 +128,7 @@ def client(
             app.user_middleware = []
             app.middleware_stack = app.build_middleware_stack()
         app.include_router(test_router, prefix="/test")
-        with TestClient(app) as c:
+        with fastapi.testclient.TestClient(app) as c:
             yield c
     finally:
         # restore back the middlewares
@@ -126,11 +137,26 @@ def client(
             app.middleware_stack = app.build_middleware_stack()
 
 
-@pytest.fixture
-def stream_logger() -> Iterator[tuple[io.StringIO, Logger]]:
-    stream = io.StringIO()
-    stream_logger = create_logger("debug", name="test-logger", stream=stream)
-    yield stream, stream_logger
+@pytest.fixture(autouse=True)
+def _patch_k8s_service_discovery(monkeypatch):
+    def _dummy_init(self, namespace=None, *_, **__):
+        self.namespace = namespace
+
+    async def _noop(*_, **__):
+        return None
+
+    monkeypatch.setattr(
+        services.discovery.service.K8sServiceDiscovery,
+        "__init__",
+        _dummy_init,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        services.discovery.service.K8sServiceDiscovery,
+        "broadcast",
+        _noop,
+        raising=False,
+    )
 
 
 @pytest.mark.parametrize(
@@ -143,7 +169,13 @@ def stream_logger() -> Iterator[tuple[io.StringIO, Logger]]:
         ({"mlrun_pipelines.imports": "CRITICAL"}),
     ],
 )
-def test_set_and_get_log_level(log_config: dict[str, str], client: TestClient):
+def test_set_and_get_log_level(
+    log_config: dict[str, str],
+    client: fastapi.testclient.TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("MLRUN_NAMESPACE", "mlrun")
+
     payload = {"domain_to_levels": log_config, "recursive": False}
     response = client.post("/api/_internal/log_levels", json=payload)
     assert response.status_code == 200
@@ -161,20 +193,25 @@ def test_set_and_get_log_level(log_config: dict[str, str], client: TestClient):
 
 
 @pytest.mark.parametrize(
-    "invalid_log_config",
+    "invalid_log_config, expected_status",
     [
-        ({"mlrun_pipelines.imports": "INVALID_LEVEL"}),  # Invalid log level
-        ({"mlrun_pipelines.imports": 123}),  # Non-string log level
+        ({"mlrun_pipelines.imports": "INVALID_LEVEL"}, 422),  # bad value
+        ({"mlrun_pipelines.imports": 123}, 422),  # schema type error
     ],
 )
-def test_invalid_log_config(invalid_log_config: dict[str, str], client: TestClient):
+def test_invalid_log_config(
+    invalid_log_config: dict[str, str],
+    expected_status: int,
+    client: fastapi.testclient.TestClient,
+):
     payload = {"domain_to_levels": invalid_log_config, "recursive": False}
     response = client.post("/api/_internal/log_levels", json=payload)
-    # Expecting a validation error (422 Unprocessable Entity)
-    assert response.status_code == 422
+    assert response.status_code == expected_status
 
 
-def test_recursive_set_log_levels(client: TestClient):
+def test_recursive_set_log_levels(
+    client: fastapi.testclient.TestClient,
+):
     domain = "mlrun"
     sub_logger_name = "mlrun.api"
     logger = logging.getLogger(domain)
@@ -195,9 +232,20 @@ def test_recursive_set_log_levels(client: TestClient):
     assert sub_logger.getEffectiveLevel() == numeric_level
 
 
-def _ensure_request_logged(log_stream, verify_unhandled_exception: bool = False):
-    lines = log_stream.getvalue().splitlines()
-    assert "Received request" in lines[0]
-    assert "Sending response" in lines[1]
-    if verify_unhandled_exception:
-        assert "Request handling failed" in lines[1]
+def test_non_recursive_preserves_children(
+    client: fastapi.testclient.TestClient,
+):
+    domain = "mlrun"
+    child_name = "mlrun.child"
+    parent = logging.getLogger(domain)
+    child = logging.getLogger(child_name)
+
+    parent.setLevel(logging.NOTSET)
+    child.setLevel(logging.WARNING)
+
+    payload = {"domain_to_levels": {domain: "ERROR"}, "recursive": False}
+    response = client.post("/api/_internal/log_levels", json=payload)
+    assert response.status_code == 200
+
+    assert parent.getEffectiveLevel() == logging.ERROR
+    assert child.getEffectiveLevel() == logging.WARNING

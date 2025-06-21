@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import asyncio
+from typing import Optional
 
 import httpx
 from kubernetes import client, config
@@ -27,9 +28,11 @@ SERVICE_PORTS = {
 class K8sServiceDiscovery:
     def __init__(
         self,
-        namespace,
+        namespace: str,
     ):
-        self.ns = namespace
+        if not namespace:
+            raise ValueError("Namespace must be provided for K8sServiceDiscovery")
+        self.namespace = namespace
         try:
             config.load_incluster_config()
         except config.ConfigException:
@@ -39,11 +42,11 @@ class K8sServiceDiscovery:
 
     async def broadcast(
         self,
-        excluded_services,
-        path,
-        json_payload,
-        timeout=10.0,
-        headers=None,
+        excluded_services: list[str],
+        path: str,
+        json_payload: Optional[dict] = None,
+        timeout: float = 10.0,
+        headers: Optional[dict] = None,
     ):
         async with httpx.AsyncClient(timeout=timeout) as session:
             tasks = []
@@ -62,7 +65,10 @@ class K8sServiceDiscovery:
                             headers=headers,
                         )
                     )
-            await asyncio.gather(*tasks, return_exceptions=True)
+            await asyncio.gather(
+                *tasks,
+                return_exceptions=True,
+            )
 
     async def _discover_urls(
         self,
@@ -79,7 +85,7 @@ class K8sServiceDiscovery:
         urls = []
 
         slices = self._discovery_api.list_namespaced_endpoint_slice(
-            self.ns,
+            namespace=self.namespace,
             label_selector=f"kubernetes.io/service-name={service}",
         ).items
 
@@ -95,7 +101,10 @@ class K8sServiceDiscovery:
         if urls:
             return urls
 
-        eps = self._core_api.read_namespaced_endpoints(service, self.ns)
+        eps = self._core_api.read_namespaced_endpoints(
+            name=service,
+            namespace=self.namespace,
+        )
         for subset in eps.subsets or []:
             tgt_port = next(
                 (p.port for p in subset.ports or [] if p.port == port), port

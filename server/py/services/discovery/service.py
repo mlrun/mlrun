@@ -84,10 +84,16 @@ class K8sServiceDiscovery:
         """
         urls = []
 
-        slices = self._discovery_api.list_namespaced_endpoint_slice(
-            namespace=self.namespace,
-            label_selector=f"kubernetes.io/service-name={service}",
-        ).items
+        try:
+            slices = self._discovery_api.list_namespaced_endpoint_slice(
+                namespace=self.namespace,
+                label_selector=f"kubernetes.io/service-name={service}",
+            ).items
+        except client.exceptions.ApiException as e:
+            if e.status == 403:  # no RBAC – skip to legacy path
+                slices = []
+            else:
+                raise
 
         for slc in slices:
             target_port = next(

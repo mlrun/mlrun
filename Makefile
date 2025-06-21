@@ -673,7 +673,9 @@ test-migrations: clean ## Run mlrun db migrations tests
 	    --capture=no --disable-warnings --durations=100 \
 	    -rf "$(ROOT_DIR)/server/py/services/api/migrations/tests" \
 	    2>&1 | tee migration_tests.log' ; \
-	$(PRINT_COVERAGE_REPORT)
+	exit_code=$$? ; \
+	$(PRINT_COVERAGE_REPORT) ; \
+	exit $$exit_code
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container

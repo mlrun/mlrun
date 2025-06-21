@@ -18,6 +18,9 @@ from typing import Optional
 import httpx
 from kubernetes import client, config
 
+import mlrun.errors
+import mlrun.utils
+
 SERVICE_PORTS = {
     "mlrun-api-chief": 8080,
     "mlrun-worker": 8080,
@@ -53,17 +56,22 @@ class K8sServiceDiscovery:
             for service, port in SERVICE_PORTS.items():
                 if service in excluded_services:
                     continue
-                for url in await self._discover_urls(
-                    service=service,
-                    port=port,
-                    path=path,
-                ):
+                try:
+                    urls = await self._discover_urls(
+                        service=service,
+                        port=port,
+                        path=path,
+                    )
+                except Exception as exc:
+                    mlrun.utils.logger.exc(
+                        "service discovery failed",
+                        service=service,
+                        exc=mlrun.errors.err_to_str(exc),
+                    )
+                    continue
+                for url in urls:
                     tasks.append(
-                        session.post(
-                            url=url,
-                            json=json_payload,
-                            headers=headers,
-                        )
+                        session.post(url=url, json=json_payload, headers=headers)
                     )
             await asyncio.gather(
                 *tasks,
@@ -89,33 +97,58 @@ class K8sServiceDiscovery:
                 namespace=self.namespace,
                 label_selector=f"kubernetes.io/service-name={service}",
             ).items
-        except client.exceptions.ApiException as e:
-            if e.status == 403:  # no RBAC – skip to legacy path
+        except client.exceptions.ApiException as exc:
+            if exc.status in (403, 404):
+                mlrun.utils.logger.debug(
+                    "EndpointSlice unavailable in service discovery",
+                    exc=mlrun.errors.err_to_str(exc),
+                )
                 slices = []
             else:
                 raise
 
-        for slc in slices:
+        for slice_ in slices:
             target_port = next(
-                (p.port for p in slc.ports or [] if p.port == port), port
+                (
+                    slice_port.port
+                    for slice_port in slice_.ports or []
+                    if slice_port.port == port
+                ),
+                port,
             )
-            for ep in slc.endpoints:
+            for endpoint in slice_.endpoints:
                 urls.extend(
-                    f"http://{addr}:{target_port}{path}" for addr in ep.addresses
+                    f"http://{addr}:{target_port}{path}" for addr in endpoint.addresses
                 )
 
         if urls:
             return urls
 
-        eps = self._core_api.read_namespaced_endpoints(
-            name=service,
-            namespace=self.namespace,
-        )
-        for subset in eps.subsets or []:
-            tgt_port = next(
-                (p.port for p in subset.ports or [] if p.port == port), port
+        try:
+            endpoints = self._core_api.read_namespaced_endpoints(
+                name=service,
+                namespace=self.namespace,
             )
-            for addr in subset.addresses or []:
-                urls.append(f"http://{addr.ip}:{tgt_port}{path}")
+        except client.exceptions.ApiException as exc:
+            if exc.status in (403, 404):
+                endpoints = None
+                mlrun.utils.logger.debug(
+                    "Endpoints unavailable in service discovery",
+                    exc=mlrun.errors.err_to_str(exc),
+                )
+            else:
+                raise
+        if endpoints:
+            for subset in endpoints.subsets or []:
+                target_port = next(
+                    (
+                        subset_port.port
+                        for subset_port in subset.ports or []
+                        if subset_port.port == port
+                    ),
+                    port,
+                )
+                for addr in subset.addresses or []:
+                    urls.append(f"http://{addr.ip}:{target_port}{path}")
 
         return urls

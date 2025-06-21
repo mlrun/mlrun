@@ -72,6 +72,9 @@ def init_data(
             cfg.attributes["connection"] = conn
             command.stamp(cfg, "head")
 
+        db = framework.db.sqldb.db.SQLDB()
+        db_session = framework.db.session.create_session()
+        db.create_data_version(db_session, str(latest_data_version))
         mlrun.config.config.httpdb.state = mlrun.common.schemas.APIStates.online
 
     else:

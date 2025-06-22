@@ -810,8 +810,6 @@ class Service(framework.service.Service):
                 "No runs ended during the current window",
                 end_time_from=end_time_from,
             )
-
-        if not len(runs):
             return
 
         # Unmasking the run parameters from secrets before handing them over to the notification handler

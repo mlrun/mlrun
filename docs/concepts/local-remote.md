@@ -50,12 +50,14 @@ source_code_target_dir = "./project" # Optional, relative to "/home/mlrun_code".
 # Create a new project
 project = mlrun.load_project(context=f"./{project_name}", url=source_url, name=project_name)
 
-# Set the project source and workflow
+# Set the project source
 project.set_source(source_url)
-project.set_workflow(name="main", workflow_path="kflow.py")
 
-# Build the image, load the source to the target dir and save the project
-project.build_image(target_dir=source_code_target_dir)
+# Build the image based on mlrun-kfp, load the source to the target dir
+result = project.build_image(base_image="mlrun/mlrun-kfp" ,target_dir=source_code_target_dir, set_as_default=False)
+
+# Set the workflow and save the project
+project.set_workflow(name="main", workflow_path="kflow.py", image=result.outputs["image"])
 project.save()
 
 # Run the workflow, load the project from the target dir on the image

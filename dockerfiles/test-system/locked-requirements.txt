@@ -934,23 +934,23 @@ defusedxml==0.7.1 \
     --hash=sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69 \
     --hash=sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61
     # via nbconvert
-dependency-injector==4.48.0 \
-    --hash=sha256:15c251968dbbf1f4cf1ef9e4b5df360ff4c0d9038a433c4fa4cfa4eb9962a701 \
-    --hash=sha256:410c31255475221255c9ee864c740601315ae57a0cbbcf15eb652a691ccde719 \
-    --hash=sha256:445abf8c70370ad2b59df71081a424c8c0f2377934e03b196e216c6bb8b2df6f \
-    --hash=sha256:575df9c3472b81a461d7d298fe8767d2761e39074179c99148e1271e35f80da1 \
-    --hash=sha256:58a554929eb6b63ad9e07418b0e733f1ad8c33210363f526a30b4dc44b6ea947 \
-    --hash=sha256:5af091793676649bd040467b2647c09917b4b5669dd117e18a16db53da278d51 \
-    --hash=sha256:668f342a77f62204daedf91b90a970df6285c60b9631ac3ffaab57bf71a75ecb \
-    --hash=sha256:8bb057600901a89f981725229f653ee7dc611058e964e465e1c466b851b6fbf3 \
-    --hash=sha256:90c3bdc3bed4ed4b2a4a92c938d1e8e2f12cf854494ed2ceefa0dbeccbec7ff2 \
-    --hash=sha256:9b15cd1ee282ea508c26defc8efcac85cc4d42e269131fd746d72120fcedf9b7 \
-    --hash=sha256:a4a7c8d474b1747b9292678e5bc4a27b5918938615b5d8c7a9d737e28d291811 \
-    --hash=sha256:a52dc56fd825afff31147044464a7cdf21ad89e2066f5d13e7bdd669a58ee196 \
-    --hash=sha256:bd33c5e016dcd77d97cb395b5fbdd36102bbd0aa03cfbb8dba49da2cb4b02311 \
-    --hash=sha256:cc514451554eb6ee87dc70a3ccca335e897e73bb69e4403b3a452e3f79ec81de \
-    --hash=sha256:dfba240fd9d2a6c9051522df876db421ac931e1ed2c80798aa464de3d1261983 \
-    --hash=sha256:e26ba8c189e504b6c68bfef535e0a58b4ea227eb5107c2df39b8b59b85c47102
+dependency-injector==4.48.1 \
+    --hash=sha256:0506e98440ee6c48fe660016d602961b1b3ecc0a8227838a2221048ed11e2fca \
+    --hash=sha256:1805185e4522effad6d5e348c255d27e80d3f8adc89701daf13d743367392978 \
+    --hash=sha256:1994622eae8917138626303b176cba4c74e625ba1e588cb09d673ca175d299a2 \
+    --hash=sha256:1b05a4a980096b53ad90a87965c5450183bfbb8bbe36615d7cea97537086d622 \
+    --hash=sha256:2c23ab17cd3e160de1fc5d78719bf86fbfc81c21c8ea02b43832a6a1e2c8a8d8 \
+    --hash=sha256:51f8d9d78a1a147908ed7929df628d859251a814e6a001973bd96ae2b5648760 \
+    --hash=sha256:572b22b7db9b103718ea52634b5ca1ef763278338310254334f4633a57c9f0e7 \
+    --hash=sha256:58d4d81f92e3267c331f160cbbb517fd7644b95ee57a0d6e4b01f53a7e437a4a \
+    --hash=sha256:65d9cf9f4eb31f837ed387210158e0003a4509478de1cbdc56c8439232f22ecd \
+    --hash=sha256:76774369c7268d5dd211af75abfcb4433d972760be90db342c2de325ee4c24a0 \
+    --hash=sha256:79be912a0dedb1341b1400018defca6a9966fcb8d4a84b325623fa57d3c08171 \
+    --hash=sha256:9a7862987b3dcab5ac4fd82f6bbda55d3b15af1ca7492757c428deccc3720140 \
+    --hash=sha256:a659380386bd236579b7f82f51e97f6074d0c878a10db5b50086000de6ce3c28 \
+    --hash=sha256:a6f73011d532f3ea59689aad85c7999be6da3f30393041a745d5861cdcdc02e4 \
+    --hash=sha256:ac09f508fa9aee06a036ebf3e3d3b2a210276aba1993e9993cec7f1fdc5fd89e \
+    --hash=sha256:bb33c6d6b6100564dfaee20f3f76a2756158cceff6499e9d0bca8290f8e5f124
     # via -r requirements.txt
 deprecated==1.2.18 \
     --hash=sha256:422b6f6d859da6f2ef57857761bfb392480502a64c3028ca9bbe86085d72115d \
@@ -1837,9 +1837,9 @@ humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
     # via -r dockerfiles/mlrun-api/requirements.txt
-hypothesis==6.135.12 \
-    --hash=sha256:89baf42d7f08e20d3ab36768dea9636ea0532bdaf9951ae6fd9126a8d708345b \
-    --hash=sha256:d2aeed8db7defc368841cbfb021d703cf98102827460bee7ba0d2e2aab6580f6
+hypothesis==6.135.14 \
+    --hash=sha256:0dd5b8095e36bd288367c631f864a16c30500b01b17943dcea681233f7421860 \
+    --hash=sha256:2666df50b3cc40ea08b161a5389d6a1cd5aa3cab0dd8fde0ae339389714a4f67
     # via -r dev-requirements.txt
 idna==3.10 \
     --hash=sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9 \
@@ -1935,9 +1935,9 @@ jaraco-context==6.0.1 \
     --hash=sha256:9bae4ea555cf0b14938dc0aee7c9f32ed303aa20a3b73e7dc80111628792d1b3 \
     --hash=sha256:f797fc481b490edb305122c9181830a3a5b76d84ef6d1aef2fb9b47ab956f9e4
     # via keyring
-jaraco-functools==4.1.0 \
-    --hash=sha256:70f7e0e2ae076498e212562325e805204fc092d7b4c17e0e86c959e249701a9d \
-    --hash=sha256:ad159f13428bc4acbf5541ad6dec511f91573b90fba04df61dafa2a1231cf649
+jaraco-functools==4.2.1 \
+    --hash=sha256:590486285803805f4b1f99c60ca9e94ed348d4added84b74c7a12885561e524e \
+    --hash=sha256:be634abfccabce56fa3053f8c7ebe37b682683a4ee7793670ced17bab0087353
     # via keyring
 jedi==0.19.2 \
     --hash=sha256:4770dc3de41bde3966b02eb84fbcf557fb33cce26ad23da12c742fb50ecb11f0 \
@@ -2952,9 +2952,9 @@ numpy==1.26.4 \
     #   tensorboard
     #   tensorflow
     #   xgboost
-oauthlib==3.3.0 \
-    --hash=sha256:4e707cf88d7dfc22a8cce22ca736a2eef9967c1dd3845efc0703fc922353eeb2 \
-    --hash=sha256:a2b3a0a2a4ec2feb4b9110f56674a39b2cc2f23e14713f4ed20441dfba14e934
+oauthlib==3.3.1 \
+    --hash=sha256:0f0f8aa759826a193cf66c12ea1af1637f87b9b4622d46e866952bb022e538c9 \
+    --hash=sha256:88119c938d2b8fb88561af5f6ee0eec8cc8d552b7bb1f712743136eb7523b7a1
     # via
     #   kubernetes
     #   requests-oauthlib
@@ -3796,9 +3796,9 @@ pydantic==1.10.22 \
     #   kfp
     #   mlflow-skinny
     #   python-on-whales
-pygments==2.19.1 \
-    --hash=sha256:61c16d2a8576dc0649d9f39e089b5f02bcd27fba10d8fb4dcc28173f7a45151f \
-    --hash=sha256:9ea1544ad55cecf4b8242fab6dd35a93bbce657034b0611ee383099054ab6d8c
+pygments==2.19.2 \
+    --hash=sha256:636cb2477cec7f8952536970bc533bc43743542f70392ae026374600add5b887 \
+    --hash=sha256:86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b
     # via
     #   diff-cover
     #   ipython
@@ -4866,9 +4866,9 @@ terminado==0.18.1 \
     # via
     #   jupyter-server
     #   jupyter-server-terminals
-textual==3.4.0 ; sys_platform != 'win32' \
-    --hash=sha256:5b3fd07772d3897d30b257825de3df011b83742863aa9d9abcb10e76e61e6ee4 \
-    --hash=sha256:f697c3b9371bbc30c11453a094d700e95cf7c2115f68bad35f0249de67996c99
+textual==3.5.0 ; sys_platform != 'win32' \
+    --hash=sha256:7c960efb70391b754e66201776793de2b26d699d51fb91f5f78401d13cec79a1 \
+    --hash=sha256:c4a440338694672acf271c74904f1cf1e4a64c6761c056b02a561774b81a04f4
     # via memray
 threadpoolctl==3.6.0 \
     --hash=sha256:43a0b8fd5a2928500110039e43a5eed8480b918967083ea48dc3ab9f13c4a7fb \
@@ -5000,6 +5000,7 @@ typing-extensions==4.14.0 \
     #   azure-storage-blob
     #   beautifulsoup4
     #   black
+    #   dependency-injector
     #   exceptiongroup
     #   fastapi
     #   graphene

@@ -1282,7 +1282,8 @@ class ModelRunnerStep(MonitoredStep):
         monitoring_data = self.class_args.get(
             schemas.ModelRunnerStepData.MONITORING_DATA, {}
         )
-        models[endpoint_name] = (model_class, model_parameters)
+        model_class_dict = model_class.to_dict() if isinstance(model_class, Model) else None
+        models[endpoint_name] = (model_class_dict or model_class, model_parameters)
         monitoring_data[endpoint_name] = {
             schemas.MonitoringData.INPUTS: inputs,
             schemas.MonitoringData.OUTPUTS: outputs,
@@ -1356,6 +1357,9 @@ class ModelRunnerStep(MonitoredStep):
             model_selector = get_class(model_selector, namespace)()
         model_objects = []
         for model, model_params in models.values():
+            if isinstance(model,dict):
+                model = Model.from_dict(model)
+
             if not isinstance(model, Model):
                 # prevent model predict from raising error
                 model_params["raise_exception"] = False
@@ -1363,6 +1367,7 @@ class ModelRunnerStep(MonitoredStep):
             else:
                 # prevent model predict from raising error
                 model._raise_exception = False
+
             model_objects.append(model)
         self._async_object = ModelRunner(
             model_selector=model_selector,

@@ -71,8 +71,6 @@ from .assets.application import (
 )
 from .assets.custom_evidently_app import DemoEvidentlyMonitoringApp
 
-lock = threading.Lock()
-
 
 @dataclass
 class _AppData:
@@ -1081,6 +1079,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     project_name = "test-mm-serving"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
+    _test_endpoint_lock = threading.Lock()
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1234,7 +1233,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         self, endpoint_name, feature_set_uri, model_dict
     ) -> dict[str, typing.Any]:
         serving_fn = self.project.get_function(self.function_name)
-        with lock:
+        with self._test_endpoint_lock:
             data_point = model_dict.get("data_point")
             if endpoint_name == "img_one_to_one":
                 data_point = [data_point]
@@ -1253,7 +1252,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         time.sleep(
             mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 20
         )
-        with lock:
+        with self._test_endpoint_lock:
             offline_response_df = ParquetTarget(
                 name="temp",
                 path=fstore.get_feature_set(feature_set_uri).spec.targets[0].path,

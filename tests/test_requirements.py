@@ -72,8 +72,12 @@ def test_requirement_specifiers_convention():
     invalid_requirement_specifiers_map = collections.defaultdict(set)
     for requirement_name, requirement_specifiers in requirement_specifiers_map.items():
         for requirement_specifier in requirement_specifiers:
-            # we don't care about what's coming after the ; (it will be something like "python_version < '3.7'")
-            tested_requirement_specifier = requirement_specifier.split(";")[0]
+            # Remove any optional extras ([…]) and environment markers (; …) so we only
+            # validate the core "~=X.Y(.Z)" specifier.
+            raw = requirement_specifier.split(";", 1)[0]
+            if raw.startswith("["):
+                raw = raw.split("]", 1)[1]
+            tested_requirement_specifier = raw
             invalid_requirement = False
             if not tested_requirement_specifier.startswith("~="):
                 invalid_requirement = True

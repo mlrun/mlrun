@@ -1,8 +1,7 @@
 (custom-model-serving-class)=
 # Build your own model serving class
 
-Model serving classes implement the full model serving functionality, which includes
-loading models, pre- and post-processing, prediction, explainability, and model monitoring.
+Model serving classes implement the full model serving functionality, which includes loading models, pre- and post-processing, prediction, explainability, and model monitoring.
 
 Model serving classes must inherit from `mlrun.serving.V2ModelServer`, and at the minimum 
 implement the `load()` (download the model file(s) and load the model into memory) 

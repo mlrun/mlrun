@@ -14,10 +14,10 @@
 
 from datetime import datetime, timedelta
 
-from mlrun.common.types import StrEnum
+import mlrun.common.types
 
 
-class PartitionInterval(StrEnum):
+class PartitionInterval(mlrun.common.types.StrEnum):
     DAY = "DAY"
     MONTH = "MONTH"
     YEARWEEK = "YEARWEEK"
@@ -44,6 +44,8 @@ class PartitionInterval(StrEnum):
             return timedelta(days=30)
         elif self == PartitionInterval.YEARWEEK:
             return timedelta(weeks=1)
+        else:
+            raise ValueError(f"Unsupported PartitionInterval: {self}")
 
     @classmethod
     def from_expression(cls, partition_expression: str):
@@ -83,7 +85,7 @@ class PartitionInterval(StrEnum):
         current_datetime = start_datetime
 
         for _ in range(partition_number):
-            partition_name = self.get_partition_name(current_datetime)
+            partition_name = f"p{self.get_partition_name(current_datetime)}"
             partition_boundary_date = self.get_next_partition_time(current_datetime)
             partition_value = self.get_partition_name(partition_boundary_date)
             partitioning_information_list.append((partition_name, partition_value))
@@ -109,6 +111,8 @@ class PartitionInterval(StrEnum):
             return (current_datetime.replace(day=1) + timedelta(days=32)).replace(day=1)
         elif self == PartitionInterval.YEARWEEK:
             return current_datetime + timedelta(weeks=1)
+        else:
+            raise ValueError(f"Unsupported PartitionInterval: {self}")
 
     def get_partition_name(self, current_datetime: datetime) -> str:
         if self == PartitionInterval.DAY:
@@ -118,6 +122,8 @@ class PartitionInterval(StrEnum):
         elif self == PartitionInterval.YEARWEEK:
             year, week, _ = current_datetime.isocalendar()
             return f"{year}{week:02d}"
+        else:
+            raise ValueError(f"Unsupported PartitionInterval: {self}")
 
     def get_partition_expression(self, column_name: str):
         if self == PartitionInterval.YEARWEEK:
@@ -130,6 +136,8 @@ class PartitionInterval(StrEnum):
             # generates value in format %Y%m in mysql
             # mysql query example: `select YEAR(NOW())*100 + MONTH(NOW());`
             return f"YEAR({column_name}) * 100 + MONTH({column_name})"
+        else:
+            raise ValueError(f"Unsupported PartitionInterval: {self}")
 
     def get_number_of_partitions(self, days: int) -> int:
         # Calculate the number partitions based on given number of days
@@ -140,3 +148,5 @@ class PartitionInterval(StrEnum):
             return int(days / 30.44)
         elif self == PartitionInterval.YEARWEEK:
             return int(days / 7)
+        else:
+            raise ValueError(f"Unsupported PartitionInterval: {self}")

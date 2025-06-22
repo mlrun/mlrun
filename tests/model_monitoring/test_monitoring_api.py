@@ -184,14 +184,18 @@ def test_project_create_model_monitoring_alert_configs() -> None:
     with patch("mlrun.db.get_run_db", return_value=db_mock):
         mep1 = ModelEndpoint(
             metadata=ModelEndpointMetadata(
-                project=project.name, uid="mep_id1", name="mep_id1"
+                project=project.name,
+                uid="2af2282a-3ca1-4501-9284-125f0fc9219b",
+                name="mep_id1",
             ),
             spec=ModelEndpointSpec(),
             status=ModelEndpointStatus(),
         )
         mep2 = ModelEndpoint(
             metadata=ModelEndpointMetadata(
-                project=project.name, uid="mep_id2", name="mep_id2"
+                project=project.name,
+                uid="a2929c19-0eb7-4fc7-9e71-f0b83ea1ee40",
+                name="mep_id2",
             ),
             spec=ModelEndpointSpec(),
             status=ModelEndpointStatus(),

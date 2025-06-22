@@ -144,13 +144,6 @@ class TestFeatureStore(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
 
         response = await async_client.get(
-            f"v1/projects/{project_name}/entities?name=ticker"
-        )
-        assert response.status_code == HTTPStatus.OK.value
-        results = response.json()
-        assert len(results["entities"]) == 1
-
-        response = await async_client.get(
             f"v2/projects/{project_name}/entities?name=ticker"
         )
         assert response.status_code == HTTPStatus.OK.value

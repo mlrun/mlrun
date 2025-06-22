@@ -19,7 +19,7 @@ import unittest.mock
 
 import deepdiff
 import pytest
-from sqlalchemy import distinct, select
+from sqlalchemy import select
 
 import mlrun.common.constants
 import mlrun.common.schemas
@@ -2311,7 +2311,7 @@ class TestArtifacts(TestDatabaseBase):
 
         # validate we have 10 distinct projects in the new table
         new_artifact_projects = self._db_session.execute(
-            select([distinct(framework.db.sqldb.models.ArtifactV2.project)])
+            select(framework.db.sqldb.models.ArtifactV2.project.distinct())
         ).fetchall()
         assert len(new_artifact_projects) == 10
 

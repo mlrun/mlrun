@@ -1,6 +1,14 @@
 (glossary)=
 # Glossary
 
+This page describes commonly used MLRun and industry terminology.
+
+**In this section**
+- [MLRun terms](#mlrun-terms)
+- [Iguazio (V3IO) terms](#iguazio-v3io-terms)
+- [Standard ML terms](#standard-ml-terms)
+- [ML libraries / tools](#ml-libraries-tools)
+
 ## MLRun terms
 
 | MLRun terms        | Description                                                                                                                                                                                                                                 |
@@ -40,6 +48,7 @@
 | MLOps               | Set of practices that reliably and efficiently deploys and maintains machine learning models in production. Combination of Machine Learning and DevOps.                                                                                                                              |
 | Dataframe           | Tabular representation of data, often using tools such as Pandas, Spark, or Dask.                                                                                                                                                                                                    |
 
+(ml-libraries-tools)=
 ## ML libraries / tools
 
 

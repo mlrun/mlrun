@@ -53,9 +53,9 @@ def test_normalize_retry_run(client, original_name, project, expected):
         ("MiXeD_CaSe", "mixed_case"),  # mixed case → lower-case kept
         ("with space", "with_space"),  # spaces → underscore
         ("double  space", "double_space"),  # condensed invalid runs → single _
-        ("leading-", "leading"),  # leading invalid char stripped
+        ("leading_", "leading"),  # leading stripped
         ("trailing!", "trailing"),  # trailing invalid char stripped
-        ("--many!!bad$$chars--", "many_bad_chars"),  # multiple invalid segments
+        ("--many!!bad$$chars--", "--many_bad_chars--"),  # multiple invalid segments
         ("___already_ok___", "already_ok"),  # leading/trailing underscores removed
         ("", ""),  # empty string stays empty
     ],

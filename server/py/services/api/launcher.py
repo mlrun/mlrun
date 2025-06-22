@@ -43,6 +43,10 @@ import framework.api.utils
 import framework.utils.helpers
 import services.api.crud
 import services.api.runtime_handlers
+from framework.db.sqldb.sql_session import create_session
+
+# Configmap objects on Kubernetes have 10Mb size limit
+SERVING_SPEC_MAX_LENGTH = 10485760
 
 # Configmap objects on Kubernetes have 10Mb size limit
 SERVING_SPEC_MAX_LENGTH = 10485760
@@ -482,7 +486,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # If in the api server, we can assume that watch=False, so we save notification
         # configs to the DB, for the run monitor to later pick up and push.
-        session = mlrun.common.db.sql_session.create_session()
+        session = create_session()
         services.api.crud.Notifications().store_run_notifications(
             session,
             runobj.spec.notifications,

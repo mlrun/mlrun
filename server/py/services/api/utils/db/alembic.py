@@ -56,17 +56,28 @@ class AlembicUtil:
         # create separate config in order to catch the stdout
         catch_stdout_config = alembic.config.Config(self._alembic_config_path)
         catch_stdout_config.print_stdout = self._save_output
+        logger.debug("Alembic output", revision=self._alembic_output)
 
         self._flush_output()
         try:
             alembic.command.current(catch_stdout_config)
+            logger.debug("Alembic current revision", revision=self._alembic_output)
             return self._alembic_output.strip().replace(" (head)", "")
         except Exception as exc:
-            if "Can't locate revision identified by" in exc.args[0]:
-                # DB has a revision that isn't known to us, extracting it from the exception.
-                return exc.args[0].split("'")[2]
+            msg = exc.args[0]
 
-            return None
+            if (
+                "Can't locate revision identified by" in msg
+                or "no such revision" in msg.lower()
+            ):
+                # run every migration from scratch up to head
+                alembic.command.upgrade(catch_stdout_config, "head")
+                # now capture and return the current (head) revision
+                self._flush_output()
+                alembic.command.current(catch_stdout_config)
+                return self._alembic_output.strip().replace(" (head)", "")
+
+            raise ValueError("Failed to get current alembic revision") from exc
 
     def _get_revision_history_list(self) -> list[str]:
         """

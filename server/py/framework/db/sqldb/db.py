@@ -31,7 +31,6 @@ import pytz
 import sqlalchemy
 from sqlalchemy import (
     Column,
-    MetaData,
     and_,
     case,
     delete,
@@ -42,11 +41,13 @@ from sqlalchemy import (
     select,
     text,
     tuple_,
+    types,
 )
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
 from sqlalchemy.orm import Query, Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.sql.compiler import IdentifierPreparer
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -55,12 +56,12 @@ import mlrun.common.model_monitoring
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.types
-import mlrun.datastore
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.model
 import mlrun.utils.db
 from mlrun.artifacts.base import fill_artifact_object_hash
+from mlrun.common.db.dialects import Dialects
 from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
     FeatureSetDigestSpecV2,
@@ -196,6 +197,17 @@ def retry_on_conflict(function):
 
 
 class SQLDB(DBInterface):
+    def __new__(cls, dsn: str = ""):
+        if cls is SQLDB and dsn:
+            scheme = urllib.parse.urlparse(dsn).scheme.lower()
+            if scheme.startswith(Dialects.MYSQL):
+                return super().__new__(MySQLDB)
+            elif scheme.startswith(Dialects.POSTGRESQL):
+                return super().__new__(PostgreSQLDB)
+            else:
+                return super().__new__(cls)
+        return super().__new__(cls)
+
     def __init__(self, dsn=""):
         self.dsn = dsn
         self._name_with_iter_regex = re.compile("^[0-9]+-.+$")
@@ -353,7 +365,9 @@ class SQLDB(DBInterface):
             query = query.filter(Run.state.in_(states))
 
         if last_update_time_from is not None:
-            query = query.filter(Run.updated >= last_update_time_from)
+            query = query.filter(
+                Run.updated >= self._ensure_datetime_obj(last_update_time_from)
+            )
 
         if requested_logs_modes is not None:
             query = query.filter(Run.requested_logs.in_(requested_logs_modes))
@@ -452,17 +466,27 @@ class SQLDB(DBInterface):
         if states is not None:
             query = query.filter(Run.state.in_(states))
         if start_time_from is not None:
-            query = query.filter(Run.start_time >= start_time_from)
+            query = query.filter(
+                Run.start_time >= self._ensure_datetime_obj(start_time_from)
+            )
         if start_time_to is not None:
-            query = query.filter(Run.start_time <= start_time_to)
+            query = query.filter(
+                Run.start_time <= self._ensure_datetime_obj(start_time_to)
+            )
         if last_update_time_from is not None:
-            query = query.filter(Run.updated >= last_update_time_from)
+            query = query.filter(
+                Run.updated >= self._ensure_datetime_obj(last_update_time_from)
+            )
         if last_update_time_to is not None:
-            query = query.filter(Run.updated <= last_update_time_to)
+            query = query.filter(
+                Run.updated <= self._ensure_datetime_obj(last_update_time_to)
+            )
         if end_time_from is not None:
-            query = query.filter(Run.end_time >= end_time_from)
+            query = query.filter(
+                Run.end_time >= self._ensure_datetime_obj(end_time_from)
+            )
         if end_time_to is not None:
-            query = query.filter(Run.end_time <= end_time_to)
+            query = query.filter(Run.end_time <= self._ensure_datetime_obj(end_time_to))
         if sort:
             # If the start_time fields are the same, we need a secondary field to sort by.
             query = query.order_by(Run.start_time.desc(), Run.id.desc())
@@ -778,6 +802,7 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunMissingProjectError()
         if not uid:
             uid = fill_artifact_object_hash(artifact, iteration, producer_id)
+
         # check if the object already exists
         query = self._query(session, ArtifactV2, key=key, project=project, uid=uid)
         existing_object = query.one_or_none()
@@ -1898,7 +1923,7 @@ class SQLDB(DBInterface):
             outer_query = self._paginate_query(outer_query, offset, limit=None)
 
         if not with_entities:
-            # egarly load the parent artifact
+            # early load the parent artifact
             outer_query = outer_query.options(selectinload(ArtifactV2.parent))
 
         results = outer_query.all()
@@ -3854,7 +3879,7 @@ class SQLDB(DBInterface):
             session.query(
                 Schedule.project.label("project_name"),
                 Schedule.name.label("schedule_name"),
-                case([(workflow_label_exists, True)], else_=False).label(
+                case((workflow_label_exists, True), else_=False).label(
                     "has_workflow_label"
                 ),
             )
@@ -4037,7 +4062,8 @@ class SQLDB(DBInterface):
                         AlertActivation.entity_kind
                         == mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
                         1,
-                    )
+                    ),
+                    else_=None,
                 )
             ).label("model_endpoint_alerts_count"),
             func.count(
@@ -4046,20 +4072,22 @@ class SQLDB(DBInterface):
                         AlertActivation.entity_kind
                         == mlrun.common.schemas.alert.EventEntityKind.JOB,
                         1,
-                    )
+                    ),
+                    else_=None,
                 )
             ).label("job_alerts_count"),
             func.count(
                 case(
                     (
-                        AlertActivation.entity_kind.not_in(
+                        AlertActivation.entity_kind.notin_(
                             [
                                 mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
                                 mlrun.common.schemas.alert.EventEntityKind.JOB,
                             ]
                         ),
                         1,
-                    )
+                    ),
+                    else_=None,
                 )
             ).label("other_alerts_count"),
         )
@@ -5562,11 +5590,19 @@ class SQLDB(DBInterface):
             session.query(ModelEndpoint)
             .options(
                 selectinload(ModelEndpoint.function).options(
-                    load_only("name", "state", "project", "uid"),
+                    load_only(
+                        Function.name, Function.state, Function.project, Function.uid
+                    ),
                     selectinload(Function.tags),
                 ),
                 selectinload(ModelEndpoint.model).options(
-                    load_only("key", "project", "iteration", "producer_id", "uid")
+                    load_only(
+                        ArtifactV2.key,
+                        ArtifactV2.project,
+                        ArtifactV2.iteration,
+                        ArtifactV2.producer_id,
+                        ArtifactV2.uid,
+                    )
                 ),
                 selectinload(ModelEndpoint.tags),
             )
@@ -5605,11 +5641,19 @@ class SQLDB(DBInterface):
             session.query(ModelEndpoint)
             .options(
                 selectinload(ModelEndpoint.function).options(
-                    load_only("name", "state", "project", "uid"),
+                    load_only(
+                        Function.name, Function.state, Function.project, Function.uid
+                    ),
                     selectinload(Function.tags),
                 ),
                 selectinload(ModelEndpoint.model).options(
-                    load_only("key", "project", "iteration", "producer_id", "uid")
+                    load_only(
+                        ArtifactV2.key,
+                        ArtifactV2.project,
+                        ArtifactV2.iteration,
+                        ArtifactV2.producer_id,
+                        ArtifactV2.uid,
+                    )
                 ),
                 selectinload(ModelEndpoint.tags),
             )
@@ -5914,11 +5958,22 @@ class SQLDB(DBInterface):
             session.query(ModelEndpoint)
             .options(
                 selectinload(ModelEndpoint.function).options(
-                    load_only("name", "state", "project", "uid"),
+                    load_only(
+                        Function.name,
+                        Function.state,
+                        Function.project,
+                        Function.uid,
+                    ),
                     selectinload(Function.tags),
                 ),
                 selectinload(ModelEndpoint.model).options(
-                    load_only("key", "project", "iteration", "producer_id", "uid")
+                    load_only(
+                        ArtifactV2.key,
+                        ArtifactV2.project,
+                        ArtifactV2.iteration,
+                        ArtifactV2.producer_id,
+                        ArtifactV2.uid,
+                    )
                 ),
                 selectinload(ModelEndpoint.tags),
             )
@@ -6814,44 +6869,11 @@ class SQLDB(DBInterface):
         :param table_name: Name of the table where partitions will be created.
         :param partitioning_information_list: List of tuples, each containing:
             - partition_name: The name for the partition.
-            - partition_value: The "LESS THAN" boundary value for the partition.
+            - partition_value:
+                * MySQL: the "LESS THAN" boundary value for the partition.
+                * Postgres: a string "lower,upper" defining the range.
         """
-        query = text("""
-            SELECT PARTITION_DESCRIPTION
-            FROM INFORMATION_SCHEMA.PARTITIONS
-            WHERE TABLE_NAME = :table_name
-        """)
-
-        existing_partition_values = {
-            row["PARTITION_DESCRIPTION"]
-            for row in session.execute(query, {"table_name": table_name})
-        }
-
-        # Filter partitions to add only those that are not in the table
-        new_partitions = [
-            f"PARTITION p{partition_name} VALUES LESS THAN ({partition_value})"
-            for partition_name, partition_value in partitioning_information_list
-            if str(partition_value) not in existing_partition_values
-        ]
-
-        if not new_partitions:
-            return
-
-        logger.info(
-            "Creating new partitions for table",
-            table_name=table_name,
-            new_partitions=new_partitions,
-        )
-
-        alter_table_template = f"""
-            ALTER TABLE {table_name}
-            ADD PARTITION (
-                {", ".join(new_partitions)}
-            );
-        """
-
-        # No commit needed here, as DDL commands in MySQL cause an implicit commit
-        session.execute(text(alter_table_template))
+        raise NotImplementedError()
 
     @staticmethod
     def drop_partitions(
@@ -6866,38 +6888,7 @@ class SQLDB(DBInterface):
         :param table_name: The name of the table with partitions.
         :param cutoff_partition_name: The cutoff partition name for dropping old partitions.
         """
-
-        # Retrieve partitions to drop as a list
-        partitions_to_drop = session.execute(
-            text("""
-            SELECT PARTITION_NAME
-            FROM information_schema.PARTITIONS
-            WHERE TABLE_NAME = :table_name
-              AND PARTITION_NAME < :cutoff_partition_name
-            """),
-            {"table_name": table_name, "cutoff_partition_name": cutoff_partition_name},
-        ).fetchall()
-
-        # Only proceed if there are partitions to drop
-        if partitions_to_drop:
-            # Aggregate partition names into a comma-separated string for the SQL query
-            partitions_to_drop_str = ", ".join(
-                [f"{partition[0]}" for partition in partitions_to_drop]
-            )
-
-            # Formulate the DROP PARTITION SQL statement
-            drop_sql = (
-                f"ALTER TABLE {table_name} DROP PARTITION {partitions_to_drop_str}"
-            )
-
-            # Log the partitions to be dropped for reference
-            logger.debug(
-                f"Dropping partitions for table {table_name}: {partitions_to_drop_str}"
-            )
-
-            # Execute the DROP PARTITION statement
-            # No commit needed here, as DDL commands in MySQL cause an implicit commit
-            session.execute(text(drop_sql))
+        raise NotImplementedError()
 
     @staticmethod
     def get_partition_expression_for_table(
@@ -6914,17 +6905,10 @@ class SQLDB(DBInterface):
         - dayofmonth(`activation_time`)
         - yearweek(`activation_time`, 1)
         """
-        return session.execute(
-            text(
-                "SELECT PARTITION_EXPRESSION "
-                "FROM information_schema.PARTITIONS "
-                "WHERE TABLE_NAME = :table_name"
-            ),
-            {"table_name": table_name},
-        ).scalar()
+        raise NotImplementedError()
 
     @staticmethod
-    def table_exist(
+    def table_exists(
         session: Session,
         table_name: str,
     ) -> bool:
@@ -6936,15 +6920,7 @@ class SQLDB(DBInterface):
 
         :return: True if the table exists, False otherwise.
         """
-        result = session.execute(
-            text(
-                "SELECT COUNT(*) "
-                "FROM information_schema.tables "
-                "WHERE TABLE_NAME = :table_name "
-            ),
-            {"table_name": table_name},
-        ).scalar()
-        return result > 0
+        raise NotImplementedError()
 
     @staticmethod
     def _transform_alert_template_schema_to_record(
@@ -8382,9 +8358,12 @@ class SQLDB(DBInterface):
         :param table_name: table name
         :return: True if the table exists, False otherwise
         """
-        metadata = MetaData(bind=session.bind)
-        metadata.reflect()
-        return table_name in metadata.tables.keys()
+        inspector = sqlalchemy.inspect(
+            subject=session.bind,
+        )
+        return inspector.has_table(
+            table_name=table_name,
+        )
 
     @staticmethod
     def _paginate_query(
@@ -8465,3 +8444,409 @@ class SQLDB(DBInterface):
         session.add(db_object)
         self._commit(session, db_object)
         session.flush()
+
+    def _ensure_datetime_obj(self, date: typing.Union[str, datetime]) -> datetime:
+        """
+        Ensure the input date is a datetime object. If it's a string, try to parse it as ISO 8601.
+        """
+        if isinstance(date, str):
+            try:
+                date = datetime.fromisoformat(date)
+
+            except ValueError:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Invalid date format: {date}. Expected ISO 8601 format."
+                )
+        elif not isinstance(date, datetime):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid date type: {type(date)}. Expected str or datetime."
+            )
+        return date
+
+
+class MySQLDB(SQLDB):
+    @staticmethod
+    def create_partitions(
+        session: Session,
+        table_name: str,
+        partitioning_information_list: list[tuple[str, str]],
+    ):
+        """
+        Add RANGE partitions to a MySQL table.
+
+        * Duplicate name with different bound → ValueError.
+        * Duplicate name with same bound     → ignored.
+        * New upper bounds must be strictly greater than every existing bound.
+        """
+        engine = session.get_bind()
+        preparer = IdentifierPreparer(engine.dialect)
+        quoted_table = preparer.quote(table_name)
+
+        # existing_partitions = {partition_name: upper_bound_int}
+        existing_partitions = MySQLDB._get_partition_metadata(session, table_name)
+        highest_existing_bound = max(existing_partitions.values(), default=-1)
+        literal_int = types.Integer().literal_processor(engine.dialect)
+
+        sql_fragments: list[tuple[int, str]] = []  # (upper_bound_int, "…SQL…")
+
+        for partition_name, upper_bound_text in partitioning_information_list:
+            upper_bound_int = int(upper_bound_text)
+
+            # — duplicate-name checks -------------------------------------------------
+            if partition_name in existing_partitions:
+                if existing_partitions[partition_name] != upper_bound_int:
+                    raise ValueError(
+                        f"Partition {partition_name} already exists with a different "
+                        f"bound: {existing_partitions[partition_name]} vs {upper_bound_int}"
+                    )
+                continue  # same bound → nothing to add
+
+            # — ascending-order rule --------------------------------------------------
+            if upper_bound_int <= highest_existing_bound:
+                continue  # not strictly higher → skip
+
+            sql_fragment = (
+                f"PARTITION `{partition_name}` "
+                f"VALUES LESS THAN ({literal_int(upper_bound_int)})"
+            )
+            sql_fragments.append((upper_bound_int, sql_fragment))
+            highest_existing_bound = upper_bound_int  # advance cursor
+
+        if not sql_fragments:
+            return
+
+        # apply in ascending bound order
+        sql_fragments.sort(key=lambda pair: pair[0])
+        alter_clause = ", ".join(fragment for _, fragment in sql_fragments)
+
+        logger.info(
+            "Creating new MySQL partitions",
+            table_name=table_name,
+            partitions_sql=alter_clause,
+        )
+        session.execute(
+            text(f"ALTER TABLE {quoted_table} ADD PARTITION ({alter_clause})")
+        )
+
+    @staticmethod
+    def drop_partitions(
+        session: Session,
+        table_name: str,
+        cutoff_partition_name: str,
+    ):
+        """
+        Execute the drop operation for partitions older than the cutoff partition name.
+
+        :param session: SQLAlchemy session.
+        :param table_name: The name of the table with partitions.
+        :param cutoff_partition_name: The cutoff partition name for dropping old partitions.
+        """
+        engine = session.get_bind()
+        preparer = IdentifierPreparer(engine.dialect)
+        safe_table = preparer.quote(table_name)
+
+        names = MySQLDB._get_partitions_older_than(
+            session=session,
+            table_name=table_name,
+            cutoff_partition_name=cutoff_partition_name,
+        )
+        if not names:
+            return
+
+        parts = ", ".join(f"`{name}`" for name in names)
+        logger.debug(
+            "Dropping partitions for table",
+            table_name=table_name,
+            parts=parts,
+        )
+        session.execute(text(f"ALTER TABLE {safe_table} DROP PARTITION {parts}"))
+
+    @staticmethod
+    def get_partition_expression_for_table(
+        session: Session,
+        table_name: str,
+    ) -> str:
+        """
+        Returns partitioning expression for a given table.
+
+        :param session: SQLAlchemy session.
+        :param table_name: Name of the table.
+        """
+        return session.execute(
+            text("""
+                SELECT PARTITION_EXPRESSION
+                FROM information_schema.PARTITIONS
+                WHERE TABLE_NAME = :table_name
+            """),
+            {"table_name": table_name},
+        ).scalar()
+
+    @staticmethod
+    def table_exists(
+        session: Session,
+        table_name: str,
+    ) -> bool:
+        """
+        Checks if a table exists in the current database schema.
+
+        :param session: SQLAlchemy session.
+        :param table_name: Name of the table to check.
+        """
+        result = session.execute(
+            text("""
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE TABLE_NAME = :table_name
+            """),
+            {
+                "table_name": table_name,
+            },
+        ).scalar()
+        return result > 0
+
+    @staticmethod
+    def _get_partitions_older_than(
+        session: Session,
+        table_name: str,
+        cutoff_partition_name: str,
+    ) -> list[str]:
+        """
+        Return names of MySQL partitions whose name is lexicographically
+        less than *cutoff_partition_name*.
+        """
+        rows = session.execute(
+            text(
+                """
+                SELECT PARTITION_NAME
+                FROM INFORMATION_SCHEMA.PARTITIONS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = :table_name
+                  AND PARTITION_NAME < :cutoff
+                  AND PARTITION_NAME IS NOT NULL
+                """
+            ),
+            {"table_name": table_name, "cutoff": cutoff_partition_name},
+        ).fetchall()
+
+        return [row[0] for row in rows]
+
+    @staticmethod
+    def _get_partition_metadata(
+        session: Session,
+        table_name: str,
+    ) -> dict[str, int]:
+        """
+        Return a dict {partition_name: upper_bound_int}, skipping NULL bounds.
+
+        Mirrors:
+        SELECT PARTITION_NAME, PARTITION_DESCRIPTION
+        FROM   INFORMATION_SCHEMA.PARTITIONS
+        WHERE  TABLE_SCHEMA = DATABASE() AND TABLE_NAME = <table_name>
+          AND  PARTITION_NAME IS NOT NULL
+        """
+        rows = session.execute(
+            text(
+                """
+                SELECT PARTITION_NAME, PARTITION_DESCRIPTION
+                FROM INFORMATION_SCHEMA.PARTITIONS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = :table_name
+                  AND PARTITION_NAME IS NOT NULL
+                """
+            ),
+            {"table_name": table_name},
+        ).fetchall()
+
+        return {name: int(bound) for name, bound in rows if bound is not None}
+
+
+class PostgreSQLDB(SQLDB):
+    @staticmethod
+    def create_partitions(
+        session: Session,
+        table_name: str,
+        partitioning_information_list: list[tuple[str, str]],
+    ):
+        """
+        Add RANGE partitions to a PostgreSQL table (single-column integer key).
+
+        * Duplicate name with different bound → ValueError.
+        * Duplicate name with same bound     → ignored.
+        * New upper bounds must be strictly greater than every existing bound.
+        * The lower bound of each new partition is taken to be the current
+          highest existing upper bound (i.e. partitions are assumed contiguous).
+        """
+        engine = session.get_bind()
+        preparer = IdentifierPreparer(engine.dialect)
+        quoted_table = preparer.quote(table_name)
+
+        existing_partitions = PostgreSQLDB._get_partition_metadata(session, table_name)
+        highest_existing_bound = max(existing_partitions.values(), default=-1)
+        literal_int = types.Integer().literal_processor(engine.dialect)
+
+        ddl_fragments = []  # (upper_bound_int, DDL)
+
+        for partition_name, upper_bound_text in partitioning_information_list:
+            upper_bound_int = int(upper_bound_text)
+
+            # ---- duplicate-name handling ----------------------------------------
+            if partition_name in existing_partitions:
+                if existing_partitions[partition_name] != upper_bound_int:
+                    raise ValueError(
+                        f"Partition {partition_name} already exists with a different "
+                        f"bound: {existing_partitions[partition_name]} vs {upper_bound_int}"
+                    )
+                continue  # already present with same bound
+
+            # ---- ascending-order rule -------------------------------------------
+            if upper_bound_int <= highest_existing_bound:
+                continue  # not strictly higher → skip
+
+            # contiguous assumption: lower == current highest bound
+            lower_bound_int = highest_existing_bound
+            ddl_fragments.append(
+                (
+                    upper_bound_int,
+                    text(
+                        f"""
+                        CREATE TABLE {preparer.quote(partition_name)}
+                        PARTITION OF {quoted_table}
+                        FOR VALUES FROM ({literal_int(lower_bound_int)})
+                                   TO   ({literal_int(upper_bound_int)})
+                        """
+                    ),
+                )
+            )
+            highest_existing_bound = upper_bound_int  # advance cursor
+
+        if not ddl_fragments:
+            return
+
+        ddl_fragments.sort(key=lambda pair: pair[0])  # ascending
+        for _upper, ddl in ddl_fragments:
+            session.execute(ddl)
+        session.commit()
+
+    @staticmethod
+    def drop_partitions(
+        session: Session,
+        table_name: str,
+        cutoff_partition_name: str,
+    ):
+        """
+        Execute the drop operation for partitions older than the cutoff partition name.
+
+        :param session: SQLAlchemy session.
+        :param table_name: The name of the table with partitions.
+        :param cutoff_partition_name: The cutoff partition name for dropping old partitions.
+        """
+        to_drop = PostgreSQLDB._get_partitions_older_than(
+            session, table_name, cutoff_partition_name
+        )
+        if not to_drop:
+            return
+
+        engine = session.get_bind()
+        preparer = IdentifierPreparer(engine.dialect)
+        q_table = preparer.quote(table_name)
+
+        logger.info(
+            "Detaching and dropping partitions",
+            table_name=table_name,
+            parts=to_drop,
+        )
+        for part in sorted(to_drop):
+            q_part = preparer.quote(part)
+            session.execute(text(f"ALTER TABLE {q_table} DETACH PARTITION {q_part}"))
+            session.execute(text(f"DROP TABLE IF EXISTS {q_part}"))
+
+        session.commit()
+
+    @staticmethod
+    def get_partition_expression_for_table(
+        session: Session,
+        table_name: str,
+    ) -> str:
+        """
+        Returns partitioning expression for a given table.
+
+        :param session: SQLAlchemy session.
+        :param table_name: Name of the table.
+        """
+        return session.execute(
+            text("""
+                SELECT pg_get_expr(pt.partbound, pt.partrelid) AS partition_expression
+                FROM pg_partitioned_table AS pt
+                JOIN pg_class      AS pc ON pt.partrelid   = pc.oid
+                JOIN pg_namespace  AS pn ON pc.relnamespace = pn.oid
+                WHERE pn.nspname = current_schema()
+                  AND pc.relname = :table_name
+            """),
+            {
+                "table_name": table_name,
+            },
+        ).scalar()
+
+    @staticmethod
+    def table_exists(
+        session: Session,
+        table_name: str,
+    ) -> bool:
+        """
+        Checks if a table exists in the current database schema.
+
+        :param session: SQLAlchemy session.
+        :param table_name: Name of the table to check.
+        """
+        return bool(
+            session.execute(
+                text("""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_schema = current_schema()
+                      AND table_name   = :table_name
+                )
+            """),
+                {
+                    "table_name": table_name,
+                },
+            ).scalar()
+        )
+
+    @staticmethod
+    def _get_partitions_older_than(
+        session: Session,
+        table_name: str,
+        cutoff_partition_name: str,
+    ) -> list[str]:
+        """
+        Returns names of PostgreSQL partitions for a table that are lexicographically less than the cutoff.
+        """
+        existing = PostgreSQLDB._get_partition_metadata(session, table_name)
+        return [name for name in existing if name < cutoff_partition_name]
+
+    @staticmethod
+    def _get_partition_metadata(session: Session, table_name: str) -> dict[str, int]:
+        """
+        Return {partition_name: upper_bound_int} for RANGE partitions.
+        """
+        rows = session.execute(
+            text(
+                """
+                SELECT c.relname AS partition_name,
+                       (regexp_match(
+                               pg_get_expr(c.relpartbound, c.oid),
+                               'TO \\((\\d+)\\)'
+                        ))[1]::int                      AS upper_bound
+                FROM pg_inherits i
+                    JOIN pg_class c
+                ON c.oid = i.inhrelid
+                WHERE i.inhparent = CAST (:tbl AS regclass)
+                  AND c.relkind = 'r' -- ordinary leaf tables
+                """
+            ),
+            {"tbl": table_name},
+        ).fetchall()
+
+        return {name: bound for name, bound in rows}

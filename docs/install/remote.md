@@ -3,15 +3,10 @@
 
 You can write your code on a local machine while running your functions on a remote cluster. This tutorial explains how to set this up.
 
-This release of MLRun supports only Python 3.9 for both the server and the client. 
-
 **In this section**
 - [Prerequisites](#prerequisites)
-- [Set up a Python 3.9 client environment](#set-up-a-python-39-client-environment)
+- [Set up your client environment](#set-up-your-client-environment)
 - [Configure remote environment](#configure-remote-environment)
-   - [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)
-   - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
-   - [Using your IDE (e.g. PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
 
 <a id="prerequisites"></a>
 ## Prerequisites
@@ -19,12 +14,10 @@ This release of MLRun supports only Python 3.9 for both the server and the clien
 Before you begin, ensure that the following prerequisites are met:
 
 Applications:
-- Python 3.9
-- Recommended pip 22.x+
+- Python 3.11 (recommended) or Python 3.9
+- Recommended pip 25.0.x+
 
-The MLRun server is based on a Python 3.9 environment. It's recommended to move the client to a Python 3.9 environment as well. 
-
-For a Python 3.7 environment for platform versions up to and including v3.5.2, see [Set up a Python 3.7 client environment](../change-log/index.md#set-up-a-python-37-client-environment-iguazio-versions-up-to-and-including-v352).
+The MLRun server is based on a Python 3.11 environment. It's recommended to move the client to a Python 3.11 environment as well, although the MLRun client supports both Python 3.9 and Python 3.11.
 
 ## MLRun client supported OS
 The MLRun client supports:
@@ -32,24 +25,22 @@ The MLRun client supports:
 - Mac
 - Windows via WSL
 
-## Set up a Python 3.9 client environment
+## Set up your client environment
 
 1.  **Basic** <br> 
 Run ```pip install mlrun```
-<br>This installs MLRun locally with the requirements in [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt).
+<br>This installs MLRun locally with the requirements in {requirements}`1.9.x`.
 
 ```{admonition} Notes
 - See more about images in {ref}`images-usage`
-- To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number.
+- To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number. 
 ```
 
-## Note for ARM64 (Apple Silicon) Users
-
-When using ARM64 (Apple Silicon), you need to use **conda** and install protobuf by running the following command:
-
-```bash
-conda install "protobuf>=3.20.3, <4" -y
-````
+:::{admonition} Note for ARM64 (Apple Silicon) Users and Python 3.9
+:name: apple-silicon
+When using ARM64 (Apple Silicon) and **Python 3.9**, you need to use **conda** to install protobuf by running the following command:
+<br>```conda install "protobuf>=3.20.3, <4" -y```
+:::
 
 2. **Advanced** <br> 
    - If you expect to connect to, or work with, cloud providers (Azure/Google Cloud/S3), you can install additional packages. This is not 

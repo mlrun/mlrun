@@ -181,4 +181,5 @@ It is recommended to specify the exact version of the `evidently` package for re
 `from mlrun.model_monitoring.applications.evidently import SUPPORTED_EVIDENTLY_VERSION`.
 ```
 
-See a full example in [Realtime monitoring and drift detection](../tutorials/05-model-monitoring.ipynb#Deploying Evidently based app).
+See a full example in [Realtime monitoring and drift detection](../tutorials/05-model-monitoring.ipynb#deploying-evidently-based-app).
+

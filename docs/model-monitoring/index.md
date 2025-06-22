@@ -13,6 +13,7 @@ Take a deeper dive into model monitoring functionality, including its APIs, mode
 - [Batch inputs](#batch-inputs)
 - [Alerts and notifications](#alerts-and-notifications)
 - [Scale limitations](#scale-limitations)
+- [How to upgrade from v1.7.x to v1.8.0 and higher](#upgrade-from-17)
 
 ## Overview
 
@@ -45,7 +46,6 @@ You can also deploy the default histogram-based data drift application when you 
 - {py:meth}`~mlrun.projects.MlrunProject.create_model_monitoring_function` &mdash; Creates a monitoring function object without setting it to the project, used for user-apps and troubleshooting.
 - {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function` &mdash; Updates or adds a monitoring function to the project. (Monitoring does not start until the function is deployed.) 
 - {py:meth}`~mlrun.projects.MlrunProject.list_model_monitoring_functions` &mdash; Retrieves a list of all the model monitoring functions.
-- {py:meth}`~mlrun.projects.MlrunProject.remove_model_monitoring_function` &mdash; Removes the specified model-monitoring-app function from the project and from the DB.
 - {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials` &mdash; Set the credentials that are used by the project's model monitoring infrastructure functions. You must set the credentials before deploying any model monitoring application or a monitored serving function.
 - {py:meth}`~mlrun.projects.MlrunProject.disable_model_monitoring` &mdash; Disables the model monitoring application controller, writer, stream, histogram data drift application and the user's applications functions, according to the given parameters. 
 - {py:meth}`~mlrun.projects.MlrunProject.update_model_monitoring_controller`  &mdash; Redeploys the model monitoring application controller functions.

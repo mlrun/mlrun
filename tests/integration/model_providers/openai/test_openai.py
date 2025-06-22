@@ -73,23 +73,26 @@ def create_mocked_get_store_resource(uri_to_artifact: dict):
 
 
 def openai_configured():
-    if not config.get("OPENAI_API_KEY") or not config.get("OPENAI_BASE_URL"):
+    if (
+        not config
+        or not config.get("OPENAI_API_KEY")
+        or not config.get("OPENAI_BASE_URL")
+    ):
         return False
     return True
 
 
 @pytest.mark.skipif(
-    openai_configured(),
+    not openai_configured(),
     reason="Requires OPENAI_API_KEY and OPENAI_BASE_URL to be set under test-openai.yml",
 )
 @pytest.mark.parametrize("use_datastore_profile", [True, False])
 class TestBasicOpenAIProvider:
     profile_name = "openai_profile"
-    env_secrets = None
+    env_secrets = config.get("env", {})
 
     @classmethod
     def setup_class(cls):
-        cls.env_secrets = config["env"]
         cls.basic_llm_model = "gpt-4o"
 
     @classmethod

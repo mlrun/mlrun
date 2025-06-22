@@ -29,6 +29,7 @@ from inspect import getfullargspec, signature
 from typing import Any, Optional, Union, cast
 
 import storey.utils
+from storey import ParallelExecutionMechanisms
 
 import mlrun
 import mlrun.artifacts
@@ -1208,6 +1209,7 @@ class ModelRunnerStep(MonitoredStep):
         self,
         endpoint_name: str,
         model_class: str,
+        execution_mechanism: str,
         model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[
@@ -1225,6 +1227,24 @@ class ModelRunnerStep(MonitoredStep):
 
         :param endpoint_name:       str, will identify the model in the ModelRunnerStep, and assign model endpoint name
         :param model_class:         Model class name
+        :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
+        * "process_pool" – To run in a separate process from a process pool. This is appropriate for CPU or GPU
+            intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter Lock
+            (GIL).
+        * "dedicated_process" – To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
+            tasks that also require significant Runnable-specific initialization (e.g. a large model).
+        * "thread_pool" – To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
+            otherwise block the main event loop thread.
+        * "asyncio" – To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the event
+            loop to continue running while waiting for a response.
+        * "shared_executor" – Reuses an external executor (typically managed by the flow or context) to execute the
+            runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
+            useful when:
+            - You want to share a heavy resource like a large model loaded onto a GPU.
+            - You want to centralize task scheduling or coordination for multiple lightweight tasks.
+            - You aim to minimize overhead from creating new executors or processes/threads per runnable.
+          The runnable is expected to be pre-initialized and reused across events, enabling efficient use of memory and
+          hardware accelerators.
         :param model_artifact:      model artifact or mlrun model artifact uri
         :param labels:              model endpoint labels, should be list of str or mapping of str:str
         :param creation_strategy:   Strategy for creating or updating the model endpoint:
@@ -1275,6 +1295,8 @@ class ModelRunnerStep(MonitoredStep):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Model with name {endpoint_name} already exists in this ModelRunnerStep."
             )
+        ParallelExecutionMechanisms.validate(execution_mechanism)
+        model_parameters["execution_mechanism"] = execution_mechanism
 
         model_parameters["name"] = endpoint_name
         monitoring_data = self.class_args.get(

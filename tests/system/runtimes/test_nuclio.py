@@ -76,7 +76,11 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         model_runner_step = ModelRunnerStep(
             name="model-runner", raise_exception=raise_exception
         )
-        model_runner_step.add_model(model_class="DummyModel", endpoint_name="my-model")
+        model_runner_step.add_model(
+            model_class="DummyModel",
+            execution_mechanism="naive",
+            endpoint_name="my-model",
+        )
 
         graph.to(model_runner_step).respond()
 

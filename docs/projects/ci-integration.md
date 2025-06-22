@@ -1,8 +1,18 @@
 (ci-integration)=
 # Run pipelines with GitHub Actions, GitLab
 
-You can run your ML Pipelines using CI frameworks like GitHub Actions, GitLab CI/CD, etc. MLRun supports a simple and native integration 
-with the CI systems. 
+You can run your ML Pipelines using CI frameworks like GitHub Actions, GitLab CI/CD, etc. 
+
+
+**In this section**
+* [Overview](#overview)
+* [Using GitHub Actions](#using-github-actions)
+* [Using GitLab CI/CD](#using-gitlab-cicd)
+* [Using Jenkins Pipeline](#using-jenkins-pipeline)
+
+## Overview
+
+MLRun supports a simple and native integration with the CI systems. 
 
 - Build/run complex workflows composed of local/library functions or external cloud services (e.g. AutoML)
 - Support various Pipeline/CI engines (Kubeflow, GitHub, GitLab, Jenkins)
@@ -28,11 +38,6 @@ When the workflow runs inside the Git CI system it reports the pipeline progress
 <img src="../_static/images/git-pipeline.png" alt="mlrun-architecture" width="800"/><br>
 
 When working with a private Git repository, you need to create **GIT_TOKEN** secrets. For more details about creating secrets in mlrun see [MLRun-managed secrets](../secrets.md#mlrun-managed-secrets).
-
-**Contents**
-* [**Using GitHub Actions**](#using-github-actions)
-* [**Using GitLab CI/CD**](#using-gitlab-cicd)
-* [**Using Jenkins Pipeline**](#using-jenkins-pipeline)
 
 ## Using GitHub Actions
 

@@ -1,7 +1,7 @@
 (workflow-overview)=
 # Running a multi-stage workflow
 
-
+Multi-stage workflows define the order of execution of multiple dependent steps in a DAG. A workflow can reference the project’s params, secrets, artifacts, etc.
 
 **In this section**
 * [Composing workflows](#composing-workflows)

@@ -1,6 +1,8 @@
 (ingesting_data)=
 # Using data sources and items
 
+Learn how to access data by using the DataItem object, and how to process data.
+
 **In this section**
 - [Connecting to data sources](#connecting-to-data-sources)
 - [Data processing](#data-processing)
@@ -87,9 +89,9 @@ with Pandas DataFrames and converting from and to its `DataItem` object.
 For distributed processing of very large datasets, MLRun integrates with the Spark processing engine, and provides
 facilities for executing pySpark code using a Spark service (which can be deployed by the platform when running MLRun
 as part of an Iguazio system) or through submitting the processing task to Spark-operator. The following page provides
+- [Spark operator](../runtimes/spark-operator.ipynb)
 additional details and code-samples:
 
-- [Spark operator](../runtimes/spark-operator.ipynb)
 
 In a similar manner, Dask can be used for parallel processing of the data. To read data as a Dask `DataFrame`, use the
 following code:

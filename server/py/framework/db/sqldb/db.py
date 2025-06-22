@@ -3922,9 +3922,9 @@ class SQLDB(DBInterface):
         self, session
     ) -> tuple[dict[str, int], dict[str, int]]:
         query = session.query(
-            Function.project.label("project"),
-            Function.state.label("function_state"),
-            func.count().label("state_count"),
+            Function.project,
+            Function.state,
+            func.count(),
         )
         query = query.join(
             Function.Tag, Function.id == Function.Tag.obj_id
@@ -3966,18 +3966,20 @@ class SQLDB(DBInterface):
     def _calculate_mep_counters(session) -> tuple[dict[str, int], dict[str, int]]:
         query = session.query(
             ModelEndpoint.project,
-            func.count().label("mep_count"),
-            func.count(
-                case((ModelEndpoint.endpoint_type == EndpointType.BATCH_EP, 1))
-            ).label("batch_count"),
-        ).group_by(ModelEndpoint.project)
+            ModelEndpoint.endpoint_type,
+            func.count(),
+        ).group_by(ModelEndpoint.project, ModelEndpoint.endpoint_type)
         results = query.all()
 
         project_to_real_time_mep_count = {}
         project_to_batch_mep_count = {}
-        for project, mep_count, batch_count in results:
-            project_to_real_time_mep_count[project] = mep_count - batch_count
-            project_to_batch_mep_count[project] = batch_count
+        for project, endpoint_type, count in results:
+            if endpoint_type == EndpointType.BATCH_EP:
+                project_to_batch_mep_count[project] = count
+            else:
+                project_to_real_time_mep_count[project] = (
+                    project_to_real_time_mep_count.get(project, 0) + count
+                )
 
         return project_to_real_time_mep_count, project_to_batch_mep_count
 

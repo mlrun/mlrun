@@ -22,7 +22,7 @@ In some cases you might not want to load the files from the remote source, but i
 The remote workflow supports [sending notifications](./notifications.md#remote-pipeline-notifications) when runs are complete.
 
 You can modify the pod image, source, and the pod node selector with:
-- `project.set_workflow(name="main",workflow_path="workflow.py,image="<runner-image>")` &mdash; changing the runner image
+- `project.set_workflow(name="main",workflow_path="workflow.py",image="<runner-image>")` &mdash; changing the runner image
 - `project.run("main",engine="remote",workflow_runner_node_selector={"key":"value"})` &mdash; changing the runner node selector 
 - `project.run(source=<source-URL>)` &mdash; changing the runner source
 

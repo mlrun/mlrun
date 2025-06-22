@@ -934,6 +934,7 @@ class Service(framework.service.Service):
         """
         self._logger.debug("Retrying jobs with retry policy configured")
         db_session = await fastapi.concurrency.run_in_threadpool(create_session)
+        fetch_runs_limit = int(mlconf.monitoring.runs.retry.fetch_runs_limit)
         try:
             offset = 0
             while runs := await fastapi.concurrency.run_in_threadpool(
@@ -941,7 +942,7 @@ class Service(framework.service.Service):
                 db_session,
                 project="*",
                 states=[mlrun.common.runtimes.constants.RunStates.pending_retry],
-                limit=int(mlconf.monitoring.runs.retry.fetch_runs_limit),
+                limit=fetch_runs_limit,
                 offset=offset,
             ):
                 self._logger.debug(

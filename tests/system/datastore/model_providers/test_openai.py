@@ -36,7 +36,6 @@ def get_missing_openai_env_variables():
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
-@pytest.mark.parametrize("use_datastore_profile", [True])
 class TestOpenAIModelRunner(TestMLRunSystem):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 

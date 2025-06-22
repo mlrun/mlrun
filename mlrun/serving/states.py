@@ -1002,7 +1002,7 @@ class RouterStep(TaskStep):
         )
 
 
-class Model(storey.ParallelExecutionRunnable):
+class Model(storey.ParallelExecutionRunnable, ModelObj):
     def __init__(
         self,
         name: str,
@@ -1207,7 +1207,7 @@ class ModelRunnerStep(MonitoredStep):
     def add_model(
         self,
         endpoint_name: str,
-        model_class: str,
+        model_class: Union[str, Model],
         model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[
@@ -1265,7 +1265,8 @@ class ModelRunnerStep(MonitoredStep):
         model_parameters["artifact_uri"] = model_parameters.get(
             "artifact_uri", model_artifact
         )
-        if model_parameters.get("name", endpoint_name) != endpoint_name:
+        if model_parameters.get("name", endpoint_name) != endpoint_name or (
+                isinstance(model_class, Model) and model_class.name != endpoint_name):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Inconsistent name for model added to ModelRunnerStep."
             )

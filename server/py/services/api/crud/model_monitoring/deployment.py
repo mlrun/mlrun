@@ -2065,7 +2065,9 @@ class MonitoringDeployment:
                         self._model_endpoint_draft(
                             name=endpoint_name,
                             endpoint_type=model_runner.endpoint_type,
-                            model_class=model_class,
+                            model_class=model_class
+                            if isinstance(model_class, str)
+                            else model_class.__class__.__name__,
                             function_name=function_name,
                             function_tag=function_tag,
                             track_models=track_models,

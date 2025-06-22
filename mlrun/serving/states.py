@@ -1266,7 +1266,8 @@ class ModelRunnerStep(MonitoredStep):
             "artifact_uri", model_artifact
         )
         if model_parameters.get("name", endpoint_name) != endpoint_name or (
-                isinstance(model_class, Model) and model_class.name != endpoint_name):
+            isinstance(model_class, Model) and model_class.name != endpoint_name
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Inconsistent name for model added to ModelRunnerStep."
             )
@@ -1290,7 +1291,9 @@ class ModelRunnerStep(MonitoredStep):
             schemas.MonitoringData.CREATION_STRATEGY: creation_strategy,
             schemas.MonitoringData.LABELS: labels,
             schemas.MonitoringData.MODEL_PATH: model_artifact,
-            schemas.MonitoringData.MODEL_CLASS: model_class,
+            schemas.MonitoringData.MODEL_CLASS: model_class
+            if isinstance(model_class, str)
+            else model_class.__class__.__name__,
         }
         self.class_args[schemas.ModelRunnerStepData.MODELS] = models
         self.class_args[schemas.ModelRunnerStepData.MONITORING_DATA] = monitoring_data

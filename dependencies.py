@@ -79,7 +79,8 @@ def extra_requirements() -> dict[str, list[str]]:
         "alibaba-oss": ["ossfs==2023.12.0", "oss2==2.18.1"],
         "tdengine": ["taos-ws-py==0.3.2"],
         "snowflake": ["snowflake-connector-python~=3.7"],
-        "openai": ["openai~=1.88.0"],
+        "openai": ["openai~=1.88"],
+        "tiktoken": ["tiktoken~=0.9.0"],
     }
 
     api_deps = list(

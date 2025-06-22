@@ -170,7 +170,8 @@ class StoreManager:
             meta, url = self.get_store_artifact(
                 url, project, allow_empty_resources, secrets
             )
-            verify_target_artifact(meta)
+            if not allow_empty_resources:
+                verify_target_artifact(meta)
 
         store, subpath, url = self.get_or_create_store(
             url, secrets=secrets, project_name=project

@@ -1874,7 +1874,6 @@ class HTTPRunDB(RunDBInterface):
         """
         func.metadata.project = func.metadata.project or config.active_project
         self.warn_on_s3_and_ecr_permissions_conflict(func)
-        req = None  #TODO delete
         try:
             req = {
                 "function": func.to_dict(),
@@ -1888,7 +1887,6 @@ class HTTPRunDB(RunDBInterface):
 
         except OSError as err:
             logger.error(f"error submitting nuclio deploy task: {err_to_str(err)}")
-            print(f"\n uuid bug: {req} \n")  #TODO delete
             raise OSError(f"error: cannot submit deploy, {err_to_str(err)}")
 
         if not resp.ok:

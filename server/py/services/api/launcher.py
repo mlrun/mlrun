@@ -20,7 +20,6 @@ import semver
 from dependency_injector import containers, providers
 
 import mlrun.common.constants as mlrun_constants
-import mlrun.common.db.sql_session
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas.schedule
 import mlrun.config

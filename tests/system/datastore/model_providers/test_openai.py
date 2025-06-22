@@ -53,10 +53,9 @@ class TestOpenAIModelRunner(TestMLRunSystem):
                 f"The following snowflake keys are missing: {missing_env_variables}"
             )
         cls.basic_llm_model = "gpt-4o"
-        # cls.openai_url = os.environ.get("OPENAI_BASE_URL")
 
     @pytest.fixture(autouse=True)
-    def setup_before_each_test(self, use_datastore_profile):
+    def setup_before_each_test(self):
         self.profile = DatastoreProfileOpenAI(
             name=self.profile_name,
             api_key=os.environ.get("OPENAI_API_KEY"),

@@ -15,7 +15,7 @@
 """idx_project_state
 
 Revision ID: 692f2f936258
-Revises: b31651280cce
+Revises: 528d9f5ea91d
 Create Date: 2025-06-17 16:35:25.754423
 
 """
@@ -24,7 +24,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "692f2f936258"
-down_revision = "b31651280cce"
+down_revision = "528d9f5ea91d"
 branch_labels = None
 depends_on = None
 

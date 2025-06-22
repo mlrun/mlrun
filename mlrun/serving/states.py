@@ -1005,7 +1005,7 @@ class RouterStep(TaskStep):
 class Model(storey.ParallelExecutionRunnable, ModelObj):
     def __init__(
         self,
-        name: str,
+        name: str = None,
         raise_exception: bool = True,
         artifact_uri: Optional[str] = None,
         **kwargs,

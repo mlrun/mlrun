@@ -223,7 +223,7 @@ class MLRunPatcher:
             mlrun_docker_registry = (
                 f"{mlrun_docker_registry}/{mlrun_docker_repo.rstrip('/')}"
             )
-
+        target_to_image = {}
         if not self._no_build:
             env = {
                 "MLRUN_VERSION": image_tag,

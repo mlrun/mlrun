@@ -32,7 +32,7 @@ from ..utils import DB_SCHEMA, RunKeys
 from .base import DataItem, DataStore, HttpStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
-from .store_resources import ResourceRemoteClient, get_store_resource, is_store_uri
+from .store_resources import get_store_resource, is_store_uri
 from .v3io import V3ioStore
 
 in_memory_store = InMemoryStore()
@@ -301,29 +301,6 @@ class StoreManager:
             default_invoke_kwargs=default_invoke_kwargs,
         )
         return model_provider
-
-    def get_model_artifact(
-        self, url, project="", allow_empty_resources=None, secrets=None
-    ):
-        try:
-            resource = get_store_resource(
-                url,
-                db=self._get_db(),
-                secrets=self._secrets,
-                project=project,
-                data_store_secrets=secrets,
-                fallback_manager=ResourceRemoteClient.MODEL_PROVIDER,
-            )
-        except Exception as exc:
-            raise OSError(f"artifact {url} not found, {err_to_str(exc)}")
-        if not isinstance(resource, ModelArtifact):
-            raise mlrun.errors.MLRunRuntimeError("The resource is not a ModelArtifact")
-        url = resource.model_url
-        if not url and not allow_empty_resources:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Resource {url} does not have model url"
-            )
-        return resource
 
     def model_provider_object(
         self,

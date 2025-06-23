@@ -34,7 +34,7 @@ import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.regex
 from mlrun.model import RunSpec, RunTemplate
-from mlrun.runtimes import KubejobRuntime, RemoteRuntime
+from mlrun.runtimes import KubejobRuntime
 
 import framework.api.utils
 import framework.utils.helpers
@@ -434,14 +434,14 @@ class ServerSideLauncher(launcher.BaseLauncher):
             ]
 
         serving_spec = getattr(runtime, "serving_spec", None)
-        if serving_spec and isinstance(runtime, (KubejobRuntime, RemoteRuntime)):
+        if serving_spec:
             serving_spec_volume = self._configure_serving_spec(
                 client_version=client_version,
                 function=runtime,
                 project=project.name,
                 serving_spec=serving_spec,
             )
-            if serving_spec_volume:
+            if serving_spec_volume and isinstance(runtime, KubejobRuntime):
                 runtime.spec.volumes = runtime.spec.volumes + [
                     serving_spec_volume["volume"]
                 ]

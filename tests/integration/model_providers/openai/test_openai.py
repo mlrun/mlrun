@@ -25,7 +25,7 @@ import mlrun.artifacts
 import mlrun.serving.states
 from mlrun.datastore import store_manager
 from mlrun.datastore.datastore_profile import (
-    DatastoreProfileOpenAI,
+    OpenAIProfile,
     register_temporary_client_datastore_profile,
 )
 from mlrun.datastore.model_providers import ModelProvider, OpenAIProvider
@@ -105,7 +105,7 @@ class TestBasicOpenAIProvider:
     def setup_before_each_test(self, use_datastore_profile):
         if use_datastore_profile:
             # noinspection PyAttributeOutsideInit
-            self.profile = DatastoreProfileOpenAI(
+            self.profile = OpenAIProfile(
                 name=self.profile_name,
                 api_key=self.env_secrets.get("OPENAI_API_KEY"),
                 organization=self.env_secrets.get("OPENAI_ORG_ID"),

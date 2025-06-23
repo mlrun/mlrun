@@ -456,7 +456,7 @@ class DatastoreProfileTDEngine(DatastoreProfile):
         )
 
 
-class DatastoreProfileOpenAI(DatastoreProfile):
+class OpenAIProfile(DatastoreProfile):
     type: str = pydantic.v1.Field("openai")
     _private_attributes = "api_key"
     api_key: typing.Optional[str] = None
@@ -499,7 +499,7 @@ _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
     "hdfs": DatastoreProfileHdfs,
     "taosws": DatastoreProfileTDEngine,
     "config": ConfigProfile,
-    "openai": DatastoreProfileOpenAI,
+    "openai": OpenAIProfile,
 }
 
 

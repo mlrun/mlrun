@@ -21,7 +21,7 @@ import mlrun
 import mlrun.artifacts
 import mlrun.serving.states
 from mlrun.datastore.datastore_profile import (
-    DatastoreProfileOpenAI,
+    OpenAIProfile,
 )
 from mlrun.serving import ModelRunnerStep
 from tests.system.base import TestMLRunSystem
@@ -55,7 +55,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self):
-        self.profile = DatastoreProfileOpenAI(
+        self.profile = OpenAIProfile(
             name=self.profile_name,
             api_key=os.environ.get("OPENAI_API_KEY"),
             organization=os.environ.get("OPENAI_ORG_ID"),

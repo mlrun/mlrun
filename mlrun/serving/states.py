@@ -1094,7 +1094,6 @@ class Model(storey.ParallelExecutionRunnable):
         return None, None
 
 
-# user defined
 class ModelSelector:
     """Used to select which models to run on each event."""
 

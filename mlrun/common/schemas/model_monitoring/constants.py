@@ -275,6 +275,7 @@ class EventKeyMetrics:
 class TSDBTarget(MonitoringStrEnum):
     V3IO_TSDB = "v3io-tsdb"
     TDEngine = "tdengine"
+    TimescaleDB = "postgresql"
 
 
 class ProjectSecretKeys:
@@ -354,6 +355,13 @@ class V3IOTSDBTables(MonitoringStrEnum):
 
 
 class TDEngineSuperTables(MonitoringStrEnum):
+    APP_RESULTS = "app_results"
+    METRICS = "metrics"
+    PREDICTIONS = "predictions"
+    ERRORS = "errors"
+
+
+class TimescaleDBTables(MonitoringStrEnum):
     APP_RESULTS = "app_results"
     METRICS = "metrics"
     PREDICTIONS = "predictions"

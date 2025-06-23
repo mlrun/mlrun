@@ -22,6 +22,7 @@ from mlrun.datastore.base import DataStore
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaStream,
     DatastoreProfileKafkaTarget,
+    DatastoreProfilePostgreSQL,
     DatastoreProfileTDEngine,
     datastore_profile_read,
 )
@@ -58,7 +59,79 @@ class TDEngineStoreyTarget(storey.TDEngineTarget):
                     "Only DatastoreProfileTDEngine is supported"
                 )
             url = datastore_profile.dsn()
-        super().__init__(*args, url=url, **kwargs)
+        kwargs["url"] = url
+        super().__init__(*args, **kwargs)
+
+
+class TimescaleDBStoreyTarget(storey.TimescaleDBTarget):
+    def __init__(self, *args, url: str, **kwargs):
+        if url.startswith("ds://"):
+            datastore_profile = datastore_profile_read(url)
+            if not isinstance(datastore_profile, DatastoreProfilePostgreSQL):
+                raise ValueError(
+                    f"Unexpected datastore profile type: {datastore_profile.type}. "
+                    "Only DatastoreProfilePostgreSQL is supported"
+                )
+            url = datastore_profile.dsn()
+
+        self._schema = None  # Remove - overridfing TimescaleDBTarget
+        super().__init__(*args, dsn=url, **kwargs)
+
+        # Remove - overridfing TimescaleDBTarget
+        if self._schema is None and "." in self._table:
+            self._schema, self._table = self._table.split(".", 1)
+
+    # Remove - overridfing TimescaleDBTarget
+    async def _emit(
+        self, batch, batch_key, batch_time, batch_events, last_event_time=None
+    ):
+        """Write a batch of events to TimescaleDB.
+
+        This method performs the core data writing functionality:
+        1. Ensures the connection pool is initialized
+        2. Converts dictionary events to tuples for efficient COPY operations
+        3. Uses PostgreSQL's COPY protocol for high-performance bulk inserts
+        4. Maintains proper column ordering for TimescaleDB compatibility
+
+        Args:
+            batch: list of events to write
+            batch_key: Key used for batching (unused in this implementation)
+            batch_time: Timestamp when batch was created
+            batch_events: list of original event objects
+            last_event_time: Timestamp of the most recent event in the batch
+        """
+        # Ensure connection pool is created
+        await self._async_init()
+
+        # Skip processing if batch is empty
+        if not batch:
+            return
+
+        # Convert dictionaries to tuples for copy_records_to_table
+        # PostgreSQL's COPY protocol requires data in tuple format with consistent column ordering
+
+        records = []
+        for item in batch:
+            if not isinstance(item, dict):
+                # Only dictionaries are supported as input
+                raise TypeError(
+                    f"TimescaleDBTarget only supports dictionary data, got {type(item)}"
+                )
+
+            # Convert dict to tuple in correct column order
+            # This ensures time column is first, followed by data columns
+            record = tuple(item.get(col) for col in self._column_names)
+            records.append(record)
+        # Write data using connection pool
+        async with self._pool.acquire() as conn:
+            # Use PostgreSQL's COPY protocol for optimal performance
+            # This is significantly faster than individual INSERT statements
+            await conn.copy_records_to_table(
+                table_name=self._table,
+                schema_name=self._schema,
+                records=records,
+                columns=self._column_names,
+            )
 
 
 class StoreyTargetUtils:

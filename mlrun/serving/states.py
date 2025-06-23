@@ -1281,8 +1281,14 @@ class ModelRunnerStep(MonitoredStep):
         monitoring_data = self.class_args.get(
             schemas.ModelRunnerStepData.MONITORING_DATA, {}
         )
-        model_class_dict = model_class.to_dict() if isinstance(model_class, Model) else None
-        model_class = model_class if isinstance(model_class, str) else model_class.__class__.__name__
+        model_class_dict = (
+            model_class.to_dict() if isinstance(model_class, Model) else None
+        )
+        model_class = (
+            model_class
+            if isinstance(model_class, str)
+            else model_class.__class__.__name__
+        )
         models[endpoint_name] = (model_class, model_parameters, model_class_dict)
         monitoring_data[endpoint_name] = {
             schemas.MonitoringData.INPUTS: inputs,

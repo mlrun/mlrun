@@ -173,8 +173,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             )
         except mlrun.errors.MLRunNotFoundError:
             raise mlrun.errors.MLRunValueError(
-                "The model monitoring infrastructure was disabled - cannot write outputs to the databases.\n"
-                "To allow `write_output=True`, re-enable model monitoring with `project.enable_model_monitoring()`."
+                "Writing outputs to the databases is blocked as the model monitoring infrastructure is disabled.\n"
+                "To unblock, enable model monitoring with `project.enable_model_monitoring()`."
             )
 
     @classmethod

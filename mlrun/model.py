@@ -230,12 +230,12 @@ class ModelObj:
         if not fields:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
 
-        kwargs = {field: struct.get(field, None) for field in fields}
-        kwargs.pop("self", None)
         try:
-            new_obj = cls(**kwargs)
-        except TypeError:
             new_obj = cls()
+        except TypeError:
+            kwargs = {field: struct.get(field, None) for field in fields}
+            kwargs.pop("self", None)
+            new_obj = cls(**kwargs)
 
         if struct:
             # we are looping over the fields to save the same order and behavior in which the class

@@ -8007,7 +8007,7 @@ class SQLDB(DBInterface):
             obj_name_attribute=["name"],
             obj_name_suffix=obj_name_suffix,
         )
-        return mep.uid
+        return str(mep.uid)
 
     def _get_mep_function(
         self, session, function_name, function_tag, project

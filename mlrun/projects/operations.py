@@ -20,7 +20,6 @@ import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.function
 import mlrun.common.schemas.workflow
-import mlrun_pipelines.common.models
 import mlrun_pipelines.models
 from mlrun.utils import hub_prefix
 
@@ -82,6 +81,7 @@ def run_function(
     builder_env: Optional[list] = None,
     reset_on_run: Optional[bool] = None,
     output_path: Optional[str] = None,
+    retry: Optional[Union[mlrun.model.Retry, dict]] = None,
 ) -> Union[mlrun.model.RunObject, mlrun_pipelines.models.PipelineNodeWrapper]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -177,6 +177,7 @@ def run_function(
                             This ensures latest code changes are executed. This argument must be used in
                             conjunction with the local=True argument.
     :param output_path:     path to store artifacts, when running in a workflow this will be set automatically
+    :param retry:           Retry configuration for the run, can be a dict or an instance of mlrun.model.Retry.
     :return: MLRun RunObject or PipelineNodeWrapper
     """
     if artifact_path:
@@ -197,6 +198,7 @@ def run_function(
         returns=returns,
         base=base_task,
         selector=selector,
+        retry=retry,
     )
     task.spec.verbose = task.spec.verbose or verbose
 
@@ -204,6 +206,11 @@ def run_function(
         if schedule:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Scheduling jobs is not supported when running a workflow with the kfp engine."
+            )
+        if retry:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Retrying jobs is not supported when running a workflow with the kfp engine. "
+                "Use KFP set_retry instead."
             )
         return function.as_step(
             name=name, runspec=task, workdir=workdir, outputs=outputs, labels=labels

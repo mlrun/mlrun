@@ -2077,6 +2077,7 @@ def new_task(
     secrets=None,
     base=None,
     returns=None,
+    retry=None,
 ) -> RunTemplate:
     """Creates a new task
 
@@ -2112,6 +2113,7 @@ def new_task(
                             * A dictionary of configurations to use when logging. Further info per object type and
                               artifact type can be given there. The artifact key must appear in the dictionary as
                               "key": "the_key".
+    :param retry:           Retry configuration for the run, can be a dict or an instance of mlrun.model.Retry.
     """
 
     if base:
@@ -2137,6 +2139,7 @@ def new_task(
     run.spec.hyper_param_options.selector = (
         selector or run.spec.hyper_param_options.selector
     )
+    run.spec.retry = retry or run.spec.retry
     return run
 
 

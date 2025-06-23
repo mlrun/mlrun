@@ -207,7 +207,3 @@ class KubejobRuntime(KubeResource):
         raise NotImplementedError(
             f"Running a {self.kind} function from the client is not supported. Use .run() to submit the job to the API."
         )
-
-    @property
-    def serving_spec(self):
-        return self.spec.serving_spec

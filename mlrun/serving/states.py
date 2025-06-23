@@ -1362,7 +1362,9 @@ class ModelRunnerStep(MonitoredStep):
         model_objects = []
         for model, model_params, model_dict in models.values():
             if model_dict is not None:
-                model = get_class(model, namespace).from_dict(model_dict)
+                model = get_class(model, namespace).from_dict(
+                    model_dict, init_with_params=True
+                )
                 model._raise_exception = False
             elif isinstance(model, str):
                 # prevent model predict from raising error

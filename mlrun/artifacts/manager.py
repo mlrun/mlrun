@@ -401,7 +401,7 @@ class ArtifactManager:
         self.artifact_db.del_artifact(
             key=item.db_key,
             project=item.project,
-            tag=item.tag,
+            # tag=item.tag,
             tree=item.tree,
             uid=item.uid,
             iter=item.iter,

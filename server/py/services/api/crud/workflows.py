@@ -460,7 +460,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         }
 
         self._enrich_runner_node_selector(
-            runner, workflow_request.spec.workflow_runner_node_selector
+            runner, workflow_request.spec
         )
 
         return self.prepare_and_run(

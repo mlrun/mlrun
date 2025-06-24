@@ -103,7 +103,6 @@ class KubeResourceSpec(FunctionSpec):
         "preemption_mode",
         "security_context",
         "state_thresholds",
-        "serving_spec",
     ]
     _default_fields_to_strip = FunctionSpec._default_fields_to_strip + [
         "volumes",
@@ -179,7 +178,6 @@ class KubeResourceSpec(FunctionSpec):
         preemption_mode=None,
         security_context=None,
         state_thresholds=None,
-        serving_spec=None,
     ):
         super().__init__(
             command=command,
@@ -225,7 +223,6 @@ class KubeResourceSpec(FunctionSpec):
             state_thresholds
             or mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
         )
-        self.serving_spec = serving_spec
         # Termination grace period is internal for runtimes that have a pod termination hook hence it is not in the
         # _dict_fields and doesn't have a setter.
         self._termination_grace_period_seconds = None

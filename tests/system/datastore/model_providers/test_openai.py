@@ -82,7 +82,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         llm_prompt_artifact = self.project.log_llm_prompt(
             "my_llm_prompt",
             prompt_string=prompt_template,
-            model_artifact=model_artifact.uri,
+            model_artifact=model_artifact,
         )
         function = mlrun.code_to_function(
             name="tests",
@@ -98,7 +98,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         model_runner_step.add_model(
             model_class="MyOpenAILLM",
             endpoint_name="my_endpoint",
-            model_artifact=llm_prompt_artifact.uri,
+            model_artifact=llm_prompt_artifact,
         )
         graph.to(model_runner_step).respond()
 

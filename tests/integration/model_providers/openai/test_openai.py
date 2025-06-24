@@ -36,7 +36,7 @@ config = {}
 config_file_path = os.path.join(here, "test-openai.yml")
 if os.path.exists(config_file_path):
     with open(config_file_path) as yaml_file:
-        config = yaml.safe_load(yaml_file)
+        config = yaml.safe_load(yaml_file).get("env", {})
 
 
 class MyOpenAILLM(mlrun.serving.states.Model):
@@ -89,7 +89,7 @@ def openai_configured():
 @pytest.mark.parametrize("use_datastore_profile", [True, False])
 class TestBasicOpenAIProvider:
     profile_name = "openai_profile"
-    env_secrets = config.get("env", {})
+    env_secrets = config
 
     @classmethod
     def setup_class(cls):

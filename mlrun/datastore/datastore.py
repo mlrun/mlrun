@@ -18,6 +18,7 @@ from mergedeep import merge
 
 import mlrun
 import mlrun.errors
+from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.abstract_base import (
     parse_url,
@@ -32,7 +33,7 @@ from ..utils import DB_SCHEMA, RunKeys
 from .base import DataItem, DataStore, HttpStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
-from .store_resources import ResourceRemoteClient, get_store_resource, is_store_uri
+from .store_resources import get_store_resource, is_store_uri
 from .v3io import V3ioStore
 
 in_memory_store = InMemoryStore()
@@ -132,7 +133,6 @@ class StoreManager:
         project="",
         allow_empty_resources=None,
         secrets=None,
-        fallback_manager: ResourceRemoteClient = ResourceRemoteClient.STORE,
     ):
         """
         This is expected to be run only on client side. server is not expected to load artifacts.
@@ -144,7 +144,6 @@ class StoreManager:
                 secrets=self._secrets,
                 project=project,
                 data_store_secrets=secrets,
-                fallback_manager=fallback_manager,
             )
         except Exception as exc:
             raise OSError(f"artifact {url} not found, {err_to_str(exc)}")
@@ -153,6 +152,11 @@ class StoreManager:
         # the allow_empty.. flag allows us to have functions which dont depend on having targets e.g. a function
         # which accepts a feature vector uri and generate the offline vector (parquet) for it if it doesnt exist
         if not allow_empty_resources:
+            if isinstance(resource, LLMPromptArtifact):
+                if not resource.spec.model_uri:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"LLMPromptArtifact {url} does not contain model artifact uri"
+                    )
             if not target and not (
                 isinstance(resource, ModelArtifact) and resource.model_url
             ):
@@ -322,7 +326,6 @@ class StoreManager:
                 project,
                 allow_empty_resources,
                 secrets,
-                fallback_manager=ResourceRemoteClient.MODEL_PROVIDER,
             )
             if not isinstance(resource, ModelArtifact) or not resource.model_url:
                 raise mlrun.errors.MLRunInvalidArgumentError(

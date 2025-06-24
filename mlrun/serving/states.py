@@ -1037,7 +1037,8 @@ class Model(storey.ParallelExecutionRunnable):
     def _get_artifact_object(self) -> Union[ModelArtifact, LLMPromptArtifact, None]:
         if self.artifact_uri:
             if mlrun.datastore.is_store_uri(self.artifact_uri):
-                return get_store_resource(self.artifact_uri)
+                artifact, _ = mlrun.store_manager.get_store_artifact(self.artifact_uri)
+                return artifact
             else:
                 raise ValueError(
                     "Could not get artifact, 'artifact_uri' must be a valid artifact store URI"

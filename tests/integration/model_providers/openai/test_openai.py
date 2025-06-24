@@ -189,7 +189,9 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
 
 
 class TestOpenAIModel(TestBasicOpenAIProvider):
-    def test_model_runner_with_openai(self):
+    def test_model_runner_with_openai(self, use_datastore_profile):
+        if not use_datastore_profile:
+            pytest.skip("test_model_runner_with_openai supports datastore profile only")
         project = mlrun.new_project("test-openai-model", save=False)
         model_url = self.url_prefix + self.basic_llm_model
         model_artifact = project.log_model(

@@ -547,7 +547,7 @@ def test_model_runner_with_remote_model():
     # Mocked function used to verify artifact URI is passed correctly.
 
     with unittest.mock.patch(
-        "mlrun.serving.states.get_store_resource",
+        "mlrun.serving.states.mlrun.store_manager.get_store_artifact",
         side_effect=create_mocked_get_store_resource(model_artifact=model_artifact),
     ):
         server = function.to_mock_server()
@@ -576,7 +576,7 @@ def test_get_local_model_path():
     )
     graph.to(model_runner_step).respond()
     with unittest.mock.patch(
-        "mlrun.serving.states.get_store_resource",
+        "mlrun.serving.states.mlrun.store_manager.get_store_artifact",
         side_effect=create_mocked_get_store_resource(model_artifact=model_artifact),
     ):
         server = function.to_mock_server()

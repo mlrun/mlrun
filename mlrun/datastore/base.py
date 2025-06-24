@@ -28,7 +28,7 @@ import requests
 
 import mlrun.config
 import mlrun.errors
-from mlrun.datastore.abstract_base import BaseRemoteClient
+from mlrun.datastore.remote_client import BaseRemoteClient
 from mlrun.errors import err_to_str
 from mlrun.utils import StorePrefix, is_jupyter, logger
 

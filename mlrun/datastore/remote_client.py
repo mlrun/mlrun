@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -41,7 +40,7 @@ def parse_url(url):
     return schema, endpoint, parsed_url
 
 
-class BaseRemoteClient(ABC):
+class BaseRemoteClient:
     def __init__(self, parent, name, kind, endpoint="", secrets: Optional[dict] = None):
         self._parent = parent
         self.name = name

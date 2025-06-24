@@ -17,7 +17,7 @@ from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar
 
 import mlrun
-from mlrun.datastore.abstract_base import (
+from mlrun.datastore.remote_client import (
     BaseRemoteClient,
 )
 

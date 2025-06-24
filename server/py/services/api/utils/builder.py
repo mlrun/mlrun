@@ -805,6 +805,7 @@ def add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifie
         )
         mlrun.utils.logger.debug(
             "Enriching build requirements with mlrun package",
+            enriched_base_image=enriched_base_image,
             installed_mlrun_version_command=installed_mlrun_version_command,
             image_tag=image_tag,
             mlrun_version_specifier=mlrun_version_specifier,

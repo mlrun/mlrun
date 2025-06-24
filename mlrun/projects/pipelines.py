@@ -1070,7 +1070,9 @@ def github_webhook(request):
     return {"msg": "pushed"}
 
 
-def rerun_workflow(context: mlrun.MLClientCtx, run_uid: str, project_name: str):
+def rerun_workflow(
+    context: mlrun.execution.MLClientCtx, run_uid: str, project_name: str
+):
     """
     Re-run a workflow by retrying a previously failed KFP pipeline.
 

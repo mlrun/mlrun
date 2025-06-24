@@ -213,3 +213,10 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # Ensure we can retrieve the untagged artifact by its URI
         assert project.get_store_resource(artifacts[1].uri)
+
+        # Delete the artifact without a tag
+        project.delete_artifact(artifacts[1])
+
+        # Ensure only the tagged artifact remains
+        artifacts = project.list_artifacts().to_objects()
+        assert len(artifacts) == 1, f"Expected 1 artifacts, found {len(artifacts)}"

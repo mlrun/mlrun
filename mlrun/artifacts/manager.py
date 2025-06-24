@@ -403,6 +403,7 @@ class ArtifactManager:
             project=item.project,
             tag=item.tag,
             tree=item.tree,
+            uid=item.uid,
             iter=item.iter,
             deletion_strategy=deletion_strategy,
             secrets=secrets,

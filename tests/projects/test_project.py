@@ -1218,6 +1218,33 @@ def test_delete_artifacts_with_iteration(rundb_mock):
     assert len(artifacts) == 2
 
 
+def test_delete_artifacts_with_different_uid_without_tag(rundb_mock):
+    project_name = "my-project"
+    project = mlrun.new_project(project_name, save=False)
+
+    artifact_key = "my-artifact"
+
+    for uid in range(1, 4):
+        artifact = mlrun.artifacts.Artifact(
+            metadata=mlrun.artifacts.ArtifactMetadata(key=artifact_key, project=project_name, uid=uid),
+            body="123",
+        )
+        artifact.db_key = artifact_key
+        rundb_mock.store_artifact(artifact_key, artifact.to_dict())
+
+    artifacts = project.list_artifacts().to_objects()
+    assert len(artifacts) == 3
+
+    # deleting artifact with the same project, key and uid without specifying the tag (tag is None)
+    artifact = mlrun.artifacts.Artifact(
+        metadata= mlrun.artifacts.ArtifactMetadata(project=project_name, key=artifact_key, uid=artifacts[1]["metadata"]["uid"])
+    )
+    project.delete_artifact(artifact)
+
+    artifacts = project.list_artifacts()
+    assert len(artifacts) == 2
+
+
 @pytest.mark.parametrize(
     "relative_artifact_path,project_context,expected_path,expected_in_context",
     [

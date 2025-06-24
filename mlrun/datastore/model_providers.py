@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import warnings
-from abc import ABC
 from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar
 
@@ -24,7 +23,7 @@ from mlrun.datastore.remote_client import (
 T = TypeVar("T")
 
 
-class ModelProvider(BaseRemoteClient, ABC):
+class ModelProvider(BaseRemoteClient):
     support_async = False
 
     def __init__(
@@ -72,7 +71,7 @@ class ModelProvider(BaseRemoteClient, ABC):
         return kwargs
 
 
-class AsyncModelProvider(ModelProvider, ABC):
+class AsyncModelProvider(ModelProvider):
     support_async = True
 
     def __init__(

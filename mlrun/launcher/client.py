@@ -36,7 +36,6 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         runtime: "mlrun.runtimes.base.BaseRuntime",
         project_name: Optional[str] = "",
         full: bool = True,
-        client_version: str = "",
     ):
         runtime.try_auto_mount_based_on_config()
         runtime._fill_credentials()

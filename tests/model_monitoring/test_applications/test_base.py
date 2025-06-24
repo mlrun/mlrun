@@ -102,8 +102,11 @@ class TestEvaluate:
     @pytest.fixture(autouse=True)
     def _set_project() -> Iterator[None]:
         project = mlrun.get_or_create_project("test", allow_cross_project=True)
-        with patch("mlrun.db.nopdb.NopDB.get_project", Mock(return_value=project)):
-            yield
+        with patch.object(
+            project, "get_function", Mock(side_effect=mlrun.errors.MLRunNotFoundError)
+        ):
+            with patch("mlrun.db.nopdb.NopDB.get_project", Mock(return_value=project)):
+                yield
 
     @staticmethod
     def test_local_no_params() -> None:
@@ -239,6 +242,28 @@ class TestEvaluate:
                     topics=[],
                 ),
             )
+
+    @staticmethod
+    def test_invalid_infra(capsys: pytest.CaptureFixture) -> None:
+        ModelEndpointAccessApp.evaluate(
+            func_path=__file__,
+            endpoints=[("ep-name", "ep-uid")],
+            start=datetime(2025, 5, 3),
+            end=datetime(2025, 5, 4),
+            run_local=True,
+            write_output=True,
+            stream_profile=DatastoreProfileKafkaSource(
+                name="should-not-be-passed-on-remote",
+                brokers=["broker-address:9092"],
+                topics=[],
+            ),
+        )
+        captured = capsys.readouterr()
+        assert (
+            "Writing outputs to the databases is blocked as the model monitoring infrastructure is disabled.\n"
+            "To unblock, enable model monitoring with `project.enable_model_monitoring()`."
+            in captured.out
+        ), "The error message is different than expected or was not captured"
 
 
 @pytest.mark.parametrize(

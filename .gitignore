@@ -4,7 +4,6 @@ __pycache__/
 
 # Python virtual environments and environment files
 *venv*
-.python-version
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
@@ -38,9 +37,9 @@ GTAGS
 # Secrets and credentials
 # AWS credentials and other secret files
 .aws-secrets
-credentials.txt  
-credentials.json  
-google-big-query-credentials.json  
+credentials.txt
+credentials.json
+google-big-query-credentials.json
 kubeconfig
 
 # Build artifacts and generated files

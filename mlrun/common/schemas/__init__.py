@@ -221,4 +221,5 @@ from .workflow import (
     WorkflowRequest,
     WorkflowResponse,
     WorkflowSpec,
+    RerunWorkflowRequest,
 )

@@ -639,6 +639,16 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def retry_pipeline(
+        self,
+        run_id: str,
+        project: str,
+        namespace: Optional[str] = None,
+        timeout: int = 30,
+    ):
+        pass
+
+    @abstractmethod
     def list_project_secrets(
         self,
         project: str,

@@ -76,7 +76,7 @@ class MLRunInternalLabels:
     kind = "kind"
     component = "component"
     mlrun_type = "mlrun__type"
-    rerun_of = "rerun-of"
+    original_workflow_id = "original-workflow-id"
 
     owner = "owner"
     v3io_user = "v3io_user"

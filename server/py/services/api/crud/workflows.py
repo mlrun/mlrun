@@ -94,7 +94,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         workflow_request: Optional[mlrun.common.schemas.WorkflowRequest] = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
         rerun_request: Optional[mlrun.common.schemas.RerunWorkflowRequest] = None,
-            artifact_path: str = "",
+        artifact_path: str = "",
     ) -> mlrun_model.RunObject:
         """
         Prepare the run object and execute the runner.
@@ -255,13 +255,15 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
     @staticmethod
     def _enrich_runner_node_selector(
         runner: mlrun.run.KubejobRuntime,
-        workflow_request: Union[mlrun.common.schemas.WorkflowSpec, mlrun.common.schemas.RerunWorkflowRequest]
+        workflow_request: Union[
+            mlrun.common.schemas.WorkflowSpec, mlrun.common.schemas.RerunWorkflowRequest
+        ],
     ):
         """
         Enrich the runner's node selector with the workflow's node selector.
 
         :param runner:        Workflow runner function object.
-        :param workflow_spec: Workflow specification containing node selector information.
+        :param workflow_request: Workflow specification containing node selector information.
         """
         if workflow_request.workflow_runner_node_selector:
             runner.spec.node_selector.update(
@@ -457,7 +459,9 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             mlrun_constants.MLRunInternalLabels.workflow: runner.metadata.name,
         }
 
-        self._enrich_runner_node_selector(runner, workflow_request.spec.workflow_runner_node_selector)
+        self._enrich_runner_node_selector(
+            runner, workflow_request.spec.workflow_runner_node_selector
+        )
 
         return self.prepare_and_run(
             runner=runner,
@@ -540,7 +544,6 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         )
 
         return run_object
-
 
     @staticmethod
     def _validate_source(
@@ -643,12 +646,12 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
     """
 
     def run(
-            self,
-            runner: mlrun.run.KubejobRuntime,
-            project: mlrun.common.schemas.ProjectOut,
-            run_uid: str,
-            rerun_request: mlrun.common.schemas.RerunWorkflowRequest,
-            auth_info: mlrun.common.schemas.AuthInfo = None,
+        self,
+        runner: mlrun.run.KubejobRuntime,
+        project: mlrun.common.schemas.ProjectOut,
+        run_uid: str,
+        rerun_request: mlrun.common.schemas.RerunWorkflowRequest,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ) -> mlrun_model.RunObject:
         """
         Run a rerun workflow runner.
@@ -656,7 +659,7 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         :param runner:         Workflow runner function object.
         :param project:        MLRun project.
         :param run_uid:        UID of the original failed run to retry.
-        :param notifications:  Optional notifications to push.
+        :param rerun_request:  RerunWorkflowRequest containing any notifications and retry parameters.
         :param auth_info:      Authentication information of the request.
         :return: RunObject for the rerun.
         """
@@ -665,7 +668,7 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             mlrun_constants.MLRunInternalLabels.project: project.metadata.name,
             mlrun_constants.MLRunInternalLabels.job_type: JOB_TYPE_RERUN_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: runner.metadata.name,
-            mlrun_constants.MLRunInternalLabels.rerun_of: run_uid,
+            mlrun_constants.MLRunInternalLabels.original_workflow_id: run_uid,
         }
 
         self._enrich_runner_node_selector(runner, rerun_request)

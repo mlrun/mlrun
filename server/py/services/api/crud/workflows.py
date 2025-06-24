@@ -459,9 +459,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             mlrun_constants.MLRunInternalLabels.workflow: runner.metadata.name,
         }
 
-        self._enrich_runner_node_selector(
-            runner, workflow_request.spec
-        )
+        self._enrich_runner_node_selector(runner, workflow_request.spec)
 
         return self.prepare_and_run(
             runner=runner,

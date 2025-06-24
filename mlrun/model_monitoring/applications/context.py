@@ -137,13 +137,14 @@ class MonitoringApplicationContext:
         cls,
         context: "mlrun.MLClientCtx",
         *,
+        project: Optional["mlrun.MlrunProject"] = None,
         application_name: str,
         event: dict[str, Any],
         model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
         sample_df: Optional[pd.DataFrame] = None,
         feature_stats: Optional[FeatureStats] = None,
     ) -> "MonitoringApplicationContext":
-        project = context.get_project_object()
+        project = project or context.get_project_object()
         if not project:
             raise mlrun.errors.MLRunValueError("Could not load project from context")
         logger = context.logger

@@ -228,9 +228,11 @@ class TestModelEndpoint(TestDatabaseBase):
         )
         assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
         assert model_endpoint_from_db.metadata.project == "project-1"
-        assert model_endpoint_from_db.metadata.uid == uuid.UUID(
-            "5cfeed66-72cc-4d97-8ff9-b7b06ebe77f2"
+        assert (
+            model_endpoint_from_db.metadata.uid
+            == "5cfeed66-72cc-4d97-8ff9-b7b06ebe77f2"
         )
+
         # assert model_endpoint_from_db.status.monitoring_mode == "disabled"
 
         model_endpoint_from_db = self._db.get_model_endpoint(
@@ -242,9 +244,11 @@ class TestModelEndpoint(TestDatabaseBase):
         )
         assert model_endpoint_from_db.metadata.name == "model-endpoint-2"
         assert model_endpoint_from_db.metadata.project == "project-1"
-        assert model_endpoint_from_db.metadata.uid == uuid.UUID(
-            "2127986e-91f5-44af-9be3-1250295f03b6"
+        assert (
+            model_endpoint_from_db.metadata.uid
+            == "2127986e-91f5-44af-9be3-1250295f03b6"
         )
+
         assert model_endpoint_from_db.spec.model_class == "new_class"
 
     def test_list_filters(self) -> None:
@@ -501,9 +505,7 @@ class TestModelEndpoint(TestDatabaseBase):
 
         # expecting two model endpoints that are the latest
         assert len(list_mep) == 2
-        assert list_mep[0].metadata.uid == uuid.UUID(
-            "5cfeed66-72cc-4d97-8ff9-b7b06ebe77f2"
-        )
+        assert list_mep[0].metadata.uid == "5cfeed66-72cc-4d97-8ff9-b7b06ebe77f2"
 
         # store another model endpoint with the same name but different uid
         model_endpoint.metadata.uid = "2127986e-91f5-44af-9be3-1250295f03b6"
@@ -529,9 +531,7 @@ class TestModelEndpoint(TestDatabaseBase):
 
         # expecting two model endpoints that are the latest
         assert len(list_mep) == 2
-        assert list_mep[0].metadata.uid == uuid.UUID(
-            "2127986e-91f5-44af-9be3-1250295f03b6"
-        )
+        assert list_mep[0].metadata.uid == "2127986e-91f5-44af-9be3-1250295f03b6"
 
         list_mep = self._db.list_model_endpoints(
             self._db_session,

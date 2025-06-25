@@ -43,6 +43,7 @@ def pmr_postgres_config():
         username="root",
         password="pass",
         root_database="mlrun",
+        drivername="postgresql+psycopg3",
     )
 
 

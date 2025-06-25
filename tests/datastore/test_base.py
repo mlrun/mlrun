@@ -29,12 +29,12 @@ from mlrun import MLRunInvalidArgumentError, new_function
 from mlrun.datastore import KafkaSource
 from mlrun.datastore.azure_blob import AzureBlobStore
 from mlrun.datastore.base import HttpStore
-from mlrun.datastore.datastore import schema_to_store
 from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
 from mlrun.datastore.dbfs_store import DBFSStore
 from mlrun.datastore.filestore import FileStore
 from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
 from mlrun.datastore.redis import RedisStore
+from mlrun.datastore.remote_manager import schema_to_store
 from mlrun.datastore.s3 import S3Store
 from mlrun.datastore.v3io import V3ioStore
 

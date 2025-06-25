@@ -106,7 +106,7 @@ def test_file(rundb_mock, tmpdir: Path) -> None:
 def test_parse_url_preserve_case():
     url = "store://Hedi/mlrun-dbd7ef-training_mymodel#a5dc8e34a46240bb9a07cd9deb3609c7"
     expected_endpoint = "Hedi"
-    _, endpoint, _ = mlrun.datastore.datastore.parse_url(url)
+    _, endpoint, _ = mlrun.datastore.remote_client_manager.parse_url(url)
     assert expected_endpoint, endpoint
 
 
@@ -262,7 +262,7 @@ def test_get_store_resource_with_linked_artifacts():
 
 @pytest.mark.usefixtures("patch_file_forbidden")
 def test_forbidden_file_access():
-    store = mlrun.datastore.datastore.StoreManager(
+    store = mlrun.datastore.remote_manager.RemoteClientManager(
         secrets={"V3IO_ACCESS_KEY": "some-access-key"}
     )
 
@@ -289,7 +289,7 @@ def test_verify_data_stores_are_not_cached_in_api_when_not_needed():
     user2_objpath = "v3io://some-system/some-dir/user2"
 
     user3_objpath = "v3io://some-system/some-dir/user3"
-    store = mlrun.datastore.datastore.StoreManager(
+    store = mlrun.datastore.remote_manager.RemoteClientManager(
         secrets={"V3IO_ACCESS_KEY": "api-access-key"}
     )
     obj = store.object(url=user1_objpath, secrets=user1_secrets)
@@ -313,7 +313,7 @@ def test_verify_data_stores_are_cached_when_not_api():
     user2_objpath = "v3io://some-system/some-dir/user2"
 
     user3_objpath = "v3io://some-system/some-dir/user3"
-    store = mlrun.datastore.datastore.StoreManager(
+    store = mlrun.datastore.remote_manager.RemoteClientManager(
         secrets={"V3IO_ACCESS_KEY": "api-access-key"}
     )
     # if secrets provided then store is not cached
@@ -343,7 +343,7 @@ def test_verify_data_stores_are_cached_when_not_api():
 
 def test_object_from_empty_url():
     user1_secrets = {"V3IO_ACCESS_KEY": "user1-access-key"}
-    store = mlrun.datastore.datastore.StoreManager(
+    store = mlrun.datastore.remote_manager.RemoteClientManager(
         secrets={"V3IO_ACCESS_KEY": "api-access-key"}
     )
     data_item = store.object(url="", secrets=user1_secrets)

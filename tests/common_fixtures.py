@@ -753,7 +753,7 @@ class RunDBMock:
                     metadata=mlrun.common.schemas.ModelEndpointMetadata(
                         name=name,
                         project=project,
-                        uid=name,
+                        uid=f"{name}-uid",
                     ),
                     spec=mlrun.common.schemas.ModelEndpointSpec(),
                     status=mlrun.common.schemas.ModelEndpointStatus(),

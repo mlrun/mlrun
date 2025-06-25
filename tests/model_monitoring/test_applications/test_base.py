@@ -458,29 +458,15 @@ class TestToJob:
 
 
 @pytest.mark.parametrize(
-    "endpoints",
-    [
-        "2e312eb7-bbcc-4752-9140-be9e9395fc13",
-        ["2e312eb7-bbcc-4752-9140-be9e9395fc13"],
-        [
-            (
-                "2e312eb7-bbcc-4752-9140-be9e9395fc13",
-                "2e312eb7-bbcc-4752-9140-be9e9395fc13",
-            )
-        ],
-    ],
+    "endpoints", ["model-ep-1", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]
 )
+@pytest.mark.usefixtures("rundb_mock")
 def test_handle_endpoints_type_evaluate(
-    rundb_mock, endpoints: Union[str, list[str], list[tuple]]
+    endpoints: Union[str, list[str], list[tuple]],
 ) -> None:
     project = "test-endpoints-handler"
     endpoints_output = ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
         project, endpoints
     )
 
-    assert endpoints_output == [
-        (
-            "2e312eb7-bbcc-4752-9140-be9e9395fc13",
-            "2e312eb7-bbcc-4752-9140-be9e9395fc13",
-        )
-    ]
+    assert endpoints_output == [("model-ep-1", "model-ep-1-uid")]

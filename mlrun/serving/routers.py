@@ -185,12 +185,12 @@ class BaseModelRouter(RouterToDict):
                     background_task.status.state
                     in mlrun.common.schemas.BackgroundTaskState.terminal_states()
                 ):
-                    logger.debug(
+                    logger.info(
                         f"Model endpoint creation task completed with state {background_task.status.state}"
                     )
                     self._background_task_terminate = True
                 else:  # in progress
-                    logger.debug(
+                    logger.info(
                         f"Model endpoint creation task is still in progress with the current state: "
                         f"{background_task.status.state}. Events will not be monitored for the next 15 seconds",
                         name=self.name,
@@ -198,7 +198,7 @@ class BaseModelRouter(RouterToDict):
                     )
                 return background_task.status.state
             else:
-                logger.debug(
+                logger.error(
                     "Model endpoint creation task name not provided",
                 )
         elif self.context.monitoring_mock:

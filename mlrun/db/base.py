@@ -1034,6 +1034,13 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    def get_project_background_task(
+        self,
+        project: str,
+        name: str,
+    ) -> mlrun.common.schemas.BackgroundTask:
+        pass
+
     @abstractmethod
     def submit_workflow(
         self,

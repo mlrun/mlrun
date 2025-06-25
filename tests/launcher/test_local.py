@@ -196,11 +196,20 @@ def func_b():
 @pytest.mark.parametrize(
     ["batching", "batch_size"], [(False, None), (True, None), (True, 10), (True, 77)]
 )
-def test_run_local_serving_job(batching, batch_size):
+@pytest.mark.parametrize("code_to_function", (False, True))
+def test_run_local_serving_job(batching, batch_size, code_to_function):
     project = mlrun.new_project("some-project")
-    function = mlrun.code_to_function(
-        name="test", kind="serving", filename=str(custom_classes_path)
-    )
+
+    if code_to_function:
+        function = mlrun.code_to_function(
+            name="test", kind="serving", filename=str(custom_classes_path)
+        )
+    else:
+        function = project.set_function(
+            func=str(custom_classes_path),
+            name="test",
+            kind="serving",
+        )
     graph = function.set_topology("flow", engine="async")
     graph.to(name="increaser", class_name="SepalLengthIncreaser").respond()
     job = function.to_job()

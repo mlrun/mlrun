@@ -89,7 +89,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         prefix_path = (
             f"ds://{self.profile_name}" if use_datastore_profile else "v3io://"
         )
-        mlrun.datastore.remote_client_manager.reset_secrets()
+        mlrun.datastore.remote_item_manager.reset_secrets()
         self.run_dir_url = f"{prefix_path}{self.run_dir}"
         object_file = f"/file_{uuid.uuid4()}.txt"
         self.object_url = f"{self.run_dir_url}{object_file}"
@@ -271,12 +271,12 @@ class TestV3ioDataStore(TestMLRunSystem):
         assert stat.size == len(self.test_string)
 
     def test_list_dir(self):
-        dir_base_item = mlrun.datastore.remote_client_manager.object(self.run_dir_url)
+        dir_base_item = mlrun.datastore.remote_item_manager.object(self.run_dir_url)
         filename = f"test_file_{uuid.uuid4()}.txt"
-        file_item = mlrun.datastore.remote_client_manager.object(
+        file_item = mlrun.datastore.remote_item_manager.object(
             f"{self.run_dir_url}/{filename}"
         )
-        file_item_deep = mlrun.datastore.remote_client_manager.object(
+        file_item_deep = mlrun.datastore.remote_item_manager.object(
             f"{self.run_dir_url}/test_dir/test_file_{uuid.uuid4()}.txt"
         )
         file_item.put("test")

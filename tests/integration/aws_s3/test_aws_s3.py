@@ -27,7 +27,7 @@ from botocore.exceptions import ClientError
 
 import mlrun
 import mlrun.errors
-from mlrun.datastore import remote_client_manager
+from mlrun.datastore import remote_item_manager
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileS3,
     register_temporary_client_datastore_profile,
@@ -92,7 +92,7 @@ class TestAwsS3:
             logger.debug("test directory has been deleted.")
 
     def setup_method(self, method):
-        remote_client_manager.reset_secrets()
+        remote_item_manager.reset_secrets()
         self.profile = DatastoreProfileS3(
             name=self.profile_name,
             access_key_id=self.access_key_id,
@@ -106,7 +106,7 @@ class TestAwsS3:
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
-        mlrun.datastore.remote_client_manager.reset_secrets()
+        mlrun.datastore.remote_item_manager.reset_secrets()
 
         # We give priority to profiles, then to secrets, and finally to environment variables.
         # We want to ensure that we test these priorities in the correct order.

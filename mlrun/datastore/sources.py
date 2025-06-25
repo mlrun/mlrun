@@ -114,7 +114,7 @@ class BaseSourceDriver(DataSource):
         mlrun.utils.helpers.additional_filters_warning(
             additional_filters, self.__class__
         )
-        return mlrun.remote_client_manager.object(url=self.path).as_df(
+        return mlrun.remote_item_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,
             start_time=start_time or self.start_time,
@@ -206,8 +206,8 @@ class CSVSource(BaseSourceDriver):
         if time_field and time_field not in parse_dates:
             parse_dates.append(time_field)
 
-        data_item = mlrun.remote_client_manager.object(self.path)
-        store, path, url = mlrun.remote_client_manager.get_or_create_store(self.path)
+        data_item = mlrun.remote_item_manager.object(self.path)
+        store, path, url = mlrun.remote_item_manager.get_or_create_store(self.path)
 
         return storey.CSVSource(
             paths=url,  # unlike self.path, it already has store:// replaced
@@ -219,7 +219,7 @@ class CSVSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        store, path, _ = mlrun.remote_client_manager.get_or_create_store(self.path)
+        store, path, _ = mlrun.remote_item_manager.get_or_create_store(self.path)
         spark_options = store.get_spark_options()
         spark_options.update(
             {
@@ -261,7 +261,7 @@ class CSVSource(BaseSourceDriver):
             additional_filters, self.__class__
         )
         reader_args = self.attributes.get("reader_args", {})
-        return mlrun.remote_client_manager.object(url=self.path).as_df(
+        return mlrun.remote_item_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,
             format="csv",
@@ -380,8 +380,8 @@ class ParquetSource(BaseSourceDriver):
         if context:
             attributes["context"] = context
         additional_filters = transform_list_filters_to_tuple(additional_filters)
-        data_item = mlrun.remote_client_manager.object(self.path)
-        store, path, url = mlrun.remote_client_manager.get_or_create_store(self.path)
+        data_item = mlrun.remote_item_manager.object(self.path)
+        store, path, url = mlrun.remote_item_manager.get_or_create_store(self.path)
         return storey.ParquetSource(
             paths=url,  # unlike self.path, it already has store:// replaced
             key_field=self.key_field or key_field,
@@ -406,7 +406,7 @@ class ParquetSource(BaseSourceDriver):
         return new_obj
 
     def get_spark_options(self):
-        store, path, _ = mlrun.remote_client_manager.get_or_create_store(self.path)
+        store, path, _ = mlrun.remote_item_manager.get_or_create_store(self.path)
         spark_options = store.get_spark_options()
         spark_options.update(
             {
@@ -428,7 +428,7 @@ class ParquetSource(BaseSourceDriver):
     ):
         reader_args = self.attributes.get("reader_args", {})
         additional_filters = transform_list_filters_to_tuple(additional_filters)
-        return mlrun.remote_client_manager.object(url=self.path).as_df(
+        return mlrun.remote_item_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,
             start_time=start_time or self.start_time,
@@ -1018,7 +1018,7 @@ class StreamSource(OnlineSource):
         super().__init__(name, attributes=attrs, **kwargs)
 
     def add_nuclio_trigger(self, function):
-        store, _, url = mlrun.remote_client_manager.get_or_create_store(self.path)
+        store, _, url = mlrun.remote_item_manager.get_or_create_store(self.path)
         if store.kind != "v3io":
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Only profiles that reference the v3io datastore can be used with StreamSource"

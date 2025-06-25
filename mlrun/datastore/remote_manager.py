@@ -116,7 +116,7 @@ def uri_to_ipython(link):
     return schema_to_store(schema).uri_to_ipython(endpoint, parsed_url.path)
 
 
-class RemoteClientManager:
+class RemoteItemManager:
     def __init__(self, secrets=None, db=None):
         self._stores = {}
         self._secrets = secrets or {}

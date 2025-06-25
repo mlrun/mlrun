@@ -127,7 +127,7 @@ class MonitoringApplicationContext:
         self._feature_set: Optional[fs.FeatureSet] = (
             feature_sets_dict.get(self.endpoint_id) if feature_sets_dict else None
         )
-        store, _, _ = mlrun.remote_client_manager.get_or_create_store(
+        store, _, _ = mlrun.remote_item_manager.get_or_create_store(
             mlrun.mlconf.artifact_path
         )
         self.storage_options = store.get_storage_options()

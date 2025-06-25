@@ -179,7 +179,7 @@ class ModelMonitoringDriftMeasuresFile(ModelMonitoringStatsFile):
 def delete_model_monitoring_stats_folder(project: str) -> None:
     """Delete the model monitoring schedules folder of the project"""
     folder = get_monitoring_stats_directory_path(project)
-    fs = mlrun.datastore.remote_client_manager.object(folder).store.filesystem
+    fs = mlrun.datastore.remote_item_manager.object(folder).store.filesystem
     if fs and fs.exists(folder):
         logger.debug("Deleting model monitoring stats folder", folder=folder)
         fs.rm(folder, recursive=True)

@@ -79,8 +79,8 @@ def config_test_base():
     # remove the run db cache, so it won't pass between tests
     mlrun.db._run_db = None
     mlrun.db._last_db_url = None
-    mlrun.datastore.remote_client_manager._db = None
-    mlrun.datastore.remote_client_manager._stores = {}
+    mlrun.datastore.remote_item_manager._db = None
+    mlrun.datastore.remote_item_manager._stores = {}
 
     # no need to raise error when using nop_db
     mlrun.mlconf.httpdb.nop_db.raise_error = False

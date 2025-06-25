@@ -413,9 +413,7 @@ class ModelArtifact(Artifact):
         spec_target_path = spec_target_path or path.join(
             self.spec.target_path, model_spec_filename
         )
-        mlrun.datastore.remote_client_manager.object(url=spec_target_path).put(
-            spec_body
-        )
+        mlrun.datastore.remote_item_manager.object(url=spec_target_path).put(spec_body)
 
     def _upload_body_or_file(
         self,
@@ -517,8 +515,8 @@ def get_model(
     )
     if is_store_uri or isinstance(model_dir, ModelArtifact):
         if is_store_uri:
-            model_spec, target = (
-                mlrun.datastore.remote_client_manager.get_store_artifact(model_dir)
+            model_spec, target = mlrun.datastore.remote_item_manager.get_store_artifact(
+                model_dir
             )
         else:
             model_spec, target = model_dir, model_dir.get_target_path()
@@ -543,7 +541,7 @@ def get_model(
         model_file = model_dir
     else:
         suffix = suffix or default_suffix
-        dirobj = mlrun.datastore.remote_client_manager.object(url=model_dir)
+        dirobj = mlrun.datastore.remote_item_manager.object(url=model_dir)
         model_dir_list = dirobj.listdir()
         if model_spec_filename in model_dir_list:
             model_spec = _load_model_spec(path.join(model_dir, model_spec_filename))
@@ -560,7 +558,7 @@ def get_model(
     if not model_file:
         raise ValueError(f"cant resolve model file for {model_dir} suffix{suffix}")
 
-    obj = mlrun.datastore.remote_client_manager.object(url=model_file)
+    obj = mlrun.datastore.remote_item_manager.object(url=model_file)
     if obj.kind == "file":
         return model_file, model_spec, extra_dataitems
 
@@ -616,7 +614,7 @@ def update_model(
     if isinstance(model_artifact, ModelArtifact):
         model_spec = model_artifact
     elif mlrun.datastore.is_store_uri(model_artifact):
-        model_spec, _ = mlrun.datastore.remote_client_manager.get_store_artifact(
+        model_spec, _ = mlrun.datastore.remote_item_manager.get_store_artifact(
             model_artifact
         )
     else:
@@ -653,7 +651,7 @@ def update_model(
     if write_spec_copy:
         spec_path = path.join(model_spec.target_path, model_spec_filename)
         model_spec_yaml = _sanitize_and_serialize_model_spec_yaml(model_spec)
-        mlrun.datastore.remote_client_manager.object(url=spec_path).put(model_spec_yaml)
+        mlrun.datastore.remote_item_manager.object(url=spec_path).put(model_spec_yaml)
 
     model_spec.db_key = model_spec.db_key or model_spec.key
     if store_object:
@@ -672,7 +670,7 @@ def _get_src_path(model_spec: ModelArtifact, filename: str) -> str:
 
 
 def _load_model_spec(spec_path) -> ModelArtifact:
-    data = mlrun.datastore.remote_client_manager.object(url=spec_path).get()
+    data = mlrun.datastore.remote_item_manager.object(url=spec_path).get()
     spec = yaml.load(data, Loader=yaml.FullLoader)
     return ModelArtifact.from_dict(spec)
 
@@ -688,7 +686,7 @@ def _get_file_path(base_path: str, name: str, isdir: bool = False) -> str:
 def _get_extra(target: str, extra_data: dict, is_dir: bool = False) -> dict:
     extra_dataitems = {}
     for k, v in extra_data.items():
-        extra_dataitems[k] = mlrun.datastore.remote_client_manager.object(
+        extra_dataitems[k] = mlrun.datastore.remote_item_manager.object(
             url=_get_file_path(target, v, isdir=is_dir), key=k
         )
     return extra_dataitems

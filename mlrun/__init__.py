@@ -24,7 +24,7 @@ __all__ = [
     "v3io_cred",
     "auto_mount",
     "VolumeMount",
-    "remote_client_manager",
+    "remote_item_manager",
 ]
 
 from os import environ, path
@@ -33,7 +33,7 @@ from typing import Optional
 import dotenv
 
 from .config import config as mlconf
-from .datastore import DataItem, remote_client_manager
+from .datastore import DataItem, remote_item_manager
 from .db import get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx

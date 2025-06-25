@@ -381,7 +381,7 @@ def _ingest(
         )
 
     if isinstance(source, str):
-        source = mlrun.remote_client_manager.object(url=source).as_df()
+        source = mlrun.remote_item_manager.object(url=source).as_df()
 
     schema_options = InferOptions.get_common_options(
         infer_options, InferOptions.schema()
@@ -452,7 +452,7 @@ def _preview(
 
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame
-        source = mlrun.remote_client_manager.object(url=source).as_df()
+        source = mlrun.remote_item_manager.object(url=source).as_df()
 
     verify_feature_set_permissions(
         featureset, mlrun.common.schemas.AuthorizationAction.update

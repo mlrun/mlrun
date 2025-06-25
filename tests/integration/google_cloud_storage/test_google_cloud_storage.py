@@ -31,7 +31,7 @@ from google.auth.exceptions import DefaultCredentialsError, RefreshError
 
 import mlrun
 import mlrun.errors
-from mlrun.datastore import remote_client_manager
+from mlrun.datastore import remote_item_manager
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileGCS,
     register_temporary_client_datastore_profile,
@@ -114,7 +114,7 @@ class TestGoogleCloudStorage:
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
-        remote_client_manager.reset_secrets()
+        remote_item_manager.reset_secrets()
         object_file = f"/file_{uuid.uuid4()}.txt"
         self._object_path = f"{self.run_dir}{object_file}"
         os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)

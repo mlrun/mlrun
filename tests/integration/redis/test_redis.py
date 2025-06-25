@@ -60,7 +60,7 @@ class TestRedisDataStore:
 
     def test_redis_put_get_object(self, use_datastore_profile):
         self.setup_before_test(use_datastore_profile)
-        data_item = mlrun.datastore.remote_client_manager.object(self.object_url)
+        data_item = mlrun.datastore.remote_item_manager.object(self.object_url)
 
         data_item.delete()
 
@@ -107,7 +107,7 @@ class TestRedisDataStore:
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=True) as temp_file:
             with open(temp_file.name, "w") as f:
                 f.write(expected)
-            data_item = mlrun.datastore.remote_client_manager.object(self.object_url)
+            data_item = mlrun.datastore.remote_item_manager.object(self.object_url)
             data_item.delete()
 
             data_item.upload(temp_file.name)
@@ -125,14 +125,14 @@ class TestRedisDataStore:
         for depth in range(5):
             dir_path = dir_path + f"/dir-{depth}"
             obj_path = dir_path + f"/obj-{depth}"
-            data_item = mlrun.datastore.remote_client_manager.object(obj_path)
+            data_item = mlrun.datastore.remote_item_manager.object(obj_path)
             data_item.delete()
             data_item.put("abcde")
             # list_dir skips the first object
             if depth > 0:
                 expected.append(obj_path[len(self.test_endpoint) :])
 
-        dir_item = mlrun.datastore.remote_client_manager.object(list_dir)
+        dir_item = mlrun.datastore.remote_item_manager.object(list_dir)
         actual = dir_item.listdir()
         assert set(expected) == set(
             actual

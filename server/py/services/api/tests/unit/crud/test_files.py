@@ -63,7 +63,7 @@ def test_delete_artifact_data(
     k8s_secrets_mock.store_project_secrets(project, project_secrets)
 
     with unittest.mock.patch(
-        "mlrun.datastore.remote_client_manager.object"
+        "mlrun.datastore.remote_item_manager.object"
     ) as store_manager_object_mock:
         services.api.crud.Files().delete_artifact_data(
             auth_info, project, path, secrets=user_secrets

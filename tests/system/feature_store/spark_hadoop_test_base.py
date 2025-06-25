@@ -20,7 +20,7 @@ import pytest
 
 import mlrun
 import mlrun.feature_store as fstore
-from mlrun import remote_client_manager
+from mlrun import remote_item_manager
 from mlrun.datastore.sources import ParquetSource
 from mlrun.datastore.targets import (
     ParquetTarget,
@@ -125,7 +125,7 @@ class SparkHadoopTestBase(TestMLRunSystem):
         )
 
     def ds_upload_src(self, ds_profile, bucket):
-        store, _, _ = remote_client_manager.get_or_create_store(
+        store, _, _ = remote_item_manager.get_or_create_store(
             f"ds://{ds_profile.name}/{bucket}"
         )
         store.upload(

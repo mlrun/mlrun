@@ -21,7 +21,7 @@ from typing import Any, Optional, Union
 
 import mlrun.errors
 from mlrun.artifacts import Artifact
-from mlrun.datastore import DataItem, get_store_resource, remote_client_manager
+from mlrun.datastore import DataItem, get_store_resource, remote_item_manager
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.utils import logger
 
@@ -275,7 +275,7 @@ class PackagersManager:
         # Try to get the notes and instructions (can be found only in artifacts but data item may be a simple path/url):
         if data_item.get_artifact_type():
             # Get the artifact object in the data item:
-            artifact, _ = remote_client_manager.get_store_artifact(
+            artifact, _ = remote_item_manager.get_store_artifact(
                 url=data_item.artifact_url
             )
             # Get the key from the artifact's metadata and instructions from the artifact's spec:

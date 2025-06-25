@@ -32,7 +32,7 @@ __all__ = [
     "get_stream_pusher",
     "ConfigProfile",
     "VectorStoreCollection",
-    "remote_client_manager",
+    "remote_item_manager",
 ]
 
 from urllib.parse import urlparse
@@ -55,7 +55,7 @@ from mlrun.platforms.iguazio import (
 from ..utils import logger
 from .base import DataItem
 from .dbfs_store import DatabricksFileBugFixed, DatabricksFileSystemDisableCache
-from .remote_manager import RemoteClientManager, in_memory_store, uri_to_ipython
+from .remote_manager import RemoteItemManager, in_memory_store, uri_to_ipython
 from .s3 import parse_s3_bucket_and_key
 from .sources import (
     BigQuerySource,
@@ -74,7 +74,7 @@ from .store_resources import (
 from .targets import CSVTarget, NoSqlTarget, ParquetTarget, StreamTarget
 from .utils import get_kafka_brokers_from_dict, parse_kafka_url
 
-remote_client_manager = RemoteClientManager()
+remote_item_manager = RemoteItemManager()
 
 if hasattr(fsspec, "register_implementation"):
     fsspec.register_implementation(
@@ -94,7 +94,7 @@ del fsspec  # clear the module namespace
 
 
 def set_in_memory_item(key, value):
-    item = remote_client_manager.object(f"memory://{key}")
+    item = remote_item_manager.object(f"memory://{key}")
     item.put(value)
     return item
 

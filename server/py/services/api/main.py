@@ -983,7 +983,7 @@ class Service(framework.service.Service):
 
                     # retry_count may be None on the first attempt
                     run.status.retry_count = run.status.retry_count or 0
-                    # sanity
+                    # sanity - if run retry was exhausted, the run should not be in pending_retry state
                     if not run.status.retry_count < run.spec.retry.count:
                         self._logger.warn(
                             "Run has reached max retry count, skipping",

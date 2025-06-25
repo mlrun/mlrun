@@ -825,7 +825,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             RunStates.pending_retry,
             expected_status_attrs={
                 "reason": "Some reason",
-                "status_text": "Run failed attempt 1 of 3 with error: Failed message",
+                "status_text": "Run failed attempt 1 of 4 with error: Failed message",
             },
         )
 

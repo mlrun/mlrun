@@ -107,7 +107,7 @@ def create_schema(
 
 
 def initialize_db_from_scratch(
-    engine: typing.Optional[sqlalchemy.engine.Engine,],
+    engine: typing.Optional[sqlalchemy.engine.Engine],
     url: sqlalchemy.engine.URL,
 ):
     create_schema(

@@ -1100,7 +1100,7 @@ def rerun_workflow(
 
     # Temporary exception
     except Exception as exc:
-        context.logger.error("Failed to rerun workflow", exc=exc)
+        context.logger.error("Failed to rerun workflow", exc=err_to_str(exc))
         raise
 
 

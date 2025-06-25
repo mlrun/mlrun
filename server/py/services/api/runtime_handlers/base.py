@@ -1761,8 +1761,7 @@ class BaseRuntimeHandler(ABC):
                     run_state = RunStates.pending_retry
                     message = f"Run failed attempt {retry_count} of {max_retries + 1} with error: {message or reason}"
                 elif 0 < max_retries <= retry_count:
-                    # Add 1 for the initial run attempt
-                    message = f"Run failed after {retry_count + 1} attempts with error: {message or reason}"
+                    message = f"Run failed after {retry_count} attempts with error: {message or reason}"
 
         logger.info("Updating run state", run_uid=uid, run_state=run_state)
         run_updates = {

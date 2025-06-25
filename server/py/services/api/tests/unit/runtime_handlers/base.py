@@ -70,11 +70,13 @@ class TestRuntimeHandlerBase:
         uid: Optional[str] = None,
         start_time: Optional[datetime] = None,
         retry_spec: Optional[dict] = None,
+        retry_count: Optional[int] = None,
     ):
         self.run = {
             "status": {
                 "state": RunStates.created,
                 "last_update": now_date().isoformat(),
+                "retry_count": retry_count,
             },
             "metadata": {
                 "project": self.project,
@@ -612,4 +614,4 @@ class TestRuntimeHandlerBase:
         assert run["status"]["state"] == expected_state
 
         for key, val in expected_status_attrs.items():
-            assert run["status"][key] == val
+            assert run["status"][key] == val, run["status"][key]

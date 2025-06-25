@@ -166,28 +166,55 @@ def run_migrations_offline():
         alembic.context.run_migrations()
 
 
+def _kill_locks(connection: sqlalchemy.engine.Connection):
+    try:
+        framework.db.sqldb.lock_killer.LockKiller(connection).kill_locks()
+    except NotImplementedError:
+        mlrun.utils.logger.info(
+            "Lock killing not implemented",
+            dialect=connection.dialect.name,
+        )
+
+
 def run_migrations_online():
-    """Run migrations in 'online' mode."""
+    """
+    Run migrations in *online* mode.
+    """
+    connectable = alembic.context.config.attributes.get("connection")
 
-    def _migrate(conn: sqlalchemy.engine.Connection):
-        try:
-            framework.db.sqldb.lock_killer.LockKiller(conn).kill_locks()
-        except NotImplementedError:
-            mlrun.utils.logger.info(
-                "Dialect does not require lock killing",
-                dialect=conn.dialect.name,
-            )
+    if connectable is None:
+        connectable = sqlalchemy.engine_from_config(
+            config.get_section(config.config_ini_section),
+            prefix="sqlalchemy.",
+            poolclass=sqlalchemy.pool.NullPool,
+        )
 
+    if isinstance(connectable, sqlalchemy.engine.Connection):
+        connection = connectable
+        close_conn = False
+    elif isinstance(connectable, sqlalchemy.engine.Engine):
+        connection = connectable.connect()
+        close_conn = True
+    else:
+        raise TypeError(
+            "Expected sqlalchemy.engine.Connection or sqlalchemy.engine.Engine"
+        )
+
+    try:
+        _kill_locks(connection)
         alembic.context.configure(
-            connection=conn,
+            connection=connection,
             target_metadata=target_metadata,
             compare_type=compare_type,
         )
         with alembic.context.begin_transaction():
             alembic.context.run_migrations()
 
-    with _get_connection() as connection:
-        _migrate(connection)
+        if connection.in_transaction():
+            connection.commit()
+    finally:
+        if close_conn:
+            connection.close()
 
 
 if alembic.context.is_offline_mode():

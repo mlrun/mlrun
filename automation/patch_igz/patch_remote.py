@@ -283,7 +283,10 @@ class MLRunPatcher:
             mlrun_docker_registry = (
                 f"{mlrun_docker_registry}/{mlrun_docker_repo.rstrip('/')}"
             )
-        target_to_image = {}
+        target_to_image = {
+            target: f"{mlrun_docker_registry}/{Constants.targets_to_image_name[target]}:{image_tag}"
+            for target in targets
+        }
         if not self._no_build:
             env = {
                 "MLRUN_VERSION": image_tag,
@@ -320,10 +323,6 @@ class MLRunPatcher:
             cmd = ["make"]
             cmd.extend(targets)
             self._exec_local(cmd, live=True, env=env)
-            target_to_image = {
-                target: f"{mlrun_docker_registry}/{Constants.targets_to_image_name[target]}:{image_tag}"
-                for target in targets
-            }
             if Constants.mlrun in targets and self._build_py39:
                 self._exec_local(
                     ["make", "mlrun"],

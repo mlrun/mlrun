@@ -166,13 +166,29 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         return result
 
     @staticmethod
+    def _check_writer_is_up(project: "mlrun.MlrunProject") -> None:
+        try:
+            project.get_function(
+                mm_constants.MonitoringFunctionNames.WRITER, ignore_cache=True
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            raise mlrun.errors.MLRunValueError(
+                "Writing outputs to the databases is blocked as the model monitoring infrastructure is disabled.\n"
+                "To unblock, enable model monitoring with `project.enable_model_monitoring()`."
+            )
+
+    @classmethod
     @contextmanager
     def _push_to_writer(
+        cls,
         *,
         write_output: bool,
         stream_profile: Optional[ds_profile.DatastoreProfile],
+        project: "mlrun.MlrunProject",
     ) -> Iterator[dict[str, list[tuple]]]:
         endpoints_output: dict[str, list[tuple]] = defaultdict(list)
+        if write_output:
+            cls._check_writer_is_up(project)
         try:
             yield endpoints_output
         finally:
@@ -220,6 +236,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         for an MLRun job.
         This method should not be called directly.
         """
+        project = context.get_project_object()
+        if not project:
+            raise mlrun.errors.MLRunValueError("Could not load project from context")
 
         if write_output and (
             not endpoints or sample_data is not None or reference_data is not None
@@ -236,7 +255,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         )
 
         with self._push_to_writer(
-            write_output=write_output, stream_profile=stream_profile
+            write_output=write_output, stream_profile=stream_profile, project=project
         ) as endpoints_output:
 
             def call_do_tracking(event: Optional[dict] = None):
@@ -249,6 +268,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         event=event,
                         application_name=self.__class__.__name__,
                         context=context,
+                        project=project,
                         sample_df=sample_data,
                         feature_stats=feature_stats,
                     )

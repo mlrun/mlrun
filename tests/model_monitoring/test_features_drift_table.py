@@ -83,18 +83,15 @@ def plot_produce(context: mlrun.MLClientCtx):
             inputs=inputs,
         )
     )
-    with patch(
-        "mlrun.get_current_project",
-        Mock(return_value=Mock(spec=mlrun.projects.project.MlrunProject)),
-    ):
-        with mocked_graph_context_project():
-            monitoring_context = mm_context.MonitoringApplicationContext._from_ml_ctx(
-                application_name="histogram-data-drift",
-                event={},
-                context=context,
-            )
-            monitoring_context._feature_stats = inputs_statistics
-            monitoring_context._sample_df_stats = sample_data_statistics
+    with mocked_graph_context_project():
+        monitoring_context = mm_context.MonitoringApplicationContext._from_ml_ctx(
+            application_name="histogram-data-drift",
+            event={},
+            context=context,
+            project=Mock(spec=mlrun.projects.project.MlrunProject),
+        )
+        monitoring_context._feature_stats = inputs_statistics
+        monitoring_context._sample_df_stats = sample_data_statistics
     # Initialize the app
     application = histogram_data_drift.HistogramDataDriftApplication(
         produce_json_artifact=False, produce_plotly_artifact=True

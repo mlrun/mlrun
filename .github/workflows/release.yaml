@@ -132,7 +132,7 @@ jobs:
           client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ needs.prepare-inputs.outputs.version }}"}'
 
   publish-to-pypi:
-    name: Publish package to pypi
+    name: Publish package to PyPI
     runs-on: ubuntu-latest
 
     # skip releasing to pypi for feature branches. installing mlrun can be done by:
@@ -144,29 +144,22 @@ jobs:
     needs: [ prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building ]
     steps:
       - uses: actions/checkout@v4
-      - name: Set up python
-        uses: actions/setup-python@v5
+      - name: Get uv version
+        id: uv-version
+        run: |
+          version=$(grep "^MLRUN_UV_VERSION ?= " Makefile | cut -d' ' -f3)
+          echo "version=$(version)" >> $GITHUB_OUTPUT
+      - name: Set up uv
+        uses: astral-sh/setup-uv@445689ea25e0de0a23313031f5fe577c74ae45a1 # 6.3.0
         with:
-          python-version: 3.9
-          cache: pip
-      - name: Install dependencies
-        run: |
-          # needed for updating the version file prior to publishing
-          python -m pip install -r automation/requirements.txt
-          
-          # TODO: move to a separated requirements file
-          python -m pip install \
-            build~=1.2 \
-            wheel~=0.45 \
-            twine~=6.1
-      - name: Build & push to pypi
+          version: ${{ steps.uv-version.outputs.version }}
+      - name: Build & push to PyPI
         if: github.event.inputs.skip_publish_pypi != 'true'
-        run: |
-          export TWINE_USERNAME=${{ secrets.PYPI_USERNAME }}
-          export TWINE_PASSWORD=${{ secrets.PYPI_PASSWORD }}
-          MLRUN_VERSION="$INPUT_VERSION" make publish-package
         env:
-          INPUT_VERSION: ${{ needs.prepare-inputs.outputs.version }}
+          MLRUN_VERSION: ${{ needs.prepare-inputs.outputs.version }}
+          UV_PUBLISH_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          UV_PUBLISH_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: uv run --no-project --with packaging~=25.0 make publish-package
 
   create-releases:
     name: Create release & tag v${{ needs.prepare-inputs.outputs.version }}
@@ -231,7 +224,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: mlrun-tutorials.tar
           prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
-          
+
   update-demos:
     name: Bundle demos
     needs: [ prepare-inputs, create-releases ]

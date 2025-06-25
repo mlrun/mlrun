@@ -28,7 +28,7 @@ from azure.core.exceptions import ClientAuthenticationError
 
 import mlrun
 import mlrun.errors
-from mlrun.datastore import store_manager
+from mlrun.datastore import remote_client_manager
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileAzureBlob,
     register_temporary_client_datastore_profile,
@@ -119,7 +119,7 @@ class TestAzureBlob:
 
     @classmethod
     def teardown_class(cls):
-        store_manager.reset_secrets()
+        remote_client_manager.reset_secrets()
         pop_env()
         test_dir = f"{cls.bucket_name}/{cls.test_dir}"
         if not cls._azure_fs:
@@ -146,7 +146,7 @@ class TestAzureBlob:
         self.object_url = f"{self.run_dir_url}{self.object_file}"
 
     def setup_before_test(self, use_datastore_profile, auth_method, fake_secrets=False):
-        store_manager.reset_secrets()
+        remote_client_manager.reset_secrets()
         self.storage_options = {}
         pop_env()
         self.build_object_url(use_datastore_profile)
@@ -455,17 +455,17 @@ class TestAnonymousAccessAzureBlob:
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self):
         pop_env()
-        store_manager.reset_secrets()
+        remote_client_manager.reset_secrets()
         os.environ["AZURE_STORAGE_ACCOUNT_NAME"] = self.account_name
 
     def teardown_class(self):
-        store_manager.reset_secrets()
+        remote_client_manager.reset_secrets()
         pop_env()
 
     def test_load_object_into_dask_dataframe(self):
         # Load a parquet file from Azure Open Datasets
 
-        data_item = mlrun.datastore.store_manager.object(
+        data_item = mlrun.datastore.remote_client_manager.object(
             "az://public/curated/covid-19/ecdc_cases/latest/ecdc_cases.parquet"
         )
         ddf = data_item.as_df(df_module=dd)

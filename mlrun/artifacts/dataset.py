@@ -423,7 +423,7 @@ def update_dataset_meta(
     if isinstance(artifact, DatasetArtifact):
         artifact_spec = artifact
     elif mlrun.datastore.is_store_uri(artifact):
-        artifact_spec, _ = mlrun.datastore.store_manager.get_store_artifact(artifact)
+        artifact_spec, _ = mlrun.datastore.remote_client_manager.get_store_artifact(artifact)
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")
 
@@ -469,7 +469,7 @@ def upload_dataframe(
     df, target_path, format, src_path=None, **kw
 ) -> tuple[Optional[int], Optional[str]]:
     if src_path and os.path.isfile(src_path):
-        mlrun.datastore.store_manager.object(url=target_path).upload(src_path)
+        mlrun.datastore.remote_client_manager.object(url=target_path).upload(src_path)
         return (
             os.stat(src_path).st_size,
             mlrun.utils.helpers.calculate_local_file_hash(src_path),
@@ -479,7 +479,7 @@ def upload_dataframe(
         return None, None
 
     if target_path.startswith("memory://"):
-        mlrun.datastore.store_manager.object(target_path).put(df)
+        mlrun.datastore.remote_client_manager.object(target_path).put(df)
         return None, None
 
     if format in ["csv", "parquet"]:

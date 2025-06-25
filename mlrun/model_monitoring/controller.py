@@ -259,7 +259,7 @@ class MonitoringApplicationController:
 
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
         self.v3io_access_key = mlrun.mlconf.get_v3io_access_key()
-        store, _, _ = mlrun.store_manager.get_or_create_store(
+        store, _, _ = mlrun.remote_client_manager.get_or_create_store(
             mlrun.mlconf.artifact_path
         )
         self.storage_options = store.get_storage_options()

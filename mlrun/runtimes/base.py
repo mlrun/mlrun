@@ -45,7 +45,7 @@ from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 from mlrun_pipelines.common.ops import mlrun_op
 
 from ..config import config
-from ..datastore import store_manager
+from ..datastore import remote_client_manager
 from ..errors import err_to_str
 from ..lists import RunList
 from ..utils import (
@@ -886,7 +886,7 @@ class BaseRuntime(ModelObj):
             data = dict_to_yaml(struct)
         else:
             data = dict_to_json(struct)
-        stores = store_manager.set(secrets)
+        stores = remote_client_manager.set(secrets)
         target = target or "function.yaml"
         datastore, subpath, url = stores.get_or_create_store(target)
         datastore.put(subpath, data)

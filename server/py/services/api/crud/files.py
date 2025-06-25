@@ -18,7 +18,7 @@ from typing import Optional
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
-from mlrun import store_manager
+from mlrun import remote_client_manager
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
@@ -83,7 +83,7 @@ class Files(
         enriched_secrets = self._enrich_secrets_with_auth_info(auth_info, secrets)
         stat = None
         try:
-            stat = store_manager.object(url=path, secrets=enriched_secrets).stat()
+            stat = remote_client_manager.object(url=path, secrets=enriched_secrets).stat()
         except FileNotFoundError as exc:
             framework.api.utils.log_and_raise(
                 HTTPStatus.NOT_FOUND.value, path=path, err=err_to_str(exc)
@@ -111,7 +111,7 @@ class Files(
         path = self._resolve_obj_path(schema, path, user)
         enriched_secrets = self._enrich_secrets_with_auth_info(auth_info, secrets)
 
-        obj = store_manager.object(url=path, secrets=enriched_secrets, project=project)
+        obj = remote_client_manager.object(url=path, secrets=enriched_secrets, project=project)
         obj.delete()
 
     @staticmethod

@@ -41,7 +41,7 @@ from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
 
 from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
-from .datastore import store_manager
+from .datastore import remote_client_manager
 from .errors import MLRunInvalidArgumentError, MLRunTimeoutError
 from .execution import MLClientCtx
 from .model import RunObject, RunTemplate
@@ -1142,19 +1142,19 @@ def list_pipelines(
 
 def get_object(url, secrets=None, size=None, offset=0, db=None):
     """get mlrun dataitem body (from path/url)"""
-    stores = store_manager.set(secrets, db=db)
+    stores = remote_client_manager.set(secrets, db=db)
     return stores.object(url=url).get(size, offset)
 
 
 def get_dataitem(url, secrets=None, db=None) -> "DataItem":
     """get mlrun dataitem object (from path/url)"""
-    stores = store_manager.set(secrets, db=db)
+    stores = remote_client_manager.set(secrets, db=db)
     return stores.object(url=url)
 
 
 def download_object(url, target, secrets=None):
     """download mlrun dataitem (from path/url to target path)"""
-    stores = store_manager.set(secrets)
+    stores = remote_client_manager.set(secrets)
     stores.object(url=url).download(target_path=target)
 
 

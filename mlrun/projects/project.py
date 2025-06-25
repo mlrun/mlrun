@@ -87,7 +87,7 @@ from ..artifacts import (
 )
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..common.runtimes.constants import RunStates
-from ..datastore import store_manager
+from ..datastore import remote_client_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
@@ -1557,7 +1557,7 @@ class MlrunProject(ModelObj):
         if self._artifact_manager:
             return self._artifact_manager
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        store_manager.set(self._secrets, db)
+        remote_client_manager.set(self._secrets, db)
         self._artifact_manager = ArtifactManager(db)
         return self._artifact_manager
 

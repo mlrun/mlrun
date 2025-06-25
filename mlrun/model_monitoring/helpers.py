@@ -220,7 +220,7 @@ def get_monitoring_current_stats_data(project: str, endpoint_id: str) -> "DataIt
     :param endpoint_id: endpoint id str
     :return: DataItem
     """
-    return mlrun.datastore.store_manager.object(
+    return mlrun.datastore.remote_client_manager.object(
         _get_monitoring_current_stats_file_path(
             project=project, endpoint_id=endpoint_id
         )
@@ -234,7 +234,7 @@ def get_monitoring_drift_measures_data(project: str, endpoint_id: str) -> "DataI
     :param endpoint_id: endpoint id str
     :return: DataItem
     """
-    return mlrun.datastore.store_manager.object(
+    return mlrun.datastore.remote_client_manager.object(
         _get_monitoring_drift_measures_file_path(
             project=project, endpoint_id=endpoint_id
         )
@@ -563,7 +563,7 @@ def get_monitoring_schedules_endpoint_data(
     """
     Get the model monitoring schedules' data item of the project's model endpoint.
     """
-    return mlrun.datastore.store_manager.object(
+    return mlrun.datastore.remote_client_manager.object(
         _get_monitoring_schedules_file_endpoint_path(
             project=project, endpoint_id=endpoint_id
         )
@@ -577,7 +577,7 @@ def get_monitoring_schedules_chief_data(
     """
     Get the model monitoring schedules' data item of the project's model endpoint.
     """
-    return mlrun.datastore.store_manager.object(
+    return mlrun.datastore.remote_client_manager.object(
         _get_monitoring_schedules_file_chief_path(project=project)
     )
 

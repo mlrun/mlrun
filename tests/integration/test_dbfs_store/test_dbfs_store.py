@@ -27,7 +27,7 @@ from fsspec.implementations.dbfs import DatabricksException
 # from databricks.sdk.errors.mapping import PermissionDenied, Unauthenticated
 import mlrun
 import mlrun.errors
-from mlrun.datastore import store_manager
+from mlrun.datastore import remote_client_manager
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileDBFS,
     register_temporary_client_datastore_profile,
@@ -98,7 +98,7 @@ class TestDBFSStore:
         register_temporary_client_datastore_profile(self.profile)
         os.environ["DATABRICKS_TOKEN"] = self.token
         os.environ["DATABRICKS_HOST"] = self.host
-        store_manager.reset_secrets()
+        remote_client_manager.reset_secrets()
 
     @classmethod
     def teardown_class(cls):

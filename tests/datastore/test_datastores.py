@@ -354,7 +354,7 @@ def test_object_from_empty_url():
 
 
 def test_fsspec(tmpdir: Path) -> None:
-    store, _, _ = mlrun.store_manager.get_or_create_store(str(tmpdir))
+    store, _, _ = mlrun.remote_client_manager.get_or_create_store(str(tmpdir))
     file_system = store.filesystem
     with store.open(tmpdir / "1x.txt", "w") as fp:
         fp.write("123")

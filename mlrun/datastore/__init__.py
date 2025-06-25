@@ -32,6 +32,7 @@ __all__ = [
     "get_stream_pusher",
     "ConfigProfile",
     "VectorStoreCollection",
+    "remote_client_manager"
 ]
 
 from urllib.parse import urlparse
@@ -94,7 +95,7 @@ del fsspec  # clear the module namespace
 
 
 def set_in_memory_item(key, value):
-    item = store_manager.object(f"memory://{key}")
+    item = remote_client_manager.object(f"memory://{key}")
     item.put(value)
     return item
 

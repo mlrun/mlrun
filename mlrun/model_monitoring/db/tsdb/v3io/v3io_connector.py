@@ -475,7 +475,7 @@ class V3IOTSDBConnector(TSDBConnector):
         # Final cleanup of tsdb path
         tsdb_path = self._get_v3io_source_directory()
         tsdb_path.replace("://u", ":///u")
-        store, _, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
+        store, _, _ = mlrun.remote_client_manager.get_or_create_store(tsdb_path)
         store.rm(tsdb_path, recursive=True)
 
     def delete_tsdb_records(

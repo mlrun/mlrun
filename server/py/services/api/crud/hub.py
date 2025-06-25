@@ -23,7 +23,7 @@ import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
 from mlrun.config import config
-from mlrun.datastore import store_manager
+from mlrun.datastore import remote_client_manager
 
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s
@@ -153,7 +153,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
             )
 
         if url.endswith("/"):
-            obj = store_manager.object(url=url, secrets=credentials)
+            obj = remote_client_manager.object(url=url, secrets=credentials)
             listdir = obj.listdir()
             return {
                 "listdir": listdir,

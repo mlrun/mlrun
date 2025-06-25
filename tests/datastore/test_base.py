@@ -40,21 +40,21 @@ from mlrun.datastore.v3io import V3ioStore
 
 
 def test_http_fs_parquet_as_df():
-    data_item = mlrun.datastore.store_manager.object(
+    data_item = mlrun.datastore.remote_client_manager.object(
         "https://s3.wasabisys.com/iguazio/data/market-palce/aggregate/metrics.pq"
     )
     data_item.as_df()
 
 
 def test_http_fs_parquet_with_params_as_df():
-    data_item = mlrun.datastore.store_manager.object(
+    data_item = mlrun.datastore.remote_client_manager.object(
         "https://s3.wasabisys.com/iguazio/data/market-palce/aggregate/metrics.pq?param1=1&param2=2"
     )
     data_item.as_df()
 
 
 def test_s3_fs_parquet_as_df():
-    data_item = mlrun.datastore.store_manager.object(
+    data_item = mlrun.datastore.remote_client_manager.object(
         "s3://aws-public-blockchain/v1.0/btc/blocks/date=2023-02-27/"
         "part-00000-7de4c87e-242f-4568-b5d7-aae4cc75e9ad-c000.snappy.parquet"
     )
@@ -222,7 +222,7 @@ def test_as_df_time_filters(start_time_tz, end_time_tz, df_tz):
             full_df[time_column] = full_df[time_column].dt.tz_localize("UTC")
         full_df.to_parquet(parquet_file.name)
 
-        data_item = mlrun.datastore.store_manager.object(f"file://{parquet_file.name}")
+        data_item = mlrun.datastore.remote_client_manager.object(f"file://{parquet_file.name}")
 
         start_time = None
         tzinfo = pytz.UTC if start_time_tz == "with_tz" else None

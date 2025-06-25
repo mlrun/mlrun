@@ -209,7 +209,7 @@ def test_context_inputs(rundb_mock, is_api):
         # 'store-input' is a store artifact, store it in the db before getting it
         artifact = mlrun.artifacts.Artifact(key, b"123")
         rundb_mock.store_artifact(key, artifact.to_dict(), uid="123")
-        mlrun.datastore.store_manager.object(
+        mlrun.datastore.remote_client_manager.object(
             url,
             key,
             project=run_dict["metadata"]["project"],

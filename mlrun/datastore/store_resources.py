@@ -188,5 +188,5 @@ def get_store_resource(
             return mlrun.artifacts.dict_to_artifact(resource)
 
     else:
-        stores = mlrun.store_manager.set(secrets, db=db)
+        stores = mlrun.remote_client_manager.set(secrets, db=db)
         return stores.object(url=uri, secrets=data_store_secrets)

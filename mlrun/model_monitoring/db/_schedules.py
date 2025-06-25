@@ -232,7 +232,7 @@ def delete_model_monitoring_schedules_folder(project: str) -> None:
     folder = mlrun.model_monitoring.helpers._get_monitoring_schedules_folder_path(
         project
     )
-    fs = mlrun.datastore.store_manager.object(folder).store.filesystem
+    fs = mlrun.datastore.remote_client_manager.object(folder).store.filesystem
     if fs and fs.exists(folder):
         logger.debug("Deleting model monitoring schedules folder", folder=folder)
         fs.rm(folder, recursive=True)

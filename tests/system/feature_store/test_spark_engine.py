@@ -30,7 +30,7 @@ from storey import EmitEveryEvent
 import mlrun
 import mlrun.datastore.utils
 import mlrun.feature_store as fstore
-from mlrun import code_to_function, store_manager
+from mlrun import code_to_function, remote_client_manager
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileHdfs,
     DatastoreProfileS3,
@@ -169,12 +169,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         from mlrun.run import new_function
         from mlrun.runtimes import RemoteSparkRuntime
 
-        store, _, _ = store_manager.get_or_create_store(cls.get_remote_pq_source_path())
+        store, _, _ = remote_client_manager.get_or_create_store(cls.get_remote_pq_source_path())
         store.upload(
             cls.get_remote_pq_source_path(without_prefix=True),
             cls.get_local_pq_source_path(),
         )
-        store, _, _ = store_manager.get_or_create_store(
+        store, _, _ = remote_client_manager.get_or_create_store(
             cls.get_remote_csv_source_path()
         )
         store.upload(
@@ -1474,7 +1474,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             )
 
             if fset.get_target_path().endswith(fset.status.targets[0].run_id + "/"):
-                store, _, _ = mlrun.store_manager.get_or_create_store(
+                store, _, _ = mlrun.remote_client_manager.get_or_create_store(
                     fset.get_target_path()
                 )
                 v3io = store.filesystem

@@ -231,10 +231,7 @@ class TestModelEndpoint(TestDatabaseBase):
         )
         assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
         assert model_endpoint_from_db.metadata.project == "project-1"
-        assert (
-            model_endpoint_from_db.metadata.uid
-            == "5cfeed6672cc4d978ff9b7b06ebe77f2"
-        )
+        assert model_endpoint_from_db.metadata.uid == "5cfeed6672cc4d978ff9b7b06ebe77f2"
 
         # assert model_endpoint_from_db.status.monitoring_mode == "disabled"
 
@@ -247,10 +244,7 @@ class TestModelEndpoint(TestDatabaseBase):
         )
         assert model_endpoint_from_db.metadata.name == "model-endpoint-2"
         assert model_endpoint_from_db.metadata.project == "project-1"
-        assert (
-            model_endpoint_from_db.metadata.uid
-            == "2127986e91f544af9be31250295f03b6"
-        )
+        assert model_endpoint_from_db.metadata.uid == "2127986e91f544af9be31250295f03b6"
 
         assert model_endpoint_from_db.spec.model_class == "new_class"
 

@@ -41,14 +41,13 @@ def test_extras_requirement_file_aligned():
     extras_requirements_file_specifiers_map = _parse_requirement_specifiers_list(
         extras_requirements_file_specifiers
     )
-
+    # Since these packages are only present in the mlrun-kfp image, and also can't coexist with each other,
+    # we exclude them from the comparison
     excluded_packages = [
-        # Since these packages are only present in the mlrun-kfp image, and also can't coexist with each other,
-        # we exclude them from the comparison
+        "mlrun_pipelines_kfp_v1_8",
         "mlrun_pipelines_kfp_v1_8[kfp]",
-        "mlrun_pipelines_kfp_v2[kfp]",
-        # This is an optional extra currently only used for testing purposes
         "pytest-mock-resources[postgres]",
+        "mlrun_pipelines_kfp_v2",
     ]
     for package in excluded_packages:
         if package in setup_py_extras_requirements_specifiers_map:
@@ -153,11 +152,12 @@ def test_requirement_specifiers_convention():
         "scikit-learn": {"~=1.5.1"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
-        "dask[complete]": {'~=2024.12.1; python_version >= "3.11"'},
+        "dask[array,dataframe,distributed]": {
+            '~=2023.12.1; python_version < "3.11"',
+        },
         "dask": {
             '~=2024.12.1; python_version >= "3.11"',
             '~=2023.12.1; python_version < "3.11"',
-            '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
         },
         "distributed": {
             '~=2024.12.1; python_version >= "3.11"',
@@ -166,6 +166,9 @@ def test_requirement_specifiers_convention():
         "dask-ml": {
             '~=1.4,<1.9.0; python_version < "3.11"',
             '~=2024.4.4; python_version >= "3.11"',
+        },
+        "dask[complete]": {
+            '~=2024.12.1; python_version >= "3.11"',
         },
         "v3io-frames": {'>=0.13.0; python_version >= "3.11"'},
         "grpcio": {"~=1.70.0"},
@@ -217,7 +220,6 @@ def test_requirement_specifiers_inconsistencies():
         },
         "dask": {
             '~=2024.12.1; python_version >= "3.11"',
-            '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
             '~=2023.12.1; python_version < "3.11"',
         },
         "distributed": {
@@ -290,33 +292,38 @@ def _generate_all_requirement_specifiers_map() -> dict[str, set]:
     return _parse_requirement_specifiers_list(requirement_specifiers)
 
 
-def _parse_requirement_specifiers_list(requirement_specifiers) -> dict[str, set]:
-    """
-    Map each (package | package[extra]) to the set of *version/location* specifiers it
-    appears with.
-    """
+def _parse_requirement_specifiers_list(
+    requirement_specifiers,
+) -> dict[str, set]:
     specific_module_regex = (
         r"^"
-        r"(?P<requirementName>[A-Za-z0-9_\-]+)"
-        r"(?P<requirementExtra>\[[A-Za-z0-9_\-]+\])?"  # capture extras
+        r"(?P<requirementName>[a-zA-Z0-9_\-]+)"
+        r"(?P<requirementExtra>\[[a-zA-Z0-9_\-,]+\])?"
         r"(?P<requirementSpecifier>.*)"
     )
     remote_location_regex = (
         r"^(?P<requirementSpecifier>.*)#egg=(?P<requirementName>[^#]+)"
     )
-
-    requirement_specifiers_map: dict[str, set] = collections.defaultdict(set)
-
-    for raw in requirement_specifiers:
-        regex = remote_location_regex if "#egg=" in raw else specific_module_regex
-        match = re.fullmatch(regex, raw)
-        assert match, f"Requirement specifier did not match regex: {raw}"
-
+    requirement_specifiers_map = collections.defaultdict(set)
+    for requirement_specifier in requirement_specifiers:
+        regex = (
+            remote_location_regex
+            if "#egg=" in requirement_specifier
+            else specific_module_regex
+        )
+        match = re.fullmatch(regex, requirement_specifier)
+        assert (
+            match is not None
+        ), f"Requirement specifier did not matched regex. {requirement_specifier}"
         gd = match.groupdict()
-        # include extras (if any) in the dictionary key
-        pkg_key = (gd["requirementName"] + (gd.get("requirementExtra") or "")).lower()
-        requirement_specifiers_map[pkg_key].add(gd["requirementSpecifier"])
-
+        extras = gd.get("requirementExtra")
+        if extras:
+            extras = (
+                "[" + ",".join(sorted(e.strip() for e in extras[1:-1].split(","))) + "]"
+            )
+        requirement_name = (gd["requirementName"] + (extras or "")).lower()
+        requirement_specifier = gd["requirementSpecifier"]
+        requirement_specifiers_map[requirement_name].add(requirement_specifier)
     return requirement_specifiers_map
 
 

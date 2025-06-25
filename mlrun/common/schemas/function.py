@@ -47,6 +47,7 @@ class FunctionState:
 
     # for pipeline steps
     skipped = "skipped"
+    initialized = "initialized"
 
     @classmethod
     def get_function_state_from_pod_state(cls, pod_state: str):

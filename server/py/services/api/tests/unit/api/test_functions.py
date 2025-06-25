@@ -50,6 +50,7 @@ from services.api.daemon import daemon
 PROJECT = "project-name"
 ORIGINAL_VERSIONED_API_PREFIX = daemon.service.base_versioned_service_prefix
 FUNCTIONS_API = "projects/{project}/functions/{name}"
+BUILD_STATUS_API = "build/status"
 
 
 def test_build_status_pod_not_found(
@@ -80,7 +81,7 @@ def test_build_status_pod_not_found(
         ),
     ):
         response = client.get(
-            "build/status",
+            BUILD_STATUS_API,
             params={
                 "project": function["metadata"]["project"],
                 "name": function["metadata"]["name"],
@@ -88,6 +89,53 @@ def test_build_status_pod_not_found(
             },
         )
         assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+
+def test_build_status_with_missing_state(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
+    # Test that a function without status.state returns 'initialized' in build/status
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    function = {
+        "kind": "job",
+        "metadata": {
+            "name": "function-name",
+            "project": PROJECT,
+            "tag": "latest",
+        },
+        "spec": {
+            "build": {"image": "some-image"},
+        },
+    }
+
+    client.post(
+        FUNCTIONS_API.format(
+            project=function["metadata"]["project"], name=function["metadata"]["name"]
+        ),
+        json=function,
+    )
+    response = client.get(
+        FUNCTIONS_API.format(
+            project=function["metadata"]["project"],
+            name=function["metadata"]["name"],
+        ),
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    assert response.json().get("status", {}).get("state") is None
+
+    response = client.get(
+        BUILD_STATUS_API,
+        params={
+            "project": function["metadata"]["project"],
+            "name": function["metadata"]["name"],
+            "tag": function["metadata"]["tag"],
+        },
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    assert (
+        response.headers["function_status"]
+        == mlrun.common.schemas.FunctionState.initialized
+    )
 
 
 @pytest.mark.asyncio
@@ -1066,7 +1114,7 @@ def test_build_status_events_and_logs(
         ),
     ):
         response = client.get(
-            "build/status",
+            BUILD_STATUS_API,
             params={
                 "project": function["metadata"]["project"],
                 "name": function["metadata"]["name"],
@@ -1099,7 +1147,7 @@ def test_build_status_events_and_logs(
         ),
     ):
         response = client.get(
-            "build/status",
+            BUILD_STATUS_API,
             params={
                 "project": function["metadata"]["project"],
                 "name": function["metadata"]["name"],

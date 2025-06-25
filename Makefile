@@ -541,15 +541,15 @@ build-test-system: compile-schemas update-version-file ## Build system tests doc
 
 .PHONY: package-wheel
 package-wheel: clean update-version-file ## Build python package wheel
-	python -m build --wheel
+	uv build
 
 .PHONY: publish-package
 publish-package: package-wheel ## Publish python package wheel
-	python -m twine upload dist/mlrun-*.whl
+	uv publish
 
 .PHONY: test-publish
 test-publish: package-wheel ## Test python package publishing
-	python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/mlrun-*.whl
+	uv publish --publish-url https://test.pypi.org/legacy/
 
 .PHONY: clean
 clean: ## Clean python package build artifacts
@@ -664,17 +664,18 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 
 .PHONY: test-migrations
 test-migrations: clean ## Run mlrun db migrations tests
-	set -xe; \
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/migration_tests.coverage"} && \
+	export COVERAGE_FILE && \
 	$(SETUP_COVERAGE) && \
-	python -u $(COVERAGE_ADDITION) -m pytest -vvv \
-	  --capture=no \
-	  --disable-warnings \
-	  --durations=100 \
-	  -rf "${ROOT_DIR}/server/py/services/api/migrations/tests" \
-	  2>&1 | tee migration_tests.log; \
-	$(PRINT_COVERAGE_REPORT)
+	bash -c 'set -euo pipefail; \
+	  python -u $(COVERAGE_ADDITION) -m pytest -vvv \
+	    --capture=no --disable-warnings --durations=100 \
+	    -rf "$(ROOT_DIR)/server/py/services/api/migrations/tests" \
+	    2>&1 | tee migration_tests.log' ; \
+	exit_code=$$? ; \
+	$(PRINT_COVERAGE_REPORT) ; \
+	exit $$exit_code
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container

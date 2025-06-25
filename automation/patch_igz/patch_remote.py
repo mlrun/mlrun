@@ -26,6 +26,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import click
 import coloredlogs
+import docker
+import docker.errors
 import paramiko
 import yaml
 
@@ -84,7 +86,7 @@ class MLRunPatcher:
         self._no_build = no_build
         self._no_push = no_push
         self._namespace = self._resolve_namespace(namespace)
-
+        self._docker_client = docker.from_env()
         if self._skip_patch_api and self._patch_alerts:
             raise ValueError("Cannot skip api and patch alerts at the same time")
 
@@ -172,21 +174,79 @@ class MLRunPatcher:
         docker_registry = self._config.get("DOCKER_REGISTRY")
         if not registry_username:
             return
-        command = [
-            "docker",
-            "login",
-            docker_registry or "",
-            "--username",
-            registry_username,
-            "--password-stdin",
-        ]
-        completed_process = subprocess.run(
-            command, input=registry_password.encode() + b"\n", capture_output=True
-        )
-        if completed_process.returncode != 0:
-            raise RuntimeError(
-                f"Failed to login to docker registry. Error: {completed_process.stderr}"
+        try:
+            self._docker_client.login(
+                username=registry_username,
+                password=registry_password,
+                registry=docker_registry,
             )
+            logger.debug("Logged in to docker registry %s", docker_registry)
+        except docker.errors.APIError as exc:
+            raise RuntimeError(f"Failed to login to docker registry: {exc}") from exc
+
+    def _tag_images_for_multi_node_registries(self, built_images):
+        if self._config.get("SKIP_MULTI_NODE_PUSH") == "true":
+            return built_images
+        resolved: list[str] = []
+        for img in built_images:
+            for node in self._cluster_data_nodes:
+                if node in img:
+                    resolved.append(img)
+                    for repl in self._cluster_data_nodes:
+                        if repl == node:
+                            continue
+                        tagged = img.replace(node, repl)
+                        try:
+                            image_obj = self._docker_client.images.get(img)
+                            repo, tag = tagged.rsplit(":", 1)
+                            image_obj.tag(repo, tag)
+                            logger.debug("Tagged %s -> %s", img, tagged)
+                        except docker.errors.ImageNotFound:
+                            logger.warning("Image %s not found for tagging", img)
+                        resolved.append(tagged)
+                    break
+        return resolved or list(built_images)
+
+    def _push_docker_images(self, built_images, max_workers: int = 2, retries: int = 3):
+        logger.info("Pushing mlrun docker images: %s", built_images)
+
+        def _push(image: str):
+            repo, tag = image.rsplit(":", 1)
+            attempt = 0
+            while True:
+                attempt += 1
+                try:
+                    for line in self._docker_client.images.push(
+                        repo, tag=tag, stream=True, decode=True
+                    ):
+                        if "error" in line:
+                            raise RuntimeError(line["error"])
+                        if "status" in line:
+                            logger.info(
+                                "[%s] %s %s",
+                                image,
+                                line["status"],
+                                line.get("progress", ""),
+                            )
+                    return
+                except Exception as exc:
+                    if attempt >= retries:
+                        logger.error(
+                            "Failed pushing %s after %d attempts", image, attempt
+                        )
+                        raise
+                    wait = 5 * attempt
+                    logger.warning(
+                        "Push %s failed (%s). Retrying in %ss", image, exc, wait
+                    )
+                    time.sleep(wait)
+
+        with ThreadPoolExecutor(
+            max_workers=min(max_workers, len(built_images))
+        ) as pool:
+            futures = {pool.submit(_push, img): img for img in built_images}
+            for fut in as_completed(futures):
+                fut.result()
 
     def _validate_config(self):
         missing_fields = Constants.mandatory_fields - set(self._config.keys())
@@ -223,7 +283,10 @@ class MLRunPatcher:
             mlrun_docker_registry = (
                 f"{mlrun_docker_registry}/{mlrun_docker_repo.rstrip('/')}"
             )
-
+        target_to_image = {
+            target: f"{mlrun_docker_registry}/{Constants.targets_to_image_name[target]}:{image_tag}"
+            for target in targets
+        }
         if not self._no_build:
             env = {
                 "MLRUN_VERSION": image_tag,
@@ -260,10 +323,6 @@ class MLRunPatcher:
             cmd = ["make"]
             cmd.extend(targets)
             self._exec_local(cmd, live=True, env=env)
-            target_to_image = {
-                target: f"{mlrun_docker_registry}/{Constants.targets_to_image_name[target]}:{image_tag}"
-                for target in targets
-            }
             if Constants.mlrun in targets and self._build_py39:
                 self._exec_local(
                     ["make", "mlrun"],
@@ -295,80 +354,6 @@ class MLRunPatcher:
 
     def _disconnect_from_node(self):
         self._ssh_client.close()
-
-    def _tag_images_for_multi_node_registries(self, built_images):
-        if self._config.get("SKIP_MULTI_NODE_PUSH") == "true":
-            return
-
-        resolve_built_images = []
-        for built_image in built_images:
-            for node in self._cluster_data_nodes:
-                if node in built_image:
-                    resolve_built_images.append(built_image)
-                    for replacement_node in self._cluster_data_nodes:
-                        if replacement_node != node:
-                            replaced_built_image = built_image.replace(
-                                node, replacement_node
-                            )
-                            self._exec_local(
-                                [
-                                    "docker",
-                                    "tag",
-                                    built_image,
-                                    replaced_built_image,
-                                ],
-                                live=True,
-                            )
-                            resolve_built_images.append(replaced_built_image)
-
-                    # Once we found the node configured in the built_image we can stop because it is only possible
-                    # to specify one node when building the image
-                    break
-
-        return resolve_built_images or built_images
-
-    def _push_docker_images(self, built_images, max_workers: int = 2, retries: int = 3):
-        """
-        Push docker images with limited parallelism and retry logic to
-        handle transient network/proxy timeouts.
-        """
-        # Ensure the Docker client waits long enough before timing out.
-        os.environ.setdefault("DOCKER_CLIENT_TIMEOUT", "300")
-        os.environ.setdefault("COMPOSE_HTTP_TIMEOUT", "300")
-
-        logger.info("Pushing mlrun docker images: %s", built_images)
-
-        def _push(image: str):
-            attempt = 0
-            while True:
-                attempt += 1
-                try:
-                    self._exec_local(["docker", "push", image], live=True)
-                    return
-                except Exception as exc:
-                    if attempt >= retries:
-                        logger.error(
-                            "Failed pushing %s after %d attempts", image, attempt
-                        )
-                        raise
-                    wait = 5 * attempt
-                    logger.warning(
-                        "Push %s failed (attempt %d/%d: %s). Retrying in %ss",
-                        image,
-                        attempt,
-                        retries,
-                        exc,
-                        wait,
-                    )
-                    time.sleep(wait)
-
-        # Use a conservative number of concurrent uploads to avoid registry throttling
-        with ThreadPoolExecutor(
-            max_workers=min(max_workers, len(built_images))
-        ) as pool:
-            futures = {pool.submit(_push, image): image for image in built_images}
-            for future in as_completed(futures):
-                future.result()
 
     def _patch_deployment_from_file(self):
         for deployment in self._deployments:

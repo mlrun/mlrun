@@ -62,9 +62,7 @@ def build_function(
         launcher = services.api.launcher.ServerSideLauncher(auth_info=auth_info)
         # When runtime is nuclio, building means we deploy the function and not just build its image,
         # so we need full enrichment
-        launcher.enrich_runtime(
-            runtime=fn, full=is_nuclio_deploy, client_version=client_version
-        )
+        launcher.enrich_runtime(runtime=fn, full=is_nuclio_deploy)
 
         if is_nuclio_deploy:
             fn: mlrun.runtimes.RemoteRuntime

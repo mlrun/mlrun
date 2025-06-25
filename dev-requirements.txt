@@ -1,7 +1,3 @@
-# uploading to PyPI
-twine~=5.1
-build~=1.0
-
 # formatting & linting
 ruff==0.8.0
 import-linter~=2.0
@@ -42,5 +38,6 @@ cryptography~=44.0
 # install to verify it doesn't cause a warning (ML-8951)
 evidently~=0.7.6
 
+# code coverage
 coverage[toml]~=7.8
 diff-cover~=9.2

@@ -40,8 +40,6 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
         graphviz \
         make \
         software-properties-common \
-        libpq-dev \
-        python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # set initial git config

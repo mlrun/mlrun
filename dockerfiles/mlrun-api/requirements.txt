@@ -10,7 +10,7 @@ fastapi~=0.115.6
 sqlalchemy~=2.0
 sqlalchemy-utils~=0.41.2
 pymysql~=1.1
-psycopg2-binary~=2.9
+psycopg~=3.2
 alembic~=1.14
 timelength~=1.1
 memray~=1.12; sys_platform != 'win32'

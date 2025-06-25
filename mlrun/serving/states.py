@@ -20,6 +20,7 @@ __all__ = [
     "MonitoringApplicationStep",
 ]
 
+import inspect
 import os
 import pathlib
 import traceback
@@ -1003,6 +1004,8 @@ class RouterStep(TaskStep):
 
 
 class Model(storey.ParallelExecutionRunnable, ModelObj):
+    _dict_fields = ["name", "raise_exception", "artifact_uri"]
+
     def __init__(
         self,
         name: str,
@@ -1014,6 +1017,13 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         if artifact_uri is not None and not isinstance(artifact_uri, str):
             raise MLRunInvalidArgumentError("'artifact_uri' argument must be a string")
         self.artifact_uri = artifact_uri
+
+    def __init_subclass__(cls):
+        super().__init_subclass__()
+        cls._dict_fields = cls._dict_fields + (
+            list(inspect.signature(cls.__init__).parameters.keys())
+        )
+        cls._dict_fields.remove("self")
 
     def load(self) -> None:
         """Override to load model if needed."""

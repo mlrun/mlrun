@@ -86,8 +86,8 @@ class BaseModelRouter(RouterToDict):
     @property
     def background_task_reached_terminal_state(self):
         return (
-            self._background_task_check_timestamp
-            and self._background_task_check_timestamp != "running"
+            self._background_task_current_state
+            and self._background_task_current_state != "running"
         )
 
     def parse_event(self, event):

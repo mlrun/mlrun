@@ -20,13 +20,14 @@ import random
 import string
 import typing
 
+import alembic
+import alembic.command
+import alembic.config
 import dateutil.parser
 import pymysql.err
 import sqlalchemy.exc
 import sqlalchemy.orm
-from alembic import command
-from alembic.config import Config
-from sqlalchemy_utils import create_database, database_exists
+import sqlalchemy_utils
 
 import mlrun.artifacts
 import mlrun.artifacts.base
@@ -53,119 +54,150 @@ import services.api.utils.scheduler
 
 
 def init_data(
-    from_scratch: bool = False,
     perform_migrations_if_needed: bool = False,
 ) -> None:
     mlrun.utils.logger.info("Initializing DB data")
 
-    alembic_util = None
     engine = framework.db.sqldb.sql_session.get_engine()
     url = engine.url
-    if not database_exists(url):
-        create_database(url)
-        framework.db.sqldb.models.Base.metadata.create_all(bind=engine)
-
-        cfg = Config(str(pathlib.Path(__file__).parent / "alembic.ini"))
-        cfg.set_main_option("sqlalchemy.url", str(url))
-
-        with engine.begin() as conn:
-            cfg.attributes["connection"] = conn
-            command.stamp(cfg, "head")
-
-        db = framework.db.sqldb.db.SQLDB()
-        db_session = framework.db.session.create_session()
-        db.create_data_version(db_session, str(latest_data_version))
-        mlrun.config.config.httpdb.state = mlrun.common.schemas.APIStates.online
-
+    from_scratch = False
+    if not sqlalchemy_utils.database_exists(url):
+        mlrun.utils.logger.info(
+            "Database does not exist, initializing from scratch",
+            database_url=url,
+        )
+        sqlalchemy_utils.create_database(url)
+        from_scratch = True
     else:
-        # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
-        mysql_util = framework.utils.db.mysql.MySQLUtil(mlrun.utils.logger)
-        if mysql_util.get_mysql_dsn_data():
-            mysql_util.wait_for_db_liveness()
-            mysql_util.set_modes(mlrun.mlconf.httpdb.db.mysql.modes)
-
-            alembic_util = _create_alembic_util()
-            (
-                is_migration_needed,
-                is_migration_from_scratch,
-                is_backup_needed,
-            ) = _resolve_needed_operations(alembic_util, from_scratch)
-        else:
-            dsn = mysql_util.get_dsn()
-            if "sqlite" in dsn:
-                mlrun.utils.logger.debug("SQLite DB is used, liveness check not needed")
-            else:
-                mlrun.utils.logger.warn(
-                    f"Invalid mysql dsn: {dsn}, assuming live and skipping liveness verification"
-                )
-
-            # migration is not needed for sqlite, but we mark it as from scratch to initialize the db
-            is_migration_from_scratch = True
-            is_migration_needed = False
-            is_backup_needed = False
-
-        if (
-            not is_migration_from_scratch
-            and not perform_migrations_if_needed
-            and is_migration_needed
-        ):
-            state = mlrun.common.schemas.APIStates.waiting_for_migrations
+        has_tables = bool(sqlalchemy.inspect(engine).get_table_names())
+        if not has_tables:
             mlrun.utils.logger.info(
-                "Migration is needed, changing API state", state=state
+                "No tables found in the database, initializing from scratch"
             )
-            mlrun.config.config.httpdb.state = state
-            return
+            from_scratch = True
 
-        if is_backup_needed:
-            mlrun.utils.logger.info("DB Backup is needed, backing up...")
-            db_backup = services.api.utils.db.backup.DBBackupUtil()
-            db_backup.backup_database()
-
-        mlrun.utils.logger.info("Creating initial data")
-        mlrun.config.config.httpdb.state = (
-            mlrun.common.schemas.APIStates.migrations_in_progress
+    if from_scratch:
+        initialize_db_from_scratch(engine, url)
+    else:
+        _migrate_existing_data(
+            perform_migrations_if_needed,
         )
 
-        db_session = framework.db.session.create_session()
-        try:
-            if is_migration_from_scratch or is_migration_needed:
-                try:
-                    _perform_schema_migrations(alembic_util)
-                    framework.db.init_db.init_db()
-                    _add_initial_data(db_session)
-                    _perform_data_migrations(db_session)
-                except Exception:
-                    state = mlrun.common.schemas.APIStates.migrations_failed
-                    mlrun.utils.logger.warning(
-                        "Migrations failed, changing API state", state=state
-                    )
-                    mlrun.config.config.httpdb.state = state
-                    raise
-
-            # initialize system id
-            _init_system_id(db_session)
-        finally:
-            framework.db.session.close_session(db_session)
-
-        # if the above process actually ran a migration - initializations that were skipped on the API initialization
-        # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
-        # therefore moving to migration_completed state, and other component will take care of moving to online
-        if alembic_util and not is_migration_from_scratch and is_migration_needed:
-            mlrun.config.config.httpdb.state = (
-                mlrun.common.schemas.APIStates.migrations_completed
-            )
-        else:
-            mlrun.config.config.httpdb.state = mlrun.common.schemas.APIStates.online
-
-        if not from_scratch:
-            # Cleanup pagination cache on api startup
-            session = framework.db.session.create_session()
-            framework.utils.pagination_cache.PaginationCache().cleanup_pagination_cache(
-                session
-            )
-            session.commit()
-
     mlrun.utils.logger.info("Initial data created")
+
+
+def create_schema(
+    engine: typing.Optional[sqlalchemy.engine.Engine] = None,
+) -> None:
+    if engine is None:
+        engine = framework.db.sqldb.sql_session.get_engine()
+    partitioned_table_names = framework.db.sqldb.models.get_partitioned_table_names()
+    if engine.name == "sqlite":
+        tables_to_create = [
+            table
+            for table in framework.db.sqldb.models.Base.metadata.tables.values()
+            if table.name not in partitioned_table_names
+        ]
+        framework.db.sqldb.models.Base.metadata.create_all(
+            bind=engine, tables=tables_to_create
+        )
+    else:
+        framework.db.sqldb.models.Base.metadata.create_all(bind=engine)
+
+
+def initialize_db_from_scratch(
+    engine: typing.Optional[sqlalchemy.engine.Engine,],
+    url: sqlalchemy.engine.URL,
+):
+    create_schema(
+        engine=engine,
+    )
+    cfg = alembic.config.Config(str(pathlib.Path(__file__).parent / "alembic.ini"))
+    cfg.set_main_option("sqlalchemy.url", str(url))
+    with engine.begin() as conn:
+        cfg.attributes["connection"] = conn
+        alembic.command.stamp(cfg, "head")
+
+    db = framework.db.sqldb.db.SQLDB()
+    db_session = framework.db.session.create_session()
+    db.create_data_version(db_session, str(latest_data_version))
+    mlrun.config.config.httpdb.state = mlrun.common.schemas.APIStates.online
+
+
+def _migrate_existing_data(
+    perform_migrations_if_needed: bool = False,
+):
+    # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
+    mysql_util = framework.utils.db.mysql.MySQLUtil(mlrun.utils.logger)
+    alembic_util = _create_alembic_util()
+    if mysql_util.get_mysql_dsn_data():
+        mysql_util.wait_for_db_liveness()
+        mysql_util.set_modes(mlrun.mlconf.httpdb.db.mysql.modes)
+        (
+            is_migration_needed,
+            is_backup_needed,
+        ) = _resolve_needed_operations(alembic_util)
+    else:
+        dsn = mysql_util.get_dsn()
+        if "sqlite" in dsn:
+            mlrun.utils.logger.debug("SQLite DB is used, liveness check not needed")
+        else:
+            mlrun.utils.logger.warn(
+                f"Invalid mysql dsn: {dsn}, assuming live and skipping liveness verification"
+            )
+
+        # migration is not needed for sqlite, but we mark it as from scratch to initialize the db
+        is_migration_needed = False
+        is_backup_needed = False
+
+    if not perform_migrations_if_needed and is_migration_needed:
+        state = mlrun.common.schemas.APIStates.waiting_for_migrations
+        mlrun.utils.logger.info("Migration is needed, changing API state", state=state)
+        mlrun.config.config.httpdb.state = state
+        return
+
+    if is_backup_needed:
+        mlrun.utils.logger.info("DB Backup is needed, backing up...")
+        db_backup = services.api.utils.db.backup.DBBackupUtil()
+        db_backup.backup_database()
+
+    mlrun.utils.logger.info("Creating initial data")
+    mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.migrations_in_progress
+
+    db_session = framework.db.session.create_session()
+    try:
+        if is_migration_needed:
+            try:
+                _perform_schema_migrations(alembic_util)
+                _add_initial_data(db_session)
+                _perform_data_migrations(db_session)
+            except Exception:
+                state = mlrun.common.schemas.APIStates.migrations_failed
+                mlrun.utils.logger.warning(
+                    "Migrations failed, changing API state", state=state
+                )
+                mlrun.config.config.httpdb.state = state
+                raise
+
+        # initialize system id
+        _init_system_id(db_session)
+    finally:
+        framework.db.session.close_session(db_session)
+
+    # if the above process actually ran a migration - initializations that were skipped on the API initialization
+    # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
+    # therefore moving to migration_completed state, and other component will take care of moving to online
+    if alembic_util and is_migration_needed:
+        mlrun.config.config.httpdb.state = (
+            mlrun.common.schemas.APIStates.migrations_completed
+        )
+    else:
+        mlrun.config.config.httpdb.state = mlrun.common.schemas.APIStates.online
+
+    # Cleanup pagination cache on api startup
+    session = framework.db.session.create_session()
+    framework.utils.pagination_cache.PaginationCache().cleanup_pagination_cache(session)
+    session.commit()
 
 
 # If the data_table version doesn't exist, we can assume the data version is 1.
@@ -189,34 +221,25 @@ def update_default_configuration_data():
 
 def _resolve_needed_operations(
     alembic_util: services.api.utils.db.alembic.AlembicUtil,
-    force_from_scratch: bool = False,
-) -> tuple[bool, bool, bool]:
-    is_migration_from_scratch = (
-        force_from_scratch or alembic_util.is_migration_from_scratch()
-    )
+) -> tuple[bool, bool]:
     is_schema_migration_needed = alembic_util.is_schema_migration_needed()
     is_data_migration_needed = (
         not _is_latest_data_version()
         and mlrun.config.config.httpdb.db.data_migrations_mode == "enabled"
     )
-    is_migration_needed = not is_migration_from_scratch and (
-        is_schema_migration_needed or is_data_migration_needed
-    )
+    is_migration_needed = is_schema_migration_needed or is_data_migration_needed
     is_backup_needed = (
-        mlrun.config.config.httpdb.db.backup.mode == "enabled"
-        and is_migration_needed
-        and not is_migration_from_scratch
+        mlrun.config.config.httpdb.db.backup.mode == "enabled" and is_migration_needed
     )
     mlrun.utils.logger.info(
         "Checking if migration is needed",
-        is_migration_from_scratch=is_migration_from_scratch,
         is_schema_migration_needed=is_schema_migration_needed,
         is_data_migration_needed=is_data_migration_needed,
         is_backup_needed=is_backup_needed,
         is_migration_needed=is_migration_needed,
     )
 
-    return is_migration_needed, is_migration_from_scratch, is_backup_needed
+    return is_migration_needed, is_backup_needed
 
 
 def _create_alembic_util() -> services.api.utils.db.alembic.AlembicUtil:
@@ -561,11 +584,13 @@ def _migrate_artifacts_table_v2(
     )
 
     # drop the old artifacts table, including their labels and tags tables
+    # noinspection PyTypeChecker
     db.delete_table_records(
         db_session,
         framework.db.sqldb.models.Artifact.Label,
         raise_on_not_exists=False,
     )
+    # noinspection PyTypeChecker
     db.delete_table_records(
         db_session, framework.db.sqldb.models.Artifact.Tag, raise_on_not_exists=False
     )

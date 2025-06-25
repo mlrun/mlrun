@@ -2,8 +2,7 @@
 # Change log
 
 The change log lists updates per release, open issues, limitations, and deprecations.
-
-- [v1.9.0](#v190)
+- [v1.9.1](#v191) | [v1.9.0](#v190)
 - [v1.8.0](#v180)
 - [v1.7.2](#v172-16-january-2025) | [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
 - [v1.6.4](#v164-2-july-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
@@ -17,6 +16,13 @@ The change log lists updates per release, open issues, limitations, and deprecat
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
+(v191)=
+## v1.9.1 (June 2025)
+### Closed issue
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-10326|Fixed the image tag extraction process.|
+
 (v190)=
 ## v1.9.0 (June 2025)
 
@@ -24,7 +30,7 @@ The change log lists updates per release, open issues, limitations, and deprecat
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-9326| MLRun now supports Python 3.11, and also continues to support Python 3.9.<ul><li>If you are using Python 3.11, then you need to use `engine="remote"`.</li></ul>|
-|ML-10199|MLRun server now supports KFP 2.x (and continues to support KFP 1.8 server depending on the Iguazio version). MLRun supports KFP 1.8 client for a long time, it doesn't support KFP 2 client yet. </br>MLRun v1.9.0 CE supports KFP 2.x.<ul><li>Client code and workflow code and syntax (DSL) is still the KFP 1.8 syntax. Working with the newer KFP 2.x syntax is not yet supported by MLRun. KFP workflows written with KFP 2.0 syntax/APIs and run from outside MLRun are not visible in the MLRun UI. [See more about the SDK changes when migrating to KFP v2](https://www.kubeflow.org/docs/components/pipelines/user-guides/migration/).</li><li>As in MLRun v1.8.0, KFP is not pre-installed on images such as `mlrun/mlrun`. The image `mlrun/mlrun-kfp` includes KFP, but works with Python 3.9.</li><li>You can install KFP manually (`pip install kfp`), for example, to run KFP pipelines locally using the KFP 1.8 client, and thereby requiring Python 3.9.</li></ul>|
+|ML-10199|KFP 2.x server is now supported, but the workflow still requires the KFP 1.8 syntax. </br>MLRun v1.9.0 CE supports KFP 2.x. </br>Usage guidelines:<ul><li>Client code and workflow code and syntax (DSL) is still the KFP 1.8 syntax. Working with the newer KFP 2.x syntax is not yet supported by MLRun. KFP workflows written with KFP 2.0 syntax/APIs and run from outside MLRun are not visible in the MLRun UI. See more about the [SDK changes when migrating to KFP v2](https://www.kubeflow.org/docs/components/pipelines/user-guides/migration/).</li><li>As in MLRun v1.8.0, KFP is not pre-installed on images such as `mlrun/mlrun`. The image `mlrun/mlrun-kfp` includes KFP, but works with Python 3.9.</li><li>You can install KFP manually (`pip install kfp`), for example, to run KFP pipelines locally using the KFP 1.8 client, and thereby requiring Python 3.9.</li></ul>|
 
 ### Closed issues
 | ID    |Description                                                                 |

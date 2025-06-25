@@ -1245,6 +1245,8 @@ class ModelRunnerStep(MonitoredStep):
             - You aim to minimize overhead from creating new executors or processes/threads per runnable.
           The runnable is expected to be pre-initialized and reused across events, enabling efficient use of memory and
           hardware accelerators.
+        * "naive" – To run in the main event loop. This is appropriate only for trivial computation and/or file I/O. It
+          means that the runnable will not actually be run in parallel to anything else.
         :param model_artifact:      model artifact or mlrun model artifact uri
         :param labels:              model endpoint labels, should be list of str or mapping of str:str
         :param creation_strategy:   Strategy for creating or updating the model endpoint:

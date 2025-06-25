@@ -458,11 +458,11 @@ class TestToJob:
 
 
 @pytest.mark.parametrize(
-    "endpoints", ["model-ep-1", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]
+    "endpoints", ["all", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]
 )
 @pytest.mark.usefixtures("rundb_mock")
 def test_handle_endpoints_type_evaluate(
-    endpoints: Union[str, list[str], list[tuple]],
+    endpoints: Union[str, list[str], list[tuple[str, str]]],
 ) -> None:
     project = "test-endpoints-handler"
     endpoints_output = ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
@@ -470,3 +470,18 @@ def test_handle_endpoints_type_evaluate(
     )
 
     assert endpoints_output == [("model-ep-1", "model-ep-1-uid")]
+
+
+@pytest.mark.parametrize(
+    ("endpoints", "err_msg"),
+    [
+        ("*", 'A string input for `endpoints` can only be "all"'),
+        ([], "The endpoints list cannot be empty"),
+        ([1], r"Could not resolve endpoints as list of \[\(name, uid\)\]"),
+    ],
+)
+def test_handle_endpoints_type_evaluate_error(
+    endpoints: Union[str, list[str]], err_msg: str
+) -> None:
+    with pytest.raises(mlrun.errors.MLRunValueError, match=err_msg):
+        ModelMonitoringApplicationBase._handle_endpoints_type_evaluate("tmp", endpoints)

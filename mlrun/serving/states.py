@@ -1171,7 +1171,7 @@ class ModelRunnerStep(MonitoredStep):
     example::
 
         model_runner_step = ModelRunnerStep(name="my_model_runner")
-        model_runner_step.add_model(MyModel(name="my_model"))
+        model_runner_step.add_model(..., model_class=MyModel(name="my_model"))
         graph.to(model_runner_step)
 
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each

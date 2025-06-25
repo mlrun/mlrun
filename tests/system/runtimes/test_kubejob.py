@@ -20,6 +20,7 @@ from sys import executable
 import pandas as pd
 import pytest
 import v3io
+import v3iofs  # noqa
 
 import mlrun
 import mlrun.common.schemas
@@ -688,13 +689,15 @@ def print_df(df):
         ]
 
     def test_job_from_serving_runtime(self):
-        function = mlrun.new_function(
+        function = self.project.set_function(
+            func=str(self.assets_path / "function_with_simple_transformation.py"),
             name="test",
             kind="serving",
+            image="artifactory.iguazeng.com:10557/galt/mlrun:1.10.0-rc9-46c395",
         )
         graph = function.set_topology("flow", engine="async")
 
-        graph.to(
+        graph.to(name="transformation", handler="transform").to(
             name="parquet",
             class_name="storey.ParquetTarget",
             path=f"v3io:///projects/{self.project_name}/out.parquet",
@@ -712,6 +715,11 @@ def print_df(df):
             )
             inputs = {"data": f"v3io:///projects/{self.project_name}/in.csv"}
             self.project.run_function(job, inputs=inputs, local=True)
-            v3io_client.object.get("projects", f"{self.project_name}/out.parquet")
+            read_back_df = pd.read_parquet(
+                f"v3io:///projects/{self.project_name}/out.parquet"
+            )
+            assert (
+                "Mickey Mouse" in read_back_df["Product"].values
+            ), f"Dataframe {read_back_df} was not transformed as expected"
         finally:
             v3io_client.close()

@@ -911,7 +911,7 @@ def enrich_image_url(
     if is_mlrun_image and "mlrun/ml-base" in image_url:
         if tag:
             if mlrun.utils.helpers.validate_component_version_compatibility(
-                "mlrun-client", "1.10.0", mlrun_client_version=tag
+                "mlrun-client", "1.10.0-rc0", mlrun_client_version=tag
             ):
                 warnings.warn(
                     "'mlrun/ml-base' image is deprecated in 1.10.0 and will be removed in 1.12.0, "

@@ -785,6 +785,13 @@ def test_validate_v3io_consumer_group(value, expected):
         },
         {
             "image": "mlrun/ml-base",
+            "client_version": "1.10.0-rc8",
+            "images_tag": None,
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:1.10.0-rc8",
+        },
+        {
+            "image": "mlrun/ml-base",
             "client_version": "1.11.0",
             "images_tag": None,
             "images_registry": "",

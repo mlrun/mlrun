@@ -40,7 +40,7 @@ def upgrade() -> None:
             index=True,
         ),
         sa.Column("name", sa.String(255, collation="utf8mb3_bin"), nullable=False),
-        sa.Column("value", sa.String(255, collation="utf8mb3_bin"), nullable=True),
+        sa.Column("value", sa.String(255, collation="utf8mb3_bin"), nullable=False),
         sa.UniqueConstraint(
             "task_id", "name", name="uq_bg_task_labels_task_id_and_name"
         ),

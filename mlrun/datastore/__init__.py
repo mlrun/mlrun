@@ -75,7 +75,6 @@ from .targets import CSVTarget, NoSqlTarget, ParquetTarget, StreamTarget
 from .utils import get_kafka_brokers_from_dict, parse_kafka_url
 
 remote_client_manager = RemoteClientManager()
-store_manager = remote_client_manager
 
 if hasattr(fsspec, "register_implementation"):
     fsspec.register_implementation(

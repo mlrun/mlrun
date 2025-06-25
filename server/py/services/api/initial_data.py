@@ -72,7 +72,8 @@ def init_data(
         has_tables = bool(sqlalchemy.inspect(engine).get_table_names())
         if not has_tables:
             mlrun.utils.logger.info(
-                "No tables found in the database, initializing from scratch"
+                "No tables found in the database, initializing from scratch",
+                database_url=url,
             )
             from_scratch = True
 

@@ -24,6 +24,7 @@ __all__ = [
     "v3io_cred",
     "auto_mount",
     "VolumeMount",
+    "mlconf"
 ]
 
 import importlib

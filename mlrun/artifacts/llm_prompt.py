@@ -128,7 +128,9 @@ class LLMPromptArtifact(Artifact):
             return self.spec._model_artifact
         if self.spec.model_uri:
             self.spec._model_artifact, target = (
-                mlrun.datastore.remote_client_manager.get_store_artifact(self.spec.model_uri)
+                mlrun.datastore.remote_client_manager.get_store_artifact(
+                    self.spec.model_uri
+                )
             )
             return self.spec._model_artifact
         return None
@@ -140,9 +142,9 @@ class LLMPromptArtifact(Artifact):
         if self.spec.prompt_string:
             return self.spec.prompt_string
         if self.spec.target_path:
-            with mlrun.datastore.remote_client_manager.object(url=self.spec.target_path).open(
-                mode="r"
-            ) as p_file:
+            with mlrun.datastore.remote_client_manager.object(
+                url=self.spec.target_path
+            ).open(mode="r") as p_file:
                 return p_file.read()
 
     def before_log(self):

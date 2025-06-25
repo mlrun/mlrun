@@ -450,8 +450,8 @@ class BaseStoreTarget(DataTargetBase):
         )
 
     def _get_store_and_path(self):
-        store, resolved_store_path, url = mlrun.remote_client_manager.get_or_create_store(
-            self.get_target_path()
+        store, resolved_store_path, url = (
+            mlrun.remote_client_manager.get_or_create_store(self.get_target_path())
         )
         return store, resolved_store_path, url
 

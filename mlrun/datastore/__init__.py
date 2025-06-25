@@ -32,7 +32,7 @@ __all__ = [
     "get_stream_pusher",
     "ConfigProfile",
     "VectorStoreCollection",
-    "remote_client_manager"
+    "remote_client_manager",
 ]
 
 from urllib.parse import urlparse

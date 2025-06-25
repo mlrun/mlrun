@@ -413,7 +413,9 @@ class ModelArtifact(Artifact):
         spec_target_path = spec_target_path or path.join(
             self.spec.target_path, model_spec_filename
         )
-        mlrun.datastore.remote_client_manager.object(url=spec_target_path).put(spec_body)
+        mlrun.datastore.remote_client_manager.object(url=spec_target_path).put(
+            spec_body
+        )
 
     def _upload_body_or_file(
         self,
@@ -515,8 +517,8 @@ def get_model(
     )
     if is_store_uri or isinstance(model_dir, ModelArtifact):
         if is_store_uri:
-            model_spec, target = mlrun.datastore.remote_client_manager.get_store_artifact(
-                model_dir
+            model_spec, target = (
+                mlrun.datastore.remote_client_manager.get_store_artifact(model_dir)
             )
         else:
             model_spec, target = model_dir, model_dir.get_target_path()
@@ -614,7 +616,9 @@ def update_model(
     if isinstance(model_artifact, ModelArtifact):
         model_spec = model_artifact
     elif mlrun.datastore.is_store_uri(model_artifact):
-        model_spec, _ = mlrun.datastore.remote_client_manager.get_store_artifact(model_artifact)
+        model_spec, _ = mlrun.datastore.remote_client_manager.get_store_artifact(
+            model_artifact
+        )
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")
 

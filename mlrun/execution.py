@@ -1369,7 +1369,9 @@ class MLClientCtx:
                 self._rundb = rundb
         else:
             self._rundb = mlrun.get_run_db()
-        self._data_stores = remote_client_manager.set(self._secrets_manager, db=self._rundb)
+        self._data_stores = remote_client_manager.set(
+            self._secrets_manager, db=self._rundb
+        )
         self._artifacts_manager = ArtifactManager(db=self._rundb)
 
     def _load_project_object(self) -> Optional["mlrun.MlrunProject"]:

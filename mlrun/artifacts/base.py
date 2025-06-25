@@ -412,9 +412,9 @@ class Artifact(ModelObj):
             self.metadata.hash = body_hash or calculate_blob_hash(body)
         self.spec.size = len(body)
 
-        mlrun.datastore.remote_client_manager.object(url=target or self.spec.target_path).put(
-            body
-        )
+        mlrun.datastore.remote_client_manager.object(
+            url=target or self.spec.target_path
+        ).put(body)
 
     def _upload_file(
         self,
@@ -713,7 +713,9 @@ class DirArtifact(Artifact):
                     "set to False"
                 )
 
-            mlrun.datastore.remote_client_manager.object(url=target_path).upload(file_path)
+            mlrun.datastore.remote_client_manager.object(url=target_path).upload(
+                file_path
+            )
             # add files of the directory to the extra data of the artifact with value of the target path
             self.spec.extra_data[file_name] = target_path
 
@@ -839,8 +841,8 @@ def get_artifact_meta(artifact):
         artifact = artifact.artifact_url
 
     if mlrun.datastore.is_store_uri(artifact):
-        artifact_spec, target = mlrun.datastore.remote_client_manager.get_store_artifact(
-            artifact
+        artifact_spec, target = (
+            mlrun.datastore.remote_client_manager.get_store_artifact(artifact)
         )
 
     elif artifact.lower().endswith(".yaml"):

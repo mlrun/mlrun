@@ -222,7 +222,9 @@ def test_as_df_time_filters(start_time_tz, end_time_tz, df_tz):
             full_df[time_column] = full_df[time_column].dt.tz_localize("UTC")
         full_df.to_parquet(parquet_file.name)
 
-        data_item = mlrun.datastore.remote_client_manager.object(f"file://{parquet_file.name}")
+        data_item = mlrun.datastore.remote_client_manager.object(
+            f"file://{parquet_file.name}"
+        )
 
         start_time = None
         tzinfo = pytz.UTC if start_time_tz == "with_tz" else None

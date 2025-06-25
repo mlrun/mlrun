@@ -169,7 +169,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         from mlrun.run import new_function
         from mlrun.runtimes import RemoteSparkRuntime
 
-        store, _, _ = remote_client_manager.get_or_create_store(cls.get_remote_pq_source_path())
+        store, _, _ = remote_client_manager.get_or_create_store(
+            cls.get_remote_pq_source_path()
+        )
         store.upload(
             cls.get_remote_pq_source_path(without_prefix=True),
             cls.get_local_pq_source_path(),

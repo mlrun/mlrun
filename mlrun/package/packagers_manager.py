@@ -275,7 +275,9 @@ class PackagersManager:
         # Try to get the notes and instructions (can be found only in artifacts but data item may be a simple path/url):
         if data_item.get_artifact_type():
             # Get the artifact object in the data item:
-            artifact, _ = remote_client_manager.get_store_artifact(url=data_item.artifact_url)
+            artifact, _ = remote_client_manager.get_store_artifact(
+                url=data_item.artifact_url
+            )
             # Get the key from the artifact's metadata and instructions from the artifact's spec:
             artifact_key = artifact.metadata.key
             packaging_instructions = artifact.spec.unpackaging_instructions

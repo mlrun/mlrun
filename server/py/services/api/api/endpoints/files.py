@@ -135,7 +135,9 @@ def _get_files(
 
     body = None
     try:
-        obj = remote_client_manager.object(url=objpath, secrets=secrets, project=project)
+        obj = remote_client_manager.object(
+            url=objpath, secrets=secrets, project=project
+        )
         if objpath.endswith("/"):
             listdir = obj.listdir()
             return {

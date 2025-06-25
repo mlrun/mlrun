@@ -423,7 +423,9 @@ def update_dataset_meta(
     if isinstance(artifact, DatasetArtifact):
         artifact_spec = artifact
     elif mlrun.datastore.is_store_uri(artifact):
-        artifact_spec, _ = mlrun.datastore.remote_client_manager.get_store_artifact(artifact)
+        artifact_spec, _ = mlrun.datastore.remote_client_manager.get_store_artifact(
+            artifact
+        )
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")
 

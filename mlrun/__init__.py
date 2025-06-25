@@ -24,7 +24,7 @@ __all__ = [
     "v3io_cred",
     "auto_mount",
     "VolumeMount",
-    "remote_client_manager"
+    "remote_client_manager",
 ]
 
 from os import environ, path

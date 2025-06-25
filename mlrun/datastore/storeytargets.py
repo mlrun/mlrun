@@ -39,7 +39,9 @@ To avoid passing it openly within the graph, we use wrapper classes.
 
 
 def get_url_and_storage_options(path, external_storage_options=None):
-    store, resolved_store_path, url = mlrun.remote_client_manager.get_or_create_store(path)
+    store, resolved_store_path, url = mlrun.remote_client_manager.get_or_create_store(
+        path
+    )
     storage_options = store.get_storage_options()
     if storage_options and external_storage_options:
         # merge external storage options with the store's storage options. storage_options takes precedence

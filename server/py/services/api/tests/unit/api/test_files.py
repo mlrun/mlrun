@@ -62,7 +62,9 @@ class DatastoreObjectMock:
 @pytest.fixture
 def files_mock():
     old_object = mlrun.remote_client_manager.object
-    mlrun.remote_client_manager.object = unittest.mock.Mock(return_value=DatastoreObjectMock())
+    mlrun.remote_client_manager.object = unittest.mock.Mock(
+        return_value=DatastoreObjectMock()
+    )
 
     yield mlrun.remote_client_manager.object
 

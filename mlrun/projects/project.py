@@ -159,7 +159,7 @@ def new_project(
     parameters: Optional[dict] = None,
     default_function_node_selector: Optional[dict] = None,
 ) -> "MlrunProject":
-    """Create a new MLRun project, optionally load it from a yaml/zip/git template. 
+    """Create a new MLRun project, optionally load it from a yaml/zip/git template.
     The project will become the active project for the current session.
 
     A new project is created and returned, you can customize the project by placing a project_setup.py file
@@ -327,7 +327,7 @@ def load_project(
     parameters: Optional[dict] = None,
     allow_cross_project: Optional[bool] = None,
 ) -> "MlrunProject":
-    """Load an MLRun project from git or tar or dir. The project will become the active project for 
+    """Load an MLRun project from git or tar or dir. The project will become the active project for
     the current session.
 
     MLRun looks for a project.yaml file with project definition and objects in the project root path

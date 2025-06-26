@@ -37,6 +37,48 @@ class QueryResult:
         return f"QueryResult(rows={len(self.data)}, fields={self.fields})"
 
 
+class Statement:
+    """
+    Represents a parameterized statement for TimescaleDB.
+
+    This class encapsulates SQL statements with parameters, providing a clean
+    interface
+    """
+
+    def __init__(
+        self,
+        sql: str,
+        parameters: Optional[Union[tuple, list, dict]] = None,
+        execute_many: bool = False,
+    ):
+        """
+        Initialize a parameterized statement.
+
+        :param sql: SQL query with parameter placeholders. Use %(name)s for named parameters
+                   or %s for positional parameters.
+        :param parameters: Parameters for the SQL statement. Can be:
+                         - tuple/list for positional parameters
+                         - dict for named parameters
+                         - list of tuples/dicts for execute_many=True
+        :param execute_many: If True, expects parameters to be a sequence of parameter sets
+                           for batch execution using executemany()
+        """
+        self.sql = sql
+        self.parameters = parameters
+        self.execute_many = execute_many
+
+    def execute(self, cursor) -> None:
+        """Execute the statement using the provided cursor."""
+        if self.execute_many:
+            if not isinstance(self.parameters, (list, tuple)):
+                raise ValueError(
+                    "execute_many=True requires parameters to be a sequence"
+                )
+            cursor.executemany(self.sql, self.parameters)
+        else:
+            cursor.execute(self.sql, self.parameters)
+
+
 # Global connection pool and lock (similar to TDEngine pattern)
 _connection_pool = None
 _connection_lock = Lock()
@@ -44,15 +86,16 @@ _connection_lock = Lock()
 
 class TimescaleDBConnection:
     """
-    TimescaleDB connection with shared connection pool among all threads.
+    TimescaleDB connection with shared connection pool and parameterized query support.
 
     Features:
-    - X connections shared among all threads for optimal resource usage
+    - Shared connection pool among all threads for optimal resource usage
     - Thread-safe connection borrowing/returning
     - Automatic connection reuse across threads
     - Configurable pool size based on expected thread load
     - Robust retry logic with connection recovery
     - Exponential backoff for transient failures
+    - Support for parameterized queries
     """
 
     def __init__(
@@ -62,14 +105,14 @@ class TimescaleDBConnection:
         max_connections: int = 10,
         max_retries: int = 3,
         retry_delay: float = 1.0,
-        autocommit=True,
+        autocommit: bool = False,
     ):
         self._dsn = dsn
         self._min_connections = min_connections
         self._max_connections = max_connections
         self._max_retries = max_retries
         self._retry_delay = retry_delay
-        self.prefix_statements: list[str] = []
+        self.prefix_statements: list[Union[str, Statement]] = []
         self._autocommit = autocommit
 
     def pool(self) -> psycopg2.pool.ThreadedConnectionPool:
@@ -100,13 +143,21 @@ class TimescaleDBConnection:
 
     def run(
         self,
-        statements: Optional[Union[str, list[str]]] = None,
-        query: Optional[str] = None,
+        statements: Optional[Union[str, Statement, list[Union[str, Statement]]]] = None,
+        query: Optional[Union[str, Statement]] = None,
     ) -> Optional[QueryResult]:
         """
         Execute statements and optionally return query results with retry logic.
 
+        Supports both string SQL and parameterized Statement objects.
         Uses retry parameters configured in constructor for consistent behavior.
+
+        :param statements: SQL statements to execute. Can be:
+                         - str: Simple SQL string
+                         - Statement: Parameterized statement
+                         - list: Mix of str and Statement objects
+        :param query: Optional query to execute after statements. Can be str or Statement.
+        :return: QueryResult if query provided, None otherwise
         """
         statements = self._normalize_statements(statements)
 
@@ -131,19 +182,25 @@ class TimescaleDBConnection:
         )
 
     def _normalize_statements(
-        self, statements: Optional[Union[str, list[str]]]
-    ) -> list[str]:
+        self, statements: Optional[Union[str, Statement, list[Union[str, Statement]]]]
+    ) -> list[Union[str, Statement]]:
         """Convert statements to a normalized list format."""
         if statements is None:
             return []
-        return statements if isinstance(statements, list) else [statements]
+        if isinstance(statements, (str, Statement)):
+            return [statements]
+        return statements
 
     def _execute_operation(
-        self, statements: list[str], query: Optional[str]
+        self,
+        statements: list[Union[str, Statement]],
+        query: Optional[Union[str, Statement]],
     ) -> Optional[QueryResult]:
         """Execute a single database operation (statements + optional query)."""
         conn = self.pool().getconn()
         conn.autocommit = self._autocommit
+        cursor = None
+
         try:
             cursor = conn.cursor()
 
@@ -158,21 +215,32 @@ class TimescaleDBConnection:
                     conn.rollback()
             raise
         finally:
-            self._cleanup_connection(conn, cursor if "cursor" in locals() else None)
+            self._cleanup_connection(conn, cursor)
 
-    def _execute_statements(self, cursor, statements: list[str]) -> None:
+    def _execute_statements(
+        self, cursor, statements: list[Union[str, Statement]]
+    ) -> None:
         """Execute prefix statements and main statements."""
         # Execute prefix statements
         for stmt in self.prefix_statements:
-            cursor.execute(stmt)
+            if isinstance(stmt, Statement):
+                stmt.execute(cursor)
+            else:
+                cursor.execute(stmt)
 
         # Execute main statements
         for statement in statements:
-            cursor.execute(statement)
+            if isinstance(statement, Statement):
+                statement.execute(cursor)
+            else:
+                cursor.execute(statement)
 
-    def _execute_query(self, cursor, query: str) -> QueryResult:
+    def _execute_query(self, cursor, query: Union[str, Statement]) -> QueryResult:
         """Execute a query and return formatted results."""
-        cursor.execute(query)
+        if isinstance(query, Statement):
+            query.execute(cursor)
+        else:
+            cursor.execute(query)
 
         if cursor.description:
             field_names = [desc[0] for desc in cursor.description]

@@ -35,6 +35,7 @@ import psycopg2  # noqa: E402
 
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (  # noqa: E402
     QueryResult,
+    Statement,
     TimescaleDBConnection,
 )
 
@@ -223,7 +224,7 @@ class TestTimescaleDBConnection:
     @pytest.mark.parametrize(
         "autocommit,expected_autocommit",
         [
-            (None, True),  # Default case
+            (None, False),  # Default case
             (True, True),
             (False, False),
         ],
@@ -585,6 +586,506 @@ class TestTimescaleDBConnection:
             # Verify autocommit was set correctly (should be called twice, once for each connection)
             # The exact verification depends on the mock setup, but we can check that operations completed
             assert mock_pool.getconn.call_count >= 2
+
+
+# Add these test classes to the existing test_timescaledb_connection.py file
+
+
+class TestStatement:
+    """Test the Statement class for parameterized queries."""
+
+    def test_statement_creation_positional_params(self):
+        stmt = Statement("SELECT * FROM table WHERE id = %s", (123,))
+
+        assert stmt.sql == "SELECT * FROM table WHERE id = %s"
+        assert stmt.parameters == (123,)
+        assert stmt.execute_many is False
+
+    def test_statement_creation_named_params(self):
+        stmt = Statement(
+            "SELECT * FROM table WHERE id = %(id)s AND name = %(name)s",
+            {"id": 123, "name": "test"},
+        )
+
+        assert stmt.sql == "SELECT * FROM table WHERE id = %(id)s AND name = %(name)s"
+        assert stmt.parameters == {"id": 123, "name": "test"}
+        assert stmt.execute_many is False
+
+    def test_statement_creation_no_params(self):
+        stmt = Statement("SELECT 1")
+
+        assert stmt.sql == "SELECT 1"
+        assert stmt.parameters is None
+        assert stmt.execute_many is False
+
+    def test_statement_creation_execute_many(self):
+        params = [(1, "first"), (2, "second"), (3, "third")]
+        stmt = Statement(
+            "INSERT INTO table (id, name) VALUES (%s, %s)", params, execute_many=True
+        )
+
+        assert stmt.sql == "INSERT INTO table (id, name) VALUES (%s, %s)"
+        assert stmt.parameters == params
+        assert stmt.execute_many is True
+
+    def test_statement_execute_single(self):
+        from unittest.mock import Mock
+
+        cursor = Mock()
+        stmt = Statement("SELECT * FROM table WHERE id = %s", (123,))
+
+        stmt.execute(cursor)
+
+        cursor.execute.assert_called_once_with(
+            "SELECT * FROM table WHERE id = %s", (123,)
+        )
+
+    def test_statement_execute_many_valid(self):
+        from unittest.mock import Mock
+
+        cursor = Mock()
+        params = [(1, "first"), (2, "second")]
+        stmt = Statement(
+            "INSERT INTO table (id, name) VALUES (%s, %s)", params, execute_many=True
+        )
+
+        stmt.execute(cursor)
+
+        cursor.executemany.assert_called_once_with(
+            "INSERT INTO table (id, name) VALUES (%s, %s)", params
+        )
+
+    def test_statement_execute_many_invalid_params(self):
+        from unittest.mock import Mock
+
+        cursor = Mock()
+        stmt = Statement(
+            "INSERT INTO table (id, name) VALUES (%s, %s)",
+            "invalid_params",  # Should be list/tuple for execute_many
+            execute_many=True,
+        )
+
+        with pytest.raises(
+            ValueError, match="execute_many=True requires parameters to be a sequence"
+        ):
+            stmt.execute(cursor)
+
+
+class TestParameterizedQueries:
+    """Test parameterized query functionality with actual database operations."""
+
+    def test_parameterized_insert_positional(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        stmt = Statement(
+            f"INSERT INTO {sample_table} (sensor_id, temperature, humidity) VALUES (%s, %s, %s)",
+            ("sensor_param", 25.5, 70),
+        )
+
+        db_connection.run(statements=[stmt])
+
+        result = db_connection.run(
+            query=f"SELECT sensor_id, temperature, humidity FROM {sample_table} WHERE sensor_id = 'sensor_param'"
+        )
+
+        assert len(result.data) == 1
+        assert result.data[0] == ("sensor_param", 25.5, 70)
+
+    def test_parameterized_insert_named(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        stmt = Statement(
+            f"INSERT INTO {sample_table} (sensor_id, temperature, humidity) VALUES (%(sensor)s, %(temp)s, %(humid)s)",
+            {"sensor": "sensor_named", "temp": 22.3, "humid": 65},
+        )
+
+        db_connection.run(statements=[stmt])
+
+        result = db_connection.run(
+            query=f"SELECT sensor_id, temperature, humidity FROM {sample_table} WHERE sensor_id = 'sensor_named'"
+        )
+
+        assert len(result.data) == 1
+        assert result.data[0] == ("sensor_named", 22.3, 65)
+
+    def test_parameterized_query_positional(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        # Insert test data
+        db_connection.run(
+            statements=[
+                f"INSERT INTO {sample_table} (sensor_id, temperature) VALUES ('test1', 20.0)",
+                f"INSERT INTO {sample_table} (sensor_id, temperature) VALUES ('test2', 25.0)",
+                f"INSERT INTO {sample_table} (sensor_id, temperature) VALUES ('test3', 30.0)",
+            ]
+        )
+
+        # Query with parameters
+        query_stmt = Statement(
+            f"SELECT sensor_id, temperature FROM {sample_table} WHERE temperature > %s "
+            "AND temperature < %s ORDER BY temperature",
+            (22.0, 28.0),
+        )
+
+        result = db_connection.run(query=query_stmt)
+
+        assert len(result.data) == 1
+        assert result.data[0] == ("test2", 25.0)
+
+    def test_parameterized_query_named(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        # Insert test data
+        db_connection.run(
+            statements=[
+                f"INSERT INTO {sample_table} (sensor_id, temperature) VALUES ('sensor_a', 15.5)",
+                f"INSERT INTO {sample_table} (sensor_id, temperature) VALUES ('sensor_b', 18.2)",
+                f"INSERT INTO {sample_table} (sensor_id, temperature) VALUES ('sensor_c', 21.0)",
+            ]
+        )
+
+        # Query with named parameters
+        query_stmt = Statement(
+            f"SELECT sensor_id, temperature FROM {sample_table} WHERE sensor_id = %(id)s",
+            {"id": "sensor_b"},
+        )
+
+        result = db_connection.run(query=query_stmt)
+
+        assert len(result.data) == 1
+        assert result.data[0] == ("sensor_b", 18.2)
+
+    def test_execute_many_insert(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        # Batch insert using execute_many
+        batch_data = [("batch1", 10.0, 40), ("batch2", 15.0, 50), ("batch3", 20.0, 60)]
+
+        stmt = Statement(
+            f"INSERT INTO {sample_table} (sensor_id, temperature, humidity) VALUES (%s, %s, %s)",
+            batch_data,
+            execute_many=True,
+        )
+
+        db_connection.run(statements=[stmt])
+
+        result = db_connection.run(
+            query=f"SELECT COUNT(*) FROM {sample_table} WHERE sensor_id LIKE 'batch%'"
+        )
+
+        assert result.data[0][0] == 3
+
+    def test_mixed_statement_types(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        # Mix of string SQL and Statement objects
+        param_stmt = Statement(
+            f"INSERT INTO {sample_table} (sensor_id, temperature) VALUES (%s, %s)",
+            ("mixed_test", 35.5),
+        )
+
+        statements = [
+            f"INSERT INTO {sample_table} (sensor_id, temperature) VALUES ('string_test', 40.0)",
+            param_stmt,
+        ]
+
+        db_connection.run(statements=statements)
+
+        result = db_connection.run(
+            query=f"SELECT sensor_id FROM {sample_table} WHERE sensor_id IN "
+            "('string_test', 'mixed_test') ORDER BY sensor_id"
+        )
+
+        assert len(result.data) == 2
+        assert result.data[0][0] == "mixed_test"
+        assert result.data[1][0] == "string_test"
+
+    def test_sql_injection_protection(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        # Insert legitimate data
+        db_connection.run(
+            statements=[
+                f"INSERT INTO {sample_table} (sensor_id, temperature) VALUES ('legitimate', 25.0)"
+            ]
+        )
+
+        # Attempt SQL injection via parameter (should be safely escaped)
+        malicious_input = "'; DROP TABLE " + sample_table + "; --"
+
+        stmt = Statement(
+            f"SELECT * FROM {sample_table} WHERE sensor_id = %s", (malicious_input,)
+        )
+
+        # This should not cause any errors and should return no results
+        result = db_connection.run(query=stmt)
+        assert len(result.data) == 0
+
+        # Verify table still exists and data is intact
+        check_result = db_connection.run(query=f"SELECT COUNT(*) FROM {sample_table}")
+        assert check_result.data[0][0] == 1
+
+    def test_null_parameter_handling(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        # Insert with NULL values using parameters
+        stmt = Statement(
+            f"INSERT INTO {sample_table} (sensor_id, temperature, humidity) VALUES (%s, %s, %s)",
+            ("null_test", None, 50),
+        )
+
+        db_connection.run(statements=[stmt])
+
+        result = db_connection.run(
+            query=f"SELECT sensor_id, temperature, humidity FROM {sample_table} WHERE sensor_id = 'null_test'"
+        )
+
+        assert len(result.data) == 1
+        assert result.data[0][0] == "null_test"
+        assert result.data[0][1] is None
+        assert result.data[0][2] == 50
+
+    def test_parameter_type_conversion(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        import datetime
+
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        # Test various parameter types
+        timestamp = datetime.datetime(2024, 1, 15, 12, 30, 45)
+
+        stmt = Statement(
+            f"INSERT INTO {sample_table} (time, sensor_id, temperature, humidity) VALUES (%s, %s, %s, %s)",
+            (timestamp, "type_test", 23.7, 55),
+        )
+
+        db_connection.run(statements=[stmt])
+
+        result = db_connection.run(
+            query=f"SELECT sensor_id, temperature, humidity FROM {sample_table} WHERE sensor_id = 'type_test'"
+        )
+
+        assert len(result.data) == 1
+        assert result.data[0] == ("type_test", 23.7, 55)
+
+    def test_large_parameter_set(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        # Test with many parameters in executemany
+        batch_size = 100
+        batch_data = [(f"large_test_{i}", float(i), i % 100) for i in range(batch_size)]
+
+        stmt = Statement(
+            f"INSERT INTO {sample_table} (sensor_id, temperature, humidity) VALUES (%s, %s, %s)",
+            batch_data,
+            execute_many=True,
+        )
+
+        db_connection.run(statements=[stmt])
+
+        result = db_connection.run(
+            query=f"SELECT COUNT(*) FROM {sample_table} WHERE sensor_id LIKE 'large_test_%'"
+        )
+
+        assert result.data[0][0] == batch_size
+
+    def test_parameterized_with_prefix_statements(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        # Set prefix statement
+        db_connection.prefix_statements = ["SET work_mem = '4MB'"]
+
+        stmt = Statement(
+            f"INSERT INTO {sample_table} (sensor_id, temperature) VALUES (%s, %s)",
+            ("prefix_test", 42.0),
+        )
+
+        db_connection.run(statements=[stmt])
+
+        # Verify data was inserted
+        result = db_connection.run(
+            query=f"SELECT temperature FROM {sample_table} WHERE sensor_id = 'prefix_test'"
+        )
+
+        assert len(result.data) == 1
+        assert result.data[0][0] == 42.0
+
+        # Clean up prefix statements
+        db_connection.prefix_statements = []
+
+    def test_error_handling_with_parameters(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        # Test error handling with parameterized queries
+        stmt = Statement(
+            f"INSERT INTO {sample_table} (sensor_id, temperature, nonexistent_column) VALUES (%s, %s, %s)",
+            ("error_test", 25.0, "should_fail"),
+        )
+
+        with pytest.raises(mlrun.errors.MLRunRuntimeError):
+            db_connection.run(statements=[stmt])
+
+    def test_transaction_rollback_with_parameters(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        # Insert initial data
+        db_connection.run(
+            statements=[
+                f"INSERT INTO {sample_table} (sensor_id, temperature) VALUES ('rollback_test', 30.0)"
+            ]
+        )
+
+        # Attempt transaction with error
+        good_stmt = Statement(
+            f"INSERT INTO {sample_table} (sensor_id, temperature) VALUES (%s, %s)",
+            ("good_insert", 35.0),
+        )
+
+        bad_stmt = Statement(
+            f"INSERT INTO {sample_table} (sensor_id, temperature, nonexistent_col) VALUES (%s, %s, %s)",
+            ("bad_insert", 40.0, "fail"),
+        )
+
+        with pytest.raises(mlrun.errors.MLRunRuntimeError):
+            db_connection.run(statements=[good_stmt, bad_stmt])
+
+        # Verify transaction was rolled back
+        result = db_connection.run(
+            query=f"SELECT COUNT(*) FROM {sample_table} WHERE sensor_id IN ('good_insert', 'bad_insert')"
+        )
+        assert result.data[0][0] == 0
+
+        # Verify original data is still there
+        result = db_connection.run(
+            query=f"SELECT COUNT(*) FROM {sample_table} WHERE sensor_id = 'rollback_test'"
+        )
+        assert result.data[0][0] == 1
+
+
+class TestParameterizedQueryEdgeCases:
+    """Test edge cases and special scenarios for parameterized queries."""
+
+    def test_empty_parameter_list_execute_many(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        # Test execute_many with empty parameter list
+        stmt = Statement(
+            f"INSERT INTO {sample_table} (sensor_id, temperature) VALUES (%s, %s)",
+            [],
+            execute_many=True,
+        )
+
+        # Should not raise an error, just do nothing
+        db_connection.run(statements=[stmt])
+
+        result = db_connection.run(query=f"SELECT COUNT(*) FROM {sample_table}")
+        # Count should be 0 since nothing was inserted
+        assert result.data[0][0] == 0
+
+    def test_unicode_parameters(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        # Test Unicode characters in parameters
+        unicode_sensor = "传感器_测试"  # Chinese characters
+
+        stmt = Statement(
+            f"INSERT INTO {sample_table} (sensor_id, temperature) VALUES (%s, %s)",
+            (unicode_sensor, 25.0),
+        )
+
+        db_connection.run(statements=[stmt])
+
+        result = db_connection.run(
+            query=Statement(
+                f"SELECT sensor_id FROM {sample_table} WHERE sensor_id = %s",
+                (unicode_sensor,),
+            )
+        )
+
+        assert len(result.data) == 1
+        assert result.data[0][0] == unicode_sensor
+
+    def test_very_long_string_parameter(
+        self, db_connection: TimescaleDBConnection, sample_table: str
+    ):
+        from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+            Statement,
+        )
+
+        # Test with very long string (within reasonable limits)
+        long_sensor_id = "test_" + "x" * 50  # 55 characters total
+
+        stmt = Statement(
+            f"INSERT INTO {sample_table} (sensor_id, temperature) VALUES (%s, %s)",
+            (long_sensor_id, 25.0),
+        )
+
+        db_connection.run(statements=[stmt])
+
+        result = db_connection.run(
+            query=Statement(
+                f"SELECT LENGTH(sensor_id) FROM {sample_table} WHERE sensor_id = %s",
+                (long_sensor_id,),
+            )
+        )
+
+        assert len(result.data) == 1
+        assert result.data[0][0] == 55
 
 
 if __name__ == "__main__":

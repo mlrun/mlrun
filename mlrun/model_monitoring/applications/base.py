@@ -282,10 +282,13 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 return result
 
             if endpoints is not None:
+                resolved_endpoints = self._handle_endpoints_type_evaluate(
+                    project=project, endpoints=endpoints
+                )
                 for window_start, window_end in self._window_generator(
                     start, end, base_period
                 ):
-                    for endpoint_name, endpoint_id in endpoints:
+                    for endpoint_name, endpoint_id in resolved_endpoints:
                         result = call_do_tracking(
                             event={
                                 mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
@@ -308,9 +311,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
     @staticmethod
     def _handle_endpoints_type_evaluate(
-        project: str,
-        endpoints: Union[list[tuple[str, str]], list[str], Literal["all"]],
-    ) -> list[tuple[str, str]]:
+        project: "mlrun.MlrunProject",
+        endpoints: Union[
+            list[tuple[str, str]], list[list[str]], list[str], Literal["all"]
+        ],
+    ) -> Union[list[tuple[str, str]], list[list[str]]]:
         if not endpoints:
             raise mlrun.errors.MLRunValueError(
                 "The endpoints list cannot be empty. If you want to run on all the endpoints, "
@@ -338,11 +343,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         else:
             endpoint_names = endpoints
 
-        endpoints_list = (
-            mlrun.get_run_db()
-            .list_model_endpoints(project, names=endpoint_names, latest_only=True)
-            .endpoints
-        )
+        endpoints_list = project.list_model_endpoints(
+            names=endpoint_names, latest_only=True
+        ).endpoints
         if endpoints_list:
             list_endpoints_result = [
                 (endpoint.metadata.name, endpoint.metadata.uid)
@@ -650,10 +653,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
         params: dict[str, Union[list, str, int, None, ds_profile.DatastoreProfile]] = {}
         if endpoints:
-            endpoints = cls._handle_endpoints_type_evaluate(
-                project=project.name,
-                endpoints=endpoints,
-            )
             params["endpoints"] = endpoints
             if sample_data is None:
                 if start is None or end is None:

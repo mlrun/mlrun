@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
@@ -457,18 +458,21 @@ class TestToJob:
         assert run.state() == "completed"
 
 
+@pytest.fixture
+def project(tmpdir: Path) -> mlrun.MlrunProject:
+    return mlrun.get_or_create_project("test-endpoints-handler", context=str(tmpdir))
+
+
 @pytest.mark.parametrize(
     "endpoints", ["all", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]
 )
 @pytest.mark.usefixtures("rundb_mock")
 def test_handle_endpoints_type_evaluate(
-    endpoints: Union[str, list[str], list[tuple[str, str]]],
+    project: mlrun.MlrunProject, endpoints: Union[str, list[str], list[tuple[str, str]]]
 ) -> None:
-    project = "test-endpoints-handler"
     endpoints_output = ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
         project, endpoints
     )
-
     assert endpoints_output == [("model-ep-1", "model-ep-1-uid")]
 
 
@@ -481,7 +485,9 @@ def test_handle_endpoints_type_evaluate(
     ],
 )
 def test_handle_endpoints_type_evaluate_error(
-    endpoints: Union[str, list[str]], err_msg: str
+    project: mlrun.MlrunProject, endpoints: Union[str, list[str]], err_msg: str
 ) -> None:
     with pytest.raises(mlrun.errors.MLRunValueError, match=err_msg):
-        ModelMonitoringApplicationBase._handle_endpoints_type_evaluate("tmp", endpoints)
+        ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
+            project, endpoints
+        )

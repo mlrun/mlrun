@@ -32,12 +32,7 @@ class RedisStore(DataStore):
     """
 
     def __init__(
-        self,
-        parent,
-        schema,
-        name,
-        endpoint="",
-        secrets: Optional[dict] = None,
+self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
     ):
         redis_default_port = "6379"
         super().__init__(parent, name, schema, endpoint, secrets=secrets)

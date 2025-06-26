@@ -29,7 +29,6 @@ from sqlalchemy import (
     Index,
     Integer,
     PrimaryKeyConstraint,
-    Table,
     UniqueConstraint,
     event,
     text,
@@ -581,8 +580,6 @@ with warnings.catch_warnings():
         @cron_trigger.setter
         def cron_trigger(self, trigger: mlrun.common.schemas.ScheduleCronTrigger):
             self.cron_trigger_str = orjson.dumps(trigger.dict(exclude_unset=True))
-
-
 
     class Project(Base, LabelMixin, mlrun.utils.db.BaseModel):
         __tablename__ = "projects"

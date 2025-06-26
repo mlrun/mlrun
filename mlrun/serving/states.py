@@ -1261,7 +1261,15 @@ class ModelRunnerStep(MonitoredStep):
         :param override:            bool allow override existing model on the current ModelRunnerStep.
         :param model_parameters:    Parameters for model instantiation
         """
-        model_parameters = model_parameters or {}
+
+        if not isinstance(model_class, str) and model_parameters:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot provide as model initialized model object with model_parameters."
+            )
+
+        model_parameters = model_parameters or (
+            model_class.to_dict() if isinstance(model_class, Model) else {}
+        )
         if outputs is None and isinstance(
             model_artifact, mlrun.artifacts.ModelArtifact
         ):
@@ -1291,15 +1299,12 @@ class ModelRunnerStep(MonitoredStep):
         monitoring_data = self.class_args.get(
             schemas.ModelRunnerStepData.MONITORING_DATA, {}
         )
-        model_class_dict = (
-            model_class.to_dict() if isinstance(model_class, Model) else None
-        )
         model_class = (
             model_class
             if isinstance(model_class, str)
             else model_class.__class__.__name__
         )
-        models[endpoint_name] = (model_class, model_parameters, model_class_dict)
+        models[endpoint_name] = (model_class, model_parameters)
         monitoring_data[endpoint_name] = {
             schemas.MonitoringData.INPUTS: inputs,
             schemas.MonitoringData.OUTPUTS: outputs,
@@ -1370,17 +1375,11 @@ class ModelRunnerStep(MonitoredStep):
         if isinstance(model_selector, str):
             model_selector = get_class(model_selector, namespace)()
         model_objects = []
-        for model, model_params, model_dict in models.values():
-            if model_dict is not None:
-                model = get_class(model, namespace).from_dict(
-                    model_dict, init_with_params=True
-                )
-                model._raise_exception = False
-            elif isinstance(model, str):
-                # prevent model predict from raising error
-                model_params["raise_exception"] = False
-                model = get_class(model, namespace)(**model_params)
-
+        for model, model_params in models.values():
+            model = get_class(model, namespace).from_dict(
+                model_params, init_with_params=True
+            )
+            model._raise_exception = False
             model_objects.append(model)
         self._async_object = ModelRunner(
             model_selector=model_selector,

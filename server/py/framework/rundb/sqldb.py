@@ -941,6 +941,15 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def retry_pipeline(
+        self,
+        run_id: str,
+        project: str,
+        namespace: Optional[str] = None,
+        timeout: int = 30,
+    ):
+        raise NotImplementedError()
+
     def list_pipelines(
         self,
         project: str,

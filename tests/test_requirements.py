@@ -272,10 +272,29 @@ def test_requirement_from_remote():
     }
 
 
-def _generate_all_requirement_specifiers_map() -> dict[str, set]:
-    requirements_file_paths = list(
-        pathlib.Path(tests.conftest.root_path).rglob("**/*requirements.txt")
+def find_requirement_files() -> list[pathlib.Path]:
+    root = pathlib.Path(tests.conftest.root_path)
+    deep_dirs = (
+        root / "dockerfiles",
+        root / "automation",
+        root / "docs",
     )
+    skip_dirs = ("venv", ".git", "__pycache__")
+
+    def valid(p: pathlib.Path) -> bool:
+        return p.name != "locked-requirements.txt" and not any(
+            skip in p.parts for skip in skip_dirs
+        )
+
+    files = [p for p in root.glob("*requirements.txt") if valid(p)]
+
+    for deep_dir in deep_dirs:
+        files.extend(p for p in deep_dir.rglob("**/*requirements.txt") if valid(p))
+    return files
+
+
+def _generate_all_requirement_specifiers_map() -> dict[str, set]:
+    requirements_file_paths = find_requirement_files()
     venv_path = pathlib.Path(tests.conftest.root_path) / "venv"
     requirements_file_paths = [
         path

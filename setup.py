@@ -69,12 +69,10 @@ setup(
     ],
     python_requires=">=3.9, <3.12",
     install_requires=dependencies.base_requirements(),
-    tests_require=dependencies.dev_requirements(),
     extras_require=dependencies.extra_requirements(),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: Apache Software License",
         "Operating System :: POSIX :: Linux",
         "Operating System :: Microsoft :: Windows",
         "Operating System :: MacOS",

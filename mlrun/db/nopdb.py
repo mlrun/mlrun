@@ -524,6 +524,15 @@ class NopDB(RunDBInterface):
     ):
         pass
 
+    def retry_pipeline(
+        self,
+        run_id: str,
+        project: str,
+        namespace: Optional[str] = None,
+        timeout: int = 30,
+    ):
+        pass
+
     def list_pipelines(
         self,
         project: str,

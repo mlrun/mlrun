@@ -48,10 +48,10 @@ This runs the job every hour. An excellent resource for generating Cron schedule
 
 ## Scheduling a workflow
 
-```{admonition} Note
-Tech Preview
-```
-Scheduled jobs are essentially [remote-KFP workflows](./local-remote.md#remote-kfp) with a schedule. 
+
+Scheduled jobs are essentially workflows run with the `remote` engine, with a schedule.
+See the full description of [remote-KFP workflows](./local-remote.md#remote-kfp).
+
 After loading the project (`load_project`), run the project with the scheduled workflow:
 
 ```

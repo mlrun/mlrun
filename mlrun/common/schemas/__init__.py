@@ -218,6 +218,7 @@ from .serving import ModelRunnerStepData, MonitoringData
 from .tag import Tag, TagObjects
 from .workflow import (
     GetWorkflowResponse,
+    RerunWorkflowRequest,
     WorkflowRequest,
     WorkflowResponse,
     WorkflowSpec,

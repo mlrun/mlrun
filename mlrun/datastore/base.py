@@ -686,7 +686,7 @@ class HttpStore(DataStore):
         endpoint="",
         secrets: Optional[dict] = None,
     ):
-        super().__init__(parent, name, schema, endpoint, secrets, **kwargs)
+        super().__init__(parent, name, schema, endpoint, secrets)
         self._https_auth_token = None
         self._schema = schema
         self.auth = None

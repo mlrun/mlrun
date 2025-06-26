@@ -37,7 +37,7 @@ class OSSStore(DataStore):
         endpoint="",
         secrets: Optional[dict] = None,
     ):
-        super().__init__(parent, name, schema, endpoint, secrets, **kwargs)
+        super().__init__(parent, name, schema, endpoint, secrets)
         # will be used in case user asks to assume a role and work through fsspec
 
         access_key_id = self._get_secret_or_env("ALIBABA_ACCESS_KEY_ID")

@@ -29,7 +29,7 @@ class HdfsStore(DataStore):
         endpoint="",
         secrets: Optional[dict] = None,
     ):
-        super().__init__(parent, name, schema, endpoint, secrets, **kwargs)
+        super().__init__(parent, name, schema, endpoint, secrets)
 
         self.host = self._get_secret_or_env("HDFS_HOST")
         self.port = self._get_secret_or_env("HDFS_PORT")

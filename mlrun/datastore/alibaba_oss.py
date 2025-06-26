@@ -30,7 +30,7 @@ class OSSStore(DataStore):
     using_bucket = True
 
     def __init__(
-self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
+        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
     ):
         super().__init__(parent, name, schema, endpoint, secrets)
         # will be used in case user asks to assume a role and work through fsspec

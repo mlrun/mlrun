@@ -25,7 +25,7 @@ from .base import DataStore, FileStats
 
 class FileStore(DataStore):
     def __init__(
-self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
+        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
     ):
         super().__init__(parent, name, "file", endpoint, secrets=secrets)
 

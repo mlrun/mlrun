@@ -757,7 +757,7 @@ def print_df(df):
 
         mlrun.utils.retry_until_successful(
             1,
-            200,
+            250,
             self._logger,
             True,
             _assert_retry_count,

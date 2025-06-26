@@ -41,6 +41,7 @@ import yaml
 import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.utils.version
 
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
@@ -1233,9 +1234,8 @@ class Config:
     @property
     def version(self):
         # importing here to avoid circular dependency
-        from mlrun.utils.version import Version
 
-        return Version().get()["version"]
+        return mlrun.utils.version.Version().get()["version"]
 
     @staticmethod
     def resolve_ui_url():

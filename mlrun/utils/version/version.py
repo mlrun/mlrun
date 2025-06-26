@@ -17,7 +17,7 @@ import sys
 from importlib.resources import read_text
 
 import mlrun.utils
-from mlrun.utils.singleton import Singleton
+import mlrun.utils.singleton
 
 
 class _VersionInfo:
@@ -30,7 +30,7 @@ class _VersionInfo:
         return f"{self.major}.{self.minor}.{self.patch}"
 
 
-class Version(metaclass=Singleton):
+class Version(metaclass=mlrun.utils.singleton.Singleton):
     def __init__(self):
         # When installing un-released version (e.g. by doing pip install git+https://github.com/mlrun/mlrun@development)
         # it won't have a version file, so adding some sane defaults

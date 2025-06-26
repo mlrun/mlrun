@@ -150,6 +150,8 @@ jobs:
         if: github.event.inputs.skip_publish_pypi != 'true'
         env:
           MLRUN_VERSION: ${{ needs.prepare-inputs.outputs.version }}
+          UV_PUBLISH_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          UV_PUBLISH_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: uv run --no-project --with packaging~=25.0 make publish-package
 
   create-releases:

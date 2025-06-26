@@ -314,7 +314,8 @@ class BackgroundTaskStatus(storey.MapClass):
         else:  # in progress
             logger.info(
                 f"Model endpoint creation task is still in progress with the current state: "
-                f"{background_task_state}. Events will not be monitored for the next 15 seconds",
+                f"{background_task_state}. Events will not be monitored for the next "
+                f"{mlrun.mlconf.model_endpoint_monitoring.model_endpoint_creation_check_period} seconds",
                 name=self.name,
                 background_task_check_timestamp=self._background_task_check_timestamp.isoformat(),
             )

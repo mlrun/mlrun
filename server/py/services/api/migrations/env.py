@@ -19,7 +19,6 @@ import alembic
 import alembic.runtime.migration
 import sqlalchemy
 import sqlalchemy.dialects
-import sqlalchemy.engine
 import sqlalchemy.exc
 import sqlalchemy.pool
 import sqlalchemy.sql.type_api

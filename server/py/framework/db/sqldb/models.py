@@ -38,7 +38,7 @@ from sqlalchemy import (
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Mapper, declared_attr, relationship
+from sqlalchemy.orm import Mapper, Session, declared_attr, relationship
 
 import mlrun.common.db.dialects
 import mlrun.common.schemas

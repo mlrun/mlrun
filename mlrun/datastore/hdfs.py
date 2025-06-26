@@ -22,9 +22,9 @@ from mlrun.datastore.base import DataStore
 
 class HdfsStore(DataStore):
     def __init__(
-        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
+        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None, **kwargs
     ):
-        super().__init__(parent, name, schema, endpoint, secrets)
+        super().__init__(parent, name, schema, endpoint, secrets, **kwargs)
 
         self.host = self._get_secret_or_env("HDFS_HOST")
         self.port = self._get_secret_or_env("HDFS_PORT")

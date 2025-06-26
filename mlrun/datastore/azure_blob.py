@@ -38,9 +38,9 @@ class AzureBlobStore(DataStore):
     )  # for service_client property only, does not affect filesystem
 
     def __init__(
-        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
+        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None, **kwargs
     ):
-        super().__init__(parent, name, schema, endpoint, secrets=secrets)
+        super().__init__(parent, name, schema, endpoint, secrets=secrets, **kwargs)
         self._service_client = None
         self._storage_options = None
 

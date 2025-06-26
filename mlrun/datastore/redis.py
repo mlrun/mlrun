@@ -32,10 +32,10 @@ class RedisStore(DataStore):
     """
 
     def __init__(
-        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
+        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None, **kwargs
     ):
         redis_default_port = "6379"
-        super().__init__(parent, name, schema, endpoint, secrets=secrets)
+        super().__init__(parent, name, schema, endpoint, secrets=secrets, **kwargs)
         self.headers = None
 
         self.endpoint = self.endpoint or mlrun.mlconf.redis.url

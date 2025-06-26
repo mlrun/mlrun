@@ -25,9 +25,9 @@ from .base import DataStore, FileStats
 
 class FileStore(DataStore):
     def __init__(
-        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
+        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None, **kwargs
     ):
-        super().__init__(parent, name, "file", endpoint, secrets=secrets)
+        super().__init__(parent, name, "file", endpoint, secrets=secrets, **kwargs)
 
         self._item_path, self._real_path = None, None
         if mlrun.mlconf.storage.item_to_real_path:

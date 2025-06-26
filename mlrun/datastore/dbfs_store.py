@@ -83,9 +83,9 @@ class DatabricksFileSystemDisableCache(DatabricksFileSystem):
 # dbfs objects will be represented with the following URL: dbfs://<path>
 class DBFSStore(DataStore):
     def __init__(
-        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
+        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None, **kwargs
     ):
-        super().__init__(parent, name, schema, endpoint, secrets=secrets)
+        super().__init__(parent, name, schema, endpoint, secrets=secrets, **kwargs)
 
     @property
     def filesystem(self):

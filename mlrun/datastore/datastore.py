@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -54,7 +55,7 @@ def parse_url(url):
     return schema, endpoint, parsed_url
 
 
-def schema_to_store(schema) -> DataStore.__subclasses__():
+def schema_to_store(schema, raise_error=True) -> DataStore.__subclasses__():
     # import store classes inside to enable making their dependencies optional (package extras)
 
     if not schema or schema in get_local_file_schema():
@@ -105,8 +106,10 @@ def schema_to_store(schema) -> DataStore.__subclasses__():
         from .alibaba_oss import OSSStore
 
         return OSSStore
-    else:
+    elif raise_error:
         raise ValueError(f"unsupported store scheme ({schema})")
+    else:
+        return None
 
 
 def uri_to_ipython(link):
@@ -210,22 +213,41 @@ class StoreManager:
             artifact_url=artifact_url,
         )
 
-    def get_or_create_store(
-        self, url, secrets: Optional[dict] = None, project_name=""
-    ) -> (DataStore, str, str):
+    @staticmethod
+    def _resolve_datastore_profile(
+        url,
+        secrets: Optional[dict] = None,
+        project_name="",
+        subpath: Optional[str] = None,
+    ):
+        datastore_profile = datastore_profile_read(url, project_name, secrets)
+        if secrets and datastore_profile.secrets():
+            secrets = merge(secrets, datastore_profile.secrets())
+        else:
+            secrets = secrets or datastore_profile.secrets()
+        url = datastore_profile.url(subpath)
+        schema, endpoint, parsed_url = parse_url(url)
+        subpath = parsed_url.path
+        return secrets, url, schema, endpoint, parsed_url, subpath
+
+    def get_or_create_remote_base(
+        self,
+        url,
+        secrets: Optional[dict] = None,
+        project_name="",
+        raise_missing_class_error=False,
+        **kwargs,
+    ):
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
         store_key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"
 
         if schema == "ds":
-            datastore_profile = datastore_profile_read(url, project_name, secrets)
-            if secrets and datastore_profile.secrets():
-                secrets = merge(secrets, datastore_profile.secrets())
-            else:
-                secrets = secrets or datastore_profile.secrets()
-            url = datastore_profile.url(subpath)
-            schema, endpoint, parsed_url = parse_url(url)
-            subpath = parsed_url.path
+            secrets, url, schema, endpoint, parsed_url, subpath = (
+                self._resolve_datastore_profile(
+                    url=url, secrets=secrets, project_name=project_name, subpath=subpath
+                )
+            )
 
         if schema == "memory":
             subpath = url[len("memory://") :]
@@ -249,12 +271,24 @@ class StoreManager:
         # support u/p embedding in url (as done in redis) by setting netloc as the "endpoint" parameter
         # when running on server we don't cache the datastore, because there are multiple users and we don't want to
         # cache the credentials, so for each new request we create a new store
-        store = schema_to_store(schema)(
-            self, schema, store_key, parsed_url.netloc, secrets=secrets
-        )
-        if not secrets and not mlrun.config.is_running_as_api():
-            self._stores[store_key] = store
+        store_class = schema_to_store(schema, raise_error=raise_missing_class_error)
+        store = None
+        if store_class:
+            store = store_class(
+                self, schema, store_key, parsed_url.netloc, secrets=secrets, **kwargs
+            )
+            if not secrets and not mlrun.config.is_running_as_api():
+                self._stores[store_key] = store
+        else:
+            warnings.warn("scheme not found. Returning None")
         return store, subpath, url
+
+    def get_or_create_store(
+        self, url, secrets: Optional[dict] = None, project_name=""
+    ) -> (DataStore, str, str):
+        return self.get_or_create_remote_base(
+            url=url, secrets=secrets, project_name=project_name
+        )
 
     def reset_secrets(self):
         self._secrets = {}

@@ -22,7 +22,13 @@ from mlrun.datastore.base import DataStore
 
 class HdfsStore(DataStore):
     def __init__(
-        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None, **kwargs
+        self,
+        parent,
+        schema,
+        name,
+        endpoint="",
+        secrets: Optional[dict] = None,
+        **kwargs,
     ):
         super().__init__(parent, name, schema, endpoint, secrets, **kwargs)
 

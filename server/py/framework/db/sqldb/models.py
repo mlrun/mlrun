@@ -1152,6 +1152,11 @@ def bootstrap_partitions(
     **_,
 ) -> None:
     interval_name = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
+    if not mlrun.common.schemas.partition.PartitionInterval.is_valid(interval_name):
+        raise ValueError(
+            f"Partition interval must be one of: "
+            f"{mlrun.common.schemas.partition.PartitionInterval.valid_intervals()}"
+        )
     interval = mlrun.common.schemas.PartitionInterval(interval_name)
 
     partition_expression = interval.get_partition_expression("activation_time")

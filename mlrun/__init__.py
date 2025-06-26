@@ -33,7 +33,7 @@ from typing import Optional
 
 import dotenv
 import wrapt
-
+from . import config
 from .datastore import DataItem, store_manager
 from .db import get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
@@ -77,30 +77,7 @@ mount_v3io = mounts.mount_v3io
 v3io_cred = mounts.v3io_cred
 auto_mount = mounts.auto_mount
 
-
-def _live_cfg():
-    """Return the *current* config object each time."""
-    return importlib.import_module("mlrun.config").config
-
-
-class _ConfigProxy(wrapt.ObjectProxy):
-    """Transparent, live view of mlrun.config.config."""
-
-    def __init__(self):
-        super().__init__(_live_cfg())
-
-    @property
-    def __wrapped__(self):
-        return _live_cfg()
-
-    @__wrapped__.setter
-    def __wrapped__(self, value):
-        import mlrun.config
-
-        mlrun.config.config = value
-
-
-mlconf = _ConfigProxy()
+mlconf = config.config
 
 
 def get_version():

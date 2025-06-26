@@ -21,7 +21,7 @@ import mlrun.errors
 from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.datastore_profile import datastore_profile_read
-from mlrun.datastore.model_providers import ModelProvider, schema_to_model_provider
+from mlrun.datastore.model_provider.model_providers import ModelProvider, schema_to_model_provider
 from mlrun.datastore.remote_client import (
     parse_url,
 )

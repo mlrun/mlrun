@@ -36,7 +36,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun_pipelines.utils
-from mlrun.datastore.model_providers import ModelProvider
+from mlrun.datastore.model_provider.model_providers import ModelProvider
 from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
 

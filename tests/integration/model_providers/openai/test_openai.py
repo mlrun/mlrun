@@ -28,7 +28,7 @@ from mlrun.datastore.datastore_profile import (
     OpenAIProfile,
     register_temporary_client_datastore_profile,
 )
-from mlrun.datastore.model_providers import ModelProvider, OpenAIProvider
+from mlrun.datastore.model_provider.model_providers import ModelProvider, OpenAIProvider
 from mlrun.serving import ModelRunnerStep
 
 here = os.path.dirname(__file__)

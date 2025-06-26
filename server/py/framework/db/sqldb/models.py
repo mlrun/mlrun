@@ -582,23 +582,7 @@ with warnings.catch_warnings():
         def cron_trigger(self, trigger: mlrun.common.schemas.ScheduleCronTrigger):
             self.cron_trigger_str = orjson.dumps(trigger.dict(exclude_unset=True))
 
-    # Define "many to many" users/projects
-    project_users = Table(
-        "project_users",
-        Base.metadata,
-        Column("project_id", Integer, ForeignKey("projects.id")),
-        Column("user_id", Integer, ForeignKey("users.id")),
-    )
 
-    class User(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "users"
-        __table_args__ = (UniqueConstraint("name", name="_users_uc"),)
-
-        id = Column(Integer, primary_key=True)
-        name = Column(mlrun.db.sql_types.Utf8BinText)
-
-        def get_identifier_string(self) -> str:
-            return f"{self.name}"
 
     class Project(Base, LabelMixin, mlrun.utils.db.BaseModel):
         __tablename__ = "projects"
@@ -617,7 +601,6 @@ with warnings.catch_warnings():
         created = Column(mlrun.db.sql_types.DateTime, default=datetime.utcnow)
         default_function_node_selector = Column("default_function_node_selector", JSON)
         state = Column(mlrun.db.sql_types.Utf8BinText)
-        users = relationship(User, secondary=project_users)
 
         def get_identifier_string(self) -> str:
             return f"{self.name}"

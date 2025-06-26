@@ -370,6 +370,8 @@ class BaseLauncher(abc.ABC):
             run.status.state = mlrun.common.runtimes.constants.RunStates.running
             run.status.retry_count = run.status.retry_count or 0  # in case it is none
             run.status.retry_count += 1  # increment by one
+            # TODO: Maintain start time of each retry ML-10169
+            run.status.start_time = None
         return run
 
     @staticmethod

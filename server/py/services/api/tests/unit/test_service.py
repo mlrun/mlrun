@@ -118,8 +118,6 @@ class TestService(TestAPIBase):
         count: int = 3,
         retry_count: int = 0,
     ):
-        import uuid
-
         return {
             "metadata": {
                 "name": "test-job",

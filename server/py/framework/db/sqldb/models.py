@@ -1051,50 +1051,46 @@ def event_listen_for_dialects(
     target: Any,
     identifier: str,
     relevant_dialects: list[str],
-) -> Callable[
-    [Callable[..., Any]],
-    Callable[..., Any],
-]:
+) -> Callable:
     """
-    Register an SQLAlchemy event listener that fires only for specific dialects.
-
+    Register an SQLAlchemy event listener that runs only for the chosen dialects.
+    Works for `before_insert` (mapper events) and `after_create` (DDL events).
     """
-    relevant_dialects = set(relevant_dialects)
+    relevant = set(relevant_dialects)
 
-    def decorator(
-        fn: Callable[..., Any],
-    ) -> Callable[..., Any]:
-        @event.listens_for(
-            target,
-            identifier,
-        )
+    def decorator(fn: Callable) -> Callable:
+        @event.listens_for(target, identifier)
         @functools.wraps(fn)
-        def _wrapper(
-            table: Table,
-            connection: Connection,
-            **kw: Any,
-        ) -> Any:
-            dialect = connection.dialect.name
+        def _wrapper(*args: Any, **kw: Any) -> Any:
+            # connection is always the second positional argument for events
+            if len(args) < 2 or not isinstance(args[1], Connection):
+                raise RuntimeError(
+                    f"{identifier} listener expected Connection at args[1]; "
+                    f"got {type(args[1]).__name__ if len(args) > 1 else 'missing'}"
+                )
+            connection: Connection = args[1]
+
+            dialect_name = connection.dialect.name
             try:
-                dialect = mlrun.common.db.dialects.Dialects(dialect)
+                dialect = mlrun.common.db.dialects.Dialects(dialect_name)
             except ValueError:
-                mlrun.utils.logger.warning(
+                mlrun.utils.logger.error(
                     "Unsupported dialect for event listener",
-                    dialect=connection.dialect.name,
+                    dialect=dialect_name,
                     target=target,
                     identifier=identifier,
                 )
                 return None
 
-            for relevant_dialect in relevant_dialects:
-                if dialect.startswith(relevant_dialect):
-                    mlrun.utils.logger.debug(
-                        "Executing dialect-specific event listener",
-                        dialect=dialect,
-                        target=target,
-                        identifier=identifier,
-                    )
-                return fn(table, connection, **kw)
+            if any(dialect.startswith(r) for r in relevant):
+                mlrun.utils.logger.info(
+                    "Executing dialect-specific event listener",
+                    dialect=dialect,
+                    target=target,
+                    identifier=identifier,
+                )
+                return fn(*args, **kw)
+
             mlrun.utils.logger.debug(
                 "Skipping dialect-specific event listener",
                 dialect=dialect,

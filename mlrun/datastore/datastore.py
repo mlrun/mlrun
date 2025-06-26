@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import warnings
 from typing import Optional
 
@@ -21,7 +22,10 @@ import mlrun.errors
 from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.datastore_profile import datastore_profile_read
-from mlrun.datastore.model_provider.model_provider import ModelProvider, schema_to_model_provider
+from mlrun.datastore.model_provider.model_provider import (
+    ModelProvider,
+    schema_to_model_provider,
+)
 from mlrun.datastore.remote_client import (
     parse_url,
 )

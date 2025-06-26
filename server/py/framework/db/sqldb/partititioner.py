@@ -22,9 +22,9 @@ import mlrun.common.db.dialects
 class RangePartitioner:
     def __new__(cls, dialect: str):
         if dialect.startswith(mlrun.common.db.dialects.Dialects.MYSQL):
-            return super().__new__(MySQLRangePartitioner)
+            return super().__new__(RangePartitionerMySQL)
         if dialect.startswith(mlrun.common.db.dialects.Dialects.POSTGRESQL):
-            return super().__new__(PostgresRangePartitioner)
+            return super().__new__(RangePartitionerPostgres)
         raise ValueError(dialect)
 
     def bootstrap(
@@ -37,8 +37,21 @@ class RangePartitioner:
     ):
         raise NotImplementedError
 
+    def get_quoted_partitioned_table_params(
+        self,
+        first_partition_name: str,
+        session: sqlalchemy.orm.Session,
+        table_name: str,
+    ) -> tuple[str, str]:
+        preparer = sqlalchemy.sql.compiler.IdentifierPreparer(
+            session.get_bind().dialect
+        )
+        quoted_table_name = preparer.quote(table_name)
+        quoted_partition_name = preparer.quote(first_partition_name)
+        return quoted_partition_name, quoted_table_name
 
-class MySQLRangePartitioner(RangePartitioner):
+
+class RangePartitionerMySQL(RangePartitioner):
     def bootstrap(
         self,
         session: sqlalchemy.orm.Session,
@@ -47,20 +60,24 @@ class MySQLRangePartitioner(RangePartitioner):
         first_partition_name: str,
         first_partition_upper_bound: str,
     ):
-        prep = sqlalchemy.sql.compiler.IdentifierPreparer(session.get_bind().dialect)
-        q_table = prep.quote(table_name)
-        q_part = prep.quote(first_partition_name)
+        quoted_partition_name, quoted_table_name = (
+            self.get_quoted_partitioned_table_params(
+                first_partition_name=first_partition_name,
+                session=session,
+                table_name=table_name,
+            )
+        )
         session.execute(
             sqlalchemy.text(
-                f"""ALTER TABLE {q_table}
+                f"""ALTER TABLE {quoted_table_name}
                     PARTITION BY RANGE ({partition_expression})
-                    (PARTITION {q_part} VALUES LESS THAN ({int(first_partition_upper_bound)}))"""
+                    (PARTITION {quoted_partition_name} VALUES LESS THAN ({int(first_partition_upper_bound)}))"""
             )
         )
         session.commit()
 
 
-class PostgresRangePartitioner(RangePartitioner):
+class RangePartitionerPostgres(RangePartitioner):
     def bootstrap(
         self,
         session: sqlalchemy.orm.Session,
@@ -69,18 +86,22 @@ class PostgresRangePartitioner(RangePartitioner):
         first_partition_name: str,
         first_partition_upper_bound: str,
     ):
-        prep = sqlalchemy.sql.compiler.IdentifierPreparer(session.get_bind().dialect)
-        q_table = prep.quote(table_name)
-        q_part = prep.quote(first_partition_name)
-        session.execute(
-            sqlalchemy.text(
-                f"ALTER TABLE {q_table} PARTITION BY RANGE ({partition_expression})"
+        quoted_partition_name, quoted_table_name = (
+            self.get_quoted_partitioned_table_params(
+                first_partition_name=first_partition_name,
+                session=session,
+                table_name=table_name,
             )
         )
         session.execute(
             sqlalchemy.text(
-                f"""CREATE TABLE {q_part}
-                     PARTITION OF {q_table}
+                f"ALTER TABLE {quoted_table_name} PARTITION BY RANGE ({partition_expression})"
+            )
+        )
+        session.execute(
+            sqlalchemy.text(
+                f"""CREATE TABLE {quoted_partition_name}
+                     PARTITION OF {quoted_table_name}
                      FOR VALUES FROM (MINVALUE) TO ({int(first_partition_upper_bound)})"""
             )
         )

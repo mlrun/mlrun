@@ -286,6 +286,7 @@ class StoreManager:
     def get_or_create_store(
         self, url, secrets: Optional[dict] = None, project_name=""
     ) -> (DataStore, str, str):
+        #  TODO check that datastore instance returned
         return self.get_or_create_remote_base(
             url=url, secrets=secrets, project_name=project_name
         )

@@ -31,7 +31,6 @@ class FileStore(DataStore):
         name,
         endpoint="",
         secrets: Optional[dict] = None,
-        **kwargs,
     ):
         super().__init__(parent, name, "file", endpoint, secrets=secrets, **kwargs)
 

@@ -89,9 +89,8 @@ class DBFSStore(DataStore):
         name,
         endpoint="",
         secrets: Optional[dict] = None,
-        **kwargs,
     ):
-        super().__init__(parent, name, schema, endpoint, secrets=secrets, **kwargs)
+        super().__init__(parent, name, schema, endpoint, secrets=secrets)
 
     @property
     def filesystem(self):

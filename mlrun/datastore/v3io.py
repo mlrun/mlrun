@@ -41,9 +41,8 @@ class V3ioStore(DataStore):
         name,
         endpoint="",
         secrets: Optional[dict] = None,
-        **kwargs,
     ):
-        super().__init__(parent, name, schema, endpoint, secrets=secrets, **kwargs)
+        super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self.endpoint = self.endpoint or mlrun.mlconf.v3io_api
 
         self.headers = None

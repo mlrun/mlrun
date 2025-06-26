@@ -44,9 +44,8 @@ class AzureBlobStore(DataStore):
         name,
         endpoint="",
         secrets: Optional[dict] = None,
-        **kwargs,
     ):
-        super().__init__(parent, name, schema, endpoint, secrets=secrets, **kwargs)
+        super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self._service_client = None
         self._storage_options = None
 

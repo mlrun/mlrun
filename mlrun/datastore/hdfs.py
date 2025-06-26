@@ -28,7 +28,6 @@ class HdfsStore(DataStore):
         name,
         endpoint="",
         secrets: Optional[dict] = None,
-        **kwargs,
     ):
         super().__init__(parent, name, schema, endpoint, secrets, **kwargs)
 

@@ -19,6 +19,7 @@ deepdiff~=7.0
 hypothesis[numpy]~=6.103
 pytest-rerunfailures~=14.0
 pytest-forked~=1.6
+tiktoken~=0.9.0
 
 # system tests
 matplotlib~=3.5

@@ -19,10 +19,6 @@ def base_requirements() -> list[str]:
     return list(_load_dependencies_from_file("requirements.txt"))
 
 
-def dev_requirements() -> list[str]:
-    return list(_load_dependencies_from_file("dev-requirements.txt"))
-
-
 def extra_requirements() -> dict[str, list[str]]:
     # NOTE:
     #     - These are tested in `automation/package_test/test.py`. If you modify these, make sure to change the

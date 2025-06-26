@@ -579,15 +579,13 @@ class BaseRuntime(ModelObj):
             status_text = None
             max_retries = get_in(resp, "spec.retry.count", 0)
             retry_count = get_in(resp, "status.retry_count", 0) or 0
-            retry_count += 1
+            attempts = retry_count + 1
             if max_retries:
                 if retry_count < max_retries:
                     new_state = RunStates.pending_retry
-                    status_text = (
-                        f"Run failed attempt {retry_count} of {max_retries + 1}"
-                    )
+                    status_text = f"Run failed attempt {attempts} of {max_retries + 1}"
                 elif retry_count >= max_retries:
-                    status_text = f"Run failed after {retry_count} attempts"
+                    status_text = f"Run failed after {attempts} attempts"
 
             updates = {
                 "status.last_update": now_date().isoformat(),

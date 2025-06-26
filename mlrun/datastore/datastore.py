@@ -230,7 +230,7 @@ class StoreManager:
         subpath = parsed_url.path
         return secrets, url, schema, endpoint, parsed_url, subpath
 
-    def get_or_create_remote_base(
+    def get_or_create_store(
         self,
         url,
         secrets: Optional[dict] = None,
@@ -282,14 +282,6 @@ class StoreManager:
         else:
             warnings.warn("scheme not found. Returning None")
         return store, subpath, url
-
-    def get_or_create_store(
-        self, url, secrets: Optional[dict] = None, project_name=""
-    ) -> (DataStore, str, str):
-        #  TODO check that datastore instance returned
-        return self.get_or_create_remote_base(
-            url=url, secrets=secrets, project_name=project_name
-        )
 
     def reset_secrets(self):
         self._secrets = {}

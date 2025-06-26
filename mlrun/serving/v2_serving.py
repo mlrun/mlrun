@@ -508,8 +508,8 @@ class V2ModelServer(StepToDict):
                         name=self.name,
                     )
             else:
-                logger.debug(
-                    "Model endpoint creation task name not provided",
+                logger.error(
+                    "Model endpoint creation task name not provided. This function is not being monitored.",
                 )
 
 

@@ -41,7 +41,7 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileV3io,
     datastore_profile_read,
 )
-from mlrun.datastore.model_provider.model_providers import ModelProvider
+from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import logger

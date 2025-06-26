@@ -15,7 +15,7 @@
 import mlrun
 import mlrun.artifacts
 import mlrun.serving.states
-from mlrun.datastore.model_provider.model_providers import ModelProvider
+from mlrun.datastore.model_provider.model_provider import ModelProvider
 
 
 class MyOpenAILLM(mlrun.serving.states.Model):

@@ -31,14 +31,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Get uv version from the Makefile
-      id: uv-version
-      run: |
-        version=$(grep "MLRUN_UV_VERSION ?=" Makefile | cut -d' ' -f3)
-        echo version=$version >> "$GITHUB_OUTPUT"
-    - uses: astral-sh/setup-uv@445689ea25e0de0a23313031f5fe577c74ae45a1 # 6.3.0
-      with:
-        version: ${{ steps.uv-version.outputs.version }}
+    - uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba # 6.3.1
 
     - name: Upgrade dependencies in the lock file with uv
       run: make upgrade-mlrun-deps-lock

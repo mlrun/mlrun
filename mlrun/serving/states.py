@@ -1020,8 +1020,9 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
     def __init_subclass__(cls):
         super().__init_subclass__()
-        cls._dict_fields = cls._dict_fields + (
-            list(inspect.signature(cls.__init__).parameters.keys())
+        cls._dict_fields = list(
+            set(cls._dict_fields)
+            | set(inspect.signature(cls.__init__).parameters.keys())
         )
         cls._dict_fields.remove("self")
 

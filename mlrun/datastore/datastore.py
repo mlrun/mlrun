@@ -32,7 +32,7 @@ from mlrun.datastore.utils import (
 from mlrun.errors import err_to_str
 from mlrun.utils.helpers import get_local_file_schema
 
-from ..artifacts.base import verify_target_artifact
+from ..artifacts.base import verify_target_path
 from ..utils import DB_SCHEMA, RunKeys
 from .base import DataItem, DataStore, HttpStore
 from .filestore import FileStore
@@ -107,9 +107,22 @@ def uri_to_ipython(link):
 
 class StoreManager:
     def __init__(self, secrets=None, db=None):
+        self._stores = {}
         self._secrets = secrets or {}
         self._db = db
-        self._stores = {}
+
+    def set(self, secrets=None, db=None):
+        if db and not self._db:
+            self._db = db
+        if secrets:
+            for key, val in secrets.items():
+                self._secrets[key] = val
+        return self
+
+    def _get_db(self):
+        if not self._db:
+            self._db = mlrun.get_run_db(secrets=self._secrets)
+        return self._db
 
     def from_dict(self, struct: dict):
         stor_list = struct.get(RunKeys.data_stores)
@@ -161,7 +174,7 @@ class StoreManager:
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"LLMPromptArtifact {url} does not contain model artifact uri"
                     )
-            if not target and not (
+            elif not target and not (
                 isinstance(resource, ModelArtifact) and resource.model_url
             ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -185,7 +198,7 @@ class StoreManager:
                 url, project, allow_empty_resources, secrets
             )
             if not allow_empty_resources:
-                verify_target_artifact(meta)
+                verify_target_path(meta)
 
         store, subpath, url = self.get_or_create_store(
             url, secrets=secrets, project_name=project
@@ -250,30 +263,14 @@ class StoreManager:
         subpath: Optional[str] = None,
     ):
         datastore_profile = datastore_profile_read(url, project_name, secrets)
-        if secrets and datastore_profile.secrets():
-            secrets = merge(secrets, datastore_profile.secrets())
-        else:
-            secrets = secrets or datastore_profile.secrets()
+        secrets = merge(secrets or {}, datastore_profile.secrets() or {})
         url = datastore_profile.url(subpath)
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
         return secrets, url, schema, endpoint, parsed_url, subpath
 
-    def set(self, secrets=None, db=None):
-        if db and not self._db:
-            self._db = db
-        if secrets:
-            for key, val in secrets.items():
-                self._secrets[key] = val
-        return self
-
     def secret(self, key):
         return self._secrets.get(key)
-
-    def _get_db(self):
-        if not self._db:
-            self._db = mlrun.get_run_db(secrets=self._secrets)
-        return self._db
 
     def reset_secrets(self):
         self._secrets = {}

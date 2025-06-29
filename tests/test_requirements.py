@@ -271,6 +271,7 @@ def test_requirement_from_remote():
         "git+https://github.com/mlrun/something.git@some-branch",
     }
 
+
 def parse_gitignore_dirs(gitignore_path: pathlib.Path) -> tuple[set[str], set[str]]:
     exact_dir_names = set()
     substring_tokens = set()
@@ -315,12 +316,11 @@ def find_requirement_files() -> list[pathlib.Path]:
     ]
     for search_root in extra_search_roots:
         requirement_files.extend(
-            path
-            for path in search_root.rglob("**/*requirements.txt")
-            if is_valid(path)
+            path for path in search_root.rglob("**/*requirements.txt") if is_valid(path)
         )
 
     return requirement_files
+
 
 def _generate_all_requirement_specifiers_map() -> dict[str, set]:
     requirements_file_paths = find_requirement_files()

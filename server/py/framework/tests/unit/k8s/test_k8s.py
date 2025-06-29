@@ -22,6 +22,17 @@ from urllib3.exceptions import ConnectTimeoutError, ReadTimeoutError
 
 from framework.utils.singletons.k8s import K8sHelper
 
+@pytest.fixture(autouse=True)
+def patch_kube_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "framework.utils.singletons.k8s.config.load_incluster_config",
+        lambda *_, **__: None,
+    )
+    monkeypatch.setattr(
+        "framework.utils.singletons.k8s.config.load_kube_config",
+        lambda *_, **__: None,
+    )
+
 
 class MockOKResponse:
     msg = HTTPHeaderDict({"Content-Type": "application/json"})

@@ -645,6 +645,7 @@ class RunDBInterface(ABC):
         project: str,
         namespace: Optional[str] = None,
         timeout: int = 30,
+        submit_mode: str = "",
     ):
         pass
 

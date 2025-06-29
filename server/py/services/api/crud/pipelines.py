@@ -40,6 +40,10 @@ import mlrun_pipelines.utils
 
 import framework.api.utils
 import services.api.crud
+from services.api.crud.workflows import (
+    JOB_TYPE_RERUN_WORKFLOW_RUNNER,
+    JOB_TYPE_WORKFLOW_RUNNER,
+)
 
 
 class Pipelines(
@@ -264,6 +268,33 @@ class Pipelines(
                 f"Failed getting KFP run: {mlrun.errors.err_to_str(exc)}"
             ) from exc
         return run
+
+    def find_original_workflow_run(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        run_id: str,
+        project: str,
+    ) -> typing.Optional[mlrun.model.RunObject]:
+        """
+        Given a KFP pipeline run ID, find the original remote-workflow run if it exists:
+
+        1. First, try to find a workflow-runner run whose `workflow-id` label == run_id.
+        2. If not found, look for a rerun-runner with the same workflow-id label.
+
+        Returns:
+            The run object, or None if the run ID doesn't correspond to any remote workflow.
+        """
+        for job_type in [JOB_TYPE_WORKFLOW_RUNNER, JOB_TYPE_RERUN_WORKFLOW_RUNNER]:
+            runs = services.api.crud.Runs().list_runs(
+                db_session=db_session,
+                project=project,
+                labels=[
+                    f"workflow-id={run_id}",
+                    f"job-type={job_type}",
+                ],
+            )
+            if runs:
+                return runs.to_objects()[0]
 
     def retry_pipeline(
         self,

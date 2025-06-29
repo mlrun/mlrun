@@ -76,6 +76,7 @@ class MLRunInternalLabels:
     kind = "kind"
     component = "component"
     mlrun_type = "mlrun__type"
+    rerun_of = "rerun-of"
     original_workflow_id = "original-workflow-id"
 
     owner = "owner"
@@ -102,3 +103,8 @@ class MLRunInternalLabels:
 class DeployStatusTextKind(mlrun.common.types.StrEnum):
     logs = "logs"
     events = "events"
+
+
+class RetryMode(mlrun.common.types.StrEnum):
+    direct = "direct"  # call KFP retry API immediately
+    rerun = "rerun"  # launch a RerunRunner function

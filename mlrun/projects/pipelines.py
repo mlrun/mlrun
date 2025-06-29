@@ -21,6 +21,7 @@ import typing
 import uuid
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.function
@@ -1086,10 +1087,13 @@ def rerun_workflow(
 
         # Retry the pipeline  - TODO: add submit-direct flag when created
         db = mlrun.get_run_db()
-        new_pipeline_id = db.retry_pipeline(run_uid, project_name)
+        new_pipeline_id = db.retry_pipeline(
+            run_uid, project_name, submit_mode=mlrun_constants.RetryMode.direct
+        )
 
         # Store result for observability
         context.set_label("workflow-id", new_pipeline_id)
+        context.store_run()
         context.log_result("workflow_id", new_pipeline_id)
 
         # wait for pipeline completion so monitor will push terminal notifications
@@ -1227,6 +1231,8 @@ def load_and_run_workflow(
         "Associating workflow-runner with workflow ID", run_id=run.run_id
     )
     context.set_label("workflow-id", run.run_id)
+    context.store_run()
+
     context.log_result(key="workflow_id", value=run.run_id)
     context.log_result(key="engine", value=run._engine.engine, commit=True)
 

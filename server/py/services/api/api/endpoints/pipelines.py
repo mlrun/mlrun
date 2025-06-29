@@ -16,6 +16,7 @@ import ast
 import datetime
 import http
 import time
+import traceback
 import typing
 
 import fastapi
@@ -23,7 +24,9 @@ import fastapi.concurrency
 import sqlalchemy.orm
 import yaml
 from fastapi import BackgroundTasks, Depends
+from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.common.schemas.background_task
@@ -34,6 +37,7 @@ import mlrun.utils.notifications
 import mlrun_pipelines.common.models
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
+from mlrun.k8s_utils import sanitize_label_value
 
 import framework.api
 import framework.api.deps
@@ -42,7 +46,10 @@ import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.notifications
 import framework.utils.singletons.k8s
+import framework.utils.singletons.project_member
 import services.api.crud
+from framework.api.utils import log_and_raise
+from services.api.utils.helpers import resolve_client_default_kfp_image
 
 router = fastapi.APIRouter(prefix="/projects/{project}/pipelines")
 
@@ -145,23 +152,114 @@ async def retry_pipeline(
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
+    submit_mode: str = fastapi.Query(
+        mlrun_constants.RetryMode.rerun, alias="submit-mode"
+    ),
+    db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
+    client_version: typing.Optional[str] = fastapi.Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
 ):
-    await (
-        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
-            project,
-            run_id,
-            mlrun.common.schemas.AuthorizationAction.create,
-            auth_info,
+    project: mlrun.common.schemas.ProjectOut = (
+        await fastapi.concurrency.run_in_threadpool(
+            framework.utils.singletons.project_member.get_project_member().get_project,
+            db_session=db_session,
+            name=project,
+            leader_session=auth_info.session,
         )
     )
-    run_id = await fastapi.concurrency.run_in_threadpool(
-        services.api.crud.Pipelines().retry_pipeline,
-        run_id,
-        project,
-        namespace,
+
+    # check permission CREATE pipeline
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            resource_type=mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
+            project_name=project.metadata.name,
+            resource_name=run_id,
+            action=mlrun.common.schemas.AuthorizationAction.create,
+            auth_info=auth_info,
+        )
     )
-    return run_id
+
+    original_runner = await fastapi.concurrency.run_in_threadpool(
+        services.api.crud.Pipelines().find_original_workflow_run,
+        db_session=db_session,
+        run_id=run_id,
+        project=project.metadata.name,
+    )
+
+    if submit_mode == mlrun_constants.RetryMode.direct or not original_runner:
+        mlrun.utils.logger.info("Direct-submitting retry to KFP API", run_id=run_id)
+        run_id = await fastapi.concurrency.run_in_threadpool(
+            services.api.crud.Pipelines().retry_pipeline,
+            run_id,
+            project.metadata.name,
+            namespace,
+        )
+        mlrun.utils.logger.info("Direct retry succeeded", new_pipeline_id=run_id)
+        return run_id
+
+    client_image = resolve_client_default_kfp_image(
+        project,
+        workflow_spec=None,
+        client_version=client_version,
+    )
+
+    rerun_runner: mlrun.run.KubejobRuntime = (
+        await fastapi.concurrency.run_in_threadpool(
+            services.api.crud.RerunRunner().create_runner,
+            run_name=f"{project.metadata.name}-Retry of {run_id}",
+            project=project.metadata.name,
+            db_session=db_session,
+            auth_info=auth_info,
+            image=client_image,
+        )
+    )
+    mlrun.utils.logger.debug(
+        "Saved function for rerun workflow",
+        project_name=rerun_runner.metadata.project,
+        function_name=rerun_runner.metadata.name,
+        kind=rerun_runner.kind,
+        image=rerun_runner.spec.image,
+    )
+
+    if client_version is not None:
+        rerun_runner.metadata.labels[
+            mlrun_constants.MLRunInternalLabels.client_version
+        ] = sanitize_label_value(client_version)
+
+    rerun_request = mlrun.common.schemas.RerunWorkflowRequest(
+        run_name=f"{project}-Retry of {run_id[:8]}",
+        run_id=run_id,
+        notifications=[],
+        workflow_runner_node_selector=original_runner.spec.node_selector,
+        original_workflow_id=original_runner.metadata.labels["workflow-id"],
+    )
+
+    try:
+        run = await fastapi.concurrency.run_in_threadpool(
+            services.api.crud.RerunRunner().run,
+            runner=rerun_runner,
+            project=project,
+            run_uid=run_id,
+            rerun_request=rerun_request,
+            auth_info=auth_info,
+        )
+        status = mlrun_pipelines.common.models.RunStatuses.running
+        runner_uid = run.uid()
+
+        return mlrun.common.schemas.WorkflowResponse(
+            project=project.metadata.name,
+            name=rerun_request.run_name,
+            status=str(status),
+            run_id=runner_uid,
+        )
+
+    except Exception as error:
+        mlrun.utils.logger.error(traceback.format_exc())
+        log_and_raise(
+            reason="Workflow failed",
+            error=mlrun.errors.err_to_str(error),
+        )
 
 
 @router.post("/{run_id}/terminate")

@@ -2350,6 +2350,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         namespace: Optional[str] = None,
         timeout: int = 30,
+        submit_mode: str = "",
     ):
         """
         Retry a specific pipeline run using its run ID. This function sends an API request
@@ -2359,6 +2360,7 @@ class HTTPRunDB(RunDBInterface):
         :param namespace: Kubernetes namespace where the pipeline is running. Optional.
         :param timeout: Timeout (in seconds) for the API call. Defaults to 30 seconds.
         :param project: Name of the MLRun project associated with the pipeline.
+        :param submit_mode: Whether to submit the pipeline directly to the API.
 
         :raises ValueError: Raised if the API response is not successful or contains an
             error.
@@ -2369,6 +2371,9 @@ class HTTPRunDB(RunDBInterface):
         params = {}
         if namespace:
             params["namespace"] = namespace
+
+        if submit_mode:
+            params["submit-mode"] = submit_mode
 
         resp_text = ""
         resp_code = None

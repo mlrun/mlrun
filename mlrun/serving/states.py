@@ -2155,8 +2155,12 @@ def _add_graphviz_model_runner(graph, step, source=None):
     if source:
         graph.node("_start", source.name, shape=source.shape, style="filled")
         graph.edge("_start", step.fullname)
-    number_of_models = len(list(step.class_args.get(schemas.ModelRunnerStepData.MODELS, {}).keys()))
+
     is_monitored = step._extract_root_step().track_models
+    number_of_models = len(list(step.class_args.get(schemas.ModelRunnerStepData.MODELS, {}).keys()))
+    label = f"{step.name}\nM\n{number_of_models}" if is_monitored else f"{step.name}\n{number_of_models}"
+    graph.node(step.fullname, label=label, shape=step.get_shape())
+
 
 
 def _add_graphviz_flow(

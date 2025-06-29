@@ -214,7 +214,6 @@ class TestServiceBase:
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.close()
 
-            # forcing from scratch because we created an empty file for the db
             # TODO: init data initializes the tables, we should remove this coupling with the API service code
             init_data()
             framework.utils.singletons.db.initialize_db()

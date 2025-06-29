@@ -199,9 +199,9 @@ def _migrate_existing_data(
         mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
 
     # Cleanup pagination cache on api startup
-    session = framework.db.session.create_session()
-    framework.utils.pagination_cache.PaginationCache().cleanup_pagination_cache(session)
-    session.commit()
+    framework.db.session.run_function_with_new_db_session(
+        func=framework.utils.pagination_cache.PaginationCache().cleanup_pagination_cache,
+    )
 
 
 # If the data_table version doesn't exist, we can assume the data version is 1.

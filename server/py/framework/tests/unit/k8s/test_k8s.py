@@ -22,6 +22,7 @@ from urllib3.exceptions import ConnectTimeoutError, ReadTimeoutError
 
 from framework.utils.singletons.k8s import K8sHelper
 
+
 @pytest.fixture(autouse=True)
 def patch_kube_config(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(

@@ -2,8 +2,7 @@
 # Change log
 
 The change log lists updates per release, open issues, limitations, and deprecations.
-
-- [v1.9.0](#v190)
+- [v1.9.1](#v191) | [v1.9.0](#v190)
 - [v1.8.0](#v180)
 - [v1.7.2](#v172-16-january-2025) | [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
 - [v1.6.4](#v164-2-july-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
@@ -17,13 +16,21 @@ The change log lists updates per release, open issues, limitations, and deprecat
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
+(v191)=
+## v1.9.1 (June 2025)
+### Closed issue
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-10326|Fixed the image tag extraction process.|
+
 (v190)=
 ## v1.9.0 (June 2025)
 
 ### Infrastructure
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9326| MLRun supports Python 3.11 and KFP 2.x server (and continues to support KFP 1.8 server depending on the Iguazio version). MLRun v1.9.0 CE supports KFP 2.x. MLRun continues to support Python 3.9.<ul><li>If you are using Python 3.11, then you need to use `engine="remote"`.</li><li>Client code and workflow code and syntax (DSL) is still the KFP 1.8 syntax. Working with the newer KFP 2.x syntax is not yet supported by MLRun. KFP workflows written with KFP 2.0 syntax/APIs and run from outside MLRun are not visible in the MLRun UI. [See more about the SDK changes when migrating to KFP v2](https://www.kubeflow.org/docs/components/pipelines/user-guides/migration/).</li><li>As in MLRun v1.8.0, KFP is not pre-installed on images such as `mlrun/mlrun`. The image `mlrun/mlrun-kfp` includes KFP, but works with Python 3.9.</li><li>You can install KFP manually (`pip install kfp`), for example, to run KFP pipelines locally using the KFP 1.8 client, and thereby requiring Python 3.9.</li><li>protobuf compilation is not needed anymore for python 3.11 environments.</li></ul>|
+|ML-9326| MLRun now supports Python 3.11, and also continues to support Python 3.9. </br>Workflows that use Python 3.11 must use `engine="remote"`. |
+|ML-10199|KFP 2.x server is now supported, but workflows still require the KFP 1.8 syntax. </br>Usage guidelines:<ul><li>Client code and workflow code and syntax (DSL) is still the KFP 1.8 syntax. Working with the newer KFP 2.x syntax is not yet supported by MLRun.</li><li>As in MLRun v1.8.0, KFP is not pre-installed on images such as `mlrun/mlrun`. The image `mlrun/mlrun-kfp` includes KFP, but works with Python 3.9.</li><li>You can install KFP manually (`pip install kfp~=1.8`), for example, to run KFP pipelines locally using the KFP 1.8 client, and thereby requiring Python 3.9.</li></ul>|
 
 ### Closed issues
 | ID    |Description                                                                 |
@@ -33,8 +40,8 @@ The change log lists updates per release, open issues, limitations, and deprecat
 
 ## Model monitoring
 
-```{admonition} Notes
-- You must use the v1.8.0 client or higher to utilize model monitoring on a v1.9.0 server.
+```{admonition} Important
+You must use the v1.8.0 client or higher to utilize model monitoring on a v1.9.0 server.
 ```
 
 
@@ -1218,7 +1225,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4725|ML functions show as if they are in the  "Creating" status, although they were created and used.| NA                                                                                                                                                                                                                                                                                                                                                                       |v1.4.1|
 |ML-4740|When running function `batch_inference_v2` from the SDK, the `ingest()` function accepts 3 parameters as Data-item or other types: `dataset`, `model_path` and `model_endpoint_sample_set`. If you provided these parameters as non Data-items and later on you want to rerun this function from the UI, you need to provide these parameters as Data-item.| Prepare suitable Data-item and provide it to the batch-rerun UI.                                                                                                                                                                                                                                                                                                         | v1.5.0    |
 |ML-4769|After deleting a project, data is still present in the Artifacts and Executions of pipelines UI.  | NA                                                                                                                                                                                                                                                                                                                                                                       | v1.4.0 |
-|ML-4881|Kubeflow pipelines parallelism parameter in dsl.ParallelFor() does not work (external dependency). | NA   | v1.4.1|
+|ML-4881|Kubeflow pipelines parallelism parameter in dsl.ParallelFor() does not work (external dependency). | See [Running multiple functions in parallel](#parallelism-4881).  | v1.4.1|
 |ML-4942|The Dask dashboard requires the relevant node ports to be open. | Your infrastructure provider must open the ports manually. If running MLRun locally or CE, make sure to port-forward the port Dask Dashboard uses to ensure it is available externally to the Kubernetes cluster.  | v1.5.0 |
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy**  | v1.5.1 |
 |ML-5573|The default value of feature-set ingest() infer_options is "all" (which includes Preview) and as a result, during ingest, preview is done as well. As a result, if a validator was configured for a feature, each violation causes two messages to be printed.| NA |v1.6.0|
@@ -1226,6 +1233,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5876|The maximum length of project name + the longest function name for `project.enable_model_monitoring` is 63 chars. | Keep the name combination at a maximum of 63 chars. |v1.6.0|
 |ML-7159/7704|The evidently app pod memory consumption grows continuously due to use of the evidently workspace and project.|External dependency. Do not use (or only rarely use) these evidently APIs.|v1.7.0|
 |ML-7196|The models features statistics `feature_stats` is limited to 16MB. Further limitation to 1MB when using model-monitoring over V3IO-KV will be removed in 1.8.| NA | v1.7.0|
+|ML-7553|The application API gateway is redirected even though redirection is not enabled (ssl_redirect=False).| NA | v1.7.0|
 |ML-7568/7915| The SDK does not inform of invalid node selector combinations when running a function, but the pod remains stuck in the Pending state. | See [Preventing and resolving conflicts](../runtimes/configuring-job-resources.md#preventing-and-resolving-conflicts).| v1.7.0 |  
 |ML-7571|For executions of Dask runtimes, the UI does not show node-selectors applied to the run. | NA   | v1.7.0|   
 |ML-7746|In some cases, when the pipeline is extremely large it is not displayed in the graph.| NA | v1.7.0|      
@@ -1265,6 +1273,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-8699|After upgrade/restart there may be some lost notifications due to restart of the chief.|NA| v1.8.0|
 |ML-8996|Occasionally, deleting projects fails with 'Fail to delete project in MLRun' | Try deleting the project again.| v1.8.0|
 |ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.| NA|v1.8.0|
+|ML-9993|Pagination is not persistent upon browser refresh on Iguazio releases 3.6.0 and 3.6.1.|NA|
 
 ## Deprecations and removed code
 

@@ -459,9 +459,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             mlrun_constants.MLRunInternalLabels.workflow: runner.metadata.name,
         }
 
-        self._enrich_runner_node_selector(
-            runner, workflow_request.spec.workflow_runner_node_selector
-        )
+        self._enrich_runner_node_selector(runner, workflow_request.spec)
 
         return self.prepare_and_run(
             runner=runner,
@@ -716,11 +714,11 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             save=False,
             handler="mlrun.projects.rerun_workflow",
             parameters={
-                "run_uid": rerun_request.rerun_id,
+                "run_uid": rerun_request.run_id,
                 "project_name": project.metadata.name,
             },
             notifications=notifications,
-            run_name=f"rerun-{rerun_request.run_name}-{rerun_request.rerun_id}",
+            run_name=f"rerun-{rerun_request.run_id[:8]}",
             labels=labels,
             scrape_metrics=mlrun_config.config.scrape_metrics,
         )

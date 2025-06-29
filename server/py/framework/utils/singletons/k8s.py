@@ -21,6 +21,7 @@ import typing
 
 import kubernetes.client.rest as k8s_client_rest
 import kubernetes.dynamic.exceptions as k8s_dynamic_exceptions
+import urllib3
 from kubernetes import client, config
 
 import mlrun
@@ -82,10 +83,26 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         self.namespace = namespace or mlrun.mlconf.namespace
         self.config_file = mlrun.mlconf.kubernetes.kubeconfig_path or None
         self.running_inside_kubernetes_cluster = False
+        self._api_config = client.Configuration()
+        self._api_config.retries = urllib3.util.Retry(
+            allowed_methods=[
+                "HEAD",
+                "GET",
+            ],
+            read=3,
+            connect=3,
+        )
         try:
+            self._api_client = client.ApiClient(
+                configuration=self._api_config,
+            )
             self._init_k8s_config(log)
-            self.v1api = client.CoreV1Api()
-            self.crdapi = client.CustomObjectsApi()
+            self.v1api = client.CoreV1Api(
+                api_client=self._api_client,
+            )
+            self.crdapi = client.CustomObjectsApi(
+                api_client=self._api_client,
+            )
         except Exception as exc:
             logger.warning(
                 "Cannot initialize kubernetes client", exc=mlrun.errors.err_to_str(exc)
@@ -985,13 +1002,18 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def _init_k8s_config(self, log=True):
         try:
-            config.load_incluster_config()
+            config.load_incluster_config(
+                client_configuration=self._api_config,
+            )
             self.running_inside_kubernetes_cluster = True
             if log:
                 logger.info("Using in-cluster config.")
         except Exception:
             try:
-                config.load_kube_config(self.config_file)
+                config.load_kube_config(
+                    config_file=self.config_file,
+                    client_configuration=self._api_config,
+                )
                 self.running_inside_kubernetes_cluster = True
                 if log:
                     logger.info("Using local kubernetes config.")

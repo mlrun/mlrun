@@ -53,15 +53,10 @@ class DataStore(BaseRemoteClient):
         super().__init__(
             parent=parent, name=name, kind=kind, endpoint=endpoint, secrets=secrets
         )
-        self._parent = parent
-        self.kind = kind
-        self.name = name
-        self.endpoint = endpoint
         self.subpath = ""
         self.options = {}
         self.from_spec = False
         self._filesystem = None
-        self._secrets = secrets or {}
 
     @property
     def is_structured(self):

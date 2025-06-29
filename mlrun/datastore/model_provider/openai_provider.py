@@ -16,12 +16,14 @@ from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar
 
 import mlrun
-from mlrun.datastore.model_provider.model_provider import AsyncModelProvider
+from mlrun.datastore.model_provider.model_provider import ModelProvider
 
 T = TypeVar("T")
 
 
-class OpenAIProvider(AsyncModelProvider):
+class OpenAIProvider(ModelProvider):
+    support_async = True
+
     def __init__(
         self,
         parent,

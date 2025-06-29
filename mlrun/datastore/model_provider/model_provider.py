@@ -41,6 +41,8 @@ class ModelProvider(BaseRemoteClient):
         self.default_invoke_kwargs = default_invoke_kwargs or {}
         self._client = None
         self._default_operation = None
+        self._async_client = None
+        self._default_async_operation = None
 
     def load_client(self) -> None:
         raise NotImplementedError("load_client method is not implemented")
@@ -70,32 +72,12 @@ class ModelProvider(BaseRemoteClient):
         kwargs.update(invoke_kwargs)
         return kwargs
 
-
-class AsyncModelProvider(ModelProvider):
-    support_async = True
-
-    def __init__(
-        self,
-        parent,
-        name,
-        kind,
-        endpoint="",
-        secrets: Optional[dict] = None,
-        default_invoke_kwargs: Optional[dict] = None,
-    ):
-        super().__init__(
-            parent=parent,
-            name=name,
-            kind=kind,
-            endpoint=endpoint,
-            secrets=secrets,
-            default_invoke_kwargs=default_invoke_kwargs,
-        )
-        self._async_client = None
-        self._default_async_operation = None
-
     @property
     def async_client(self):
+        if not self.support_async:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{self.__class__.__name__} does not support async operations"
+            )
         return self._async_client
 
     async def async_customized_invoke(self, **kwargs):

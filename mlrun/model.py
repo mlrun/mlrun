@@ -228,7 +228,7 @@ class ModelObj:
         init_with_params: bool = False,
     ):
         """create an object from a python dictionary"""
-        struct = {} if struct is None else deepcopy(struct)
+        struct = {} if struct is None else struct
         deprecated_fields = deprecated_fields or {}
         fields = fields or copy(cls._dict_fields)
         if not fields:

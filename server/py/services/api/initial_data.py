@@ -78,7 +78,7 @@ def init_data(
             from_scratch = True
 
     if from_scratch:
-        initialize_db_from_scratch(engine, url)
+        _initialize_db_from_scratch(engine, url)
     else:
         _migrate_existing_data(
             perform_migrations_if_needed,
@@ -87,7 +87,7 @@ def init_data(
     mlrun.utils.logger.info("Initial data created")
 
 
-def create_schema(
+def _create_schema(
     engine: typing.Optional[sqlalchemy.engine.Engine] = None,
 ) -> None:
     if engine is None:
@@ -110,7 +110,7 @@ def _initialize_db_from_scratch(
     engine: typing.Optional[sqlalchemy.engine.Engine],
     url: sqlalchemy.engine.URL,
 ):
-    create_schema(
+    _create_schema(
         engine=engine,
     )
     cfg = alembic.config.Config(str(pathlib.Path(__file__).parent / "alembic.ini"))

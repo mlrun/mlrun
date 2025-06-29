@@ -127,6 +127,14 @@ def _get_connection():
             yield conn
         return
 
+    # Figure out what Alembic passed in `config.attributes["connection"]`
+    #
+    # None         – developer runs `alembic upgrade` directly.
+    #                Build a one-off Engine from alembic.ini and connect.
+    # Engine       – regular runtime upgrades (API start, /operations/migrations).
+    #                We must create and close a short-lived Connection ourselves.
+    # Connection   – first-time bootstrap or unit-tests that already started
+    #                  `engine.begin()`.  Caller owns the transaction; just yield it.
     if isinstance(connection_or_engine, sqlalchemy.engine.Engine):
         with connection_or_engine.connect() as conn:
             yield conn
@@ -188,6 +196,10 @@ def run_migrations_online():
             poolclass=sqlalchemy.pool.NullPool,
         )
 
+    # Engine  → normal upgrades (API start, /operations/migrations, etc.):
+    #            open a temp conn, run, close.
+    # Connection → first-time bootstrap or tests (caller opened TX); reuse as-is.
+    # (None → plain `alembic upgrade` CLI, handled earlier.)
     if isinstance(connectable, sqlalchemy.engine.Connection):
         connection = connectable
         close_conn = False

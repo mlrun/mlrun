@@ -720,7 +720,7 @@ def _initialize_db_without_migrations() -> (
     db_session = framework.db.sqldb.sql_session.create_session(dsn=dsn)
     db = framework.db.sqldb.db.SQLDB(dsn)
     db.initialize(db_session)
-    services.api.initial_data.create_schema()
+    services.api.initial_data._create_schema()
     return db, db_session
 
 

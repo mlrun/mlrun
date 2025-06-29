@@ -44,7 +44,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_log(self, uid, project="", offset=0, size=0):
+    def get_log(self, uid, project="", offset=0, size=0, attempt=None):
         pass
 
     @abstractmethod

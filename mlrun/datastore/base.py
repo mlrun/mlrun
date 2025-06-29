@@ -54,7 +54,6 @@ class DataStore:
         self.name = name
         self.endpoint = endpoint
         self.subpath = ""
-        self.secret_pfx = ""
         self.options = {}
         self.from_spec = False
         self._filesystem = None
@@ -124,7 +123,7 @@ class DataStore:
         return key
 
     def _get_parent_secret(self, key):
-        return self._parent.secret(self.secret_pfx + key)
+        return self._parent.secret(key)
 
     def _get_secret(self, key: str, default=None):
         return self._secrets.get(key, default) or self._get_parent_secret(key)
@@ -391,7 +390,6 @@ class DataStore:
         return {
             "name": self.name,
             "url": f"{self.kind}://{self.endpoint}/{self.subpath}",
-            "secret_pfx": self.secret_pfx,
             "options": self.options,
         }
 

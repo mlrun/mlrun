@@ -142,7 +142,6 @@ class StoreManager:
                 schema, endpoint, parsed_url = parse_url(stor.get("url"))
                 new_stor = schema_to_store(schema)(self, schema, stor["name"], endpoint)
                 new_stor.subpath = parsed_url.path
-                new_stor.secret_pfx = stor.get("secret_pfx")
                 new_stor.options = stor.get("options", {})
                 new_stor.from_spec = True
                 self._stores[stor["name"]] = new_stor

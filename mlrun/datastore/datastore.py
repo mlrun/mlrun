@@ -26,7 +26,7 @@ from mlrun.datastore.model_provider.model_provider import (
     ModelProvider,
     schema_to_model_provider,
 )
-from mlrun.datastore.remote_client import (
+from mlrun.datastore.utils import (
     parse_url,
 )
 from mlrun.errors import err_to_str

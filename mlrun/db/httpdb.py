@@ -1884,7 +1884,6 @@ class HTTPRunDB(RunDBInterface):
                 f"projects/{func.metadata.project}/nuclio/{func.metadata.name}/deploy"
             )
             resp = self.api_call("POST", _path, json=req)
-
         except OSError as err:
             logger.error(f"error submitting nuclio deploy task: {err_to_str(err)}")
             raise OSError(f"error: cannot submit deploy, {err_to_str(err)}")

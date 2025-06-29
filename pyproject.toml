@@ -39,6 +39,9 @@ author = "Iguazio"
 [tool.ruff.format]
 docstring-code-format = true
 
+[tool.uv]
+required-version = ">=0.7.14"
+
 [tool.uv.pip]
 python-version = "3.9"  # TODO: change to 3.11 when 3.9 is no longer supported
 generate-hashes = true

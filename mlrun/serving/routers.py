@@ -80,9 +80,15 @@ class BaseModelRouter(RouterToDict):
         self._input_path = input_path
         self._result_path = result_path
         self._background_task_check_timestamp = None
-        self._background_task_terminate = False
         self._background_task_current_state = None
         self.kwargs = kwargs
+
+    @property
+    def background_task_reached_terminal_state(self):
+        return (
+            self._background_task_current_state
+            and self._background_task_current_state != "running"
+        )
 
     def parse_event(self, event):
         parsed_event = {}
@@ -185,35 +191,33 @@ class BaseModelRouter(RouterToDict):
                     background_task.status.state
                     in mlrun.common.schemas.BackgroundTaskState.terminal_states()
                 ):
-                    logger.debug(
+                    logger.info(
                         f"Model endpoint creation task completed with state {background_task.status.state}"
                     )
-                    self._background_task_terminate = True
                 else:  # in progress
-                    logger.debug(
+                    logger.info(
                         f"Model endpoint creation task is still in progress with the current state: "
-                        f"{background_task.status.state}. Events will not be monitored for the next 15 seconds",
+                        f"{background_task.status.state}. Events will not be monitored for the next "
+                        f"{mlrun.mlconf.model_endpoint_monitoring.model_endpoint_creation_check_period} seconds",
                         name=self.name,
                         background_task_check_timestamp=self._background_task_check_timestamp.isoformat(),
                     )
                 return background_task.status.state
             else:
-                logger.debug(
-                    "Model endpoint creation task name not provided",
+                logger.error(
+                    "Model endpoint creation task name not provided. This function is not being monitored.",
                 )
         elif self.context.monitoring_mock:
-            self._background_task_terminate = (
-                True  # If mock monitoring we return success and terminate task check.
-            )
             return mlrun.common.schemas.BackgroundTaskState.succeeded
-        self._background_task_terminate = True  # If mock without monitoring we return failed and terminate task check.
         return mlrun.common.schemas.BackgroundTaskState.failed
 
     def _update_background_task_state(self, event):
-        if not self._background_task_terminate and (
+        if not self.background_task_reached_terminal_state and (
             self._background_task_check_timestamp is None
             or now_date() - self._background_task_check_timestamp
-            >= timedelta(seconds=15)
+            >= timedelta(
+                seconds=mlrun.mlconf.model_endpoint_monitoring.model_endpoint_creation_check_period
+            )
         ):
             self._background_task_current_state = self._get_background_task_status()
         if event.body:

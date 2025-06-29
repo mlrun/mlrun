@@ -144,15 +144,8 @@ jobs:
     needs: [ prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building ]
     steps:
       - uses: actions/checkout@v4
-      - name: Get uv version
-        id: uv-version
-        run: |
-          version=$(grep "^MLRUN_UV_VERSION ?= " Makefile | cut -d' ' -f3)
-          echo "version=$(version)" >> $GITHUB_OUTPUT
       - name: Set up uv
         uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba # 6.3.1
-        with:
-          version: ${{ steps.uv-version.outputs.version }}
       - name: Build & push to PyPI
         if: github.event.inputs.skip_publish_pypi != 'true'
         env:

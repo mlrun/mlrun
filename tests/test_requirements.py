@@ -271,27 +271,56 @@ def test_requirement_from_remote():
         "git+https://github.com/mlrun/something.git@some-branch",
     }
 
+def parse_gitignore_dirs(gitignore_path: pathlib.Path) -> tuple[set[str], set[str]]:
+    exact_dir_names = set()
+    substring_tokens = set()
+
+    if gitignore_path.exists():
+        for raw_line in gitignore_path.read_text().splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.endswith("/"):
+                exact_dir_names.add(line.lstrip("*/").rstrip("/"))
+            elif line.startswith("*") and line.endswith("*"):
+                substring_tokens.add(line.strip("*").rstrip("/"))
+
+    return exact_dir_names, substring_tokens
+
 
 def find_requirement_files() -> list[pathlib.Path]:
-    root = pathlib.Path(tests.conftest.root_path)
-    deep_dirs = (
-        root / "dockerfiles",
-        root / "automation",
-        root / "docs",
-    )
-    skip_dirs = ("venv", ".git", "__pycache__")
+    always_skip = {"venv", ".git", "__pycache__"}
 
-    def valid(p: pathlib.Path) -> bool:
-        return p.name != "locked-requirements.txt" and not any(
-            skip in p.parts for skip in skip_dirs
+    project_root = pathlib.Path(tests.conftest.root_path)
+
+    exact_skips, substring_skips = parse_gitignore_dirs(project_root / ".gitignore")
+    exact_skips.update(always_skip)
+
+    extra_search_roots = (
+        project_root / "dockerfiles",
+        project_root / "automation",
+        project_root / "docs",
+    )
+
+    def is_valid(path: pathlib.Path) -> bool:
+        if path.name == "locked-requirements.txt":
+            return False
+        for part in path.parts:
+            if part in exact_skips or any(token in part for token in substring_skips):
+                return False
+        return True
+
+    requirement_files = [
+        path for path in project_root.glob("*requirements.txt") if is_valid(path)
+    ]
+    for search_root in extra_search_roots:
+        requirement_files.extend(
+            path
+            for path in search_root.rglob("**/*requirements.txt")
+            if is_valid(path)
         )
 
-    files = [p for p in root.glob("*requirements.txt") if valid(p)]
-
-    for deep_dir in deep_dirs:
-        files.extend(p for p in deep_dir.rglob("**/*requirements.txt") if valid(p))
-    return files
-
+    return requirement_files
 
 def _generate_all_requirement_specifiers_map() -> dict[str, set]:
     requirements_file_paths = find_requirement_files()

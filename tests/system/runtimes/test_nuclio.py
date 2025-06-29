@@ -109,7 +109,11 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         model_runner_step = ModelRunnerStep(
             name="model-runner", raise_exception=raise_exception
         )
-        model_runner_step.add_model(model_class="ErrorModel", endpoint_name="my-model")
+        model_runner_step.add_model(
+            model_class="ErrorModel",
+            execution_mechanism="naive",
+            endpoint_name="my-model",
+        )
 
         step = graph.to(model_runner_step).respond()
         step.error_handler("catcher", handler="catcher_echo", full_event=True)

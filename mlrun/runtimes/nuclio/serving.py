@@ -331,6 +331,8 @@ class ServingRuntime(RemoteRuntime):
         """
         # Applying model monitoring configurations
         self.spec.track_models = enable_tracking
+        if self.spec.graph and isinstance(self.spec.graph, RootFlowStep):
+            self.spec.graph.track_models = enable_tracking
         if self._spec and self._spec.function_refs:
             logger.debug(
                 "Set tracking for children references", enable_tracking=enable_tracking

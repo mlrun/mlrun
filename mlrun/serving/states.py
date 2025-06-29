@@ -79,6 +79,7 @@ class StepKinds:
     root = "root"
     error_step = "error_step"
     monitoring_application = "monitoring_application"
+    model_runner = "model_runner"
 
 
 _task_step_fields = [
@@ -1185,6 +1186,7 @@ class ModelRunnerStep(MonitoredStep):
     """
 
     kind = "model_runner"
+    shape = "box"
 
     def __init__(
         self,
@@ -1203,6 +1205,13 @@ class ModelRunnerStep(MonitoredStep):
             **kwargs,
         )
         self.raise_exception = raise_exception
+
+    @property
+    def fullname(self) -> str:
+        name = self.name or ""
+        name = "ModelRunnerStep_" + name
+        return name.replace(":", "_")  # replace for graphviz escaping
+
 
     def add_model(
         self,
@@ -2048,6 +2057,7 @@ class RootFlowStep(FlowStep):
         "on_error",
         "model_endpoints_names",
         "model_endpoints_routes_names",
+        "track_models"
     ]
 
     def __init__(
@@ -2067,6 +2077,7 @@ class RootFlowStep(FlowStep):
         )
         self._models = set()
         self._route_models = set()
+        self._track_models = False
 
     @property
     def model_endpoints_names(self) -> list[str]:
@@ -2086,6 +2097,14 @@ class RootFlowStep(FlowStep):
     @model_endpoints_routes_names.setter
     def model_endpoints_routes_names(self, models: list[str]):
         self._route_models = set(models)
+
+    @property
+    def track_models(self):
+        return self._track_models
+
+    @track_models.setter
+    def track_models(self, track_models: bool):
+        self._track_models = track_models
 
     def update_model_endpoints_routes_names(self, model_endpoints_names: list):
         self._route_models.update(model_endpoints_names)
@@ -2132,6 +2151,14 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
         graph.edge(step.fullname, route.fullname)
 
 
+def _add_graphviz_model_runner(graph, step, source=None):
+    if source:
+        graph.node("_start", source.name, shape=source.shape, style="filled")
+        graph.edge("_start", step.fullname)
+    number_of_models = len(list(step.class_args.get(schemas.ModelRunnerStepData.MODELS, {}).keys()))
+    is_monitored = step._extract_root_step().track_models
+
+
 def _add_graphviz_flow(
     graph,
     step,
@@ -2149,6 +2176,8 @@ def _add_graphviz_flow(
         if kind == StepKinds.router:
             with graph.subgraph(name="cluster_" + child.fullname) as sg:
                 _add_graphviz_router(sg, child)
+        elif kind == StepKinds.model_runner:
+            _add_graphviz_model_runner(graph, child)
         else:
             graph.node(child.fullname, label=child.name, shape=child.get_shape())
         _add_edges(child.after or [], step, graph, child)

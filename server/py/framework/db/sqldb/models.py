@@ -30,6 +30,7 @@ from sqlalchemy import (
     Index,
     Integer,
     PrimaryKeyConstraint,
+    Table,
     UniqueConstraint,
     event,
     text,

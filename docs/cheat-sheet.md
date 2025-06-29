@@ -292,6 +292,45 @@ spark.deploy()  # build image
 spark.run(output_path="/User")  # run spark job
 ```
 
+#### Databricks Runtime
+
+```python
+import os
+import mlrun
+
+
+def add_databricks_env(function):
+    job_env = {
+        "DATABRICKS_HOST": os.environ["DATABRICKS_HOST"],
+        "DATABRICKS_CLUSTER_ID": os.environ.get("DATABRICKS_CLUSTER_ID"),  #  optional
+    }
+
+    for name, val in job_env.items():
+        function.spec.env.append({"name": name, "value": val})
+
+
+project_name = "databricks-runtime-project"
+project = mlrun.get_or_create_project(project_name, context="./", user_project=False)
+secrets = {"DATABRICKS_TOKEN": os.environ["DATABRICKS_TOKEN"]}
+project.set_secrets(secrets)
+
+function = mlrun.code_to_function(
+    name="function-with-args",
+    kind="databricks",
+    project=project_name,
+    filename="run_etl.py",
+    image="mlrun/mlrun",
+    handler="run",
+)
+add_databricks_env(function=function)
+
+run = function.run(
+    params={
+        "param1": "value1",
+        "task_parameters": {"timeout_minutes": 15},
+    },
+)
+```
 ### Resource management
 Docs: [Managing job resources](./runtimes/configuring-job-resources.md)
 

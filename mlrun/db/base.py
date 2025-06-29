@@ -639,6 +639,16 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def retry_pipeline(
+        self,
+        run_id: str,
+        project: str,
+        namespace: Optional[str] = None,
+        timeout: int = 30,
+    ):
+        pass
+
+    @abstractmethod
     def list_project_secrets(
         self,
         project: str,
@@ -1032,6 +1042,13 @@ class RunDBInterface(ABC):
         func_url: Optional[str] = None,
         function: "mlrun.runtimes.BaseRuntime" = None,
     ):
+        pass
+
+    def get_project_background_task(
+        self,
+        project: str,
+        name: str,
+    ) -> mlrun.common.schemas.BackgroundTask:
         pass
 
     @abstractmethod

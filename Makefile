@@ -35,7 +35,7 @@ PYTHON_VERSION ?= $(shell python --version)
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 25.0.0
-MLRUN_UV_VERSION ?= 0.7.12
+MLRUN_UV_VERSION ?= 0.7.14
 MLRUN_UV_IMAGE ?= ghcr.io/astral-sh/uv:$(MLRUN_UV_VERSION)
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
@@ -936,19 +936,9 @@ ifdef MLRUN_DOCKER_CACHE_FROM_TAG
 	done;
 endif
 
-.PHONY: verify-uv-version
-verify-uv-version:
-	@{ \
-	uv_version=$$(uv self version | cut -d' ' -f2); \
-	result=$$(python -m semver compare $$uv_version $(MLRUN_UV_VERSION)); \
-	if [ "$$result" -eq -1 ]; then \
-	  echo "Error: The running uv version ($$uv_version) is outdated. Upgrade uv to version $(MLRUN_UV_VERSION)."; \
-	  exit 1; \
-	fi; \
-	}
 
 .PHONY: upgrade-mlrun-api-deps-lock
-upgrade-mlrun-api-deps-lock: verify-uv-version ## Upgrade mlrun-api locked requirements file
+upgrade-mlrun-api-deps-lock: ## Upgrade mlrun-api locked requirements file
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
@@ -958,7 +948,7 @@ upgrade-mlrun-api-deps-lock: verify-uv-version ## Upgrade mlrun-api locked requi
 		--output-file dockerfiles/mlrun-api/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-mlrun-deps-lock
-upgrade-mlrun-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-mlrun locked requirements file
+upgrade-mlrun-mlrun-deps-lock: ## Upgrade mlrun-mlrun locked requirements file
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
@@ -967,7 +957,7 @@ upgrade-mlrun-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-mlrun locked r
 		--output-file dockerfiles/mlrun/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-gpu-deps-lock
-upgrade-mlrun-gpu-deps-lock: verify-uv-version ## Upgrade mlrun-gpu locked requirements file
+upgrade-mlrun-gpu-deps-lock: ## Upgrade mlrun-gpu locked requirements file
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
@@ -976,7 +966,7 @@ upgrade-mlrun-gpu-deps-lock: verify-uv-version ## Upgrade mlrun-gpu locked requi
 		--output-file dockerfiles/gpu/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-jupyter-deps-lock
-upgrade-mlrun-jupyter-deps-lock: verify-uv-version ## Upgrade mlrun-jupyter locked requirements file
+upgrade-mlrun-jupyter-deps-lock: ## Upgrade mlrun-jupyter locked requirements file
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
@@ -986,7 +976,7 @@ upgrade-mlrun-jupyter-deps-lock: verify-uv-version ## Upgrade mlrun-jupyter lock
 		--output-file dockerfiles/jupyter/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-test-deps-lock
-upgrade-mlrun-test-deps-lock: verify-uv-version ## Upgrade mlrun test locked requirements file
+upgrade-mlrun-test-deps-lock: ## Upgrade mlrun test locked requirements file
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
@@ -997,7 +987,7 @@ upgrade-mlrun-test-deps-lock: verify-uv-version ## Upgrade mlrun test locked req
 		--output-file dockerfiles/test/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-system-test-deps-lock
-upgrade-mlrun-system-test-deps-lock: verify-uv-version ## Upgrade mlrun system test locked requirements file
+upgrade-mlrun-system-test-deps-lock: ## Upgrade mlrun system test locked requirements file
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
@@ -1007,8 +997,7 @@ upgrade-mlrun-system-test-deps-lock: verify-uv-version ## Upgrade mlrun system t
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/test-system/locked-requirements.txt
 
-
-upgrade-mlrun-kfp-deps-lock: verify-uv-version ## Upgrade mlrun-kfp locked requirements file
+upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
 		requirements.txt \
 		dockerfiles/mlrun-kfp/requirements.txt \
@@ -1017,7 +1006,7 @@ upgrade-mlrun-kfp-deps-lock: verify-uv-version ## Upgrade mlrun-kfp locked requi
 		--output-file dockerfiles/mlrun-kfp/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-deps-lock
-upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirements file
+upgrade-mlrun-deps-lock: ## Upgrade mlrun-* locked requirements file
 	@$(MAKE) -j \
 		upgrade-mlrun-mlrun-deps-lock \
 		upgrade-mlrun-api-deps-lock \
@@ -1026,6 +1015,7 @@ upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirement
 		upgrade-mlrun-kfp-deps-lock \
 		upgrade-mlrun-test-deps-lock \
 		upgrade-mlrun-system-test-deps-lock
+
 
 .PHONY: coverage-combine
 coverage-combine: ## Combine all coverage reports, ignoring errors like missing or corrupted source files

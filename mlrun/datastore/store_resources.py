@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import mlrun
 import mlrun.artifacts
 from mlrun.config import config
@@ -141,11 +140,7 @@ class ResourceCache:
 
 
 def get_store_resource(
-    uri,
-    db=None,
-    secrets=None,
-    project=None,
-    data_store_secrets=None,
+    uri, db=None, secrets=None, project=None, data_store_secrets=None
 ):
     """get store resource object by uri"""
 

@@ -228,18 +228,19 @@ class ModelObj:
         init_with_params: bool = False,
     ):
         """create an object from a python dictionary"""
-        struct = {} if struct is None else struct
+        struct = {} if struct is None else deepcopy(struct)
         deprecated_fields = deprecated_fields or {}
         fields = fields or copy(cls._dict_fields)
         if not fields:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
 
         if init_with_params:
-            kwargs = {
-                field: struct.pop(field, None) for field in fields
-            }  # update signature fields using init only
+            kwargs = {field: struct.get(field, None) for field in fields}
             kwargs.pop("self", None)
             new_obj = cls(**kwargs)
+            for key in kwargs:
+                # update signature fields using init only
+                fields.remove(key)
         else:
             new_obj = cls()
 

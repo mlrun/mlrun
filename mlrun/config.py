@@ -1219,7 +1219,7 @@ class Config:
         """
         Get the default value for the ssl_redirect configuration.
         In Iguazio we always want to redirect to HTTPS, in other cases we don't.
-        
+
         :return: True if we should redirect to HTTPS, False otherwise.
         """
         return self.is_running_on_iguazio()

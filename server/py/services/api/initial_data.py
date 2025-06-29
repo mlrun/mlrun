@@ -106,7 +106,7 @@ def create_schema(
         framework.db.sqldb.models.Base.metadata.create_all(bind=engine)
 
 
-def initialize_db_from_scratch(
+def _initialize_db_from_scratch(
     engine: typing.Optional[sqlalchemy.engine.Engine],
     url: sqlalchemy.engine.URL,
 ):

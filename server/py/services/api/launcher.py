@@ -39,13 +39,11 @@ from mlrun.model import RunSpec, RunTemplate
 from mlrun.runtimes import KubejobRuntime, RemoteRuntime
 
 import framework.api.utils
+import framework.db.session
 import framework.utils.helpers
+import framework.utils.singletons.db
 import services.api.crud
 import services.api.runtime_handlers
-from framework.db.sqldb.sql_session import create_session
-
-# Configmap objects on Kubernetes have 10Mb size limit
-SERVING_SPEC_MAX_LENGTH = 10485760
 
 # Configmap objects on Kubernetes have 10Mb size limit
 SERVING_SPEC_MAX_LENGTH = 10485760
@@ -154,6 +152,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # post verifications, store execution in db and run pre run hooks
         execution.store_run()
+        self._configure_attempt_for_logging(run)
         runtime._pre_run(run, execution)  # hook for runtime specific prep
 
         last_err = None
@@ -234,8 +233,37 @@ class ServerSideLauncher(launcher.BaseLauncher):
             retry=retry,
         )
 
+        self._handle_retry(run)
         run = self._pre_run_image_pull_secret_enrichment(run)
         return self._pre_run_scheduling_constraints_enrichment(runtime, run)
+
+    @staticmethod
+    def _handle_retry(run: mlrun.run.RunObject):
+        if run.status.state != mlrun.common.runtimes.constants.RunStates.pending_retry:
+            return
+
+        run.status.state = mlrun.common.runtimes.constants.RunStates.running
+        run.status.retry_count = run.status.retry_count or 0  # in case it is none
+        run.status.retry_count += 1  # increment by one
+        # TODO: Maintain start time of each retry ML-10169
+        run.status.start_time = None
+        # The combination of retry attempt label and requested logs `False` is required for the log collector to
+        # collect logs from the current run attempt.
+        run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.retry] = str(
+            run.status.retry_count
+        )
+
+    @staticmethod
+    def _configure_attempt_for_logging(run: mlrun.run.RunObject):
+        if not run.status.retry_count:
+            # Run is not a retry, continue
+            return
+
+        framework.db.session.run_function_with_new_db_session(
+            framework.utils.singletons.db.get_db().update_runs_requested_logs,
+            uids=[run.metadata.uid],
+            requested_logs=False,
+        )
 
     def _pre_run_scheduling_constraints_enrichment(
         self,
@@ -485,9 +513,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # If in the api server, we can assume that watch=False, so we save notification
         # configs to the DB, for the run monitor to later pick up and push.
-        session = create_session()
-        services.api.crud.Notifications().store_run_notifications(
-            session,
+        framework.db.session.run_function_with_new_db_session(
+            services.api.crud.Notifications().store_run_notifications,
             runobj.spec.notifications,
             runobj.metadata.uid,
             runobj.metadata.project,

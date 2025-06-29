@@ -62,6 +62,7 @@ class MLRunInternalLabels:
     scrape_metrics = f"{MLRUN_LABEL_PREFIX}scrape-metrics"
     tag = f"{MLRUN_LABEL_PREFIX}tag"
     uid = f"{MLRUN_LABEL_PREFIX}uid"
+    retry = f"{MLRUN_LABEL_PREFIX}retry-attempt"
     username = f"{MLRUN_LABEL_PREFIX}username"
     username_domain = f"{MLRUN_LABEL_PREFIX}username_domain"
     task_name = f"{MLRUN_LABEL_PREFIX}task-name"

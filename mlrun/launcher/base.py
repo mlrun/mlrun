@@ -18,6 +18,7 @@ import os
 import uuid
 from typing import Any, Callable, Optional, Union
 
+import mlrun.common.constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.config
@@ -366,12 +367,6 @@ class BaseLauncher(abc.ABC):
         )
         run.spec.state_thresholds = state_thresholds or run.spec.state_thresholds
         run.spec.retry = retry or run.spec.retry
-        if run.status.state == mlrun.common.runtimes.constants.RunStates.pending_retry:
-            run.status.state = mlrun.common.runtimes.constants.RunStates.running
-            run.status.retry_count = run.status.retry_count or 0  # in case it is none
-            run.status.retry_count += 1  # increment by one
-            # TODO: Maintain start time of each retry ML-10169
-            run.status.start_time = None
         return run
 
     @staticmethod

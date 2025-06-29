@@ -241,6 +241,7 @@ class BaseRuntimeHandler(ABC):
         label_selector: Optional[str] = None,
         class_mode: Union[RuntimeClassMode, str] = None,
         with_main_runtime_resource_label_selector: bool = False,
+        retry_count: Optional[int] = None,
     ) -> str:
         default_label_selector = self._get_default_label_selector(class_mode=class_mode)
 
@@ -269,6 +270,15 @@ class BaseRuntimeHandler(ABC):
                 label_selector = ",".join(
                     [label_selector, main_runtime_resource_label_selector]
                 )
+
+        if retry_count is not None:
+            # If retry attempt is provided, add it to the label selector to avoid conflicts with previous runs
+            label_selector = ",".join(
+                [
+                    label_selector,
+                    f"{mlrun_constants.MLRunInternalLabels.retry}={retry_count}",
+                ]
+            )
 
         return label_selector
 

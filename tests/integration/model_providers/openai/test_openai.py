@@ -28,7 +28,8 @@ from mlrun.datastore.datastore_profile import (
     OpenAIProfile,
     register_temporary_client_datastore_profile,
 )
-from mlrun.datastore.model_provider.model_provider import ModelProvider, OpenAIProvider
+from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from mlrun.serving import ModelRunnerStep
 
 here = os.path.dirname(__file__)
@@ -45,15 +46,16 @@ class MyOpenAILLM(mlrun.serving.states.Model):
     def predict(self, body):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
-        ) and isinstance(self.model, ModelProvider):
+        ) and isinstance(self.model_provider, ModelProvider):
             prompt = self.enrich_prompt(body)
-            body["result"] = self.model.invoke(
+            body["result"] = self.model_provider.invoke(
                 prompt=prompt,
                 **(self.invocation_artifact.spec.model_configuration or {}),
             )
         return body
 
     def enrich_prompt(self, body) -> str:
+        # TODO: Update this once ML-8172 is completed
         if isinstance(self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact):
             prompt_template = self.invocation_artifact.spec.prompt_string
             needed_params = ["question", "depth_level", "persona", "tone"]

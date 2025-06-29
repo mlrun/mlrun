@@ -29,12 +29,11 @@ from mlrun import MLRunInvalidArgumentError, new_function
 from mlrun.datastore import KafkaSource
 from mlrun.datastore.azure_blob import AzureBlobStore
 from mlrun.datastore.base import HttpStore
-from mlrun.datastore.datastore import schema_to_store
+from mlrun.datastore.datastore import schema_to_model_provider, schema_to_store
 from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
 from mlrun.datastore.dbfs_store import DBFSStore
 from mlrun.datastore.filestore import FileStore
 from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
-from mlrun.datastore.model_provider.model_provider import schema_to_model_provider
 from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from mlrun.datastore.redis import RedisStore
 from mlrun.datastore.s3 import S3Store
@@ -209,6 +208,7 @@ def test_schema_to_store(schemas, expected_class, expected):
     "schemas,expected_class,expected",
     [
         (["openai"], OpenAIProvider, does_not_raise()),
+        (["random"], None, pytest.raises(ValueError)),
     ],
 )
 def test_schema_to_model_provider(schemas, expected_class, expected):

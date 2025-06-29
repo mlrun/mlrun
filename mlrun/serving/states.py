@@ -1018,13 +1018,13 @@ class Model(storey.ParallelExecutionRunnable):
         self.artifact_uri = artifact_uri
         self.invocation_artifact: Optional[LLMPromptArtifact] = None
         self.model_artifact: Optional[ModelArtifact] = None
-        self.model: Optional[ModelProvider] = None
+        self.model_provider: Optional[ModelProvider] = None
 
     def load(self) -> None:
         """Override to load model if needed."""
         self._load_artifacts()
         if self.model_artifact:
-            self.model = mlrun.get_model_provider(
+            self.model_provider = mlrun.get_model_provider(
                 url=self.model_artifact.model_url,
                 default_invoke_kwargs=self.model_artifact.default_config,
             )

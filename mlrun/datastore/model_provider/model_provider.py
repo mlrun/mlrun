@@ -11,11 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import warnings
 from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar
 
-import mlrun.datastore.model_provider.openai_provider
+import mlrun.errors
 from mlrun.datastore.remote_client import (
     BaseRemoteClient,
 )
@@ -85,17 +84,3 @@ class ModelProvider(BaseRemoteClient):
 
     async def async_invoke(self, prompt: str, **invoke_kwargs) -> Awaitable[str]:
         raise NotImplementedError("async_invoke is not implemented")
-
-
-def schema_to_model_provider(schema: str, raise_exception=True) -> type[ModelProvider]:
-    #  TODO add hugging face and http
-    schema_dict = {
-        "openai": mlrun.datastore.model_provider.openai_provider.OpenAIProvider
-    }
-    provider_class = schema_dict.get(schema, None)
-    if not provider_class:
-        if raise_exception:
-            raise ValueError(f"unsupported model provider schema ({schema})")
-        else:
-            warnings.warn(f"unsupported model provider schema: {schema}")
-    return provider_class

@@ -34,6 +34,10 @@ class OpenAIProvider(ModelProvider):
         default_invoke_kwargs: Optional[dict] = None,
     ):
         endpoint = endpoint or mlrun.mlconf.model_providers.openai_default_model
+        if kind != "openai":
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "OpenAIProvider supports only 'openai' as the provider kind."
+            )
         super().__init__(
             parent=parent,
             name=name,

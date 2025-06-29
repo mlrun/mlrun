@@ -24,7 +24,6 @@ from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.datastore_profile import datastore_profile_read
 from mlrun.datastore.model_provider.model_provider import (
     ModelProvider,
-    schema_to_model_provider,
 )
 from mlrun.datastore.utils import (
     parse_url,
@@ -37,6 +36,7 @@ from ..utils import DB_SCHEMA, RunKeys
 from .base import DataItem, DataStore, HttpStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
+from .model_provider.openai_provider import OpenAIProvider
 from .store_resources import get_store_resource, is_store_uri
 from .v3io import V3ioStore
 
@@ -96,6 +96,18 @@ def schema_to_store(schema) -> DataStore.__subclasses__():
         return OSSStore
     else:
         raise ValueError(f"unsupported store scheme ({schema})")
+
+
+def schema_to_model_provider(schema: str, raise_exception=True) -> type[ModelProvider]:
+    #  TODO add hugging face and http
+    schema_dict = {"openai": OpenAIProvider}
+    provider_class = schema_dict.get(schema, None)
+    if not provider_class:
+        if raise_exception:
+            raise ValueError(f"unsupported model provider schema ({schema})")
+        else:
+            warnings.warn(f"unsupported model provider schema: {schema}")
+    return provider_class
 
 
 def uri_to_ipython(link):

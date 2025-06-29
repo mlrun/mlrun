@@ -1,6 +1,6 @@
 import io
 from dataclasses import dataclass
-from typing import Optional, Type
+from typing import Optional
 
 import pytest
 from urllib3._collections import HTTPHeaderDict
@@ -60,7 +60,7 @@ def test_retry_config_values() -> None:
 )
 def test_k8s_helper_retries_on_errors(
     monkeypatch: pytest.MonkeyPatch,
-    exc_cls: Type[Exception],
+    exc_cls: type[Exception],
 ) -> None:
     helper = K8sHelper()
     attempts = AttemptCounter()

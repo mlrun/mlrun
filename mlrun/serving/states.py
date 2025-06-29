@@ -1262,9 +1262,9 @@ class ModelRunnerStep(MonitoredStep):
         :param model_parameters:    Parameters for model instantiation
         """
 
-        if not isinstance(model_class, str) and model_parameters:
+        if isinstance(model_class, Model) and model_parameters:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Cannot provide as model initialized model object with model_parameters."
+                "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
             )
 
         model_parameters = model_parameters or (

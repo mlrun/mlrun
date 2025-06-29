@@ -235,10 +235,10 @@ class ModelObj:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
 
         if init_with_params:
-            kwargs = {field: struct.get(field, None) for field in fields}
+            kwargs = {
+                field: struct.pop(field, None) for field in fields
+            }  # update signature fields using init only
             kwargs.pop("self", None)
-            for key in kwargs:
-                fields.remove(key)
             new_obj = cls(**kwargs)
         else:
             new_obj = cls()

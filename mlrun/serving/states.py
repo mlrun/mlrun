@@ -2155,7 +2155,7 @@ def _add_graphviz_model_runner(graph, step, source=None):
     # Mapping for Unicode circled numbers (① = U+2460)
     number_of_models = len(list(step.class_args.get(schemas.ModelRunnerStepData.MODELS, {}).keys()))
     circled_numbers = {
-        i: chr(0x2460 + i - 1) for i in range(1, 21)
+        i: chr(0x2460 + i - 1) for i in range(1, 10_000)
     }
     circled = circled_numbers.get(number_of_models, str(number_of_models))  # fallback to plain number
 

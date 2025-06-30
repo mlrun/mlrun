@@ -49,7 +49,7 @@ class FileStats:
 class DataStore(BaseRemoteClient):
     using_bucket = False
 
-    def __init__(self, parent, name, kind, endpoint="", secrets: Optional[dict] = None):
+    def __init__(self, parent, name, kind, endpoint="", secrets: Optional[dict] = None, **kwargs):
         super().__init__(
             parent=parent, name=name, kind=kind, endpoint=endpoint, secrets=secrets
         )

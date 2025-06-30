@@ -1300,7 +1300,15 @@ class ModelRunnerStep(MonitoredStep):
                 f"Model with name {endpoint_name} already exists in this ModelRunnerStep."
             )
         ParallelExecutionMechanisms.validate(execution_mechanism)
-        model_parameters["execution_mechanism"] = execution_mechanism
+        self.class_args[schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM] = (
+            self.class_args.get(
+                schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM,
+                {},
+            )
+        )
+        self.class_args[schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM][
+            endpoint_name
+        ] = execution_mechanism
 
         model_parameters["name"] = endpoint_name
         monitoring_data = self.class_args.get(
@@ -1373,6 +1381,9 @@ class ModelRunnerStep(MonitoredStep):
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         model_selector = self.class_args.get("model_selector")
+        execution_mechanism_by_model_name = self.class_args.get(
+            schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM
+        )
         models = self.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
         if isinstance(model_selector, str):
             model_selector = get_class(model_selector, namespace)()
@@ -1389,6 +1400,7 @@ class ModelRunnerStep(MonitoredStep):
         self._async_object = ModelRunner(
             model_selector=model_selector,
             runnables=model_objects,
+            execution_mechanism_by_runnable_name=execution_mechanism_by_model_name,
             name=self.name,
             context=context,
         )

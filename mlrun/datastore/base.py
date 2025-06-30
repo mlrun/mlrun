@@ -53,7 +53,7 @@ class DataStore(BaseRemoteClient):
         self, parent, name, kind, endpoint="", secrets: Optional[dict] = None, **kwargs
     ):
         super().__init__(
-            parent=parent, name=name, kind=kind, endpoint=endpoint, secrets=secrets
+            parent=parent, kind=kind, name=name, endpoint=endpoint, secrets=secrets
         )
         self.subpath = ""
         self.options = {}

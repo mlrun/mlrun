@@ -18,10 +18,10 @@ import mlrun
 
 
 class BaseRemoteClient:
-    def __init__(self, parent, name, kind, endpoint="", secrets: Optional[dict] = None):
+    def __init__(self, parent, kind, name, endpoint="", secrets: Optional[dict] = None):
         self._parent = parent
-        self.name = name
         self.kind = kind
+        self.name = name
         self.endpoint = endpoint
         self._secrets = secrets or {}
         self.secret_pfx = ""
@@ -48,3 +48,7 @@ class BaseRemoteClient:
             return {}
         options = {k: v for k, v in options.items() if v is not None and v != ""}
         return options
+
+    @classmethod
+    def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):
+        return endpoint, subpath

@@ -28,8 +28,8 @@ class ModelProvider(BaseRemoteClient):
     def __init__(
         self,
         parent,
-        name,
         kind,
+        name,
         endpoint="",
         secrets: Optional[dict] = None,
         default_invoke_kwargs: Optional[dict] = None,
@@ -57,10 +57,6 @@ class ModelProvider(BaseRemoteClient):
     @property
     def client(self):
         return self._client
-
-    @classmethod
-    def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):
-        return endpoint, subpath
 
     @property
     def model(self):

@@ -1154,12 +1154,18 @@ def get_dataitem(url, secrets=None, db=None) -> "DataItem":
 
 
 def get_model_provider(
-    url, secrets=None, db=None, default_invoke_kwargs: Optional[dict] = None
+    url,
+    secrets=None,
+    db=None,
+    default_invoke_kwargs: Optional[dict] = None,
+    raise_missing_schema_exception=True,
 ) -> ModelProvider:
     """get mlrun dataitem object (from path/url)"""
     store_manager.set(secrets, db=db)
     return store_manager.model_provider_object(
-        url=url, default_invoke_kwargs=default_invoke_kwargs
+        url=url,
+        default_invoke_kwargs=default_invoke_kwargs,
+        raise_missing_schema_exception=raise_missing_schema_exception,
     )
 
 

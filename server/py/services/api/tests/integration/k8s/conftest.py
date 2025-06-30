@@ -21,7 +21,7 @@ import pytest
 import yaml
 from testcontainers.k3s import K3SContainer
 
-from framework.utils.singletons.k8s import K8sHelper
+import framework.utils.singletons.k8s
 
 
 def _server_ca_user(k3s: K3SContainer) -> tuple[str, str, dict]:
@@ -56,9 +56,9 @@ def _write_kubeconfig(server: str, user: dict, ca_b64: str, path: str) -> None:
         yaml.safe_dump(kube_cfg, fp)
 
 
-def _k8shelper_from_config(cfg_path: str) -> K8sHelper:
+def _k8shelper_from_config(cfg_path: str) -> framework.utils.singletons.k8s.K8sHelper:
     """Instantiate K8sHelper pointing at the given kube-config."""
-    return K8sHelper(kube_config_path=cfg_path, silent=False, log=False)
+    return framework.utils.singletons.k8s.K8sHelper(kube_config_path=cfg_path, silent=False, log=False)
 
 
 @pytest.fixture(scope="session")

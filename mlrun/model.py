@@ -19,7 +19,7 @@ import re
 import time
 import typing
 from collections import OrderedDict
-from copy import copy, deepcopy
+from copy import deepcopy
 from datetime import datetime
 from os import environ
 from typing import Any, Optional, Union

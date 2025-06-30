@@ -682,11 +682,17 @@ func (suite *LogCollectorTestSuite) TestDeleteLogs() {
 		name                string
 		logsNumToCreate     int
 		expectedLogsNumLeft int
+		deleteByPrefix      bool
 	}{
 		{
 			name:                "Delete some logs",
 			logsNumToCreate:     5,
 			expectedLogsNumLeft: 2,
+		},
+		{
+			name:            "Delete some logs by prefix",
+			logsNumToCreate: 5,
+			deleteByPrefix:  true,
 		},
 		{
 			name:                "Delete all logs",
@@ -702,6 +708,9 @@ func (suite *LogCollectorTestSuite) TestDeleteLogs() {
 			var runUIDs []string
 			for i := 0; i < testCase.logsNumToCreate; i++ {
 				runUID := uuid.New().String()
+				if testCase.deleteByPrefix {
+					runUID = fmt.Sprintf("run-prefix-%s", runUID)
+				}
 				runUIDs = append(runUIDs, runUID)
 				logFilePath := suite.logCollectorServer.resolveRunLogFilePath(projectName, runUID)
 				err := common.WriteToFile(logFilePath, []byte("some log"), false)
@@ -714,10 +723,17 @@ func (suite *LogCollectorTestSuite) TestDeleteLogs() {
 			suite.Require().NoError(err, "Failed to read dir")
 			suite.Require().Equal(testCase.logsNumToCreate, len(dirEntries), "Expected logs to exist")
 
+			var runUIDsToDelete []string
+			if testCase.deleteByPrefix {
+				runUIDsToDelete = []string{"run-prefix-"}
+			} else {
+				runUIDsToDelete = runUIDs[testCase.expectedLogsNumLeft:]
+			}
+
 			// delete some logs
 			request := &protologcollector.StopLogsRequest{
 				Project: projectName,
-				RunUIDs: runUIDs[testCase.expectedLogsNumLeft:],
+				RunUIDs: runUIDsToDelete,
 			}
 			response, err := suite.logCollectorServer.DeleteLogs(suite.ctx, request)
 			suite.Require().NoError(err, "Failed to stop log")
@@ -726,7 +742,11 @@ func (suite *LogCollectorTestSuite) TestDeleteLogs() {
 			// verify files deleted
 			dirEntries, err = os.ReadDir(dirPath)
 			suite.Require().NoError(err, "Failed to read dir")
-			suite.Require().Equal(testCase.expectedLogsNumLeft, len(dirEntries), "Expected logs to be deleted")
+			if testCase.deleteByPrefix {
+				suite.Require().Equal(0, len(dirEntries), "Expected logs to be deleted")
+			} else {
+				suite.Require().Equal(testCase.expectedLogsNumLeft, len(dirEntries), "Expected logs to be deleted")
+			}
 		})
 	}
 }

@@ -243,8 +243,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
             return
 
         run.status.state = mlrun.common.runtimes.constants.RunStates.running
-        run.status.retry_count = run.status.retry_count or 0  # in case it is none
-        run.status.retry_count += 1  # increment by one
+        # retry_count may be None on first run attempt
+        run.status.retry_count = run.status.retry_count or 0
+        run.status.retry_count += 1
         # TODO: Maintain start time of each retry ML-10169
         run.status.start_time = None
         # The combination of retry attempt label and requested logs `False` is required for the log collector to

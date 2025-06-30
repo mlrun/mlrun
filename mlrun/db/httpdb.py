@@ -672,7 +672,7 @@ class HTTPRunDB(RunDBInterface):
         :param watch: If set to ``True`` will continue tracking the log as described above. Otherwise this function
             is practically equivalent to the :py:func:`~get_log` function.
         :param offset: Minimal offset in the log to watch.
-        :param attempt: For retriable runs, the attempt number to retrieve the log for. 0 is the initial attempt.
+        :param attempt: For retriable runs, the attempt number to retrieve the log for. 1 is the initial attempt.
         :returns: The final state of the log being watched and the final offset.
         """
 

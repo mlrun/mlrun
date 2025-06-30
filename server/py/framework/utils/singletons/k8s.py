@@ -101,7 +101,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         try:
             self._api_config = self._init_k8s_config(log)
 
-            self._api_config.retries = urllib3.util.Retry(total=False)
+            self._api_config.retries = urllib3.util.Retry(read=3, connect=3)
 
             self._api_client = client.ApiClient(self._api_config)
             self.v1api = client.CoreV1Api(api_client=self._api_client)

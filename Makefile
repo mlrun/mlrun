@@ -580,6 +580,7 @@ test: clean ## Run mlrun tests
 	set -e ; \
 	COMMON_IGNORE_TEST_FLAGS=$$(echo "\
 	--ignore=tests/integration \
+	--ignore=server/py/services/api/tests/integration \
 	--ignore=tests/system \
 	--ignore=tests/rundb/test_httpdb.py \
 	--ignore=server/py/services/api/migrations \
@@ -644,6 +645,7 @@ test-integration: clean ## Run mlrun integration tests
 		--durations=100 \
 		-rf \
 		tests/integration \
+		server/py/services/api/tests/integration \ß
 		tests/rundb/test_httpdb.py && \
 	$(PRINT_COVERAGE_REPORT);
 

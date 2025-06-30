@@ -66,7 +66,6 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         )
         self.project.register_datastore_profile(self.profile)
         self.url_prefix = f"ds://{self.profile_name}/"
-        # self.reset_env()
         self.model_url = self.url_prefix + self.basic_llm_model
 
     def test_basic_openai_model_runner(self):

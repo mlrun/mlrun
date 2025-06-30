@@ -26,7 +26,6 @@ import mlrun.common.schemas
 import mlrun.config
 
 import framework.constants
-import framework.db.init_db
 import framework.db.sqldb.db
 import framework.db.sqldb.models
 import framework.db.sqldb.sql_session
@@ -721,7 +720,7 @@ def _initialize_db_without_migrations() -> (
     db_session = framework.db.sqldb.sql_session.create_session(dsn=dsn)
     db = framework.db.sqldb.db.SQLDB(dsn)
     db.initialize(db_session)
-    framework.db.init_db.init_db()
+    services.api.initial_data._create_schema()
     return db, db_session
 
 

@@ -1135,8 +1135,8 @@ class RunDBInterface(ABC):
         self,
         project: str,
         function_name: str,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
         include_latest_metrics: bool = False,
     ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
         pass

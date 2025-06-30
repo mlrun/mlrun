@@ -387,7 +387,8 @@ class TSDBConnector(ABC):
         :param end:                The end time of the query. Now is used by default.
         :param application_names:  A list of application names to filter the results by. If not provided, all
                                    applications are included.
-        :return:                   A list of dictionaries containing the latest metrics and results for each application.
+        :return:                   A list of dictionaries containing the latest metrics and results for each
+                                   application.
                                    example::
                                    [
                                        {

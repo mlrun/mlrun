@@ -204,7 +204,6 @@ class Client(
                 client_configuration=config,
             )
         except Exception:
-            self.logger.info("Failed to load kube config.")
             return config
 
         if config.host:

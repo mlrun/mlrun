@@ -15,14 +15,16 @@ All three types are configured by the `engine` flag, when running the workflow, 
 - [KFP](#kfp)
  
 ## Remote-KFP 
-Remote workflows are used for [scheduled workflows](./scheduled-jobs.md#scheduling-a-workflow).  
-Remote workflows are run on the workflow runner pod that runs and load your workflow on a pod named `workflow-runner-<workflow-name>`. This pod is responsible for loading the files from the remote source (git, tar.gz or zip) and running the KFP by using the files from the remote source.  
+
+Remote workflows are run on the workflow runner pod, which runs and loads your workflow on a pod named `workflow-runner-<workflow-name>`. This pod is responsible for loading the files from the remote source (git, tar.gz or zip) and running the KFP by using the files from the remote source.  
 In some cases you might not want to load the files from the remote source, but instead use the files within the running image. See details in [build image](../projects/run-build-deploy.md#build_image). In this case, you need to build an image that contains the workflow file and then change the workflow runner source to point to the project local files in the running image. See the example below.
+
+Remote workflows are used for [scheduled workflows](./scheduled-jobs.md#scheduling-a-workflow). Only workflows that use the remote engine can be scheduled. 
 
 The remote workflow supports [sending notifications](./notifications.md#remote-pipeline-notifications) when runs are complete.
 
 You can modify the pod image, source, and the pod node selector with:
-- `project.set_workflow(name="main",workflow_path="workflow.py,image="<runner-image>")` &mdash; changing the runner image
+- `project.set_workflow(name="main",workflow_path="workflow.py",image="<runner-image>")` &mdash; changing the runner image
 - `project.run("main",engine="remote",workflow_runner_node_selector={"key":"value"})` &mdash; changing the runner node selector 
 - `project.run(source=<source-URL>)` &mdash; changing the runner source
 
@@ -50,12 +52,14 @@ source_code_target_dir = "./project" # Optional, relative to "/home/mlrun_code".
 # Create a new project
 project = mlrun.load_project(context=f"./{project_name}", url=source_url, name=project_name)
 
-# Set the project source and workflow
+# Set the project source
 project.set_source(source_url)
-project.set_workflow(name="main", workflow_path="kflow.py")
 
-# Build the image, load the source to the target dir and save the project
-project.build_image(target_dir=source_code_target_dir)
+# Build the image based on mlrun-kfp, load the source to the target dir
+result = project.build_image(base_image="mlrun/mlrun-kfp" ,target_dir=source_code_target_dir, set_as_default=False)
+
+# Set the workflow and save the project
+project.set_workflow(name="main", workflow_path="kflow.py", image=result.outputs["image"])
 project.save()
 
 # Run the workflow, load the project from the target dir on the image

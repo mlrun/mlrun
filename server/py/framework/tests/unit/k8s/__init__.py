@@ -11,12 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
-class SepalLengthIncreaser:
-    def do(self, event):
-        event_is_list = isinstance(event, list)
-        events = event if event_is_list else [event]
-        for event in events:
-            event["sepal_length"] += 1
-        return events if event_is_list else events[0]

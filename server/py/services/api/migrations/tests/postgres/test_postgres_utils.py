@@ -11,27 +11,38 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from framework.utils.db.utils import DBUtil
+import pytest
+
+import framework.utils.db.utils
+
+pytest.importorskip(
+    "psycopg2",
+    reason="psycopg2 not installed",
+)
 
 
+@pytest.mark.integration
 def test_postgres_apply_modes_live(pmr_postgres_container, patched_dsn):
-    util = DBUtil()  # -> UtilPostgres
+    util = framework.utils.db.utils.DBUtil()
 
-    def _show(name):
-        conn = util._get_driver().connect(**util._connection_kwargs())
-        try:
-            with conn.cursor() as cur:
-                cur.execute(f"SHOW {name};")
-                return cur.fetchone()[0].strip()
-        finally:
-            conn.close()
+    configs = util.get_current_configurations()
+    old_value = configs.get("work_mem")
 
-    guc = "work_mem"
-    original = _show(guc)
-    new_val = "64MB" if original != "64MB" else "32MB"
+    assert (
+        old_value != "65536"
+    ), "The test is not applicable, 'work_mem' is already set to '65536'."
 
-    util.set_modes(f"{guc}={new_val}")
-    assert _show(guc) == new_val
+    # apply new setting
+    util.set_configurations({"work_mem": 65536})
 
-    util.set_modes(f"{guc}={original}")
-    assert _show(guc) == original
+    assert util.get_current_configurations()["work_mem"] == "65536"
+
+    # restore original
+    util.set_configurations({"work_mem": old_value})
+
+    assert util.get_current_configurations()["work_mem"] == old_value
+
+    # sanity: ensure only work_mem changed back
+    final = util.get_current_configurations()
+
+    assert final.get("work_mem") == old_value

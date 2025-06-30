@@ -50,6 +50,7 @@ import framework.utils.pagination_cache
 import services.api.utils.db.alembic
 import services.api.utils.db.backup
 import services.api.utils.scheduler
+from framework.utils.db.utils import DBUtil
 
 
 def init_data(
@@ -134,13 +135,11 @@ def _migrate_existing_data(
     perform_migrations_if_needed: bool = False,
 ):
     # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
-    mysql_util = framework.utils.db.mysql.MySQLUtil(
-        mlrun.utils.logger
-    )  # TODO make this DB agnostic
+    db_util = DBUtil()
     alembic_util = _create_alembic_util()
-    if mysql_util.get_mysql_dsn_data():
+    if db_util.get_parsed_dsn():
         mysql_util.wait_for_db_liveness()
-        mysql_util.set_modes(mlrun.mlconf.httpdb.db.mysql.modes)
+        mysql_util.set_configurations(mlrun.mlconf.httpdb.db.mysql.modes)
         (
             is_migration_needed,
             is_backup_needed,

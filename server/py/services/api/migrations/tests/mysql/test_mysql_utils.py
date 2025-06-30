@@ -17,32 +17,21 @@ from pytest_mock_resources import MysqlConfig
 from framework.utils.db.utils import DBUtil
 
 
-def _current_sql_mode(util: DBUtil) -> str:
-    conn = util._get_driver().connect(**util._connection_kwargs())
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT @@GLOBAL.sql_mode;")
-            return (cur.fetchone()[0] or "").strip()
-    finally:
-        conn.close()
-
-
 @pytest.mark.integration
 def test_mysql_apply_strict_all_tables_live(pmr_mysql_container: MysqlConfig):
     util = DBUtil()
     print(type(pmr_mysql_container))
 
-    original = _current_sql_mode(util)
-    current_modes = {m.strip() for m in original.split(",") if m.strip()}
-    if "STRICT_ALL_TABLES" in current_modes:
+    original = list(util.get_current_configurations())
+    if "PIPES_AS_CONCAT" in original:
         raise AssertionError(
-            "The test is not applicable, 'STRICT_ALL_TABLES' is already set."
+            "The test is not applicable, 'PIPES_AS_CONCAT' is already set."
         )
 
     # apply
-    util.set_modes("STRICT_ALL_TABLES")
-    assert _current_sql_mode(util) == "STRICT_ALL_TABLES"
+    util.set_configurations(["PIPES_AS_CONCAT"])
+    assert util.get_current_configurations()
 
     # restore
-    util.set_modes(original)
-    assert _current_sql_mode(util) == original
+    util.set_configurations(original)
+    assert list(util.get_current_configurations()) == original

@@ -1196,13 +1196,14 @@ class ModelRunnerStep(MonitoredStep):
         raise_exception: bool = True,
         **kwargs,
     ):
+        kwargs = kwargs or {}
+        kwargs["shape"] = ModelRunnerStep.shape
         super().__init__(
             *args,
             name=name,
             raise_exception=raise_exception,
             class_name="mlrun.serving.ModelRunner",
             class_args=dict(model_selector=model_selector),
-            shape=ModelRunnerStep.shape,
             **kwargs,
         )
         self.raise_exception = raise_exception

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import warnings
+from functools import partial
 from typing import Optional
 
 from mergedeep import merge
@@ -25,6 +26,7 @@ from mlrun.datastore.datastore_profile import datastore_profile_read
 from mlrun.datastore.model_provider.model_provider import (
     ModelProvider,
 )
+from mlrun.datastore.remote_client import BaseRemoteClient
 from mlrun.datastore.utils import (
     parse_url,
 )
@@ -97,12 +99,14 @@ def schema_to_store(schema) -> DataStore.__subclasses__():
     raise ValueError(f"unsupported store scheme ({schema})")
 
 
-def schema_to_model_provider(schema: str, raise_exception=True) -> type[ModelProvider]:
+def schema_to_model_provider(
+    schema: str, raise_missing_schema_exception=True
+) -> type[ModelProvider]:
     #  TODO add hugging face and http
     schema_dict = {"openai": OpenAIProvider}
     provider_class = schema_dict.get(schema, None)
     if not provider_class:
-        if raise_exception:
+        if raise_missing_schema_exception:
             raise ValueError(f"unsupported model provider schema ({schema})")
         else:
             warnings.warn(f"unsupported model provider schema: {schema}")
@@ -231,18 +235,18 @@ class StoreManager:
         cache: Optional[dict] = None,
         schema_to_class: callable = schema_to_store,
         **kwargs,
-    ) -> (DataStore, str, str):
+    ) -> (BaseRemoteClient, str, str):
         cache = cache or {}
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
         cache_key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"
 
         if schema == "ds":
-            secrets, url, schema, endpoint, parsed_url, subpath = (
-                self._resolve_datastore_profile(
-                    url=url, secrets=secrets, project_name=project_name, subpath=subpath
-                )
-            )
+            datastore_profile = datastore_profile_read(url, project_name, secrets)
+            secrets = merge(secrets or {}, datastore_profile.secrets() or {})
+            url = datastore_profile.url(subpath)
+            schema, endpoint, parsed_url = parse_url(url)
+            subpath = parsed_url.path
 
         if schema == "memory":
             subpath = url[len("memory://") :]
@@ -296,6 +300,61 @@ class StoreManager:
                 "remote client by url is not datastore"
             )
 
+    def get_or_create_model_provider(
+        self,
+        url,
+        secrets: Optional[dict] = None,
+        project_name="",
+        default_invoke_kwargs: Optional[dict] = None,
+        raise_missing_schema_exception=True,
+    ) -> ModelProvider:
+        schema_to_provider_with_raise = partial(
+            schema_to_model_provider, raise_exception=raise_missing_schema_exception
+        )
+        model_provider, _, _ = self._get_or_create_remote_client(
+            url=url,
+            secrets=secrets,
+            project_name=project_name,
+            schema_to_class=schema_to_provider_with_raise,
+            default_invoke_kwargs=default_invoke_kwargs,
+        )
+        if model_provider and not isinstance(model_provider, ModelProvider):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "remote client by url is not model_provider"
+            )
+        return model_provider
+
+        # schema, endpoint, parsed_url = parse_url(url)
+        # subpath = parsed_url.path
+        #
+        # if schema == "ds":
+        #     secrets, url, schema, endpoint, parsed_url, subpath = (
+        #         self._resolve_datastore_profile(
+        #             url=url, secrets=secrets, project_name=project_name, subpath=subpath
+        #         )
+        #     )
+        #
+        # model_provider_class = schema_to_model_provider(schema, raise_exception=False)
+        # if not model_provider_class:
+        #     warnings.warn(
+        #         "Model provider scheme not found. Returning None — model provider will not be supported."
+        #     )
+        #     return None
+        # endpoint, subpath = model_provider_class.parse_endpoint_and_path(
+        #     endpoint=endpoint, subpath=subpath
+        # )
+        # key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"
+        #
+        # model_provider = model_provider_class(
+        #     parent=self,
+        #     name=key,
+        #     kind=schema,
+        #     endpoint=endpoint,
+        #     secrets=secrets,
+        #     default_invoke_kwargs=default_invoke_kwargs,
+        # )
+        # return model_provider
+
     @staticmethod
     def _resolve_datastore_profile(
         url,
@@ -315,44 +374,6 @@ class StoreManager:
 
     def reset_secrets(self):
         self._secrets = {}
-
-    def get_or_create_model_provider(
-        self,
-        url,
-        secrets: Optional[dict] = None,
-        project_name="",
-        default_invoke_kwargs: Optional[dict] = None,
-    ) -> (ModelProvider, str, str):
-        schema, endpoint, parsed_url = parse_url(url)
-        subpath = parsed_url.path
-
-        if schema == "ds":
-            secrets, url, schema, endpoint, parsed_url, subpath = (
-                self._resolve_datastore_profile(
-                    url=url, secrets=secrets, project_name=project_name, subpath=subpath
-                )
-            )
-
-        model_provider_class = schema_to_model_provider(schema, raise_exception=False)
-        if not model_provider_class:
-            warnings.warn(
-                "Model provider scheme not found. Returning None — model provider will not be supported."
-            )
-            return None
-        endpoint, subpath = model_provider_class.parse_endpoint_and_path(
-            endpoint=endpoint, subpath=subpath
-        )
-        key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"
-
-        model_provider = model_provider_class(
-            parent=self,
-            name=key,
-            kind=schema,
-            endpoint=endpoint,
-            secrets=secrets,
-            default_invoke_kwargs=default_invoke_kwargs,
-        )
-        return model_provider
 
     def model_provider_object(
         self,

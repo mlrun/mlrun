@@ -1204,14 +1204,7 @@ class ModelRunnerStep(MonitoredStep):
             **kwargs,
         )
         self.raise_exception = raise_exception
-        self.shape = "box"
-
-
-    @property
-    def fullname(self) -> str:
-        name = self.name or ""
-        name = "ModelRunnerStep_" + name
-        return name.replace(":", "_")  # replace for graphviz escaping
+        self.shape = "folder"
 
 
     def add_model(
@@ -2168,13 +2161,13 @@ def _add_graphviz_model_runner(graph, step, source=None):
 
     # Create HTML label dynamically
     html_label = f"""<
-    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4">
+    <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4">
         <TR>
             <TD ALIGN="LEFT">{m_cell}</TD>
             <TD ALIGN="RIGHT"><FONT POINT-SIZE="9">{circled}</FONT></TD>
         </TR>
         <TR>
-            <TD COLSPAN="2" ALIGN="CENTER"><FONT POINT-SIZE="14">ModelRunner {step.name}</FONT></TD>
+            <TD COLSPAN="2" ALIGN="CENTER"><FONT POINT-SIZE="14">{step.name}</FONT></TD>
         </TR>
     </TABLE>
     >"""

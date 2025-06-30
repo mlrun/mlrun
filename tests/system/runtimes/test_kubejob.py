@@ -764,9 +764,9 @@ def print_df(df):
         )
 
         state, content = self._run_db.get_log(
-            run.metadata.uid, project=self.project_name, attempt=1
+            run.metadata.uid, project=self.project_name, attempt=2
         )
         assert state == mlrun.common.runtimes.constants.RunStates.error
-        assert "Retrying run - attempt: 1" in str(
+        assert "Retrying run - attempt: 2" in str(
             content
         ), "Expected logs to contain retry attempt message"

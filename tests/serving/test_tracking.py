@@ -15,7 +15,7 @@
 import json
 import pathlib
 from collections.abc import Iterator
-from typing import cast
+from typing import Union, cast
 from unittest.mock import patch
 
 import numpy as np
@@ -31,7 +31,7 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.platforms.iguazio import KafkaOutputStream
 from mlrun.runtimes import ServingRuntime
-from mlrun.serving import Model, ModelRunnerStep
+from mlrun.serving import Model, ModelRunnerStep, ModelSelector
 from mlrun.serving.states import RootFlowStep
 from tests.serving.test_serving import _log_model
 
@@ -261,6 +261,13 @@ class MyModel(Model):
         return self.predict(body)
 
 
+class MyModelSelector(ModelSelector):
+    def select(
+        self, event, available_models: list[Model]
+    ) -> Union[list[str], list[Model]]:
+        return ["MyModel"]
+
+
 class DictOutputModel(Model):
     execution_mechanism = "naive"
 
@@ -311,7 +318,11 @@ def _test_graph_structure(graph: RootFlowStep, tracked: bool):
 def test_tracked_model_runner(enable_tracking: bool):
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner",
+        raise_exception=True,
+        model_selector="MyModelSelector",
+    )
     model_runner_step.add_model(
         model_class="MyModel",
         endpoint_name="my_model",

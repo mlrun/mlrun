@@ -24,11 +24,14 @@ mysql = pytest_mock_resources.create_mysql_fixture()
 
 
 @pytest.fixture
-def alembic_engine(mysql):
+def patched_dsn(mysql):
     os.environ["MLRUN_HTTPDB__DSN"] = str(mysql.engine.url)
     mlrun.mlconf.reload()
-    engine = mysql.engine
 
+
+@pytest.fixture
+def alembic_engine(mysql, patched_dsn):
+    engine = mysql.engine
     framework.utils.singletons.db.initialize_db()
     engine = engine.execution_options(isolation_level="AUTOCOMMIT")
     return engine

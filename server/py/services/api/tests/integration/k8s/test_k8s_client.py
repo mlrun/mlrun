@@ -15,12 +15,12 @@ import kubernetes
 import pytest
 import urllib3
 
-import tests.integration.k8s.conftest
+import services.api.tests.integration.k8s.conftest
 
 
 @pytest.mark.integration
 def test_k8shelper_ssl_verification_fails(bad_ca_kubeconfig_path: str) -> None:
-    helper = tests.integration.k8s.conftest._k8shelper_from_config(
+    helper = services.api.tests.integration.k8s.conftest._k8shelper_from_config(
         bad_ca_kubeconfig_path
     )
 
@@ -33,7 +33,7 @@ def test_k8shelper_ssl_verification_fails(bad_ca_kubeconfig_path: str) -> None:
 
 @pytest.mark.integration
 def test_k8shelper_ssl_verification_succeeds(valid_kubeconfig_path: str) -> None:
-    helper = tests.integration.k8s.conftest._k8shelper_from_config(
+    helper = services.api.tests.integration.k8s.conftest._k8shelper_from_config(
         valid_kubeconfig_path
     )
 

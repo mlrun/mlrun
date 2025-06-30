@@ -187,6 +187,8 @@ async def retry_pipeline(
         project=project.metadata.name,
     )
 
+    # If direct mode is requested, or the original workflow runner was not found,
+    # bypass MLRun's workflow runner logic and submit the retry directly to KFP.
     if submit_mode == mlrun_constants.RetryMode.direct or not original_runner:
         mlrun.utils.logger.info("Direct-submitting retry to KFP API", run_id=run_id)
         run_id = await fastapi.concurrency.run_in_threadpool(
@@ -207,7 +209,7 @@ async def retry_pipeline(
     rerun_runner: mlrun.run.KubejobRuntime = (
         await fastapi.concurrency.run_in_threadpool(
             services.api.crud.RerunRunner().create_runner,
-            run_name=f"{project.metadata.name}-Retry of {run_id}",
+            run_name=f"{project.metadata.name}-Retry of {run_id[:8]}",
             project=project.metadata.name,
             db_session=db_session,
             auth_info=auth_info,

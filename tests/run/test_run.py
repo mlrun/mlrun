@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import contextlib
-import datetime
 import io
 import pathlib
 import sys
@@ -396,7 +395,6 @@ def test_code_to_function_file_include_invalid_handler_name_for_nuclio_mlrun_run
 def test_run_status_retry_updates(rundb_mock):
     """
     Test that the run status is updated to pending_retry when the run fails
-    and the retry count is incremented when the run is retried.
     """
     function = new_function(command=f"{assets_path}/kwargs.py")
     with pytest.raises(mlrun.runtimes.RunError) as exc:
@@ -413,7 +411,6 @@ def test_run_status_retry_updates(rundb_mock):
         == mlrun.common.runtimes.constants.RunStates.pending_retry
     ), "Expected run state to be pending_retry"
 
-    start_time_1 = result["status"]["start_time"]
     with pytest.raises(mlrun.runtimes.RunError) as exc:
         function.run(
             runspec=result,
@@ -426,11 +423,3 @@ def test_run_status_retry_updates(rundb_mock):
         result["status"]["state"]
         == mlrun.common.runtimes.constants.RunStates.pending_retry
     ), "Expected run state to be pending_retry"
-    assert result["status"]["retry_count"] == 1, "Expected retry count to be 1"
-
-    start_time_2 = result["status"]["start_time"]
-    assert datetime.datetime.fromisoformat(
-        start_time_1
-    ) < datetime.datetime.fromisoformat(
-        start_time_2
-    ), "Expected start time to be updated on retry"

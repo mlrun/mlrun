@@ -616,7 +616,8 @@ class HTTPRunDB(RunDBInterface):
         :param offset: Retrieve partial log, get up to ``size`` bytes starting at offset ``offset``
             from beginning of log (must be >= 0)
         :param size: If set to ``-1`` will retrieve and print all data to end of the log by chunks of 1MB each.
-        :param attempt: For retriable runs, the attempt number to retrieve the log for. 0 is the initial attempt.
+        :param attempt: For retriable runs, the attempt number to retrieve the log for.
+            1 is the initial attempt.
         :returns: The following objects:
 
             - state - The state of the runtime object which generates this log, if it exists. In case no known state

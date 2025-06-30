@@ -753,7 +753,7 @@ def print_df(df):
                 run.status.retry_count == 3
             ), f"Expected retry_count=3, got {run.status.retry_count}"
             assert run.status.state == mlrun.common.runtimes.constants.RunStates.error
-            assert run.status.status_text == f"Run failed after {max_attempts} attempts"
+            assert f"Run failed after {max_attempts} attempts" in run.status.status_text
 
         mlrun.utils.retry_until_successful(
             1,
@@ -762,3 +762,11 @@ def print_df(df):
             True,
             _assert_retry_count,
         )
+
+        state, content = self._run_db.get_log(
+            run.metadata.uid, project=self.project_name, attempt=1
+        )
+        assert state == mlrun.common.runtimes.constants.RunStates.error
+        assert "Retrying run - attempt: 1" in str(
+            content
+        ), "Expected logs to contain retry attempt message"

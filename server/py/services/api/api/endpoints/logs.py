@@ -83,10 +83,8 @@ async def get_log(
         )
     )
 
-    if attempt:
-        uid = f"{uid}-attempt-{attempt}"
     run_state, log_stream = await services.api.crud.Logs().get_logs(
-        db_session, project, uid, size, offset
+        db_session, project, uid, size, offset, attempt=attempt
     )
     headers = {
         "x-mlrun-run-state": run_state,
@@ -117,7 +115,7 @@ async def get_log_size(
         )
     )
 
-    if attempt:
+    if attempt and attempt > 1:
         uid = f"{uid}-attempt-{attempt}"
     log_file_size = await services.api.crud.Logs().get_log_size(project, uid)
     return {

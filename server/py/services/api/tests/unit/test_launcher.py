@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import pathlib
 import re
 import unittest.mock
@@ -21,6 +20,7 @@ import pytest
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
 
+import mlrun.common.constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.launcher.base
@@ -299,3 +299,46 @@ def test_validate_run_retry_runtime_kind():
         ),
     ):
         launcher._validate_run(runtime, run)
+
+
+def test_run_status_retry_updates():
+    """
+    Test that the run status is updated when a retry is triggered.
+    The test simulates a run that is in the pending_retry state and checks that the retry count is incremented
+    and the state is updated to running when the run is enriched again.
+    """
+    runtime = mlrun.code_to_function(
+        name="test", kind="job", filename=str(func_path), handler="raise_func"
+    )
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(
+            retry={
+                "count": 10,
+            },
+        ),
+        status=mlrun.model.RunStatus(
+            state=mlrun.common.runtimes.constants.RunStates.pending_retry,
+        ),
+    )
+
+    launcher = services.api.launcher.ServerSideLauncher()
+    enriched_run = launcher._enrich_run(runtime=runtime, run=run)
+    assert (
+        enriched_run.status.state == mlrun.common.runtimes.constants.RunStates.running
+    )
+    assert enriched_run.status.start_time is None
+    assert enriched_run.status.retry_count == 1, "Expected retry count to be 1"
+    assert run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.retry] == str(
+        enriched_run.status.retry_count
+    )
+
+    enriched_run.status.state = mlrun.common.runtimes.constants.RunStates.pending_retry
+    enriched_run_2 = launcher._enrich_run(runtime=runtime, run=enriched_run)
+    assert (
+        enriched_run_2.status.state == mlrun.common.runtimes.constants.RunStates.running
+    )
+    assert enriched_run_2.status.start_time is None
+    assert enriched_run_2.status.retry_count == 2, "Expected retry count to be 2"
+    assert run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.retry] == str(
+        enriched_run_2.status.retry_count
+    )

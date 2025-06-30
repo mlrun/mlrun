@@ -150,7 +150,7 @@ class UuidType(TypeDecorator):
 
     def process_result_value(
         self, value: Optional[Union[uuid.UUID, bytes, str]], dialect: Dialect
-    ) -> Optional[uuid.UUID]:
+    ) -> Optional[str]:
         if value is None:
             return None
         return value.hex if isinstance(value, uuid.UUID) else value

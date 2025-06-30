@@ -1829,9 +1829,9 @@ humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
     # via -r dockerfiles/mlrun-api/requirements.txt
-hypothesis==6.135.17 \
-    --hash=sha256:9dc0f2d8c9488cebca0ba7d02714c33a687c173782e97f9f5325ee2bf99e3b95 \
-    --hash=sha256:f906fe466ff571d7dd565e8af892004ee6d0fb3a9ef2b9a7ce52c11295ef6648
+hypothesis==6.135.18 \
+    --hash=sha256:aa933312a4fd2325e66aa5073bcc8947e4b341fcc86b07fab287d52cfe65cfdc \
+    --hash=sha256:c02d88f651747e50959b3f530362f4fd455671bd1e53304e14b50a9d4dc070d8
     # via -r dev-requirements.txt
 idna==3.10 \
     --hash=sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9 \
@@ -4894,9 +4894,9 @@ terminado==0.18.1 \
     # via
     #   jupyter-server
     #   jupyter-server-terminals
-testcontainers==4.9.2 \
-    --hash=sha256:348c72d369d0bd52b57ab4f07a965ae9562837098c28f0522b969b064b779f10 \
-    --hash=sha256:36bd2b58d91f2fc7ac4f4a73c6ec00e5e60c259c10f208dbfe3161029889be92
+testcontainers==4.10.0 \
+    --hash=sha256:03f85c3e505d8b4edeb192c72a961cebbcba0dd94344ae778b4a159cb6dcf8d3 \
+    --hash=sha256:31ed1a81238c7e131a2a29df6db8f23717d892b592fa5a1977fd0dcd0c23fc23
     # via -r dev-requirements.txt
 textual==3.5.0 ; sys_platform != 'win32' \
     --hash=sha256:7c960efb70391b754e66201776793de2b26d699d51fb91f5f78401d13cec79a1 \

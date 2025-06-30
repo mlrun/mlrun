@@ -967,7 +967,9 @@ distro==1.9.0 \
 docker==7.1.0 \
     --hash=sha256:ad8c70e6e3f8926cb8a92619b832b4ea5299e2831c14284663184e200546fa6c \
     --hash=sha256:c96b93b7f0a746f9e77d325bcfb87422a3d8bd4f03136ae8a85b37f1898d5fc0
-    # via mlflow
+    # via
+    #   mlflow
+    #   testcontainers
 docstring-parser==0.16 \
     --hash=sha256:538beabd0af1e2db0146b6bd3caa526c35a34d61af9fd2887f3a8a27a739aa6e \
     --hash=sha256:bf0a1387354d3691d102edef7ec124f219ef639982d096e26e3b60aeffa90637
@@ -1804,9 +1806,9 @@ humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
     # via -r dockerfiles/mlrun-api/requirements.txt
-hypothesis==6.135.16 \
-    --hash=sha256:0a64697ef0afa4532535209a9bcd99919d59093ff894622e8a001fb773b59d8a \
-    --hash=sha256:6131ea0b698e69bad62aae915988b8d00a6ac974351d0830db74c5fffc68c418
+hypothesis==6.135.17 \
+    --hash=sha256:9dc0f2d8c9488cebca0ba7d02714c33a687c173782e97f9f5325ee2bf99e3b95 \
+    --hash=sha256:f906fe466ff571d7dd565e8af892004ee6d0fb3a9ef2b9a7ce52c11295ef6648
     # via -r dev-requirements.txt
 idna==3.10 \
     --hash=sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9 \
@@ -2273,12 +2275,14 @@ kubernetes==25.3.0 ; python_full_version < '3.11' \
     #   dask-kubernetes
     #   kfp
     #   mlrun-pipelines-kfp-common
+    #   testcontainers
 kubernetes==33.1.0 ; python_full_version >= '3.11' \
     --hash=sha256:544de42b24b64287f7e0aa9513c93cb503f7f40eea39b20f66810011a86eabc5 \
     --hash=sha256:f64d829843a54c251061a8e7a14523b521f2dc5c896cf6d65ccf348648a88993
     # via
     #   dask-kubernetes
     #   mlrun-pipelines-kfp-common
+    #   testcontainers
 kubernetes-asyncio==32.3.2 \
     --hash=sha256:3584e6358571e686ea1396fc310890263c58fa41c084a841a9609a54ad05de62 \
     --hash=sha256:a4b6da1dbfa16e87ab8df6898f54fa03f651591a502bd6480a647d5513a580bf
@@ -3870,6 +3874,7 @@ python-dotenv==1.1.1 \
     --hash=sha256:a8a6399716257f45be6a007360200409fce5cda2661e3dec71d23dc15f6189ab
     # via
     #   -r requirements.txt
+    #   testcontainers
     #   uvicorn
 python-json-logger==3.3.0 \
     --hash=sha256:12b7e74b17775e7d565129296105bbe3910842d9d0eb083fc83a6a617aa8df84 \
@@ -3983,6 +3988,7 @@ pyyaml==6.0.2 \
     #   litestar
     #   mlflow-skinny
     #   nuclio-jupyter
+    #   testcontainers
     #   uvicorn
 pyzmq==27.0.0 \
     --hash=sha256:00387d12a8af4b24883895f7e6b9495dc20a66027b696536edac35cb988c38f3 \
@@ -4855,6 +4861,10 @@ terminado==0.18.1 \
     # via
     #   jupyter-server
     #   jupyter-server-terminals
+testcontainers==4.10.0 \
+    --hash=sha256:03f85c3e505d8b4edeb192c72a961cebbcba0dd94344ae778b4a159cb6dcf8d3 \
+    --hash=sha256:31ed1a81238c7e131a2a29df6db8f23717d892b592fa5a1977fd0dcd0c23fc23
+    # via -r dev-requirements.txt
 textual==3.5.0 ; sys_platform != 'win32' \
     --hash=sha256:7c960efb70391b754e66201776793de2b26d699d51fb91f5f78401d13cec79a1 \
     --hash=sha256:c4a440338694672acf271c74904f1cf1e4a64c6761c056b02a561774b81a04f4
@@ -5048,6 +5058,7 @@ typing-extensions==4.14.0 \
     #   sqlalchemy
     #   starlette
     #   tensorflow
+    #   testcontainers
     #   textual
     #   typer
     #   typing-inspect
@@ -5176,6 +5187,7 @@ urllib3==1.26.20 \
     #   kubernetes-asyncio
     #   requests
     #   snowflake-connector-python
+    #   testcontainers
 uuid6==2025.0.0 \
     --hash=sha256:2c73405ff5333c7181443958c6865e0d1b9b816bb160549e8d80ba186263cb3a \
     --hash=sha256:bb78aa300e29db89b00410371d0c1f1824e59e29995a9daa3dedc8033d1d84ec
@@ -5586,6 +5598,7 @@ wrapt==1.17.2 \
     #   aiobotocore
     #   deprecated
     #   tensorflow
+    #   testcontainers
 xgboost==1.7.6 \
     --hash=sha256:127cf1f5e2ec25cd41429394c6719b87af1456ce583e89f0bffd35d02ad18bcb \
     --hash=sha256:1c527554a400445e0c38186039ba1a00425dcdb4e40b37eed0e74cb39a159c47 \

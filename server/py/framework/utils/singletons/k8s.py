@@ -79,30 +79,29 @@ class SecretTypes:
 
 
 class K8sHelper(mlsecrets.SecretProviderInterface):
-    def __init__(self, namespace=None, silent=False, log=True):
+    def __init__(
+        self,
+        namespace=None,
+        silent=False,
+        log=True,
+        kube_config_path: str = None,
+    ):
         self.namespace = namespace or mlrun.mlconf.namespace
-        self.config_file = mlrun.mlconf.kubernetes.kubeconfig_path or None
-        self.running_inside_kubernetes_cluster = False
-        self._api_config = client.Configuration()
-        self._api_config.retries = urllib3.util.Retry(
-            allowed_methods=[
-                "HEAD",
-                "GET",
-            ],
-            read=3,
-            connect=3,
+        self.config_file = (
+            mlrun.mlconf.kubernetes.kubeconfig_path or kube_config_path or None
         )
+        self.running_inside_kubernetes_cluster = False
+        self._create_clients(log, silent)
+
+    def _create_clients(self, log: bool, silent: bool):
         try:
-            self._api_client = client.ApiClient(
-                configuration=self._api_config,
-            )
-            self._init_k8s_config(log)
-            self.v1api = client.CoreV1Api(
-                api_client=self._api_client,
-            )
-            self.crdapi = client.CustomObjectsApi(
-                api_client=self._api_client,
-            )
+            self._api_config = self._init_k8s_config(log)
+
+            self._api_config.retries = urllib3.util.Retry(total=False)
+
+            self._api_client = client.ApiClient(self._api_config)
+            self.v1api = client.CoreV1Api(api_client=self._api_client)
+            self.crdapi = client.CustomObjectsApi(api_client=self._api_client)
         except Exception as exc:
             logger.warning(
                 "Cannot initialize kubernetes client", exc=mlrun.errors.err_to_str(exc)
@@ -1000,29 +999,25 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             random.choice(string.ascii_lowercase + string.digits) for _ in range(length)
         )
 
-    def _init_k8s_config(self, log=True):
+    def _init_k8s_config(self, log: bool = True) -> client.Configuration:
         try:
-            config.load_incluster_config(
-                client_configuration=self._api_config,
-            )
+            config.load_incluster_config()
             self.running_inside_kubernetes_cluster = True
             if log:
                 logger.info("Using in-cluster config.")
         except Exception:
             try:
-                config.load_kube_config(
-                    config_file=self.config_file,
-                    client_configuration=self._api_config,
-                )
+                config.load_kube_config(config_file=self.config_file)
                 self.running_inside_kubernetes_cluster = True
                 if log:
                     logger.info("Using local kubernetes config.")
-            except Exception:
+            except Exception as exc:
                 raise RuntimeError(
-                    "Cannot find local kubernetes config file,"
-                    " place it in ~/.kube/config or specify it in "
-                    "KUBECONFIG env var"
-                )
+                    "Cannot find local kubernetes config file, "
+                    "place it in ~/.kube/config or specify it in KUBECONFIG env var"
+                ) from exc
+
+        return client.Configuration.get_default_copy()
 
     @staticmethod
     def _hash_access_key(access_key: str):

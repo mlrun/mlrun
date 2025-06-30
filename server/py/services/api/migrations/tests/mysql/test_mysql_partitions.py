@@ -24,6 +24,7 @@ import services.api.migrations.tests.base.conftest
 import services.api.utils.db.partitioner
 
 
+@pytest.mark.integration
 @pytest.mark.usefixtures("pmr_mysql_container")
 @services.api.migrations.tests.base.conftest.freeze_datetime(datetime(2025, 1, 1))
 def test_create_partitions_mysql(alembic_engine):

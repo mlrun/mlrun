@@ -15,7 +15,7 @@
 import importlib
 import os
 from collections.abc import Mapping, Sequence
-from typing import Any, Union
+from typing import Any, Optional, Union
 from urllib.parse import urlparse
 
 import mlrun.common.db.dialects
@@ -103,7 +103,7 @@ class DBUtil:
         return _driver_cache[driver_name]
 
     @classmethod
-    def _split_scheme(cls, dsn: str) -> tuple[str, str | None]:
+    def _split_scheme(cls, dsn: str) -> tuple[str, Optional[str]]:
         scheme = urlparse(dsn).scheme
         parts = scheme.split("+", 1)
         return parts[0], parts[1] if len(parts) == 2 else None

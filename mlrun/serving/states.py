@@ -1186,7 +1186,6 @@ class ModelRunnerStep(MonitoredStep):
     """
 
     kind = "model_runner"
-    shape = "box"
 
     def __init__(
         self,
@@ -1196,8 +1195,6 @@ class ModelRunnerStep(MonitoredStep):
         raise_exception: bool = True,
         **kwargs,
     ):
-        kwargs = kwargs or {}
-        kwargs["shape"] = ModelRunnerStep.shape
         super().__init__(
             *args,
             name=name,
@@ -1207,6 +1204,8 @@ class ModelRunnerStep(MonitoredStep):
             **kwargs,
         )
         self.raise_exception = raise_exception
+        self.shape = "box"
+
 
     @property
     def fullname(self) -> str:

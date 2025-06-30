@@ -84,19 +84,16 @@ def test_api_states(
 
 @pytest.mark.parametrize("schema_migration", [True, False])
 @pytest.mark.parametrize("data_migration", [True, False])
-@pytest.mark.parametrize("from_scratch", [True, False])
 def test_init_data_migration_required_recognition(
     db: sqlalchemy.orm.Session,
     monkeypatch,
     schema_migration,
     data_migration,
-    from_scratch,
 ) -> None:
     logger.info(
         "Testing init data migration required recognition",
         schema_migration=schema_migration,
         data_migration=data_migration,
-        from_scratch=from_scratch,
     )
     alembic_util_mock = unittest.mock.Mock()
     monkeypatch.setattr(framework.utils.db.mysql, "MySQLUtil", unittest.mock.Mock())
@@ -127,7 +124,6 @@ def test_init_data_migration_required_recognition(
     # this specific case means mlrun is fresh installed and no migrations are needed
     # thus it will just put some initial data and move to online state
 
-    alembic_util_mock.return_value.is_migration_from_scratch.return_value = from_scratch
     alembic_util_mock.return_value.is_schema_migration_needed.return_value = (
         schema_migration
     )
@@ -136,14 +132,10 @@ def test_init_data_migration_required_recognition(
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
     services.api.initial_data.init_data()
 
-    expected_state = (
-        mlrun.common.schemas.APIStates.online
-        if from_scratch
-        else mlrun.common.schemas.APIStates.waiting_for_migrations
-    )
+    expected_state = mlrun.common.schemas.APIStates.waiting_for_migrations
 
     # remain online if nothing is needed
-    if not (schema_migration or data_migration or from_scratch):
+    if not (schema_migration or data_migration):
         expected_state = mlrun.common.schemas.APIStates.online
 
     assert expected_state == mlrun.mlconf.httpdb.state
@@ -152,5 +144,5 @@ def test_init_data_migration_required_recognition(
 
     # we bound the execution to 1 if from_scratch because during startup the migration is run inplace
     # and not waiting for trigger migration to occur
-    assert perform_schema_migrations_mock.call_count == (1 if from_scratch else 0)
-    assert perform_data_migrations_mock.call_count == (1 if from_scratch else 0)
+    assert perform_schema_migrations_mock.call_count == 0
+    assert perform_data_migrations_mock.call_count == 0

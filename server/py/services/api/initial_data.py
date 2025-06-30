@@ -124,8 +124,10 @@ def _initialize_db_from_scratch(
         alembic.command.stamp(cfg, "head")
 
     db = framework.db.sqldb.db.SQLDB()
-    db_session = framework.db.session.create_session()
-    db.create_data_version(db_session, str(latest_data_version))
+    framework.db.session.run_function_with_new_db_session(
+        func=db.create_data_version,
+        version=str(latest_data_version),
+    )
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
 
 

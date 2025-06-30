@@ -1063,7 +1063,10 @@ def event_listen_for_dialects(
                 )
                 return None
 
-            if any(dialect.startswith(r) for r in relevant_dialects):
+            if any(
+                dialect.startswith(relevant_dialect)
+                for relevant_dialect in relevant_dialects
+            ):
                 mlrun.utils.logger.info(
                     "Executing dialect-specific event listener",
                     dialect=dialect,

@@ -2158,10 +2158,28 @@ def _add_graphviz_model_runner(graph, step, source=None):
         graph.edge("_start", step.fullname)
 
     is_monitored = step._extract_root_step().track_models
+    m_cell = '<FONT POINT-SIZE="9">🄼</FONT>' if is_monitored else ''
+    # Mapping for Unicode circled numbers (① = U+2460)
     number_of_models = len(list(step.class_args.get(schemas.ModelRunnerStepData.MODELS, {}).keys()))
-    label = f"{step.name}\nM\nnum_of_models {number_of_models}" \
-        if is_monitored else f"{step.name}\nnum_of_models {number_of_models}"
-    graph.node(step.fullname, label=label, shape=step.get_shape())
+    circled_numbers = {
+        i: chr(0x2460 + i - 1) for i in range(1, 21)
+    }
+    circled = circled_numbers.get(number_of_models, str(number_of_models))  # fallback to plain number
+
+    # Create HTML label dynamically
+    html_label = f"""<
+    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4">
+        <TR>
+            <TD ALIGN="LEFT">{m_cell}</TD>
+            <TD ALIGN="RIGHT"><FONT POINT-SIZE="9">{circled}</FONT></TD>
+        </TR>
+        <TR>
+            <TD COLSPAN="2" ALIGN="CENTER"><FONT POINT-SIZE="14">ModelRunner {step.name}</FONT></TD>
+        </TR>
+    </TABLE>
+    >"""
+
+    graph.node(step.fullname, label=html_label, shape=step.get_shape())
 
 
 

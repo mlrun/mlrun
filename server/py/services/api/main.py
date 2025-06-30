@@ -516,6 +516,7 @@ class Service(framework.service.Service):
                 if retry_count:
                     # Adding the attempt number to the run uid since the log collector does not support multiple pods
                     # per run uid. This separates the attempts so that each attempt has its own logs file.
+                    # Incrementing the retry count by 1 since the first retry is the 2nd attempt and so on.
                     logs_run_uid = f"{run_uid}-attempt-{int(retry_count)+1}"
                 success, _ = await logs_collector_client.start_logs(
                     run_uid=logs_run_uid,

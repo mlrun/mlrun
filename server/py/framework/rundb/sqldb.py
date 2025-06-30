@@ -75,7 +75,7 @@ class SQLRunDB(RunDBInterface):
 
     def get_log(self, uid, project="", offset=0, size=0, attempt=None):
         raise NotImplementedError(
-            "Use `services.api.crud.get_log`method directly instead and not through the get_db().get_log() method. "
+            "Use `services.api.crud.get_log` method directly instead, and not through the get_db().get_log() method."
         )
 
     def store_run(self, struct, uid, project="", iter=0):

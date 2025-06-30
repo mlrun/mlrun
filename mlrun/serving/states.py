@@ -2170,7 +2170,7 @@ def _add_graphviz_model_runner(graph, step, source=None):
             <TD ALIGN="RIGHT">{number_badge}</TD>
         </TR>
         <TR>
-            <TD COLSPAN="2" ALIGN="CENTER"><FONT POINT-SIZE="14">ModelRunner</FONT></TD>
+            <TD COLSPAN="2" ALIGN="CENTER"><FONT POINT-SIZE="14">{step.name}</FONT></TD>
         </TR>
     </TABLE>
     >"""

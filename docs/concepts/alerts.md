@@ -56,12 +56,21 @@ See {ref}`model-monitoring-overview` for more details on drift and performance.
 ## Creating an alert
 When creating an alert you can select an event type for a specific model, for example `data_drift_suspected` or any of the predefined events above.
 You can optionally specify the frequency of the alert through the criteria field in the configuration (how many times in what time window, etc.). 
-If not specified, it uses the default.
-See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`. 
-You can configure Git, Slack, and webhook notifications for the alert. For alerts on model endpoints, see [Creating a model monitoring alert](#creating-a-model-monitoring-alert).
+If not specified, it uses the default. Alerts track the runs by name, not by UID. You can configure Git, Slack, and webhook notifications for the alert. 
 
-This example illustrates creating an alert with a Slack notification for a job failure with defined criteria.
-This alert gets triggered if the job fails 3 times in a 10 minute period.
+See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`. 
+
+For alerts on model endpoints, see [Creating a model monitoring alert](#creating-a-model-monitoring-alert).
+
+This example illustrates creating an alert with a Slack notification for a job failure with defined criteria. 
+This example uses `run_id`. You can set it to the run’s name (run.metadata.name), which is assigned when you run a job function, and then
+access it from the run object returned by `run_function`.
+For example:
+```
+run = project.run_function("my-function", handler="handler", local=True)
+run_id = run.metadata.name
+```
+The same run-name can be reused for multiple executions, especially in cases where functions are retried or triggered with a fixed name. In this example, the alert is triggered if 3 separate job runs with the same name fail within 10 minutes (even though each job run has a different internal UID).
 
 ```python
 notification = mlrun.model.Notification(

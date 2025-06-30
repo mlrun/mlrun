@@ -576,7 +576,6 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 
 .PHONY: test
 test: clean ## Run mlrun tests
-	: "${TESTCONTAINERS_HOST_OVERRIDE:=localhost}" ; export TESTCONTAINERS_HOST_OVERRIDE ; \
 	# TODO: Remove ignored tests for Python 3.11 compatibility with KFP 2
 	set -e ; \
 	COMMON_IGNORE_TEST_FLAGS=$$(echo "\

@@ -24,6 +24,12 @@ from testcontainers.k3s import K3SContainer
 import framework.utils.singletons.k8s
 
 
+@pytest.fixture(autouse=True)
+def force_testcontainers_host(monkeypatch):
+    # this makes testcontainers skip gateway_ip() and use localhost instead
+    monkeypatch.setenv("TESTCONTAINERS_HOST_OVERRIDE", "localhost")
+
+
 def _server_ca_user(k3s: K3SContainer) -> tuple[str, str, dict]:
     """Return (api-server URL, base64-encoded CA bundle, user-auth dict)."""
     cfg = yaml.safe_load(k3s.config_yaml())

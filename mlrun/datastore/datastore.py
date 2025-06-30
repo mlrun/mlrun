@@ -216,9 +216,10 @@ class StoreManager:
         secrets: Optional[dict] = None,
         project_name="",
         cache: Optional[dict] = None,
-        schema_to_object: callable = schema_to_store,
+        schema_to_class: callable = schema_to_store,
         **kwargs,
     ) -> (DataStore, str, str):
+        cache = cache or {}
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
         cache_key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"
@@ -255,7 +256,7 @@ class StoreManager:
         # support u/p embedding in url (as done in redis) by setting netloc as the "endpoint" parameter
         # when running on server we don't cache the datastore, because there are multiple users and we don't want to
         # cache the credentials, so for each new request we create a new store
-        remote_client_class = schema_to_object(schema)
+        remote_client_class = schema_to_class(schema)
         remote_client = None
         if remote_client_class:
             remote_client = remote_client_class(
@@ -278,7 +279,7 @@ class StoreManager:
             secrets=secrets,
             project_name=project_name,
             cache=self._stores,
-            schema_to_object=schema_to_store,
+            schema_to_class=schema_to_store,
         )
         if not isinstance(datastore, DataStore):
             raise mlrun.errors.MLRunInvalidArgumentError(

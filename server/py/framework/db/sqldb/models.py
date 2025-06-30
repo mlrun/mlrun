@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import functools
 import json
 import os
 import pickle
 import uuid
 import warnings
 from datetime import datetime, timezone
+from typing import Any, Callable
 
 import orjson
 from sqlalchemy import (
@@ -29,6 +30,7 @@ from sqlalchemy import (
     Index,
     Integer,
     PrimaryKeyConstraint,
+    Table,
     UniqueConstraint,
     event,
     text,
@@ -36,12 +38,14 @@ from sqlalchemy import (
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Mapper, declared_attr, relationship
+from sqlalchemy.orm import Mapper, Session, declared_attr, relationship
 
 import mlrun.common.db.dialects
 import mlrun.common.schemas
 import mlrun.db.sql_types
 import mlrun.utils.db
+
+import framework.db.sqldb.partititioner
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -922,9 +926,6 @@ with warnings.catch_warnings():
             {
                 "mysql_engine": "InnoDB",
                 "mysql_charset": "utf8mb4",
-                "mysql_partition_by": f"RANGE ({_expr})",
-                "mysql_partition_options": f"(PARTITION p{_pname} VALUES LESS THAN ({_pval}))",
-                "postgresql_partition_by": f"RANGE ({_expr})",
             },
         )
 
@@ -1027,25 +1028,130 @@ with warnings.catch_warnings():
             return f"{self.key}"
 
 
-@event.listens_for(AlertActivation.__table__, "before_create")
-def _disable_autoinc_on_sqlite(table, connection, **kw):
-    if connection.dialect.name.startswith(mlrun.common.db.dialects.Dialects.SQLITE):
-        # disable SQLAlchemy's AUTOINCREMENT flag
-        table.c.id.autoincrement = False
+def event_listen_for_dialects(
+    target: Any,
+    identifier: str,
+    relevant_dialects: list[str],
+) -> Callable:
+    """
+    Register an SQLAlchemy event listener that runs only for the chosen dialects.
+    Works for `before_insert` (mapper events) and `after_create` (DDL events).
+    """
+    relevant = set(relevant_dialects)
+
+    def decorator(fn: Callable) -> Callable:
+        @event.listens_for(target, identifier)
+        @functools.wraps(fn)
+        def _wrapper(*args: Any, **kw: Any) -> Any:
+            # connection is always the second positional argument for events
+            if len(args) < 2 or not isinstance(args[1], Connection):
+                raise RuntimeError(
+                    f"{identifier} listener expected Connection at args[1]; "
+                    f"got {type(args[1]).__name__ if len(args) > 1 else 'missing'}"
+                )
+            connection: Connection = args[1]
+
+            dialect_name = connection.dialect.name
+            try:
+                dialect = mlrun.common.db.dialects.Dialects(dialect_name)
+            except ValueError:
+                mlrun.utils.logger.error(
+                    "Unsupported dialect for event listener",
+                    dialect=dialect_name,
+                    target=target,
+                    identifier=identifier,
+                )
+                return None
+
+            if any(dialect.startswith(r) for r in relevant):
+                mlrun.utils.logger.info(
+                    "Executing dialect-specific event listener",
+                    dialect=dialect,
+                    target=target,
+                    identifier=identifier,
+                )
+                return fn(*args, **kw)
+
+            mlrun.utils.logger.debug(
+                "Skipping dialect-specific event listener",
+                dialect=dialect,
+                target=target,
+                identifier=identifier,
+            )
+            return None
+
+        return _wrapper
+
+    return decorator
 
 
-@event.listens_for(AlertActivation, "before_insert")
-def _sqlite_autoincrement(
-    mapper: Mapper, connection: Connection, target: AlertActivation
+@event_listen_for_dialects(
+    target=AlertActivation.__table__,
+    identifier="before_create",
+    relevant_dialects=[mlrun.common.db.dialects.Dialects.SQLITE],
+)
+def _disable_autoinc_on_sqlite(
+    table: Table,
+    _: Connection,
+    **__,
 ) -> None:
-    if (
-        connection.dialect.name.startswith(mlrun.common.db.dialects.Dialects.SQLITE)
-        and target.id is None
-    ):
+    table.c.id.autoincrement = False
+
+
+@event_listen_for_dialects(
+    target=AlertActivation,
+    identifier="before_insert",
+    relevant_dialects=[mlrun.common.db.dialects.Dialects.SQLITE],
+)
+def _sqlite_autoincrement(
+    _: Mapper,
+    connection: Connection,
+    target: AlertActivation,
+) -> None:
+    if target.id is None:
         next_id: int = connection.execute(
             text("SELECT COALESCE(MAX(id),0) + 1 FROM alert_activations")
         ).scalar_one()
         target.id = next_id
+
+
+@event_listen_for_dialects(
+    target=AlertActivation.__table__,
+    identifier="after_create",
+    relevant_dialects=[
+        mlrun.common.db.dialects.Dialects.MYSQL,
+        mlrun.common.db.dialects.Dialects.POSTGRESQL,
+    ],
+)
+def bootstrap_partitions(
+    table: Table,
+    connection: Connection,
+    **_,
+) -> None:
+    interval_name = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
+    if not mlrun.common.schemas.partition.PartitionInterval.is_valid(interval_name):
+        raise ValueError(
+            f"Partition interval must be one of: "
+            f"{mlrun.common.schemas.partition.PartitionInterval.valid_intervals()}"
+        )
+    interval = mlrun.common.schemas.PartitionInterval(interval_name)
+
+    partition_expression = interval.get_partition_expression("activation_time")
+    partition_name, partition_value = interval.get_partition_info(datetime.utcnow())[0]
+
+    session = Session(bind=connection)
+    dialect = connection.dialect.name
+    try:
+        framework.db.sqldb.partititioner.RangePartitioner(dialect).bootstrap(
+            session=session,
+            table_name=table.name,
+            partition_expression=partition_expression,
+            first_partition_name=partition_name,
+            first_partition_upper_bound=partition_value,
+        )
+        session.commit()
+    finally:
+        session.close()
 
 
 def get_partitioned_table_names():

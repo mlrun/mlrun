@@ -6210,9 +6210,7 @@ class SQLDB(DBInterface):
         model_endpoint_full_dict[ModelEndpointSchema.CREATED] = (
             model_endpoint_record.created
         )
-        model_endpoint_full_dict[ModelEndpointSchema.UID] = (
-            model_endpoint_record.uid.hex
-        )
+        model_endpoint_full_dict[ModelEndpointSchema.UID] = model_endpoint_record.uid
 
         model_endpoint_full_dict = self._fill_model_endpoint_with_function_data(
             model_endpoint_record,
@@ -8008,7 +8006,7 @@ class SQLDB(DBInterface):
             obj_name_attribute=["name"],
             obj_name_suffix=obj_name_suffix,
         )
-        return mep.uid.hex
+        return mep.uid
 
     def _get_mep_function(
         self, session, function_name, function_tag, project

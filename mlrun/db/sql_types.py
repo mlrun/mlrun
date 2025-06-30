@@ -150,10 +150,10 @@ class UuidType(TypeDecorator):
 
     def process_result_value(
         self, value: Optional[Union[uuid.UUID, bytes, str]], dialect: Dialect
-    ) -> Optional[uuid.UUID]:
+    ) -> Optional[str]:
         if value is None:
             return None
-        return value if isinstance(value, uuid.UUID) else uuid.UUID(value)
+        return value.hex if isinstance(value, uuid.UUID) else value
 
     def coerce_compared_value(self, op: Any, value: Any) -> TypeDecorator:
         # ensure STR comparisons are coerced through this type

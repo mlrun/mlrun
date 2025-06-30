@@ -11,6 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pytest
+
+# Abort import of this file unless the Postgres extra is available
+pytest.importorskip(
+    "pytest_mock_resources.postgres",
+    reason="pytest-mock-resources[postgres] not installed",
+)
+
 pytest_plugins = [
     "services.api.migrations.tests.base.conftest",
     "services.api.migrations.tests.base.migrations_tests",

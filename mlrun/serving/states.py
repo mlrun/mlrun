@@ -20,6 +20,7 @@ __all__ = [
     "MonitoringApplicationStep",
 ]
 
+import inspect
 import os
 import pathlib
 import traceback
@@ -1002,7 +1003,9 @@ class RouterStep(TaskStep):
         )
 
 
-class Model(storey.ParallelExecutionRunnable):
+class Model(storey.ParallelExecutionRunnable, ModelObj):
+    _dict_fields = ["name", "raise_exception", "artifact_uri"]
+
     def __init__(
         self,
         name: str,
@@ -1014,6 +1017,14 @@ class Model(storey.ParallelExecutionRunnable):
         if artifact_uri is not None and not isinstance(artifact_uri, str):
             raise MLRunInvalidArgumentError("'artifact_uri' argument must be a string")
         self.artifact_uri = artifact_uri
+
+    def __init_subclass__(cls):
+        super().__init_subclass__()
+        cls._dict_fields = list(
+            set(cls._dict_fields)
+            | set(inspect.signature(cls.__init__).parameters.keys())
+        )
+        cls._dict_fields.remove("self")
 
     def load(self) -> None:
         """Override to load model if needed."""
@@ -1207,7 +1218,7 @@ class ModelRunnerStep(MonitoredStep):
     def add_model(
         self,
         endpoint_name: str,
-        model_class: str,
+        model_class: Union[str, Model],
         model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[
@@ -1251,8 +1262,15 @@ class ModelRunnerStep(MonitoredStep):
         :param override:            bool allow override existing model on the current ModelRunnerStep.
         :param model_parameters:    Parameters for model instantiation
         """
-        # TODO allow model_class as Model object as part of ML-9924
-        model_parameters = model_parameters or {}
+
+        if isinstance(model_class, Model) and model_parameters:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
+            )
+
+        model_parameters = model_parameters or (
+            model_class.to_dict() if isinstance(model_class, Model) else {}
+        )
         if outputs is None and isinstance(
             model_artifact, mlrun.artifacts.ModelArtifact
         ):
@@ -1265,7 +1283,9 @@ class ModelRunnerStep(MonitoredStep):
         model_parameters["artifact_uri"] = model_parameters.get(
             "artifact_uri", model_artifact
         )
-        if model_parameters.get("name", endpoint_name) != endpoint_name:
+        if model_parameters.get("name", endpoint_name) != endpoint_name or (
+            isinstance(model_class, Model) and model_class.name != endpoint_name
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Inconsistent name for model added to ModelRunnerStep."
             )
@@ -1279,6 +1299,11 @@ class ModelRunnerStep(MonitoredStep):
         model_parameters["name"] = endpoint_name
         monitoring_data = self.class_args.get(
             schemas.ModelRunnerStepData.MONITORING_DATA, {}
+        )
+        model_class = (
+            model_class
+            if isinstance(model_class, str)
+            else model_class.__class__.__name__
         )
         models[endpoint_name] = (model_class, model_parameters)
         monitoring_data[endpoint_name] = {
@@ -1352,13 +1377,10 @@ class ModelRunnerStep(MonitoredStep):
             model_selector = get_class(model_selector, namespace)()
         model_objects = []
         for model, model_params in models.values():
-            if not isinstance(model, Model):
-                # prevent model predict from raising error
-                model_params["raise_exception"] = False
-                model = get_class(model, namespace)(**model_params)
-            else:
-                # prevent model predict from raising error
-                model._raise_exception = False
+            model = get_class(model, namespace).from_dict(
+                model_params, init_with_params=True
+            )
+            model._raise_exception = False
             model_objects.append(model)
         self._async_object = ModelRunner(
             model_selector=model_selector,

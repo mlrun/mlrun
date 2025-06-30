@@ -1202,6 +1202,7 @@ class ModelRunnerStep(MonitoredStep):
             raise_exception=raise_exception,
             class_name="mlrun.serving.ModelRunner",
             class_args=dict(model_selector=model_selector),
+            shape=ModelRunnerStep.shape,
             **kwargs,
         )
         self.raise_exception = raise_exception
@@ -2158,7 +2159,8 @@ def _add_graphviz_model_runner(graph, step, source=None):
 
     is_monitored = step._extract_root_step().track_models
     number_of_models = len(list(step.class_args.get(schemas.ModelRunnerStepData.MODELS, {}).keys()))
-    label = f"{step.name}\nM\n{number_of_models}" if is_monitored else f"{step.name}\n{number_of_models}"
+    label = f"{step.name}\nM\nnum_of_models {number_of_models}" \
+        if is_monitored else f"{step.name}\nnum_of_models {number_of_models}"
     graph.node(step.fullname, label=label, shape=step.get_shape())
 
 

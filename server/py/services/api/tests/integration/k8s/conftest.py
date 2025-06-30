@@ -58,7 +58,11 @@ def _write_kubeconfig(server: str, user: dict, ca_b64: str, path: str) -> None:
 
 def _k8shelper_from_config(cfg_path: str) -> framework.utils.singletons.k8s.K8sHelper:
     """Instantiate K8sHelper pointing at the given kube-config."""
-    return framework.utils.singletons.k8s.K8sHelper(kube_config_path=cfg_path, silent=False, log=False)
+    return framework.utils.singletons.k8s.K8sHelper(
+        kube_config_path=cfg_path,
+        silent=False,
+        log=False,
+    )
 
 
 @pytest.fixture(scope="session")

@@ -105,8 +105,8 @@ class DBUtil:
         return os.getenv(cls._DSN_ENV, mlrun.config.config.httpdb.dsn or "")
 
     @classmethod
-    def get_parsed_dsn(self) -> ParseResult:
-        return urlparse(self._get_dsn(), allow_fragments=False)
+    def get_parsed_dsn(cls) -> ParseResult:
+        return urlparse(cls._get_dsn(), allow_fragments=False)
 
     def _connection_kwargs(self) -> dict[str, Any]:
         parsed = self.get_parsed_dsn()

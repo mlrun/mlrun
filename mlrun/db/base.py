@@ -1131,5 +1131,16 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def get_monitoring_function_summary(
+        self,
+        project: str,
+        function_name: str,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
+        pass
+
+    @abstractmethod
     def get_project_summary(self, project: str) -> mlrun.common.schemas.ProjectSummary:
         pass

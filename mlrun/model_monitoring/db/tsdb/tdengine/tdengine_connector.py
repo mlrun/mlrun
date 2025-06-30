@@ -825,6 +825,163 @@ class TDEngineConnector(TSDBConnector):
             for _, row in df.iterrows()
         }
 
+    def count_processed_model_endpoints(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+    ) -> dict:
+        filter_query = ""
+        now = mlrun.utils.datetime_now()
+        start = start or (now - timedelta(hours=24))
+        end = end or now
+
+        if application_names:
+            filter_query = self._generate_filter_query(
+                filter_column=mm_schemas.WriterEvent.APPLICATION_NAME,
+                filter_values=application_names,
+            )
+
+        def _get_application_endpoints_records(super_table: str) -> pd.DataFrame:
+            return self._get_records(
+                table=super_table,
+                start=start,
+                end=end,
+                timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+                columns=[
+                    mm_schemas.WriterEvent.APPLICATION_NAME,
+                    mm_schemas.EventFieldType.ENDPOINT_ID,
+                ],
+                filter_query=filter_query,
+                group_by=[
+                    mm_schemas.WriterEvent.APPLICATION_NAME,
+                    mm_schemas.EventFieldType.ENDPOINT_ID,
+                ],
+                preform_agg_columns=[mm_schemas.ResultData.RESULT_VALUE],
+                agg_funcs=["last"],
+            )
+
+        df_results = _get_application_endpoints_records(
+            super_table=self.tables[
+                mm_schemas.TDEngineSuperTables.APP_RESULTS
+            ].super_table
+        )
+        df_metrics = _get_application_endpoints_records(
+            super_table=self.tables[mm_schemas.TDEngineSuperTables.METRICS].super_table
+        )
+
+        combined_df = pd.concat([df_results, df_metrics]).drop_duplicates()
+
+        if combined_df.empty:
+            return {}
+        grouped_df = combined_df.groupby(
+            mm_schemas.WriterEvent.APPLICATION_NAME
+        ).count()
+
+        # Convert DataFrame to a dictionary
+        return {
+            app_name: int(row[mm_schemas.WriterEvent.ENDPOINT_ID])
+            for app_name, row in grouped_df.iterrows()
+        }
+
+    def calculate_latest_metrics(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+    ) -> list[dict]:
+        metric_list = []
+        filter_query = ""
+        now = mlrun.utils.datetime_now()
+        start = start or (now - timedelta(hours=24))
+        end = end or now
+
+        if application_names:
+            filter_query = self._generate_filter_query(
+                filter_column=mm_schemas.WriterEvent.APPLICATION_NAME,
+                filter_values=application_names,
+            )
+
+        def _get_latest_metrics_records(
+            type: Literal["metrics", "results"],
+        ) -> pd.DataFrame:
+            columns = [
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.WriterEvent.END_INFER_TIME,
+            ]
+            if type == "results":
+                table = self.tables[
+                    mm_schemas.TDEngineSuperTables.APP_RESULTS
+                ].super_table
+                columns += [
+                    mm_schemas.ResultData.RESULT_NAME,
+                    mm_schemas.ResultData.RESULT_VALUE,
+                    mm_schemas.ResultData.RESULT_STATUS,
+                    mm_schemas.ResultData.RESULT_KIND,
+                ]
+                agg_column = mm_schemas.ResultData.RESULT_VALUE
+            else:
+                table = self.tables[mm_schemas.TDEngineSuperTables.METRICS].super_table
+                columns += [
+                    mm_schemas.MetricData.METRIC_NAME,
+                    mm_schemas.MetricData.METRIC_VALUE,
+                ]
+                agg_column = mm_schemas.MetricData.METRIC_VALUE
+
+            return self._get_records(
+                table=table,
+                start=start,
+                end=end,
+                columns=columns,
+                filter_query=filter_query,
+                timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+                group_by=columns,
+                preform_agg_columns=[agg_column],
+                agg_funcs=["last"],
+            )
+
+        df_results = _get_latest_metrics_records(type="results")
+        df_metrics = _get_latest_metrics_records(type="metrics")
+
+        if df_results.empty and df_metrics.empty:
+            return metric_list
+
+        if not df_results.empty:
+            df_results.rename(
+                columns={
+                    f"last({mm_schemas.ResultData.RESULT_VALUE})": mm_schemas.ResultData.RESULT_VALUE,
+                },
+                inplace=True,
+            )
+            for _, row in df_results.iterrows():
+                metric_list.append(
+                    {
+                        "type": "result",
+                        "time": row[mm_schemas.WriterEvent.END_INFER_TIME],
+                        "name": row[mm_schemas.ResultData.RESULT_NAME],
+                        "kind": row[mm_schemas.ResultData.RESULT_KIND],
+                        "status": row[mm_schemas.ResultData.RESULT_STATUS],
+                        "value": row[mm_schemas.ResultData.RESULT_VALUE],
+                    }
+                )
+        if not df_metrics.empty:
+            df_metrics.rename(
+                columns={
+                    f"last({mm_schemas.MetricData.METRIC_VALUE})": mm_schemas.MetricData.METRIC_VALUE,
+                },
+                inplace=True,
+            )
+            for _, row in df_metrics.iterrows():
+                metric_list.append(
+                    {
+                        "type": "metric",
+                        "time": row[mm_schemas.WriterEvent.END_INFER_TIME],
+                        "name": row[mm_schemas.MetricData.METRIC_NAME],
+                        "value": row[mm_schemas.MetricData.METRIC_VALUE],
+                    }
+                )
+        return metric_list
+
     def get_metrics_metadata(
         self,
         endpoint_id: Union[str, list[str]],

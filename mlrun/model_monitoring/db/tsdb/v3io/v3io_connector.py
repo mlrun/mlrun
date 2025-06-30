@@ -1268,3 +1268,19 @@ class V3IOTSDBConnector(TSDBConnector):
             )
 
             return df[mm_schemas.ResultData.RESULT_VALUE].to_dict()
+
+    def count_processed_model_endpoints(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+    ) -> dict[str, int]:
+        raise NotImplementedError
+
+    def calculate_latest_metrics(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+    ) -> list[dict]:
+        raise NotImplementedError

@@ -273,7 +273,7 @@ class StoreManager:
         url,
         secrets: Optional[dict] = None,
         project_name="",
-    ):
+    ) -> (DataStore, str, str):
         datastore, sub_path, url = self._get_or_create_remote_client(
             url=url,
             secrets=secrets,
@@ -285,6 +285,7 @@ class StoreManager:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "remote client by url is not datastore"
             )
+        return datastore, sub_path, url
 
     def reset_secrets(self):
         self._secrets = {}

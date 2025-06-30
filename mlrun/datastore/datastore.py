@@ -256,16 +256,16 @@ class StoreManager:
         # when running on server we don't cache the datastore, because there are multiple users and we don't want to
         # cache the credentials, so for each new request we create a new store
         remote_client_class = schema_to_object(schema)
-        store = None
+        remote_client = None
         if remote_client_class:
-            store = remote_client_class(
+            remote_client = remote_client_class(
                 self, schema, store_key, parsed_url.netloc, secrets=secrets, **kwargs
             )
             if not secrets and not mlrun.config.is_running_as_api():
-                cache[store_key] = store
+                cache[store_key] = remote_client
         else:
             warnings.warn("scheme not found. Returning None")
-        return store, subpath, url
+        return remote_client, subpath, url
 
     def get_or_create_store(
         self,

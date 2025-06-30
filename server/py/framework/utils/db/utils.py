@@ -1,3 +1,17 @@
+# Copyright 2025 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import importlib
 import os
 from collections.abc import Mapping, Sequence
@@ -5,8 +19,8 @@ from typing import Any, Union
 from urllib.parse import urlparse
 
 import mlrun.common.db.dialects
+import mlrun.errors
 import mlrun.utils
-from mlrun.errors import err_to_str
 
 _DEFAULT_DRIVER_FOR_DIALECT: dict[str, str] = {
     mlrun.common.db.dialects.Dialects.MYSQL: "pymysql",
@@ -20,29 +34,46 @@ class DBUtil:
     _DIALECT = None
     _DSN_ENV = "MLRUN_HTTPDB__DSN"
 
-    @classmethod
-    def _split_scheme(cls, dsn: str) -> tuple[str, str | None]:
-        scheme = urlparse(dsn).scheme
-        parts = scheme.split("+", 1)
-        return parts[0], parts[1] if len(parts) == 2 else None
-
-    def __new__(cls, *_, **__) -> "DBUtil":
-        if cls is DBUtil:
-            dsn_value = cls.get_dsn()
-            dialect, _ = cls._split_scheme(dsn_value)
-            if dialect not in mlrun.common.db.dialects.Dialects.all():
-                raise ValueError(
-                    f"Unsupported or missing dialect in DSN: {dsn_value!r}"
-                )
-            for subclass in cls.__subclasses__():
-                if subclass._DIALECT == dialect:
-                    return super().__new__(subclass)
-            raise RuntimeError(f"No helper registered for dialect {dialect!r}")
-        return super().__new__(cls)
+    def wait_for_db_liveness(
+        self,
+        retry_interval: int = 3,
+        timeout: int = 120,
+    ) -> None:
+        """
+        Poll the database until a connection succeeds or the timeout is reached.
+        """
+        mlrun.utils.logger.debug("Waiting for database liveness")
+        mlrun.utils.retry_until_successful(
+            retry_interval,
+            timeout,
+            mlrun.utils.logger,
+            raise_on_failure=True,
+            func=self._get_driver().connect,
+            **self._connection_kwargs(),
+        ).close()
+        mlrun.utils.logger.debug("Database is live")
 
     @classmethod
     def get_dsn(cls) -> str:
         return os.getenv(cls._DSN_ENV, mlrun.mlconf.httpdb.dsn or "")
+
+    def set_configurations(
+        self,
+        config_items: Union[list[str], dict[str, str]],
+    ) -> None:
+        if not config_items:
+            mlrun.utils.logger.debug(
+                "No configurations specified – skipping", configs=config_items
+            )
+            return
+        conn = self._get_driver().connect(**self._connection_kwargs())
+        try:
+            self._apply_configurations(conn, config_items)
+        finally:
+            conn.close()
+
+    def get_current_configurations(self) -> dict[str, bool]:
+        raise NotImplementedError()
 
     def _get_connection(self):
         return self._get_driver().connect(**self._connection_kwargs())
@@ -71,20 +102,25 @@ class DBUtil:
                 raise RuntimeError(f"Driver '{driver_name}' is not installed") from exc
         return _driver_cache[driver_name]
 
-    def set_configurations(
-        self,
-        config_items: Union[list[str], dict[str, str]],
-    ) -> None:
-        if not config_items:
-            mlrun.utils.logger.debug(
-                "No configurations specified – skipping", configs=config_items
-            )
-            return
-        conn = self._get_driver().connect(**self._connection_kwargs())
-        try:
-            self._apply_configurations(conn, config_items)
-        finally:
-            conn.close()
+    @classmethod
+    def _split_scheme(cls, dsn: str) -> tuple[str, str | None]:
+        scheme = urlparse(dsn).scheme
+        parts = scheme.split("+", 1)
+        return parts[0], parts[1] if len(parts) == 2 else None
+
+    def __new__(cls, *_, **__) -> "DBUtil":
+        if cls is DBUtil:
+            dsn_value = cls.get_dsn()
+            dialect, _ = cls._split_scheme(dsn_value)
+            if dialect not in mlrun.common.db.dialects.Dialects.all():
+                raise ValueError(
+                    f"Unsupported or missing dialect in DSN: {dsn_value!r}"
+                )
+            for subclass in cls.__subclasses__():
+                if subclass._DIALECT == dialect:
+                    return super().__new__(subclass)
+            raise RuntimeError(f"No helper registered for dialect {dialect!r}")
+        return super().__new__(cls)
 
     def _apply_configurations(
         self,
@@ -92,9 +128,6 @@ class DBUtil:
         config_items: Union[Sequence[str], Mapping[str, str]],
     ) -> None:
         mlrun.utils.logger.debug("Applying configurations", configs=config_items)
-
-    def get_current_configurations(self) -> dict[str, bool]:
-        raise NotImplementedError()
 
 
 class UtilMySQL(DBUtil):
@@ -110,7 +143,8 @@ class UtilMySQL(DBUtil):
                 return {mode: True for mode in modes}
         except Exception as exc:
             mlrun.utils.logger.exception(
-                "Failed to fetch current MySQL configurations", error=err_to_str(exc)
+                "Failed to fetch current MySQL configurations",
+                error=mlrun.errors.err_to_str(exc),
             )
             raise
         finally:

@@ -67,7 +67,7 @@ class DBUtil:
         return super().__new__(cls)
 
     @classmethod
-    def get_dsn(cls)-> str:
+    def get_dsn(cls) -> str:
         dsn_value = os.getenv(cls._DSN_ENV, mlrun.mlconf.httpdb.dsn or "")
         return dsn_value
 
@@ -104,12 +104,12 @@ class DBUtil:
     def _get_dsn(cls) -> str:
         return os.getenv(cls._DSN_ENV, mlrun.config.config.httpdb.dsn or "")
 
-    @property
-    def parsed_dsn(self) -> ParseResult:
+    @classmethod
+    def get_parsed_dsn(self) -> ParseResult:
         return urlparse(self._get_dsn(), allow_fragments=False)
 
     def _connection_kwargs(self) -> dict[str, Any]:
-        parsed = self.parsed_dsn
+        parsed = self.get_parsed_dsn()
         settings: dict[str, Any] = {
             "host": parsed.hostname,
             "user": parsed.username,

@@ -49,6 +49,7 @@ def pmr_mysql_container(pytestconfig: Config, pmr_mysql_config: MysqlConfig):
         retries=60,
     )
 
+
 @pytest.fixture
 def db_util() -> DBUtil:
     util = DBUtil()

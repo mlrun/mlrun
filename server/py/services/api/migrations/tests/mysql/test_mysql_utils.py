@@ -26,6 +26,7 @@ def _current_sql_mode(util: DBUtil) -> str:
     finally:
         conn.close()
 
+
 @pytest.mark.integration
 def test_mysql_apply_strict_all_tables_live(pmr_mysql_container: MysqlConfig):
     util = DBUtil()

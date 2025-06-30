@@ -219,7 +219,8 @@ class StoreManager:
         schema_to_class: callable = schema_to_store,
         **kwargs,
     ) -> (DataStore, str, str):
-        cache = cache or {}
+        # The cache can be an empty dictionary ({}), even if it is a _stores object.
+        cache = cache if cache is not None else {}
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
         cache_key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"

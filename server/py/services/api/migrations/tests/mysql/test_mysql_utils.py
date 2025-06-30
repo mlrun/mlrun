@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pytest
+from pytest_mock_resources import MysqlConfig
 
 from framework.utils.db.utils import DBUtil
 
@@ -24,9 +26,10 @@ def _current_sql_mode(util: DBUtil) -> str:
     finally:
         conn.close()
 
-
-def test_mysql_apply_strict_all_tables_live(pmr_mysql_container, patched_dsn):
+@pytest.mark.integration
+def test_mysql_apply_strict_all_tables_live(pmr_mysql_container: MysqlConfig):
     util = DBUtil()
+    print(type(pmr_mysql_container))
 
     original = _current_sql_mode(util)
     current_modes = {m.strip() for m in original.split(",") if m.strip()}

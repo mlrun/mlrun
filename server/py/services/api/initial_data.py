@@ -46,7 +46,6 @@ import framework.db.sqldb.db
 import framework.db.sqldb.helpers
 import framework.db.sqldb.models
 import framework.db.sqldb.sql_session
-import framework.utils.db.mysql
 import framework.utils.pagination_cache
 import services.api.utils.db.alembic
 import services.api.utils.db.backup

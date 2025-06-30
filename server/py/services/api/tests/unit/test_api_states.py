@@ -22,7 +22,6 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 from mlrun.utils import logger
 
-import framework.utils.db.mysql
 import services.api.initial_data
 import services.api.utils.db.alembic
 import services.api.utils.db.backup
@@ -96,7 +95,6 @@ def test_init_data_migration_required_recognition(
         data_migration=data_migration,
     )
     alembic_util_mock = unittest.mock.Mock()
-    monkeypatch.setattr(framework.utils.db.mysql, "MySQLUtil", unittest.mock.Mock())
     monkeypatch.setattr(services.api.utils.db.alembic, "AlembicUtil", alembic_util_mock)
     is_latest_data_version_mock = unittest.mock.Mock()
     monkeypatch.setattr(

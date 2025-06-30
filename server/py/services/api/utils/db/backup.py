@@ -19,10 +19,9 @@ import shutil
 import subprocess
 import typing
 
+from framework.utils.db.utils import DBUtil
 from mlrun import mlconf
 from mlrun.utils import logger
-
-import framework.utils.db.mysql
 
 
 class DBBackupUtil:
@@ -99,7 +98,7 @@ class DBBackupUtil:
         backup_path = self._get_backup_file_path(backup_file_name)
 
         logger.debug("Backing up mysql DB data", backup_path=backup_path)
-        dsn_data = framework.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
+        dsn_data = DBUtil.get_dsn()
         self._run_shell_command(
             "mysqldump --single-transaction --routines --triggers "
             f"--max_allowed_packet={mlconf.httpdb.db.backup.max_allowed_packet} "

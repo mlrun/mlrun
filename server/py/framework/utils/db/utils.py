@@ -52,7 +52,7 @@ class DBUtil:
 
     def __new__(cls, *_, **__) -> "DBUtil":
         if cls is DBUtil:
-            dsn_value = os.getenv(cls._DSN_ENV, mlrun.mlconf.httpdb.dsn or "")
+            dsn_value = cls.get_dsn()
             dialect, _ = cls._split_scheme(dsn_value)
             if dialect not in mlrun.common.db.dialects.Dialects.all():
                 raise ValueError(
@@ -65,6 +65,11 @@ class DBUtil:
 
             raise RuntimeError(f"No helper registered for dialect {dialect!r}")
         return super().__new__(cls)
+
+    @classmethod
+    def get_dsn(cls)-> str:
+        dsn_value = os.getenv(cls._DSN_ENV, mlrun.mlconf.httpdb.dsn or "")
+        return dsn_value
 
     def _get_connection(self):
         return self._get_driver().connect(**self._connection_kwargs())
@@ -99,11 +104,12 @@ class DBUtil:
     def _get_dsn(cls) -> str:
         return os.getenv(cls._DSN_ENV, mlrun.config.config.httpdb.dsn or "")
 
-    def _parse_dsn(self) -> ParseResult:
+    @property
+    def parsed_dsn(self) -> ParseResult:
         return urlparse(self._get_dsn(), allow_fragments=False)
 
     def _connection_kwargs(self) -> dict[str, Any]:
-        parsed = self._parse_dsn()
+        parsed = self.parsed_dsn
         settings: dict[str, Any] = {
             "host": parsed.hostname,
             "user": parsed.username,

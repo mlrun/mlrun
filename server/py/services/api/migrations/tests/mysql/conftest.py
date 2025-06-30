@@ -15,22 +15,25 @@ import os
 
 import pytest
 import pytest_mock_resources
+from _pytest.config import Config
+from pytest_mock_resources import MysqlConfig
 
 import mlrun
 
 import framework.utils.singletons.db
+from framework.utils.db.utils import DBUtil
 
 mysql = pytest_mock_resources.create_mysql_fixture()
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def patched_dsn(mysql):
     os.environ["MLRUN_HTTPDB__DSN"] = str(mysql.engine.url)
     mlrun.mlconf.reload()
 
 
 @pytest.fixture
-def alembic_engine(mysql, patched_dsn):
+def alembic_engine(mysql):
     engine = mysql.engine
     framework.utils.singletons.db.initialize_db()
     engine = engine.execution_options(isolation_level="AUTOCOMMIT")
@@ -38,13 +41,18 @@ def alembic_engine(mysql, patched_dsn):
 
 
 @pytest.fixture
-def pmr_mysql_container(pytestconfig, pmr_mysql_config):
+def pmr_mysql_container(pytestconfig: Config, pmr_mysql_config: MysqlConfig):
     yield from pytest_mock_resources.get_container(
         pytestconfig=pytestconfig,
         config=pmr_mysql_config,
         interval=1,
         retries=60,
     )
+
+@pytest.fixture
+def db_util() -> DBUtil:
+    util = DBUtil()
+    return util
 
 
 @pytest.fixture

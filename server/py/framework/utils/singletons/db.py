@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
+
+from urllib.parse import urlparse, urlunparse
 
 import mlrun.db
 from mlrun.config import config
 from mlrun.utils import logger
 
-import framework.utils.db.utils
 from framework.db.base import DBInterface
 from framework.db.session import create_session
 from framework.db.sqldb.db import SQLDB
@@ -51,7 +51,6 @@ def initialize_db(override_db=None):
     finally:
         db_session.close()
 
-from urllib.parse import urlparse, urlunparse
 
 def _mask_dsn(dsn: str) -> str:
     parsed = urlparse(dsn)
@@ -72,4 +71,3 @@ def _mask_dsn(dsn: str) -> str:
 
     masked = parsed._replace(netloc=netloc)
     return urlunparse(masked)
-

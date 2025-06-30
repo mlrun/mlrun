@@ -17,9 +17,9 @@ import os
 from typing import Any, Optional
 from urllib.parse import ParseResult, urlparse
 
-import mlrun.utils
 import mlrun.common.db.dialects
 import mlrun.config
+import mlrun.utils
 
 _DEFAULT_DRIVER_FOR_DIALECT: dict[str, str] = {
     mlrun.common.db.dialects.Dialects.MYSQL: "pymysql",
@@ -34,7 +34,12 @@ class DBUtil:
     _DSN_ENV = "MLRUN_HTTPDB__DSN"
 
     @staticmethod
-    def _split_scheme(dsn: str,) -> tuple[str, Optional[str],]:
+    def _split_scheme(
+        dsn: str,
+    ) -> tuple[
+        str,
+        Optional[str],
+    ]:
         """
         Return (dialect, driver) from the DSN’s scheme.
 
@@ -50,7 +55,9 @@ class DBUtil:
             dsn_value = os.getenv(cls._DSN_ENV, mlrun.mlconf.httpdb.dsn or "")
             dialect, _ = cls._split_scheme(dsn_value)
             if dialect not in mlrun.common.db.dialects.Dialects.all():
-                raise ValueError(f"Unsupported or missing dialect in DSN: {dsn_value!r}")
+                raise ValueError(
+                    f"Unsupported or missing dialect in DSN: {dsn_value!r}"
+                )
 
             for subclass in cls.__subclasses__():
                 if subclass._DIALECT == dialect:
@@ -62,8 +69,11 @@ class DBUtil:
     def _get_connection(self):
         return self._get_driver().connect(**self._connection_kwargs())
 
-
-    def wait_for_db_liveness(self, retry_interval: int = 3, timeout: int = 120,) -> None:
+    def wait_for_db_liveness(
+        self,
+        retry_interval: int = 3,
+        timeout: int = 120,
+    ) -> None:
         mlrun.utils.logger.debug("Waiting for database liveness")
         mlrun.utils.retry_until_successful(
             retry_interval,
@@ -124,18 +134,28 @@ class DBUtil:
 
         return _driver_cache[driver_name]
 
-    def _apply_modes(self, connection: Any, modes: str,) -> None:
+    def _apply_modes(
+        self,
+        connection: Any,
+        modes: str,
+    ) -> None:
         mlrun.utils.logger.debug("No mode handling for this dialect", modes=modes)
 
 
 class UtilMySQL(DBUtil):
     _DIALECT = mlrun.common.db.dialects.Dialects.MYSQL
 
-    def _apply_modes(self, connection: Any, modes: str,) -> None:
+    def _apply_modes(
+        self,
+        connection: Any,
+        modes: str,
+    ) -> None:
         with connection.cursor() as cursor:
             cursor.execute("SET GLOBAL sql_mode=%s;", (modes,))
 
-    def _get_current_configurations(self, ) -> set[str]:
+    def _get_current_configurations(
+        self,
+    ) -> set[str]:
         conn = self._get_connection()
         try:
             with conn.cursor() as cur:
@@ -165,7 +185,9 @@ class UtilPostgres(DBUtil):
         try:
             sql_mod = driver.sql
         except AttributeError as exc:
-            raise RuntimeError(f"Driver {driver.__name__!r} has no 'sql' submodule") from exc
+            raise RuntimeError(
+                f"Driver {driver.__name__!r} has no 'sql' submodule"
+            ) from exc
 
         raw_items = [part.strip() for part in modes.split(",") if part.strip()]
         if not raw_items:

@@ -1,9 +1,8 @@
-
 from framework.utils.db.utils import DBUtil
 
 
 def test_postgres_apply_modes_live(pmr_postgres_container, patched_dsn):
-    util = DBUtil()                      # -> UtilPostgres
+    util = DBUtil()  # -> UtilPostgres
 
     def _show(name):
         conn = util._get_driver().connect(**util._connection_kwargs())

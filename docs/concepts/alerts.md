@@ -55,7 +55,7 @@ See {ref}`model-monitoring-overview` for more details on drift and performance.
 
 ## Creating an alert
 When creating an alert you can select an event type for a specific model, for example `data_drift_suspected` or any of the predefined events above.
-You can optionally specify the frequency of the alert through the criteria field in the configuration (how many times in what time window, etc.). 
+You can optionally specify the frequency of the alert using the criteria field, which controls how many times the event must occur in a given time window to trigger the alert.
 If criteria is not specified, the default is count=1 and period=None. This means the alert will trigger immediately upon the first matching event.
 You can configure Slack, Git, or webhook notifications for the alert.
 Note on run identification:

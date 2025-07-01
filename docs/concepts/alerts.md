@@ -1,7 +1,7 @@
 (alerts)=
 # Alerts 
 
-Alerts mechanism provide a flexible way to detect and respond to important system events - such as job failures or model drift. You can define alerts using conditions like “event X happens N times in T minutes,” and attach notifications to be triggered when the alert is activated. 
+The alert mechanism provides a flexible way to detect and respond to important system events, such as job failures or model drift. You can define alerts using conditions like “event X happens N times in T minutes,” and attach notifications that are sent when the alert is activated. 
 
 **In this section**
 - [System configuration](#system-configuration)
@@ -14,7 +14,7 @@ Alerts mechanism provide a flexible way to detect and respond to important syste
 - [Alert templates](#alert-templates)
 - [Creating an alert with a template](#creating-an-alert-with-a-template)
 
-See also:
+**See also**
 - {ref}`alert_activations`: When an alert is activated by its configured trigger, MLRun saves the activation records that you can list, filter, etc. 
 
 ## System configuration 
@@ -56,7 +56,7 @@ See {ref}`model-monitoring-overview` for more details on drift and performance.
 ## Creating an alert
 When creating an alert you can select an event type for a specific model, for example `data_drift_suspected` or any of the predefined events above.
 You can optionally specify the frequency of the alert using the criteria field, which controls the threshold number of events in a given time window that triggers the alert.
-If criteria is not specified, the default is `count=1` and `period=None`, so thatß the alert triggers immediately upon the first matching event.
+If criteria is not specified, the default is `count=1` and `period=None`, in which case the alert triggers immediately upon the first matching event.
 You can configure Slack, Git, or webhook notifications for the alert.
 ``` {Admonition} Note on run identification
 Alerts track job runs by name (`run.metadata.name`), not by the unique run UID. The run name can either be set explicitly or automatically generated when a job is executed. 

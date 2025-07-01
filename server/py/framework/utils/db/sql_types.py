@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import mlrun.common.db.dialects
 
-
-from .mysql import MySQLUtil
+import framework.utils.db.utils
 
 
 # TODO: Remove this class and usages once old alembic migrations that use it are squashed.
@@ -23,8 +23,8 @@ class Collations:
 
     @classmethod
     def collation(cls):
-        mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
-        if mysql_dsn_data:
+        dsn_data = framework.utils.db.utils.DBUtil.get_parsed_dsn()
+        if dsn_data.dialect == mlrun.common.db.dialects.Dialects.MYSQL:
             return cls.mysql
         return cls.sqlite
 

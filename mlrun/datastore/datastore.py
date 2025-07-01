@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -105,8 +106,7 @@ def schema_to_store(schema) -> DataStore.__subclasses__():
         from .alibaba_oss import OSSStore
 
         return OSSStore
-    else:
-        raise ValueError(f"unsupported store scheme ({schema})")
+    raise ValueError(f"unsupported store scheme ({schema})")
 
 
 def uri_to_ipython(link):
@@ -210,12 +210,20 @@ class StoreManager:
             artifact_url=artifact_url,
         )
 
-    def get_or_create_store(
-        self, url, secrets: Optional[dict] = None, project_name=""
+    def _get_or_create_remote_client(
+        self,
+        url,
+        secrets: Optional[dict] = None,
+        project_name="",
+        cache: Optional[dict] = None,
+        schema_to_class: callable = schema_to_store,
+        **kwargs,
     ) -> (DataStore, str, str):
+        # The cache can be an empty dictionary ({}), even if it is a _stores object
+        cache = cache if cache is not None else {}
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
-        store_key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"
+        cache_key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"
 
         if schema == "ds":
             datastore_profile = datastore_profile_read(url, project_name, secrets)
@@ -237,24 +245,48 @@ class StoreManager:
             subpath = url.replace("file://", "", 1)
 
         if not schema and endpoint:
-            if endpoint in self._stores.keys():
-                return self._stores[endpoint], subpath, url
+            if endpoint in cache.keys():
+                return cache[endpoint], subpath, url
             else:
                 raise ValueError(f"no such store ({endpoint})")
 
         if not secrets and not mlrun.config.is_running_as_api():
-            if store_key in self._stores.keys():
-                return self._stores[store_key], subpath, url
+            if cache_key in cache.keys():
+                return cache[cache_key], subpath, url
 
         # support u/p embedding in url (as done in redis) by setting netloc as the "endpoint" parameter
         # when running on server we don't cache the datastore, because there are multiple users and we don't want to
         # cache the credentials, so for each new request we create a new store
-        store = schema_to_store(schema)(
-            self, schema, store_key, parsed_url.netloc, secrets=secrets
+        remote_client_class = schema_to_class(schema)
+        remote_client = None
+        if remote_client_class:
+            remote_client = remote_client_class(
+                self, schema, cache_key, parsed_url.netloc, secrets=secrets, **kwargs
+            )
+            if not secrets and not mlrun.config.is_running_as_api():
+                cache[cache_key] = remote_client
+        else:
+            warnings.warn("scheme not found. Returning None")
+        return remote_client, subpath, url
+
+    def get_or_create_store(
+        self,
+        url,
+        secrets: Optional[dict] = None,
+        project_name="",
+    ) -> (DataStore, str, str):
+        datastore, sub_path, url = self._get_or_create_remote_client(
+            url=url,
+            secrets=secrets,
+            project_name=project_name,
+            cache=self._stores,
+            schema_to_class=schema_to_store,
         )
-        if not secrets and not mlrun.config.is_running_as_api():
-            self._stores[store_key] = store
-        return store, subpath, url
+        if not isinstance(datastore, DataStore):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "remote client by url is not datastore"
+            )
+        return datastore, sub_path, url
 
     def reset_secrets(self):
         self._secrets = {}

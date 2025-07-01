@@ -16,7 +16,6 @@ import ast
 import datetime
 import http
 import time
-import traceback
 import typing
 
 import fastapi
@@ -208,11 +207,12 @@ async def retry_pipeline(
         workflow_spec=None,
         client_version=client_version,
     )
+    run_name = f"rerun-runner-{run_id[:8]}"
 
     rerun_runner: mlrun.run.KubejobRuntime = (
         await fastapi.concurrency.run_in_threadpool(
             services.api.crud.RerunRunner().create_runner,
-            run_name=f"{project.metadata.name}-retry of {run_id[:8]}",
+            run_name=run_name,
             project=project.metadata.name,
             db_session=db_session,
             auth_info=auth_info,
@@ -233,7 +233,7 @@ async def retry_pipeline(
         ] = sanitize_label_value(client_version)
 
     rerun_request = mlrun.common.schemas.RerunWorkflowRequest(
-        run_name=f"{project}-retry of {run_id[:8]}",
+        run_name=run_name,
         run_id=run_id,
         notifications=[],
         workflow_runner_node_selector=original_runner.spec.node_selector,
@@ -260,7 +260,12 @@ async def retry_pipeline(
         )
 
     except Exception as error:
-        mlrun.utils.logger.error(traceback.format_exc())
+        mlrun.utils.logger.error(
+            "Failed to rerun workflow",
+            run_id=run_id,
+            project=project.metadata.name,
+            error=mlrun.errors.err_to_str(error),
+        )
         log_and_raise(
             reason="Workflow failed",
             error=mlrun.errors.err_to_str(error),

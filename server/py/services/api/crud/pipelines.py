@@ -280,6 +280,9 @@ class Pipelines(
 
         Returns:
             The run object, or None if the run ID doesn't correspond to any remote workflow.
+
+        Raises:
+            MLRunNotFoundError: If the run ID doesn't correspond to any remote workflow.
         """
         for job_type in [
             mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER,

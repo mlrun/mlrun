@@ -866,9 +866,9 @@ class TestProject(TestMLRunSystem):
                 raise TimeoutError(
                     "Pipeline did not reach running state within timeout"
                 )
-            time.sleep(1)
             pipeline = mlrun.get_pipeline(run_id, project=project_name)
             pipeline_status = pipeline["run"]["status"]
+            time.sleep(1)
 
         mlrun.terminate_pipeline(run_id=run_id.run_id, project=project_name)
         mlrun.wait_for_pipeline_completion(

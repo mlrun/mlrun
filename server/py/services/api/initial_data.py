@@ -82,8 +82,8 @@ def init_data(
         _initialize_db_from_scratch(engine, url)
     else:
         _migrate_existing_data(
-            perform_migrations_if_needed,
             engine,
+            perform_migrations_if_needed,
         )
 
     mlrun.utils.logger.info("Initial data created")
@@ -138,12 +138,12 @@ def _migrate_existing_data(
     perform_migrations_if_needed: bool = False,
 ):
     # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
-    db_util = DBUtil()
     alembic_util = _create_alembic_util()
     if engine.dialect in (
         mlrun.common.db.dialects.Dialects.MYSQL,
         mlrun.common.db.dialects.Dialects.POSTGRESQL,
     ):
+        db_util = DBUtil()
         db_util.wait_for_db_liveness()
         db_util.set_configurations(mlrun.mlconf.httpdb.db.mysql.modes)
         (
@@ -151,7 +151,7 @@ def _migrate_existing_data(
             is_backup_needed,
         ) = _resolve_needed_operations(alembic_util)
     else:
-        dsn = db_util.get_dsn()
+        dsn = DBUtil.get_dsn()
         if dsn.startswith(mlrun.common.db.dialects.Dialects.SQLITE):
             mlrun.utils.logger.debug("SQLite DB is used, liveness check not needed")
         else:

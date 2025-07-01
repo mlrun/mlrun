@@ -176,7 +176,7 @@ class DataStore:
     def upload(self, key, src_path):
         pass
 
-    def get_spark_options(self):
+    def get_spark_options(self, path=None):
         return {}
 
     @staticmethod

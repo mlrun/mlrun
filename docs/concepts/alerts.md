@@ -1,7 +1,7 @@
 (alerts)=
 # Alerts 
 
-Alerts are a generic mechanism that allows you to define specific rules using events, such as: an event happens N times within a specified time period. They can also be used for model monitoring (as opposed to notifications that are ony used with jobs and workflows).
+Alerts mechanism provide a flexible way to detect and respond to important system events - such as job failures or model drift. You can define alerts using conditions like “event X happens N times in T minutes,” and attach notifications to be triggered when the alert is activated. 
 
 **In this section**
 - [System configuration](#system-configuration)

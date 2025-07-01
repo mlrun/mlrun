@@ -156,6 +156,8 @@ instance and tests that requires and can only run on a full Iguazio system.
 Any system test which isn't marked with the `@pytest.mark.enterprise` marker can run on MLRun Community Edition which
 incidentally can also be installed locally on a developer machine.
 
+
+
 In the `tests/system/` directory exist test suites to run against a running system, in order to test full MLRun flows.
 
 ### Setting Up an MLRun Community Edition Instance for System Tests
@@ -194,6 +196,26 @@ minikube -n mlrun service mlrun-api
 ```
 Which will tunnel the MLRun api service to your local machine. You can then use the url that is outputted by this command
 to set the `MLRUN_DBPATH` environment variable.
+
+### Optional: PostgreSQL support for testing
+
+If you want **PostgreSQL support when running tests**, you need to install system dependencies required by `psycopg2`.
+
+**macOS:**
+```shell
+brew install postgresql
+export PATH="$(brew --prefix postgresql)/bin:$PATH"
+```
+**Debian based distributions:**
+```shell
+sudo apt-get update
+sudo apt-get install -y libpq-dev build-essential python3-dev postgresql-client
+```
+
+And then install the relevant Python package:
+```shell
+pip install pytest-mock-resources[postgres]
+```
 
 ### Adding System Tests
 

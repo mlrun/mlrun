@@ -30,10 +30,6 @@ _DEFAULT_DRIVER_FOR_DIALECT: dict[str, str] = {
 _ALLOWED_DRIVERS: set[str] = set(_DEFAULT_DRIVER_FOR_DIALECT.values())
 _driver_cache: dict[str, Any] = {}
 
-from typing import Any
-
-import mlrun.common.db.dialects
-
 
 class ParsedDsn:
     _IDENTIFIER_REGEX = re.compile(r"[a-zA-Z][a-zA-Z0-9_]*")
@@ -204,7 +200,7 @@ class DBUtil:
                 _driver_cache[driver_name] = importlib.import_module(driver_name)
             except ModuleNotFoundError as exc:
                 raise RuntimeError(
-                    f"Driver '{driver_name}' required for dialect '{dialect}' "
+                    f"Driver '{driver_name}' required for dialect '{parser.dialect}' "
                     "is not installed.  Install it or adjust the DSN."
                 ) from exc
 

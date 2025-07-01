@@ -70,7 +70,7 @@ def test_get_dsn_data(
     parsed = framework.utils.db.utils.DBUtil.get_parsed_dsn()
 
     if expected_output is None:
-        assert parsed.is_valid() == False
+        assert not parsed.is_valid()
     else:
         for field, expected in expected_output.items():
             assert getattr(parsed, field) == expected

@@ -161,8 +161,8 @@ def test_push_error():
 class MyModel(Model):
     execution_mechanism = "naive"
 
-    def __init__(self, *args, inc: int, gpu_number: Optional[int] = None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, inc: int, gpu_number: Optional[int] = None, **kwargs):
+        super().__init__(**kwargs)
         self.inc = inc
         self.gpu_number = gpu_number
 

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar
 
 import mlrun
@@ -22,8 +21,6 @@ T = TypeVar("T")
 
 
 class OpenAIProvider(ModelProvider):
-    support_async = True
-
     def __init__(
         self,
         parent,
@@ -63,13 +60,10 @@ class OpenAIProvider(ModelProvider):
 
     def load_client(self) -> None:
         try:
-            from openai import OpenAI, AsyncOpenAI  # noqa
+            from openai import OpenAI  # noqa
 
             self._client = OpenAI(**self.options)
             self._default_operation = self.client.chat.completions.create
-
-            self._async_client = AsyncOpenAI(**self.options)
-            self._default_async_operation = self.async_client.chat.completions.create
         except ImportError as exc:
             raise ImportError("openai package is not installed") from exc
 
@@ -93,17 +87,6 @@ class OpenAIProvider(ModelProvider):
         else:
             return self._default_operation(**invoke_kwargs, model=self.model)
 
-    async def async_customized_invoke(
-        self,
-        async_operation: Optional[Callable[..., Awaitable[T]]] = None,
-        **invoke_kwargs,
-    ) -> Awaitable[T]:
-        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
-        if async_operation:
-            return async_operation(**invoke_kwargs, model=self.model)
-        else:
-            return self._default_async_operation(**invoke_kwargs, model=self.model)
-
     def _get_messages_parameter(self, prompt: str, **invoke_kwargs) -> (str, dict):
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         messages = invoke_kwargs.get("messages")
@@ -124,15 +107,6 @@ class OpenAIProvider(ModelProvider):
                 "must provide 'messages' or 'prompt' to invoke"
             )
         return messages, invoke_kwargs
-
-    async def async_invoke(self, prompt: str, **invoke_kwargs) -> Awaitable[str]:
-        messages, invoke_kwargs = self._get_messages_parameter(
-            prompt=prompt, **invoke_kwargs
-        )
-        response = await self._default_async_operation(
-            model=self.endpoint, messages=messages, **invoke_kwargs
-        )
-        return response.choices[0].message.content
 
     def invoke(self, prompt: str, **invoke_kwargs) -> str:
         messages, invoke_kwargs = self._get_messages_parameter(

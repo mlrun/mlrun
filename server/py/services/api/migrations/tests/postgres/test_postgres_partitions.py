@@ -21,10 +21,9 @@ import mlrun.common.schemas
 
 import framework.db.sqldb.db
 
-# Abort import of this file unless the Postgres extra is available
 pytest.importorskip(
-    "pytest_mock_resources.postgres",
-    reason="pytest-mock-resources[postgres] not installed",
+    "psycopg2",
+    reason="psycopg2 not installed",
 )
 
 

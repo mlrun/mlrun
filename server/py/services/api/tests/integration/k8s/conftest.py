@@ -29,6 +29,7 @@ def force_testcontainers_host(monkeypatch):
     monkeypatch.setenv("TESTCONTAINERS_HOST_OVERRIDE", "localhost")
 
 
+@pytest.fixture(scope="session")
 def _server_ca_user(k3s: K3SContainer) -> tuple[str, str, dict]:
     """Return (api-server URL, base64-encoded CA bundle, user-auth dict)."""
     cfg = yaml.safe_load(k3s.config_yaml())
@@ -79,8 +80,8 @@ def k3s() -> Generator[K3SContainer]:
 
 
 @pytest.fixture(scope="session")
-def valid_kubeconfig_path(k3s: K3SContainer) -> str:
-    server, ca_b64, user = _server_ca_user(k3s)
+def valid_kubeconfig_path(_server_ca_user) -> str:
+    server, ca_b64, user = _server_ca_user
     fd, cfg = tempfile.mkstemp(text=True)
     os.close(fd)
     _write_kubeconfig(server, user, ca_b64, cfg)
@@ -88,8 +89,8 @@ def valid_kubeconfig_path(k3s: K3SContainer) -> str:
 
 
 @pytest.fixture(scope="session")
-def bad_ca_kubeconfig_path(k3s: K3SContainer) -> str:
-    server, _, user = _server_ca_user(k3s)
+def bad_ca_kubeconfig_path(_server_ca_user) -> str:
+    server, _, user = _server_ca_user
     fd, cfg = tempfile.mkstemp(text=True)
     os.close(fd)
     bad_ca = base64.b64encode(b"not-ca").decode()

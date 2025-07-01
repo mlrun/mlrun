@@ -1378,7 +1378,7 @@ class ModelRunnerStep(MonitoredStep):
         model_objects = []
         for model, model_params in models.values():
             model = get_class(model, namespace).from_dict(
-                model_params, init_with_params=True
+                deepcopy(model_params), init_with_params=True
             )
             model._raise_exception = False
             model_objects.append(model)

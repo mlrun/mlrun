@@ -2031,12 +2031,9 @@ class MonitoringDeployment:
         monitoring_data = model_runner.class_args.get(
             mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
         )
-        for endpoint_name, (
-            model_class,
-            _,
-        ) in model_runner.class_args.get(
+        for endpoint_name in model_runner.class_args.get(
             mlrun.common.schemas.ModelRunnerStepData.MODELS, {}
-        ).items():
+        ).keys():
             monitoring_data[endpoint_name] = monitoring_data[endpoint_name] or {}
             if (
                 monitoring_data[endpoint_name].get(
@@ -2065,7 +2062,9 @@ class MonitoringDeployment:
                         self._model_endpoint_draft(
                             name=endpoint_name,
                             endpoint_type=model_runner.endpoint_type,
-                            model_class=model_class,
+                            model_class=monitoring_data[endpoint_name].get(
+                                mlrun.common.schemas.MonitoringData.MODEL_CLASS
+                            ),
                             function_name=function_name,
                             function_tag=function_tag,
                             track_models=track_models,

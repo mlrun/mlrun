@@ -12,25 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import base64
+import collections.abc
 import logging
 import os
 import tempfile
-from collections.abc import Generator
 
 import pytest
+import testcontainers.k3s
 import yaml
-from testcontainers.k3s import K3SContainer
 
 import framework.utils.singletons.k8s
 
 
 @pytest.fixture(scope="session", autouse=True)
-def force_testcontainers_host(monkeypatch):
-    monkeypatch.setenv("TESTCONTAINERS_HOST_OVERRIDE", "localhost")
+def force_testcontainers_host():
+    os.environ["TESTCONTAINERS_HOST_OVERRIDE"] = "localhost"
 
 
 @pytest.fixture(scope="session")
-def _server_ca_user(k3s: K3SContainer) -> tuple[str, str, dict]:
+def _server_ca_user(k3s: testcontainers.k3s.K3SContainer) -> tuple[str, str, dict]:
     """Return (api-server URL, base64-encoded CA bundle, user-auth dict)."""
     cfg = yaml.safe_load(k3s.config_yaml())
     cluster = cfg["clusters"][0]["cluster"]
@@ -72,10 +72,10 @@ def _k8shelper_from_config(cfg_path: str) -> framework.utils.singletons.k8s.K8sH
 
 
 @pytest.fixture(scope="session")
-def k3s() -> Generator[K3SContainer]:
+def k3s() -> collections.abc.Generator[testcontainers.k3s.K3SContainer]:
     """Session-wide disposable K3s control-plane."""
     logging.getLogger("urllib3").setLevel(logging.WARNING)
-    with K3SContainer() as cluster:
+    with testcontainers.k3s.K3SContainer() as cluster:
         yield cluster
 
 

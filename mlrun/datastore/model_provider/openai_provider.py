@@ -87,7 +87,9 @@ class OpenAIProvider(ModelProvider):
         else:
             return self._default_operation(**invoke_kwargs, model=self.model)
 
-    def _get_messages_parameter(self, prompt: str, **invoke_kwargs) -> (str, dict):
+    def _get_messages_parameter(
+        self, prompt: Optional[str] = None, **invoke_kwargs
+    ) -> (str, dict):
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         messages = invoke_kwargs.get("messages")
         if messages:
@@ -108,7 +110,7 @@ class OpenAIProvider(ModelProvider):
             )
         return messages, invoke_kwargs
 
-    def invoke(self, prompt: str, **invoke_kwargs) -> str:
+    def invoke(self, prompt: Optional[str] = None, **invoke_kwargs) -> str:
         messages, invoke_kwargs = self._get_messages_parameter(
             prompt=prompt, **invoke_kwargs
         )

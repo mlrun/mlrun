@@ -46,7 +46,7 @@ class ModelProvider(BaseRemoteClient):
     def load_client(self) -> None:
         raise NotImplementedError("load_client method is not implemented")
 
-    def invoke(self, prompt, **invoke_kwargs) -> str:
+    def invoke(self, prompt: Optional[str] = None, **invoke_kwargs) -> str:
         raise NotImplementedError("invoke method is not implemented")
 
     def customized_invoke(

@@ -906,8 +906,8 @@ class TDEngineConnector(TSDBConnector):
             type: Literal["metrics", "results"],
         ) -> pd.DataFrame:
             columns = [
-                mm_schemas.WriterEvent.APPLICATION_NAME,
                 mm_schemas.WriterEvent.END_INFER_TIME,
+                mm_schemas.WriterEvent.APPLICATION_NAME,
             ]
             if type == "results":
                 table = self.tables[
@@ -935,7 +935,7 @@ class TDEngineConnector(TSDBConnector):
                 columns=columns,
                 filter_query=filter_query,
                 timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
-                group_by=columns,
+                group_by=columns[1:],  # without timestamp column
                 preform_agg_columns=[agg_column],
                 agg_funcs=["last"],
             )

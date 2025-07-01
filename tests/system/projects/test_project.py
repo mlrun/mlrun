@@ -25,6 +25,7 @@ import pandas as pd
 import pytest
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.utils
@@ -879,8 +880,8 @@ class TestProject(TestMLRunSystem):
         mlrun.retry_pipeline(run_id=run_id.run_id, project=project_name)
         runner_run_result = project.list_runs(
             labels=[
-                f"rerun-of={run_id.run_id}",
-                "job-type=rerun-workflow-runner",
+                f"{mlrun_constants.MLRunInternalLabels.workflow_id}={run_id.run_id}",
+                f"{mlrun_constants.MLRunInternalLabels.job_type}={mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER}",
             ]
         )
         assert (

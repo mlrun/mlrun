@@ -23,6 +23,7 @@ import kfp_server_api
 import sqlalchemy.orm
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.helpers
 import mlrun.common.schemas
@@ -40,10 +41,6 @@ import mlrun_pipelines.utils
 
 import framework.api.utils
 import services.api.crud
-from services.api.crud.workflows import (
-    JOB_TYPE_RERUN_WORKFLOW_RUNNER,
-    JOB_TYPE_WORKFLOW_RUNNER,
-)
 
 
 class Pipelines(
@@ -269,7 +266,7 @@ class Pipelines(
             ) from exc
         return run
 
-    def find_original_workflow_run(
+    def get_original_workflow_run(
         self,
         db_session: sqlalchemy.orm.Session,
         run_id: str,
@@ -284,17 +281,24 @@ class Pipelines(
         Returns:
             The run object, or None if the run ID doesn't correspond to any remote workflow.
         """
-        for job_type in [JOB_TYPE_WORKFLOW_RUNNER, JOB_TYPE_RERUN_WORKFLOW_RUNNER]:
+        for job_type in [
+            mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER,
+            mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER,
+        ]:
             runs = services.api.crud.Runs().list_runs(
                 db_session=db_session,
                 project=project,
                 labels=[
-                    f"workflow-id={run_id}",
-                    f"job-type={job_type}",
+                    f"{mlrun_constants.MLRunInternalLabels.workflow_id}={run_id}",
+                    f"{mlrun_constants.MLRunInternalLabels.job_type}={job_type}",
                 ],
             )
             if runs:
                 return runs.to_objects()[0]
+
+        raise mlrun.errors.MLRunNotFoundError(
+            f"No remote workflow runner found with workflow-id={run_id} in project '{project}'"
+        )
 
     def retry_pipeline(
         self,

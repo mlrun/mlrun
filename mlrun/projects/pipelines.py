@@ -1088,12 +1088,15 @@ def rerun_workflow(
         # Retry the pipeline  - TODO: add submit-direct flag when created
         db = mlrun.get_run_db()
         new_pipeline_id = db.retry_pipeline(
-            run_uid, project_name, submit_mode=mlrun_constants.RetryMode.direct
+            run_uid, project_name, submit_mode=mlrun_constants.WorkflowSubmitMode.direct
         )
 
         # Store result for observability
-        context.set_label("workflow-id", new_pipeline_id)
-        context.store_run()
+        context.set_label(
+            mlrun_constants.MLRunInternalLabels.workflow_id, new_pipeline_id
+        )
+        context.update_run()
+
         context.log_result("workflow_id", new_pipeline_id)
 
         # wait for pipeline completion so monitor will push terminal notifications

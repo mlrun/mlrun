@@ -153,7 +153,7 @@ async def retry_pipeline(
         framework.api.deps.authenticate_request
     ),
     submit_mode: str = fastapi.Query(
-        mlrun_constants.RetryMode.rerun, alias="submit-mode"
+        mlrun_constants.WorkflowSubmitMode.rerun, alias="submit-mode"
     ),
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
     client_version: typing.Optional[str] = fastapi.Header(
@@ -180,16 +180,19 @@ async def retry_pipeline(
         )
     )
 
-    original_runner = await fastapi.concurrency.run_in_threadpool(
-        services.api.crud.Pipelines().find_original_workflow_run,
-        db_session=db_session,
-        run_id=run_id,
-        project=project.metadata.name,
-    )
+    try:
+        original_runner = await fastapi.concurrency.run_in_threadpool(
+            services.api.crud.Pipelines().get_original_workflow_run,
+            db_session=db_session,
+            run_id=run_id,
+            project=project.metadata.name,
+        )
+    except mlrun.errors.MLRunNotFoundError:
+        original_runner = None
 
     # If direct mode is requested, or the original workflow runner was not found,
     # bypass MLRun's workflow runner logic and submit the retry directly to KFP.
-    if submit_mode == mlrun_constants.RetryMode.direct or not original_runner:
+    if submit_mode == mlrun_constants.WorkflowSubmitMode.direct or not original_runner:
         mlrun.utils.logger.info("Direct-submitting retry to KFP API", run_id=run_id)
         run_id = await fastapi.concurrency.run_in_threadpool(
             services.api.crud.Pipelines().retry_pipeline,
@@ -209,7 +212,7 @@ async def retry_pipeline(
     rerun_runner: mlrun.run.KubejobRuntime = (
         await fastapi.concurrency.run_in_threadpool(
             services.api.crud.RerunRunner().create_runner,
-            run_name=f"{project.metadata.name}-Retry of {run_id[:8]}",
+            run_name=f"{project.metadata.name}-retry of {run_id[:8]}",
             project=project.metadata.name,
             db_session=db_session,
             auth_info=auth_info,
@@ -230,7 +233,7 @@ async def retry_pipeline(
         ] = sanitize_label_value(client_version)
 
     rerun_request = mlrun.common.schemas.RerunWorkflowRequest(
-        run_name=f"{project}-Retry of {run_id[:8]}",
+        run_name=f"{project}-retry of {run_id[:8]}",
         run_id=run_id,
         notifications=[],
         workflow_runner_node_selector=original_runner.spec.node_selector,

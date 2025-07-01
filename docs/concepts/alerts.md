@@ -56,7 +56,8 @@ See {ref}`model-monitoring-overview` for more details on drift and performance.
 ## Creating an alert
 When creating an alert you can select an event type for a specific model, for example `data_drift_suspected` or any of the predefined events above.
 You can optionally specify the frequency of the alert through the criteria field in the configuration (how many times in what time window, etc.). 
-If not specified, it uses the default. Alerts track the runs by name, not by UID. You can configure Git, Slack, and webhook notifications for the alert. 
+If criteria is not specified, the default is count=1 and period=None. This means the alert will trigger immediately upon the first matching event.
+You can configure Slack, Git, or webhook notifications for the alert.
 
 See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`. 
 

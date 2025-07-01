@@ -64,13 +64,7 @@ See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.Aler
 For alerts on model endpoints, see [Creating a model monitoring alert](#creating-a-model-monitoring-alert).
 
 This example illustrates creating an alert with a Slack notification for a job failure with defined criteria. 
-This example uses `run_id`. You can set it to the run’s name (run.metadata.name), which is assigned when you run a job function, and then
-access it from the run object returned by `run_function`.
-For example:
-```
-run = project.run_function("my-function", handler="handler", local=True)
-run_id = run.metadata.name
-```
+This example uses `run_id`. You can set it to the run’s name (run.metadata.name), which is assigned when you run a job function.
 The same run-name can be reused for multiple executions, especially in cases where functions are retried or triggered with a fixed name. In this example, the alert is triggered if 3 separate job runs with the same name fail within 10 minutes (even though each job run has a different internal UID).
 
 ```python

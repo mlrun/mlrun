@@ -42,10 +42,10 @@ from sqlalchemy.orm import Mapper, Session, declared_attr, relationship
 
 import mlrun.common.db.dialects
 import mlrun.common.schemas
-import mlrun.db.sql_types
 import mlrun.utils.db
 
 import framework.db.sqldb.partititioner
+import framework.db.sqldb.sql_types
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -80,8 +80,8 @@ def make_label(parent_cls):
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(mlrun.db.sql_types.Utf8BinText)
-        value = Column(mlrun.db.sql_types.Utf8BinText)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        value = Column(framework.db.sqldb.sql_types.Utf8BinText)
 
         parent = Column(
             Integer,
@@ -115,8 +115,8 @@ def make_tag(parent_cls):
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(mlrun.db.sql_types.Utf8BinText)
-        name = Column(mlrun.db.sql_types.Utf8BinText)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText)
 
         obj_id = Column(
             Integer,
@@ -164,14 +164,14 @@ def make_tag_v2(parent_cls):
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(mlrun.db.sql_types.Utf8BinText)
-        name = Column(mlrun.db.sql_types.Utf8BinText)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText)
         obj_id = Column(
             Integer,
             ForeignKey(f"{table}.id", ondelete="CASCADE"),
             nullable=True,
         )
-        obj_name = Column(mlrun.db.sql_types.Utf8BinText)
+        obj_name = Column(framework.db.sqldb.sql_types.Utf8BinText)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
@@ -228,13 +228,13 @@ def make_artifact_tag(cls):
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(mlrun.db.sql_types.Utf8BinText)
-        name = Column(mlrun.db.sql_types.Utf8BinText)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText)
         obj_id = Column(
             Integer,
             nullable=True,
         )
-        obj_name = Column(mlrun.db.sql_types.Utf8BinText)
+        obj_name = Column(framework.db.sqldb.sql_types.Utf8BinText)
 
         parent_rel = relationship(
             cls,
@@ -275,13 +275,13 @@ def make_notification(cls):
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(mlrun.db.sql_types.Utf8BinText)
-        name = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
-        kind = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
-        message = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
-        severity = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
-        when = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
-        condition = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
+        kind = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
+        message = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
+        severity = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
+        when = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
+        condition = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
         secret_params = Column("secret_params", JSON)
         params = Column("params", JSON)
         parent_id = Column(
@@ -296,9 +296,9 @@ def make_notification(cls):
         #   In the future, we might want to support multiple notifications per DB row, and we might want to support on
         #   start, therefore we need to separate the state from the notification itself (e.g. this table can be  table
         #   with notification_id, state, when, last_sent, etc.). This will require some refactoring in the code.
-        sent_time = Column(mlrun.db.sql_types.DateTime, nullable=True)
-        status = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
-        reason = Column(mlrun.db.sql_types.Utf8BinText, nullable=True)
+        sent_time = Column(framework.db.sqldb.sql_types.DateTime, nullable=True)
+        status = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
+        reason = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=True)
 
     return Notification
 
@@ -350,12 +350,12 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        key = Column(mlrun.db.sql_types.Utf8BinText)
-        project = Column(mlrun.db.sql_types.Utf8BinText)
-        uid = Column(mlrun.db.sql_types.Utf8BinText)
-        updated = Column(mlrun.db.sql_types.DateTime)
+        key = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        uid = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        updated = Column(framework.db.sqldb.sql_types.DateTime)
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        body = Column(mlrun.db.sql_types.Blob)
+        body = Column(framework.db.sqldb.sql_types.Blob)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"
@@ -387,14 +387,14 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        key = Column(mlrun.db.sql_types.Utf8BinText, index=True)
-        project = Column(mlrun.db.sql_types.Utf8BinText)
-        kind = Column(mlrun.db.sql_types.Utf8BinText, index=True)
-        producer_id = Column(mlrun.db.sql_types.Utf8BinText)
-        producer_uri = Column(mlrun.db.sql_types.Utf8BinText)
+        key = Column(framework.db.sqldb.sql_types.Utf8BinText, index=True)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        kind = Column(framework.db.sqldb.sql_types.Utf8BinText, index=True)
+        producer_id = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        producer_uri = Column(framework.db.sqldb.sql_types.Utf8BinText)
         iteration = Column(Integer)
         best_iteration = Column(BOOLEAN, default=False, index=True)
-        uid = Column(mlrun.db.sql_types.Utf8BinText)
+        uid = Column(framework.db.sqldb.sql_types.Utf8BinText)
         parent_id = Column(
             Integer,
             ForeignKey("artifacts_v2.id", ondelete="SET NULL"),
@@ -402,14 +402,14 @@ with warnings.catch_warnings():
             index=True,
         )
         created = Column(
-            mlrun.db.sql_types.DateTime,
+            framework.db.sqldb.sql_types.DateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
-            mlrun.db.sql_types.DateTime,
+            framework.db.sqldb.sql_types.DateTime,
             default=lambda: datetime.now(timezone.utc),
         )
-        _full_object = Column("object", mlrun.db.sql_types.Blob)
+        _full_object = Column("object", framework.db.sqldb.sql_types.Blob)
         parent = relationship(
             "ArtifactV2",
             remote_side=[id],
@@ -449,14 +449,14 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(mlrun.db.sql_types.Utf8BinText)
-        project = Column(mlrun.db.sql_types.Utf8BinText)
-        uid = Column(mlrun.db.sql_types.Utf8BinText)
-        kind = Column(mlrun.db.sql_types.Utf8BinText)
-        state = Column(mlrun.db.sql_types.Utf8BinText)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        uid = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        kind = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        state = Column(framework.db.sqldb.sql_types.Utf8BinText)
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        body = Column(mlrun.db.sql_types.Blob)
-        updated = Column(mlrun.db.sql_types.DateTime)
+        body = Column(framework.db.sqldb.sql_types.Blob)
+        updated = Column(framework.db.sqldb.sql_types.DateTime)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.uid}"
@@ -469,16 +469,16 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        uid = Column(mlrun.db.sql_types.Utf8BinText)
-        project = Column(mlrun.db.sql_types.Utf8BinText)
-        name = Column(mlrun.db.sql_types.Utf8BinText, default="no-name")
+        uid = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText, default="no-name")
         iteration = Column(Integer)
-        state = Column(mlrun.db.sql_types.Utf8BinText)
+        state = Column(framework.db.sqldb.sql_types.Utf8BinText)
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        body = Column(mlrun.db.sql_types.Blob)
-        start_time = Column(mlrun.db.sql_types.DateTime)
-        end_time = Column(mlrun.db.sql_types.MicroSecondDateTime)
-        updated = Column(mlrun.db.sql_types.DateTime, default=datetime.utcnow)
+        body = Column(framework.db.sqldb.sql_types.Blob)
+        start_time = Column(framework.db.sqldb.sql_types.DateTime)
+        end_time = Column(framework.db.sqldb.sql_types.MicroSecondDateTime)
+        updated = Column(framework.db.sqldb.sql_types.DateTime, default=datetime.utcnow)
         # requested logs column indicates whether logs were requested for this run
         # None - old runs prior to the column addition, logs were already collected for them, so no need to collect them
         # False - logs were not requested for this run
@@ -498,19 +498,19 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
-        project = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
         created = Column(
-            mlrun.db.sql_types.DateTime,
+            framework.db.sqldb.sql_types.DateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
-            mlrun.db.sql_types.DateTime,
+            framework.db.sqldb.sql_types.DateTime,
             default=lambda: datetime.now(timezone.utc),
             onupdate=lambda: datetime.now(timezone.utc),
         )
-        state = Column(mlrun.db.sql_types.Utf8BinText, index=True)
-        error = Column(mlrun.db.sql_types.Utf8BinText)
+        state = Column(framework.db.sqldb.sql_types.Utf8BinText, index=True)
+        error = Column(framework.db.sqldb.sql_types.Utf8BinText)
         timeout = Column(Integer)
 
         labels = relationship(
@@ -538,8 +538,8 @@ with warnings.catch_warnings():
             nullable=False,
             index=True,
         )
-        name = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
-        value = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
+        value = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
 
         task = relationship(
             "BackgroundTask",
@@ -552,19 +552,19 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("project", "name", name="_schedules_v2_uc"),)
 
         id = Column(Integer, primary_key=True)
-        project = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
-        name = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
-        kind = Column(mlrun.db.sql_types.Utf8BinText)
-        desired_state = Column(mlrun.db.sql_types.Utf8BinText)
-        state = Column(mlrun.db.sql_types.Utf8BinText)
-        creation_time = Column(mlrun.db.sql_types.DateTime)
-        cron_trigger_str = Column(mlrun.db.sql_types.Utf8BinText)
-        last_run_uri = Column(mlrun.db.sql_types.Utf8BinText)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
+        kind = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        desired_state = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        state = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        creation_time = Column(framework.db.sqldb.sql_types.DateTime)
+        cron_trigger_str = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        last_run_uri = Column(framework.db.sqldb.sql_types.Utf8BinText)
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        struct = Column(mlrun.db.sql_types.Blob)
+        struct = Column(framework.db.sqldb.sql_types.Blob)
 
         concurrency_limit = Column(Integer, nullable=False)
-        next_run_time = Column(mlrun.db.sql_types.DateTime)
+        next_run_time = Column(framework.db.sqldb.sql_types.DateTime)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
@@ -591,17 +591,17 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("name", name="_projects_uc"),)
 
         id = Column(Integer, primary_key=True)
-        name = Column(mlrun.db.sql_types.Utf8BinText)
-        description = Column(mlrun.db.sql_types.Utf8BinText)
-        owner = Column(mlrun.db.sql_types.Utf8BinText)
-        source = Column(mlrun.db.sql_types.Utf8BinText)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        description = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        owner = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        source = Column(framework.db.sqldb.sql_types.Utf8BinText)
         # the attribute name used to be _spec which is just a wrong naming, the attribute was renamed to _full_object
         # leaving the column as is to prevent redundant migration
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        _full_object = Column("spec", mlrun.db.sql_types.Blob)
-        created = Column(mlrun.db.sql_types.DateTime, default=datetime.utcnow)
+        _full_object = Column("spec", framework.db.sqldb.sql_types.Blob)
+        created = Column(framework.db.sqldb.sql_types.DateTime, default=datetime.utcnow)
         default_function_node_selector = Column("default_function_node_selector", JSON)
-        state = Column(mlrun.db.sql_types.Utf8BinText)
+        state = Column(framework.db.sqldb.sql_types.Utf8BinText)
 
         def get_identifier_string(self) -> str:
             return f"{self.name}"
@@ -622,8 +622,8 @@ with warnings.catch_warnings():
             Integer, ForeignKey("feature_sets.id", ondelete="CASCADE")
         )
 
-        name = Column(mlrun.db.sql_types.Utf8BinText)
-        value_type = Column(mlrun.db.sql_types.Utf8BinText)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        value_type = Column(framework.db.sqldb.sql_types.Utf8BinText)
 
         feature_set = relationship(
             "FeatureSet",
@@ -640,8 +640,8 @@ with warnings.catch_warnings():
             Integer, ForeignKey("feature_sets.id", ondelete="CASCADE")
         )
 
-        name = Column(mlrun.db.sql_types.Utf8BinText)
-        value_type = Column(mlrun.db.sql_types.Utf8BinText)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        value_type = Column(framework.db.sqldb.sql_types.Utf8BinText)
 
         feature_set = relationship(
             "FeatureSet",
@@ -658,18 +658,18 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(mlrun.db.sql_types.Utf8BinText)
-        project = Column(mlrun.db.sql_types.Utf8BinText)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText)
         created = Column(
-            mlrun.db.sql_types.DateTime,
+            framework.db.sqldb.sql_types.DateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
-            mlrun.db.sql_types.DateTime,
+            framework.db.sqldb.sql_types.DateTime,
             default=lambda: datetime.now(timezone.utc),
         )
-        state = Column(mlrun.db.sql_types.Utf8BinText)
-        uid = Column(mlrun.db.sql_types.Utf8BinText)
+        state = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        uid = Column(framework.db.sqldb.sql_types.Utf8BinText)
 
         _full_object = Column("object", JSON)
 
@@ -706,18 +706,18 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(mlrun.db.sql_types.Utf8BinText)
-        project = Column(mlrun.db.sql_types.Utf8BinText)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText)
         created = Column(
-            mlrun.db.sql_types.DateTime,
+            framework.db.sqldb.sql_types.DateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
-            mlrun.db.sql_types.DateTime,
+            framework.db.sqldb.sql_types.DateTime,
             default=lambda: datetime.now(timezone.utc),
         )
-        state = Column(mlrun.db.sql_types.Utf8BinText)
-        uid = Column(mlrun.db.sql_types.Utf8BinText)
+        state = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        uid = Column(framework.db.sqldb.sql_types.Utf8BinText)
 
         _full_object = Column("object", JSON)
 
@@ -739,14 +739,14 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("name", name="_hub_sources_uc"),)
 
         id = Column(Integer, primary_key=True)
-        name = Column(mlrun.db.sql_types.Utf8BinText)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText)
         index = Column(Integer)
         created = Column(
-            mlrun.db.sql_types.DateTime,
+            framework.db.sqldb.sql_types.DateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
-            mlrun.db.sql_types.DateTime,
+            framework.db.sqldb.sql_types.DateTime,
             default=lambda: datetime.now(timezone.utc),
         )
 
@@ -770,9 +770,9 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("version", name="_versions_uc"),)
 
         id = Column(Integer, primary_key=True)
-        version = Column(mlrun.db.sql_types.Utf8BinText)
+        version = Column(framework.db.sqldb.sql_types.Utf8BinText)
         created = Column(
-            mlrun.db.sql_types.DateTime,
+            framework.db.sqldb.sql_types.DateTime,
             default=lambda: datetime.now(timezone.utc),
         )
 
@@ -786,9 +786,9 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(mlrun.db.sql_types.Utf8BinText)
-        project = Column(mlrun.db.sql_types.Utf8BinText)
-        type = Column(mlrun.db.sql_types.Utf8BinText)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        type = Column(framework.db.sqldb.sql_types.Utf8BinText)
         _full_object = Column("object", JSON)
 
         @property
@@ -806,14 +806,14 @@ with warnings.catch_warnings():
     class PaginationCache(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "pagination_cache"
 
-        key = Column(mlrun.db.sql_types.Utf8BinText, primary_key=True)
-        user = Column(mlrun.db.sql_types.Utf8BinText)
-        function = Column(mlrun.db.sql_types.Utf8BinText)
+        key = Column(framework.db.sqldb.sql_types.Utf8BinText, primary_key=True)
+        user = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        function = Column(framework.db.sqldb.sql_types.Utf8BinText)
         current_page = Column(Integer)
         page_size = Column(Integer)
         kwargs = Column(JSON)
         last_accessed = Column(
-            mlrun.db.sql_types.DateTime,  # TODO: change to `datetime`, see ML-6921
+            framework.db.sqldb.sql_types.DateTime,  # TODO: change to `datetime`, see ML-6921
             default=lambda: datetime.now(timezone.utc),
         )
 
@@ -827,11 +827,11 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         count = Column(Integer)
         created = Column(
-            mlrun.db.sql_types.DateTime,  # TODO: change to `datetime`, see ML-6921
+            framework.db.sqldb.sql_types.DateTime,  # TODO: change to `datetime`, see ML-6921
             default=lambda: datetime.now(timezone.utc),
         )
         last_updated = Column(
-            mlrun.db.sql_types.DateTime,  # TODO: change to `datetime`, see ML-6921
+            framework.db.sqldb.sql_types.DateTime,  # TODO: change to `datetime`, see ML-6921
             default=None,
         )
         active = Column(BOOLEAN, default=False)
@@ -859,8 +859,8 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
-        project = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
 
         alerts = relationship(AlertState, cascade="all, delete-orphan")
 
@@ -883,7 +883,7 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("name", name="_alert_templates_uc"),)
 
         id = Column(Integer, primary_key=True)
-        name = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
 
         _full_object = Column("object", JSON)
 
@@ -935,20 +935,22 @@ with warnings.catch_warnings():
         # This must remain unchanged to maintain compatibility with existing logic
         # and prevent unintended precision changes.
         activation_time = Column(
-            mlrun.db.sql_types.DateTime(timezone=True), nullable=False
+            framework.db.sqldb.sql_types.DateTime(timezone=True), nullable=False
         )
-        name = Column(mlrun.db.sql_types.Utf8BinText(), nullable=False)
-        project = Column(mlrun.db.sql_types.Utf8BinText(), nullable=False)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
         data = Column(JSON)
-        entity_id = Column(mlrun.db.sql_types.Utf8BinText(), nullable=False)
-        entity_kind = Column(mlrun.db.sql_types.Utf8BinText(), nullable=False)
-        event_kind = Column(mlrun.db.sql_types.Utf8BinText(), nullable=False)
-        severity = Column(mlrun.db.sql_types.Utf8BinText(), nullable=False)
+        entity_id = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
+        entity_kind = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
+        event_kind = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
+        severity = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
         number_of_events = Column(Integer, nullable=False)
 
         # Similarly, keep fsp=3 for reset_time to ensure consistency with activation_time
         # and maintain compatibility with the existing system behavior.
-        reset_time = Column(mlrun.db.sql_types.DateTime(timezone=True), nullable=True)
+        reset_time = Column(
+            framework.db.sqldb.sql_types.DateTime(timezone=True), nullable=True
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.id}"
@@ -958,8 +960,8 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("project", name="_project_summaries_uc"),)
 
         id = Column(Integer, primary_key=True)
-        project = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
-        updated = Column(mlrun.db.sql_types.MicroSecondDateTime)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
+        updated = Column(framework.db.sqldb.sql_types.MicroSecondDateTime)
         summary = Column(JSON)
 
         def get_identifier_string(self) -> str:
@@ -968,9 +970,9 @@ with warnings.catch_warnings():
     class TimeWindowTracker(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "time_window_trackers"
 
-        key = Column(mlrun.db.sql_types.Utf8BinText, primary_key=True)
+        key = Column(framework.db.sqldb.sql_types.Utf8BinText, primary_key=True)
         timestamp = Column(
-            mlrun.db.sql_types.MicroSecondDateTime,
+            framework.db.sqldb.sql_types.MicroSecondDateTime,
             nullable=False,
             default=lambda: datetime.now(timezone.utc),
         )
@@ -984,18 +986,20 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         uid = Column(
-            mlrun.db.sql_types.UuidType, default=lambda: uuid.uuid4().hex, unique=True
+            framework.db.sqldb.sql_types.UuidType,
+            default=lambda: uuid.uuid4().hex,
+            unique=True,
         )
-        name = Column(mlrun.db.sql_types.Utf8BinText)
+        name = Column(framework.db.sqldb.sql_types.Utf8BinText)
         endpoint_type = Column(Integer, nullable=False)
-        project = Column(mlrun.db.sql_types.Utf8BinText)
-        body = Column(mlrun.db.sql_types.Blob)
+        project = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        body = Column(framework.db.sqldb.sql_types.Blob)
         created = Column(
-            mlrun.db.sql_types.DateTime,
+            framework.db.sqldb.sql_types.DateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         updated = Column(
-            mlrun.db.sql_types.DateTime,
+            framework.db.sqldb.sql_types.DateTime,
             default=lambda: datetime.now(timezone.utc),
         )
         function_id = Column(
@@ -1020,9 +1024,9 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("key", name="_system_metadata_uc"),)
 
         id = Column(Integer, primary_key=True)
-        key = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
+        key = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
         # This column stores a string value, when extracting or manipulating it, ensure to handle it appropriately
-        value = Column(mlrun.db.sql_types.Utf8BinText, nullable=False)
+        value = Column(framework.db.sqldb.sql_types.Utf8BinText, nullable=False)
 
         def get_identifier_string(self) -> str:
             return f"{self.key}"

@@ -22,9 +22,10 @@ import mlrun
 import mlrun.feature_store as fstore
 from mlrun.datastore.sources import SQLSource
 from mlrun.datastore.targets import SQLTarget
-from mlrun.db.sql_types import MicroSecondDateTime
 from mlrun.feature_store.steps import OneHotEncoder
 from tests.system.base import TestMLRunSystem
+
+from framework.db.sqldb.sql_types import MicroSecondDateTime
 
 
 @pytest.mark.skipif(

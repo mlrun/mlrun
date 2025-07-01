@@ -131,25 +131,21 @@ class TestBasicOpenAIProvider:
 class TestOpenAIProvider(TestBasicOpenAIProvider):
     @staticmethod
     def check_basic_invoke(model_url: str, secrets: dict, model_name: str):
+        prompt = "What is the capital of France? Provide a detailed and thorough history of the city"
         model_provider = mlrun.get_model_provider(
             url=model_url, secrets=secrets, default_invoke_kwargs={"max_tokens": 200}
         )
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == model_name
-        result = model_provider.invoke(prompt="what is the capital of france?")
+        result = model_provider.invoke(prompt=prompt)
         assert "paris" in result.lower()
 
         encoding = tiktoken.encoding_for_model(model_name)
-
-        result = model_provider.invoke(
-            prompt="Write a very long detailed explanation about machine learning"
-        )
         token_count = len(encoding.encode(result))
-
         assert token_count == 200
 
         result = model_provider.invoke(
-            prompt="Write a very long detailed explanation about machine learning",
+            prompt=prompt,
             max_tokens=50,
         )
         token_count = len(encoding.encode(result))

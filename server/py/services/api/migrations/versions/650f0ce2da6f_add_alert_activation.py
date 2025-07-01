@@ -110,7 +110,7 @@ def upgrade():
     partition_sql = f"""
         ALTER TABLE alert_activations
         PARTITION BY RANGE ({partition_expression}) (
-            PARTITION p{partition_name} VALUES LESS THAN ({partition_value})
+            PARTITION {partition_name} VALUES LESS THAN ({partition_value})
         );
     """
 

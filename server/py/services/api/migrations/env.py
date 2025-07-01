@@ -11,16 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from logging.config import fileConfig
-from typing import Any, Optional
+import contextlib
+import logging.config
+import typing
 
 import alembic
+import alembic.runtime.migration
 import sqlalchemy
 import sqlalchemy.dialects
 import sqlalchemy.exc
 import sqlalchemy.pool
 import sqlalchemy.sql.type_api
-from alembic.runtime.migration import MigrationContext
 
 import mlrun.db.sql_types
 import mlrun.utils
@@ -34,7 +35,7 @@ config = alembic.context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-fileConfig(config.config_file_name, disable_existing_loggers=False)
+logging.config.fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
@@ -53,12 +54,12 @@ config.set_main_option("sqlalchemy.url", mlrun.mlconf.httpdb.dsn)
 # This function was added as part of the migration to SQLAlchemy 2.0 and is intended
 # to suppress redundant alembic migrations
 def compare_type(
-    context: MigrationContext,
-    inspected_column: sqlalchemy.Column[Any],
-    metadata_column: sqlalchemy.Column[Any],
-    inspected_type: sqlalchemy.sql.type_api.TypeEngine[Any],
-    metadata_type: sqlalchemy.sql.type_api.TypeEngine[Any],
-) -> Optional[bool]:
+    context: alembic.runtime.migration.MigrationContext,
+    inspected_column: sqlalchemy.Column[typing.Any],
+    metadata_column: sqlalchemy.Column[typing.Any],
+    inspected_type: sqlalchemy.sql.type_api.TypeEngine[typing.Any],
+    metadata_type: sqlalchemy.sql.type_api.TypeEngine[typing.Any],
+) -> typing.Optional[bool]:
     """Custom compare_type that:
     1. checks mysql.VARCHAR→Utf8BinText by length+collation (utf8mb3_bin≈utf8_bin),
     2. suppresses VARCHAR→Uuid/UuidType only if length matches,
@@ -112,6 +113,40 @@ def compare_type(
     return None
 
 
+@contextlib.contextmanager
+def _get_connection():
+    connection_or_engine = alembic.context.config.attributes.get("connection")
+
+    if connection_or_engine is None:
+        engine = sqlalchemy.engine_from_config(
+            config.get_section(config.config_ini_section),
+            prefix="sqlalchemy.",
+            poolclass=sqlalchemy.pool.NullPool,
+        )
+        with engine.connect() as conn:
+            yield conn
+        return
+
+    # Figure out what Alembic passed in `config.attributes["connection"]`
+    #
+    # None         – developer runs `alembic upgrade` directly.
+    #                Build a one-off Engine from alembic.ini and connect.
+    # Engine       – regular runtime upgrades (API start, /operations/migrations).
+    #                We must create and close a short-lived Connection ourselves.
+    # Connection   – first-time bootstrap or unit-tests that already started
+    #                  `engine.begin()`.  Caller owns the transaction; just yield it.
+    if isinstance(connection_or_engine, sqlalchemy.engine.Engine):
+        with connection_or_engine.connect() as conn:
+            yield conn
+        return
+
+    if isinstance(connection_or_engine, sqlalchemy.engine.Connection):
+        yield connection_or_engine
+        return
+
+    raise TypeError(f"Unsupported connection type: {type(connection_or_engine)!r}")
+
+
 def run_migrations_offline():
     """Run migrations in 'offline' mode.
 
@@ -161,6 +196,10 @@ def run_migrations_online():
             poolclass=sqlalchemy.pool.NullPool,
         )
 
+    # Engine  → normal upgrades (API start, /operations/migrations, etc.):
+    #            open a temp conn, run, close.
+    # Connection → first-time bootstrap or tests (caller opened TX); reuse as-is.
+    # (None → plain `alembic upgrade` CLI, handled earlier.)
     if isinstance(connectable, sqlalchemy.engine.Connection):
         connection = connectable
         close_conn = False

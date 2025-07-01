@@ -221,7 +221,11 @@ class ModelObj:
 
     @classmethod
     def from_dict(
-        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
+        cls,
+        struct=None,
+        fields=None,
+        deprecated_fields: Optional[dict] = None,
+        init_with_params: bool = False,
     ):
         """create an object from a python dictionary"""
         struct = {} if struct is None else struct
@@ -229,7 +233,14 @@ class ModelObj:
         fields = fields or cls._dict_fields
         if not fields:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
-        new_obj = cls()
+
+        if init_with_params:
+            kwargs = {field: struct.pop(field, None) for field in fields}
+            kwargs.pop("self", None)
+            new_obj = cls(**kwargs)
+        else:
+            new_obj = cls()
+
         if struct:
             # we are looping over the fields to save the same order and behavior in which the class
             # initialize the attributes

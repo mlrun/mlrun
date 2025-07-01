@@ -195,13 +195,13 @@ endif
 install-complete-requirements: ## Install all requirements needed for development and testing
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	$(eval MLRUN_PIP_INSTALL_FLAG := $(if $(and $(MLRUN_PYTHON_PACKAGE_INSTALLER),$(filter -m pip,$(MLRUN_PYTHON_PACKAGE_INSTALLER))),--ignore-requires-python,))
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete] $(MLRUN_PIP_INSTALL_FLAG)
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,dev-postgres] $(MLRUN_PIP_INSTALL_FLAG)
 
 .PHONY: install-complete-kfp-requirements
 install-complete-kfp-requirements: ## Install all requirements needed for development and testing + KFP 1.8
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	$(eval MLRUN_PIP_INSTALL_FLAG := $(if $(and $(MLRUN_PYTHON_PACKAGE_INSTALLER),$(filter -m pip,$(MLRUN_PYTHON_PACKAGE_INSTALLER))),--ignore-requires-python,))
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,kfp18] $(MLRUN_PIP_INSTALL_FLAG)
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,kfp18,dev-postgres] $(MLRUN_PIP_INSTALL_FLAG)
 
 .PHONY: install-all-requirements
 install-all-requirements: ## Install all requirements needed for development and testing

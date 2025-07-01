@@ -70,7 +70,7 @@ RUN rm -rf ./server/go
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION}
+    uv pip install .[complete,dev-postgres] --python-version ${MLRUN_PYTHON_VERSION}
 
 # Install the pipeline adapters development versions since we release them only after merging
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \

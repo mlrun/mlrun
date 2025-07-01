@@ -173,10 +173,19 @@ class ServerSideLauncher(launcher.BaseLauncher):
         else:
             # single run
             try:
-                runtime_handler = services.api.runtime_handlers.get_runtime_handler(
-                    runtime.kind
-                )
-                runtime_handler.run(runtime, run, execution)
+                if self._should_skip_run(run):
+                    mlrun.utils.logger.info(
+                        "Run was aborted or deleted, skipping launch",
+                        uid=run.metadata.uid,
+                        project=run.metadata.project,
+                    )
+                    run.status.state = mlrun.common.runtimes.constants.RunStates.aborted
+
+                else:
+                    runtime_handler = services.api.runtime_handlers.get_runtime_handler(
+                        runtime.kind
+                    )
+                    runtime_handler.run(runtime, run, execution)
             except mlrun.runtimes.utils.RunError as err:
                 last_err = err
 
@@ -416,6 +425,37 @@ class ServerSideLauncher(launcher.BaseLauncher):
             else:
                 function.spec.env["SERVING_SPEC_ENV"] = serving_spec
         return serving_spec_volume
+
+    @staticmethod
+    def _should_skip_run(run: mlrun.run.RunObject) -> bool:
+        """
+        Determine whether a retried run should be skipped based on its state.
+        A run should be skipped if it is in 'pending_retry' state and was either aborted or deleted after being
+        scheduled for retry.
+        """
+        # if the retry was not scheduled for retry, then skip the checks
+        if run.status.state != mlrun.common.runtimes.constants.RunStates.pending_retry:
+            return False
+
+        # fetch the run from the db to check if it was deleted after the retry attempt
+        db = framework.utils.singletons.db.get_db()
+        try:
+            db_run = framework.db.session.run_function_with_new_db_session(
+                db.read_run,
+                uid=run.metadata.uid,
+                project=run.metadata.project,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            # Run was deleted after being scheduled for retry → skip it
+            return True
+
+        if (
+            db_run.get("status", {}).get("state")
+            == mlrun.common.runtimes.constants.RunStates.aborted
+        ):
+            return True
+
+        return False
 
     def enrich_runtime(
         self,

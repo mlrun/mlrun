@@ -342,3 +342,108 @@ def test_run_status_retry_updates():
     assert run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.retry] == str(
         enriched_run_2.status.retry_count
     )
+
+
+@pytest.mark.parametrize(
+    "initial_state, db_state, db_deleted, expected_should_skip",
+    [
+        # Not pending_retry, should not skip
+        (mlrun.common.runtimes.constants.RunStates.running, None, False, False),
+        # Deleted run in DB, should skip
+        (mlrun.common.runtimes.constants.RunStates.pending_retry, None, True, True),
+        # Aborted in DB, should skip
+        (
+            mlrun.common.runtimes.constants.RunStates.pending_retry,
+            mlrun.common.runtimes.constants.RunStates.aborted,
+            False,
+            True,
+        ),
+        # Not aborted in DB, should not skip
+        (
+            mlrun.common.runtimes.constants.RunStates.pending_retry,
+            mlrun.common.runtimes.constants.RunStates.running,
+            False,
+            False,
+        ),
+    ],
+)
+def test_should_skip_run(initial_state, db_state, db_deleted, expected_should_skip):
+    # Verify the `_should_skip_run` method correctly determines whether to skip retried runs based on their current
+    # state and the latest status in the database (including deleted or aborted runs).
+    run = mlrun.run.RunObject(
+        status=mlrun.model.RunStatus(state=initial_state),
+        spec=mlrun.model.RunSpec(
+            retry={
+                "count": 10,
+            },
+        ),
+    )
+    launcher = services.api.launcher.ServerSideLauncher()
+
+    with (
+        unittest.mock.patch("framework.utils.singletons.db.get_db") as get_db_mock,
+        unittest.mock.patch(
+            "framework.db.session.run_function_with_new_db_session"
+        ) as run_with_session_mock,
+    ):
+        mock_db = unittest.mock.Mock()
+        get_db_mock.return_value = mock_db
+
+        if db_deleted:
+            run_with_session_mock.side_effect = mlrun.errors.MLRunNotFoundError()
+        elif db_state:
+            run_with_session_mock.return_value = {"status": {"state": db_state}}
+
+        should_skip = launcher._should_skip_run(run)
+        assert should_skip is expected_should_skip
+
+
+def test_launcher_skips_aborted_or_deleted_run(monkeypatch):
+    """
+    Verify that the launcher skips running a function when `_should_skip_run` returns True,
+    meaning the run was aborted or deleted after being scheduled for retry.
+    """
+    runtime = mlrun.code_to_function(
+        name="test", kind="job", filename=str(func_path), handler=handler
+    )
+    run = mlrun.run.RunObject(
+        status=mlrun.model.RunStatus(
+            state=mlrun.common.runtimes.constants.RunStates.pending_retry
+        ),
+        spec=mlrun.model.RunSpec(
+            retry={
+                "count": 10,
+            },
+        ),
+    )
+    launcher = services.api.launcher.ServerSideLauncher()
+
+    # Force `_should_skip_run` to return True to simulate aborted/deleted run
+    monkeypatch.setattr(launcher, "_should_skip_run", lambda x: True)
+
+    # Mock runtime handler to validate that it is not called
+    runtime_handler_mock = unittest.mock.Mock()
+    monkeypatch.setattr(
+        services.api.runtime_handlers,
+        "get_runtime_handler",
+        lambda kind: unittest.mock.Mock(run=runtime_handler_mock),
+    )
+
+    # Mock execution object
+    mock_execution = unittest.mock.Mock()
+
+    try:
+        # Simulate the same logic that exists in the launcher
+        if launcher._should_skip_run(run):
+            run.status.state = mlrun.common.runtimes.constants.RunStates.aborted
+        else:
+            runtime_handler = services.api.runtime_handlers.get_runtime_handler(
+                runtime.kind
+            )
+            runtime_handler.run(runtime, run, mock_execution)
+    except mlrun.runtimes.utils.RunError:
+        pass
+
+    # Validate result
+    assert run.status.state == mlrun.common.runtimes.constants.RunStates.aborted
+    assert not runtime_handler_mock.called

@@ -33,14 +33,14 @@ class _DummyStreamRaiser:
         raise ValueError("DummyStreamRaiser raises an error")
 
 
-def create_mocked_get_store_resource(model_artifact):
-    def mocked_get_store_resource(uri, **kwargs):
+def create_mocked_get_store_artifact(model_artifact):
+    def mocked_get_store_artifact(uri, **kwargs):
         if uri == model_artifact.uri:
-            return model_artifact
+            return model_artifact, None
         else:
             raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
 
-    return mocked_get_store_resource
+    return mocked_get_store_artifact
 
 
 def test_async_basic():
@@ -548,7 +548,7 @@ def test_model_runner_with_remote_model():
 
     with unittest.mock.patch(
         "mlrun.serving.states.mlrun.store_manager.get_store_artifact",
-        side_effect=create_mocked_get_store_resource(model_artifact=model_artifact),
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
     ):
         server = function.to_mock_server()
     try:
@@ -577,7 +577,7 @@ def test_get_local_model_path():
     graph.to(model_runner_step).respond()
     with unittest.mock.patch(
         "mlrun.serving.states.mlrun.store_manager.get_store_artifact",
-        side_effect=create_mocked_get_store_resource(model_artifact=model_artifact),
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
     ):
         server = function.to_mock_server()
     try:

@@ -272,11 +272,11 @@ class StoreManager:
         # when running on server we don't cache the datastore, because there are multiple users and we don't want to
         # cache the credentials, so for each new request we create a new store
         remote_client_class = schema_to_class(schema)
-        endpoint, subpath = remote_client_class.parse_endpoint_and_path(
-            endpoint, subpath
-        )
         remote_client = None
         if remote_client_class:
+            endpoint, subpath = remote_client_class.parse_endpoint_and_path(
+                endpoint, subpath
+            )
             remote_client = remote_client_class(
                 self, schema, cache_key, parsed_url.netloc, secrets=secrets, **kwargs
             )

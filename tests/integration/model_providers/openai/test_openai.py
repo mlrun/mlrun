@@ -69,7 +69,7 @@ def create_mocked_get_store_resource(uri_to_artifact: dict):
         artifact = uri_to_artifact.get(uri)
         if not artifact:
             raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
-        return artifact
+        return artifact, None
 
     return mocked_get_store_resource
 

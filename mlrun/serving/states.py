@@ -1239,7 +1239,9 @@ class ModelRunnerStep(MonitoredStep):
         self,
         endpoint_name: str,
         model_class: Union[str, Model],
-        model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
+        model_artifact: Optional[
+            Union[str, mlrun.artifacts.ModelArtifact, mlrun.artifacts.LLMPromptArtifact]
+        ] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy

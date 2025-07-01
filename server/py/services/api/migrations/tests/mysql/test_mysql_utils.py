@@ -14,12 +14,12 @@
 import pytest
 from pytest_mock_resources import MysqlConfig
 
-from framework.utils.db.utils import DBUtil
+import framework.utils.db.utils
 
 
 @pytest.mark.integration
 def test_mysql_apply_strict_all_tables_live(pmr_mysql_container: MysqlConfig):
-    util = DBUtil()
+    util = framework.utils.db.utils.DBUtil()
     print(type(pmr_mysql_container))
 
     original = list(util.get_current_configurations())

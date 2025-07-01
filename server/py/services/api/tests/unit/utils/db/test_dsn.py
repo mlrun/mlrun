@@ -11,10 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import pytest
 
-import framework.utils.db.mysql
+import framework.utils.db.utils
 
 
 @pytest.mark.parametrize(
@@ -26,7 +25,7 @@ import framework.utils.db.mysql
                 "username": "root",
                 "password": "pass",
                 "host": "localhost",
-                "port": "3307",
+                "port": 3307,
                 "database": "mlrun",
             },
         ),
@@ -36,18 +35,42 @@ import framework.utils.db.mysql
                 "username": "root",
                 "password": None,
                 "host": "192.168.228.104",
-                "port": "3306",
+                "port": 3306,
                 "database": "mlrun",
             },
         ),
         ("mysql+pymysql://@localhost:3307/mlrun", None),
         ("mysql+pymysql://root:pass@localhost:3307", None),
-        ("sqlite:///db/mlrun.db?check_same_thread=false", None),
+        (
+            "sqlite:///db/mlrun.db?check_same_thread=false",
+            {
+                "username": None,
+                "password": None,
+                "host": None,
+                "port": None,
+                "database": None,
+            },
+        ),
+        (
+            "sqlite://",
+            {
+                "username": None,
+                "password": None,
+                "host": None,
+                "port": None,
+                "database": None,
+            },
+        ),
     ],
 )
-def test_get_mysql_dsn_data(
+def test_get_dsn_data(
     http_dsn: str, expected_output: dict, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setenv("MLRUN_HTTPDB__DSN", http_dsn)
-    dns_data = framework.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
-    assert dns_data == expected_output
+    parsed = framework.utils.db.utils.DBUtil.get_parsed_dsn()
+
+    if expected_output is None:
+        assert parsed.is_valid() == False
+    else:
+        for field, expected in expected_output.items():
+            assert getattr(parsed, field) == expected

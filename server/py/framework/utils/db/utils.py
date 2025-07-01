@@ -14,9 +14,10 @@
 
 import importlib
 import os
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any, Optional, Union
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import mlrun.common.db.dialects
 import mlrun.errors
@@ -28,6 +29,101 @@ _DEFAULT_DRIVER_FOR_DIALECT: dict[str, str] = {
 }
 _ALLOWED_DRIVERS: set[str] = set(_DEFAULT_DRIVER_FOR_DIALECT.values())
 _driver_cache: dict[str, Any] = {}
+
+from typing import Any
+
+import mlrun.common.db.dialects
+
+
+class ParsedDsn:
+    _IDENTIFIER_REGEX = re.compile(r"[a-zA-Z][a-zA-Z0-9_]*")
+    _PATH_REGEX = re.compile(r"[A-Za-z0-9_\-\.\/]+")
+
+    def __init__(self, dsn: str) -> None:
+        self._dsn = dsn
+        self._parsed = urlparse(dsn)
+        self.dialect, self.driver = self._split_scheme(
+            scheme=self._parsed.scheme,
+        )
+
+        # Connection components
+        if self.dialect == mlrun.common.db.dialects.Dialects.SQLITE:
+            self.username = None
+            self.password = None
+            self.host = None
+            self.port = None
+            # SQLite DSNs ignore database path
+            self.database = None
+        else:
+            self.username = self._parsed.username
+            self.password = self._parsed.password
+            self.host = self._parsed.hostname
+            self.port = self._parsed.port
+            self.database = self._parsed.path.lstrip("/") or None
+
+        # Query configurations
+        if self._parsed.query:
+            raw_qs = parse_qs(self._parsed.query)
+            self.configurations: dict[str, Union[str, list[str]]] = {
+                key: (value[0] if len(value) == 1 else value)
+                for key, value in raw_qs.items()
+            }
+        else:
+            self.configurations = {}
+
+    def is_valid(self) -> bool:
+        """
+        Validates the DSN by:
+        1. Ensuring dialect is supported
+        2. Checking driver identifier format
+        3. For SQLite: always valid here
+        4. For others: validating database path/name and other components
+        """
+        if (
+            not self.dialect
+            or self.dialect not in mlrun.common.db.dialects.Dialects.all()
+        ):
+            return False
+        if self.driver and not self._IDENTIFIER_REGEX.fullmatch(self.driver):
+            return False
+        raw_path = self._parsed.path.lstrip("/")
+        if self.dialect == mlrun.common.db.dialects.Dialects.SQLITE:
+            # SQLite DSNs: validate optional file path or :memory:
+            if not raw_path or raw_path == ":memory:":
+                return True
+        else:
+            if not self._PATH_REGEX.fullmatch(raw_path):
+                return False
+        if self.dialect == mlrun.common.db.dialects.Dialects.SQLITE:
+            return True
+        # Database validation for non-SQLite
+        if not (self.database and self._PATH_REGEX.fullmatch(self.database)):
+            return False
+        # Non-SQLite: username, host, optional port
+        if not self.username:
+            return False
+        if not (self.host and self._IDENTIFIER_REGEX.fullmatch(self.host)):
+            return False
+        if self.port is not None and not (1 <= self.port <= 65535):
+            return False
+        return True
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "dialect": self.dialect,
+            "driver": self.driver,
+            "username": self.username,
+            "password": self.password,
+            "host": self.host,
+            "port": self.port,
+            "database": self.database,
+            "configurations": self.configurations,
+        }
+
+    @staticmethod
+    def _split_scheme(scheme: str) -> tuple[str, Optional[str]]:
+        parts = scheme.split("+", 1)
+        return parts[0], parts[1] if len(parts) == 2 else None
 
 
 class DBUtil:
@@ -75,31 +171,43 @@ class DBUtil:
     def get_current_configurations(self) -> dict[str, bool]:
         raise NotImplementedError()
 
+    @classmethod
+    def get_parsed_dsn(cls) -> ParsedDsn:
+        return ParsedDsn(cls.get_dsn())
+
     def _get_connection(self):
         return self._get_driver().connect(**self._connection_kwargs())
 
     def _connection_kwargs(self) -> dict[str, Any]:
-        parsed = urlparse(self.get_dsn(), allow_fragments=False)
-        settings: dict[str, Any] = {
-            "host": parsed.hostname,
-            "user": parsed.username,
-            "password": parsed.password,
-            "database": parsed.path.lstrip("/"),
+        parsed_dsn = ParsedDsn(self.get_dsn())
+        settings = {
+            "host": parsed_dsn.host,
+            "user": parsed_dsn.username,
+            "password": parsed_dsn.password,
+            "database": parsed_dsn.database,
         }
-        if parsed.port:
-            settings["port"] = parsed.port
-        return {k: v for k, v in settings.items() if v is not None}
+        if parsed_dsn.port:
+            settings["port"] = str(parsed_dsn.port)
+        return {key: value for key, value in settings.items() if value is not None}
 
     def _get_driver(self):
-        dialect, explicit_driver = self._split_scheme(self.get_dsn())
-        driver_name = explicit_driver or _DEFAULT_DRIVER_FOR_DIALECT[dialect]
+        parser = ParsedDsn(self.get_dsn())
+        driver_name = parser.driver or _DEFAULT_DRIVER_FOR_DIALECT[parser.dialect]
+
         if driver_name not in _ALLOWED_DRIVERS:
-            raise RuntimeError(f"Driver '{driver_name}' is not allowed")
+            raise RuntimeError(
+                f"Driver '{driver_name}' is not in the allowed list: {sorted(_ALLOWED_DRIVERS)}"
+            )
+
         if driver_name not in _driver_cache:
             try:
                 _driver_cache[driver_name] = importlib.import_module(driver_name)
             except ModuleNotFoundError as exc:
-                raise RuntimeError(f"Driver '{driver_name}' is not installed") from exc
+                raise RuntimeError(
+                    f"Driver '{driver_name}' required for dialect '{dialect}' "
+                    "is not installed.  Install it or adjust the DSN."
+                ) from exc
+
         return _driver_cache[driver_name]
 
     @classmethod
@@ -111,7 +219,7 @@ class DBUtil:
     def __new__(cls, *_, **__) -> "DBUtil":
         if cls is DBUtil:
             dsn_value = cls.get_dsn()
-            dialect, _ = cls._split_scheme(dsn_value)
+            dialect = ParsedDsn(dsn_value).dialect
             if dialect not in mlrun.common.db.dialects.Dialects.all():
                 raise ValueError(
                     f"Unsupported or missing dialect in DSN: {dsn_value!r}"
@@ -174,8 +282,19 @@ class UtilPostgres(DBUtil):
         conn = self._get_connection()
         try:
             with conn.cursor() as cur:
-                cur.execute("SELECT name, setting FROM pg_settings;")
+                cur.execute(
+                    """
+                    SELECT name, setting
+                    FROM pg_settings
+                        """
+                )
                 return {name: value for name, value in cur.fetchall()}
+        except Exception as exc:
+            mlrun.utils.logger.exception(
+                "Failed to fetch current PostgreSQL configurations",
+                error=mlrun.errors.err_to_str(exc),
+            )
+            raise exc
         finally:
             conn.close()
 

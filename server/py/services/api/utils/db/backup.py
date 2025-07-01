@@ -99,7 +99,7 @@ class DBBackupUtil:
         backup_path = self._get_backup_file_path(backup_file_name)
 
         logger.debug("Backing up mysql DB data", backup_path=backup_path)
-        dsn_data = dict(DBUtil.get_parsed_dsn())
+        dsn_data = DBUtil.get_parsed_dsn().as_dict()
         self._run_shell_command(
             "mysqldump --single-transaction --routines --triggers "
             f"--max_allowed_packet={mlconf.httpdb.db.backup.max_allowed_packet} "
@@ -121,7 +121,7 @@ class DBBackupUtil:
             "Loading mysql DB backup data",
             backup_path=backup_path,
         )
-        dsn_data = dict(DBUtil.get_parsed_dsn())
+        dsn_data = DBUtil.get_parsed_dsn().as_dict()
         self._run_shell_command(
             "mysql "
             f"-h {dsn_data['host']} "

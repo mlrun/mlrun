@@ -43,7 +43,12 @@ def test_extras_requirement_file_aligned():
     )
     # Since these packages are only present in the mlrun-kfp image, and also can't coexist with each other,
     # we exclude them from the comparison
-    excluded_packages = ["mlrun_pipelines_kfp_v1_8", "mlrun_pipelines_kfp_v2"]
+    excluded_packages = [
+        "mlrun_pipelines_kfp_v1_8",
+        "mlrun_pipelines_kfp_v1_8[kfp]",
+        "pytest-mock-resources[postgres]",
+        "mlrun_pipelines_kfp_v2",
+    ]
     for package in excluded_packages:
         if package in setup_py_extras_requirements_specifiers_map:
             setup_py_extras_requirements_specifiers_map.pop(package)
@@ -147,9 +152,11 @@ def test_requirement_specifiers_convention():
         "scikit-learn": {"~=1.5.1"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
+        "dask[array,dataframe,distributed]": {
+            '~=2023.12.1; python_version < "3.11"',
+        },
         "dask": {
             '~=2024.12.1; python_version >= "3.11"',
-            '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
             '~=2023.12.1; python_version < "3.11"',
         },
         "distributed": {
@@ -159,6 +166,9 @@ def test_requirement_specifiers_convention():
         "dask-ml": {
             '~=1.4,<1.9.0; python_version < "3.11"',
             '~=2024.4.4; python_version >= "3.11"',
+        },
+        "dask[complete]": {
+            '~=2024.12.1; python_version >= "3.11"',
         },
         "v3io-frames": {'>=0.13.0; python_version >= "3.11"'},
         "grpcio": {"~=1.70.0"},
@@ -210,14 +220,12 @@ def test_requirement_specifiers_inconsistencies():
         },
         "dask": {
             '~=2024.12.1; python_version >= "3.11"',
-            '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
             '~=2023.12.1; python_version < "3.11"',
         },
         "distributed": {
             '~=2024.12.1; python_version >= "3.11"',
             '~=2023.12.1; python_version < "3.11"',
         },
-        "mlrun-pipelines-kfp-v1-8": {"~=0.5.4", '~=0.5.4; python_version < "3.11"'},
     }
 
     all_keys_verified = set(ignored_inconsistencies_map.keys())
@@ -264,10 +272,58 @@ def test_requirement_from_remote():
     }
 
 
-def _generate_all_requirement_specifiers_map() -> dict[str, set]:
-    requirements_file_paths = list(
-        pathlib.Path(tests.conftest.root_path).rglob("**/*requirements.txt")
+def parse_gitignore_dirs(gitignore_path: pathlib.Path) -> tuple[set[str], set[str]]:
+    exact_dir_names = set()
+    substring_tokens = set()
+
+    if gitignore_path.exists():
+        for raw_line in gitignore_path.read_text().splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.endswith("/"):
+                exact_dir_names.add(line.lstrip("*/").rstrip("/"))
+            elif line.startswith("*") and line.endswith("*"):
+                substring_tokens.add(line.strip("*").rstrip("/"))
+
+    return exact_dir_names, substring_tokens
+
+
+def find_requirement_files() -> list[pathlib.Path]:
+    always_skip = {"venv", ".git", "__pycache__"}
+
+    project_root = pathlib.Path(tests.conftest.root_path)
+
+    exact_skips, substring_skips = parse_gitignore_dirs(project_root / ".gitignore")
+    exact_skips.update(always_skip)
+
+    extra_search_roots = (
+        project_root / "dockerfiles",
+        project_root / "automation",
+        project_root / "docs",
     )
+
+    def is_valid(path: pathlib.Path) -> bool:
+        if path.name == "locked-requirements.txt":
+            return False
+        for part in path.parts:
+            if part in exact_skips or any(token in part for token in substring_skips):
+                return False
+        return True
+
+    requirement_files = [
+        path for path in project_root.glob("*requirements.txt") if is_valid(path)
+    ]
+    for search_root in extra_search_roots:
+        requirement_files.extend(
+            path for path in search_root.rglob("**/*requirements.txt") if is_valid(path)
+        )
+
+    return requirement_files
+
+
+def _generate_all_requirement_specifiers_map() -> dict[str, set]:
+    requirements_file_paths = find_requirement_files()
     venv_path = pathlib.Path(tests.conftest.root_path) / "venv"
     requirements_file_paths = [
         path
@@ -289,8 +345,8 @@ def _parse_requirement_specifiers_list(
 ) -> dict[str, set]:
     specific_module_regex = (
         r"^"
-        r"(?P<requirementName>[a-zA-Z\-0-9_]+)"
-        r"(?P<requirementExtra>\[[a-zA-Z\-0-9_]+\])?"
+        r"(?P<requirementName>[a-zA-Z0-9_\-]+)"
+        r"(?P<requirementExtra>\[[a-zA-Z0-9_\-,]+\])?"
         r"(?P<requirementSpecifier>.*)"
     )
     remote_location_regex = (
@@ -307,8 +363,14 @@ def _parse_requirement_specifiers_list(
         assert (
             match is not None
         ), f"Requirement specifier did not matched regex. {requirement_specifier}"
-        requirement_name = match.groupdict()["requirementName"].lower()
-        requirement_specifier = match.groupdict()["requirementSpecifier"]
+        gd = match.groupdict()
+        extras = gd.get("requirementExtra")
+        if extras:
+            extras = (
+                "[" + ",".join(sorted(e.strip() for e in extras[1:-1].split(","))) + "]"
+            )
+        requirement_name = (gd["requirementName"] + (extras or "")).lower()
+        requirement_specifier = gd["requirementSpecifier"]
         requirement_specifiers_map[requirement_name].add(requirement_specifier)
     return requirement_specifiers_map
 

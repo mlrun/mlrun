@@ -32,6 +32,7 @@ from mlrun import feature_store as fstore
 from mlrun.datastore.sources import KafkaSource
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.serving import ModelRunnerStep
+from tests.system.runtimes.assets.function_with_model import DummyModel
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -60,7 +61,8 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         assert deployment == function.get_url()  # check function url
 
     @pytest.mark.parametrize("raise_exception", [True, False])
-    def test_deploy_function_with_model_runner(self, raise_exception):
+    @pytest.mark.parametrize("with_object", [True, False])
+    def test_deploy_function_with_model_runner(self, raise_exception, with_object):
         code_path = str(self.assets_path / "function_with_model.py")
 
         self._logger.debug("Creating nuclio function")
@@ -76,7 +78,11 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         model_runner_step = ModelRunnerStep(
             name="model-runner", raise_exception=raise_exception
         )
-        model_runner_step.add_model(model_class="DummyModel", endpoint_name="my-model")
+        if with_object:
+            dummy_model = DummyModel(name="my-model")
+        else:
+            dummy_model = "DummyModel"
+        model_runner_step.add_model(model_class=dummy_model, endpoint_name="my-model")
 
         graph.to(model_runner_step).respond()
 

@@ -344,6 +344,15 @@ class ServingRuntime(RemoteRuntime):
                     self._spec.function_refs[
                         name
                     ]._function.spec.track_models = enable_tracking
+                    if self._spec.function_refs[
+                        name
+                    ]._function.spec.graph and isinstance(
+                        self._spec.function_refs[name]._function.spec.graph,
+                        RootFlowStep,
+                    ):
+                        self._spec.function_refs[
+                            name
+                        ]._function.spec.graph.track_models = enable_tracking
 
         if not 0 < sampling_percentage <= 100:
             raise mlrun.errors.MLRunInvalidArgumentError(

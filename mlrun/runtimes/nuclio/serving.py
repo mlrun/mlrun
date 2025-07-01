@@ -296,6 +296,7 @@ class ServingRuntime(RemoteRuntime):
             self.spec.graph = step
         elif topology == StepKinds.flow:
             self.spec.graph = RootFlowStep(engine=engine or "async")
+            self.spec.graph.track_models = self.spec.track_models
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"unsupported topology {topology}, use 'router' or 'flow'"
@@ -344,6 +345,7 @@ class ServingRuntime(RemoteRuntime):
                     self._spec.function_refs[
                         name
                     ]._function.spec.track_models = enable_tracking
+
                     if self._spec.function_refs[
                         name
                     ]._function.spec.graph and isinstance(

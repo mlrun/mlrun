@@ -11,31 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import kubernetes
+
 import pytest
-import urllib3
-
-import services.api.tests.integration.k8s.conftest
+import urllib3.exceptions
 
 
 @pytest.mark.integration
-def test_k8s_helper_ssl_verification_fails(bad_ca_kubeconfig_path: str) -> None:
-    helper = services.api.tests.integration.k8s.conftest._k8shelper_from_config(
-        bad_ca_kubeconfig_path
-    )
+def test_ssl_verification_fails(invalid_ssl_ca_k8s_helper):
+    with pytest.raises(urllib3.exceptions.MaxRetryError) as exc:
+        invalid_ssl_ca_k8s_helper.v1api.get_api_resources()
 
-    with pytest.raises(kubernetes.client.exceptions.ApiException) as exc:
-        helper.v1api.get_api_resources()
-        assert exc.value.status == 409
-        assert "SSLError" in exc.value.reason
-        assert isinstance(exc.value.__cause__, urllib3.exceptions.SSLError)
+    inner = exc.value.reason
+    assert isinstance(inner, urllib3.exceptions.SSLError)
+    assert "certificate" in str(inner).lower()
 
 
 @pytest.mark.integration
-def test_k8s_helper_ssl_verification_succeeds(valid_kubeconfig_path: str) -> None:
-    helper = services.api.tests.integration.k8s.conftest._k8shelper_from_config(
-        valid_kubeconfig_path
-    )
-
-    pods = helper.list_pods()
+def test_ssl_verification_succeeds(valid_k8s_helper):
+    pods = valid_k8s_helper.list_pods()
     assert isinstance(pods, list)

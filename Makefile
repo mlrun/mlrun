@@ -630,6 +630,7 @@ test-integration-dockerized: build-test ## Run mlrun integration tests in docker
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		-e RUN_COVERAGE=$(RUN_COVERAGE) \
+		--add-host=host.docker.internal:host-gateway \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
 
 .PHONY: test-integration

@@ -1078,7 +1078,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 logger.info("Using in-cluster config.")
         except Exception:
             try:
-                config.load_kube_config(config_file=self.config_file)
+                config.load_kube_config(
+                    config_file=self.config_file,
+                )
                 self.running_inside_kubernetes_cluster = True
                 if log:
                     logger.info("Using local kubernetes config.")

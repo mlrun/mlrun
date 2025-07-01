@@ -141,6 +141,14 @@ class ModelEndpoints:
                 model_endpoint.metadata.labels.update(
                     model_obj.labels
                 )  # todo : check if we still need this
+                if db_artifact.kind == mlrun.artifacts.LLMPromptArtifact.kind:
+                    artifact = db_artifact.parent.full_object
+                    model_obj = mlrun.artifacts.dict_to_artifact(
+                        mlrun.common.formatters.ArtifactFormat.format_obj(
+                            artifact, "full"
+                        )
+                    )
+
             except mlrun.errors.MLRunNotFoundError:
                 logger.info("The model endpoint is created on a non-existing model")
 

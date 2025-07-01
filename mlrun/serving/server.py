@@ -23,6 +23,7 @@ import traceback
 import uuid
 from typing import Optional, Union
 
+import storey
 from nuclio import Context as NuclioContext
 from nuclio.request import Logger as NuclioLogger
 
@@ -696,6 +697,7 @@ class GraphContext:
         self.verbose = False
         self.stream = None
         self.root = None
+        self.executor: Optional[storey.flow.RunnableExecutor] = None
 
         if nuclio_context:
             self.logger: NuclioLogger = nuclio_context.logger

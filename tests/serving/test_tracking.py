@@ -591,3 +591,43 @@ def test_sampling_model_runner(sampling_percentage: float):
                 f" some outputs with sampling_percentage"
                 f" = {sampling_percentage} "
             )
+
+
+@pytest.mark.parametrize("enable_tracking", [True, False])
+def test_tracked_model_runner_shared(enable_tracking: bool):
+    function = mlrun.new_function("tests-1", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    graph.add_shared_model(
+        model_class=MyModel(name="a", raise_exception=False, inc=1),
+        model_artifact="my_model_artifact",
+    )
+    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step.add_shared_model_proxy(
+        endpoint_name="my_model",
+        model_artifact="my_model_artifact",
+        input_path="n",
+        result_path="n",
+    )
+    # model_runner_step.add_shared_model_proxy(
+    #     endpoint_name="my_model-2",
+    #     model_artifact="my_model_artifact",
+    #     input_path="n",
+    #     result_path="n",
+    # ) # todo : add after Gal's PR
+    graph.to(model_runner_step).respond()
+    function.set_tracking(stream_args={"mock": True})
+
+    function.set_tracking("dummy://", enable_tracking=enable_tracking)
+    server = function.to_mock_server()
+    a = server.test("/", {"n": 1})
+    server.wait_for_completion()
+
+    dummy_stream = server.context.stream.output_stream
+    if enable_tracking:
+        assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+        assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
+        assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
+    else:
+        assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
+
+    _test_graph_structure(server.graph, enable_tracking)

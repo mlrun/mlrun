@@ -24,9 +24,8 @@ from testcontainers.k3s import K3SContainer
 import framework.utils.singletons.k8s
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def force_testcontainers_host(monkeypatch):
-    # this makes testcontainers skip gateway_ip() and use localhost instead
     monkeypatch.setenv("TESTCONTAINERS_HOST_OVERRIDE", "localhost")
 
 

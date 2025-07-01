@@ -194,7 +194,7 @@ class GoogleCloudStorageStore(DataStore):
         self.filesystem.exists(path)
         super().rm(path, recursive=recursive, maxdepth=maxdepth)
 
-    def get_spark_options(self):
+    def get_spark_options(self, path=None):
         res = {}
         st = self._get_credentials()
         if "token" in st:

@@ -32,7 +32,7 @@ from mlrun.datastore.datastore_profile import (
 from mlrun.platforms.iguazio import KafkaOutputStream
 from mlrun.runtimes import ServingRuntime
 from mlrun.serving import Model, ModelRunnerStep
-from mlrun.serving.states import RootFlowStep
+from mlrun.serving.states import RootFlowStep, RouterStep
 from tests.serving.test_serving import _log_model
 
 assets_path = str(pathlib.Path(__file__).parent / "assets")
@@ -156,31 +156,47 @@ def test_tracked_function(rundb_mock, enable_tracking):
             assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 
 
-@pytest.mark.parametrize(
-    "track_before_creating_child, enable_tracking",
-    [(True, True), (False, False), (True, False), (False, True)],
-)
+@pytest.mark.parametrize("track_before_creating_child", [True, False])
+@pytest.mark.parametrize("enable_tracking", [True, False])
+@pytest.mark.parametrize("topology", ["flow", "router"])
 def test_child_function_tracking(
-    rundb_mock, track_before_creating_child, enable_tracking
+    rundb_mock, track_before_creating_child, enable_tracking, topology
 ):
     with patch("mlrun.get_run_db", return_value=rundb_mock):
         project = mlrun.new_project("test-child", save=False)
         fn = mlrun.new_function("test-fn", kind="serving", project=project.name)
+        if topology == "flow":
+            graph = fn.set_topology("flow")
+            graph.to(class_name=RouterStep())
+        fn.add_model(
+            "model1",
+            ".",
+            class_name=ModelTestingClass(multiplier=7, model_endpoint_uid="model1-uid"),
+        )
         if track_before_creating_child:
             fn.set_tracking("dummy://", enable_tracking=enable_tracking)
-            fn.add_child_function(
+            child = fn.add_child_function(
                 "child", f"{assets_path}/child_function.py", r"mlrun\mlrun"
             )
+            child.set_topology(topology)
         else:
-            fn.add_child_function(
+            child = fn.add_child_function(
                 "child", f"{assets_path}/child_function.py", r"mlrun\mlrun"
             )
+            child.set_topology(topology)
             fn.set_tracking("dummy://", enable_tracking=enable_tracking)
+        server = fn.to_mock_server()
         for name, ref in fn.spec.function_refs.items():
             assert ref._function.spec.track_models == enable_tracking, (
                 f"{name} wrong track models value for child function expected to be "
                 f"equal to {enable_tracking}"
             )
+            if topology == "flow":
+                server.wait_for_completion()
+                assert ref._function.spec.graph.track_models == enable_tracking, (
+                    f"{name} wrong track models value for child function RootFlowStep expected to be "
+                    f"equal to {enable_tracking}"
+                )
 
 
 def rec_to_data(rec):

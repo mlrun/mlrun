@@ -156,6 +156,9 @@ class StoreManager:
             stor.to_dict() for stor in self._stores.values() if stor.from_spec
         ]
 
+    def secret(self, key):
+        return self._secrets.get(key)
+
     def _add_store(self, store):
         self._stores[store.name] = store
 
@@ -329,23 +332,6 @@ class StoreManager:
                 "remote client by url is not model_provider"
             )
         return model_provider
-
-    @staticmethod
-    def _resolve_datastore_profile(
-        url,
-        secrets: Optional[dict] = None,
-        project_name="",
-        subpath: Optional[str] = None,
-    ):
-        datastore_profile = datastore_profile_read(url, project_name, secrets)
-        secrets = merge(secrets or {}, datastore_profile.secrets() or {})
-        url = datastore_profile.url(subpath)
-        schema, endpoint, parsed_url = parse_url(url)
-        subpath = parsed_url.path
-        return secrets, url, schema, endpoint, parsed_url, subpath
-
-    def secret(self, key):
-        return self._secrets.get(key)
 
     def reset_secrets(self):
         self._secrets = {}

@@ -14,6 +14,7 @@
 
 import time
 from typing import Optional
+from urllib.parse import urlparse
 
 import boto3
 from boto3.s3.transfer import TransferConfig
@@ -115,17 +116,27 @@ class S3Store(DataStore):
             byterange += str(offset + size - 1)
         return byterange
 
-    def get_spark_options(self):
+    def get_spark_options(self, path=None):
         res = {}
+        bucket_str = ""
+        if path:
+            parsed = urlparse(path)
+            if parsed.scheme:  # s3:// or s3a://
+                bucket = parsed.hostname
+            else:
+                # drop a leading slash, if any and take 1st segment
+                bucket = path.lstrip("/").split("/", 1)[0]
+            bucket_str = f".bucket.{bucket}"
+
         st = self.get_storage_options()
         if st.get("key"):
-            res["spark.hadoop.fs.s3a.access.key"] = st.get("key")
+            res[f"spark.hadoop.fs.s3a{bucket_str}.access.key"] = st.get("key")
         if st.get("secret"):
-            res["spark.hadoop.fs.s3a.secret.key"] = st.get("secret")
+            res[f"spark.hadoop.fs.s3a{bucket_str}.secret.key"] = st.get("secret")
         if st.get("endpoint_url"):
-            res["spark.hadoop.fs.s3a.endpoint"] = st.get("endpoint_url")
+            res[f"spark.hadoop.fs.s3a{bucket_str}.endpoint"] = st.get("endpoint_url")
         if st.get("profile"):
-            res["spark.hadoop.fs.s3a.aws.profile"] = st.get("profile")
+            res[f"spark.hadoop.fs.s3a{bucket_str}.aws.profile"] = st.get("profile")
         return res
 
     @property

@@ -224,7 +224,7 @@ class AzureBlobStore(DataStore):
         path = self._convert_key_to_remote_path(key=path)
         super().rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
-    def get_spark_options(self):
+    def get_spark_options(self, path=None):
         res = {}
         st = self.storage_options
         service = "blob"

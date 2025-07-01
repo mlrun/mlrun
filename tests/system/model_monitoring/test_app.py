@@ -699,7 +699,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             )
         return apps_data
 
-    def _test_function_summaries(self):
+    def _test_function_summaries(self) -> None:
         self._logger.debug("Checking function summaries")
         function_summaries = self.project.get_monitoring_function_summaries()
         assert len(function_summaries) == 3 + len(self.apps_data)
@@ -708,25 +708,41 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         )
         assert len(function_summaries) == len(self.apps_data)
 
-        evidently_func_summary_list = self.project.get_monitoring_function_summaries(
-            include_infra=False, names=[DemoEvidentlyMonitoringApp.NAME]
-        )
-        assert len(evidently_func_summary_list) == 1
-        evidently_func_summary = evidently_func_summary_list[0]
-        assert evidently_func_summary.name == DemoEvidentlyMonitoringApp.NAME
-        assert evidently_func_summary.status == mlrun.common.schemas.FunctionState.ready
-        assert evidently_func_summary.base_period == self.app_interval
-        assert not evidently_func_summary.stats
+        try:
+            # Check that Evidently app is in `self.apps_data`
+            self.project.get_function(
+                key=DemoEvidentlyMonitoringApp.NAME, ignore_cache=True
+            )
+            self._logger.debug("Checking Evidently function summary")
+            evidently_func_summary_list = (
+                self.project.get_monitoring_function_summaries(
+                    include_infra=False, names=[DemoEvidentlyMonitoringApp.NAME]
+                )
+            )
+            assert len(evidently_func_summary_list) == 1
+            evidently_func_summary = evidently_func_summary_list[0]
+            assert evidently_func_summary.name == DemoEvidentlyMonitoringApp.NAME
+            assert (
+                evidently_func_summary.status
+                == mlrun.common.schemas.FunctionState.ready
+            )
+            assert evidently_func_summary.base_period == self.app_interval
+            assert not evidently_func_summary.stats
 
-        # now get function summary with stats
-        evidently_func_summary_list = self.project.get_monitoring_function_summaries(
-            include_infra=False,
-            names=[DemoEvidentlyMonitoringApp.NAME],
-            include_stats=True,
-        )
-        evidently_func_summary = evidently_func_summary_list[0]
-        assert evidently_func_summary.stats["potential_detection"] == 1
-        assert evidently_func_summary.stats["detected"] == 0
+            # now get function summary with stats
+            evidently_func_summary_list = (
+                self.project.get_monitoring_function_summaries(
+                    include_infra=False,
+                    names=[DemoEvidentlyMonitoringApp.NAME],
+                    include_stats=True,
+                )
+            )
+            evidently_func_summary = evidently_func_summary_list[0]
+            assert evidently_func_summary.stats["potential_detection"] == 1
+            assert evidently_func_summary.stats["detected"] == 0
+        except mlrun.errors.MLRunNotFoundError:
+            # Evidently app was not deployed
+            pass
 
     @pytest.mark.parametrize("with_training_set", [True, False])
     @pytest.mark.parametrize("with_model_runner", [True, False])

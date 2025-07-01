@@ -58,6 +58,12 @@ When creating an alert you can select an event type for a specific model, for ex
 You can optionally specify the frequency of the alert through the criteria field in the configuration (how many times in what time window, etc.). 
 If criteria is not specified, the default is count=1 and period=None. This means the alert will trigger immediately upon the first matching event.
 You can configure Slack, Git, or webhook notifications for the alert.
+Note on run identification:
+Alerts track job runs by name (run.metadata.name), not by the unique run UID. The run name can either be set explicitly or automatically generated when a job is executed. 
+You can access the run name from the result of the run_function call:
+For example:
+run = project.run_function("my-function", handler="handler", local=True)
+run_id = run.metadata.name
 
 See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`. 
 

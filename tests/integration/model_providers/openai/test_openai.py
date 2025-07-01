@@ -64,14 +64,14 @@ class MyOpenAILLM(mlrun.serving.states.Model):
         return body["prompt"]
 
 
-def create_mocked_get_store_resource(uri_to_artifact: dict):
-    def mocked_get_store_resource(uri, **kwargs):
+def create_mocked_get_store_artifact(uri_to_artifact: dict):
+    def mocked_get_store_artifact(uri, **kwargs):
         artifact = uri_to_artifact.get(uri)
         if not artifact:
             raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
         return artifact, None
 
-    return mocked_get_store_resource
+    return mocked_get_store_artifact
 
 
 def openai_configured():
@@ -222,7 +222,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
         # # Mocked function used to verify artifact URI is passed correctly.
         #
-        mocked_get_store_resource = create_mocked_get_store_resource(
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
             {
                 model_artifact.uri: model_artifact,
                 llm_prompt_artifact.uri: llm_prompt_artifact,
@@ -230,14 +230,9 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         )
         with (
             unittest.mock.patch(
-                "mlrun.serving.states.get_store_resource",
-                side_effect=mocked_get_store_resource,
-            ),
-            unittest.mock.patch(
                 "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
-                side_effect=lambda *args, **kwargs: (
-                    mocked_get_store_resource(*args, **kwargs),
-                    None,
+                side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                    *args, **kwargs
                 ),
             ),
         ):

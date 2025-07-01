@@ -137,7 +137,6 @@ def _migrate_existing_data(
     engine: sqlalchemy.engine.Engine,
     perform_migrations_if_needed: bool = False,
 ):
-    # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
     alembic_util = _create_alembic_util()
     if engine.dialect in (
         mlrun.common.db.dialects.Dialects.MYSQL,
@@ -145,7 +144,10 @@ def _migrate_existing_data(
     ):
         db_util = DBUtil()
         db_util.wait_for_db_liveness()
-        db_util.set_configurations(mlrun.mlconf.httpdb.db.mysql.modes)
+        if engine.name == mlrun.common.db.dialects.Dialects.MYSQL:
+            db_util.set_configurations(
+                config_items=mlrun.mlconf.httpdb.db.mysql_engine.modes,
+            )
         (
             is_migration_needed,
             is_backup_needed,

@@ -12,26 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pytest
-from pytest_mock_resources import MysqlConfig
 
 import framework.utils.db.utils
 
 
 @pytest.mark.integration
-def test_mysql_apply_strict_all_tables_live(pmr_mysql_container: MysqlConfig):
-    util = framework.utils.db.utils.DBUtil()
-    print(type(pmr_mysql_container))
-
-    original = list(util.get_current_configurations())
+def test_mysql_apply_strict_all_tables_live(
+    db_util: framework.utils.db.utils.DBUtil,
+):
+    original = list(db_util.get_current_configurations())
     if "PIPES_AS_CONCAT" in original:
         raise AssertionError(
             "The test is not applicable, 'PIPES_AS_CONCAT' is already set."
         )
 
-    # apply
-    util.set_configurations(["PIPES_AS_CONCAT"])
-    assert util.get_current_configurations()
+    db_util.set_configurations(["PIPES_AS_CONCAT"])
+    assert db_util.get_current_configurations()
 
-    # restore
-    util.set_configurations(original)
-    assert list(util.get_current_configurations()) == original
+    db_util.set_configurations(original)
+    assert list(db_util.get_current_configurations()) == original

@@ -19,6 +19,8 @@ from collections.abc import Mapping, Sequence
 from typing import Any, Optional, Union
 from urllib.parse import parse_qs, urlparse
 
+import sqlalchemy
+
 import mlrun.common.db.dialects
 import mlrun.errors
 import mlrun.utils
@@ -116,6 +118,19 @@ class ParsedDsn:
             "configurations": self.configurations,
         }
 
+    def as_sqlalchemy_dsn(self):
+        return sqlalchemy.URL(
+            drivername=f"{self.dialect}+{self.driver}",
+            username=self.username,
+            password=self.password,
+            host=self.host,
+            port=self.port,
+            database=self.database,
+        )
+
+    def __str__(self) -> str:
+        return self.as_sqlalchemy_dsn().render_as_string()
+
     @staticmethod
     def _split_scheme(scheme: str) -> tuple[str, Optional[str]]:
         parts = scheme.split("+", 1)
@@ -151,7 +166,7 @@ class DBUtil:
 
     def set_configurations(
         self,
-        config_items: Union[list[str], dict[str, str]],
+        config_items: Union[list[str], dict[str, Any]],
     ) -> None:
         if not config_items:
             mlrun.utils.logger.debug(
@@ -183,7 +198,7 @@ class DBUtil:
             "database": parsed_dsn.database,
         }
         if parsed_dsn.port:
-            settings["port"] = str(parsed_dsn.port)
+            settings["port"] = parsed_dsn.port
         return {key: value for key, value in settings.items() if value is not None}
 
     def _get_driver(self):

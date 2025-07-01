@@ -22,10 +22,10 @@ pytest.importorskip(
 
 
 @pytest.mark.integration
-def test_postgres_apply_modes_live(pmr_postgres_container, patched_dsn):
-    util = framework.utils.db.utils.DBUtil()
-
-    configs = util.get_current_configurations()
+def test_postgres_apply_modes_live(
+    db_util: framework.utils.db.utils.DBUtil,
+):
+    configs = db_util.get_current_configurations()
     old_value = configs.get("work_mem")
 
     assert (
@@ -33,16 +33,16 @@ def test_postgres_apply_modes_live(pmr_postgres_container, patched_dsn):
     ), "The test is not applicable, 'work_mem' is already set to '65536'."
 
     # apply new setting
-    util.set_configurations({"work_mem": 65536})
+    db_util.set_configurations({"work_mem": 65536})
 
-    assert util.get_current_configurations()["work_mem"] == "65536"
+    assert db_util.get_current_configurations()["work_mem"] == "65536"
 
     # restore original
-    util.set_configurations({"work_mem": old_value})
+    db_util.set_configurations({"work_mem": old_value})
 
-    assert util.get_current_configurations()["work_mem"] == old_value
+    assert db_util.get_current_configurations()["work_mem"] == old_value
 
     # sanity: ensure only work_mem changed back
-    final = util.get_current_configurations()
+    final = db_util.get_current_configurations()
 
     assert final.get("work_mem") == old_value

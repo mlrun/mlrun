@@ -175,11 +175,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
             try:
                 # Skip retried run if it was aborted or deleted
                 if self._should_skip_run(run):
-                    mlrun.utils.logger.info(
-                        "The pending retry run was aborted or deleted, skipping launch",
-                        uid=run.metadata.uid,
-                        project=run.metadata.project,
-                    )
                     run.status.state = mlrun.common.runtimes.constants.RunStates.aborted
 
                 else:
@@ -446,6 +441,11 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 project=run.metadata.project,
             )
         except mlrun.errors.MLRunNotFoundError:
+            mlrun.utils.logger.info(
+                "Skipping retry for run - run was deleted",
+                uid=run.metadata.uid,
+                project=run.metadata.project,
+            )
             return True
 
         # check if it was aborted after the retry attempt
@@ -453,6 +453,11 @@ class ServerSideLauncher(launcher.BaseLauncher):
             db_run.get("status", {}).get("state")
             == mlrun.common.runtimes.constants.RunStates.aborted
         ):
+            mlrun.utils.logger.info(
+                "Skipping retry for run - run was aborted",
+                uid=run.metadata.uid,
+                project=run.metadata.project,
+            )
             return True
 
         return False

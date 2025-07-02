@@ -1222,7 +1222,7 @@ class ModelRunnerStep(MonitoredStep):
         self,
         endpoint_name: str,
         model_class: Union[str, Model],
-        execution_mechanism: str,
+        execution_mechanism: Union[str, ParallelExecutionMechanisms],
         model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[

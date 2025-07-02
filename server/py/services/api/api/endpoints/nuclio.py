@@ -514,6 +514,8 @@ def _deploy_function(
         run_db = framework.api.utils.get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
 
+        fn.spec.model_endpoint_creation_task_name = model_endpoint_creation_task_name
+
         # Enrich runtime
         launcher = services.api.launcher.ServerSideLauncher(auth_info=auth_info)
         launcher.enrich_runtime(runtime=fn, full=True, client_version=client_version)
@@ -525,7 +527,6 @@ def _deploy_function(
 
         # save the function to DB
         fn.save(versioned=False)
-        fn.spec.model_endpoint_creation_task_name = model_endpoint_creation_task_name
 
         # after saving function to DB, we need to restore the original config so that the sensitive data won't be stored
         fn.spec.config = raw_config

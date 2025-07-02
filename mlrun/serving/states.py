@@ -2272,7 +2272,7 @@ class RootFlowStep(FlowStep):
         **model_parameters,
     ):
         """
-        add a shared model to the graph, this model will be available to all the ModelRunners in the graph
+        Add a shared model to the graph, this model will be available to all the ModelRunners in the graph
         :param name:                Name of the shared model (should be unique in the graph)
         :param model_class:         Model class name
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:

@@ -517,7 +517,7 @@ class BaseStep(ModelObj):
                 "ModelRunnerStep can be added to 'Flow' topology graph only"
             )
         step_model_endpoints_names = list(
-            step.class_args.get(schemas.ModelRunnerStepData.MODELS,{}).keys()
+            step.class_args.get(schemas.ModelRunnerStepData.MODELS, {}).keys()
         )
         # Get all model_endpoints names that are in both lists
         common_endpoints_names = list(
@@ -531,7 +531,9 @@ class BaseStep(ModelObj):
             )
 
         step_shared_model_endpoints_names = [
-            step.class_args.get(schemas.ModelRunnerStepData.MODELS, {}).get(name, ["", {}])[1].get("shared_runnable_name")
+            step.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
+            .get(name, ["", {}])[1]
+            .get("shared_runnable_name")
             for name in step_model_endpoints_names
             if step.class_args.get(
                 schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM, {}

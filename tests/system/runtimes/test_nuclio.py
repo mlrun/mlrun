@@ -37,7 +37,7 @@ from tests.system.runtimes.assets.function_with_model import DummyModel
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
-    project_name = "does-not-exist-3"
+    project_name = "test-nuclio-runtime"
 
     def test_deploy_function_with_error_handler(self):
         code_path = str(self.assets_path / "function-with-catcher.py")
@@ -62,7 +62,10 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
     @pytest.mark.parametrize("raise_exception", [True, False])
     @pytest.mark.parametrize("with_object", [True, False])
-    def test_deploy_function_with_model_runner(self, raise_exception, with_object):
+    @pytest.mark.parametrize("shared", [True, False])
+    def test_deploy_function_with_model_runner(
+        self, raise_exception, with_object, shared
+    ):
         code_path = str(self.assets_path / "function_with_model.py")
 
         self._logger.debug("Creating nuclio function")
@@ -79,14 +82,25 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
             name="model-runner", raise_exception=raise_exception
         )
         if with_object:
-            dummy_model = DummyModel(name="my-model")
+            dummy_model = DummyModel(name="my-model" if not shared else "shared-model")
         else:
             dummy_model = "DummyModel"
-        model_runner_step.add_model(
-            model_class=dummy_model,
-            execution_mechanism="naive",
-            endpoint_name="my-model",
-        )
+        if shared:
+            graph.add_shared_model(
+                name="shared-model",
+                execution_mechanism="naive",
+                model_class=dummy_model,
+            )
+            model_runner_step.add_shared_model_proxy(
+                endpoint_name="my-model",
+                shared_model_name="shared-model",
+            )
+        else:
+            model_runner_step.add_model(
+                model_class=dummy_model,
+                execution_mechanism="naive",
+                endpoint_name="my-model",
+            )
 
         graph.to(model_runner_step).respond()
 

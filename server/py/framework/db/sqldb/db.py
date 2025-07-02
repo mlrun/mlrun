@@ -5627,6 +5627,7 @@ class SQLDB(DBInterface):
                         ArtifactV2.iteration,
                         ArtifactV2.producer_id,
                         ArtifactV2.uid,
+                        ArtifactV2.kind,
                     )
                 ),
                 selectinload(ModelEndpoint.tags),
@@ -5678,6 +5679,7 @@ class SQLDB(DBInterface):
                         ArtifactV2.iteration,
                         ArtifactV2.producer_id,
                         ArtifactV2.uid,
+                        ArtifactV2.kind,
                     )
                 ),
                 selectinload(ModelEndpoint.tags),
@@ -5998,6 +6000,7 @@ class SQLDB(DBInterface):
                         ArtifactV2.iteration,
                         ArtifactV2.producer_id,
                         ArtifactV2.uid,
+                        ArtifactV2.kind,
                     )
                 ),
                 selectinload(ModelEndpoint.tags),
@@ -6291,7 +6294,9 @@ class SQLDB(DBInterface):
                 [tag.name for tag in model_tags] if model_tags else []
             )
             model_artifact_uri = mlrun.datastore.get_store_uri(
-                kind=mlrun.utils.helpers.StorePrefix.Model,
+                kind=mlrun.utils.helpers.StorePrefix.Model
+                if model.kind == mlrun.common.schemas.ArtifactCategories.model
+                else mlrun.utils.helpers.StorePrefix.LLMPrompt,
                 uri=generate_artifact_uri(
                     project=model.project,
                     key=model.key,

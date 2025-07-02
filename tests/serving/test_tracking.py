@@ -640,7 +640,9 @@ def test_tracked_model_runner_shared(enable_tracking: bool):
 
     assert "my_model" in res, "expected response to contain model name 'my_model'"
     assert "my_model-2" in res, "expected response to contain model name 'my_model-2'"
-    assert "shared-model" not in res, "expected response to not contain model name 'shared_model'"
+    assert (
+        "shared-model" not in res
+    ), "expected response to not contain model name 'shared_model'"
 
     dummy_stream = server.context.stream.output_stream
     if enable_tracking:
@@ -651,6 +653,7 @@ def test_tracked_model_runner_shared(enable_tracking: bool):
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 
     _test_graph_structure(server.graph, enable_tracking)
+
 
 def test_negative_for_shared_model():
     function = mlrun.new_function("tests-1", kind="serving")
@@ -686,7 +689,7 @@ def test_negative_for_shared_model():
         shared_model_name="shared-model",
     )
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-         graph.add_shared_model(
+        graph.add_shared_model(
             model_class=MyModel(name="shared-model", raise_exception=False, inc=1),
             name="shared-model",
             execution_mechanism="naive",

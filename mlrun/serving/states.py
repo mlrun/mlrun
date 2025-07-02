@@ -1373,6 +1373,9 @@ class ModelRunnerStep(MonitoredStep):
             return monitoring_data
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        if not self._is_local_function(context):
+            # skip init of non local functions
+            return
         model_selector = self.class_args.get("model_selector")
         models = self.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
         if isinstance(model_selector, str):

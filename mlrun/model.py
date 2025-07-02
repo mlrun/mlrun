@@ -19,7 +19,7 @@ import re
 import time
 import typing
 from collections import OrderedDict
-from copy import deepcopy
+from copy import copy, deepcopy
 from datetime import datetime
 from os import environ
 from typing import Any, Optional, Union
@@ -228,7 +228,7 @@ class ModelObj:
         init_with_params: bool = False,
     ):
         """create an object from a python dictionary"""
-        struct = {} if struct is None else struct
+        struct = {} if struct is None else copy(struct)
         deprecated_fields = deprecated_fields or {}
         fields = fields or cls._dict_fields
         if not fields:

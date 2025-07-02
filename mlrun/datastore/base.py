@@ -48,7 +48,9 @@ class FileStats:
 class DataStore:
     using_bucket = False
 
-    def __init__(self, parent, name, kind, endpoint="", secrets: Optional[dict] = None):
+    def __init__(
+        self, parent, name, kind, endpoint="", secrets: Optional[dict] = None, **kwargs
+    ):
         self._parent = parent
         self.kind = kind
         self.name = name
@@ -176,7 +178,7 @@ class DataStore:
     def upload(self, key, src_path):
         pass
 
-    def get_spark_options(self):
+    def get_spark_options(self, path=None):
         return {}
 
     @staticmethod

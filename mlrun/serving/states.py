@@ -1259,7 +1259,8 @@ class ModelRunnerStep(MonitoredStep):
         override: bool = False,
     ) -> None:
         """
-        Add a proxy model to the ModelRunnerStep, which is a proxy for a model that is already defined as shared model within the graph
+        Add a proxy model to the ModelRunnerStep, which is a proxy for a model that is already defined as shared model
+        within the graph
 
         :param endpoint_name:       str, will identify the model in the ModelRunnerStep, and assign model endpoint name
         :param shared_model_name:   str, the name of the shared model that is already defined within the graph

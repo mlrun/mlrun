@@ -1027,4 +1027,5 @@ coverage-combine: ## Combine all coverage reports, ignoring errors like missing 
 	tests/coverage_reports/migration_tests.coverage; \
 	python -m coverage xml --ignore-errors --data-file=tests/coverage_reports/combined.coverage -o tests/coverage_reports/combined.xml; \
 	echo "Full coverage report:"; \
+
 	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage report -i

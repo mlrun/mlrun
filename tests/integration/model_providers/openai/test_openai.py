@@ -212,6 +212,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         model_runner_step.add_model(
             model_class="MyOpenAILLM",
             endpoint_name="my_endpoint",
+            execution_mechanism="naive",
             model_artifact=llm_prompt_artifact,
         )
         graph.to(model_runner_step).respond()

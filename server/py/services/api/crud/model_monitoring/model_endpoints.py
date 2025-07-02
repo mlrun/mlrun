@@ -854,9 +854,6 @@ class ModelEndpoints:
             None,
             project,
             uids,
-            int(
-                mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_tsdb_leftovers
-            ),
         )
 
         # delete feature sets
@@ -876,9 +873,7 @@ class ModelEndpoints:
         )
 
     @staticmethod
-    async def delete_tsdb_records(
-        project: str, uids: list[str], delete_timeout: Optional[int] = None
-    ):
+    async def delete_tsdb_records(project: str, uids: list[str]):
         try:
             tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
                 project=project,

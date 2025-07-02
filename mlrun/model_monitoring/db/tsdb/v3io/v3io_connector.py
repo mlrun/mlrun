@@ -522,7 +522,7 @@ class V3IOTSDBConnector(TSDBConnector):
             try:
                 self.v3io_client.kv.delete(
                     container=self.container,
-                    table=self.last_request_table,
+                    table_path=self.last_request_table,
                     key=endpoint_id,
                 )
             except Exception as e:

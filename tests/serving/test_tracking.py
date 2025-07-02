@@ -15,7 +15,7 @@
 import json
 import pathlib
 from collections.abc import Iterator
-from typing import cast
+from typing import Union, cast
 from unittest.mock import patch
 
 import numpy as np
@@ -31,7 +31,7 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.platforms.iguazio import KafkaOutputStream
 from mlrun.runtimes import ServingRuntime
-from mlrun.serving import Model, ModelRunnerStep
+from mlrun.serving import Model, ModelRunnerStep, ModelSelector
 from mlrun.serving.states import RootFlowStep, RouterStep
 from tests.serving.test_serving import _log_model
 
@@ -259,6 +259,13 @@ def test_tracking_datastore_profile(project: mlrun.MlrunProject) -> None:
     assert event["effective_sample_count"] == 2
     assert np.array_equal(event["request"]["inputs"], np.array([[0, -0.1], [0.4, 0]]))
     assert np.array_equal(event["resp"]["outputs"], np.array([0.0, 0.4 * 7]))
+
+
+class MyModelSelector(ModelSelector):
+    def select(
+        self, event, available_models: list[Model]
+    ) -> Union[list[str], list[Model]]:
+        return ["my_dict_model"]
 
 
 class MyModel(Model):
@@ -515,7 +522,9 @@ def test_set_untracked_with_model_runner():
 def test_tracked_multiple_to_mock_with_model_runner():
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner", raise_exception=True, model_selector="MyModelSelector"
+    )
     model_runner_step.add_model(
         model_class="DictOutputModel",
         execution_mechanism="naive",

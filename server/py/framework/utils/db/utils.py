@@ -198,7 +198,7 @@ class DBUtil:
             "database": parsed_dsn.database,
         }
         if parsed_dsn.port:
-            settings["port"] = parsed_dsn.port
+            settings["port"] = int(parsed_dsn.port)
         return {key: value for key, value in settings.items() if value is not None}
 
     def _get_driver(self):

@@ -14,11 +14,10 @@
 import os
 from collections.abc import Generator
 
+import _pytest.config
 import pytest
 import pytest_mock_resources
 import sqlalchemy
-from _pytest.config import Config
-from pytest_mock_resources import MysqlConfig
 
 import mlrun
 
@@ -27,7 +26,7 @@ import framework.utils.singletons.db
 
 
 @pytest.fixture
-def mysql_config() -> MysqlConfig:
+def mysql_config() -> pytest_mock_resources.MysqlConfig:
     return pytest_mock_resources.MysqlConfig(
         image="mysql:8.0",
         host="localhost",
@@ -52,7 +51,7 @@ def alembic_engine(
     mysql_engine: sqlalchemy.engine.Engine,
 ) -> sqlalchemy.engine.Engine:
     os.environ["MLRUN_HTTPDB__DSN"] = mysql_engine.url.render_as_string(
-        hide_password=False
+        hide_password=False,
     )
     mlrun.mlconf.reload()
     framework.utils.singletons.db.initialize_db()
@@ -61,9 +60,9 @@ def alembic_engine(
 
 @pytest.fixture
 def pmr_mysql_container(
-    pytestconfig: Config,
-    pmr_mysql_config: MysqlConfig,
-) -> Generator[MysqlConfig]:
+    pytestconfig: _pytest.config.Config,
+    pmr_mysql_config: pytest_mock_resources.MysqlConfig,
+) -> Generator[pytest_mock_resources.MysqlConfig]:
     yield from pytest_mock_resources.get_container(
         pytestconfig=pytestconfig,
         config=pmr_mysql_config,
@@ -73,7 +72,7 @@ def pmr_mysql_container(
 
 
 @pytest.fixture
-def pmr_mysql_config() -> MysqlConfig:
+def pmr_mysql_config() -> pytest_mock_resources.MysqlConfig:
     return pytest_mock_resources.MysqlConfig(
         image="mysql:8.0",
         host="localhost",
@@ -89,4 +88,5 @@ def db_util(
     alembic_engine: sqlalchemy.engine.Engine,
 ) -> framework.utils.db.utils.DBUtil:
     util = framework.utils.db.utils.DBUtil()
+    util.wait_for_db_liveness()
     return util

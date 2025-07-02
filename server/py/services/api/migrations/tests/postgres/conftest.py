@@ -34,7 +34,7 @@ def alembic_engine(
     postgres_engine: sqlalchemy.engine.Engine,
 ) -> sqlalchemy.engine.Engine:
     os.environ["MLRUN_HTTPDB__DSN"] = postgres_engine.url.render_as_string(
-        hide_password=False
+        hide_password=False,
     )
     mlrun.mlconf.reload()
     framework.utils.singletons.db.initialize_db()
@@ -69,4 +69,5 @@ def db_util(
     alembic_engine: sqlalchemy.engine.Engine,
 ) -> framework.utils.db.utils.DBUtil:
     util = framework.utils.db.utils.DBUtil()
+    util.wait_for_db_liveness()
     return util

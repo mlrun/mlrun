@@ -751,9 +751,7 @@ class RunDBMock:
             endpoints.append(
                 mlrun.common.schemas.model_monitoring.ModelEndpoint(
                     metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                        name=name,
-                        project=project,
-                        uid=name,
+                        name=name, project=project, uid=f"{name}-uid"
                     ),
                     spec=mlrun.common.schemas.ModelEndpointSpec(),
                     status=mlrun.common.schemas.ModelEndpointStatus(),

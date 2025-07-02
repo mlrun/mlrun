@@ -151,11 +151,12 @@ class DBUtil:
         """
         mlrun.utils.logger.debug("Waiting for database liveness")
         mlrun.utils.retry_until_successful(
-            retry_interval,
-            timeout,
-            mlrun.utils.logger,
+            backoff=retry_interval,
+            timeout=timeout,
+            logger=mlrun.utils.logger,
             raise_on_failure=True,
-            func=self._get_driver().connect,
+            verbose=False,
+            _function=self._get_driver().connect,
             **self._connection_kwargs(),
         ).close()
         mlrun.utils.logger.debug("Database is live")

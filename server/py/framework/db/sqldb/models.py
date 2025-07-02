@@ -1037,7 +1037,7 @@ def event_listen_for_dialects(
     Register an SQLAlchemy event listener that runs only for the chosen dialects.
     Works for `before_insert` (mapper events) and `after_create` (DDL events).
     """
-    relevant = set(relevant_dialects)
+    relevant_dialects = set(relevant_dialects)
 
     def decorator(fn: Callable) -> Callable:
         @event.listens_for(target, identifier)
@@ -1063,7 +1063,10 @@ def event_listen_for_dialects(
                 )
                 return None
 
-            if any(dialect.startswith(r) for r in relevant):
+            if any(
+                dialect.startswith(relevant_dialect)
+                for relevant_dialect in relevant_dialects
+            ):
                 mlrun.utils.logger.info(
                     "Executing dialect-specific event listener",
                     dialect=dialect,
@@ -1139,9 +1142,9 @@ def bootstrap_partitions(
     partition_expression = interval.get_partition_expression("activation_time")
     partition_name, partition_value = interval.get_partition_info(datetime.utcnow())[0]
 
-    session = Session(bind=connection)
     dialect = connection.dialect.name
-    try:
+    with Session(bind=connection) as session:
+        # Ensure the partitioner is initialized for the dialect
         framework.db.sqldb.partititioner.RangePartitioner(dialect).bootstrap(
             session=session,
             table_name=table.name,
@@ -1149,9 +1152,6 @@ def bootstrap_partitions(
             first_partition_name=partition_name,
             first_partition_upper_bound=partition_value,
         )
-        session.commit()
-    finally:
-        session.close()
 
 
 def get_partitioned_table_names():

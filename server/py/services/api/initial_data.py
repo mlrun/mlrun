@@ -92,8 +92,12 @@ def _create_schema(
 ) -> None:
     if engine is None:
         engine = framework.db.sqldb.sql_session.get_engine()
-    partitioned_table_names = framework.db.sqldb.models.get_partitioned_table_names()
-    if engine.name == "sqlite":
+
+    # SQLite doesn’t support table partitioning → skip those tables
+    if engine.name == mlrun.common.db.dialects.Dialects.SQLITE:
+        partitioned_table_names = (
+            framework.db.sqldb.models.get_partitioned_table_names()
+        )
         tables_to_create = [
             table
             for table in framework.db.sqldb.models.Base.metadata.tables.values()
@@ -120,16 +124,20 @@ def _initialize_db_from_scratch(
         alembic.command.stamp(cfg, "head")
 
     db = framework.db.sqldb.db.SQLDB()
-    db_session = framework.db.session.create_session()
-    db.create_data_version(db_session, str(latest_data_version))
-    mlrun.config.config.httpdb.state = mlrun.common.schemas.APIStates.online
+    framework.db.session.run_function_with_new_db_session(
+        func=db.create_data_version,
+        version=str(latest_data_version),
+    )
+    mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
 
 
 def _migrate_existing_data(
     perform_migrations_if_needed: bool = False,
 ):
     # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
-    mysql_util = framework.utils.db.mysql.MySQLUtil(mlrun.utils.logger)
+    mysql_util = framework.utils.db.mysql.MySQLUtil(
+        mlrun.utils.logger
+    )  # TODO make this DB agnostic
     alembic_util = _create_alembic_util()
     if mysql_util.get_mysql_dsn_data():
         mysql_util.wait_for_db_liveness()
@@ -140,21 +148,20 @@ def _migrate_existing_data(
         ) = _resolve_needed_operations(alembic_util)
     else:
         dsn = mysql_util.get_dsn()
-        if "sqlite" in dsn:
+        if dsn.startswith(mlrun.common.db.dialects.Dialects.SQLITE):
             mlrun.utils.logger.debug("SQLite DB is used, liveness check not needed")
         else:
             mlrun.utils.logger.warn(
                 f"Invalid mysql dsn: {dsn}, assuming live and skipping liveness verification"
             )
-
-        # migration is not needed for sqlite, but we mark it as from scratch to initialize the db
+        # ON SQLite, we don't have schema migrations, so we don't need to check for them
         is_migration_needed = False
         is_backup_needed = False
 
     if not perform_migrations_if_needed and is_migration_needed:
         state = mlrun.common.schemas.APIStates.waiting_for_migrations
         mlrun.utils.logger.info("Migration is needed, changing API state", state=state)
-        mlrun.config.config.httpdb.state = state
+        mlrun.mlconf.httpdb.state = state
         return
 
     if is_backup_needed:
@@ -177,7 +184,7 @@ def _migrate_existing_data(
                 mlrun.utils.logger.warning(
                     "Migrations failed, changing API state", state=state
                 )
-                mlrun.config.config.httpdb.state = state
+                mlrun.mlconf.httpdb.state = state
                 raise
 
         # initialize system id
@@ -189,16 +196,14 @@ def _migrate_existing_data(
     # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
     # therefore moving to migration_completed state, and other component will take care of moving to online
     if alembic_util and is_migration_needed:
-        mlrun.config.config.httpdb.state = (
-            mlrun.common.schemas.APIStates.migrations_completed
-        )
+        mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.migrations_completed
     else:
-        mlrun.config.config.httpdb.state = mlrun.common.schemas.APIStates.online
+        mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
 
     # Cleanup pagination cache on api startup
-    session = framework.db.session.create_session()
-    framework.utils.pagination_cache.PaginationCache().cleanup_pagination_cache(session)
-    session.commit()
+    framework.db.session.run_function_with_new_db_session(
+        func=framework.utils.pagination_cache.PaginationCache().cleanup_pagination_cache,
+    )
 
 
 # If the data_table version doesn't exist, we can assume the data version is 1.
@@ -226,11 +231,11 @@ def _resolve_needed_operations(
     is_schema_migration_needed = alembic_util.is_schema_migration_needed()
     is_data_migration_needed = (
         not _is_latest_data_version()
-        and mlrun.config.config.httpdb.db.data_migrations_mode == "enabled"
+        and mlrun.mlconf.httpdb.db.data_migrations_mode == "enabled"
     )
     is_migration_needed = is_schema_migration_needed or is_data_migration_needed
     is_backup_needed = (
-        mlrun.config.config.httpdb.db.backup.mode == "enabled" and is_migration_needed
+        mlrun.mlconf.httpdb.db.backup.mode == "enabled" and is_migration_needed
     )
     mlrun.utils.logger.info(
         "Checking if migration is needed",
@@ -273,7 +278,7 @@ def _is_latest_data_version():
 
 
 def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
-    if mlrun.config.config.httpdb.db.data_migrations_mode == "enabled":
+    if mlrun.mlconf.httpdb.db.data_migrations_mode == "enabled":
         db = framework.db.sqldb.db.SQLDB()
         current_data_version = int(db.get_current_data_version(db_session))
         if current_data_version != latest_data_version:
@@ -555,7 +560,7 @@ def _migrate_artifacts_table_v2(
         "Migrating artifacts to artifacts_v2 table",
         total_artifacts_count=total_artifacts_count,
     )
-    batch_size = mlrun.config.config.artifacts.artifact_migration_batch_size
+    batch_size = mlrun.mlconf.artifacts.artifact_migration_batch_size
 
     # get the id of the last migrated artifact and the list of all link artifacts ids from the state file
     last_migrated_artifact_id, link_artifact_ids = _get_migration_state()
@@ -585,13 +590,11 @@ def _migrate_artifacts_table_v2(
     )
 
     # drop the old artifacts table, including their labels and tags tables
-    # noinspection PyTypeChecker
     db.delete_table_records(
         db_session,
         framework.db.sqldb.models.Artifact.Label,
         raise_on_not_exists=False,
     )
-    # noinspection PyTypeChecker
     db.delete_table_records(
         db_session, framework.db.sqldb.models.Artifact.Tag, raise_on_not_exists=False
     )
@@ -874,7 +877,7 @@ def _get_migration_state():
     """
     try:
         with open(
-            mlrun.config.config.artifacts.artifact_migration_state_file_path
+            mlrun.mlconf.artifacts.artifact_migration_state_file_path
         ) as state_file:
             state = json.load(state_file)
             return state.get("last_migrated_id", 0), set(
@@ -889,7 +892,7 @@ def _update_state_file(last_migrated_id: int, link_artifact_ids: set):
 
     :param last_migrated_id: The id of the last migrated artifact.
     """
-    state_file_path = mlrun.config.config.artifacts.artifact_migration_state_file_path
+    state_file_path = mlrun.mlconf.artifacts.artifact_migration_state_file_path
     state_file_dir = os.path.dirname(state_file_path)
     if not os.path.exists(state_file_dir):
         os.makedirs(state_file_dir)
@@ -904,7 +907,7 @@ def _update_state_file(last_migrated_id: int, link_artifact_ids: set):
 def _delete_state_file():
     """Delete the state file."""
     try:
-        os.remove(mlrun.config.config.artifacts.artifact_migration_state_file_path)
+        os.remove(mlrun.mlconf.artifacts.artifact_migration_state_file_path)
     except FileNotFoundError:
         pass
 
@@ -983,9 +986,7 @@ def _add_producer_uri_to_artifact(
     db_session: sqlalchemy.orm.Session,
     chunk_size: typing.Optional[int] = None,
 ):
-    chunk_size = (
-        chunk_size or mlrun.config.config.artifacts.artifact_migration_v9_batch_size
-    )
+    chunk_size = chunk_size or mlrun.mlconf.artifacts.artifact_migration_v9_batch_size
 
     def handle_artifact_producer_uri(record):
         record.producer_uri = (
@@ -1054,9 +1055,7 @@ def _migrate_data(
 def _ensure_latest_tag_for_artifacts(
     db_session: sqlalchemy.orm.Session, chunk_size: typing.Optional[int] = None
 ):
-    chunk_size = (
-        chunk_size or mlrun.config.config.artifacts.artifact_migration_v9_batch_size
-    )
+    chunk_size = chunk_size or mlrun.mlconf.artifacts.artifact_migration_v9_batch_size
 
     # Note: when logging the same artifact and spawning tags in version < 1.8  and then migrating to 1.8,
     # two artifacts should remain at the end

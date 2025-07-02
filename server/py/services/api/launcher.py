@@ -173,9 +173,10 @@ class ServerSideLauncher(launcher.BaseLauncher):
         else:
             # single run
             try:
+                # Skip retried run if it was aborted or deleted
                 if self._should_skip_run(run):
                     mlrun.utils.logger.info(
-                        "Run was aborted or deleted, skipping launch",
+                        "The pending retry run was aborted or deleted, skipping launch",
                         uid=run.metadata.uid,
                         project=run.metadata.project,
                     )
@@ -433,7 +434,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
         A run should be skipped if it is in 'pending_retry' state and was either aborted or deleted after being
         scheduled for retry.
         """
-        # if the retry was not scheduled for retry, then skip the checks
         if run.status.state != mlrun.common.runtimes.constants.RunStates.pending_retry:
             return False
 
@@ -446,9 +446,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 project=run.metadata.project,
             )
         except mlrun.errors.MLRunNotFoundError:
-            # Run was deleted after being scheduled for retry → skip it
             return True
 
+        # check if it was aborted after the retry attempt
         if (
             db_run.get("status", {}).get("state")
             == mlrun.common.runtimes.constants.RunStates.aborted

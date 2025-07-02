@@ -386,8 +386,7 @@ def test_should_skip_run(initial_state, db_state, db_deleted, expected_should_sk
             "framework.db.session.run_function_with_new_db_session"
         ) as run_with_session_mock,
     ):
-        mock_db = unittest.mock.Mock()
-        get_db_mock.return_value = mock_db
+        get_db_mock.return_value = unittest.mock.Mock()
 
         if db_deleted:
             run_with_session_mock.side_effect = mlrun.errors.MLRunNotFoundError()

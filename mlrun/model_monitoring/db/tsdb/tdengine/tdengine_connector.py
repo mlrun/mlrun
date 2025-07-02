@@ -29,7 +29,7 @@ from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
     Statement,
     TDEngineConnection,
 )
-from mlrun.model_monitoring.helpers import get_invocations_fqn
+from mlrun.model_monitoring.helpers import get_invocations_fqn, get_start_end
 from mlrun.utils import logger
 
 # Thread-local storage for connections
@@ -689,7 +689,7 @@ class TDEngineConnector(TSDBConnector):
             filter_column=mm_schemas.EventFieldType.ENDPOINT_ID,
             filter_values=endpoint_ids,
         )
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.PREDICTIONS].super_table,
             start=start,
@@ -734,7 +734,7 @@ class TDEngineConnector(TSDBConnector):
             filter_values=endpoint_ids,
         )
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS].super_table,
             start=start,
@@ -768,9 +768,9 @@ class TDEngineConnector(TSDBConnector):
         result_status_list: Optional[list[int]] = None,
     ) -> dict[tuple[str, int], int]:
         filter_query = ""
-        now = mlrun.utils.datetime_now()
-        start = start or (now - timedelta(hours=24))
-        end = end or now
+
+        start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
+
         if endpoint_ids:
             filter_query = self._generate_filter_query(
                 filter_column=mm_schemas.EventFieldType.ENDPOINT_ID,
@@ -832,9 +832,7 @@ class TDEngineConnector(TSDBConnector):
         application_names: Optional[Union[str, list[str]]] = None,
     ) -> dict:
         filter_query = ""
-        now = mlrun.utils.datetime_now()
-        start = start or (now - timedelta(hours=24))
-        end = end or now
+        start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
 
         if application_names:
             filter_query = self._generate_filter_query(
@@ -892,9 +890,7 @@ class TDEngineConnector(TSDBConnector):
     ) -> list[dict]:
         metric_list = []
         filter_query = ""
-        now = mlrun.utils.datetime_now()
-        start = start or (now - timedelta(hours=24))
-        end = end or now
+        start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
 
         if application_names:
             filter_query = self._generate_filter_query(
@@ -988,7 +984,7 @@ class TDEngineConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.METRICS].super_table,
             start=start,
@@ -1028,7 +1024,7 @@ class TDEngineConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS].super_table,
             start=start,
@@ -1076,7 +1072,7 @@ class TDEngineConnector(TSDBConnector):
             filter_values=endpoint_ids,
         )
         filter_query += f"AND {mm_schemas.EventFieldType.ERROR_TYPE} = '{mm_schemas.EventFieldType.INFER_ERROR}'"
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.ERRORS].super_table,
             start=start,
@@ -1108,8 +1104,7 @@ class TDEngineConnector(TSDBConnector):
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
-        start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end, delta=timedelta(hours=24))
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.PREDICTIONS].super_table,
             start=start,

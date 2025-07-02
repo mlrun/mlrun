@@ -702,22 +702,3 @@ class TSDBConnector(ABC):
                 )
             )
         return {dict_key: metrics}
-
-    @staticmethod
-    def _get_start_end(
-        start: Union[datetime, None],
-        end: Union[datetime, None],
-    ) -> tuple[datetime, datetime]:
-        """
-        static utils function for tsdb start end format
-        :param start:       Either None or datetime, None is handled as datetime.min(tz=timezone.utc)
-        :param end:         Either None or datetime, None is handled as datetime.now(tz=timezone.utc)
-        :return:            start datetime, end datetime
-        """
-        start = start or mlrun.utils.datetime_min()
-        end = end or mlrun.utils.datetime_now()
-        if not (isinstance(start, datetime) and isinstance(end, datetime)):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Both start and end must be datetime objects"
-            )
-        return start, end

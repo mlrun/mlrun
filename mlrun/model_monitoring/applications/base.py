@@ -230,6 +230,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         end: Optional[str] = None,
         base_period: Optional[int] = None,
         write_output: bool = False,
+        allow_unordered_data: bool = False,
         stream_profile: Optional[ds_profile.DatastoreProfile] = None,
     ):
         """
@@ -512,6 +513,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         * ``end``, ``datetime``
         * ``base_period``, ``int``
         * ``write_output``, ``bool``
+        * ``allow_unordered_data``, ``bool``
 
         For Git sources, add the source archive to the returned job and change the handler:
 
@@ -595,6 +597,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         end: Optional[datetime] = None,
         base_period: Optional[int] = None,
         write_output: bool = False,
+        allow_unordered_data: bool = False,
         stream_profile: Optional[ds_profile.DatastoreProfile] = None,
     ) -> "mlrun.RunObject":
         """
@@ -657,6 +660,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param write_output:      Whether to write the results and metrics to the time-series DB. Can be ``True`` only
                                   if ``endpoints`` are passed.
                                   Note: the model monitoring infrastructure must be up for the writing to work.
+        :param allow_unordered_data: Relevant only when writing outputs to the database. When ``False``, and the
+                                     requested ``start`` time precedes the ``end`` time of a previous run that also
+                                     wrote to the database - an error is raised.
+                                     If ``True``, when the previously described situation occurs, the relevant time
+                                     window is cut so that it starts at the earliest possible time after ``start``.
         :param stream_profile:    The stream datastore profile. It should be provided only when running locally and
                                   writing the outputs to the database (i.e., when both ``run_local`` and
                                   ``write_output`` are set to ``True``).
@@ -696,6 +704,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 params["end"] = end.isoformat() if isinstance(end, datetime) else end
                 params["base_period"] = base_period
                 params["write_output"] = write_output
+                params["allow_unordered_data"] = allow_unordered_data
                 if stream_profile:
                     if not run_local:
                         raise mlrun.errors.MLRunValueError(

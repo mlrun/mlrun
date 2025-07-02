@@ -886,9 +886,7 @@ class ModelEndpoints:
                     project=project
                 ),
             )
-            tsdb_connector.delete_tsdb_records(
-                endpoint_ids=uids, delete_timeout=delete_timeout
-            )
+            tsdb_connector.delete_tsdb_records(endpoint_ids=uids)
             logger.info("TSDB resources were deleted")
         except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
             logger.info(

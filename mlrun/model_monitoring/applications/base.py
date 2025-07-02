@@ -370,8 +370,38 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             )
 
     @staticmethod
+    def _validate_and_get_window_length(
+        *, base_period: int, start_dt: datetime, end_dt: datetime
+    ) -> timedelta:
+        if not isinstance(base_period, int) or base_period <= 0:
+            raise mlrun.errors.MLRunValueError(
+                "`base_period` must be a nonnegative integer - the number of minutes in a monitoring window"
+            )
+
+        window_length = timedelta(minutes=base_period)
+
+        full_interval_length = end_dt - start_dt
+        remainder = full_interval_length % window_length
+        if remainder:
+            if full_interval_length < window_length:
+                extra_msg = (
+                    "The `base_period` is longer than the difference between `end` and `start`: "
+                    f"{full_interval_length}. Consider not specifying `base_period`."
+                )
+            else:
+                extra_msg = (
+                    f"Consider changing the `end` time to `end`={end_dt - remainder}"
+                )
+            raise mlrun.errors.MLRunValueError(
+                "The difference between `end` and `start` must be a multiple of `base_period`: "
+                f"`base_period`={window_length}, `start`={start_dt}, `end`={end_dt}. "
+                f"{extra_msg}"
+            )
+        return window_length
+
+    @classmethod
     def _window_generator(
-        start: Optional[str], end: Optional[str], base_period: Optional[int]
+        cls, start: Optional[str], end: Optional[str], base_period: Optional[int]
     ) -> Iterator[tuple[Optional[datetime], Optional[datetime]]]:
         if start is None or end is None:
             # A single window based on the `sample_data` input - see `_handler`.
@@ -385,12 +415,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             yield start_dt, end_dt
             return
 
-        if not isinstance(base_period, int) or base_period <= 0:
-            raise mlrun.errors.MLRunValueError(
-                "`base_period` must be a nonnegative integer - the number of minutes in a monitoring window"
-            )
+        window_length = cls._validate_and_get_window_length(
+            base_period=base_period, start_dt=start_dt, end_dt=end_dt
+        )
 
-        window_length = timedelta(minutes=base_period)
         current_start_time = start_dt
         while current_start_time < end_dt:
             current_end_time = min(current_start_time + window_length, end_dt)
@@ -616,14 +644,16 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   taken in the window's data.
         :param base_period:       The window length in minutes. If ``None``, the whole window from ``start`` to ``end``
                                   is taken. If an integer is specified, the application is run from ``start`` to ``end``
-                                  in ``base_period`` length windows, except for the last window that ends at ``end`` and
-                                  therefore may be shorter:
+                                  in ``base_period`` length windows:
                                   :math:`(\\operatorname{start}, \\operatorname{start} + \\operatorname{base\\_period}],
                                   (\\operatorname{start} + \\operatorname{base\\_period},
                                   \\operatorname{start} + 2\\cdot\\operatorname{base\\_period}],
                                   ..., (\\operatorname{start} +
-                                  m\\cdot\\operatorname{base\\_period}, \\operatorname{end}]`,
-                                  where :math:`m` is some positive integer.
+                                  (m - 1)\\cdot\\operatorname{base\\_period}, \\operatorname{end}]`,
+                                  where :math:`m` is a positive integer and :math:`\\operatorname{end} =
+                                  \\operatorname{start} + m\\cdot\\operatorname{base\\_period}`.
+                                  Please note that the difference between ``end`` and ``start`` must be a multiple of
+                                  ``base_period``.
         :param write_output:      Whether to write the results and metrics to the time-series DB. Can be ``True`` only
                                   if ``endpoints`` are passed.
                                   Note: the model monitoring infrastructure must be up for the writing to work.

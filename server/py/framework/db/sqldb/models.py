@@ -42,8 +42,8 @@ from sqlalchemy.orm import Mapper, Session, declared_attr, relationship
 
 import mlrun.common.db.dialects
 import mlrun.common.schemas
-import mlrun.utils.db
 
+import framework.db.sqldb.base
 import framework.db.sqldb.partititioner
 import framework.db.sqldb.sql_types
 
@@ -72,7 +72,7 @@ def post_table_definitions(base_cls):
 def make_label(parent_cls):
     table = parent_cls.__tablename__
 
-    class Label(Base, mlrun.utils.db.BaseModel):
+    class Label(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = f"{table}_labels"
         __table_args__ = (
             UniqueConstraint("name", "parent", name=f"_{table}_labels_uc"),
@@ -108,7 +108,7 @@ def make_label(parent_cls):
 def make_tag(parent_cls):
     table = parent_cls.__tablename__
 
-    class Tag(Base, mlrun.utils.db.BaseModel):
+    class Tag(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = f"{table}_tags"
         __table_args__ = (
             UniqueConstraint("project", "name", "obj_id", name=f"_{table}_tags_uc"),
@@ -157,7 +157,7 @@ class TagMixin:
 def make_tag_v2(parent_cls):
     table = parent_cls.__tablename__
 
-    class TagV2(Base, mlrun.utils.db.BaseModel):
+    class TagV2(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = f"{table}_tags"
         __table_args__ = (
             UniqueConstraint("project", "name", "obj_name", name=f"_{table}_tags_uc"),
@@ -209,7 +209,7 @@ def make_artifact_tag(cls):
     """
     table = cls.__tablename__  # "artifacts_v2"
 
-    class ArtifactTag(Base, mlrun.utils.db.BaseModel):
+    class ArtifactTag(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = f"{table}_tags"
         __table_args__ = (
             UniqueConstraint("project", "name", "obj_id", name=f"_{table}_tags_uc"),
@@ -268,7 +268,7 @@ class ArtifactTagMixin:
 def make_notification(cls):
     table = cls.__tablename__
 
-    class Notification(Base, mlrun.utils.db.BaseModel):
+    class Notification(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = f"{table}_notifications"
         __table_args__ = (
             UniqueConstraint("name", "parent_id", name=f"_{table}_notifications_uc"),
@@ -360,7 +360,9 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"
 
-    class ArtifactV2(Base, LabelMixin, ArtifactTagMixin, mlrun.utils.db.BaseModel):
+    class ArtifactV2(
+        Base, LabelMixin, ArtifactTagMixin, framework.db.sqldb.base.BaseModel
+    ):
         __tablename__ = "artifacts_v2"
         __table_args__ = (
             UniqueConstraint("uid", "project", "key", name="_artifacts_v2_uc"),
@@ -490,7 +492,7 @@ with warnings.catch_warnings():
 
     class BackgroundTask(
         Base,
-        mlrun.utils.db.BaseModel,
+        framework.db.sqldb.base.BaseModel,
     ):
         __tablename__ = "background_tasks"
         __table_args__ = (
@@ -547,7 +549,7 @@ with warnings.catch_warnings():
         )
         project = association_proxy("task", "project")
 
-    class Schedule(Base, LabelMixin, mlrun.utils.db.BaseModel):
+    class Schedule(Base, LabelMixin, framework.db.sqldb.base.BaseModel):
         __tablename__ = "schedules_v2"
         __table_args__ = (UniqueConstraint("project", "name", name="_schedules_v2_uc"),)
 
@@ -585,7 +587,7 @@ with warnings.catch_warnings():
         def cron_trigger(self, trigger: mlrun.common.schemas.ScheduleCronTrigger):
             self.cron_trigger_str = orjson.dumps(trigger.dict(exclude_unset=True))
 
-    class Project(Base, LabelMixin, mlrun.utils.db.BaseModel):
+    class Project(Base, LabelMixin, framework.db.sqldb.base.BaseModel):
         __tablename__ = "projects"
         # For now since we use project name a lot
         __table_args__ = (UniqueConstraint("name", name="_projects_uc"),)
@@ -615,7 +617,7 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = pickle.dumps(value)
 
-    class Feature(Base, LabelMixin, mlrun.utils.db.BaseModel):
+    class Feature(Base, LabelMixin, framework.db.sqldb.base.BaseModel):
         __tablename__ = "features"
         id = Column(Integer, primary_key=True)
         feature_set_id = Column(
@@ -633,7 +635,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.feature_set_id}/{self.name}"
 
-    class Entity(Base, LabelMixin, mlrun.utils.db.BaseModel):
+    class Entity(Base, LabelMixin, framework.db.sqldb.base.BaseModel):
         __tablename__ = "entities"
         id = Column(Integer, primary_key=True)
         feature_set_id = Column(
@@ -651,7 +653,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
 
-    class FeatureSet(Base, LabelMixin, TagV2Mixin, mlrun.utils.db.BaseModel):
+    class FeatureSet(Base, LabelMixin, TagV2Mixin, framework.db.sqldb.base.BaseModel):
         __tablename__ = "feature_sets"
         __table_args__ = (
             UniqueConstraint("name", "project", "uid", name="_feature_set_uc"),
@@ -699,7 +701,9 @@ with warnings.catch_warnings():
             # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
             self._full_object = json.dumps(value, default=str)
 
-    class FeatureVector(Base, LabelMixin, TagV2Mixin, mlrun.utils.db.BaseModel):
+    class FeatureVector(
+        Base, LabelMixin, TagV2Mixin, framework.db.sqldb.base.BaseModel
+    ):
         __tablename__ = "feature_vectors"
         __table_args__ = (
             UniqueConstraint("name", "project", "uid", name="_feature_vectors_uc"),
@@ -734,7 +738,7 @@ with warnings.catch_warnings():
             # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
             self._full_object = json.dumps(value, default=str)
 
-    class HubSource(Base, mlrun.utils.db.BaseModel):
+    class HubSource(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = "hub_sources"
         __table_args__ = (UniqueConstraint("name", name="_hub_sources_uc"),)
 
@@ -765,7 +769,7 @@ with warnings.catch_warnings():
             # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
             self._full_object = json.dumps(value, default=str)
 
-    class DataVersion(Base, mlrun.utils.db.BaseModel):
+    class DataVersion(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = "data_versions"
         __table_args__ = (UniqueConstraint("version", name="_versions_uc"),)
 
@@ -779,7 +783,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.version}"
 
-    class DatastoreProfile(Base, mlrun.utils.db.BaseModel):
+    class DatastoreProfile(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = "datastore_profiles"
         __table_args__ = (
             UniqueConstraint("name", "project", name="_datastore_profiles_uc"),
@@ -803,7 +807,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
 
-    class PaginationCache(Base, mlrun.utils.db.BaseModel):
+    class PaginationCache(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = "pagination_cache"
 
         key = Column(framework.db.sqldb.sql_types.Utf8BinText, primary_key=True)
@@ -820,7 +824,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.key}"
 
-    class AlertState(Base, mlrun.utils.db.BaseModel):
+    class AlertState(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = "alert_states"
         __table_args__ = (UniqueConstraint("parent_id", name="_alert_state_parent_uc"),)
 
@@ -852,7 +856,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.id}"
 
-    class AlertConfig(Base, NotificationMixin, mlrun.utils.db.BaseModel):
+    class AlertConfig(Base, NotificationMixin, framework.db.sqldb.base.BaseModel):
         __tablename__ = "alert_configs"
         __table_args__ = (
             UniqueConstraint("project", "name", name="_alert_configs_uc"),
@@ -878,7 +882,7 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
-    class AlertTemplate(Base, mlrun.utils.db.BaseModel):
+    class AlertTemplate(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = "alert_templates"
         __table_args__ = (UniqueConstraint("name", name="_alert_templates_uc"),)
 
@@ -955,7 +959,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.id}"
 
-    class ProjectSummary(Base, mlrun.utils.db.BaseModel):
+    class ProjectSummary(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = "project_summaries"
         __table_args__ = (UniqueConstraint("project", name="_project_summaries_uc"),)
 
@@ -967,7 +971,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}"
 
-    class TimeWindowTracker(Base, mlrun.utils.db.BaseModel):
+    class TimeWindowTracker(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = "time_window_trackers"
 
         key = Column(framework.db.sqldb.sql_types.Utf8BinText, primary_key=True)
@@ -1019,7 +1023,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}_{self.name}_{self.created}"
 
-    class SystemMetadata(Base, mlrun.utils.db.BaseModel):
+    class SystemMetadata(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = "system_metadata"
         __table_args__ = (UniqueConstraint("key", name="_system_metadata_uc"),)
 

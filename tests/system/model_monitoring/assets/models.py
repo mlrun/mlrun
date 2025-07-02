@@ -64,8 +64,6 @@ class OneToMany(mlrun.serving.V2ModelServer):
 
 
 class IncModel(mlrun.serving.states.Model):
-    execution_mechanism = "naive"
-
     def __init__(
         self, *args, inc: int, gpu_number: typing.Optional[int] = None, **kwargs
     ):
@@ -103,8 +101,6 @@ class Echo:
 
 
 class MyModel(mlrun.serving.Model):
-    execution_mechanism = "naive"
-
     def __init__(
         self,
         *args,

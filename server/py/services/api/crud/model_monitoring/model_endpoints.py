@@ -844,7 +844,7 @@ class ModelEndpoints:
 
         # delete tsdb records - run the deletion of the TSDB records in the background
         background_task_name = str(uuid.uuid4())
-        framework.utils.background_tasks.ProjectBackgroundTasksHandler()._delete_model_endpoint_monitoring_infra(
+        framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
             db_session,
             project,
             delete_background_task,

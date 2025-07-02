@@ -978,9 +978,14 @@ def wait_for_pipeline_completion(
     :return: kfp run dict
     """
     if expected_statuses is None:
-        expected_statuses = [RunStatuses.succeeded]
+        expected_statuses = [
+            RunStatuses.succeeded,
+            RunStatuses.terminating,
+            RunStatuses.canceling,
+            RunStatuses.canceled,
+        ]
     namespace = namespace or mlconf.namespace
-    logger.debug(
+    logger.error(
         f"Waiting for run completion."
         f" run_id: {run_id},"
         f" project: {project},"
@@ -997,9 +1002,20 @@ def wait_for_pipeline_completion(
 
         def _wait_for_pipeline_completion():
             pipeline = mldb.get_pipeline(run_id, namespace=namespace, project=project)
+            logger.info("Pipeline details", run_id=run_id, pipeline=pipeline)
             pipeline_status = pipeline["run"]["status"]
             show_kfp_run(pipeline, dag_display_id=dag_display_id, with_html=False)
-            if pipeline_status not in RunStatuses.stable_statuses():
+            if pipeline_status in [
+                RunStatuses.terminating,
+                RunStatuses.canceling,
+            ]:
+                logger.info(
+                    "Pipeline is terminating or canceling",
+                    run_id=run_id,
+                    status=pipeline_status,
+                )
+                return pipeline
+            elif pipeline_status not in RunStatuses.stable_statuses():
                 logger.debug(
                     "Waiting for pipeline completion",
                     run_id=run_id,

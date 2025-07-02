@@ -17,9 +17,8 @@ from typing import Optional, Union
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
-import mlrun.model_monitoring.db.tsdb.timescaledb.schemas as timescaledb_schemas
-from mlrun.datastore.datastore_profile import DatastoreProfile
-from mlrun.model_monitoring.db.tsdb.timescaledb.schemas import PreAggregateConfig
+import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
+from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateConfig
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
     Statement,
     TimescaleDBConnection,
@@ -33,26 +32,20 @@ class TimescaleDBOperationsHandler:
 
     This class implements all create/update/delete operations for model monitoring data:
     - Table and schema creation with optional pre-aggregates and continuous aggregates
-    - Event writing with parameterized queries for safety against SQL injection
+    - Event writing with parameterized queries
     - Record deletion with support for both raw and aggregate data cleanup
     - Resource deletion with automatic discovery of project-related tables and views
     - Schema management with automatic cleanup of empty schemas
 
-    The handler uses dependency injection to receive a shared TimescaleDBConnection
-    instance that manages the global connection pool. Each handler instance is
-    project-scoped and manages its own set of table schemas within a dedicated
-    database schema.
 
     Key Features:
     - Parameterized queries for all write/delete operations
     - Automatic discovery of aggregate tables for comprehensive cleanup
     - Transaction-based operations for data consistency
-    - Unicode and special character support
     - Configurable pre-aggregation with retention policies
     - Thread-safe operations through shared connection pooling
 
     :param project: Project name used for table naming and schema organization
-    :param profile: Datastore profile (used for table initialization)
     :param connection: Shared TimescaleDBConnection instance
     :param pre_aggregate_config: Optional configuration for pre-aggregated tables
     """
@@ -60,7 +53,6 @@ class TimescaleDBOperationsHandler:
     def __init__(
         self,
         project: str,
-        profile: DatastoreProfile,
         connection: TimescaleDBConnection,
         pre_aggregate_config: Optional[PreAggregateConfig] = None,
     ):
@@ -73,7 +65,6 @@ class TimescaleDBOperationsHandler:
         :param pre_aggregate_config: Optional pre-aggregation configuration
         """
         self.project = project
-        self.profile = profile
         self._pre_aggregate_config = pre_aggregate_config
 
         # Use the injected shared connection
@@ -85,20 +76,20 @@ class TimescaleDBOperationsHandler:
     def _init_tables(self) -> None:
         """Initialize TimescaleDB table schemas."""
         schema_name = (
-            f"{timescaledb_schemas._MODEL_MONITORING_SCHEMA}_{mlrun.mlconf.system_id}"
+            f"{timescaledb_schema._MODEL_MONITORING_SCHEMA}_{mlrun.mlconf.system_id}"
         )
 
         self.tables = {
-            mm_schemas.TDEngineSuperTables.APP_RESULTS: timescaledb_schemas.AppResultTable(
+            mm_schemas.TimescaleDBTables.APP_RESULTS: timescaledb_schema.AppResultTable(
                 project=self.project, schema=schema_name
             ),
-            mm_schemas.TDEngineSuperTables.METRICS: timescaledb_schemas.Metrics(
+            mm_schemas.TimescaleDBTables.METRICS: timescaledb_schema.Metrics(
                 project=self.project, schema=schema_name
             ),
-            mm_schemas.TDEngineSuperTables.PREDICTIONS: timescaledb_schemas.Predictions(
+            mm_schemas.TimescaleDBTables.PREDICTIONS: timescaledb_schema.Predictions(
                 project=self.project, schema=schema_name
             ),
-            mm_schemas.TDEngineSuperTables.ERRORS: timescaledb_schemas.Errors(
+            mm_schemas.TimescaleDBTables.ERRORS: timescaledb_schema.Errors(
                 project=self.project, schema=schema_name
             ),
         }
@@ -124,15 +115,12 @@ class TimescaleDBOperationsHandler:
         )
 
         # Create schema if it doesn't exist
-        schema_name = self.tables[mm_schemas.TDEngineSuperTables.PREDICTIONS].schema
+        schema_name = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS].schema
         self._connection.run(statements=[f"CREATE SCHEMA IF NOT EXISTS {schema_name}"])
 
         # Create main tables and convert to hypertables
         for table_type, table in self.tables.items():
-            statements = []
-
-            # Create base table
-            statements.append(table._create_table_query())
+            statements = [table._create_table_query()]
 
             # Convert to hypertable
             statements.append(table._create_hypertable_query())
@@ -168,9 +156,9 @@ class TimescaleDBOperationsHandler:
         :param kind: Type of event (RESULT or METRIC)
         """
         if kind == mm_schemas.WriterEventKind.RESULT:
-            table = self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS]
+            table = self.tables[mm_schemas.TimescaleDBTables.APP_RESULTS]
         else:
-            table = self.tables[mm_schemas.TDEngineSuperTables.METRICS]
+            table = self.tables[mm_schemas.TimescaleDBTables.METRICS]
 
         # Convert datetime strings to datetime objects if needed
         for time_field in [
@@ -308,14 +296,14 @@ class TimescaleDBOperationsHandler:
         statements = []
 
         try:
-            schema_name = self.tables[mm_schemas.TDEngineSuperTables.PREDICTIONS].schema
+            schema_name = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS].schema
 
             # Get base table patterns for tables that have endpoint_id
             base_patterns = []
             for table_type in [
-                mm_schemas.TDEngineSuperTables.PREDICTIONS,
-                mm_schemas.TDEngineSuperTables.METRICS,
-                mm_schemas.TDEngineSuperTables.APP_RESULTS,
+                mm_schemas.TimescaleDBTables.PREDICTIONS,
+                mm_schemas.TimescaleDBTables.METRICS,
+                mm_schemas.TimescaleDBTables.APP_RESULTS,
             ]:
                 if table_type in self.tables:
                     base_patterns.append(self.tables[table_type].table_name)
@@ -384,12 +372,11 @@ class TimescaleDBOperationsHandler:
 
             # Create delete statements for all discovered aggregate objects
             for object_name in discovered_objects:
+                delete_sql = f"DELETE FROM {schema_name}.{object_name} WHERE "
                 if len(endpoint_ids) == 1:
-                    delete_sql = f"DELETE FROM {schema_name}.{object_name} WHERE "
                     f" {mm_schemas.WriterEvent.ENDPOINT_ID} = %s"
                     stmt = Statement(delete_sql, (endpoint_ids[0],))
                 else:
-                    delete_sql = f"DELETE FROM {schema_name}.{object_name} WHERE "
                     f" {mm_schemas.WriterEvent.ENDPOINT_ID} = ANY(%s)"
                     stmt = Statement(delete_sql, (endpoint_ids,))
 
@@ -417,7 +404,7 @@ class TimescaleDBOperationsHandler:
         )
 
         try:
-            schema_name = self.tables[mm_schemas.TDEngineSuperTables.PREDICTIONS].schema
+            schema_name = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS].schema
 
             # Get the base table patterns for this project
             base_patterns = []
@@ -506,17 +493,15 @@ class TimescaleDBOperationsHandler:
             drop_statements = []
 
             # Drop materialized views first (they depend on tables)
-            for view_name in discovered_views:
-                drop_statements.append(
-                    f"DROP MATERIALIZED VIEW IF EXISTS {schema_name}.{view_name} CASCADE"
-                )
-
+            drop_statements.extend(
+                f"DROP MATERIALIZED VIEW IF EXISTS {schema_name}.{view_name} CASCADE"
+                for view_name in discovered_views
+            )
             # Drop tables second
-            for table_name in discovered_tables:
-                drop_statements.append(
-                    f"DROP TABLE IF EXISTS {schema_name}.{table_name} CASCADE"
-                )
-
+            drop_statements.extend(
+                f"DROP TABLE IF EXISTS {schema_name}.{table_name} CASCADE"
+                for table_name in discovered_tables
+            )
             # Execute all drops
             if drop_statements:
                 self._connection.run(statements=drop_statements)
@@ -546,7 +531,7 @@ class TimescaleDBOperationsHandler:
     def _drop_schema_if_empty(self) -> None:
         """Drop the schema if it contains no more tables using parameterized query."""
         try:
-            schema_name = self.tables[mm_schemas.TDEngineSuperTables.PREDICTIONS].schema
+            schema_name = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS].schema
 
             # Check if schema has any tables using parameterized query
             check_stmt = Statement(

@@ -69,6 +69,12 @@ def test_database():
                 f"CREATE DATABASE {test_db_name}",
             ]
         )
+        admin_conn.run(
+            statements=[
+                f"DROP DATABASE IF EXISTS {test_db_name}",
+                f"CREATE DATABASE {test_db_name}",
+            ]
+        )
 
         # Build test database DSN
         test_dsn = admin_dsn.replace("/postgres", f"/{test_db_name}")

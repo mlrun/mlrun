@@ -187,9 +187,7 @@ class TimescaleDBConnection:
         """Convert statements to a normalized list format."""
         if statements is None:
             return []
-        if isinstance(statements, (str, Statement)):
-            return [statements]
-        return statements
+        return [statements] if isinstance(statements, (str, Statement)) else statements
 
     def _execute_operation(
         self,

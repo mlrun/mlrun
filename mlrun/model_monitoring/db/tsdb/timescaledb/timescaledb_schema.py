@@ -18,35 +18,9 @@ from io import StringIO
 from typing import Optional
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
+from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateConfig
 
 _MODEL_MONITORING_SCHEMA = "mlrun_model_monitoring"
-
-
-@dataclass
-class PreAggregateConfig:
-    """Configuration for pre-aggregated tables and retention policies."""
-
-    aggregate_intervals: list[str] = None
-    agg_functions: list[str] = None
-    retention_policy: dict[str, str] = None
-
-    def __post_init__(self):
-        if self.aggregate_intervals is None:
-            self.aggregate_intervals = ["10m", "1h", "6h", "1d", "1w", "1M"]
-
-        if self.agg_functions is None:
-            self.agg_functions = ["sum", "avg", "min", "max", "count", "last"]
-
-        if self.retention_policy is None:
-            self.retention_policy = {
-                "raw": "7d",
-                "10m": "30d",
-                "1h": "1y",
-                "6h": "1y",
-                "1d": "5y",
-                "1w": "5y",
-                "1M": "5y",
-            }
 
 
 class _TimescaleDBColumnType:
@@ -347,7 +321,7 @@ class AppResultTable(TimescaleDBSchema):
     """Schema for application results table."""
 
     def __init__(self, project: str, schema: Optional[str] = None):
-        table_name = mm_schemas.TDEngineSuperTables.APP_RESULTS
+        table_name = mm_schemas.TimescaleDBTables.APP_RESULTS
         columns = {
             mm_schemas.WriterEvent.END_INFER_TIME: _TimescaleDBColumnType(
                 "TIMESTAMPTZ"
@@ -389,7 +363,7 @@ class Metrics(TimescaleDBSchema):
     """Schema for metrics table."""
 
     def __init__(self, project: str, schema: Optional[str] = None):
-        table_name = mm_schemas.TDEngineSuperTables.METRICS
+        table_name = mm_schemas.TimescaleDBTables.METRICS
         columns = {
             mm_schemas.WriterEvent.END_INFER_TIME: _TimescaleDBColumnType(
                 "TIMESTAMPTZ"
@@ -426,7 +400,7 @@ class Predictions(TimescaleDBSchema):
     """Schema for predictions table."""
 
     def __init__(self, project: str, schema: Optional[str] = None):
-        table_name = mm_schemas.TDEngineSuperTables.PREDICTIONS
+        table_name = mm_schemas.TimescaleDBTables.PREDICTIONS
         columns = {
             mm_schemas.EventFieldType.TIME: _TimescaleDBColumnType("TIMESTAMPTZ"),
             mm_schemas.EventFieldType.LATENCY: _TimescaleDBColumnType(
@@ -459,7 +433,7 @@ class Errors(TimescaleDBSchema):
     """Schema for errors table."""
 
     def __init__(self, project: str, schema: Optional[str] = None):
-        table_name = mm_schemas.TDEngineSuperTables.ERRORS
+        table_name = mm_schemas.TimescaleDBTables.ERRORS
         columns = {
             mm_schemas.EventFieldType.TIME: _TimescaleDBColumnType("TIMESTAMPTZ"),
             mm_schemas.EventFieldType.MODEL_ERROR: _TimescaleDBColumnType(

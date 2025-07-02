@@ -95,6 +95,12 @@ def get_tsdb_connector(
         profile, mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
     ):
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.TDEngine
+    elif isinstance(
+        profile, mlrun.datastore.datastore_profile.DatastoreProfileTimescaleDB
+    ):
+        tsdb_connector_type = (
+            mlrun.common.schemas.model_monitoring.TSDBTarget.TimescaleDB
+        )
     else:
         extra_message = (
             ""

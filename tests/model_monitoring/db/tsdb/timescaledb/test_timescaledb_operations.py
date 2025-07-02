@@ -23,8 +23,8 @@ import pytest
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
-from mlrun.datastore.datastore_profile import DatastoreProfile
-from mlrun.model_monitoring.db.tsdb.timescaledb.schemas import PreAggregateConfig
+from mlrun.datastore.datastore_profile import DatastoreProfileTimescaleDB
+from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateConfig
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
     TimescaleDBConnection,
 )
@@ -104,7 +104,7 @@ def db_connection(test_database):
 @pytest.fixture
 def mock_profile():
     """Create a mock datastore profile."""
-    profile = Mock(spec=DatastoreProfile)
+    profile = Mock(spec=DatastoreProfileTimescaleDB)
     profile.name = "test_profile"
     return profile
 
@@ -131,7 +131,6 @@ def operations_handler(db_connection, mock_profile):
     # Create handler directly - the schema naming issue is not critical for testing
     handler = TimescaleDBOperationsHandler(
         project=project_name,
-        profile=mock_profile,
         connection=db_connection,
         pre_aggregate_config=None,
     )
@@ -155,7 +154,6 @@ def operations_handler_with_aggregates(
 
     handler = TimescaleDBOperationsHandler(
         project=project_name,
-        profile=mock_profile,
         connection=db_connection,
         pre_aggregate_config=pre_aggregate_config,
     )
@@ -183,7 +181,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
         # Verify tables were created
         connection = operations_handler._connection
         schema_name = operations_handler.tables[
-            mm_schemas.TDEngineSuperTables.PREDICTIONS
+            mm_schemas.TimescaleDBTables.PREDICTIONS
         ].schema
 
         # Check if schema exists
@@ -216,7 +214,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
 
         connection = operations_handler_with_aggregates._connection
         schema_name = operations_handler_with_aggregates.tables[
-            mm_schemas.TDEngineSuperTables.PREDICTIONS
+            mm_schemas.TimescaleDBTables.PREDICTIONS
         ].schema
 
         # Verify base tables exist
@@ -262,7 +260,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
         # Verify data was written
         connection = operations_handler._connection
         app_results_table = operations_handler.tables[
-            mm_schemas.TDEngineSuperTables.APP_RESULTS
+            mm_schemas.TimescaleDBTables.APP_RESULTS
         ]
 
         result = connection.run(
@@ -301,9 +299,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
 
         # Verify data was written
         connection = operations_handler._connection
-        metrics_table = operations_handler.tables[
-            mm_schemas.TDEngineSuperTables.METRICS
-        ]
+        metrics_table = operations_handler.tables[mm_schemas.TimescaleDBTables.METRICS]
 
         result = connection.run(
             query=f"""
@@ -331,7 +327,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
         for endpoint_id in test_endpoints:
             # Insert into predictions table
             predictions_table = operations_handler.tables[
-                mm_schemas.TDEngineSuperTables.PREDICTIONS
+                mm_schemas.TimescaleDBTables.PREDICTIONS
             ]
             connection.run(
                 statements=[
@@ -345,7 +341,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
 
             # Insert into metrics table
             metrics_table = operations_handler.tables[
-                mm_schemas.TDEngineSuperTables.METRICS
+                mm_schemas.TimescaleDBTables.METRICS
             ]
             connection.run(
                 statements=[
@@ -359,7 +355,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
 
         # Verify data exists
         predictions_table = operations_handler.tables[
-            mm_schemas.TDEngineSuperTables.PREDICTIONS
+            mm_schemas.TimescaleDBTables.PREDICTIONS
         ]
         result = connection.run(
             query=f"SELECT COUNT(*) FROM {predictions_table.schema}.{predictions_table.table_name}"
@@ -401,7 +397,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
 
         # Insert test data
         predictions_table = operations_handler_with_aggregates.tables[
-            mm_schemas.TDEngineSuperTables.PREDICTIONS
+            mm_schemas.TimescaleDBTables.PREDICTIONS
         ]
         connection.run(
             statements=[
@@ -456,7 +452,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
         connection = operations_handler._connection
 
         predictions_table = operations_handler.tables[
-            mm_schemas.TDEngineSuperTables.PREDICTIONS
+            mm_schemas.TimescaleDBTables.PREDICTIONS
         ]
 
         # Import Statement class for parameterized queries
@@ -492,7 +488,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
 
         connection = operations_handler._connection
         schema_name = operations_handler.tables[
-            mm_schemas.TDEngineSuperTables.PREDICTIONS
+            mm_schemas.TimescaleDBTables.PREDICTIONS
         ].schema
 
         # Verify tables exist
@@ -526,7 +522,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
 
         connection = operations_handler_with_aggregates._connection
         schema_name = operations_handler_with_aggregates.tables[
-            mm_schemas.TDEngineSuperTables.PREDICTIONS
+            mm_schemas.TimescaleDBTables.PREDICTIONS
         ].schema
 
         # Verify continuous aggregates exist
@@ -599,7 +595,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
         # Verify data was written correctly
         connection = operations_handler._connection
         app_results_table = operations_handler.tables[
-            mm_schemas.TDEngineSuperTables.APP_RESULTS
+            mm_schemas.TimescaleDBTables.APP_RESULTS
         ]
 
         result = connection.run(
@@ -625,7 +621,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
 
         connection = operations_handler._connection
         predictions_table = operations_handler.tables[
-            mm_schemas.TDEngineSuperTables.PREDICTIONS
+            mm_schemas.TimescaleDBTables.PREDICTIONS
         ]
 
         # Batch insert
@@ -719,9 +715,7 @@ class TestTimescaleDBOperationsHandlerIntegration:
 
         # Verify all data was written
         connection = operations_handler._connection
-        metrics_table = operations_handler.tables[
-            mm_schemas.TDEngineSuperTables.METRICS
-        ]
+        metrics_table = operations_handler.tables[mm_schemas.TimescaleDBTables.METRICS]
 
         result = connection.run(
             query=f"SELECT COUNT(*) FROM {metrics_table.schema}.{metrics_table.table_name}"

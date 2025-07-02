@@ -17,12 +17,12 @@ import datetime
 import pytest
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
-from mlrun.model_monitoring.db.tsdb.timescaledb.schemas import (
+from mlrun.model_monitoring.db.tsdb.preaggregate import PreAggregateConfig
+from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema import (
     _MODEL_MONITORING_SCHEMA,
     AppResultTable,
     Errors,
     Metrics,
-    PreAggregateConfig,
     Predictions,
     TimescaleDBSchema,
     _TimescaleDBColumn,

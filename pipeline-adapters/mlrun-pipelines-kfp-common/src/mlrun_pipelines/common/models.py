@@ -96,6 +96,13 @@ class RunStatuses(StrEnum):
         ]
 
     @staticmethod
+    def terminating_statuses():
+        return [
+            RunStatuses.terminating,
+            RunStatuses.canceling,
+        ]
+
+    @staticmethod
     def stable_statuses():
         return [
             RunStatuses.succeeded,

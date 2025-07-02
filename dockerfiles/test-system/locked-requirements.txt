@@ -1827,9 +1827,9 @@ humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
     # via -r dockerfiles/mlrun-api/requirements.txt
-hypothesis==6.135.16 \
-    --hash=sha256:0a64697ef0afa4532535209a9bcd99919d59093ff894622e8a001fb773b59d8a \
-    --hash=sha256:6131ea0b698e69bad62aae915988b8d00a6ac974351d0830db74c5fffc68c418
+hypothesis==6.135.17 \
+    --hash=sha256:9dc0f2d8c9488cebca0ba7d02714c33a687c173782e97f9f5325ee2bf99e3b95 \
+    --hash=sha256:f906fe466ff571d7dd565e8af892004ee6d0fb3a9ef2b9a7ce52c11295ef6648
     # via -r dev-requirements.txt
 idna==3.10 \
     --hash=sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9 \
@@ -3552,18 +3552,6 @@ psutil==7.0.0 \
     # via
     #   distributed
     #   ipykernel
-psycopg2==2.9.10 \
-    --hash=sha256:0435034157049f6846e95103bd8f5a668788dd913a7c30162ca9503fdf542cb4 \
-    --hash=sha256:12ec0b40b0273f95296233e8750441339298e6a572f7039da5b260e3c8b60e11 \
-    --hash=sha256:47c4f9875125344f4c2b870e41b6aad585901318068acd01de93f3677a6522c2 \
-    --hash=sha256:4a579d6243da40a7b3182e0430493dbd55950c493d8c68f4eec0b302f6bbf20e \
-    --hash=sha256:5df2b672140f95adb453af93a7d669d7a7bf0a56bcd26f1502329166f4a61716 \
-    --hash=sha256:65a63d7ab0e067e2cdb3cf266de39663203d38d6a8ed97f5ca0cb315c73fe067 \
-    --hash=sha256:88138c8dedcbfa96408023ea2b0c369eda40fe5d75002c0964c78f46f11fa442 \
-    --hash=sha256:91fd603a2155da8d0cfcdbf8ab24a2d54bca72795b90d2a3ed2b6da8d979dee2 \
-    --hash=sha256:9d5b3b94b79a844a986d029eee38998232451119ad653aea42bb9220a8c5066b \
-    --hash=sha256:c6f7b8561225f9e711a9c47087388a97fdc948211c10a4bccbf0ba68ab7b3b5a
-    # via pytest-mock-resources
 psycopg2-binary==2.9.10 \
     --hash=sha256:04392983d0bb89a8717772a193cfaac58871321e3ec69514e1c4e0d4957b5aff \
     --hash=sha256:056470c3dc57904bbf63d6f534988bafc4e970ffd50f6271fc4ee7daad9498a5 \

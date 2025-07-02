@@ -20,6 +20,7 @@ __all__ = [
     "MonitoringApplicationStep",
 ]
 
+import inspect
 import os
 import pathlib
 import traceback
@@ -79,6 +80,7 @@ class StepKinds:
     root = "root"
     error_step = "error_step"
     monitoring_application = "monitoring_application"
+    model_runner = "model_runner"
 
 
 _task_step_fields = [
@@ -1002,7 +1004,9 @@ class RouterStep(TaskStep):
         )
 
 
-class Model(storey.ParallelExecutionRunnable):
+class Model(storey.ParallelExecutionRunnable, ModelObj):
+    _dict_fields = ["name", "raise_exception", "artifact_uri"]
+
     def __init__(
         self,
         name: str,
@@ -1014,6 +1018,14 @@ class Model(storey.ParallelExecutionRunnable):
         if artifact_uri is not None and not isinstance(artifact_uri, str):
             raise MLRunInvalidArgumentError("'artifact_uri' argument must be a string")
         self.artifact_uri = artifact_uri
+
+    def __init_subclass__(cls):
+        super().__init_subclass__()
+        cls._dict_fields = list(
+            set(cls._dict_fields)
+            | set(inspect.signature(cls.__init__).parameters.keys())
+        )
+        cls._dict_fields.remove("self")
 
     def load(self) -> None:
         """Override to load model if needed."""
@@ -1203,11 +1215,12 @@ class ModelRunnerStep(MonitoredStep):
             **kwargs,
         )
         self.raise_exception = raise_exception
+        self.shape = "folder"
 
     def add_model(
         self,
         endpoint_name: str,
-        model_class: str,
+        model_class: Union[str, Model],
         model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[
@@ -1251,8 +1264,15 @@ class ModelRunnerStep(MonitoredStep):
         :param override:            bool allow override existing model on the current ModelRunnerStep.
         :param model_parameters:    Parameters for model instantiation
         """
-        # TODO allow model_class as Model object as part of ML-9924
-        model_parameters = model_parameters or {}
+
+        if isinstance(model_class, Model) and model_parameters:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
+            )
+
+        model_parameters = model_parameters or (
+            model_class.to_dict() if isinstance(model_class, Model) else {}
+        )
         if outputs is None and isinstance(
             model_artifact, mlrun.artifacts.ModelArtifact
         ):
@@ -1265,7 +1285,9 @@ class ModelRunnerStep(MonitoredStep):
         model_parameters["artifact_uri"] = model_parameters.get(
             "artifact_uri", model_artifact
         )
-        if model_parameters.get("name", endpoint_name) != endpoint_name:
+        if model_parameters.get("name", endpoint_name) != endpoint_name or (
+            isinstance(model_class, Model) and model_class.name != endpoint_name
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Inconsistent name for model added to ModelRunnerStep."
             )
@@ -1279,6 +1301,11 @@ class ModelRunnerStep(MonitoredStep):
         model_parameters["name"] = endpoint_name
         monitoring_data = self.class_args.get(
             schemas.ModelRunnerStepData.MONITORING_DATA, {}
+        )
+        model_class = (
+            model_class
+            if isinstance(model_class, str)
+            else model_class.__class__.__name__
         )
         models[endpoint_name] = (model_class, model_parameters)
         monitoring_data[endpoint_name] = {
@@ -1352,13 +1379,10 @@ class ModelRunnerStep(MonitoredStep):
             model_selector = get_class(model_selector, namespace)()
         model_objects = []
         for model, model_params in models.values():
-            if not isinstance(model, Model):
-                # prevent model predict from raising error
-                model_params["raise_exception"] = False
-                model = get_class(model, namespace)(**model_params)
-            else:
-                # prevent model predict from raising error
-                model._raise_exception = False
+            model = get_class(model, namespace).from_dict(
+                model_params, init_with_params=True
+            )
+            model._raise_exception = False
             model_objects.append(model)
         self._async_object = ModelRunner(
             model_selector=model_selector,
@@ -2048,6 +2072,7 @@ class RootFlowStep(FlowStep):
         "on_error",
         "model_endpoints_names",
         "model_endpoints_routes_names",
+        "track_models",
     ]
 
     def __init__(
@@ -2067,6 +2092,7 @@ class RootFlowStep(FlowStep):
         )
         self._models = set()
         self._route_models = set()
+        self._track_models = False
 
     @property
     def model_endpoints_names(self) -> list[str]:
@@ -2086,6 +2112,14 @@ class RootFlowStep(FlowStep):
     @model_endpoints_routes_names.setter
     def model_endpoints_routes_names(self, models: list[str]):
         self._route_models = set(models)
+
+    @property
+    def track_models(self):
+        return self._track_models
+
+    @track_models.setter
+    def track_models(self, track_models: bool):
+        self._track_models = track_models
 
     def update_model_endpoints_routes_names(self, model_endpoints_names: list):
         self._route_models.update(model_endpoints_names)
@@ -2132,6 +2166,40 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
         graph.edge(step.fullname, route.fullname)
 
 
+def _add_graphviz_model_runner(graph, step, source=None):
+    if source:
+        graph.node("_start", source.name, shape=source.shape, style="filled")
+        graph.edge("_start", step.fullname)
+
+    is_monitored = step._extract_root_step().track_models
+    m_cell = '<FONT POINT-SIZE="9">🄼</FONT>' if is_monitored else ""
+
+    number_of_models = len(
+        list(step.class_args.get(schemas.ModelRunnerStepData.MODELS, {}).keys())
+    )
+    number_badge = f"""
+    <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" BGCOLOR="black" CELLPADDING="2">
+        <TR>
+            <TD><FONT COLOR="white" POINT-SIZE="9"><B>{number_of_models}</B></FONT></TD>
+        </TR>
+    </TABLE>
+    """
+
+    html_label = f"""<
+    <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4">
+        <TR>
+            <TD ALIGN="LEFT">{m_cell}</TD>
+            <TD ALIGN="RIGHT">{number_badge}</TD>
+        </TR>
+        <TR>
+            <TD COLSPAN="2" ALIGN="CENTER"><FONT POINT-SIZE="14">{step.name}</FONT></TD>
+        </TR>
+    </TABLE>
+    >"""
+
+    graph.node(step.fullname, label=html_label, shape=step.get_shape())
+
+
 def _add_graphviz_flow(
     graph,
     step,
@@ -2149,6 +2217,8 @@ def _add_graphviz_flow(
         if kind == StepKinds.router:
             with graph.subgraph(name="cluster_" + child.fullname) as sg:
                 _add_graphviz_router(sg, child)
+        elif kind == StepKinds.model_runner:
+            _add_graphviz_model_runner(graph, child)
         else:
             graph.node(child.fullname, label=child.name, shape=child.get_shape())
         _add_edges(child.after or [], step, graph, child)

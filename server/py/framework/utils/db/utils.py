@@ -154,7 +154,6 @@ class DBUtil:
             backoff=retry_interval,
             timeout=timeout,
             logger=mlrun.utils.logger,
-            raise_on_failure=True,
             verbose=False,
             _function=self._get_driver().connect,
             **self._connection_kwargs(),

@@ -343,7 +343,7 @@ with warnings.catch_warnings():
 
     # deprecated, use ArtifactV2 instead
     # TODO: Remove once data migration v5 is obsolete and add schema migration to remove this table
-    class Artifact(Base, LabelMixin, TagMixin, mlrun.utils.db.HasStruct):
+    class Artifact(Base, LabelMixin, TagMixin, framework.db.sqldb.sql_types.HasStruct):
         __tablename__ = "artifacts"
         __table_args__ = (
             UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),
@@ -443,7 +443,9 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"
 
-    class Function(Base, LabelMixin, TagV2Mixin, mlrun.utils.db.HasStruct):
+    class Function(
+        Base, LabelMixin, TagV2Mixin, framework.db.sqldb.sql_types.HasStruct
+    ):
         __tablename__ = "functions"
         __table_args__ = (
             UniqueConstraint("name", "project", "uid", name="_functions_uc"),
@@ -463,7 +465,13 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.uid}"
 
-    class Run(Base, LabelMixin, TagMixin, NotificationMixin, mlrun.utils.db.HasStruct):
+    class Run(
+        Base,
+        LabelMixin,
+        TagMixin,
+        NotificationMixin,
+        framework.db.sqldb.sql_types.HasStruct,
+    ):
         __tablename__ = "runs"
         __table_args__ = (
             UniqueConstraint("uid", "project", "iteration", name="_runs_uc"),
@@ -985,7 +993,9 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.key}"
 
-    class ModelEndpoint(Base, LabelMixin, TagV2Mixin, mlrun.utils.db.HasStruct):
+    class ModelEndpoint(
+        Base, LabelMixin, TagV2Mixin, framework.db.sqldb.sql_types.HasStruct
+    ):
         __tablename__ = "model_endpoints"
 
         id = Column(Integer, primary_key=True)

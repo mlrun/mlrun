@@ -13,14 +13,14 @@
 # limitations under the License.
 
 # THIS BLOCK IS FOR VARIABLES USER MAY OVERRIDE
-MLRUN_VERSION ?= 1.10.0
+MLRUN_VERSION ?= unstable
 # pip requires the python version to be according to some regex (so "unstable" is not valid for example) this regex only
 # allows us to have free text (like unstable) after the "+". on the contrary in a docker tag "+" is not a valid
 # character so we're doing best effort - if the provided version doesn't look valid (like unstable), we prefix the
 # version for the python package with 0.0.0+
 # if the provided version includes a "+" we replace it with "-" for the docker tag
 MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
-MLRUN_DOCKER_REPO ?= davids
+MLRUN_DOCKER_REPO ?= mlrun
 # empty by default (dockerhub), can be set to something like "quay.io/".
 # This will be used to tag the images built using this makefile
 MLRUN_DOCKER_REGISTRY ?=
@@ -302,7 +302,6 @@ mlrun: update-version-file ## Build mlrun docker image
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
-		--platform linux/amd64 \
 		--tag $(MLRUN_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-mlrun
@@ -489,7 +488,6 @@ api: compile-schemas update-version-file ## Build mlrun-api docker image
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
-		--platform linux/amd64 \
 		--tag $(MLRUN_API_IMAGE_NAME_TAGGED) .
 
 .PHONY: push-api

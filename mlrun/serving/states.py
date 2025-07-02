@@ -517,7 +517,7 @@ class BaseStep(ModelObj):
                 "ModelRunnerStep can be added to 'Flow' topology graph only"
             )
         step_model_endpoints_names = list(
-            step.class_args[schemas.ModelRunnerStepData.MODELS].keys()
+            step.class_args.get(schemas.ModelRunnerStepData.MODELS,{}).keys()
         )
         # Get all model_endpoints names that are in both lists
         common_endpoints_names = list(
@@ -528,6 +528,22 @@ class BaseStep(ModelObj):
         if common_endpoints_names:
             raise GraphError(
                 f"The graph already contains the model endpoints named - {common_endpoints_names}."
+            )
+
+        step_shared_model_endpoints_names = [
+            step.class_args.get(schemas.ModelRunnerStepData.MODELS, {}).get(name, ["", {}])[1].get("shared_runnable_name")
+            for name in step_model_endpoints_names
+            if step.class_args.get(
+                schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM, {}
+            ).get(name)
+            == ParallelExecutionMechanisms.shared_executor
+        ]
+        undefined_shared_models = list(
+            set(step_shared_model_endpoints_names) - set(root.shared_models.keys())
+        )
+        if undefined_shared_models:
+            raise GraphError(
+                f"The following shared models are not defined in the graph: {undefined_shared_models}."
             )
         root.update_model_endpoints_names(step_model_endpoints_names)
 
@@ -1012,10 +1028,8 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         "raise_exception",
         "artifact_uri",
         "shared_runnable_name",
-        "execution_mechanism",
     ]
     kind = "model"
-    execution_mechanism = "naive"  # todo : remove
 
     def __init__(
         self,
@@ -1230,6 +1244,7 @@ class ModelRunnerStep(MonitoredStep):
     def add_shared_model_proxy(
         self,
         endpoint_name: str,
+        shared_model_name: str,
         model_artifact: Optional[Union[str, ModelArtifact, LLMPromptArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[
@@ -1247,10 +1262,8 @@ class ModelRunnerStep(MonitoredStep):
             else model_artifact
         )
         model_class = Model(
-            name=model_artifact_uri, shared_runnable_name=model_artifact_uri
-        )
-        model_class.execution_mechanism = (
-            storey.flow.ParallelExecutionMechanisms.shared_executor
+            name=model_artifact_uri,
+            shared_runnable_name=shared_model_name,
         )
 
         root = self._extract_root_step()  # todo validation on shared models
@@ -1258,7 +1271,7 @@ class ModelRunnerStep(MonitoredStep):
             (not root.shared_models)
             or (
                 root.shared_models
-                and model_artifact_uri not in root.shared_models.keys()
+                and shared_model_name not in root.shared_models.keys()
             )
         ):
             raise GraphError(
@@ -1268,6 +1281,7 @@ class ModelRunnerStep(MonitoredStep):
         self.add_model(
             endpoint_name=endpoint_name,
             model_class=model_class,
+            execution_mechanism=ParallelExecutionMechanisms.shared_executor,
             model_artifact=model_artifact,
             labels=labels,
             creation_strategy=creation_strategy,
@@ -1282,8 +1296,8 @@ class ModelRunnerStep(MonitoredStep):
         self,
         endpoint_name: str,
         model_class: Union[str, Model],
-        execution_mechanism: str,
-        model_artifact: Optional[Union[str, ModelArtifact, LLMPromptArtifact]] = None,
+        execution_mechanism: Union[str, ParallelExecutionMechanisms],
+        model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
@@ -1320,6 +1334,8 @@ class ModelRunnerStep(MonitoredStep):
                 memory and hardware accelerators.
             * "naive" – To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
                 It means that the runnable will not actually be run in parallel to anything else.
+<<<<<<< HEAD
+=======
 
             :param model_artifact:      model artifact or mlrun model artifact uri
             :param labels:              model endpoint labels, should be list of str or mapping of str:str
@@ -1348,9 +1364,6 @@ class ModelRunnerStep(MonitoredStep):
           :param override:            bool allow override existing model on the current ModelRunnerStep.
           :param model_parameters:    Parameters for model instantiation
         """
-        execution_mechanism = (
-            model_class.execution_mechanism if isinstance(model_class, Model) else None
-        )
         if isinstance(model_class, Model) and model_parameters:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
@@ -1361,7 +1374,7 @@ class ModelRunnerStep(MonitoredStep):
         )
         if outputs is None and isinstance(
             model_artifact,
-            mlrun.artifacts.ModelArtifact,  # TODO :llm
+            mlrun.artifacts.ModelArtifact,
         ):
             outputs = [feature.name for feature in model_artifact.spec.outputs]
         model_artifact = (
@@ -1372,15 +1385,9 @@ class ModelRunnerStep(MonitoredStep):
         model_parameters["artifact_uri"] = model_parameters.get(
             "artifact_uri", model_artifact
         )
-        if (
-            execution_mechanism
-            != storey.flow.ParallelExecutionMechanisms.shared_executor
-            and (
-                model_parameters.get("name", endpoint_name) != endpoint_name
-                or (
-                    isinstance(model_class, Model) and model_class.name != endpoint_name
-                )
-            )
+        if execution_mechanism != ParallelExecutionMechanisms.shared_executor and (
+            model_parameters.get("name", endpoint_name) != endpoint_name
+            or (isinstance(model_class, Model) and model_class.name != endpoint_name)
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Inconsistent name for model added to ModelRunnerStep."
@@ -1496,13 +1503,9 @@ class ModelRunnerStep(MonitoredStep):
             model_selector = get_class(model_selector, namespace)()
         model_objects = []
         for model, model_params in models.values():
-            execution_mechanism = None
-            if "execution_mechanism" in model_params:  # todo delete
-                execution_mechanism = model_params["execution_mechanism"]
             model = get_class(model, namespace).from_dict(
                 model_params, init_with_params=True
             )
-            model.execution_mechanism = execution_mechanism  # todo : delete
             model._raise_exception = False
             model_objects.append(model)
         self._async_object = ModelRunner(
@@ -1832,7 +1835,8 @@ class FlowStep(BaseStep):
         self._insert_all_error_handlers()
         self.check_and_process_graph()
 
-        for step in self._steps.values():
+        for step in self.steps.values():
+            print(step.name)
             step.set_parent(self)
             step.init_object(context, namespace, mode, reset=reset)
         self._set_error_handler()
@@ -2198,6 +2202,7 @@ class RootFlowStep(FlowStep):
         "shared_max_processes",
         "shared_max_threads",
         "shared_models",
+        "shared_models_mechanism",
         "pool_factor",
     ]
 
@@ -2219,31 +2224,64 @@ class RootFlowStep(FlowStep):
         self._models = set()
         self._route_models = set()
         self._track_models = False
-        self._shared_models: ObjectDict = ObjectDict({"model": Model}, "model")
+        self._shared_models: dict[str, tuple[str, dict]] = {}
+        self._shared_models_mechanism: dict[str, ParallelExecutionMechanisms] = {}
         self._shared_max_processes = None
         self._shared_max_threads = None
         self._pool_factor = None
 
     def add_shared_model(
         self,
-        model_class: Union[Model],
+        name: str,
+        model_class: Union[str, Model],
+        execution_mechanism: Union[str, ParallelExecutionMechanisms],
         model_artifact: Optional[Union[str, ModelArtifact]] = None,
         override: bool = False,
+        **model_parameters,
     ):
+        if isinstance(model_class, Model) and model_parameters:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
+            )
+
+        if execution_mechanism == ParallelExecutionMechanisms.shared_executor:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot add a shared model with execution mechanism 'shared_executor'"
+            )
+        ParallelExecutionMechanisms.validate(execution_mechanism)
+
+        model_parameters = model_parameters or (
+            model_class.to_dict() if isinstance(model_class, Model) else {}
+        )
         model_artifact = (
             model_artifact.uri
             if isinstance(model_artifact, mlrun.artifacts.Artifact)
             else model_artifact
         )
-        model_class.artifact_uri = model_artifact
-        model_class.name = (
-            model_artifact  # override the name to be the model artifact uri
+        model_parameters["artifact_uri"] = model_parameters.get(
+            "artifact_uri", model_artifact
         )
-        if not override and model_class.name in self._shared_models:
+
+        if model_parameters.get("name", name) != name or (
+            isinstance(model_class, Model) and model_class.name != name
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Model with uri {model_class.name} already exists in shared models."
+                "Inconsistent name for the added model."
             )
-        self._shared_models[model_class.name] = model_class
+        model_parameters["name"] = name
+
+        if name in self.shared_models and not override:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Model with name {name} already exists in this graph."
+            )
+
+        model_class = (
+            model_class
+            if isinstance(model_class, str)
+            else model_class.__class__.__name__
+        )
+        self.shared_models[name] = (model_class, model_parameters)
+        self._shared_models_mechanism[name] = execution_mechanism
 
     def config_resource(
         self,
@@ -2264,8 +2302,14 @@ class RootFlowStep(FlowStep):
                 pool_factor=self.pool_factor,
             )
 
-            for model_name, model in self.shared_models.items():
-                self.context.executor.add_runnable(model)
+            for model, model_params in self.shared_models.values():
+                model = get_class(model, namespace).from_dict(
+                    model_params, init_with_params=True
+                )
+                model._raise_exception = False
+                self.context.executor.add_runnable(
+                    model, self._shared_models_mechanism[model.name]
+                )
         super().init_object(context, namespace, mode, reset=reset, **extra_kwargs)
 
     @property
@@ -2296,15 +2340,22 @@ class RootFlowStep(FlowStep):
         self._track_models = track_models
 
     @property
-    def shared_models(self) -> ObjectDict:
-        """child routes/steps, traffic is routed to routes based on router logic"""
+    def shared_models(self) -> dict[str, tuple[str, dict]]:
         return self._shared_models
 
     @shared_models.setter
-    def shared_models(self, shared_models: dict):
-        self._shared_models = ObjectDict.from_dict(
-            {"model": Model}, shared_models, "model"
-        )
+    def shared_models(self, shared_models: dict[str, tuple[str, dict]]):
+        self._shared_models = shared_models
+
+    @property
+    def shared_models_mechanism(self) -> dict[str, ParallelExecutionMechanisms]:
+        return self._shared_models_mechanism
+
+    @shared_models_mechanism.setter
+    def shared_models_mechanism(
+        self, shared_models_mechanism: dict[str, ParallelExecutionMechanisms]
+    ):
+        self._shared_models_mechanism = shared_models_mechanism
 
     @property
     def shared_max_processes(self) -> Optional[int]:

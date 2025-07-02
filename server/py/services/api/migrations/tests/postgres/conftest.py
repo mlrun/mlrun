@@ -45,7 +45,6 @@ def alembic_engine(
 def pmr_postgres_config():
     return pytest_mock_resources.PostgresConfig(
         image="postgres:17",
-        host="localhost",
         port=5432,
         username="root",
         password="pass",

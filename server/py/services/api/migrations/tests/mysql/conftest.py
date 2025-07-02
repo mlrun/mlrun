@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from collections.abc import Generator
 
-import _pytest.config
 import pytest
 import pytest_mock_resources
 import sqlalchemy
@@ -24,26 +22,7 @@ import mlrun
 import framework.utils.db.utils
 import framework.utils.singletons.db
 
-
-@pytest.fixture
-def mysql_config() -> pytest_mock_resources.MysqlConfig:
-    return pytest_mock_resources.MysqlConfig(
-        image="mysql:8.0",
-        host="localhost",
-        port=3306,
-        username="root",
-        password="pass",
-        root_database="mlrun",
-    )
-
-
-@pytest.fixture
-def mysql_engine(mysql_config):
-    engine = pytest_mock_resources.container.mysql.get_sqlalchemy_engine(
-        config=mysql_config,
-        database_name="mlrun",
-    )
-    return engine
+mysql_engine = pytest_mock_resources.create_mysql_fixture()
 
 
 @pytest.fixture
@@ -59,10 +38,7 @@ def alembic_engine(
 
 
 @pytest.fixture
-def pmr_mysql_container(
-    pytestconfig: _pytest.config.Config,
-    pmr_mysql_config: pytest_mock_resources.MysqlConfig,
-) -> Generator[pytest_mock_resources.MysqlConfig]:
+def pmr_mysql_container(pytestconfig, pmr_mysql_config):
     yield from pytest_mock_resources.get_container(
         pytestconfig=pytestconfig,
         config=pmr_mysql_config,
@@ -72,10 +48,9 @@ def pmr_mysql_container(
 
 
 @pytest.fixture
-def pmr_mysql_config() -> pytest_mock_resources.MysqlConfig:
+def pmr_mysql_config():
     return pytest_mock_resources.MysqlConfig(
         image="mysql:8.0",
-        host="localhost",
         port=3306,
         username="root",
         password="pass",

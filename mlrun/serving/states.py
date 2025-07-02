@@ -1349,52 +1349,52 @@ class ModelRunnerStep(MonitoredStep):
         :param endpoint_name:       str, will identify the model in the ModelRunnerStep, and assign model endpoint name
         :param model_class:         Model class name
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
-            * "process_pool" – To run in a separate process from a process pool. This is appropriate for CPU or GPU
-                intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
-                Lock (GIL).
-            * "dedicated_process" – To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
-                tasks that also require significant Runnable-specific initialization (e.g. a large model).
-            * "thread_pool" – To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
-                otherwise block the main event loop thread.
-            * "asyncio" – To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
-                event loop to continue running while waiting for a response.
-            * "shared_executor" – Reuses an external executor (typically managed by the flow or context) to execute the
-                runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
-                useful when:
-                - You want to share a heavy resource like a large model loaded onto a GPU.
-                - You want to centralize task scheduling or coordination for multiple lightweight tasks.
-                - You aim to minimize overhead from creating new executors or processes/threads per runnable.
-                The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
-                memory and hardware accelerators.
-            * "naive" – To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
-                It means that the runnable will not actually be run in parallel to anything else.
+        * "process_pool" – To run in a separate process from a process pool. This is appropriate for CPU or GPU
+            intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
+            Lock (GIL).
+        * "dedicated_process" – To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
+            tasks that also require significant Runnable-specific initialization (e.g. a large model).
+        * "thread_pool" – To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
+            otherwise block the main event loop thread.
+        * "asyncio" – To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
+            event loop to continue running while waiting for a response.
+        * "shared_executor" – Reuses an external executor (typically managed by the flow or context) to execute the
+            runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
+            useful when:
+            - You want to share a heavy resource like a large model loaded onto a GPU.
+            - You want to centralize task scheduling or coordination for multiple lightweight tasks.
+            - You aim to minimize overhead from creating new executors or processes/threads per runnable.
+            The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
+            memory and hardware accelerators.
+        * "naive" – To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
+            It means that the runnable will not actually be run in parallel to anything else.
 
-        :param model_artifact:      model artifact or mlrun model artifact uri
-        :param labels:              model endpoint labels, should be list of str or mapping of str:str
-        :param creation_strategy:   Strategy for creating or updating the model endpoint:
-          * **overwrite**:
-          1. If model endpoints with the same name exist, delete the `latest` one.
-          2. Create a new model endpoint entry and set it as `latest`.
-          * **inplace** (default):
-          1. If model endpoints with the same name exist, update the `latest` entry.
-          2. Otherwise, create a new entry.
-          * **archive**:
-          1. If model endpoints with the same name exist, preserve them.
-          2. Create a new model endpoint with the same name and set it to `latest`.
+            :param model_artifact:      model artifact or mlrun model artifact uri
+            :param labels:              model endpoint labels, should be list of str or mapping of str:str
+            :param creation_strategy:   Strategy for creating or updating the model endpoint:
+              * **overwrite**:
+              1. If model endpoints with the same name exist, delete the `latest` one.
+              2. Create a new model endpoint entry and set it as `latest`.
+              * **inplace** (default):
+              1. If model endpoints with the same name exist, update the `latest` entry.
+              2. Otherwise, create a new entry.
+              * **archive**:
+              1. If model endpoints with the same name exist, preserve them.
+              2. Create a new model endpoint with the same name and set it to `latest`.
 
-        :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
-                                    that been configured in the model artifact, please note that those inputs need to
-                                    be equal in length and order to the inputs that model_class predict method expects
-        :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
-                                    that been configured in the model artifact, please note that those outputs need to
-                                    be equal to the model_class predict method outputs (length, and order)
-        :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
-                                    (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
-        :param result_path:         result path inside the user output event, expect scopes to be defined by dot
-                                    notation (e.g "outputs.my_model_outputs") expects list or dictionary type object
-                                    in path.
-        :param override:            bool allow override existing model on the current ModelRunnerStep.
-        :param model_parameters:    Parameters for model instantiation
+          :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
+                                      that been configured in the model artifact, please note that those inputs need to
+                                      be equal in length and order to the inputs that model_class predict method expects
+          :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
+                                      that been configured in the model artifact, please note that those outputs need to
+                                      be equal to the model_class predict method outputs (length, and order)
+          :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
+                                      (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
+          :param result_path:         result path inside the user output event, expect scopes to be defined by dot
+                                      notation (e.g "outputs.my_model_outputs") expects list or dictionary type object
+                                      in path.
+          :param override:            bool allow override existing model on the current ModelRunnerStep.
+          :param model_parameters:    Parameters for model instantiation
         """
         if isinstance(model_class, Model) and model_parameters:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -2273,32 +2273,32 @@ class RootFlowStep(FlowStep):
     ):
         """
         Add a shared model to the graph, this model will be available to all the ModelRunners in the graph
-        :param name:                Name of the shared model (should be unique in the graph)
+        :param name:       str, will identify the shared model in the Graph
         :param model_class:         Model class name
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
-            * "process_pool" – To run in a separate process from a process pool. This is appropriate for CPU or GPU
-                intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
-                Lock (GIL).
-            * "dedicated_process" – To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
-                tasks that also require significant Runnable-specific initialization (e.g. a large model).
-            * "thread_pool" – To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
-                otherwise block the main event loop thread.
-            * "asyncio" – To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
-                event loop to continue running while waiting for a response.
-            * "shared_executor" – Reuses an external executor (typically managed by the flow or context) to execute the
-                runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
-                useful when:
-                - You want to share a heavy resource like a large model loaded onto a GPU.
-                - You want to centralize task scheduling or coordination for multiple lightweight tasks.
-                - You aim to minimize overhead from creating new executors or processes/threads per runnable.
-                The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
-                memory and hardware accelerators.
-            * "naive" – To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
-                It means that the runnable will not actually be run in parallel to anything else.
+        * "process_pool" – To run in a separate process from a process pool. This is appropriate for CPU or GPU
+            intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
+            Lock (GIL).
+        * "dedicated_process" – To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
+            tasks that also require significant Runnable-specific initialization (e.g. a large model).
+        * "thread_pool" – To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
+            otherwise block the main event loop thread.
+        * "asyncio" – To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
+            event loop to continue running while waiting for a response.
+        * "shared_executor" – Reuses an external executor (typically managed by the flow or context) to execute the
+            runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
+            useful when:
+            - You want to share a heavy resource like a large model loaded onto a GPU.
+            - You want to centralize task scheduling or coordination for multiple lightweight tasks.
+            - You aim to minimize overhead from creating new executors or processes/threads per runnable.
+            The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
+            memory and hardware accelerators.
+        * "naive" – To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
+            It means that the runnable will not actually be run in parallel to anything else.
 
-        :param model_artifact:      model artifact or mlrun model artifact uri
-        :param override:            bool allow override existing model on the current ModelRunnerStep.
-        :param model_parameters:    Parameters for model instantiation
+            :param model_artifact:      model artifact or mlrun model artifact uri
+            :param override:            bool allow override existing model on the current ModelRunnerStep.
+            :param model_parameters:    Parameters for model instantiation
         """
         if isinstance(model_class, Model) and model_parameters:
             raise mlrun.errors.MLRunInvalidArgumentError(

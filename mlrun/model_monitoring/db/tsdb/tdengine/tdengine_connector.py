@@ -877,10 +877,7 @@ class TDEngineConnector(TSDBConnector):
         ).count()
 
         # Convert DataFrame to a dictionary
-        return {
-            app_name: int(row[mm_schemas.WriterEvent.ENDPOINT_ID])
-            for app_name, row in grouped_df.iterrows()
-        }
+        return grouped_df[mm_schemas.WriterEvent.ENDPOINT_ID].to_dict()
 
     def calculate_latest_metrics(
         self,

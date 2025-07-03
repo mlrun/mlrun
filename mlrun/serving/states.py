@@ -1290,17 +1290,12 @@ class ModelRunnerStep(MonitoredStep):
                                     in path.
         :param override:            bool allow override existing model on the current ModelRunnerStep.
         """
-        model_artifact_uri = (
-            model_artifact.uri
-            if isinstance(model_artifact, mlrun.artifacts.Artifact)
-            else model_artifact
-        )
         model_class = Model(
-            name=model_artifact_uri,
+            name=endpoint_name,
             shared_runnable_name=shared_model_name,
         )
 
-        root = self._extract_root_step()  # todo validation on shared models
+        root = self._extract_root_step()
         if isinstance(root, RootFlowStep) and (
             (not root.shared_models)
             or (
@@ -1310,7 +1305,7 @@ class ModelRunnerStep(MonitoredStep):
         ):
             raise GraphError(
                 f"ModelRunnerStep can only add proxy models that were added to the root flow step, "
-                f"model {model_artifact_uri} is not in the shared models."
+                f"model {shared_model_name} is not in the shared models."
             )
         self.add_model(
             endpoint_name=endpoint_name,
@@ -1414,7 +1409,7 @@ class ModelRunnerStep(MonitoredStep):
             LLMPromptArtifact,
         ):
             _model_artifact = model_artifact.model_artifact
-            outputs = _model_artifact.spec.outputs or []
+            outputs = [feature.name for feature in _model_artifact.spec.outputs]
         model_artifact = (
             model_artifact.uri
             if isinstance(model_artifact, mlrun.artifacts.Artifact)
@@ -1423,9 +1418,8 @@ class ModelRunnerStep(MonitoredStep):
         model_parameters["artifact_uri"] = model_parameters.get(
             "artifact_uri", model_artifact
         )
-        if execution_mechanism != ParallelExecutionMechanisms.shared_executor and (
-            model_parameters.get("name", endpoint_name) != endpoint_name
-            or (isinstance(model_class, Model) and model_class.name != endpoint_name)
+        if model_parameters.get("name", endpoint_name) != endpoint_name or (
+            isinstance(model_class, Model) and model_class.name != endpoint_name
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Inconsistent name for model added to ModelRunnerStep."

@@ -2270,7 +2270,7 @@ class RootFlowStep(FlowStep):
         model_artifact: Optional[Union[str, ModelArtifact]] = None,
         override: bool = False,
         **model_parameters,
-    ):
+    ) -> None:
         """
         Add a shared model to the graph, this model will be available to all the ModelRunners in the graph
         :param name:                Name of the shared model (should be unique in the graph)
@@ -2349,7 +2349,14 @@ class RootFlowStep(FlowStep):
         max_processes: Optional[int] = None,
         max_threads: Optional[int] = None,
         pool_factor: Optional[int] = None,
-    ):
+    ) -> None:
+        """
+        Configure the resource limits for the shared models in the graph.
+        :param max_processes: Maximum number of processes to spawn (excluding dedicated processes).
+                             Defaults to the number of CPUs or 16 if undetectable.
+        :param max_threads: Maximum number of threads to spawn. Defaults to 32.
+        :param pool_factor: Multiplier to scale the number of process/thread workers per runnable. Defaults to 1.
+        """
         self.shared_max_processes = max_processes
         self.shared_max_threads = max_threads
         self.pool_factor = pool_factor

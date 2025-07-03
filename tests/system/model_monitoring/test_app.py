@@ -320,7 +320,7 @@ class _V3IORecordsChecker:
 class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
     project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: typing.Optional[str] = "artifactory.iguazeng.com:10557/davids/mlrun:1.10.0"
     error_count = 10
 
     @classmethod
@@ -525,6 +525,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 model_artifact=f"store://models/{cls.project_name}/{cls.model_name}_{with_training_set}:latest",
                 input_path="inputs",
                 result_path="outputs",
+                execution_mechanism="naive",
             )
             graph = serving_fn.set_topology("flow", engine="async")
             graph.to(model_runner_step).respond()

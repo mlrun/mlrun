@@ -639,6 +639,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param start:             The start time of the endpoint's data, not included.
                                   If you want the model endpoint's data at ``start`` included, you need to subtract a
                                   small ``datetime.timedelta`` from it.
+                                  Make sure to include the time zone when constructing `datetime.datetime` objects
+                                  manually.
         :param end:               The end time of the endpoint's data, included.
                                   Please note: when ``start`` and ``end`` are set, they create a left-open time interval
                                   ("window") :math:`(\\operatorname{start}, \\operatorname{end}]` that excludes the

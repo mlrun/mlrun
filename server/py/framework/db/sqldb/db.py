@@ -6295,7 +6295,7 @@ class SQLDB(DBInterface):
             )
             model_artifact_uri = mlrun.datastore.get_store_uri(
                 kind=mlrun.utils.helpers.StorePrefix.Model
-                if model.kind == mlrun.common.schemas.ArtifactCategories.model
+                if model.kind == mlrun.artifacts.ModelArtifact.kind
                 else mlrun.utils.helpers.StorePrefix.LLMPrompt,
                 uri=generate_artifact_uri(
                     project=model.project,

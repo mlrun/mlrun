@@ -142,7 +142,7 @@ def test_tracked_function(rundb_mock, enable_tracking):
             "ModelTestingClass",
             multiplier=5,
             model_endpoint_uid="my-uid",
-            creation_strategy=ModelEndpointCreationStrategy.ARCHIVE,
+            model_endpoint_creation_strategy=ModelEndpointCreationStrategy.ARCHIVE,
         )
         fn.set_tracking("dummy://", enable_tracking=enable_tracking)
         server = fn.to_mock_server()

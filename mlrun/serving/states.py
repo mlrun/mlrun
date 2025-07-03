@@ -1249,7 +1249,7 @@ class ModelRunnerStep(MonitoredStep):
         shared_model_name: str,
         model_artifact: Optional[Union[str, ModelArtifact, LLMPromptArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
-        creation_strategy: Optional[
+        model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
         ] = schemas.ModelEndpointCreationStrategy.INPLACE,
         inputs: Optional[list[str]] = None,
@@ -1266,7 +1266,7 @@ class ModelRunnerStep(MonitoredStep):
         :param shared_model_name:   str, the name of the shared model that is already defined within the graph
         :param model_artifact:      model artifact or mlrun model artifact uri
         :param labels:              model endpoint labels, should be list of str or mapping of str:str
-        :param creation_strategy:   Strategy for creating or updating the model endpoint:
+        :param model_endpoint_creation_strategy:   Strategy for creating or updating the model endpoint:
           * **overwrite**:
           1. If model endpoints with the same name exist, delete the `latest` one.
           2. Create a new model endpoint entry and set it as `latest`.
@@ -1313,7 +1313,7 @@ class ModelRunnerStep(MonitoredStep):
             execution_mechanism=ParallelExecutionMechanisms.shared_executor,
             model_artifact=model_artifact,
             labels=labels,
-            creation_strategy=creation_strategy,
+            model_endpoint_creation_strategy=model_endpoint_creation_strategy,
             override=override,
             inputs=inputs,
             outputs=outputs,
@@ -1328,7 +1328,7 @@ class ModelRunnerStep(MonitoredStep):
         execution_mechanism: Union[str, ParallelExecutionMechanisms],
         model_artifact: Optional[Union[str, ModelArtifact, LLMPromptArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
-        creation_strategy: Optional[
+        model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
         ] = schemas.ModelEndpointCreationStrategy.INPLACE,
         inputs: Optional[list[str]] = None,
@@ -1366,7 +1366,7 @@ class ModelRunnerStep(MonitoredStep):
 
             :param model_artifact:      model artifact or mlrun model artifact uri
             :param labels:              model endpoint labels, should be list of str or mapping of str:str
-            :param creation_strategy:   Strategy for creating or updating the model endpoint:
+            :param model_endpoint_creation_strategy:   Strategy for creating or updating the model endpoint:
               * **overwrite**:
               1. If model endpoints with the same name exist, delete the `latest` one.
               2. Create a new model endpoint entry and set it as `latest`.
@@ -1456,7 +1456,7 @@ class ModelRunnerStep(MonitoredStep):
             schemas.MonitoringData.OUTPUTS: outputs,
             schemas.MonitoringData.INPUT_PATH: input_path,
             schemas.MonitoringData.RESULT_PATH: result_path,
-            schemas.MonitoringData.CREATION_STRATEGY: creation_strategy,
+            schemas.MonitoringData.CREATION_STRATEGY: model_endpoint_creation_strategy,
             schemas.MonitoringData.LABELS: labels,
             schemas.MonitoringData.MODEL_PATH: model_artifact,
             schemas.MonitoringData.MODEL_CLASS: model_class,

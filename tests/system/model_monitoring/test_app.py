@@ -320,7 +320,7 @@ class _V3IORecordsChecker:
 class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
     project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "artifactory.iguazeng.com:10557/davids/mlrun:1.10.0"
+    image: typing.Optional[str] = None
     error_count = 10
 
     @classmethod

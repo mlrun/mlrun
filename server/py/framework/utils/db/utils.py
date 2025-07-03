@@ -25,8 +25,6 @@ import mlrun.common.db.dialects
 import mlrun.errors
 import mlrun.utils
 
-from services.api.utils.db.alembic import AlembicUtil
-
 _DEFAULT_DRIVER_FOR_DIALECT: dict[str, str] = {
     mlrun.common.db.dialects.Dialects.MYSQL: "pymysql",
     mlrun.common.db.dialects.Dialects.POSTGRESQL: "psycopg2",
@@ -143,9 +141,6 @@ class DBUtil:
     _DRIVER_CACHE: dict[str, Any] = {}
     _DEFAULT_DB_CONFIGURATIONS = None
 
-    def __init__(self, alembic_util: AlembicUtil):
-        self._alembic_util = alembic_util
-
     def wait_for_db_liveness(
         self,
         retry_interval: int = 3,
@@ -234,7 +229,7 @@ class DBUtil:
         parts = scheme.split("+", 1)
         return parts[0], parts[1] if len(parts) == 2 else None
 
-    def __new__(cls, *args, **kwargs) -> "DBUtil":
+    def __new__(cls, *_, **__) -> "DBUtil":
         if cls is DBUtil:
             dialect = cls.get_parsed_dsn().dialect
             if dialect not in mlrun.common.db.dialects.Dialects.all():
@@ -243,9 +238,9 @@ class DBUtil:
                 )
             for subclass in cls.__subclasses__():
                 if subclass._DIALECT == dialect:
-                    return super().__new__(subclass, *args, **kwargs)
+                    return super().__new__(subclass, *_, **__)
             raise RuntimeError(f"No helper registered for dialect {dialect!r}")
-        return super().__new__(cls, *args, **kwargs)
+        return super().__new__(cls, *_, **__)
 
     def _apply_configurations(
         self,

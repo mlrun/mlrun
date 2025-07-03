@@ -60,7 +60,7 @@ If criteria is not specified, the default is `count=1` and `period=None`, in whi
 You can configure Slack, Git, or webhook notifications for the alert.
 ``` {Admonition} Note on run identification
 Alerts track job runs by name (`run.metadata.name`), not by the unique run UID. The run name can either be set explicitly or automatically generated when a job is executed. 
-You can access the run name from the result of the `run_function call`, for example:
+You can access the run name from the result of the `run_function` call, for example:
 ```python
 run = project.run_function("my-function", handler="handler", local=True)
 run_id = run.metadata.name

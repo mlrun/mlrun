@@ -1331,7 +1331,7 @@ class ModelRunnerStep(MonitoredStep):
         endpoint_name: str,
         model_class: Union[str, Model],
         execution_mechanism: Union[str, ParallelExecutionMechanisms],
-        model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
+        model_artifact: Optional[Union[str, ModelArtifact, LLMPromptArtifact]] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
@@ -1406,9 +1406,15 @@ class ModelRunnerStep(MonitoredStep):
         )
         if outputs is None and isinstance(
             model_artifact,
-            mlrun.artifacts.ModelArtifact,
+            ModelArtifact,
         ):
             outputs = [feature.name for feature in model_artifact.spec.outputs]
+        elif outputs is None and isinstance(
+            model_artifact,
+            LLMPromptArtifact,
+        ):
+            _model_artifact = model_artifact.model_artifact
+            outputs = _model_artifact.spec.outputs or []
         model_artifact = (
             model_artifact.uri
             if isinstance(model_artifact, mlrun.artifacts.Artifact)
@@ -1466,24 +1472,20 @@ class ModelRunnerStep(MonitoredStep):
 
     @staticmethod
     def _get_model_output_schema(
-        model: str, monitoring_data: dict[str, dict[str, str]]
+        model_name: str, model_endpoint_uid: str, project: Optional[str] = None
     ) -> list[str]:
         output_schema = None
-        if monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH) is not None:
-            model_path = monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH)
-            try:
-                artifact = get_store_resource(
-                    monitoring_data[model].get(schemas.MonitoringData.MODEL_PATH)
+        try:
+            model_endpoint: mlrun.common.schemas.model_monitoring.ModelEndpoint = (
+                mlrun.db.get_run_db().get_model_endpoint(
+                    name=model_name, project=project, endpoint_id=model_endpoint_uid
                 )
-                output_schema = [feature.name for feature in artifact.spec.outputs]
-            except (
-                mlrun.errors.MLRunInvalidArgumentError
-                or mlrun.errors.MLRunNotFoundError
-            ):
-                logger.warning(
-                    f"Failed to get model output schema for model path {model_path}. "
-                    "Using default output schema."
-                )
+            )
+            output_schema = model_endpoint.spec.label_names
+        except mlrun.errors.MLRunNotFoundError:
+            logger.warning(
+                f"Model endpoint not found, using default output schema for model {model_name}"
+            )
         return output_schema
 
     @staticmethod
@@ -1504,8 +1506,11 @@ class ModelRunnerStep(MonitoredStep):
         if isinstance(monitoring_data, dict):
             for model in monitoring_data:
                 monitoring_data[model][schemas.MonitoringData.OUTPUTS] = (
-                    monitoring_data[model][schemas.MonitoringData.OUTPUTS]
-                    or self._get_model_output_schema(model, monitoring_data)
+                    monitoring_data.get(model, {}).get(schemas.MonitoringData.OUTPUTS)
+                    or self._get_model_output_schema(
+                        model,
+                        monitoring_data.get(schemas.MonitoringData.MODEL_ENDPOINT_UID),
+                    )
                 )
                 # Prevent calling _get_model_output_schema for same model more than once
                 self.class_args[
@@ -2344,7 +2349,7 @@ class RootFlowStep(FlowStep):
         self.shared_models[name] = (model_class, model_parameters)
         self._shared_models_mechanism[name] = execution_mechanism
 
-    def config_resource(
+    def config_pool_resource(
         self,
         max_processes: Optional[int] = None,
         max_threads: Optional[int] = None,

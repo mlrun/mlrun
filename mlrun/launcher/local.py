@@ -13,6 +13,7 @@
 # limitations under the License.
 import os
 import pathlib
+from os import environ
 from typing import Callable, Optional, Union
 
 import mlrun.common.constants as mlrun_constants
@@ -251,6 +252,9 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
             # copy the code/base-spec to the local function (for the UI and code logging)
             fn.spec.description = runtime.spec.description
             fn.spec.build = runtime.spec.build
+            serving_spec = getattr(runtime.spec, "serving_spec", None)
+            if serving_spec:
+                environ["SERVING_SPEC_ENV"] = serving_spec
 
         run.spec.handler = handler
         run.spec.reset_on_run = reset_on_run

@@ -904,7 +904,7 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.WriterEvent.END_INFER_TIME,
                 mm_schemas.WriterEvent.APPLICATION_NAME,
             ]
-            if type == "results":
+            if record_type == "results":
                 table = self.tables[
                     mm_schemas.TDEngineSuperTables.APP_RESULTS
                 ].super_table

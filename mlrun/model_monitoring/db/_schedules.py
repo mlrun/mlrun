@@ -15,6 +15,7 @@
 import json
 from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
+from datetime import datetime, timezone
 from types import TracebackType
 from typing import Final, Optional
 
@@ -24,6 +25,7 @@ import mlrun
 import mlrun.common.schemas as schemas
 import mlrun.errors
 import mlrun.model_monitoring.helpers
+import mlrun.utils.helpers
 from mlrun.utils import logger
 
 
@@ -225,11 +227,45 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
             self.create()
 
 
-def delete_model_monitoring_schedules_folder(project: str) -> None:
-    """Delete the model monitoring schedules folder of the project"""
-    folder = mlrun.model_monitoring.helpers._get_monitoring_schedules_folder_path(
-        project
-    )
+class ModelMonitoringSchedulesFileApplication(ModelMonitoringSchedulesFileBase):
+    def __init__(self, out_path: str, application: str) -> None:
+        self._out_path = out_path
+        self._application = application
+        super().__init__()
+
+    def get_data_item_object(self) -> mlrun.DataItem:
+        return mlrun.model_monitoring.helpers.get_monitoring_schedules_user_application_data(
+            out_path=self._out_path, application=self._application
+        )
+
+    def _open(self) -> bool:
+        if not self._exists():
+            # Create the file when it is needed the first time
+            logger.info(
+                "Creating the application schedules file",
+                application=self._application,
+                path=self._path,
+            )
+            self.create()
+        super()._open()
+
+    def get_endpoint_last_analyzed(self, endpoint_uid: str) -> Optional[datetime]:
+        self._check_open_schedules()
+        if endpoint_uid in self._schedules:
+            return datetime.fromisoformat(self._schedules[endpoint_uid])
+        else:
+            return None
+
+    def update_endpoint_last_analyzed(
+        self, endpoint_uid: str, last_analyzed: datetime
+    ) -> None:
+        self._check_open_schedules()
+        self._schedules[endpoint_uid] = last_analyzed.astimezone(
+            timezone.utc
+        ).isoformat()
+
+
+def _delete_folder(folder: str) -> None:
     fs = mlrun.datastore.store_manager.object(folder).store.filesystem
     if fs and fs.exists(folder):
         logger.debug("Deleting model monitoring schedules folder", folder=folder)
@@ -238,3 +274,22 @@ def delete_model_monitoring_schedules_folder(project: str) -> None:
         raise mlrun.errors.MLRunValueError(
             "Cannot delete a folder without a file-system"
         )
+
+
+def delete_model_monitoring_schedules_folder(project: str) -> None:
+    """Delete the model monitoring schedules folder of the project"""
+    folder = mlrun.model_monitoring.helpers._get_monitoring_schedules_folder_path(
+        project
+    )
+    _delete_folder(folder)
+
+
+def delete_model_monitoring_schedules_user_folder(project: str) -> None:
+    """Delete the user created schedules folder (created through `app.evaluate`)"""
+    out_path = mlrun.utils.helpers.template_artifact_path(
+        mlrun.mlconf.artifact_path, project=project
+    )
+    folder = mlrun.model_monitoring.helpers._get_monitoring_schedules_user_folder_path(
+        out_path
+    )
+    _delete_folder(folder)

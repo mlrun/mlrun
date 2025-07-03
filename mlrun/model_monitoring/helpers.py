@@ -549,6 +549,10 @@ def _get_monitoring_schedules_folder_path(project: str) -> str:
     )
 
 
+def _get_monitoring_schedules_user_folder_path(out_path: str) -> str:
+    return os.path.join(out_path, mm_constants.FileTargetKind.MONITORING_SCHEDULES)
+
+
 def _get_monitoring_schedules_file_endpoint_path(
     *, project: str, endpoint_id: str
 ) -> str:
@@ -579,12 +583,33 @@ def get_monitoring_schedules_chief_data(*, project: str) -> "DataItem":
     )
 
 
+def get_monitoring_schedules_user_application_data(
+    *, out_path: str, application: str
+) -> "DataItem":
+    """
+    Get the model monitoring schedules' data item of user application runs.
+    """
+    return mlrun.datastore.store_manager.object(
+        _get_monitoring_schedules_file_user_application_path(
+            out_path=out_path, application=application
+        )
+    )
+
+
 def _get_monitoring_schedules_file_chief_path(
     *,
     project: str,
 ) -> str:
     return os.path.join(
         _get_monitoring_schedules_folder_path(project), f"{project}.json"
+    )
+
+
+def _get_monitoring_schedules_file_user_application_path(
+    *, out_path: str, application: str
+) -> str:
+    return os.path.join(
+        _get_monitoring_schedules_user_folder_path(out_path), f"{application}.json"
     )
 
 

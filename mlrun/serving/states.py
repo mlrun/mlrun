@@ -1867,7 +1867,6 @@ class FlowStep(BaseStep):
         self.check_and_process_graph()
 
         for step in self.steps.values():
-            print(step.name)
             step.set_parent(self)
             step.init_object(context, namespace, mode, reset=reset)
         self._set_error_handler()

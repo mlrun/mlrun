@@ -635,6 +635,48 @@ def test_model_runner_with_remote_model():
         server.wait_for_completion()
 
 
+def test_model_runner_with_remote_shared_model():
+    project = mlrun.new_project("remote-model-project", save=False)
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    graph.add_shared_model(
+        name="my_model",
+        model_class="MyRemoteModel",
+        model_artifact=model_artifact,
+        execution_mechanism="naive",
+    )
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_shared_model_proxy(
+        endpoint_name="my_endpoint",
+        model_artifact=model_artifact,
+        shared_model_name="my_model",
+    )
+    graph.to(model_runner_step).respond()
+    assert (
+        "my_endpoint" in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+    # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
+    # Mocked function used to verify artifact URI is passed correctly.
+
+    with unittest.mock.patch(
+        "mlrun.serving.states.get_store_resource",
+        side_effect=create_mocked_get_store_resource(model_artifact=model_artifact),
+    ):
+        server = function.to_mock_server()
+    try:
+        resp = server.test(body={"prompt": "What is the capital of france?"})
+        assert resp["default_config"] == {"model_version": "4"}
+        assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
+        assert resp["prompt"] == "What is the capital of france?"
+    finally:
+        server.wait_for_completion()
+
+
 def test_get_local_model_path():
     project = mlrun.new_project("get-model-path-project", save=False)
     model_dir = str(pathlib.Path(__file__).parent / "assets")

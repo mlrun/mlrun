@@ -4198,11 +4198,12 @@ class HTTPRunDB(RunDBInterface):
     ) -> FunctionSummary:
         """
         Get a monitoring function summary for the specified project and function.
-        :param project: The name of the project.
-        :param function_name: The name of the function.
-        :param start: Start time for filtering the results (optional).
-        :param end: End time for filtering the results (optional).
+        :param project:                The name of the project.
+        :param function_name:          The name of the function.
+        :param start:                  Start time for filtering the results (optional).
+        :param end:                    End time for filtering the results (optional).
         :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
+
         :return: A FunctionSummary object containing information about the monitoring function.
         """
 

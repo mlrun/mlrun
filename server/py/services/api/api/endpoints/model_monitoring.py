@@ -409,9 +409,9 @@ async def get_model_monitoring_function_summaries(
 ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
     """Get monitoring function summaries for the specified project.
 
-    :param commons: The common parameters of the request.
-    :param names: List of function names to filter by (optional).
-    :param labels: Labels to filter by (optional).
+    :param commons:       The common parameters of the request.
+    :param names:         List of function names to filter by (optional).
+    :param labels:        Labels to filter by (optional).
     :param include_stats: Whether to include statistics in the response (default is True).
     :param include_infra: whether to include model monitoring infrastructure functions (default is True).
 
@@ -441,9 +441,10 @@ async def get_model_monitoring_function_summary(
     include_latest_metrics: bool = Query(True, alias="include-latest-metrics"),
 ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
     """Get monitoring function summary for the specified project and function name.
-    :param commons: The common parameters of the request.
-    :param function_name: The name of the function to retrieve the summary for.
+    :param commons:                The common parameters of the request.
+    :param function_name:          The name of the function to retrieve the summary for.
     :param include_latest_metrics: Whether to include the latest metrics in the response (default is True).
+
     :return: A FunctionSummary object containing information about the monitoring function.
     """
 

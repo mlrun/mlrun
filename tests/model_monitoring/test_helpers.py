@@ -651,12 +651,12 @@ def test_get_start_end():
     assert start == now - datetime.timedelta(seconds=10)
     assert end == start + datetime.timedelta(seconds=1)
 
-    # Test when start is bigger than end
+    # Test when start time is later than end time
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-    ) as exc:
+        match="The start time must be before the end time",
+    ):
         get_start_end(
             start=now + datetime.timedelta(seconds=10),
             end=now,
         )
-        assert "The start time must be before the end time" in str(exc.value)

@@ -840,7 +840,7 @@ class TDEngineConnector(TSDBConnector):
                 filter_values=application_names,
             )
 
-        def _get_application_endpoints_records(super_table: str) -> pd.DataFrame:
+        def get_application_endpoints_records(super_table: str) -> pd.DataFrame:
             return self._get_records(
                 table=super_table,
                 start=start,
@@ -859,12 +859,12 @@ class TDEngineConnector(TSDBConnector):
                 agg_funcs=["last"],
             )
 
-        df_results = _get_application_endpoints_records(
+        df_results = get_application_endpoints_records(
             super_table=self.tables[
                 mm_schemas.TDEngineSuperTables.APP_RESULTS
             ].super_table
         )
-        df_metrics = _get_application_endpoints_records(
+        df_metrics = get_application_endpoints_records(
             super_table=self.tables[mm_schemas.TDEngineSuperTables.METRICS].super_table
         )
 
@@ -900,7 +900,7 @@ class TDEngineConnector(TSDBConnector):
                 filter_values=application_names,
             )
 
-        def _get_latest_metrics_records(
+        def get_latest_metrics_records(
             type: Literal["metrics", "results"],
         ) -> pd.DataFrame:
             columns = [
@@ -938,13 +938,13 @@ class TDEngineConnector(TSDBConnector):
                 agg_funcs=["last"],
             )
 
-        df_results = _get_latest_metrics_records(type="results")
-        df_metrics = _get_latest_metrics_records(type="metrics")
+        df_results = get_latest_metrics_records(type="results")
+        df_metrics = get_latest_metrics_records(type="metrics")
 
         if df_results.empty and df_metrics.empty:
             return metric_list
 
-        def _build_metric_objects() -> (
+        def build_metric_objects() -> (
             list[
                 Union[
                     mm_schemas.ApplicationResultRecord,
@@ -1000,7 +1000,7 @@ class TDEngineConnector(TSDBConnector):
 
             return metric_objects
 
-        return _build_metric_objects()
+        return build_metric_objects()
 
     def get_metrics_metadata(
         self,

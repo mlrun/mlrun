@@ -4976,10 +4976,11 @@ class MlrunProject(ModelObj):
         include_latest_metrics: bool = False,
     ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
         """Get a monitoring function summary for the specified project and function name.
-        :param name: Name of the monitoring function to retrieve the summary for.
-        :param start: Start time for filtering the results (optional).
-        :param end: End time for filtering the results (optional).
+        :param name:                   Name of the monitoring function to retrieve the summary for.
+        :param start:                  Start time for filtering the results (optional).
+        :param end:                    End time for filtering the results (optional).
         :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
+
         :return: A FunctionSummary object containing information about the monitoring function.
         """
         if start is not None and end is not None:

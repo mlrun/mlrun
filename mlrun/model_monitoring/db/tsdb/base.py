@@ -368,7 +368,7 @@ class TSDBConnector(ABC):
         """
         Count the number of processed model endpoints within a given time range for specific applications.
         :param start:              The start time of the query. Last 24 hours is used by default.
-        :param end:                The end time of the query. Now is used by default.
+        :param end:                The end time of the query. The current time is used by default.
         :param application_names:  A list of application names to filter the results by. If not provided, all
                                    applications are included.
         :return:                   The count of processed model endpoints.
@@ -386,7 +386,7 @@ class TSDBConnector(ABC):
         """
         Calculate the latest metrics and results across applications.
         :param start:              The start time of the query. Last 24 hours is used by default.
-        :param end:                The end time of the query. Now is used by default.
+        :param end:                The end time of the query. The current time is used by default.
         :param application_names:  A list of application names to filter the results by. If not provided, all
                                    applications are included.
         :return:                   A list containing the latest metrics and results for each application.

@@ -857,13 +857,15 @@ class MonitoringDeployment:
     ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
         """
         Retrieve a single model monitoring function summary by its name.
-        :param name:  The name of the model monitoring function to retrieve.
-        :param start: The start time of the statistics of the monitoring application. If not set, the default is
-                      24 hours ago.
+        :param name:                   The name of the model monitoring function to retrieve.
+        :param start:                  The start time of the statistics of the monitoring application. If not set,
+                                       the default is 24 hours ago.
+        :param end:                    The end time of the statistics of the monitoring application. If not set,
+                                       the default is now.
         :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
-        :param end:   The end time of the statistics of the monitoring application. If not set, the default is now.
 
-        :return:     A FunctionSummary object representing the model monitoring function.
+
+        :return: A FunctionSummary object representing the model monitoring function.
         """
 
         now = mlrun.utils.datetime_now()

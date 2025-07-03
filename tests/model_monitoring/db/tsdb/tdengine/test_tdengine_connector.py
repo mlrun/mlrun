@@ -156,6 +156,10 @@ def test_write_application_event(
     assert first_metric.status == 0
     assert first_metric.value == 123
 
+    second_metric = latest_metrics[1]
+    assert second_metric.status == 2
+    assert second_metric.value == 123
+
     # now let's write another result with different app and result_status
     data_v3 = data.copy()
     data_v3["application_name"] = "another_app"

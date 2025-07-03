@@ -733,7 +733,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             "application_name",
         }, "The result keys are not as expected"
 
-        assert first_metric["name"] == "general_drift"
+        assert first_metric["result_name"] == "general_drift"
         assert first_metric["value"] == 1
 
         second_metric = hist_function_summary.stats["metrics"][1]

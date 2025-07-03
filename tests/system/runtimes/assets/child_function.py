@@ -13,6 +13,10 @@
 # limitations under the License.
 
 
+def inc(x):
+    return int(x) + 1
+
+
 class Identity:
     def do(self, x):
         return x

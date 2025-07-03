@@ -15,7 +15,6 @@
 import importlib
 import os
 import re
-from collections.abc import Mapping, Sequence
 from typing import Any, Optional, Union
 from urllib.parse import parse_qs, urlparse
 
@@ -28,6 +27,7 @@ import mlrun.utils
 _DEFAULT_DRIVER_FOR_DIALECT: dict[str, str] = {
     mlrun.common.db.dialects.Dialects.MYSQL: "pymysql",
     mlrun.common.db.dialects.Dialects.POSTGRESQL: "psycopg2",
+    mlrun.common.db.dialects.Dialects.SQLITE: "sqlite3",
 }
 _ALLOWED_DRIVERS: set[str] = set(_DEFAULT_DRIVER_FOR_DIALECT.values())
 
@@ -36,7 +36,7 @@ class ParsedDsn:
     _IDENTIFIER_REGEX = re.compile(r"[A-Za-z][A-Za-z0-9_]*")  # driver
     _HOST_REGEX = re.compile(r"[A-Za-z0-9.\-]+")  # host
     _PATH_REGEX = re.compile(r"[A-Za-z0-9_\-./]+")  # sqlite path
-    _DBNAME_REGEX = re.compile(r"[A-Za-z0-9_\-$]+")  # db-name  ✱
+    _DBNAME_REGEX = re.compile(r"[A-Za-z0-9_\-$]+")  # db-name
 
     def __init__(self, dsn: str) -> None:
         self._dsn = dsn
@@ -57,7 +57,10 @@ class ParsedDsn:
             self.username = self._parsed.username
             self.password = self._parsed.password
             self.host = self._parsed.hostname
-            self.port = self._parsed.port
+            try:
+                self.port = self._parsed.port
+            except ValueError:
+                self.port = 0
             self.database = self._parsed.path.lstrip("/") or None
 
         # Query configurations
@@ -97,9 +100,9 @@ class ParsedDsn:
             return False
         if not self.username:
             return False
-        if self.host and not self._HOST_REGEX.fullmatch(self.host):
+        if not self.host or not self._HOST_REGEX.fullmatch(self.host):
             return False
-        if self.port is not None and not (1 <= self.port <= 65535):
+        if self.port is not None or not 1 <= self.port <= 65535:
             return False
 
         return True
@@ -245,7 +248,7 @@ class DBUtil:
     def _apply_configurations(
         self,
         connection: Any,
-        config_items: Union[Sequence[str], Mapping[str, str]],
+        config_items: Union[list[str], dict[str, str]],
     ) -> None:
         mlrun.utils.logger.debug("Applying configurations", configs=config_items)
 
@@ -274,7 +277,7 @@ class UtilMySQL(DBUtil):
     def _apply_configurations(
         self,
         connection: Any,
-        config_items: Sequence[str],
+        config_items: list[str],
     ) -> None:
         modes_csv = ",".join(
             item.strip() for item in config_items if item and item.strip()
@@ -320,7 +323,7 @@ class UtilPostgres(DBUtil):
         Accepts either a list of "name=value" strings or a dict{name: value},
         validates each GUC, issues ALTER SYSTEM, and reloads.
         """
-        if isinstance(config_items, Mapping):
+        if isinstance(config_items, dict):
             setting_pairs = [
                 (key.strip(), str(val).strip())
                 for key, val in config_items.items()

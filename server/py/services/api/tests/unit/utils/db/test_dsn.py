@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Optional
+
 import pytest
 
 import framework.utils.db.utils
@@ -71,10 +73,55 @@ import framework.utils.db.utils
                 "database": None,
             },
         ),
+        (
+            "sqlite:///:memory:",
+            {
+                "username": None,
+                "password": None,
+                "host": None,
+                "port": None,
+                "database": None,
+            },
+        ),
+        (
+            "sqlite:////absolute/path/to/my.db",
+            {
+                "username": None,
+                "password": None,
+                "host": None,
+                "port": None,
+                "database": None,
+            },
+        ),
+        (
+            "mysql+pymysql://root:pw@db_host:3306/mlrun",
+            {
+                "username": "root",
+                "password": "pw",
+                "host": "db_host",
+                "port": 3306,
+                "database": "mlrun",
+            },
+        ),
+        (
+            "mysql://root:pw@localhost:3306/mlrun",
+            {
+                "username": "root",
+                "password": "pw",
+                "host": "localhost",
+                "port": 3306,
+                "database": "mlrun",
+            },
+        ),
+        ("mysql+pymysql://root:pw@localhost:70000/mlrun", None),
+        ("oracle://root:pw@localhost:1521/xe", None),
+        ("mysql+pymysql://root:pw@:3306/mlrun", None),
     ],
 )
 def test_get_dsn_data(
-    http_dsn: str, expected_output: dict, monkeypatch: pytest.MonkeyPatch
+    http_dsn: str,
+    expected_output: Optional[dict],
+    monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setenv("MLRUN_HTTPDB__DSN", http_dsn)
     parsed = framework.utils.db.utils.DBUtil.get_parsed_dsn()

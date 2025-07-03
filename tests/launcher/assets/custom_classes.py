@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.serving import Model
 
-
-class DummyModel(Model):
-    def predict(self, body):
-        body["extra"] = 123
-        return body
+class SepalLengthIncreaser:
+    def do(self, event):
+        event_is_list = isinstance(event, list)
+        events = event if event_is_list else [event]
+        for event in events:
+            event["sepal_length"] += 1
+        return events if event_is_list else events[0]

@@ -82,6 +82,7 @@ class BaseLauncher(abc.ABC):
         runtime: "mlrun.runtimes.base.BaseRuntime",
         project_name: Optional[str] = "",
         full: bool = True,
+        client_version: str = "",
     ):
         pass
 

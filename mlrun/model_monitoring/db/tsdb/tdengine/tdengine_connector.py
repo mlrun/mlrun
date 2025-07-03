@@ -898,7 +898,7 @@ class TDEngineConnector(TSDBConnector):
             )
 
         def get_latest_metrics_records(
-            type: Literal["metrics", "results"],
+            record_type: Literal["metrics", "results"],
         ) -> pd.DataFrame:
             columns = [
                 mm_schemas.WriterEvent.END_INFER_TIME,
@@ -930,13 +930,14 @@ class TDEngineConnector(TSDBConnector):
                 columns=columns,
                 filter_query=filter_query,
                 timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
-                group_by=columns[1:],  # without timestamp column
+                # Aggregate per application/metric pair regardless of timestamp
+                group_by=columns[1:],
                 preform_agg_columns=[agg_column],
                 agg_funcs=["last"],
             )
 
-        df_results = get_latest_metrics_records(type="results")
-        df_metrics = get_latest_metrics_records(type="metrics")
+        df_results = get_latest_metrics_records(record_type="results")
+        df_metrics = get_latest_metrics_records(record_type="metrics")
 
         if df_results.empty and df_metrics.empty:
             return metric_list

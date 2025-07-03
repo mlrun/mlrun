@@ -395,14 +395,12 @@ class TSDBConnector(ABC):
                                        {
                                            "type": "metric",
                                            "time": "2025-06-29 13:36:37 +00:00",
-                                           "application_name": "histogram-data-drift",
                                            "metric_name": "hellinger_mean",
                                            "value": 0.123456,
                                        },
                                         {
                                              "type": "result",
                                              "time": "2025-06-29 13:36:37 +00:00",
-                                             "application_name": "histogram-data-drift",
                                              "result_name": "drift_status",
                                              "kind": "2",
                                              "status": 0,

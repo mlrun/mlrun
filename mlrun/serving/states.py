@@ -532,7 +532,7 @@ class BaseStep(ModelObj):
 
         step_shared_model_endpoints_names = [
             step.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
-            .get(name, ["", {}])[1]
+            .get(name, ["", {}])[schemas.ModelsData.MODEL_PARAMETERS.value]
             .get("shared_runnable_name")
             for name in step_model_endpoints_names
             if step.class_args.get(

@@ -102,7 +102,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         code_path = str(self.assets_path / "function_with_model.py")
         child_code_path = str(self.assets_path / "child_function.py")
         self._logger.debug("Creating nuclio function")
-        image = "artifactory.iguazeng.com:10557/roys/mlrun:1.10.0"
+        image = "mlrun/mlrun"
         function = mlrun.code_to_function(
             name="function_with_model",
             kind="serving",

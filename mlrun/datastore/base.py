@@ -212,7 +212,7 @@ class DataStore(BaseRemoteClient):
                     kwargs,
                 )
                 try:
-                    return df_module.read_parquet(*args, **kwargs)
+                    return df_module.read_parquet(*args, partitioning=None, **kwargs)
                 except pyarrow.lib.ArrowInvalid as ex:
                     if not str(ex).startswith(
                         "Cannot compare timestamp with timezone to timestamp without timezone"
@@ -238,9 +238,9 @@ class DataStore(BaseRemoteClient):
                         additional_filters,
                         kwargs,
                     )
-                    return df_module.read_parquet(*args, **kwargs)
+                    return df_module.read_parquet(*args, partitioning=None, **kwargs)
             else:
-                return df_module.read_parquet(*args, **kwargs)
+                return df_module.read_parquet(*args, partitioning=None, **kwargs)
 
         return reader
 

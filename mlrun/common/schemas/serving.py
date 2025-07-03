@@ -26,6 +26,7 @@ class DeployResponse(BaseModel):
 
 class ModelRunnerStepData(StrEnum):
     MODELS = "models"
+    MODEL_TO_EXECUTION_MECHANISM = "execution_mechanism_by_model_name"
     MONITORING_DATA = "monitoring_data"
 
 

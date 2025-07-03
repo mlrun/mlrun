@@ -1233,8 +1233,8 @@ def load_and_run_workflow(
     context.logger.info(
         "Associating workflow-runner with workflow ID", run_id=run.run_id
     )
-    context.set_label("workflow-id", run.run_id)
-    context.store_run()
+    context.set_label(mlrun_constants.MLRunInternalLabels.workflow_id, run.run_id)
+    context.update_run()
 
     context.log_result(key="workflow_id", value=run.run_id)
     context.log_result(key="engine", value=run._engine.engine, commit=True)

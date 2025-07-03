@@ -25,6 +25,7 @@ import datetime
 import sqlalchemy as sa
 from alembic import op
 
+import framework.db.sqldb.sql_types
 import framework.utils.db.sql_types
 
 # revision identifiers, used by Alembic.
@@ -42,7 +43,7 @@ def upgrade():
             "name",
             sa.String(
                 length=255,
-                collation=framework.utils.db.sql_types.SQLTypesUtil.collation(),
+                collation=framework.db.sqldb.sql_types.SQLTypesUtil.collation(),
             ),
             default="no-name",
         ),

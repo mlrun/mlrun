@@ -8,9 +8,9 @@ absl-py==1.4.0 ; python_full_version < '3.11' \
     #   kfp
     #   tensorboard
     #   tensorflow
-absl-py==2.3.0 ; python_full_version >= '3.11' \
-    --hash=sha256:9824a48b654a306168f63e0d97714665f8490b8d89ec7bf2efc24bf67cf579b3 \
-    --hash=sha256:d96fda5c884f1b22178852f30ffa85766d50b99e00775ea626c23304f582fc4f
+absl-py==2.3.1 ; python_full_version >= '3.11' \
+    --hash=sha256:a97820526f7fbfd2ec1bce83f3f25e3a14840dac0d8e02a0b71cd75db3f77fc9 \
+    --hash=sha256:eeecf07f0c2a93ace0772c92e596ace6d3d3996c042b2128459aaae2a76de11d
     # via
     #   keras
     #   tensorboard
@@ -254,9 +254,9 @@ avro==1.12.0 \
     # via
     #   -r dev-requirements.txt
     #   -r extras-requirements.txt
-azure-core==1.34.0 \
-    --hash=sha256:0615d3b756beccdb6624d1c0ae97284f38b78fb59a2a9839bf927c66fbbdddd6 \
-    --hash=sha256:bdb544989f246a0ad1c85d72eeb45f2f835afdcbc5b45e43f0dbde7461c81ece
+azure-core==1.35.0 \
+    --hash=sha256:8db78c72868a58f3de8991eb4d22c4d368fae226dac1002998d6c50437e7dad1 \
+    --hash=sha256:c0be528489485e9ede59b6971eb63c1eaacf83ef53001bfe3904e475e972be5c
     # via
     #   -r extras-requirements.txt
     #   adlfs
@@ -1804,9 +1804,9 @@ humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
     # via -r dockerfiles/mlrun-api/requirements.txt
-hypothesis==6.135.20 \
-    --hash=sha256:77c21f888c458ddcab23708c240c5d1fa9e20f4b52f7c136c9d0e9a79c5c1337 \
-    --hash=sha256:cef91cf893337b90a4df427ff77674f38bb5bc6c5e1e3d3db1764faee77df7a5
+hypothesis==6.135.24 \
+    --hash=sha256:88ed21fbfa481ca9851a9080841b3caca14cd4ed51a165dfae8006325775ee72 \
+    --hash=sha256:e301aeb2691ec0a1f62bfc405eaa966055d603e328cd854c1ed59e1728e35ab6
     # via -r dev-requirements.txt
 idna==3.10 \
     --hash=sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9 \
@@ -2585,13 +2585,13 @@ mlflow-skinny==2.22.1 \
     --hash=sha256:3b3f9a17a4b9e60c7683b3458909aff15f3c6f5dc898a6cec13a6efb939e7e79 \
     --hash=sha256:d9d4ae77288a3f216aed3c4e6607607baadcb2fd7d299adee6227358f662048d
     # via mlflow
-mlrun-pipelines-kfp-common==0.5.6 \
-    --hash=sha256:498ca25755b100a76d62a031bb6115f2c5d68c0d1da9e0545a7469225db0e510 \
-    --hash=sha256:82ef6114b66f34913c36c0e7c37e87f0e7761ef18fb03d48dcd6a0860da30b7b
+mlrun-pipelines-kfp-common==0.5.8 \
+    --hash=sha256:62d90ca5e3df06b4af9e04c65c9fb159d10c79373b4749475e0d16052c4a2666 \
+    --hash=sha256:94a12e03f48ab216278ca752d8f6914f2c549044981eba3ed3e8b3b0705c095c
     # via -r requirements.txt
-mlrun-pipelines-kfp-v1-8==0.5.4 \
-    --hash=sha256:3db2fef8da37e5253e9c099f4e3060ce57301256427b56246e9b93d4db505685 \
-    --hash=sha256:a17a9f365418e3f802854458d14939f9d05f959edb7ef0eadea2743aa216170d
+mlrun-pipelines-kfp-v1-8==0.5.7 \
+    --hash=sha256:0db96ad5bb13672d5156823181c3fb0a5208f2fc5af862d65a34707108447150 \
+    --hash=sha256:9aefc2fcbbfbd141ab6ae22fbb91d0b59a5da07caf683ad7daa9379391ac4bf6
     # via
     #   -r dockerfiles/mlrun-api/requirements.txt
     #   -r dockerfiles/test/requirements.txt

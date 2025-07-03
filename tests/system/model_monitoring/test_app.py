@@ -730,7 +730,6 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             "time",
             "type",
             "value",
-            "application_name",
         }, "The result keys are not as expected"
 
         assert first_metric["result_name"] == "general_drift"
@@ -744,7 +743,6 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             "time",
             "type",
             "value",
-            "application_name",
         }, "The metric keys are not as expected"
 
     @pytest.mark.parametrize("with_training_set", [True, False])

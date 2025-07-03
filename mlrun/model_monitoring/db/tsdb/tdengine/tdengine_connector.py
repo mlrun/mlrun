@@ -965,9 +965,6 @@ class TDEngineConnector(TSDBConnector):
                             time=datetime.fromisoformat(
                                 row[mm_schemas.WriterEvent.END_INFER_TIME]
                             ),
-                            application_name=row[
-                                mm_schemas.WriterEvent.APPLICATION_NAME
-                            ],
                             result_name=row[mm_schemas.ResultData.RESULT_NAME],
                             kind=row[mm_schemas.ResultData.RESULT_KIND],
                             status=row[mm_schemas.ResultData.RESULT_STATUS],
@@ -988,9 +985,6 @@ class TDEngineConnector(TSDBConnector):
                             time=datetime.fromisoformat(
                                 row[mm_schemas.WriterEvent.END_INFER_TIME]
                             ),
-                            application_name=row[
-                                mm_schemas.WriterEvent.APPLICATION_NAME
-                            ],
                             metric_name=row[mm_schemas.MetricData.METRIC_NAME],
                             value=row[mm_schemas.MetricData.METRIC_VALUE],
                         )

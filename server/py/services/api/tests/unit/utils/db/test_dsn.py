@@ -30,6 +30,16 @@ import framework.utils.db.utils
             },
         ),
         (
+            "mysql+pymysql://root:pass@@localhost:3307/mlrun",
+            {
+                "username": "root",
+                "password": "pass@",
+                "host": "localhost",
+                "port": 3307,
+                "database": "mlrun",
+            },
+        ),
+        (
             "mysql+pymysql://root@192.168.228.104:3306/mlrun",
             {
                 "username": "root",

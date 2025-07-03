@@ -138,28 +138,15 @@ def _migrate_existing_data(
     perform_migrations_if_needed: bool = False,
 ):
     alembic_util = _create_alembic_util()
-    if engine.dialect in (
-        mlrun.common.db.dialects.Dialects.MYSQL,
-        mlrun.common.db.dialects.Dialects.POSTGRESQL,
-    ):
-        db_util = DBUtil()
-        db_util.wait_for_db_liveness()
-        if engine.name == mlrun.common.db.dialects.Dialects.MYSQL:
-            db_util.set_configurations(
-                config_items=mlrun.mlconf.httpdb.db.mysql_engine.modes,
-            )
+    db_util = DBUtil()
+    db_util.wait_for_db_liveness()
+    db_util.set_configurations()
+    if engine.name != mlrun.common.db.dialects.Dialects.SQLITE:
         (
             is_migration_needed,
             is_backup_needed,
         ) = _resolve_needed_operations(alembic_util)
     else:
-        dsn = DBUtil.get_dsn()
-        if dsn.startswith(mlrun.common.db.dialects.Dialects.SQLITE):
-            mlrun.utils.logger.debug("SQLite DB is used, liveness check not needed")
-        else:
-            mlrun.utils.logger.warn(
-                f"Invalid mysql dsn: {dsn}, assuming live and skipping liveness verification"
-            )
         # ON SQLite, we don't have schema migrations, so we don't need to check for them
         is_migration_needed = False
         is_backup_needed = False

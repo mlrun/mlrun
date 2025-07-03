@@ -25,17 +25,20 @@ import mlrun.common.db.dialects
 import mlrun.errors
 import mlrun.utils
 
+from services.api.utils.db.alembic import AlembicUtil
+
 _DEFAULT_DRIVER_FOR_DIALECT: dict[str, str] = {
     mlrun.common.db.dialects.Dialects.MYSQL: "pymysql",
     mlrun.common.db.dialects.Dialects.POSTGRESQL: "psycopg2",
 }
 _ALLOWED_DRIVERS: set[str] = set(_DEFAULT_DRIVER_FOR_DIALECT.values())
-_driver_cache: dict[str, Any] = {}
 
 
 class ParsedDsn:
-    _IDENTIFIER_REGEX = re.compile(r"[a-zA-Z][a-zA-Z0-9_]*")
-    _PATH_REGEX = re.compile(r"[A-Za-z0-9_\-\.\/]+")
+    _IDENTIFIER_REGEX = re.compile(r"[A-Za-z][A-Za-z0-9_]*")  # driver
+    _HOST_REGEX = re.compile(r"[A-Za-z0-9.\-]+")  # host
+    _PATH_REGEX = re.compile(r"[A-Za-z0-9_\-./]+")  # sqlite path
+    _DBNAME_REGEX = re.compile(r"[A-Za-z0-9_\-$]+")  # db-name  ✱
 
     def __init__(self, dsn: str) -> None:
         self._dsn = dsn
@@ -71,39 +74,36 @@ class ParsedDsn:
 
     def is_valid(self) -> bool:
         """
-        Validates the DSN by:
-        1. Ensuring dialect is supported
-        2. Checking driver identifier format
-        3. For SQLite: always valid here
-        4. For others: validating database path/name and other components
+        DSN validator
+
+        1. Dialect must be known.
+        2. Driver (if present) must be a valid identifier.
+        3. SQLite DSNs: validate the optional path and return early.
+        4. Other DBs: validate database name, user/host/port.
         """
-        if (
-            not self.dialect
-            or self.dialect not in mlrun.common.db.dialects.Dialects.all()
-        ):
+        if self.dialect not in mlrun.common.db.dialects.Dialects.all():
             return False
+
         if self.driver and not self._IDENTIFIER_REGEX.fullmatch(self.driver):
             return False
-        raw_path = self._parsed.path.lstrip("/")
+
         if self.dialect == mlrun.common.db.dialects.Dialects.SQLITE:
-            # SQLite DSNs: validate optional file path or :memory:
-            if not raw_path or raw_path == ":memory:":
-                return True
-        else:
-            if not self._PATH_REGEX.fullmatch(raw_path):
-                return False
-        if self.dialect == mlrun.common.db.dialects.Dialects.SQLITE:
-            return True
-        # Database validation for non-SQLite
-        if not (self.database and self._PATH_REGEX.fullmatch(self.database)):
+            raw_path = self._parsed.path.lstrip("/")
+            return (
+                not raw_path
+                or raw_path == ":memory:"
+                or self._PATH_REGEX.fullmatch(raw_path)
+            )
+
+        if self.database is None or not self._DBNAME_REGEX.fullmatch(self.database):
             return False
-        # Non-SQLite: username, host, optional port
         if not self.username:
             return False
-        if not (self.host and self._IDENTIFIER_REGEX.fullmatch(self.host)):
+        if self.host and not self._HOST_REGEX.fullmatch(self.host):
             return False
         if self.port is not None and not (1 <= self.port <= 65535):
             return False
+
         return True
 
     def as_dict(self) -> dict[str, Any]:
@@ -140,6 +140,11 @@ class ParsedDsn:
 class DBUtil:
     _DIALECT = None
     _DSN_ENV = "MLRUN_HTTPDB__DSN"
+    _DRIVER_CACHE: dict[str, Any] = {}
+    _DEFAULT_DB_CONFIGURATIONS = None
+
+    def __init__(self, alembic_util: AlembicUtil):
+        self._alembic_util = alembic_util
 
     def wait_for_db_liveness(
         self,
@@ -166,18 +171,20 @@ class DBUtil:
 
     def set_configurations(
         self,
-        config_items: Union[list[str], dict[str, Any]],
+        config_items: Optional[Union[list[str], dict[str, Any]]] = None,
     ) -> None:
+        config_items = config_items or self._DEFAULT_DB_CONFIGURATIONS
         if not config_items:
             mlrun.utils.logger.debug(
-                "No configurations specified – skipping", configs=config_items
+                "No configurations specified – skipping",
+                configs=config_items,
             )
             return
-        conn = self._get_driver().connect(**self._connection_kwargs())
+        connection = self._get_connection()
         try:
-            self._apply_configurations(conn, config_items)
+            self._apply_configurations(connection, config_items)
         finally:
-            conn.close()
+            connection.close()
 
     def get_current_configurations(self) -> dict[str, bool]:
         raise NotImplementedError()
@@ -190,7 +197,7 @@ class DBUtil:
         return self._get_driver().connect(**self._connection_kwargs())
 
     def _connection_kwargs(self) -> dict[str, Any]:
-        parsed_dsn = ParsedDsn(self.get_dsn())
+        parsed_dsn = self.get_parsed_dsn()
         settings = {
             "host": parsed_dsn.host,
             "user": parsed_dsn.username,
@@ -202,7 +209,7 @@ class DBUtil:
         return {key: value for key, value in settings.items() if value is not None}
 
     def _get_driver(self):
-        parser = ParsedDsn(self.get_dsn())
+        parser = self.get_parsed_dsn()
         driver_name = parser.driver or _DEFAULT_DRIVER_FOR_DIALECT[parser.dialect]
 
         if driver_name not in _ALLOWED_DRIVERS:
@@ -210,16 +217,16 @@ class DBUtil:
                 f"Driver '{driver_name}' is not in the allowed list: {sorted(_ALLOWED_DRIVERS)}"
             )
 
-        if driver_name not in _driver_cache:
+        if driver_name not in self._DRIVER_CACHE:
             try:
-                _driver_cache[driver_name] = importlib.import_module(driver_name)
+                self._DRIVER_CACHE[driver_name] = importlib.import_module(driver_name)
             except ModuleNotFoundError as exc:
                 raise RuntimeError(
                     f"Driver '{driver_name}' required for dialect '{parser.dialect}' "
                     "is not installed.  Install it or adjust the DSN."
                 ) from exc
 
-        return _driver_cache[driver_name]
+        return self._DRIVER_CACHE[driver_name]
 
     @classmethod
     def _split_scheme(cls, dsn: str) -> tuple[str, Optional[str]]:
@@ -227,19 +234,18 @@ class DBUtil:
         parts = scheme.split("+", 1)
         return parts[0], parts[1] if len(parts) == 2 else None
 
-    def __new__(cls, *_, **__) -> "DBUtil":
+    def __new__(cls, *args, **kwargs) -> "DBUtil":
         if cls is DBUtil:
-            dsn_value = cls.get_dsn()
-            dialect = ParsedDsn(dsn_value).dialect
+            dialect = cls.get_parsed_dsn().dialect
             if dialect not in mlrun.common.db.dialects.Dialects.all():
                 raise ValueError(
-                    f"Unsupported or missing dialect in DSN: {dsn_value!r}"
+                    f"Unsupported or missing dialect in DSN: {cls.get_dsn()!r}"
                 )
             for subclass in cls.__subclasses__():
                 if subclass._DIALECT == dialect:
-                    return super().__new__(subclass)
+                    return super().__new__(subclass, *args, **kwargs)
             raise RuntimeError(f"No helper registered for dialect {dialect!r}")
-        return super().__new__(cls)
+        return super().__new__(cls, *args, **kwargs)
 
     def _apply_configurations(
         self,
@@ -251,13 +257,14 @@ class DBUtil:
 
 class UtilMySQL(DBUtil):
     _DIALECT = mlrun.common.db.dialects.Dialects.MYSQL
+    _DEFAULT_DB_CONFIGURATIONS = mlrun.mlconf.httpdb.db.mysql.modes
 
     def get_current_configurations(self) -> dict[str, bool]:
-        conn = self._get_connection()
+        connection = self._get_connection()
         try:
-            with conn.cursor() as cur:
-                cur.execute("SELECT @@GLOBAL.sql_mode;")
-                raw = cur.fetchone()[0] or ""
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT @@GLOBAL.sql_mode;")
+                raw = cursor.fetchone()[0] or ""
                 modes = [m.strip() for m in raw.split(",") if m.strip()]
                 return {mode: True for mode in modes}
         except Exception as exc:
@@ -267,7 +274,7 @@ class UtilMySQL(DBUtil):
             )
             raise
         finally:
-            conn.close()
+            connection.close()
 
     def _apply_configurations(
         self,
@@ -290,16 +297,16 @@ class UtilPostgres(DBUtil):
         return kw
 
     def get_current_configurations(self) -> dict[str, str]:
-        conn = self._get_connection()
+        connection = self._get_connection()
         try:
-            with conn.cursor() as cur:
-                cur.execute(
+            with connection.cursor() as cursor:
+                cursor.execute(
                     """
                     SELECT name, setting
                     FROM pg_settings
                         """
                 )
-                return {name: value for name, value in cur.fetchall()}
+                return {name: value for name, value in cursor.fetchall()}
         except Exception as exc:
             mlrun.utils.logger.exception(
                 "Failed to fetch current PostgreSQL configurations",
@@ -307,7 +314,7 @@ class UtilPostgres(DBUtil):
             )
             raise exc
         finally:
-            conn.close()
+            connection.close()
 
     def _apply_configurations(
         self,
@@ -342,21 +349,78 @@ class UtilPostgres(DBUtil):
             mlrun.utils.logger.debug("No valid settings after parsing – skipping")
             return
 
-        # Validate GUC names exist
+        # Validate Posgres Grand Unified Configuration names exist
         guc_names = [name for name, _ in setting_pairs]
         connection.autocommit = True
-        with connection.cursor() as cur:
-            cur.execute(
+        with connection.cursor() as cursor:
+            cursor.execute(
                 "SELECT name FROM pg_settings WHERE name = ANY(%s);", (guc_names,)
             )
-            existing = {row[0] for row in cur.fetchall()}
+            existing = {row[0] for row in cursor.fetchall()}
         unknown = [n for n in guc_names if n not in existing]
         if unknown:
             raise ValueError(f"Unknown PostgreSQL GUC(s): {', '.join(unknown)}")
 
-        with connection.cursor() as cur:
+        with connection.cursor() as cursor:
             for param_name, param_value in setting_pairs:
-                cur.execute(f'ALTER SYSTEM SET "{param_name}" = %s;', (param_value,))
+                cursor.execute(f'ALTER SYSTEM SET "{param_name}" = %s;', (param_value,))
             connection.commit()
-        with connection.cursor() as cur:
-            cur.execute("SELECT pg_reload_conf();")
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_reload_conf();")
+
+
+class UtilSQLite(DBUtil):
+    _DIALECT = mlrun.common.db.dialects.Dialects.SQLITE
+
+    def _connection_kwargs(self) -> dict[str, Any]:
+        parsed = self.get_parsed_dsn()
+        db_path = parsed._parsed.path.lstrip("/") or ":memory:"
+        return {
+            "database": db_path,
+        }
+
+    def wait_for_db_liveness(self, *_, **__) -> None:  # noqa: D401
+        mlrun.utils.logger.debug("SQLite – skipping liveness check")
+
+    def get_current_configurations(self) -> dict[str, str]:
+        connection = self._get_connection()
+        cursor = connection.cursor()
+
+        cursor.execute("PRAGMA pragma_list;")
+        pragma_names = [row[0] for row in cursor.fetchall()]
+
+        configs: dict[str, str] = {}
+        for name in pragma_names:
+            try:
+                cursor.execute(f"PRAGMA {name};")
+                val = cursor.fetchone()
+                if val is not None:
+                    configs[name] = val[0]
+            except Exception:
+                continue
+
+        cursor.close()
+        connection.close()
+        return configs
+
+    def _apply_configurations(
+        self,
+        connection: Any,
+        config_items: Union[list[str], dict[str, str]],
+    ) -> None:
+        if isinstance(config_items, dict):
+            items = [f"{k}={v}" for k, v in config_items.items()]
+        else:
+            items = list(config_items)
+
+        if not items:
+            mlrun.utils.logger.debug("No SQLite PRAGMAs to apply – skipping")
+            return
+
+        with connection.cursor() as cursor:
+            for item in items:
+                name, _, value = item.partition("=")
+                if not (name and value):
+                    raise ValueError(f"Invalid PRAGMA '{item}', expected key=value")
+                cursor.execute(f"PRAGMA {name} = {value};")
+        connection.commit()

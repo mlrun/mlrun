@@ -380,27 +380,30 @@ class TSDBConnector(ABC):
         start: Optional[Union[datetime, str]] = None,
         end: Optional[Union[datetime, str]] = None,
         application_names: Optional[Union[str, list[str]]] = None,
-    ) -> list[dict]:
+    ) -> list[
+        Union[mm_schemas.ApplicationResultRecord, mm_schemas.ApplicationMetricRecord]
+    ]:
         """
         Calculate the latest metrics and results across applications.
         :param start:              The start time of the query. Last 24 hours is used by default.
         :param end:                The end time of the query. Now is used by default.
         :param application_names:  A list of application names to filter the results by. If not provided, all
                                    applications are included.
-        :return:                   A list of dictionaries containing the latest metrics and results for each
-                                   application.
+        :return:                   A list containing the latest metrics and results for each application.
                                    example::
                                    [
                                        {
                                            "type": "metric",
                                            "time": "2025-06-29 13:36:37 +00:00",
-                                           "name": "hellinger_mean",
-                                            "value": 0.123456,
+                                           "application_name": "histogram-data-drift",
+                                           "metric_name": "hellinger_mean",
+                                           "value": 0.123456,
                                        },
                                         {
                                              "type": "result",
                                              "time": "2025-06-29 13:36:37 +00:00",
-                                             "name": "drift_status",
+                                             "application_name": "histogram-data-drift",
+                                             "result_name": "drift_status",
                                              "kind": "2",
                                              "status": 0,
                                              "value": 15.4,

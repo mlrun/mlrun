@@ -725,11 +725,12 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         # verify the expected keys of a result
         assert first_metric.keys() == {
             "kind",
-            "name",
+            "result_name",
             "status",
             "time",
             "type",
             "value",
+            "application_name",
         }, "The result keys are not as expected"
 
         assert first_metric["name"] == "general_drift"
@@ -739,10 +740,11 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         assert second_metric["type"] == "metric"
         # verify the expected keys of a metric
         assert second_metric.keys() == {
-            "name",
+            "metric_name",
             "time",
             "type",
             "value",
+            "application_name",
         }, "The metric keys are not as expected"
 
     @pytest.mark.parametrize("with_training_set", [True, False])

@@ -331,7 +331,9 @@ def test_tracked_model_runner(rundb_mock, enable_tracking: bool):
     with patch("mlrun.get_run_db", return_value=rundb_mock):
         function = mlrun.new_function("tests-1", kind="serving")
         graph = function.set_topology("flow", engine="async")
-        model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+        model_runner_step = ModelRunnerStep(
+            name="my_model_runner", raise_exception=True
+        )
         model_runner_step.add_model(
             model_class="MyModel",
             execution_mechanism="naive",
@@ -351,7 +353,9 @@ def test_tracked_model_runner(rundb_mock, enable_tracking: bool):
 
         dummy_stream = server.context.stream.output_stream
         if enable_tracking:
-            assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+            assert (
+                len(dummy_stream.event_list) == 1
+            ), "expected stream to get one message"
             assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
             assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
         else:
@@ -364,7 +368,9 @@ def test_tracked_model_runner_dict(rundb_mock):
     with patch("mlrun.get_run_db", return_value=rundb_mock):
         function = mlrun.new_function("tests-1", kind="serving")
         graph = function.set_topology("flow", engine="async")
-        model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+        model_runner_step = ModelRunnerStep(
+            name="my_model_runner", raise_exception=True
+        )
         model_runner_step.add_model(
             model_class="DictOutputModel",
             execution_mechanism="naive",
@@ -383,8 +389,12 @@ def test_tracked_model_runner_dict(rundb_mock):
 
         dummy_stream = server.context.stream.output_stream
         assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
-        assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [[2, 3, 4, 5]]
-        assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [[1, 2, 3, 4]]
+        assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [
+            [2, 3, 4, 5]
+        ]
+        assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [
+            [1, 2, 3, 4]
+        ]
 
 
 def test_tracked_model_runner_multiple_steps(rundb_mock):
@@ -481,7 +491,9 @@ def test_tracked_model_runner_multiple_models(rundb_mock):
 
         dummy_stream = server.context.stream.output_stream
 
-        assert len(dummy_stream.event_list) == 8, "expected stream to get eight messages"
+        assert (
+            len(dummy_stream.event_list) == 8
+        ), "expected stream to get eight messages"
         output_models = [event["model"] for event in dummy_stream.event_list]
         models.sort()
         output_models.sort()
@@ -493,7 +505,9 @@ def test_set_untracked_with_model_runner(rundb_mock):
     with patch("mlrun.get_run_db", return_value=rundb_mock):
         function = mlrun.new_function("tests-1", kind="serving")
         graph = function.set_topology("flow", engine="async")
-        model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+        model_runner_step = ModelRunnerStep(
+            name="my_model_runner", raise_exception=True
+        )
         model_runner_step.add_model(
             model_class="MyModel",
             execution_mechanism="naive",
@@ -529,7 +543,9 @@ def test_tracked_multiple_to_mock_with_model_runner(rundb_mock):
         function = mlrun.new_function("tests-1", kind="serving")
         graph = function.set_topology("flow", engine="async")
         model_runner_step = ModelRunnerStep(
-            name="my_model_runner", raise_exception=True, model_selector="MyModelSelector"
+            name="my_model_runner",
+            raise_exception=True,
+            model_selector="MyModelSelector",
         )
         model_runner_step.add_model(
             model_class="DictOutputModel",
@@ -624,7 +640,9 @@ def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
             name="shared-model",
             execution_mechanism="naive",
         )
-        model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+        model_runner_step = ModelRunnerStep(
+            name="my_model_runner", raise_exception=True
+        )
         model_runner_step.add_shared_model_proxy(
             endpoint_name="my_model",
             input_path="n",
@@ -646,14 +664,18 @@ def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
         server.wait_for_completion()
 
         assert "my_model" in res, "expected response to contain model name 'my_model'"
-        assert "my_model-2" in res, "expected response to contain model name 'my_model-2'"
+        assert (
+            "my_model-2" in res
+        ), "expected response to contain model name 'my_model-2'"
         assert (
             "shared-model" not in res
         ), "expected response to not contain model name 'shared_model'"
 
         dummy_stream = server.context.stream.output_stream
         if enable_tracking:
-            assert len(dummy_stream.event_list) == 2, "expected stream to get one message"
+            assert (
+                len(dummy_stream.event_list) == 2
+            ), "expected stream to get one message"
             assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
             assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
         else:

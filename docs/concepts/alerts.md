@@ -59,7 +59,7 @@ You can optionally specify the frequency of the alert using the criteria field, 
 If criteria is not specified, the default is `count=1` and `period=None`, in which case the alert triggers immediately upon the first matching event.
 You can configure Slack, Git, or webhook notifications for the alert.
 ``` {Admonition} Note on run identification
-Alerts track job runs by name (`run.metadata.name`), not by the unique run UID. The run name can either be set explicitly or automatically generated when a job is executed. 
+Alerts track the job runs by name (`run.metadata.name`), not by the unique run UID. The run name can either be set explicitly or automatically generated when a job is executed. 
 You can access the run name from the result of the `run_function` call, for example:
 ```python
 run = project.run_function("my-function", handler="handler", local=True)
@@ -71,7 +71,7 @@ For alerts on model endpoints, see [Creating a model monitoring alert](#creating
 
 This example illustrates creating an alert with a Slack notification for a job failure with defined criteria. 
 This example uses `run_id`. You can set it to the run’s name (`run.metadata.name`), which is assigned when you run a job function.
-The same run-name can be reused for multiple executions, especially in cases where functions are retried or triggered with a fixed name. In this example, the alert is triggered if 3 separate job runs with the same name fail within 10 minutes (even though each job run has a different internal UID).
+The same run-name could be reused for multiple executions, especially in cases where functions are retried or triggered with a fixed name. In this example, the alert is triggered if 3 separate job runs with the same name fail within 10 minutes (even though each job run has a different internal UID).
 
 ```python
 notification = mlrun.model.Notification(

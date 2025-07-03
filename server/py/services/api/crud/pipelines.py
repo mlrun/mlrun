@@ -415,7 +415,7 @@ class Pipelines(
         rerun_request = mlrun.common.schemas.RerunWorkflowRequest(
             run_name=run_name,
             run_id=run_id,
-            notifications=[],#TODO: will pass notifications from original runner in follow up PR,
+            notifications=[],  # TODO: will pass notifications from original runner in follow up PR,
             workflow_runner_node_selector=original_runner.spec.node_selector,
             original_workflow_id=original_runner.metadata.labels["workflow-id"],
         )

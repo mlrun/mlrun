@@ -570,10 +570,7 @@ def get_monitoring_schedules_endpoint_data(
     )
 
 
-def get_monitoring_schedules_chief_data(
-    *,
-    project: str,
-) -> "DataItem":
+def get_monitoring_schedules_chief_data(*, project: str) -> "DataItem":
     """
     Get the model monitoring schedules' data item of the project's model endpoint.
     """

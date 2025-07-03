@@ -20,6 +20,7 @@ from typing import Final, Optional
 
 import botocore.exceptions
 
+import mlrun
 import mlrun.common.schemas as schemas
 import mlrun.errors
 import mlrun.model_monitoring.helpers
@@ -32,6 +33,7 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
     ENCODING = "utf-8"
 
     def __init__(self):
+        # `self._item` is the persistent version of the monitoring schedules.
         self._item = self.get_data_item_object()
         if self._item:
             self._path = self._item.url
@@ -46,6 +48,13 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
     def get_data_item_object(self) -> mlrun.DataItem:
         pass
 
+    def _exists(self) -> bool:
+        """Return whether the file exists or not"""
+        return (
+            self._fs is None  # In-memory store
+            or self._fs.exists(self._path)
+        )
+
     def create(self) -> None:
         """Create a schedules file with initial content - an empty dictionary"""
         logger.debug("Creating model monitoring schedules file", path=self._item.url)
@@ -53,10 +62,7 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
 
     def delete(self) -> None:
         """Delete schedules file if it exists"""
-        if (
-            self._fs is None  # In-memory store
-            or self._fs.exists(self._path)
-        ):
+        if self._exists():
             logger.debug(
                 "Deleting model monitoring schedules file", path=self._item.url
             )
@@ -129,7 +135,6 @@ class ModelMonitoringSchedulesFileEndpoint(ModelMonitoringSchedulesFileBase):
         :param project:     The project name.
         :param endpoint_id: The endpoint ID.
         """
-        # `self._item` is the persistent version of the monitoring schedules.
         self._project = project
         self._endpoint_id = endpoint_id
         super().__init__()
@@ -216,14 +221,7 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
         return set(self._schedules.keys())
 
     def get_or_create(self) -> None:
-        try:
-            self._open()
-        except (
-            mlrun.errors.MLRunNotFoundError,
-            # Different errors are raised for S3 or local storage, see ML-8042
-            botocore.exceptions.ClientError,
-            FileNotFoundError,
-        ):
+        if not self._exists():
             self.create()
 
 

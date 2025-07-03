@@ -327,127 +327,80 @@ def _test_graph_structure(graph: RootFlowStep, tracked: bool):
 
 
 @pytest.mark.parametrize("enable_tracking", [True, False])
-def test_tracked_model_runner(enable_tracking: bool):
-    function = mlrun.new_function("tests-1", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
-    model_runner_step.add_model(
-        model_class="MyModel",
-        execution_mechanism="naive",
-        endpoint_name="my_model",
-        input_path="n",
-        result_path="n",
-        raise_error=False,
-        inc=1,
-    )
-    graph.to(model_runner_step).respond()
-    function.set_tracking(stream_args={"mock": True})
+def test_tracked_model_runner(rundb_mock, enable_tracking: bool):
+    with patch("mlrun.get_run_db", return_value=rundb_mock):
+        function = mlrun.new_function("tests-1", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+        model_runner_step.add_model(
+            model_class="MyModel",
+            execution_mechanism="naive",
+            endpoint_name="my_model",
+            input_path="n",
+            result_path="n",
+            raise_error=False,
+            inc=1,
+        )
+        graph.to(model_runner_step).respond()
+        function.set_tracking(stream_args={"mock": True})
 
-    function.set_tracking("dummy://", enable_tracking=enable_tracking)
-    server = function.to_mock_server()
-    server.test("/", {"n": 1})
-    server.wait_for_completion()
+        function.set_tracking("dummy://", enable_tracking=enable_tracking)
+        server = function.to_mock_server()
+        server.test("/", {"n": 1})
+        server.wait_for_completion()
 
-    dummy_stream = server.context.stream.output_stream
-    if enable_tracking:
+        dummy_stream = server.context.stream.output_stream
+        if enable_tracking:
+            assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+            assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
+            assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
+        else:
+            assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
+
+        _test_graph_structure(server.graph, enable_tracking)
+
+
+def test_tracked_model_runner_dict(rundb_mock):
+    with patch("mlrun.get_run_db", return_value=rundb_mock):
+        function = mlrun.new_function("tests-1", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+        model_runner_step.add_model(
+            model_class="DictOutputModel",
+            execution_mechanism="naive",
+            endpoint_name="dict_model",
+            input_path="inputs",
+            result_path="outputs",
+            outputs=["o1", "o2", "o3", "o4"],
+            raise_error=False,
+        )
+        graph.to(model_runner_step).respond()
+
+        function.set_tracking("dummy://", enable_tracking=True)
+        server = function.to_mock_server()
+        server.test("/", {"inputs": {"f1": 1, "f2": 2, "f3": 3, "f4": 4}})
+        server.wait_for_completion()
+
+        dummy_stream = server.context.stream.output_stream
         assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
-        assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
-        assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
-    else:
-        assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
-
-    _test_graph_structure(server.graph, enable_tracking)
+        assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [[2, 3, 4, 5]]
+        assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [[1, 2, 3, 4]]
 
 
-def test_tracked_model_runner_dict():
-    function = mlrun.new_function("tests-1", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
-    model_runner_step.add_model(
-        model_class="DictOutputModel",
-        execution_mechanism="naive",
-        endpoint_name="dict_model",
-        input_path="inputs",
-        result_path="outputs",
-        outputs=["o1", "o2", "o3", "o4"],
-        raise_error=False,
-    )
-    graph.to(model_runner_step).respond()
-
-    function.set_tracking("dummy://", enable_tracking=True)
-    server = function.to_mock_server()
-    server.test("/", {"inputs": {"f1": 1, "f2": 2, "f3": 3, "f4": 4}})
-    server.wait_for_completion()
-
-    dummy_stream = server.context.stream.output_stream
-    assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
-    assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [[2, 3, 4, 5]]
-    assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [[1, 2, 3, 4]]
-
-
-def test_tracked_model_runner_multiple_steps():
-    function = mlrun.new_function("tests-1", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    model_runner_step_0 = ModelRunnerStep(
-        name="my_model_runner_0", raise_exception=True
-    )
-    model_runner_step_1 = ModelRunnerStep(
-        name="my_model_runner_1", raise_exception=True
-    )
-    model_runner_step_0.add_model(
-        model_class="MyModel",
-        execution_mechanism="naive",
-        endpoint_name="my_model_0",
-        input_path="n",
-        result_path="n",
-        raise_error=False,
-        inc=1,
-    )
-    model_runner_step_1.add_model(
-        model_class="MyModel",
-        execution_mechanism="naive",
-        endpoint_name="my_model_1",
-        input_path="n",
-        result_path="n",
-        raise_error=False,
-        inc=2,
-    )
-    graph.to(model_runner_step_0).respond()
-    graph.to(model_runner_step_1)
-
-    function.set_tracking(
-        "dummy://",
-    )
-    server = function.to_mock_server()
-    server.test("/", {"n": 1})
-    server.wait_for_completion()
-
-    dummy_stream = server.context.stream.output_stream
-
-    assert len(dummy_stream.event_list) == 2, "expected stream to get two messages"
-    assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
-    assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
-    assert dummy_stream.event_list[1].get("resp", {}).get("outputs") == [3]
-    assert dummy_stream.event_list[1].get("request", {}).get("inputs") == [1]
-
-
-def test_tracked_model_runner_multiple_models():
-    function = mlrun.new_function("tests-1", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    model_runner_step_0 = ModelRunnerStep(
-        name="my_model_runner_0", raise_exception=True
-    )
-    model_runner_step_1 = ModelRunnerStep(
-        name="my_model_runner_1", raise_exception=True
-    )
-    models = []
-    for i in range(4):
-        model_name_0 = f"runner_0_my_model_{i}"
-        model_name_1 = f"runner_1_my_model_{i}"
+def test_tracked_model_runner_multiple_steps(rundb_mock):
+    with patch("mlrun.get_run_db", return_value=rundb_mock):
+        function = mlrun.new_function("tests-1", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step_0 = ModelRunnerStep(
+            name="my_model_runner_0", raise_exception=True
+        )
+        model_runner_step_1 = ModelRunnerStep(
+            name="my_model_runner_1", raise_exception=True
+        )
         model_runner_step_0.add_model(
             model_class="MyModel",
             execution_mechanism="naive",
-            endpoint_name=model_name_0,
+            endpoint_name="my_model_0",
             input_path="n",
             result_path="n",
             raise_error=False,
@@ -456,107 +409,160 @@ def test_tracked_model_runner_multiple_models():
         model_runner_step_1.add_model(
             model_class="MyModel",
             execution_mechanism="naive",
-            endpoint_name=model_name_1,
+            endpoint_name="my_model_1",
             input_path="n",
             result_path="n",
             raise_error=False,
             inc=2,
         )
-        models.extend([model_name_0, model_name_1])
+        graph.to(model_runner_step_0).respond()
+        graph.to(model_runner_step_1)
 
-    graph.to(model_runner_step_0).respond()
-    graph.to(model_runner_step_1)
-    function.set_tracking(stream_args={"mock": True})
+        function.set_tracking(
+            "dummy://",
+        )
+        server = function.to_mock_server()
+        server.test("/", {"n": 1})
+        server.wait_for_completion()
 
-    function.set_tracking(
-        "dummy://",
-    )
-    server = function.to_mock_server()
-    server.test("/", {"n": 1})
-    server.wait_for_completion()
+        dummy_stream = server.context.stream.output_stream
 
-    dummy_stream = server.context.stream.output_stream
-
-    assert len(dummy_stream.event_list) == 8, "expected stream to get eight messages"
-    output_models = [event["model"] for event in dummy_stream.event_list]
-    models.sort()
-    output_models.sort()
-    assert output_models == models, "expected models to be the same"
-    _test_graph_structure(server.graph, True)
+        assert len(dummy_stream.event_list) == 2, "expected stream to get two messages"
+        assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
+        assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
+        assert dummy_stream.event_list[1].get("resp", {}).get("outputs") == [3]
+        assert dummy_stream.event_list[1].get("request", {}).get("inputs") == [1]
 
 
-def test_set_untracked_with_model_runner():
-    function = mlrun.new_function("tests-1", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
-    model_runner_step.add_model(
-        model_class="MyModel",
-        execution_mechanism="naive",
-        endpoint_name="test_model",
-        input_path="n",
-        result_path="n",
-        raise_error=False,
-        inc=1,
-    )
-    graph.to(model_runner_step).respond()
-    function.set_tracking(stream_args={"mock": True})
+def test_tracked_model_runner_multiple_models(rundb_mock):
+    with patch("mlrun.get_run_db", return_value=rundb_mock):
+        function = mlrun.new_function("tests-1", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step_0 = ModelRunnerStep(
+            name="my_model_runner_0", raise_exception=True
+        )
+        model_runner_step_1 = ModelRunnerStep(
+            name="my_model_runner_1", raise_exception=True
+        )
+        models = []
+        for i in range(4):
+            model_name_0 = f"runner_0_my_model_{i}"
+            model_name_1 = f"runner_1_my_model_{i}"
+            model_runner_step_0.add_model(
+                model_class="MyModel",
+                execution_mechanism="naive",
+                endpoint_name=model_name_0,
+                input_path="n",
+                result_path="n",
+                raise_error=False,
+                inc=1,
+            )
+            model_runner_step_1.add_model(
+                model_class="MyModel",
+                execution_mechanism="naive",
+                endpoint_name=model_name_1,
+                input_path="n",
+                result_path="n",
+                raise_error=False,
+                inc=2,
+            )
+            models.extend([model_name_0, model_name_1])
 
-    function.set_tracking("dummy://", enable_tracking=True)
-    server = function.to_mock_server()
-    server.test("/", {"n": 1})
-    server.wait_for_completion()
+        graph.to(model_runner_step_0).respond()
+        graph.to(model_runner_step_1)
+        function.set_tracking(stream_args={"mock": True})
 
-    dummy_stream = server.context.stream.output_stream
-    _test_graph_structure(server.graph, True)
-    assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
-    function.set_tracking("dummy://", enable_tracking=False)
-    _test_graph_structure(graph, False)
-    server = function.to_mock_server()
-    server.test("/", {"n": 1})
-    server.wait_for_completion()
-    assert (
-        len(dummy_stream.event_list) == 1
-    ), "expected stream to still have single message"
+        function.set_tracking(
+            "dummy://",
+        )
+        server = function.to_mock_server()
+        server.test("/", {"n": 1})
+        server.wait_for_completion()
+
+        dummy_stream = server.context.stream.output_stream
+
+        assert len(dummy_stream.event_list) == 8, "expected stream to get eight messages"
+        output_models = [event["model"] for event in dummy_stream.event_list]
+        models.sort()
+        output_models.sort()
+        assert output_models == models, "expected models to be the same"
+        _test_graph_structure(server.graph, True)
 
 
-def test_tracked_multiple_to_mock_with_model_runner():
-    function = mlrun.new_function("tests-1", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(
-        name="my_model_runner", raise_exception=True, model_selector="MyModelSelector"
-    )
-    model_runner_step.add_model(
-        model_class="DictOutputModel",
-        execution_mechanism="naive",
-        endpoint_name="my_dict_model",
-        input_path="inputs",
-        result_path="outputs",
-        outputs=["o1", "o2", "o3", "o4"],
-        raise_error=False,
-    )
-    graph.to(model_runner_step).respond()
+def test_set_untracked_with_model_runner(rundb_mock):
+    with patch("mlrun.get_run_db", return_value=rundb_mock):
+        function = mlrun.new_function("tests-1", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+        model_runner_step.add_model(
+            model_class="MyModel",
+            execution_mechanism="naive",
+            endpoint_name="test_model",
+            input_path="n",
+            result_path="n",
+            raise_error=False,
+            inc=1,
+        )
+        graph.to(model_runner_step).respond()
+        function.set_tracking(stream_args={"mock": True})
 
-    function.set_tracking("dummy://", enable_tracking=True)
-    server = function.to_mock_server()
-    server.wait_for_completion()
-    model_runner_step_1 = ModelRunnerStep(
-        name="my_model_runner_1", raise_exception=True
-    )
-    model_runner_step_1.add_model(
-        model_class="DictOutputModel",
-        execution_mechanism="naive",
-        endpoint_name="my_dict_model_1",
-        input_path="inputs",
-        result_path="outputs",
-        outputs=["o1", "o2", "o3", "o4"],
-        raise_error=False,
-    )
-    graph.to(model_runner_step_1)
-    server = function.to_mock_server()
-    server.test("/", {"inputs": {"f1": 1, "f2": 2, "f3": 3, "f4": 4}})
-    server.wait_for_completion()
-    dummy_stream = server.context.stream.output_stream
-    assert len(dummy_stream.event_list) == 2, "expected stream to get one message"
+        function.set_tracking("dummy://", enable_tracking=True)
+        server = function.to_mock_server()
+        server.test("/", {"n": 1})
+        server.wait_for_completion()
+
+        dummy_stream = server.context.stream.output_stream
+        _test_graph_structure(server.graph, True)
+        assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+        function.set_tracking("dummy://", enable_tracking=False)
+        _test_graph_structure(graph, False)
+        server = function.to_mock_server()
+        server.test("/", {"n": 1})
+        server.wait_for_completion()
+        assert (
+            len(dummy_stream.event_list) == 1
+        ), "expected stream to still have single message"
+
+
+def test_tracked_multiple_to_mock_with_model_runner(rundb_mock):
+    with patch("mlrun.get_run_db", return_value=rundb_mock):
+        function = mlrun.new_function("tests-1", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(
+            name="my_model_runner", raise_exception=True, model_selector="MyModelSelector"
+        )
+        model_runner_step.add_model(
+            model_class="DictOutputModel",
+            execution_mechanism="naive",
+            endpoint_name="my_dict_model",
+            input_path="inputs",
+            result_path="outputs",
+            outputs=["o1", "o2", "o3", "o4"],
+            raise_error=False,
+        )
+        graph.to(model_runner_step).respond()
+
+        function.set_tracking("dummy://", enable_tracking=True)
+        server = function.to_mock_server()
+        server.wait_for_completion()
+        model_runner_step_1 = ModelRunnerStep(
+            name="my_model_runner_1", raise_exception=True
+        )
+        model_runner_step_1.add_model(
+            model_class="DictOutputModel",
+            execution_mechanism="naive",
+            endpoint_name="my_dict_model_1",
+            input_path="inputs",
+            result_path="outputs",
+            outputs=["o1", "o2", "o3", "o4"],
+            raise_error=False,
+        )
+        graph.to(model_runner_step_1)
+        server = function.to_mock_server()
+        server.test("/", {"inputs": {"f1": 1, "f2": 2, "f3": 3, "f4": 4}})
+        server.wait_for_completion()
+        dummy_stream = server.context.stream.output_stream
+        assert len(dummy_stream.event_list) == 2, "expected stream to get one message"
 
 
 @pytest.mark.parametrize("sampling_percentage", [100.0, 50.0, 20.0])
@@ -609,50 +615,51 @@ def test_sampling_model_runner(sampling_percentage: float):
 
 
 @pytest.mark.parametrize("enable_tracking", [True, False])
-def test_tracked_model_runner_shared(enable_tracking: bool):
-    function = mlrun.new_function("tests-1", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    graph.add_shared_model(
-        model_class=MyModel(name="shared-model", raise_exception=False, inc=1),
-        name="shared-model",
-        execution_mechanism="naive",
-    )
-    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
-    model_runner_step.add_shared_model_proxy(
-        endpoint_name="my_model",
-        input_path="n",
-        result_path="n",
-        shared_model_name="shared-model",
-    )
-    model_runner_step.add_shared_model_proxy(
-        endpoint_name="my_model-2",
-        input_path="n",
-        result_path="n",
-        shared_model_name="shared-model",
-    )
-    graph.to(model_runner_step).respond()
-    function.set_tracking(stream_args={"mock": True})
+def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
+    with patch("mlrun.get_run_db", return_value=rundb_mock):
+        function = mlrun.new_function("tests-1", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        graph.add_shared_model(
+            model_class=MyModel(name="shared-model", raise_exception=False, inc=1),
+            name="shared-model",
+            execution_mechanism="naive",
+        )
+        model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+        model_runner_step.add_shared_model_proxy(
+            endpoint_name="my_model",
+            input_path="n",
+            result_path="n",
+            shared_model_name="shared-model",
+        )
+        model_runner_step.add_shared_model_proxy(
+            endpoint_name="my_model-2",
+            input_path="n",
+            result_path="n",
+            shared_model_name="shared-model",
+        )
+        graph.to(model_runner_step).respond()
+        function.set_tracking(stream_args={"mock": True})
 
-    function.set_tracking("dummy://", enable_tracking=enable_tracking)
-    server = function.to_mock_server()
-    res = server.test("/", {"n": 1})
-    server.wait_for_completion()
+        function.set_tracking("dummy://", enable_tracking=enable_tracking)
+        server = function.to_mock_server()
+        res = server.test("/", {"n": 1})
+        server.wait_for_completion()
 
-    assert "my_model" in res, "expected response to contain model name 'my_model'"
-    assert "my_model-2" in res, "expected response to contain model name 'my_model-2'"
-    assert (
-        "shared-model" not in res
-    ), "expected response to not contain model name 'shared_model'"
+        assert "my_model" in res, "expected response to contain model name 'my_model'"
+        assert "my_model-2" in res, "expected response to contain model name 'my_model-2'"
+        assert (
+            "shared-model" not in res
+        ), "expected response to not contain model name 'shared_model'"
 
-    dummy_stream = server.context.stream.output_stream
-    if enable_tracking:
-        assert len(dummy_stream.event_list) == 2, "expected stream to get one message"
-        assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
-        assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
-    else:
-        assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
+        dummy_stream = server.context.stream.output_stream
+        if enable_tracking:
+            assert len(dummy_stream.event_list) == 2, "expected stream to get one message"
+            assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
+            assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
+        else:
+            assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 
-    _test_graph_structure(server.graph, enable_tracking)
+        _test_graph_structure(server.graph, enable_tracking)
 
 
 def test_negative_for_shared_model():

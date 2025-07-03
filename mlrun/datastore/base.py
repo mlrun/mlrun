@@ -15,16 +15,19 @@ import tempfile
 import urllib.parse
 from base64 import b64encode
 from copy import copy
+from functools import reduce
 from os import path, remove
-from typing import Optional, Union
+from typing import Any, Optional, Union
 from urllib.parse import urlparse
 
 import fsspec
 import orjson
 import pandas as pd
 import pyarrow
+import pyarrow.compute as pc
 import pytz
 import requests
+from storey.utils import find_filters, find_partitions
 
 import mlrun.config
 import mlrun.errors
@@ -33,6 +36,148 @@ from mlrun.utils import StorePrefix, is_jupyter, logger
 
 from .store_resources import is_store_uri, parse_store_uri
 from .utils import filter_df_start_end_time, select_columns_from_df
+
+
+def _tuple_to_expression(
+    column: str, operator: str, value: Any, force_naive: bool = False
+) -> pc.Expression:
+    """Convert a single filter tuple to PyArrow expression."""
+    field = pc.field(column)
+
+    # Handle datetime conversion if needed
+    if hasattr(value, "timestamp"):
+        # Convert datetime to PyArrow timestamp
+        import pyarrow as pa
+
+        # Convert to microseconds since epoch and create timestamp scalar
+        timestamp_us = int(value.timestamp() * 1_000_000)
+
+        if force_naive:
+            # Force naive timestamp for retry logic
+            value = pa.scalar(timestamp_us, type=pa.timestamp("us"))
+        else:
+            # For first attempt, always try timezone-aware UTC first
+            # This will work with timezone-aware columns and fail gracefully with naive columns
+            value = pa.scalar(timestamp_us, type=pa.timestamp("us", tz="UTC"))
+
+    if operator == "=":
+        return pc.equal(field, value)
+    elif operator == "!=":
+        return pc.not_equal(field, value)
+    elif operator == ">":
+        return pc.greater(field, value)
+    elif operator == ">=":
+        return pc.greater_equal(field, value)
+    elif operator == "<":
+        return pc.less(field, value)
+    elif operator == "<=":
+        return pc.less_equal(field, value)
+    elif operator == "in":
+        return pc.is_in(field, pc.array(value))
+    else:
+        raise ValueError(f"Unsupported operator: {operator}")
+
+
+def convert_filters_to_expression(
+    filters: list[list[tuple[str, str, Any]]], force_naive: bool = False
+) -> pc.Expression:
+    """
+    Convert tuple-based filters to PyArrow compute expressions.
+
+    Args:
+        filters: list of filter groups, where each group is a list of tuples
+                (column_name, operator, value)
+        force_naive: If True, force all timestamps to be naive (for retry logic)
+
+    Returns:
+        PyArrow compute expression
+    """
+    if not filters:
+        return None
+
+    # Convert each filter group to an expression
+    filter_expressions = []
+
+    for filter_group in filters:
+        if not filter_group:
+            continue
+
+        # Convert each tuple in the group to an expression
+        group_expressions = []
+        for column, operator, value in filter_group:
+            expr = _tuple_to_expression(
+                column, operator, value, force_naive=force_naive
+            )
+            if expr is not None:
+                group_expressions.append(expr)
+
+        # Combine expressions in the group with AND
+        if group_expressions:
+            if len(group_expressions) == 1:
+                filter_expressions.append(group_expressions[0])
+            else:
+                # Use reduce to chain multiple AND operations
+                group_expr = reduce(pc.and_kleene, group_expressions)
+                filter_expressions.append(group_expr)
+
+    # Combine filter groups with OR
+    if not filter_expressions:
+        return None
+    elif len(filter_expressions) == 1:
+        return filter_expressions[0]
+    else:
+        return reduce(pc.or_kleene, filter_expressions)
+
+
+def set_filters_expression(
+    partitions_time_attributes,
+    start_time_inner,
+    end_time_inner,
+    filters_inner,
+    time_column,
+    kwargs,
+    force_naive: bool = False,
+):
+    """Updated version that creates PyArrow expressions instead of tuple filters."""
+    filters = []
+    find_filters(
+        partitions_time_attributes,
+        start_time_inner,
+        end_time_inner,
+        filters,
+        time_column,
+    )
+
+    # Convert tuple filters to PyArrow expressions
+    partition_expr = convert_filters_to_expression(filters, force_naive=force_naive)
+
+    # Convert additional filters if they exist
+    additional_expr = None
+    if filters_inner:
+        if (
+            isinstance(filters_inner, list)
+            and len(filters_inner) > 0
+            and isinstance(filters_inner[0], tuple)
+        ):
+            # If filters_inner is also tuple-based
+            additional_expr = convert_filters_to_expression(
+                [filters_inner], force_naive=force_naive
+            )
+        else:
+            # If filters_inner is already a PyArrow expression
+            additional_expr = filters_inner
+
+    # Combine expressions
+    final_expr = None
+    if partition_expr is not None and additional_expr is not None:
+        final_expr = pc.and_kleene(partition_expr, additional_expr)
+    elif partition_expr is not None:
+        final_expr = partition_expr
+    elif additional_expr is not None:
+        final_expr = additional_expr
+
+    if final_expr is not None:
+        kwargs["filter"] = final_expr  # Note: 'filter' not 'filters' for to_table()
 
 
 class FileStats:
@@ -191,28 +336,6 @@ class DataStore:
         end_time,
         additional_filters,
     ):
-        from storey.utils import find_filters, find_partitions
-
-        def set_filters(
-            partitions_time_attributes,
-            start_time_inner,
-            end_time_inner,
-            filters_inner,
-            kwargs,
-        ):
-            filters = []
-            find_filters(
-                partitions_time_attributes,
-                start_time_inner,
-                end_time_inner,
-                filters,
-                time_column,
-            )
-            if filters and filters_inner:
-                filters[0] += filters_inner
-
-            kwargs["filters"] = filters
-
         def reader(*args, **kwargs):
             if time_column is None and (start_time or end_time):
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -229,45 +352,101 @@ class DataStore:
 
             if start_time or end_time or additional_filters:
                 partitions_time_attributes = find_partitions(url, file_system)
-                set_filters(
+
+                set_filters_expression(
                     partitions_time_attributes,
                     start_time,
                     end_time,
                     additional_filters,
+                    time_column,
                     kwargs,
+                    force_naive=False,  # First attempt with timezone-aware if needed
                 )
+
                 try:
-                    return df_module.read_parquet(*args, **kwargs)
+                    return DataStore._read_parquet_with_dataset_api(
+                        df_module, url, file_system, **kwargs
+                    )
                 except pyarrow.lib.ArrowInvalid as ex:
                     if not str(ex).startswith(
                         "Cannot compare timestamp with timezone to timestamp without timezone"
                     ):
                         raise ex
 
+                    # Handle timezone mismatch by normalizing to UTC naive timestamps
                     start_time_inner = None
                     if start_time:
-                        start_time_inner = start_time.replace(
-                            tzinfo=None if start_time.tzinfo else pytz.utc
-                        )
+                        if start_time.tzinfo is not None:
+                            # Convert timezone-aware datetime to UTC, then make naive
+                            start_time_inner = start_time.astimezone(pytz.UTC).replace(
+                                tzinfo=None
+                            )
+                        else:
+                            # Assume naive datetime is already UTC
+                            start_time_inner = start_time
 
                     end_time_inner = None
                     if end_time:
-                        end_time_inner = end_time.replace(
-                            tzinfo=None if end_time.tzinfo else pytz.utc
-                        )
+                        if end_time.tzinfo is not None:
+                            # Convert timezone-aware datetime to UTC, then make naive
+                            end_time_inner = end_time.astimezone(pytz.UTC).replace(
+                                tzinfo=None
+                            )
+                        else:
+                            # Assume naive datetime is already UTC
+                            end_time_inner = end_time
 
-                    set_filters(
+                    # Retry with adjusted timezone and force naive timestamps
+                    kwargs.pop("filter", None)  # Remove previous filter
+                    set_filters_expression(
                         partitions_time_attributes,
                         start_time_inner,
                         end_time_inner,
                         additional_filters,
+                        time_column,
                         kwargs,
+                        force_naive=True,  # Force naive timestamps for retry
                     )
-                    return df_module.read_parquet(*args, **kwargs)
+                    return DataStore._read_parquet_with_dataset_api(
+                        df_module, url, file_system, **kwargs
+                    )
             else:
-                return df_module.read_parquet(*args, **kwargs)
+                return DataStore._read_parquet_with_dataset_api(
+                    df_module, url, file_system, **kwargs
+                )
 
         return reader
+
+    @staticmethod
+    def _read_parquet_with_dataset_api(
+        df_module, file_path, file_system=None, **kwargs
+    ):
+        """
+        Read parquet file using PyArrow dataset API for better schema handling.
+
+        Uses the dataset API which handles schema merging better than read_parquet(),
+        especially for PyArrow 17+ where dictionary vs string type conflicts can occur.
+
+        This function should be used instead of df_module.read_parquet() directly.
+        """
+        import pyarrow.dataset as ds
+
+        # Filter kwargs to only include parameters compatible with dataset.to_table()
+        dataset_kwargs = {}
+        if "columns" in kwargs:
+            dataset_kwargs["columns"] = kwargs["columns"]
+        if "filter" in kwargs:  # Updated to use 'filter' instead of 'filters'
+            dataset_kwargs["filter"] = kwargs["filter"]
+
+        # Clean file:// prefix for LocalFileSystem to avoid URI conflicts
+        file_path = file_path.removeprefix("file://") if file_system else file_path
+
+        # Create dataset using resolved filesystem and path
+        dataset = ds.dataset(file_path, format="parquet", filesystem=file_system)
+        table = dataset.to_table(**dataset_kwargs)
+
+        # Convert to pandas DataFrame (consistent with original behavior)
+        return table.to_pandas()
 
     def as_df(
         self,

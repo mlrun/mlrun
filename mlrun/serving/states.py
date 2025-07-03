@@ -2341,7 +2341,7 @@ class RootFlowStep(FlowStep):
             else model_class.__class__.__name__
         )
         self.shared_models[name] = (model_class, model_parameters)
-        self._shared_models_mechanism[name] = execution_mechanism
+        self.shared_models_mechanism[name] = execution_mechanism
 
     def config_pool_resource(
         self,

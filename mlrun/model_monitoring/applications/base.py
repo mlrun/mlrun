@@ -19,7 +19,7 @@ from collections import defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-from typing import Any, Optional, Union, cast
+from typing import Any, Literal, Optional, Union, cast
 
 import pandas as pd
 
@@ -223,7 +223,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         context: "mlrun.MLClientCtx",
         sample_data: Optional[pd.DataFrame] = None,
         reference_data: Optional[pd.DataFrame] = None,
-        endpoints: Optional[Union[list[tuple[str, str]], list[str], str]] = None,
+        endpoints: Union[
+            list[tuple[str, str]], list[list[str]], list[str], Literal["all"], None
+        ] = None,
         start: Optional[str] = None,
         end: Optional[str] = None,
         base_period: Optional[int] = None,
@@ -280,10 +282,13 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 return result
 
             if endpoints is not None:
+                resolved_endpoints = self._handle_endpoints_type_evaluate(
+                    project=project, endpoints=endpoints
+                )
                 for window_start, window_end in self._window_generator(
                     start, end, base_period
                 ):
-                    for endpoint_name, endpoint_id in endpoints:
+                    for endpoint_name, endpoint_id in resolved_endpoints:
                         result = call_do_tracking(
                             event={
                                 mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
@@ -306,52 +311,63 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
     @staticmethod
     def _handle_endpoints_type_evaluate(
-        project: str,
-        endpoints: Union[list[tuple[str, str]], list[str], str, None],
-    ) -> list[tuple[str, str]]:
-        if endpoints:
-            if isinstance(endpoints, str) or (
-                isinstance(endpoints, list) and isinstance(endpoints[0], str)
-            ):
-                endpoints_list = (
-                    mlrun.get_run_db()
-                    .list_model_endpoints(
-                        project,
-                        names=endpoints,
-                        latest_only=True,
-                    )
-                    .endpoints
-                )
-                if endpoints_list:
-                    list_endpoints_result = [
-                        (endpoint.metadata.name, endpoint.metadata.uid)
-                        for endpoint in endpoints_list
-                    ]
-                    retrieve_ep_names = list(
-                        map(lambda endpoint: endpoint[0], list_endpoints_result)
-                    )
-                    missing = set(
-                        [endpoints] if isinstance(endpoints, str) else endpoints
-                    ) - set(retrieve_ep_names)
-                    if missing:
-                        logger.warning(
-                            "Could not list all the required endpoints.",
-                            missing_endpoint=missing,
-                            endpoints=list_endpoints_result,
-                        )
-                    endpoints = list_endpoints_result
-                else:
-                    raise mlrun.errors.MLRunNotFoundError(
-                        f"Did not find any model_endpoint named ' {endpoints}'"
-                    )
+        project: "mlrun.MlrunProject",
+        endpoints: Union[
+            list[tuple[str, str]], list[list[str]], list[str], Literal["all"]
+        ],
+    ) -> Union[list[tuple[str, str]], list[list[str]]]:
+        if not endpoints:
+            raise mlrun.errors.MLRunValueError(
+                "The endpoints list cannot be empty. If you want to run on all the endpoints, "
+                'use `endpoints="all"`.'
+            )
 
-            if not (
-                isinstance(endpoints, list) and isinstance(endpoints[0], (list, tuple))
-            ):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Could not resolve endpoints as list of [(name, uid)]"
+        if isinstance(endpoints, list) and isinstance(endpoints[0], (tuple, list)):
+            return endpoints
+
+        if not (isinstance(endpoints, list) and isinstance(endpoints[0], str)):
+            if isinstance(endpoints, str):
+                if endpoints != "all":
+                    raise mlrun.errors.MLRunValueError(
+                        'A string input for `endpoints` can only be "all" for all the model endpoints in '
+                        "the project. If you want to select a single model endpoint with the given name, "
+                        f'use a list: `endpoints=["{endpoints}"]`.'
+                    )
+            else:
+                raise mlrun.errors.MLRunValueError(
+                    f"Could not resolve endpoints as list of [(name, uid)], {endpoints=}"
                 )
-        return endpoints
+
+        if endpoints == "all":
+            endpoint_names = None
+        else:
+            endpoint_names = endpoints
+
+        endpoints_list = project.list_model_endpoints(
+            names=endpoint_names, latest_only=True
+        ).endpoints
+        if endpoints_list:
+            list_endpoints_result = [
+                (endpoint.metadata.name, endpoint.metadata.uid)
+                for endpoint in endpoints_list
+            ]
+            if endpoints != "all":
+                missing = set(endpoints) - {
+                    endpoint[0] for endpoint in list_endpoints_result
+                }
+                if missing:
+                    logger.warning(
+                        "Could not list all the required endpoints",
+                        missing_endpoint=missing,
+                        endpoints=list_endpoints_result,
+                    )
+            return list_endpoints_result
+        else:
+            if endpoints != "all":
+                err_msg_suffix = f" named '{endpoints}'"
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Did not find any model endpoints {err_msg_suffix}"
+            )
 
     @staticmethod
     def _window_generator(
@@ -546,7 +562,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         class_handler: Optional[str] = None,
         requirements: Optional[Union[str, list[str]]] = None,
         requirements_file: str = "",
-        endpoints: Optional[Union[list[tuple[str, str]], list[str], str]] = None,
+        endpoints: Union[list[tuple[str, str]], list[str], Literal["all"], None] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         base_period: Optional[int] = None,
@@ -577,10 +593,16 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param class_handler:     The relative path to the class, useful when using Git sources or code from images.
         :param requirements:      List of Python requirements to be installed in the image.
         :param requirements_file: Path to a Python requirements file to be installed in the image.
-        :param endpoints:         A list of tuples of the model endpoint (name, uid) to get the data from.
-                                  allow providing a list of model_endpoint names or name for a single model_endpoint.
-                                  Note: provide names retrieves the model all the active model endpoints using those
-                                  names (cross function model endpoints)
+        :param endpoints:         The model endpoints to get the data from. The options are:
+
+                                  - a list of tuples of the model endpoints ``[(name, uid), ...]``
+                                  - a list of model endpoint names ``[name, ...]``
+                                  - ``"all"`` for all the project's model endpoints
+
+                                  Note: a model endpoint name retrieves all the active model endpoints using this
+                                  name, which may be more than one per name when the same name is used across
+                                  multiple serving functions.
+
                                   If provided, and ``sample_data`` is not ``None``, you have to provide also the
                                   ``start`` and ``end`` times of the data to analyze from the model endpoints.
         :param start:             The start time of the endpoint's data, not included.
@@ -629,12 +651,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             project=project,
         )
 
-        params: dict[str, Union[list[tuple[str, str]], str, int, None]] = {}
+        params: dict[str, Union[list, str, int, None, ds_profile.DatastoreProfile]] = {}
         if endpoints:
-            endpoints = cls._handle_endpoints_type_evaluate(
-                project=project.name,
-                endpoints=endpoints,
-            )
             params["endpoints"] = endpoints
             if sample_data is None:
                 if start is None or end is None:

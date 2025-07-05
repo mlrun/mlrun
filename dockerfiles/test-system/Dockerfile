@@ -23,6 +23,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   graphviz \
   make \
   curl \
+  libpq-dev \
+  python3-dev \
  && rm -rf /var/lib/apt/lists/*
 
 ARG MLRUN_PIP_VERSION=25.0
@@ -52,7 +54,7 @@ RUN rm -rf ./server/go
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete]
+    uv pip install .[complete,dev-postgres]
 
 RUN mv tests /tests && mv Makefile /Makefile
 

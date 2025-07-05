@@ -11,6 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pytest
+
+pytest.importorskip(
+    "psycopg2",
+    reason="psycopg2 not installed",
+)
+
 pytest_plugins = [
     "services.api.migrations.tests.base.conftest",
     "services.api.migrations.tests.base.migrations_tests",

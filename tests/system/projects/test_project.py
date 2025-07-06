@@ -1757,7 +1757,7 @@ class TestProject(TestMLRunSystem):
         run_id = project.run(
             "main", watch=True, engine="remote", notifications=[notification]
         )
-        res = mlrun.wait_for_pipeline_completion(run_id)
+        res, _ = mlrun.wait_for_pipeline_completion(run_id)
         assert (
             res["run"]["status"] == mlrun_pipelines.common.models.RunStatuses.succeeded
         )

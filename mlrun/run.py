@@ -37,7 +37,7 @@ import mlrun.errors
 import mlrun.utils.helpers
 import mlrun_pipelines.utils
 from mlrun_pipelines.common.models import RunStatuses
-from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
+from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run, is_run_terminated
 
 from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
@@ -964,8 +964,8 @@ def wait_for_pipeline_completion(
     namespace=None,
     remote=True,
     project: Optional[str] = None,
-):
-    """Wait for Pipeline status, timeout in sec
+) -> tuple[dict,bool]:
+    f"""Wait for Pipeline status, timeout in sec
 
     :param run_id:     id of pipelines run
     :param timeout:    wait timeout in sec
@@ -975,7 +975,7 @@ def wait_for_pipeline_completion(
     :param remote:     read kfp data from mlrun service (default=True)
     :param project:    the project of the pipeline
 
-    :return: kfp run dict
+    :return: kfp run dict, terminated flag
     """
     if expected_statuses is None:
         expected_statuses = [
@@ -1000,11 +1000,21 @@ def wait_for_pipeline_completion(
 
         dag_display_id = create_ipython_display()
 
-        def _wait_for_pipeline_completion():
+        def _wait_for_pipeline_completion() -> tuple[dict, bool]:
+            """
+            Wait for pipeline completion
+            :return: tuple of (pipeline, is_terminated)
+            """
             pipeline = mldb.get_pipeline(run_id, namespace=namespace, project=project)
             logger.info("Pipeline details", run_id=run_id, pipeline=pipeline)
             pipeline_status = pipeline["run"]["status"]
             show_kfp_run(pipeline, dag_display_id=dag_display_id, with_html=False)
+            if is_run_terminated(kfp_run=pipeline):
+                logger.info(
+                    "Pipeline run is terminated",
+                    run_id=run_id,
+                )
+                return pipeline, True
             if pipeline_status in [
                 RunStatuses.terminating,
                 RunStatuses.canceling,
@@ -1014,16 +1024,15 @@ def wait_for_pipeline_completion(
                     run_id=run_id,
                     status=pipeline_status,
                 )
-                return pipeline
+                raise RuntimeError("Pipeline run has not terminated yet")
             elif pipeline_status not in RunStatuses.stable_statuses():
                 logger.debug(
                     "Waiting for pipeline completion",
                     run_id=run_id,
                     status=pipeline_status,
                 )
-                raise RuntimeError("pipeline run has not completed yet")
-
-            return pipeline
+                raise RuntimeError("Pipeline run has not completed yet")
+            return pipeline, False
 
         if mldb.kind != "http":
             raise ValueError(
@@ -1031,8 +1040,8 @@ def wait_for_pipeline_completion(
                 ", set the dbpath url"
             )
 
-        resp = retry_until_successful(
-            10,
+        resp, terminated = retry_until_successful(
+            5,
             timeout,
             logger,
             False,
@@ -1049,8 +1058,13 @@ def wait_for_pipeline_completion(
             resp = format_summary_from_kfp_run(resp)
         show_kfp_run(resp)
 
+
     status = resp["run"]["status"] if resp else "unknown"
     message = resp["run"].get("message", "") if resp else ""
+    logger.debug("Run data",resp=resp)
+    if is_run_terminated(kfp_run=resp):
+        status = RunStatuses.canceled
+
     if expected_statuses:
         if status not in expected_statuses:
             raise RuntimeError(
@@ -1065,7 +1079,7 @@ def wait_for_pipeline_completion(
         f" namespace: {namespace}"
     )
 
-    return resp
+    return resp, False
 
 
 def get_pipeline(

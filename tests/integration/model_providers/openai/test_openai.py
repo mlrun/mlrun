@@ -41,8 +41,6 @@ if os.path.exists(config_file_path):
 
 
 class MyOpenAILLM(mlrun.serving.states.Model):
-    execution_mechanism = "naive"
-
     def predict(self, body):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact

@@ -179,8 +179,6 @@ class MyModel(Model):
 
 
 class MyRemoteModel(Model):
-    execution_mechanism = "naive"
-
     def predict(self, body):
         body["url"] = self.model_artifact.model_url
         body["default_config"] = self.model_artifact.default_config

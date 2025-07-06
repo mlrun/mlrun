@@ -490,11 +490,7 @@ class Client(
             timeout = int(timeout.total_seconds())
         get_run_response: typing.Optional[kfp_server_api.ApiRun] = None
 
-        while (
-            status not in mlrun_pipelines.common.models.RunStatuses.stable_statuses()
-            or status
-            not in mlrun_pipelines.common.models.RunStatuses.terminating_statuses()
-        ):
+        while status not in mlrun_pipelines.common.models.RunStatuses.stable_statuses():
             try:
                 get_run_response: kfp_server_api.ApiRunDetail = self._run_api.get_run(
                     run_id=run_id

@@ -458,7 +458,10 @@ def replace_last_occurrence(string: str, old: str, new: str) -> str:
     return string
 
 
-def format_summary_from_kfp_run(kfp_run, project=None):
+def format_summary_from_kfp_run(
+    kfp_run: dict,
+    project=None,
+):
     from mlrun_pipelines.ops import generate_kfp_dag_and_resolve_project
 
     override_project = project if project and project != "*" else None
@@ -508,6 +511,9 @@ def format_summary_from_kfp_run(kfp_run, project=None):
 def is_run_terminated(
     kfp_run: dict,
 ) -> bool:
+    if kfp_run.get("kfp_run_was_terminated", False):
+        return True
+
     manifest_str = kfp_run.get("pipeline_runtime", {}).get("workflow_manifest")
     if manifest_str:
         try:
@@ -524,6 +530,7 @@ def is_run_terminated(
                 logger.info(
                     "Argo terminate detected (activeDeadlineSeconds=0)",
                 )
+                kfp_run["kfp_run_was_terminated"] = True
                 return True
     else:
         logger.warning(
@@ -532,18 +539,24 @@ def is_run_terminated(
         return False
 
 
-def show_kfp_run(run, html_display_id=None, dag_display_id=None, with_html=True):
+def show_kfp_run(
+    kfp_run: dict,
+    html_display_id: str = None,
+    dag_display_id: str = None,
+    with_html: bool = True,
+):
     phase_to_color = {
         mlrun_pipelines.common.models.RunStatuses.failed: "red",
         mlrun_pipelines.common.models.RunStatuses.succeeded: "green",
         mlrun_pipelines.common.models.RunStatuses.skipped: "white",
+        mlrun_pipelines.common.models.RunStatuses.canceled: "red",
     }
     runtype_to_shape = {
         mlrun_pipelines.common.constants.PipelineRunType.run: "ellipse",
         mlrun_pipelines.common.constants.PipelineRunType.build: "box",
         mlrun_pipelines.common.constants.PipelineRunType.deploy: "box3d",
     }
-    if not run or "graph" not in run:
+    if not kfp_run or "graph" not in kfp_run:
         return
     if is_ipython:
         try:
@@ -552,7 +565,7 @@ def show_kfp_run(run, html_display_id=None, dag_display_id=None, with_html=True)
             return
 
         try:
-            graph = run["graph"]
+            graph = kfp_run["graph"]
             dag = Digraph("kfp", format="svg")
             dag.attr(compound="true")
 
@@ -578,8 +591,8 @@ def show_kfp_run(run, html_display_id=None, dag_display_id=None, with_html=True)
 
             import IPython
 
-            run_id = run["run"]["id"]
-            url = get_workflow_url(run["run"]["project"], run_id)
+            run_id = kfp_run["run"]["id"]
+            url = get_workflow_url(kfp_run["run"]["project"], run_id)
             href = f'<a href="{url}" target="_blank"><b>click here</b></a>'
             html = IPython.display.HTML(
                 f"<div>Pipeline running (id={run_id}), {href} to view the details in MLRun UI</div>"

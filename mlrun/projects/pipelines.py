@@ -743,7 +743,7 @@ class _KFPRunner(_PipelineRunner):
         status = ""
         if terminated:
             status = mlrun_pipelines.common.models.RunStatuses.canceled
-        if run_info:
+        elif run_info:
             status = run_info["run"].get("status")
         return status
 

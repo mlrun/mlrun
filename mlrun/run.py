@@ -1046,7 +1046,7 @@ def wait_for_pipeline_completion(
             )
 
         resp, terminated = retry_until_successful(
-            5,
+            10,
             timeout,
             logger,
             False,
@@ -1063,11 +1063,13 @@ def wait_for_pipeline_completion(
             resp = format_summary_from_kfp_run(resp)
         show_kfp_run(resp)
 
-    status = resp["run"]["status"] if resp else "unknown"
-    message = resp["run"].get("message", "") if resp else ""
-    logger.debug("Run data", resp=resp)
-    if is_run_terminated(kfp_run=resp):
+    terminated = is_run_terminated(kfp_run=resp)
+    if terminated:
         status = RunStatuses.canceled
+        message = "Pipeline run was terminated"
+    else:
+        status = resp["run"]["status"] if resp else "unknown"
+        message = resp["run"].get("message", "") if resp else ""
 
     if expected_statuses:
         if status not in expected_statuses:
@@ -1083,7 +1085,7 @@ def wait_for_pipeline_completion(
         f" namespace: {namespace}"
     )
 
-    return resp, False
+    return resp, terminated
 
 
 def get_pipeline(

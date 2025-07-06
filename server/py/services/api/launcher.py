@@ -449,7 +449,10 @@ class ServerSideLauncher(launcher.BaseLauncher):
             return True
 
         # check if it was aborted after the retry attempt
-        if db_run.get("status", {}).get("state"):
+        if (
+            db_run.get("status", {}).get("state")
+            == mlrun.common.runtimes.constants.RunStates.aborted
+        ):
             mlrun.utils.logger.info(
                 "Skipping retry for run - run was aborted",
                 uid=run.metadata.uid,

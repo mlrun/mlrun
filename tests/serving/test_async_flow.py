@@ -33,14 +33,14 @@ class _DummyStreamRaiser:
         raise ValueError("DummyStreamRaiser raises an error")
 
 
-def create_mocked_get_store_resource(model_artifact):
-    def mocked_get_store_resource(uri, **kwargs):
+def create_mocked_get_store_artifact(model_artifact):
+    def mocked_get_store_artifact(uri, **kwargs):
         if uri == model_artifact.uri:
-            return model_artifact
+            return model_artifact, None
         else:
             raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
 
-    return mocked_get_store_resource
+    return mocked_get_store_artifact
 
 
 def test_async_basic():
@@ -179,22 +179,10 @@ class MyModel(Model):
 
 
 class MyRemoteModel(Model):
-    def __init__(self, name, raise_exception, artifact_uri, **kwargs):
-        super().__init__(
-            name=name,
-            raise_exception=raise_exception,
-            artifact_uri=artifact_uri,
-            **kwargs,
-        )
-        self.artifact = None
-
     def predict(self, body):
-        body["url"] = self.artifact.model_url
-        body["default_config"] = self.artifact.default_config
+        body["url"] = self.model_artifact.model_url
+        body["default_config"] = self.model_artifact.default_config
         return body
-
-    def load(self):
-        self.artifact = self._get_artifact_object()
 
 
 class MyPklModel(Model):
@@ -622,8 +610,8 @@ def test_model_runner_with_remote_model():
     # Mocked function used to verify artifact URI is passed correctly.
 
     with unittest.mock.patch(
-        "mlrun.serving.states.get_store_resource",
-        side_effect=create_mocked_get_store_resource(model_artifact=model_artifact),
+        "mlrun.serving.states.mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
     ):
         server = function.to_mock_server()
     try:
@@ -652,8 +640,8 @@ def test_get_local_model_path():
     )
     graph.to(model_runner_step).respond()
     with unittest.mock.patch(
-        "mlrun.serving.states.get_store_resource",
-        side_effect=create_mocked_get_store_resource(model_artifact=model_artifact),
+        "mlrun.serving.states.mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
     ):
         server = function.to_mock_server()
     try:

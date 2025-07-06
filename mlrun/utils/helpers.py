@@ -97,7 +97,13 @@ class StorePrefix:
 
     @classmethod
     def is_artifact(cls, prefix):
-        return prefix in [cls.Artifact, cls.Model, cls.Dataset, cls.Document]
+        return prefix in [
+            cls.Artifact,
+            cls.Model,
+            cls.Dataset,
+            cls.Document,
+            cls.LLMPrompt,
+        ]
 
     @classmethod
     def kind_to_prefix(cls, kind):

@@ -311,3 +311,25 @@ class KafkaParameters:
             valid_keys.update(ref_dict.keys())
         # Return a new dictionary with only valid keys
         return {k: v for k, v in input_dict.items() if k in valid_keys}
+
+
+def parse_url(url):
+    if url and url.startswith("v3io://") and not url.startswith("v3io:///"):
+        url = url.replace("v3io://", "v3io:///", 1)
+    parsed_url = urlparse(url)
+    schema = parsed_url.scheme.lower()
+    endpoint = parsed_url.hostname
+    if endpoint:
+        # HACK - urlparse returns the hostname after in lower case - we want the original case:
+        # the hostname is a substring of the netloc, in which it's the original case, so we find the indexes of the
+        # hostname in the netloc and take it from there
+        lower_hostname = parsed_url.hostname
+        netloc = str(parsed_url.netloc)
+        lower_netloc = netloc.lower()
+        hostname_index_in_netloc = lower_netloc.index(str(lower_hostname))
+        endpoint = netloc[
+            hostname_index_in_netloc : hostname_index_in_netloc + len(lower_hostname)
+        ]
+    if parsed_url.port:
+        endpoint += f":{parsed_url.port}"
+    return schema, endpoint, parsed_url

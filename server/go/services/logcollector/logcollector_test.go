@@ -706,10 +706,17 @@ func (suite *LogCollectorTestSuite) TestDeleteLogs() {
 			projectName := fmt.Sprintf("test-project-%d", projectCount)
 			projectCount++
 			var runUIDs []string
+			uid := uuid.New().String()
 			for i := 0; i < testCase.logsNumToCreate; i++ {
-				runUID := uuid.New().String()
+				runUID := uid
 				if testCase.deleteByPrefix {
-					runUID = fmt.Sprintf("run-prefix-%s", runUID)
+					if i > 0 {
+
+						// simulates runs with multiple attempts (retries)
+						runUID = fmt.Sprintf("%s-attempt-%d", runUID, i)
+					}
+				} else {
+					runUID = uuid.New().String()
 				}
 				runUIDs = append(runUIDs, runUID)
 				logFilePath := suite.logCollectorServer.resolveRunLogFilePath(projectName, runUID)
@@ -725,7 +732,9 @@ func (suite *LogCollectorTestSuite) TestDeleteLogs() {
 
 			var runUIDsToDelete []string
 			if testCase.deleteByPrefix {
-				runUIDsToDelete = []string{"run-prefix-"}
+
+				// the 1st uid is the run uid that is also the prefix for all other files
+				runUIDsToDelete = runUIDs[:1]
 			} else {
 				runUIDsToDelete = runUIDs[testCase.expectedLogsNumLeft:]
 			}

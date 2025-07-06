@@ -55,6 +55,7 @@ from mlrun.common.schemas import (
 from mlrun.common.schemas.background_task import BackGroundTaskLabel
 
 import framework.utils.auth.verifier
+import framework.utils.singletons.project_member
 import services.api.api.endpoints.pipelines
 import services.api.crud
 import services.api.tests.unit.conftest
@@ -463,6 +464,13 @@ def test_retry(
     )
     services.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
         return_value="adam"
+    )
+    framework.utils.singletons.project_member.get_project_member().get_project = (
+        unittest.mock.Mock(
+            return_value=mlrun.common.schemas.ProjectOut(
+                metadata=mlrun.common.schemas.ProjectMetadata(name="adam")
+            )
+        )
     )
     temp_file_mock = unittest.mock.Mock()
     temp_file_mock.name = "/tmp/example.yaml"

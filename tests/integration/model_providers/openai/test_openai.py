@@ -41,8 +41,6 @@ if os.path.exists(config_file_path):
 
 
 class MyOpenAILLM(mlrun.serving.states.Model):
-    execution_mechanism = "naive"
-
     def predict(self, body):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
@@ -242,6 +240,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         model_runner_step.add_model(
             model_class="MyOpenAILLM",
             endpoint_name="my_endpoint",
+            execution_mechanism="naive",
             model_artifact=llm_prompt_artifact,
         )
         graph.to(model_runner_step).respond()

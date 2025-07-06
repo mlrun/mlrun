@@ -64,8 +64,6 @@ class OneToMany(mlrun.serving.V2ModelServer):
 
 
 class IncModel(mlrun.serving.states.Model):
-    execution_mechanism = "naive"
-
     def __init__(
         self, *args, inc: int, gpu_number: typing.Optional[int] = None, **kwargs
     ):
@@ -85,8 +83,6 @@ class IncModel(mlrun.serving.states.Model):
 
 
 class MyRemoteModel(mlrun.serving.states.Model):
-    execution_mechanism = "naive"
-
     def predict(self, body):
         body["url"] = self.model_artifact.model_url
         body["default_config"] = self.model_artifact.default_config
@@ -103,8 +99,6 @@ class Echo:
 
 
 class MyModel(mlrun.serving.Model):
-    execution_mechanism = "naive"
-
     def __init__(
         self,
         *args,

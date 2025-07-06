@@ -12,6 +12,7 @@ pytest-alembic~=0.11.0
 pytest-httpserver~=1.0
 pytest-timeout~=2.0
 pytest-mock-resources[mysql]~=2.12
+testcontainers[k3s]~=4.10
 aioresponses~=0.7
 requests-mock~=1.8
 httpx~=0.27.0

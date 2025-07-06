@@ -15,7 +15,7 @@
 import json
 import pathlib
 from collections.abc import Iterator
-from typing import cast
+from typing import Union, cast
 from unittest.mock import patch
 
 import numpy as np
@@ -31,7 +31,7 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.platforms.iguazio import KafkaOutputStream
 from mlrun.runtimes import ServingRuntime
-from mlrun.serving import Model, ModelRunnerStep
+from mlrun.serving import Model, ModelRunnerStep, ModelSelector
 from mlrun.serving.states import RootFlowStep, RouterStep
 from tests.serving.test_serving import _log_model
 
@@ -261,9 +261,14 @@ def test_tracking_datastore_profile(project: mlrun.MlrunProject) -> None:
     assert np.array_equal(event["resp"]["outputs"], np.array([0.0, 0.4 * 7]))
 
 
-class MyModel(Model):
-    execution_mechanism = "naive"
+class MyModelSelector(ModelSelector):
+    def select(
+        self, event, available_models: list[Model]
+    ) -> Union[list[str], list[Model]]:
+        return ["my_dict_model"]
 
+
+class MyModel(Model):
     def __init__(self, *args, inc: int, **kwargs):
         super().__init__(*args, **kwargs)
         self.inc = inc
@@ -278,8 +283,6 @@ class MyModel(Model):
 
 
 class DictOutputModel(Model):
-    execution_mechanism = "naive"
-
     def predict(self, body):
         body["outputs"] = {}
         for key, value in body["inputs"].items():
@@ -330,6 +333,7 @@ def test_tracked_model_runner(enable_tracking: bool):
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
     model_runner_step.add_model(
         model_class="MyModel",
+        execution_mechanism="naive",
         endpoint_name="my_model",
         input_path="n",
         result_path="n",
@@ -361,6 +365,7 @@ def test_tracked_model_runner_dict():
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
     model_runner_step.add_model(
         model_class="DictOutputModel",
+        execution_mechanism="naive",
         endpoint_name="dict_model",
         input_path="inputs",
         result_path="outputs",
@@ -391,6 +396,7 @@ def test_tracked_model_runner_multiple_steps():
     )
     model_runner_step_0.add_model(
         model_class="MyModel",
+        execution_mechanism="naive",
         endpoint_name="my_model_0",
         input_path="n",
         result_path="n",
@@ -399,6 +405,7 @@ def test_tracked_model_runner_multiple_steps():
     )
     model_runner_step_1.add_model(
         model_class="MyModel",
+        execution_mechanism="naive",
         endpoint_name="my_model_1",
         input_path="n",
         result_path="n",
@@ -439,6 +446,7 @@ def test_tracked_model_runner_multiple_models():
         model_name_1 = f"runner_1_my_model_{i}"
         model_runner_step_0.add_model(
             model_class="MyModel",
+            execution_mechanism="naive",
             endpoint_name=model_name_0,
             input_path="n",
             result_path="n",
@@ -447,6 +455,7 @@ def test_tracked_model_runner_multiple_models():
         )
         model_runner_step_1.add_model(
             model_class="MyModel",
+            execution_mechanism="naive",
             endpoint_name=model_name_1,
             input_path="n",
             result_path="n",
@@ -482,6 +491,7 @@ def test_set_untracked_with_model_runner():
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
     model_runner_step.add_model(
         model_class="MyModel",
+        execution_mechanism="naive",
         endpoint_name="test_model",
         input_path="n",
         result_path="n",
@@ -512,9 +522,12 @@ def test_set_untracked_with_model_runner():
 def test_tracked_multiple_to_mock_with_model_runner():
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner", raise_exception=True, model_selector="MyModelSelector"
+    )
     model_runner_step.add_model(
         model_class="DictOutputModel",
+        execution_mechanism="naive",
         endpoint_name="my_dict_model",
         input_path="inputs",
         result_path="outputs",
@@ -531,6 +544,7 @@ def test_tracked_multiple_to_mock_with_model_runner():
     )
     model_runner_step_1.add_model(
         model_class="DictOutputModel",
+        execution_mechanism="naive",
         endpoint_name="my_dict_model_1",
         input_path="inputs",
         result_path="outputs",
@@ -552,6 +566,7 @@ def test_sampling_model_runner(sampling_percentage: float):
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
     model_runner_step.add_model(
         model_class="DictOutputModel",
+        execution_mechanism="naive",
         endpoint_name="dict_model_1",
         input_path="inputs",
         result_path="outputs",

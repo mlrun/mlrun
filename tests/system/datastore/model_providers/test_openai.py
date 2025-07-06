@@ -96,6 +96,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         model_runner_step = ModelRunnerStep(name="my_model_runner")
         model_runner_step.add_model(
             model_class="MyOpenAILLM",
+            execution_mechanism="naive",
             endpoint_name="my_endpoint",
             model_artifact=llm_prompt_artifact,
         )

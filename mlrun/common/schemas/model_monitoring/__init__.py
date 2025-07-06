@@ -54,6 +54,8 @@ from .grafana import (
     GrafanaTable,
 )
 from .model_endpoints import (
+    ApplicationMetricRecord,
+    ApplicationResultRecord,
     Features,
     FeatureValues,
     ModelEndpoint,

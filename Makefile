@@ -35,7 +35,7 @@ PYTHON_VERSION ?= $(shell python --version)
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 25.0.0
-MLRUN_UV_VERSION ?= 0.7.12
+MLRUN_UV_VERSION ?= 0.7.14
 MLRUN_UV_IMAGE ?= ghcr.io/astral-sh/uv:$(MLRUN_UV_VERSION)
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
@@ -195,13 +195,13 @@ endif
 install-complete-requirements: ## Install all requirements needed for development and testing
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	$(eval MLRUN_PIP_INSTALL_FLAG := $(if $(and $(MLRUN_PYTHON_PACKAGE_INSTALLER),$(filter -m pip,$(MLRUN_PYTHON_PACKAGE_INSTALLER))),--ignore-requires-python,))
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete] $(MLRUN_PIP_INSTALL_FLAG)
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,dev-postgres] $(MLRUN_PIP_INSTALL_FLAG)
 
 .PHONY: install-complete-kfp-requirements
 install-complete-kfp-requirements: ## Install all requirements needed for development and testing + KFP 1.8
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	$(eval MLRUN_PIP_INSTALL_FLAG := $(if $(and $(MLRUN_PYTHON_PACKAGE_INSTALLER),$(filter -m pip,$(MLRUN_PYTHON_PACKAGE_INSTALLER))),--ignore-requires-python,))
-	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,kfp18] $(MLRUN_PIP_INSTALL_FLAG)
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,kfp18,dev-postgres] $(MLRUN_PIP_INSTALL_FLAG)
 
 .PHONY: install-all-requirements
 install-all-requirements: ## Install all requirements needed for development and testing
@@ -541,15 +541,15 @@ build-test-system: compile-schemas update-version-file ## Build system tests doc
 
 .PHONY: package-wheel
 package-wheel: clean update-version-file ## Build python package wheel
-	python -m build --wheel
+	uv build
 
 .PHONY: publish-package
 publish-package: package-wheel ## Publish python package wheel
-	python -m twine upload dist/mlrun-*.whl
+	uv publish
 
 .PHONY: test-publish
 test-publish: package-wheel ## Test python package publishing
-	python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/mlrun-*.whl
+	uv publish --publish-url https://test.pypi.org/legacy/
 
 .PHONY: clean
 clean: ## Clean python package build artifacts
@@ -580,6 +580,7 @@ test: clean ## Run mlrun tests
 	set -e ; \
 	COMMON_IGNORE_TEST_FLAGS=$$(echo "\
 	--ignore=tests/integration \
+	--ignore=server/py/services/api/tests/integration \
 	--ignore=tests/system \
 	--ignore=tests/rundb/test_httpdb.py \
 	--ignore=server/py/services/api/migrations \
@@ -629,6 +630,7 @@ test-integration-dockerized: build-test ## Run mlrun integration tests in docker
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		-e RUN_COVERAGE=$(RUN_COVERAGE) \
+		--add-host=host.docker.internal:host-gateway \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
 
 .PHONY: test-integration
@@ -644,6 +646,7 @@ test-integration: clean ## Run mlrun integration tests
 		--durations=100 \
 		-rf \
 		tests/integration \
+		server/py/services/api/tests/integration \
 		tests/rundb/test_httpdb.py && \
 	$(PRINT_COVERAGE_REPORT);
 
@@ -664,17 +667,18 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 
 .PHONY: test-migrations
 test-migrations: clean ## Run mlrun db migrations tests
-	set -xe; \
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/migration_tests.coverage"} && \
+	export COVERAGE_FILE && \
 	$(SETUP_COVERAGE) && \
-	python -u $(COVERAGE_ADDITION) -m pytest -vvv \
-	  --capture=no \
-	  --disable-warnings \
-	  --durations=100 \
-	  -rf "${ROOT_DIR}/server/py/services/api/migrations/tests" \
-	  2>&1 | tee migration_tests.log; \
-	$(PRINT_COVERAGE_REPORT)
+	bash -c 'set -euo pipefail; \
+	  python -u $(COVERAGE_ADDITION) -m pytest -vvv \
+	    --capture=no --disable-warnings --durations=100 \
+	    -rf "$(ROOT_DIR)/server/py/services/api/migrations/tests" \
+	    2>&1 | tee migration_tests.log' ; \
+	exit_code=$$? ; \
+	$(PRINT_COVERAGE_REPORT) ; \
+	exit $$exit_code
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
@@ -935,19 +939,9 @@ ifdef MLRUN_DOCKER_CACHE_FROM_TAG
 	done;
 endif
 
-.PHONY: verify-uv-version
-verify-uv-version:
-	@{ \
-	uv_version=$$(uv self version | cut -d' ' -f2); \
-	result=$$(python -m semver compare $$uv_version $(MLRUN_UV_VERSION)); \
-	if [ "$$result" -eq -1 ]; then \
-	  echo "Error: The running uv version ($$uv_version) is outdated. Upgrade uv to version $(MLRUN_UV_VERSION)."; \
-	  exit 1; \
-	fi; \
-	}
 
 .PHONY: upgrade-mlrun-api-deps-lock
-upgrade-mlrun-api-deps-lock: verify-uv-version ## Upgrade mlrun-api locked requirements file
+upgrade-mlrun-api-deps-lock: ## Upgrade mlrun-api locked requirements file
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
@@ -957,7 +951,7 @@ upgrade-mlrun-api-deps-lock: verify-uv-version ## Upgrade mlrun-api locked requi
 		--output-file dockerfiles/mlrun-api/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-mlrun-deps-lock
-upgrade-mlrun-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-mlrun locked requirements file
+upgrade-mlrun-mlrun-deps-lock: ## Upgrade mlrun-mlrun locked requirements file
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
@@ -966,7 +960,7 @@ upgrade-mlrun-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-mlrun locked r
 		--output-file dockerfiles/mlrun/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-gpu-deps-lock
-upgrade-mlrun-gpu-deps-lock: verify-uv-version ## Upgrade mlrun-gpu locked requirements file
+upgrade-mlrun-gpu-deps-lock: ## Upgrade mlrun-gpu locked requirements file
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
@@ -975,7 +969,7 @@ upgrade-mlrun-gpu-deps-lock: verify-uv-version ## Upgrade mlrun-gpu locked requi
 		--output-file dockerfiles/gpu/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-jupyter-deps-lock
-upgrade-mlrun-jupyter-deps-lock: verify-uv-version ## Upgrade mlrun-jupyter locked requirements file
+upgrade-mlrun-jupyter-deps-lock: ## Upgrade mlrun-jupyter locked requirements file
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
@@ -985,7 +979,7 @@ upgrade-mlrun-jupyter-deps-lock: verify-uv-version ## Upgrade mlrun-jupyter lock
 		--output-file dockerfiles/jupyter/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-test-deps-lock
-upgrade-mlrun-test-deps-lock: verify-uv-version ## Upgrade mlrun test locked requirements file
+upgrade-mlrun-test-deps-lock: ## Upgrade mlrun test locked requirements file
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
@@ -996,7 +990,7 @@ upgrade-mlrun-test-deps-lock: verify-uv-version ## Upgrade mlrun test locked req
 		--output-file dockerfiles/test/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-system-test-deps-lock
-upgrade-mlrun-system-test-deps-lock: verify-uv-version ## Upgrade mlrun system test locked requirements file
+upgrade-mlrun-system-test-deps-lock: ## Upgrade mlrun system test locked requirements file
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
@@ -1006,8 +1000,7 @@ upgrade-mlrun-system-test-deps-lock: verify-uv-version ## Upgrade mlrun system t
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/test-system/locked-requirements.txt
 
-
-upgrade-mlrun-kfp-deps-lock: verify-uv-version ## Upgrade mlrun-kfp locked requirements file
+upgrade-mlrun-kfp-deps-lock: ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
 		requirements.txt \
 		dockerfiles/mlrun-kfp/requirements.txt \
@@ -1016,7 +1009,7 @@ upgrade-mlrun-kfp-deps-lock: verify-uv-version ## Upgrade mlrun-kfp locked requi
 		--output-file dockerfiles/mlrun-kfp/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-deps-lock
-upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirements file
+upgrade-mlrun-deps-lock: ## Upgrade mlrun-* locked requirements file
 	@$(MAKE) -j \
 		upgrade-mlrun-mlrun-deps-lock \
 		upgrade-mlrun-api-deps-lock \
@@ -1025,6 +1018,7 @@ upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirement
 		upgrade-mlrun-kfp-deps-lock \
 		upgrade-mlrun-test-deps-lock \
 		upgrade-mlrun-system-test-deps-lock
+
 
 .PHONY: coverage-combine
 coverage-combine: ## Combine all coverage reports, ignoring errors like missing or corrupted source files

@@ -639,6 +639,17 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def retry_pipeline(
+        self,
+        run_id: str,
+        project: str,
+        namespace: Optional[str] = None,
+        timeout: int = 30,
+        submit_mode: str = "",
+    ):
+        pass
+
+    @abstractmethod
     def list_project_secrets(
         self,
         project: str,
@@ -1034,6 +1045,13 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    def get_project_background_task(
+        self,
+        project: str,
+        name: str,
+    ) -> mlrun.common.schemas.BackgroundTask:
+        pass
+
     @abstractmethod
     def submit_workflow(
         self,
@@ -1111,6 +1129,17 @@ class RunDBInterface(ABC):
         include_stats: bool = False,
         include_infra: bool = True,
     ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
+        pass
+
+    @abstractmethod
+    def get_monitoring_function_summary(
+        self,
+        project: str,
+        function_name: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
         pass
 
     @abstractmethod

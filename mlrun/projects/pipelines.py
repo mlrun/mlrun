@@ -21,6 +21,7 @@ import typing
 import uuid
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.function
@@ -1070,6 +1071,46 @@ def github_webhook(request):
     return {"msg": "pushed"}
 
 
+def rerun_workflow(
+    context: mlrun.execution.MLClientCtx, run_uid: str, project_name: str
+):
+    """
+    Re-run a workflow by retrying a previously failed KFP pipeline.
+
+    :param context:      MLRun context.
+    :param run_uid:      The run UID of the original workflow to retry.
+    :param project_name: The project name.
+    """
+
+    try:
+        # TODO in followups: handle start and running notifications
+
+        # Retry the pipeline  - TODO: add submit-direct flag when created
+        db = mlrun.get_run_db()
+        new_pipeline_id = db.retry_pipeline(
+            run_uid, project_name, submit_mode=mlrun_constants.WorkflowSubmitMode.direct
+        )
+
+        # Store result for observability
+        context.set_label(
+            mlrun_constants.MLRunInternalLabels.workflow_id, new_pipeline_id
+        )
+        context.update_run()
+
+        context.log_result("workflow_id", new_pipeline_id)
+
+        # wait for pipeline completion so monitor will push terminal notifications
+        wait_for_pipeline_completion(
+            new_pipeline_id,
+            project=project_name,
+        )
+
+    # Temporary exception
+    except Exception as exc:
+        context.logger.error("Failed to rerun workflow", exc=err_to_str(exc))
+        raise
+
+
 def load_and_run(context, *args, **kwargs):
     """
     This function serves as an alias to `load_and_run_workflow`,
@@ -1192,7 +1233,9 @@ def load_and_run_workflow(
     context.logger.info(
         "Associating workflow-runner with workflow ID", run_id=run.run_id
     )
-    context.set_label("workflow-id", run.run_id)
+    context.set_label(mlrun_constants.MLRunInternalLabels.workflow_id, run.run_id)
+    context.update_run()
+
     context.log_result(key="workflow_id", value=run.run_id)
     context.log_result(key="engine", value=run._engine.engine, commit=True)
 

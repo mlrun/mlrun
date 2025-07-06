@@ -524,6 +524,15 @@ class NopDB(RunDBInterface):
     ):
         pass
 
+    def retry_pipeline(
+        self,
+        run_id: str,
+        project: str,
+        namespace: Optional[str] = None,
+        timeout: int = 30,
+    ):
+        pass
+
     def list_pipelines(
         self,
         project: str,
@@ -891,6 +900,16 @@ class NopDB(RunDBInterface):
         include_stats: bool = False,
         include_infra: bool = True,
     ) -> [mlrun.common.schemas.model_monitoring.FunctionSummary]:
+        pass
+
+    def get_monitoring_function_summary(
+        self,
+        project: str,
+        function_name: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
         pass
 
     def generate_event(

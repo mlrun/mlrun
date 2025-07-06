@@ -15,7 +15,7 @@
 import os
 import uuid
 from abc import abstractmethod
-from typing import Optional
+from typing import Optional, Union
 
 from sqlalchemy.orm import Session
 
@@ -34,9 +34,6 @@ import framework.utils.notifications
 import framework.utils.notifications.notification_pusher
 import services.api.crud
 import services.api.utils.singletons.scheduler
-
-JOB_TYPE_WORKFLOW_RUNNER = "workflow-runner"
-JOB_TYPE_PROJECT_LOADER = "project-loader"
 
 
 class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
@@ -92,6 +89,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         labels: dict[str, str],
         workflow_request: Optional[mlrun.common.schemas.WorkflowRequest] = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
+        rerun_request: Optional[mlrun.common.schemas.RerunWorkflowRequest] = None,
         artifact_path: str = "",
     ) -> mlrun_model.RunObject:
         """
@@ -103,6 +101,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         :param workflow_request: Workflow request containing the workflow spec.
         :param auth_info:        Authentication information of the request.
         :param artifact_path:    Artifact path for the run.
+        :param rerun_request:    Workflow request containing the rerun spec.
         :return: RunObject with run metadata, results, and status.
         """
         self._enrich_run_labels_and_env(labels, runner)
@@ -112,6 +111,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
             labels=labels,
             workflow_request=workflow_request,
             run_name=runner.metadata.name,
+            rerun_request=rerun_request,
         )
 
         # We want to store the secret params as k8s secret, so later we can access them with the project internal secret
@@ -137,6 +137,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         project: mlrun.common.schemas.ProjectOut,
         labels: dict[str, str],
         workflow_request: mlrun.common.schemas.WorkflowRequest,
+        rerun_request: mlrun.common.schemas.RerunWorkflowRequest,
         run_name: Optional[str] = None,
     ) -> mlrun_model.RunObject:
         """
@@ -247,6 +248,24 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         if client_python_version:
             runner.set_env("MLRUN_PYTHON_VERSION", client_python_version)
 
+    @staticmethod
+    def _enrich_runner_node_selector(
+        runner: mlrun.run.KubejobRuntime,
+        workflow_request: Union[
+            mlrun.common.schemas.WorkflowSpec, mlrun.common.schemas.RerunWorkflowRequest
+        ],
+    ):
+        """
+        Enrich the runner's node selector with the workflow's node selector.
+
+        :param runner:           Workflow runner function object.
+        :param workflow_request: Workflow spec or rerun request containing node selector information.
+        """
+        if node_selector := getattr(
+            workflow_request, "workflow_runner_node_selector", None
+        ):
+            runner.spec.node_selector.update(node_selector)
+
 
 class LoadRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
     """
@@ -269,7 +288,7 @@ class LoadRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         """
         labels = {
             mlrun_constants.MLRunInternalLabels.project: project.metadata.name,
-            mlrun_constants.MLRunInternalLabels.job_type: JOB_TYPE_PROJECT_LOADER,
+            mlrun_constants.MLRunInternalLabels.job_type: mlrun_constants.JOB_TYPE_PROJECT_LOADER,
         }
 
         return self.prepare_and_run(
@@ -285,6 +304,7 @@ class LoadRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         labels: dict[str, str],
         run_name: Optional[str] = None,
         workflow_request: Optional[mlrun.common.schemas.WorkflowRequest] = None,
+        rerun_request: Optional[mlrun.common.schemas.WorkflowRequest] = None,
     ) -> mlrun_model.RunObject:
         """
         Prepare the RunObject for loading the project.
@@ -366,7 +386,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         :param auth_info:        Authentication information of the request.
         """
         labels = {
-            mlrun_constants.MLRunInternalLabels.job_type: JOB_TYPE_WORKFLOW_RUNNER,
+            mlrun_constants.MLRunInternalLabels.job_type: mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: workflow_request.spec.name,
         }
         self._enrich_run_labels_and_env(labels, runner)
@@ -431,7 +451,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         """
         labels = {
             mlrun_constants.MLRunInternalLabels.project: project.metadata.name,
-            mlrun_constants.MLRunInternalLabels.job_type: JOB_TYPE_WORKFLOW_RUNNER,
+            mlrun_constants.MLRunInternalLabels.job_type: mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: runner.metadata.name,
         }
 
@@ -455,6 +475,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         uid: Optional[str] = None,
         scrape_metrics: Optional[str] = None,
         url: str = "",
+        rerun_request: Optional[mlrun.common.schemas.RerunWorkflowRequest] = None,
     ) -> mlrun_model.RunObject:
         """
         Prepare the RunObject for running the workflow.
@@ -517,22 +538,6 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         )
 
         return run_object
-
-    @staticmethod
-    def _enrich_runner_node_selector(
-        runner: mlrun.run.KubejobRuntime,
-        workflow_spec: mlrun.common.schemas.WorkflowSpec,
-    ):
-        """
-        Enrich the runner's node selector with the workflow's node selector.
-
-        :param runner:        Workflow runner function object.
-        :param workflow_spec: Workflow specification containing node selector information.
-        """
-        if workflow_spec.workflow_runner_node_selector:
-            runner.spec.node_selector.update(
-                workflow_spec.workflow_runner_node_selector
-            )
 
     @staticmethod
     def _validate_source(
@@ -627,3 +632,92 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
                 )
 
         return mlrun.common.schemas.GetWorkflowResponse(workflow_id=workflow_id)
+
+
+class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
+    """
+    Runner class for rerunning failed remote workflows.
+    """
+
+    def run(
+        self,
+        runner: mlrun.run.KubejobRuntime,
+        project: mlrun.common.schemas.ProjectOut,
+        run_uid: str,
+        rerun_request: mlrun.common.schemas.RerunWorkflowRequest,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
+    ) -> mlrun_model.RunObject:
+        """
+        Run a rerun workflow runner.
+
+        :param runner:         Workflow runner function object.
+        :param project:        MLRun project.
+        :param run_uid:        UID of the original failed run to retry.
+        :param rerun_request:  RerunWorkflowRequest containing any notifications and retry parameters.
+        :param auth_info:      Authentication information of the request.
+        :return: RunObject for the rerun.
+        """
+
+        labels = {
+            mlrun_constants.MLRunInternalLabels.project: project.metadata.name,
+            mlrun_constants.MLRunInternalLabels.job_type: mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER,
+            mlrun_constants.MLRunInternalLabels.workflow: runner.metadata.name,
+            mlrun_constants.MLRunInternalLabels.rerun_of: run_uid,
+            mlrun_constants.MLRunInternalLabels.original_workflow_id: rerun_request.original_workflow_id,
+        }
+
+        self._enrich_runner_node_selector(runner, rerun_request)
+
+        return self.prepare_and_run(
+            runner=runner,
+            project=project,
+            labels=labels,
+            auth_info=auth_info,
+            artifact_path=mlrun_config.config.artifact_path,
+            rerun_request=rerun_request,
+        )
+
+    def _prepare_run_object(
+        self,
+        project: mlrun.common.schemas.ProjectOut,
+        labels: dict[str, str],
+        rerun_request: mlrun.common.schemas.RerunWorkflowRequest,
+        workflow_request: Optional[mlrun.common.schemas.WorkflowRequest] = None,
+        run_name: Optional[str] = None,
+        uid: Optional[str] = None,
+        scrape_metrics: Optional[str] = None,
+        url: str = "",
+    ) -> mlrun_model.RunObject:
+        """
+        Prepare the RunObject for rerunning the workflow.
+
+        :param project:          MLRun project.
+        :param labels:           Labels for the run.
+        :param workflow_request: Workflow request containing the workflow spec.
+        :param run_name:         Name of the run.
+        :param uid:              Unique identifier for the run.
+        :param scrape_metrics:   Whether to scrape metrics.
+        :return: RunObject ready for execution.
+        """
+
+        notifications = [
+            mlrun_model.Notification.from_dict(notification.dict())
+            for notification in rerun_request.notifications or []
+        ]
+
+        run_object = self._create_run_object(
+            source=project.spec.source,
+            project_name=project.metadata.name,
+            save=False,
+            handler="mlrun.projects.rerun_workflow",
+            parameters={
+                "run_uid": rerun_request.run_id,
+                "project_name": project.metadata.name,
+            },
+            notifications=notifications,
+            run_name=rerun_request.run_name,
+            labels=labels,
+            scrape_metrics=mlrun_config.config.scrape_metrics,
+        )
+
+        return run_object

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
@@ -102,8 +103,11 @@ class TestEvaluate:
     @pytest.fixture(autouse=True)
     def _set_project() -> Iterator[None]:
         project = mlrun.get_or_create_project("test", allow_cross_project=True)
-        with patch("mlrun.db.nopdb.NopDB.get_project", Mock(return_value=project)):
-            yield
+        with patch.object(
+            project, "get_function", Mock(side_effect=mlrun.errors.MLRunNotFoundError)
+        ):
+            with patch("mlrun.db.nopdb.NopDB.get_project", Mock(return_value=project)):
+                yield
 
     @staticmethod
     def test_local_no_params() -> None:
@@ -239,6 +243,28 @@ class TestEvaluate:
                     topics=[],
                 ),
             )
+
+    @staticmethod
+    def test_invalid_infra(capsys: pytest.CaptureFixture) -> None:
+        ModelEndpointAccessApp.evaluate(
+            func_path=__file__,
+            endpoints=[("ep-name", "ep-uid")],
+            start=datetime(2025, 5, 3),
+            end=datetime(2025, 5, 4),
+            run_local=True,
+            write_output=True,
+            stream_profile=DatastoreProfileKafkaSource(
+                name="should-not-be-passed-on-remote",
+                brokers=["broker-address:9092"],
+                topics=[],
+            ),
+        )
+        captured = capsys.readouterr()
+        assert (
+            "Writing outputs to the databases is blocked as the model monitoring infrastructure is disabled.\n"
+            "To unblock, enable model monitoring with `project.enable_model_monitoring()`."
+            in captured.out
+        ), "The error message is different than expected or was not captured"
 
 
 @pytest.mark.parametrize(
@@ -432,30 +458,36 @@ class TestToJob:
         assert run.state() == "completed"
 
 
+@pytest.fixture
+def project(tmpdir: Path) -> mlrun.MlrunProject:
+    return mlrun.get_or_create_project("test-endpoints-handler", context=str(tmpdir))
+
+
 @pytest.mark.parametrize(
-    "endpoints",
-    [
-        "2e312eb7-bbcc-4752-9140-be9e9395fc13",
-        ["2e312eb7-bbcc-4752-9140-be9e9395fc13"],
-        [
-            (
-                "2e312eb7-bbcc-4752-9140-be9e9395fc13",
-                "2e312eb7-bbcc-4752-9140-be9e9395fc13",
-            )
-        ],
-    ],
+    "endpoints", ["all", ["model-ep-1"], [("model-ep-1", "model-ep-1-uid")]]
 )
+@pytest.mark.usefixtures("rundb_mock")
 def test_handle_endpoints_type_evaluate(
-    rundb_mock, endpoints: Union[str, list[str], list[tuple]]
+    project: mlrun.MlrunProject, endpoints: Union[str, list[str], list[tuple[str, str]]]
 ) -> None:
-    project = "test-endpoints-handler"
     endpoints_output = ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
         project, endpoints
     )
+    assert endpoints_output == [("model-ep-1", "model-ep-1-uid")]
 
-    assert endpoints_output == [
-        (
-            "2e312eb7-bbcc-4752-9140-be9e9395fc13",
-            "2e312eb7-bbcc-4752-9140-be9e9395fc13",
+
+@pytest.mark.parametrize(
+    ("endpoints", "err_msg"),
+    [
+        ("*", 'A string input for `endpoints` can only be "all"'),
+        ([], "The endpoints list cannot be empty"),
+        ([1], r"Could not resolve endpoints as list of \[\(name, uid\)\]"),
+    ],
+)
+def test_handle_endpoints_type_evaluate_error(
+    project: mlrun.MlrunProject, endpoints: Union[str, list[str]], err_msg: str
+) -> None:
+    with pytest.raises(mlrun.errors.MLRunValueError, match=err_msg):
+        ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
+            project, endpoints
         )
-    ]

@@ -48,6 +48,9 @@ import services.api.runtime_handlers
 # Configmap objects on Kubernetes have 10Mb size limit
 SERVING_SPEC_MAX_LENGTH = 10485760
 
+# Configmap objects on Kubernetes have 10Mb size limit
+SERVING_SPEC_MAX_LENGTH = 10485760
+
 
 class ServerSideLauncher(launcher.BaseLauncher):
     def __init__(
@@ -421,46 +424,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
             else:
                 function.spec.env["SERVING_SPEC_ENV"] = serving_spec
         return serving_spec_volume
-
-    @staticmethod
-    def _should_skip_run(run: mlrun.run.RunObject) -> bool:
-        """
-        Determine whether a retried run should be skipped based on its state.
-        A run should be skipped if it is in 'pending_retry' state and was either aborted or deleted after being
-        scheduled for retry.
-        """
-        if run.status.state != mlrun.common.runtimes.constants.RunStates.pending_retry:
-            return False
-
-        # fetch the run from the db to check if it was deleted after the retry attempt
-        db = framework.utils.singletons.db.get_db()
-        try:
-            db_run = framework.db.session.run_function_with_new_db_session(
-                db.read_run,
-                uid=run.metadata.uid,
-                project=run.metadata.project,
-            )
-        except mlrun.errors.MLRunNotFoundError:
-            mlrun.utils.logger.info(
-                "Skipping retry for run - run was deleted",
-                uid=run.metadata.uid,
-                project=run.metadata.project,
-            )
-            return True
-
-        # check if it was aborted after the retry attempt
-        if (
-            db_run.get("status", {}).get("state")
-            == mlrun.common.runtimes.constants.RunStates.aborted
-        ):
-            mlrun.utils.logger.info(
-                "Skipping retry for run - run was aborted",
-                uid=run.metadata.uid,
-                project=run.metadata.project,
-            )
-            return True
-
-        return False
 
     def enrich_runtime(
         self,

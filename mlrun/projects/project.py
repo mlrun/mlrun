@@ -4970,6 +4970,36 @@ class MlrunProject(ModelObj):
             include_infra=include_infra,
         )
 
+    def get_monitoring_function_summary(
+        self,
+        name: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
+        """Get a monitoring function summary for the specified project and function name.
+        :param name:                   Name of the monitoring function to retrieve the summary for.
+        :param start:                  Start time for filtering the results (optional).
+        :param end:                    End time for filtering the results (optional).
+        :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
+
+        :return: A FunctionSummary object containing information about the monitoring function.
+        """
+        if start is not None and end is not None:
+            if start.tzinfo is None or end.tzinfo is None:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    "Custom start and end times must contain the timezone."
+                )
+
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.get_monitoring_function_summary(
+            project=self.metadata.name,
+            function_name=name,
+            start=start,
+            end=end,
+            include_latest_metrics=include_latest_metrics,
+        )
+
     def list_runs(
         self,
         name: Optional[str] = None,

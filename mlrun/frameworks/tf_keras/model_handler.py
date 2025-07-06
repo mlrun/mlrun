@@ -518,7 +518,6 @@ class TFKerasModelHandler(DLModelHandler):
         )
 
         # Read additional files according to the model format used:
-        # # ModelFormats.SAVED_MODEL - Unzip the SavedModel archive:
         if self._model_format == TFKerasModelHandler.ModelFormats.SAVED_MODEL:
             # Unzip the SavedModel directory:
             with zipfile.ZipFile(self._model_file, "r") as zip_file:
@@ -528,21 +527,17 @@ class TFKerasModelHandler(DLModelHandler):
                 os.path.dirname(self._model_file), self._model_name
             )
         elif self._model_format == TFKerasModelHandler.ModelFormats.KERAS:
-            # When keras tried to load it, it validates the suffix. The `artifacts.model.get_model` function is
-            # downloading the keras file to a temp file with a `pkl` suffix, so it needs to be replaced:
-            self._model_file = self._model_file.rsplit(".pkl", 1)[0] + ".keras"
+            # Rename the model file suffix:
+            self._rename_model_file_suffix(suffix="keras")
         elif self._model_format == TFKerasModelHandler.ModelFormats.H5:
-            # When keras tried to load it, it validates the suffix. The `artifacts.model.get_model` function is
-            # downloading the keras file to a temp file with a `pkl` suffix, so it needs to be replaced:
-            self._model_file = self._model_file.rsplit(".pkl", 1)[0] + ".h5"
-        # # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS - Get the weights file:
-        elif (
+            # Rename the model file suffix:
+            self._rename_model_file_suffix(suffix="h5")
+        elif (  # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS
             self._model_format
             == TFKerasModelHandler.ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS
         ):
-            # When keras tried to load it, it validates the suffix. The `artifacts.model.get_model` function is
-            # downloading the keras file to a temp file with a `pkl` suffix, so it needs to be replaced:
-            self._model_file = self._model_file.rsplit(".pkl", 1)[0] + ".json"
+            # Rename the model file suffix:
+            self._rename_model_file_suffix(suffix="json")
             # Get the weights file:
             self._weights_file = self._extra_data[
                 self._get_weights_file_artifact_name()
@@ -550,6 +545,20 @@ class TFKerasModelHandler(DLModelHandler):
 
         # Continue collecting from abstract class:
         super()._collect_files_from_store_object()
+
+    def _rename_model_file_suffix(self, suffix: str):
+        """
+        Rename the model file suffix to the given one.
+
+        This is used for the case of loading a model from a store object that was saved with a different suffix as when
+        keras tries to load it, it validates the suffix. The `artifacts.model.get_model` function is downloading the
+        file to a temp file with a `pkl` suffix, so it needs to be replaced:than the one keras expects.
+
+        :param suffix: The suffix to rename the model file to (without the trailing dot).
+        """
+        new_name = self._model_file.rsplit(".", 1)[0] + f".{suffix}"
+        os.rename(self._model_file, new_name)
+        self._model_file = new_name
 
     def _collect_files_from_local_path(self):
         """

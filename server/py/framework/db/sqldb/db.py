@@ -59,7 +59,6 @@ import mlrun.common.types
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.model
-import mlrun.utils.db
 from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.common.db.dialects import Dialects
 from mlrun.common.schemas.feature_store import (
@@ -91,6 +90,7 @@ from mlrun.utils import (
 
 import framework.constants
 import framework.db.session
+import framework.db.sqldb.base
 import framework.utils.helpers
 from framework.db.base import DBInterface
 from framework.db.sqldb.helpers import (
@@ -3251,9 +3251,9 @@ class SQLDB(DBInterface):
     def _delete_multi_objects(
         self,
         session: Session,
-        main_table: mlrun.utils.db.BaseModel,
+        main_table: framework.db.sqldb.base.BaseModel,
         project: str,
-        related_tables: typing.Optional[list[mlrun.utils.db.BaseModel]] = None,
+        related_tables: typing.Optional[list[framework.db.sqldb.base.BaseModel]] = None,
         main_table_identifier: typing.Optional[Column] = None,
         main_table_identifier_values: typing.Optional[
             typing.Union[str, list[str]]
@@ -3338,7 +3338,7 @@ class SQLDB(DBInterface):
     @staticmethod
     def _delete_table_in_batches(
         session: Session,
-        table: mlrun.utils.db.BaseModel,
+        table: framework.db.sqldb.base.BaseModel,
         where_clause,
     ) -> int:
         """
@@ -3827,7 +3827,7 @@ class SQLDB(DBInterface):
     @staticmethod
     def _filter_query_by_resource_project(
         query: sqlalchemy.orm.query.Query,
-        resource: type[mlrun.utils.db.BaseModel],
+        resource: type[framework.db.sqldb.base.BaseModel],
         project: typing.Optional[typing.Union[str, list[str]]] = None,
     ) -> sqlalchemy.orm.query.Query:
         if isinstance(project, list):
@@ -3919,23 +3919,41 @@ class SQLDB(DBInterface):
     def _calculate_mm_functions_counters(
         self, session
     ) -> tuple[dict[str, int], dict[str, int]]:
-        labels = [f"{ModelMonitoringAppLabel.KEY}={ModelMonitoringAppLabel.VAL}"]
-        query = session.query(Function.project, Function, Function.Tag.name)
+        query = session.query(
+            Function.project,
+            Function.state,
+            func.count(),
+        )
         query = query.join(
             Function.Tag, Function.id == Function.Tag.obj_id
         )  # filter duplications
-        labels = label_set(labels)
-        query = self._add_labels_filter(session, query, Function, labels)
+
+        labels = label_set(
+            [f"{ModelMonitoringAppLabel.KEY}={ModelMonitoringAppLabel.VAL}"]
+        )
+        query = self._add_labels_filter(
+            session, query, Function, labels
+        )  # keep only model-monitoring functions
+
+        query = query.filter(
+            Function.state.in_(
+                [
+                    mlrun.common.schemas.FunctionState.ready,
+                    mlrun.common.schemas.FunctionState.error,
+                ]
+            )
+        )  # keep only relevant states
+
+        query = query.group_by(Function.project, Function.state)
+        results = query.all()
 
         project_to_failed_mm_functions_count = {}
         project_to_running_mm_functions_count = {}
-        for project, function, name in query.all():
-            project_to_running_mm_functions_count.setdefault(project, 0)
-            project_to_failed_mm_functions_count.setdefault(project, 0)
-            if function.state == mlrun.common.schemas.FunctionState.ready:
-                project_to_running_mm_functions_count[project] += 1
-            if function.state == mlrun.common.schemas.FunctionState.error:
-                project_to_failed_mm_functions_count[project] += 1
+        for project, state, count in results:
+            if state == mlrun.common.schemas.FunctionState.ready:
+                project_to_running_mm_functions_count[project] = count
+            elif state == mlrun.common.schemas.FunctionState.error:
+                project_to_failed_mm_functions_count[project] = count
 
         return (
             project_to_running_mm_functions_count,
@@ -3944,17 +3962,22 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _calculate_mep_counters(session) -> tuple[dict[str, int], dict[str, int]]:
-        query = session.query(ModelEndpoint.project, ModelEndpoint.endpoint_type)
+        query = session.query(
+            ModelEndpoint.project,
+            ModelEndpoint.endpoint_type,
+            func.count(),
+        ).group_by(ModelEndpoint.project, ModelEndpoint.endpoint_type)
+        results = query.all()
 
         project_to_real_time_mep_count = {}
         project_to_batch_mep_count = {}
-        for project, endpoint_type in query.all():
-            project_to_real_time_mep_count.setdefault(project, 0)
-            project_to_batch_mep_count.setdefault(project, 0)
+        for project, endpoint_type, count in results:
             if endpoint_type == EndpointType.BATCH_EP:
-                project_to_batch_mep_count[project] += 1
+                project_to_batch_mep_count[project] = count
             else:
-                project_to_real_time_mep_count[project] += 1
+                project_to_real_time_mep_count[project] = (
+                    project_to_real_time_mep_count.get(project, 0) + count
+                )
 
         return project_to_real_time_mep_count, project_to_batch_mep_count
 
@@ -6186,6 +6209,7 @@ class SQLDB(DBInterface):
             model_endpoint_record.created
         )
         model_endpoint_full_dict[ModelEndpointSchema.UID] = model_endpoint_record.uid
+
         model_endpoint_full_dict = self._fill_model_endpoint_with_function_data(
             model_endpoint_record,
             model_endpoint_full_dict,

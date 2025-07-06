@@ -1,3 +1,8 @@
+[build-system]
+requires = [
+    "setuptools>=80.9.0",
+]
+
 [tool.ruff]
 target-version = "py39"
 required-version = ">=0.8.0"
@@ -33,6 +38,9 @@ author = "Iguazio"
 
 [tool.ruff.format]
 docstring-code-format = true
+
+[tool.uv]
+required-version = ">=0.7.14"
 
 [tool.uv.pip]
 python-version = "3.9"  # TODO: change to 3.11 when 3.9 is no longer supported
@@ -170,4 +178,3 @@ omit = [
     ]
 
 relative_files = true
-

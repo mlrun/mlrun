@@ -747,7 +747,7 @@ class RunDBMock:
         if isinstance(names, str):
             names = [names]
         endpoints = []
-        for name in names:
+        for name in names or ["model-ep-1"]:
             endpoints.append(
                 mlrun.common.schemas.model_monitoring.ModelEndpoint(
                     metadata=mlrun.common.schemas.ModelEndpointMetadata(

@@ -20,6 +20,7 @@ __all__ = [
     "MonitoringApplicationStep",
 ]
 
+import inspect
 import os
 import pathlib
 import traceback
@@ -29,10 +30,12 @@ from inspect import getfullargspec, signature
 from typing import Any, Optional, Union, cast
 
 import storey.utils
+from storey import ParallelExecutionMechanisms
 
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas as schemas
+from mlrun.artifacts.llm_prompt import LLMPromptArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaSource,
@@ -40,6 +43,7 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileV3io,
     datastore_profile_read,
 )
+from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import logger
@@ -79,6 +83,7 @@ class StepKinds:
     root = "root"
     error_step = "error_step"
     monitoring_application = "monitoring_application"
+    model_runner = "model_runner"
 
 
 _task_step_fields = [
@@ -1002,7 +1007,9 @@ class RouterStep(TaskStep):
         )
 
 
-class Model(storey.ParallelExecutionRunnable):
+class Model(storey.ParallelExecutionRunnable, ModelObj):
+    _dict_fields = ["name", "raise_exception", "artifact_uri"]
+
     def __init__(
         self,
         name: str,
@@ -1014,15 +1021,41 @@ class Model(storey.ParallelExecutionRunnable):
         if artifact_uri is not None and not isinstance(artifact_uri, str):
             raise MLRunInvalidArgumentError("'artifact_uri' argument must be a string")
         self.artifact_uri = artifact_uri
+        self.invocation_artifact: Optional[LLMPromptArtifact] = None
+        self.model_artifact: Optional[ModelArtifact] = None
+        self.model_provider: Optional[ModelProvider] = None
+
+    def __init_subclass__(cls):
+        super().__init_subclass__()
+        cls._dict_fields = list(
+            set(cls._dict_fields)
+            | set(inspect.signature(cls.__init__).parameters.keys())
+        )
+        cls._dict_fields.remove("self")
 
     def load(self) -> None:
         """Override to load model if needed."""
-        pass
+        self._load_artifacts()
+        if self.model_artifact:
+            self.model_provider = mlrun.get_model_provider(
+                url=self.model_artifact.model_url,
+                default_invoke_kwargs=self.model_artifact.default_config,
+                raise_missing_schema_exception=False,
+            )
 
-    def _get_artifact_object(self) -> Union[ModelArtifact, None]:
+    def _load_artifacts(self) -> None:
+        artifact = self._get_artifact_object()
+        if isinstance(artifact, LLMPromptArtifact):
+            self.invocation_artifact = artifact
+            self.model_artifact = self.invocation_artifact.model_artifact
+        else:
+            self.model_artifact = artifact
+
+    def _get_artifact_object(self) -> Union[ModelArtifact, LLMPromptArtifact, None]:
         if self.artifact_uri:
             if mlrun.datastore.is_store_uri(self.artifact_uri):
-                return get_store_resource(self.artifact_uri)
+                artifact, _ = mlrun.store_manager.get_store_artifact(self.artifact_uri)
+                return artifact
             else:
                 raise ValueError(
                     "Could not get artifact, 'artifact_uri' must be a valid artifact store URI"
@@ -1170,7 +1203,7 @@ class ModelRunnerStep(MonitoredStep):
     example::
 
         model_runner_step = ModelRunnerStep(name="my_model_runner")
-        model_runner_step.add_model(MyModel(name="my_model"))
+        model_runner_step.add_model(..., model_class=MyModel(name="my_model"))
         graph.to(model_runner_step)
 
     :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
@@ -1203,12 +1236,16 @@ class ModelRunnerStep(MonitoredStep):
             **kwargs,
         )
         self.raise_exception = raise_exception
+        self.shape = "folder"
 
     def add_model(
         self,
         endpoint_name: str,
-        model_class: str,
-        model_artifact: Optional[Union[str, mlrun.artifacts.ModelArtifact]] = None,
+        model_class: Union[str, Model],
+        execution_mechanism: Union[str, ParallelExecutionMechanisms],
+        model_artifact: Optional[
+            Union[str, mlrun.artifacts.ModelArtifact, mlrun.artifacts.LLMPromptArtifact]
+        ] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
@@ -1225,34 +1262,63 @@ class ModelRunnerStep(MonitoredStep):
 
         :param endpoint_name:       str, will identify the model in the ModelRunnerStep, and assign model endpoint name
         :param model_class:         Model class name
-        :param model_artifact:      model artifact or mlrun model artifact uri
-        :param labels:              model endpoint labels, should be list of str or mapping of str:str
-        :param creation_strategy:   Strategy for creating or updating the model endpoint:
-            * **overwrite**:
-            1. If model endpoints with the same name exist, delete the `latest` one.
-            2. Create a new model endpoint entry and set it as `latest`.
-            * **inplace** (default):
-            1. If model endpoints with the same name exist, update the `latest` entry.
-            2. Otherwise, create a new entry.
-            * **archive**:
-            1. If model endpoints with the same name exist, preserve them.
-            2. Create a new model endpoint with the same name and set it to `latest`.
-        :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs that
-                                    been configured in the model artifact, please note that those inputs need to be
-                                    equal in length and order to the inputs that model_class predict method expects
-        :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs that
-                                    been configured in the model artifact, please note that those outputs need to be
-                                    equal to the model_class predict method outputs (length, and order)
-        :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
-                                    (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
-        :param result_path:         result path inside the user output event, expect scopes to be defined by dot
-                                    notation (e.g "outputs.my_model_outputs") expects list or dictionary type object in
-                                    path.
-        :param override:            bool allow override existing model on the current ModelRunnerStep.
-        :param model_parameters:    Parameters for model instantiation
+        :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
+            * "process_pool" – To run in a separate process from a process pool. This is appropriate for CPU or GPU
+                intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
+                Lock (GIL).
+            * "dedicated_process" – To run in a separate dedicated process. This is appropriate for CPU or GPU intensive
+                tasks that also require significant Runnable-specific initialization (e.g. a large model).
+            * "thread_pool" – To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
+                otherwise block the main event loop thread.
+            * "asyncio" – To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
+                event loop to continue running while waiting for a response.
+            * "shared_executor" – Reuses an external executor (typically managed by the flow or context) to execute the
+                runnable. Should be used only if you have multiply `ParallelExecution` in the same flow and especially
+                useful when:
+                - You want to share a heavy resource like a large model loaded onto a GPU.
+                - You want to centralize task scheduling or coordination for multiple lightweight tasks.
+                - You aim to minimize overhead from creating new executors or processes/threads per runnable.
+                The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
+                memory and hardware accelerators.
+            * "naive" – To run in the main event loop. This is appropriate only for trivial computation and/or file I/O.
+                It means that the runnable will not actually be run in parallel to anything else.
+
+            :param model_artifact:      model artifact or mlrun model artifact uri
+            :param labels:              model endpoint labels, should be list of str or mapping of str:str
+            :param creation_strategy:   Strategy for creating or updating the model endpoint:
+              * **overwrite**:
+              1. If model endpoints with the same name exist, delete the `latest` one.
+              2. Create a new model endpoint entry and set it as `latest`.
+              * **inplace** (default):
+              1. If model endpoints with the same name exist, update the `latest` entry.
+              2. Otherwise, create a new entry.
+              * **archive**:
+              1. If model endpoints with the same name exist, preserve them.
+              2. Create a new model endpoint with the same name and set it to `latest`.
+
+          :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
+                                      that been configured in the model artifact, please note that those inputs need to
+                                      be equal in length and order to the inputs that model_class predict method expects
+          :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
+                                      that been configured in the model artifact, please note that those outputs need to
+                                      be equal to the model_class predict method outputs (length, and order)
+          :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
+                                      (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
+          :param result_path:         result path inside the user output event, expect scopes to be defined by dot
+                                      notation (e.g "outputs.my_model_outputs") expects list or dictionary type object
+                                      in path.
+          :param override:            bool allow override existing model on the current ModelRunnerStep.
+          :param model_parameters:    Parameters for model instantiation
         """
-        # TODO allow model_class as Model object as part of ML-9924
-        model_parameters = model_parameters or {}
+
+        if isinstance(model_class, Model) and model_parameters:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot provide a model object as argument to `model_class` and also provide `model_parameters`."
+            )
+
+        model_parameters = model_parameters or (
+            model_class.to_dict() if isinstance(model_class, Model) else {}
+        )
         if outputs is None and isinstance(
             model_artifact, mlrun.artifacts.ModelArtifact
         ):
@@ -1265,7 +1331,9 @@ class ModelRunnerStep(MonitoredStep):
         model_parameters["artifact_uri"] = model_parameters.get(
             "artifact_uri", model_artifact
         )
-        if model_parameters.get("name", endpoint_name) != endpoint_name:
+        if model_parameters.get("name", endpoint_name) != endpoint_name or (
+            isinstance(model_class, Model) and model_class.name != endpoint_name
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Inconsistent name for model added to ModelRunnerStep."
             )
@@ -1275,10 +1343,25 @@ class ModelRunnerStep(MonitoredStep):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Model with name {endpoint_name} already exists in this ModelRunnerStep."
             )
+        ParallelExecutionMechanisms.validate(execution_mechanism)
+        self.class_args[schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM] = (
+            self.class_args.get(
+                schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM,
+                {},
+            )
+        )
+        self.class_args[schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM][
+            endpoint_name
+        ] = execution_mechanism
 
         model_parameters["name"] = endpoint_name
         monitoring_data = self.class_args.get(
             schemas.ModelRunnerStepData.MONITORING_DATA, {}
+        )
+        model_class = (
+            model_class
+            if isinstance(model_class, str)
+            else model_class.__class__.__name__
         )
         models[endpoint_name] = (model_class, model_parameters)
         monitoring_data[endpoint_name] = {
@@ -1346,23 +1429,27 @@ class ModelRunnerStep(MonitoredStep):
             return monitoring_data
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        if not self._is_local_function(context):
+            # skip init of non local functions
+            return
         model_selector = self.class_args.get("model_selector")
+        execution_mechanism_by_model_name = self.class_args.get(
+            schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM
+        )
         models = self.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
         if isinstance(model_selector, str):
             model_selector = get_class(model_selector, namespace)()
         model_objects = []
         for model, model_params in models.values():
-            if not isinstance(model, Model):
-                # prevent model predict from raising error
-                model_params["raise_exception"] = False
-                model = get_class(model, namespace)(**model_params)
-            else:
-                # prevent model predict from raising error
-                model._raise_exception = False
+            model = get_class(model, namespace).from_dict(
+                model_params, init_with_params=True
+            )
+            model._raise_exception = False
             model_objects.append(model)
         self._async_object = ModelRunner(
             model_selector=model_selector,
             runnables=model_objects,
+            execution_mechanism_by_runnable_name=execution_mechanism_by_model_name,
             name=self.name,
             context=context,
         )
@@ -2048,6 +2135,7 @@ class RootFlowStep(FlowStep):
         "on_error",
         "model_endpoints_names",
         "model_endpoints_routes_names",
+        "track_models",
     ]
 
     def __init__(
@@ -2067,6 +2155,7 @@ class RootFlowStep(FlowStep):
         )
         self._models = set()
         self._route_models = set()
+        self._track_models = False
 
     @property
     def model_endpoints_names(self) -> list[str]:
@@ -2086,6 +2175,14 @@ class RootFlowStep(FlowStep):
     @model_endpoints_routes_names.setter
     def model_endpoints_routes_names(self, models: list[str]):
         self._route_models = set(models)
+
+    @property
+    def track_models(self):
+        return self._track_models
+
+    @track_models.setter
+    def track_models(self, track_models: bool):
+        self._track_models = track_models
 
     def update_model_endpoints_routes_names(self, model_endpoints_names: list):
         self._route_models.update(model_endpoints_names)
@@ -2132,6 +2229,40 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
         graph.edge(step.fullname, route.fullname)
 
 
+def _add_graphviz_model_runner(graph, step, source=None):
+    if source:
+        graph.node("_start", source.name, shape=source.shape, style="filled")
+        graph.edge("_start", step.fullname)
+
+    is_monitored = step._extract_root_step().track_models
+    m_cell = '<FONT POINT-SIZE="9">🄼</FONT>' if is_monitored else ""
+
+    number_of_models = len(
+        list(step.class_args.get(schemas.ModelRunnerStepData.MODELS, {}).keys())
+    )
+    number_badge = f"""
+    <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" BGCOLOR="black" CELLPADDING="2">
+        <TR>
+            <TD><FONT COLOR="white" POINT-SIZE="9"><B>{number_of_models}</B></FONT></TD>
+        </TR>
+    </TABLE>
+    """
+
+    html_label = f"""<
+    <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4">
+        <TR>
+            <TD ALIGN="LEFT">{m_cell}</TD>
+            <TD ALIGN="RIGHT">{number_badge}</TD>
+        </TR>
+        <TR>
+            <TD COLSPAN="2" ALIGN="CENTER"><FONT POINT-SIZE="14">{step.name}</FONT></TD>
+        </TR>
+    </TABLE>
+    >"""
+
+    graph.node(step.fullname, label=html_label, shape=step.get_shape())
+
+
 def _add_graphviz_flow(
     graph,
     step,
@@ -2149,6 +2280,8 @@ def _add_graphviz_flow(
         if kind == StepKinds.router:
             with graph.subgraph(name="cluster_" + child.fullname) as sg:
                 _add_graphviz_router(sg, child)
+        elif kind == StepKinds.model_runner:
+            _add_graphviz_model_runner(graph, child)
         else:
             graph.node(child.fullname, label=child.name, shape=child.get_shape())
         _add_edges(child.after or [], step, graph, child)

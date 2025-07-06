@@ -1,7 +1,3 @@
-# uploading to PyPI
-twine~=5.1
-build~=1.0
-
 # formatting & linting
 ruff==0.8.0
 import-linter~=2.0
@@ -15,7 +11,8 @@ pytest-asyncio~=0.21.2
 pytest-alembic~=0.11.0
 pytest-httpserver~=1.0
 pytest-timeout~=2.0
-pytest-mock-resources[mysql,postgres]~=2.12
+pytest-mock-resources[mysql]~=2.12
+testcontainers[k3s]~=4.10
 aioresponses~=0.7
 requests-mock~=1.8
 httpx~=0.27.0
@@ -23,6 +20,7 @@ deepdiff~=7.0
 hypothesis[numpy]~=6.103
 pytest-rerunfailures~=14.0
 pytest-forked~=1.6
+tiktoken~=0.9.0
 
 # system tests
 matplotlib~=3.5
@@ -42,5 +40,6 @@ cryptography~=44.0
 # install to verify it doesn't cause a warning (ML-8951)
 evidently~=0.7.6
 
+# code coverage
 coverage[toml]~=7.8
 diff-cover~=9.2

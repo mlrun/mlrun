@@ -112,6 +112,9 @@ class TestModelEndpoint(TestDatabaseBase):
                 == f"project-1/function-1@{unversioned_tagged_object_uid_prefix}latest"
             )
             assert model_endpoint_from_db.spec.model_name == f"model-{i}"
+            assert is_hex(
+                model_endpoint_from_db.metadata.uid
+            ), "expected uid as hex value"
             uids.append(uid)
 
         model_endpoint_from_db = self._db.get_model_endpoint(
@@ -168,7 +171,7 @@ class TestModelEndpoint(TestDatabaseBase):
             metadata={
                 "name": "model-endpoint-1",
                 "project": "project-1",
-                "uid": "5cfeed66-72cc-4d97-8ff9-b7b06ebe77f2",
+                "uid": "5cfeed6672cc4d978ff9b7b06ebe77f2",
             },
             spec={
                 "function_name": "function-1",
@@ -182,7 +185,7 @@ class TestModelEndpoint(TestDatabaseBase):
             metadata={
                 "name": "model-endpoint-2",
                 "project": "project-1",
-                "uid": "2127986e-91f5-44af-9be3-1250295f03b6",
+                "uid": "2127986e91f544af9be31250295f03b6",
             },
             spec={
                 "function_name": "function-1",
@@ -210,10 +213,10 @@ class TestModelEndpoint(TestDatabaseBase):
             self._db_session,
             "project-1",
             {
-                uuid.UUID("5cfeed66-72cc-4d97-8ff9-b7b06ebe77f2"): {
+                uuid.UUID("5cfeed6672cc4d978ff9b7b06ebe77f2").hex: {
                     "monitoring_mode": ModelMonitoringMode.disabled
                 },
-                uuid.UUID("2127986e-91f5-44af-9be3-1250295f03b6"): {
+                uuid.UUID("2127986e91f544af9be31250295f03b6").hex: {
                     "model_class": "new_class"
                 },
             },
@@ -228,9 +231,8 @@ class TestModelEndpoint(TestDatabaseBase):
         )
         assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
         assert model_endpoint_from_db.metadata.project == "project-1"
-        assert model_endpoint_from_db.metadata.uid == uuid.UUID(
-            "5cfeed66-72cc-4d97-8ff9-b7b06ebe77f2"
-        )
+        assert model_endpoint_from_db.metadata.uid == "5cfeed6672cc4d978ff9b7b06ebe77f2"
+
         # assert model_endpoint_from_db.status.monitoring_mode == "disabled"
 
         model_endpoint_from_db = self._db.get_model_endpoint(
@@ -242,9 +244,8 @@ class TestModelEndpoint(TestDatabaseBase):
         )
         assert model_endpoint_from_db.metadata.name == "model-endpoint-2"
         assert model_endpoint_from_db.metadata.project == "project-1"
-        assert model_endpoint_from_db.metadata.uid == uuid.UUID(
-            "2127986e-91f5-44af-9be3-1250295f03b6"
-        )
+        assert model_endpoint_from_db.metadata.uid == "2127986e91f544af9be31250295f03b6"
+
         assert model_endpoint_from_db.spec.model_class == "new_class"
 
     def test_list_filters(self) -> None:
@@ -501,12 +502,10 @@ class TestModelEndpoint(TestDatabaseBase):
 
         # expecting two model endpoints that are the latest
         assert len(list_mep) == 2
-        assert list_mep[0].metadata.uid == uuid.UUID(
-            "5cfeed66-72cc-4d97-8ff9-b7b06ebe77f2"
-        )
+        assert list_mep[0].metadata.uid == "5cfeed6672cc4d978ff9b7b06ebe77f2"
 
         # store another model endpoint with the same name but different uid
-        model_endpoint.metadata.uid = "2127986e-91f5-44af-9be3-1250295f03b6"
+        model_endpoint.metadata.uid = "2127986e91f544af9be31250295f03b6"
         self._db.store_model_endpoint(
             self._db_session,
             model_endpoint,
@@ -529,9 +528,7 @@ class TestModelEndpoint(TestDatabaseBase):
 
         # expecting two model endpoints that are the latest
         assert len(list_mep) == 2
-        assert list_mep[0].metadata.uid == uuid.UUID(
-            "2127986e-91f5-44af-9be3-1250295f03b6"
-        )
+        assert list_mep[0].metadata.uid == "2127986e91f544af9be31250295f03b6"
 
         list_mep = self._db.list_model_endpoints(
             self._db_session,
@@ -906,3 +903,11 @@ class TestModelEndpoint(TestDatabaseBase):
         ).endpoints
 
         assert len(endpoints) == 0
+
+
+def is_hex(s: str):
+    try:
+        int(s, 16)
+        return True
+    except (ValueError, TypeError):
+        return False

@@ -20,6 +20,7 @@ from sys import executable
 import pandas as pd
 import pytest
 import v3io
+import v3iofs  # noqa
 
 import mlrun
 import mlrun.common.runtimes.constants

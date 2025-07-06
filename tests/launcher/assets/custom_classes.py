@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,17 +13,10 @@
 # limitations under the License.
 
 
-def inc(x):
-    return int(x) + 1
-
-
-class Identity:
-    def do(self, x):
-        return x
-
-
-class Augment:
+class SepalLengthIncreaser:
     def do(self, event):
-        event.body["more_stuff"] = 5
-        event.body["path"] = event.path
-        return event
+        event_is_list = isinstance(event, list)
+        events = event if event_is_list else [event]
+        for event in events:
+            event["sepal_length"] += 1
+        return events if event_is_list else events[0]

@@ -154,6 +154,7 @@ class NuclioSpec(KubeResourceSpec):
         add_templated_ingress_host_mode=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        serving_spec=None,
     ):
         super().__init__(
             command=command,
@@ -183,6 +184,7 @@ class NuclioSpec(KubeResourceSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             state_thresholds=state_thresholds,
+            serving_spec=serving_spec,
         )
 
         self.base_spec = base_spec or {}

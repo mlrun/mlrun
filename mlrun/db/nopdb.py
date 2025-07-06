@@ -902,6 +902,16 @@ class NopDB(RunDBInterface):
     ) -> [mlrun.common.schemas.model_monitoring.FunctionSummary]:
         pass
 
+    def get_monitoring_function_summary(
+        self,
+        project: str,
+        function_name: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
+        pass
+
     def generate_event(
         self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
     ):

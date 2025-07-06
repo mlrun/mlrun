@@ -580,6 +580,7 @@ test: clean ## Run mlrun tests
 	set -e ; \
 	COMMON_IGNORE_TEST_FLAGS=$$(echo "\
 	--ignore=tests/integration \
+	--ignore=server/py/services/api/tests/integration \
 	--ignore=tests/system \
 	--ignore=tests/rundb/test_httpdb.py \
 	--ignore=server/py/services/api/migrations \
@@ -629,6 +630,7 @@ test-integration-dockerized: build-test ## Run mlrun integration tests in docker
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		-e RUN_COVERAGE=$(RUN_COVERAGE) \
+		--add-host=host.docker.internal:host-gateway \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
 
 .PHONY: test-integration
@@ -644,6 +646,7 @@ test-integration: clean ## Run mlrun integration tests
 		--durations=100 \
 		-rf \
 		tests/integration \
+		server/py/services/api/tests/integration \
 		tests/rundb/test_httpdb.py && \
 	$(PRINT_COVERAGE_REPORT);
 

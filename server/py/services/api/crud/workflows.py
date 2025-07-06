@@ -35,10 +35,6 @@ import framework.utils.notifications.notification_pusher
 import services.api.crud
 import services.api.utils.singletons.scheduler
 
-JOB_TYPE_WORKFLOW_RUNNER = "workflow-runner"
-JOB_TYPE_PROJECT_LOADER = "project-loader"
-JOB_TYPE_RERUN_WORKFLOW_RUNNER = "rerun-workflow-runner"
-
 
 class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
     """
@@ -262,13 +258,13 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         """
         Enrich the runner's node selector with the workflow's node selector.
 
-        :param runner:        Workflow runner function object.
-        :param workflow_request: Workflow specification containing node selector information.
+        :param runner:           Workflow runner function object.
+        :param workflow_request: Workflow spec or rerun request containing node selector information.
         """
-        if workflow_request.workflow_runner_node_selector:
-            runner.spec.node_selector.update(
-                workflow_request.workflow_runner_node_selector
-            )
+        if node_selector := getattr(
+            workflow_request, "workflow_runner_node_selector", None
+        ):
+            runner.spec.node_selector.update(node_selector)
 
 
 class LoadRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
@@ -292,7 +288,7 @@ class LoadRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         """
         labels = {
             mlrun_constants.MLRunInternalLabels.project: project.metadata.name,
-            mlrun_constants.MLRunInternalLabels.job_type: JOB_TYPE_PROJECT_LOADER,
+            mlrun_constants.MLRunInternalLabels.job_type: mlrun_constants.JOB_TYPE_PROJECT_LOADER,
         }
 
         return self.prepare_and_run(
@@ -390,7 +386,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         :param auth_info:        Authentication information of the request.
         """
         labels = {
-            mlrun_constants.MLRunInternalLabels.job_type: JOB_TYPE_WORKFLOW_RUNNER,
+            mlrun_constants.MLRunInternalLabels.job_type: mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: workflow_request.spec.name,
         }
         self._enrich_run_labels_and_env(labels, runner)
@@ -455,7 +451,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         """
         labels = {
             mlrun_constants.MLRunInternalLabels.project: project.metadata.name,
-            mlrun_constants.MLRunInternalLabels.job_type: JOB_TYPE_WORKFLOW_RUNNER,
+            mlrun_constants.MLRunInternalLabels.job_type: mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: runner.metadata.name,
         }
 
@@ -664,9 +660,10 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
 
         labels = {
             mlrun_constants.MLRunInternalLabels.project: project.metadata.name,
-            mlrun_constants.MLRunInternalLabels.job_type: JOB_TYPE_RERUN_WORKFLOW_RUNNER,
+            mlrun_constants.MLRunInternalLabels.job_type: mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: runner.metadata.name,
-            mlrun_constants.MLRunInternalLabels.original_workflow_id: run_uid,
+            mlrun_constants.MLRunInternalLabels.rerun_of: run_uid,
+            mlrun_constants.MLRunInternalLabels.original_workflow_id: rerun_request.original_workflow_id,
         }
 
         self._enrich_runner_node_selector(runner, rerun_request)
@@ -718,7 +715,7 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
                 "project_name": project.metadata.name,
             },
             notifications=notifications,
-            run_name=f"rerun-{rerun_request.run_id[:8]}",
+            run_name=rerun_request.run_name,
             labels=labels,
             scrape_metrics=mlrun_config.config.scrape_metrics,
         )

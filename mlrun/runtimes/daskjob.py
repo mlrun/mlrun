@@ -92,6 +92,7 @@ class DaskSpec(KubeResourceSpec):
         preemption_mode=None,
         security_context=None,
         state_thresholds=None,
+        serving_spec=None,
     ):
         super().__init__(
             command=command,
@@ -121,6 +122,7 @@ class DaskSpec(KubeResourceSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             state_thresholds=state_thresholds,
+            serving_spec=serving_spec,
         )
         self.args = args
 

@@ -57,18 +57,24 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=bind,source=dockerfiles/mlrun-api/locked-requirements.txt,target=locked-requirements.txt \
     uv pip sync --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
 
+COPY *requirements.txt .
+COPY dependencies.py .
+COPY pyproject.toml .
+
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    uv pip install .[complete-api] --python-version ${MLRUN_PYTHON_VERSION}
+
+
 COPY ./pipeline-adapters ./pipeline-adapters
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common --python-version ${MLRUN_PYTHON_VERSION} && \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
 
+
 COPY . .
 RUN chmod -R a+rX /mlrun/server/py/schemas/proto
-
-RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete-api,kfp18] --python-version ${MLRUN_PYTHON_VERSION}
 
 # Remove server related files that are not needed in the base image
 # Remove ensurepip folders from both conda and system python

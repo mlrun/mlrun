@@ -48,15 +48,25 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=bind,source=dockerfiles/test-system/locked-requirements.txt,target=locked-requirements.txt \
     uv pip sync --require-hashes locked-requirements.txt
 
-COPY . .
-
-RUN rm -rf ./server/go
+COPY *requirements.txt .
+COPY dependencies.py .
+COPY pyproject.toml .
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[complete,dev-postgres]
 
+COPY pipeline-adapters pipeline-adapters
+# Install the pipeline adapters development versions since we release them only after merging
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common --python-version ${MLRUN_PYTHON_VERSION} && \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
+
+COPY . .
+
+RUN rm -rf ./server/go
 RUN mv tests /tests && mv Makefile /Makefile
+
 
 COPY . /tmp/mlrun
 

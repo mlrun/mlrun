@@ -37,7 +37,11 @@ import mlrun.errors
 import mlrun.utils.helpers
 import mlrun_pipelines.utils
 from mlrun_pipelines.common.models import RunStatuses
-from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run, is_run_terminated
+from mlrun_pipelines.common.ops import (
+    format_summary_from_kfp_run,
+    is_run_terminated,
+    show_kfp_run,
+)
 
 from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
@@ -964,8 +968,8 @@ def wait_for_pipeline_completion(
     namespace=None,
     remote=True,
     project: Optional[str] = None,
-) -> tuple[dict,bool]:
-    f"""Wait for Pipeline status, timeout in sec
+) -> tuple[dict, bool]:
+    """Wait for Pipeline status, timeout in sec
 
     :param run_id:     id of pipelines run
     :param timeout:    wait timeout in sec
@@ -1058,10 +1062,9 @@ def wait_for_pipeline_completion(
             resp = format_summary_from_kfp_run(resp)
         show_kfp_run(resp)
 
-
     status = resp["run"]["status"] if resp else "unknown"
     message = resp["run"].get("message", "") if resp else ""
-    logger.debug("Run data",resp=resp)
+    logger.debug("Run data", resp=resp)
     if is_run_terminated(kfp_run=resp):
         status = RunStatuses.canceled
 

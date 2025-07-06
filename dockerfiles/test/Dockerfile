@@ -60,7 +60,6 @@ ARG MLRUN_PYTHON_VERSION=3.9
 # as per the python version or we will handle situtations where python 3.11 tries to install
 # kfp 1.8 *even though it is explicitly set on locked file that kfp 1.8 is for python < 3.11*
 
-COPY dockerfiles/test/locked-requirements.txt locked-requirements.txt
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/test/locked-requirements.txt,target=locked-requirements.txt \

@@ -894,7 +894,7 @@ def _run_pipeline(
 def retry_pipeline(
     run_id: str,
     project: str,
-) -> str:
+) -> typing.Union[str, dict[str, str]]:
     """Retry a pipeline run.
 
     This function retries a previously executed pipeline run using the specified run ID. If the run is not in a
@@ -912,11 +912,30 @@ def retry_pipeline(
             "Retrying a pipeline requires access to remote API service. "
             "Please set the dbpath URL."
         )
-
-    pipeline_run_id = mldb.retry_pipeline(
+    rerun_response = mldb.retry_pipeline(
         run_id=run_id,
         project=project,
     )
+    if isinstance(rerun_response, str):
+        pipeline_run_id = rerun_response
+    else:
+        rerun_response = mlrun.common.schemas.WorkflowResponse(**rerun_response)
+
+        def _fetch_workflow_id():
+            rerun = mldb.read_run(rerun_response.run_id, project)
+            workflow_id = rerun["metadata"]["labels"].get("workflow-id")
+            if not workflow_id:
+                raise RuntimeError("workflow-id label not set yet")
+            return workflow_id
+
+        pipeline_run_id = mlrun.utils.helpers.retry_until_successful(
+            backoff=1,
+            timeout=int(mlrun.mlconf.workflows.timeouts.remote),
+            logger=logger,
+            verbose=False,
+            _function=_fetch_workflow_id,
+        )
+
     if pipeline_run_id == run_id:
         logger.info(
             f"Retried pipeline run ID={pipeline_run_id}, check UI for progress."

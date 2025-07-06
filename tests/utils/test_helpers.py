@@ -812,6 +812,30 @@ def test_validate_v3io_consumer_group(value, expected):
             "images_registry": "",
             "expected_output": "mlrun/ml-base:1.9.0",
         },
+        {
+            # explicit older tag in image should keep ml-base without replacement despite newer client version
+            "image": "mlrun/ml-base:1.7.2",
+            "client_version": "1.10.0",
+            "images_tag": None,
+            "images_registry": "",
+            "expected_output": "mlrun/ml-base:1.7.2",
+        },
+        {
+            # image tag > 1.10.0, the image should be switched to mlrun/mlrun
+            "image": "mlrun/ml-base",
+            "client_version": None,
+            "images_tag": "1.10.0",
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:1.10.0",
+        },
+        {
+            # images_tag takes precedence over client_version and triggers replacement even if client_version is older
+            "image": "mlrun/ml-base",
+            "client_version": "1.9.0",
+            "images_tag": "1.10.0",
+            "images_registry": "",
+            "expected_output": "mlrun/mlrun:1.10.0",
+        },
     ],
 )
 def test_enrich_image(case):

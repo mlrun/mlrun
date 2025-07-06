@@ -269,8 +269,6 @@ class MyModelSelector(ModelSelector):
 
 
 class MyModel(Model):
-    execution_mechanism = "naive"
-
     def __init__(self, *args, inc: int, **kwargs):
         super().__init__(*args, **kwargs)
         self.inc = inc
@@ -285,8 +283,6 @@ class MyModel(Model):
 
 
 class DictOutputModel(Model):
-    execution_mechanism = "naive"
-
     def predict(self, body):
         body["outputs"] = {}
         for key, value in body["inputs"].items():
@@ -337,6 +333,7 @@ def test_tracked_model_runner(enable_tracking: bool):
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
     model_runner_step.add_model(
         model_class="MyModel",
+        execution_mechanism="naive",
         endpoint_name="my_model",
         input_path="n",
         result_path="n",
@@ -368,6 +365,7 @@ def test_tracked_model_runner_dict():
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
     model_runner_step.add_model(
         model_class="DictOutputModel",
+        execution_mechanism="naive",
         endpoint_name="dict_model",
         input_path="inputs",
         result_path="outputs",
@@ -398,6 +396,7 @@ def test_tracked_model_runner_multiple_steps():
     )
     model_runner_step_0.add_model(
         model_class="MyModel",
+        execution_mechanism="naive",
         endpoint_name="my_model_0",
         input_path="n",
         result_path="n",
@@ -406,6 +405,7 @@ def test_tracked_model_runner_multiple_steps():
     )
     model_runner_step_1.add_model(
         model_class="MyModel",
+        execution_mechanism="naive",
         endpoint_name="my_model_1",
         input_path="n",
         result_path="n",
@@ -446,6 +446,7 @@ def test_tracked_model_runner_multiple_models():
         model_name_1 = f"runner_1_my_model_{i}"
         model_runner_step_0.add_model(
             model_class="MyModel",
+            execution_mechanism="naive",
             endpoint_name=model_name_0,
             input_path="n",
             result_path="n",
@@ -454,6 +455,7 @@ def test_tracked_model_runner_multiple_models():
         )
         model_runner_step_1.add_model(
             model_class="MyModel",
+            execution_mechanism="naive",
             endpoint_name=model_name_1,
             input_path="n",
             result_path="n",
@@ -489,6 +491,7 @@ def test_set_untracked_with_model_runner():
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
     model_runner_step.add_model(
         model_class="MyModel",
+        execution_mechanism="naive",
         endpoint_name="test_model",
         input_path="n",
         result_path="n",
@@ -524,6 +527,7 @@ def test_tracked_multiple_to_mock_with_model_runner():
     )
     model_runner_step.add_model(
         model_class="DictOutputModel",
+        execution_mechanism="naive",
         endpoint_name="my_dict_model",
         input_path="inputs",
         result_path="outputs",
@@ -540,6 +544,7 @@ def test_tracked_multiple_to_mock_with_model_runner():
     )
     model_runner_step_1.add_model(
         model_class="DictOutputModel",
+        execution_mechanism="naive",
         endpoint_name="my_dict_model_1",
         input_path="inputs",
         result_path="outputs",
@@ -561,6 +566,7 @@ def test_sampling_model_runner(sampling_percentage: float):
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
     model_runner_step.add_model(
         model_class="DictOutputModel",
+        execution_mechanism="naive",
         endpoint_name="dict_model_1",
         input_path="inputs",
         result_path="outputs",

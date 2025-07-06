@@ -13,17 +13,7 @@
 # limitations under the License.
 
 
-def inc(x):
-    return int(x) + 1
-
-
-class Identity:
-    def do(self, x):
-        return x
-
-
-class Augment:
-    def do(self, event):
-        event.body["more_stuff"] = 5
-        event.body["path"] = event.path
-        return event
+def transform(event):
+    if event.get("Product") == "Mouse":
+        event["Product"] = "Mickey Mouse"
+    return event

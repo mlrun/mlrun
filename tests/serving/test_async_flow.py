@@ -159,8 +159,6 @@ def test_push_error():
 
 
 class MyModel(Model):
-    execution_mechanism = "naive"
-
     def __init__(self, inc: int, gpu_number: Optional[int] = None, **kwargs):
         super().__init__(**kwargs)
         self.inc = inc
@@ -181,8 +179,6 @@ class MyModel(Model):
 
 
 class MyRemoteModel(Model):
-    execution_mechanism = "naive"
-
     def __init__(self, name, raise_exception, artifact_uri, **kwargs):
         super().__init__(
             name=name,
@@ -202,8 +198,6 @@ class MyRemoteModel(Model):
 
 
 class MyPklModel(Model):
-    execution_mechanism = "naive"
-
     def __init__(self, name, raise_exception, artifact_uri, **kwargs):
         super().__init__(
             name=name,
@@ -229,7 +223,12 @@ def test_model_runner():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
-    model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model", inc=1)
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        inc=1,
+    )
     graph.to(model_runner_step).respond()
 
     assert "my_model" in graph.model_endpoints_names, "model endpoint name not in graph"
@@ -248,10 +247,16 @@ def test_model_runner_add_model(method: str):
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
-        model_class="MyModel", endpoint_name="my_model_1", inc=1
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model_1",
+        inc=1,
     )
     model_runner_step.add_model(
-        model_class="MyModel", endpoint_name="my_model_2", inc=2
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model_2",
+        inc=2,
     )
     if method == "add_step":
         graph.add_step(model_runner_step).respond()
@@ -281,11 +286,19 @@ def test_model_runner_add_model_failure(method: str):
     function = mlrun.new_function("tests", kind="serving")
     function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
-    model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model", inc=1)
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        inc=1,
+    )
     try:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             model_runner_step.add_model(
-                model_class="MyModel", endpoint_name="my_model", inc=2
+                model_class="MyModel",
+                execution_mechanism="naive",
+                endpoint_name="my_model",
+                inc=2,
             )
     except AssertionError:
         pytest.fail(
@@ -297,10 +310,16 @@ def test_model_runner_add_model_failure(method: str):
     model_runner_step_0 = ModelRunnerStep(name="my_model_runner_0")
     model_runner_step_1 = ModelRunnerStep(name="my_model_runner_1")
     model_runner_step_0.add_model(
-        model_class="MyModel", endpoint_name="my_model", inc=1
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        inc=1,
     )
     model_runner_step_1.add_model(
-        model_class="MyModel", endpoint_name="my_model", inc=2
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        inc=2,
     )
     try:
         with pytest.raises(mlrun.serving.states.GraphError):
@@ -325,7 +344,12 @@ def test_model_runner_with_route_failure(model_runner_first: bool, method: str):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
-    model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model", inc=1)
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        inc=1,
+    )
     graph.to(class_name=RouterStep())
 
     if method == "add_step":
@@ -339,13 +363,17 @@ def test_model_runner_with_route_failure(model_runner_first: bool, method: str):
         adding_method(model_runner_step)
         try:
             with pytest.raises(mlrun.serving.states.GraphError):
-                function.add_model(class_name="MyModel", key="my_model")
+                function.add_model(
+                    class_name="MyModel", execution_mechanism="naive", key="my_model"
+                )
         except AssertionError:
             pytest.fail(
                 "Expected 'mlrun.serving.states.GraphError' using the same model name with router and ModelRunnerStep"
             )
     else:
-        function.add_model(class_name="MyModel", key="my_model")
+        function.add_model(
+            class_name="MyModel", execution_mechanism="naive", key="my_model"
+        )
         try:
             with pytest.raises(mlrun.serving.states.GraphError):
                 adding_method(model_runner_step)
@@ -361,7 +389,12 @@ def test_model_runner_with_route(model_runner_first: bool, method: str):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner_with_route")
-    model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model", inc=1)
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        inc=1,
+    )
     graph.to(class_name=RouterStep()).respond()
 
     if method == "add_step":
@@ -378,6 +411,7 @@ def test_model_runner_with_route(model_runner_first: bool, method: str):
         "my_model_1",
         ".",
         class_name="MyModel",
+        execution_mechanism="naive",
         name="my_model_1",
         inc=1,
     )
@@ -404,7 +438,11 @@ def test_model_runner_error_raiser(raise_error: bool, with_error: bool):
         name="my_model_runner", raise_exception=raise_error
     )
     model_runner_step.add_model(
-        model_class="MyModel", endpoint_name="my_model", raise_error=False, inc=1
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        raise_error=False,
+        inc=1,
     )
     graph.to(model_runner_step).respond()
     _test_model_runner_raise_error_output(function, raise_error, with_error)
@@ -419,10 +457,18 @@ def test_model_runner_error_raiser_multiple_models(raise_error: bool, with_error
         name="my_model_runner", raise_exception=raise_error
     )
     model_runner_step.add_model(
-        model_class="MyModel", endpoint_name="my_model_0", raise_error=False, inc=1
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model_0",
+        raise_error=False,
+        inc=1,
     )
     model_runner_step.add_model(
-        model_class="MyModel", endpoint_name="my_model_1", raise_error=False, inc=1
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model_1",
+        raise_error=False,
+        inc=1,
     )
     graph.to(model_runner_step).respond()
     _test_model_runner_raise_error_output(
@@ -439,7 +485,11 @@ def test_model_runner_multiple_downstream_steps(raise_error: bool, with_error: b
         name="my_model_runner", raise_exception=raise_error
     )
     model_runner_step.add_model(
-        model_class="MyModel", endpoint_name="my_model", raise_error=False, inc=1
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        raise_error=False,
+        inc=1,
     )
     step = graph.to(model_runner_step)
     for i in range(5):
@@ -484,10 +534,12 @@ class MyModelSelector(ModelSelector):
     ("process_pool", "dedicated_process", "thread_pool", "asyncio", "naive"),
 )
 def test_model_runner_with_selector(execution_mechanism: str):
-    m1 = MyModel(name="m1", inc=1)
-    m2 = MyModel(name="m2", inc=2)
-    # Normally, this is set at the class level, but for testing purposes, we set it on the instance
-    m2.execution_mechanism = execution_mechanism
+    m1 = MyModel(
+        name="m1",
+        execution_mechanism="naive",
+        inc=1,
+    )
+    m2 = MyModel(name="m2", execution_mechanism=execution_mechanism, inc=2)
 
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
@@ -495,8 +547,12 @@ def test_model_runner_with_selector(execution_mechanism: str):
         name="my_model_runner",
         model_selector="MyModelSelector",
     )
-    model_runner_step.add_model(endpoint_name=m1.name, model_class=m1)
-    model_runner_step.add_model(endpoint_name=m2.name, model_class=m2)
+    model_runner_step.add_model(
+        endpoint_name=m1.name, model_class=m1, execution_mechanism="naive"
+    )
+    model_runner_step.add_model(
+        endpoint_name=m2.name, model_class=m2, execution_mechanism="naive"
+    )
     graph.to(model_runner_step).respond()
 
     server = function.to_mock_server()
@@ -513,18 +569,24 @@ def test_model_runner_with_selector(execution_mechanism: str):
 
 
 def test_model_runner_with_gpu_allocation():
-    m1 = MyModel(name="m1", inc=1, gpu_number=1)
-    m2 = MyModel(name="m2", inc=2, gpu_number=2)
-
-    m1.execution_mechanism = m2.execution_mechanism = "dedicated_process"
+    m1 = MyModel(
+        name="m1", execution_mechanism="dedicated_process", inc=1, gpu_number=1
+    )
+    m2 = MyModel(
+        name="m2", execution_mechanism="dedicated_process", inc=2, gpu_number=2
+    )
 
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(
         name="my_model_runner",
     )
-    model_runner_step.add_model(endpoint_name=m1.name, model_class=m1)
-    model_runner_step.add_model(endpoint_name=m2.name, model_class=m2)
+    model_runner_step.add_model(
+        endpoint_name=m1.name, model_class=m1, execution_mechanism="naive"
+    )
+    model_runner_step.add_model(
+        endpoint_name=m2.name, model_class=m2, execution_mechanism="naive"
+    )
     graph.to(model_runner_step).respond()
 
     server = function.to_mock_server()
@@ -548,6 +610,7 @@ def test_model_runner_with_remote_model():
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
         model_class="MyRemoteModel",
+        execution_mechanism="naive",
         endpoint_name="my_endpoint",
         model_artifact=model_artifact,
     )
@@ -583,6 +646,7 @@ def test_get_local_model_path():
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
         model_class="MyPklModel",
+        execution_mechanism="naive",
         endpoint_name="my_endpoint",
         model_artifact=model_artifact,
     )

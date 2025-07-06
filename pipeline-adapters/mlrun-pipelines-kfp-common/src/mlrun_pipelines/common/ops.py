@@ -541,8 +541,8 @@ def is_run_terminated(
 
 def show_kfp_run(
     kfp_run: dict,
-    html_display_id: str = None,
-    dag_display_id: str = None,
+    html_display_id: typing.Optional[str] = None,
+    dag_display_id: typing.Optional[str] = None,
     with_html: bool = True,
 ):
     phase_to_color = {

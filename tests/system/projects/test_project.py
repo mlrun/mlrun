@@ -1798,7 +1798,7 @@ class TestProject(TestMLRunSystem):
 
         notification = mlrun.model.Notification(
             kind="webhook",
-            when=["running", "completed", "error"],
+            when=["running", "completed"],
             name="webhook_notification",
             message="some message",
             condition="",

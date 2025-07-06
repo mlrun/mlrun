@@ -34,6 +34,7 @@ class FunctionSummary(BaseModel):
     type: FunctionsType
     name: str
     application_class: str
+    project_name: str
     updated_time: datetime
     status: Optional[str] = None
     base_period: Optional[int] = None
@@ -59,6 +60,7 @@ class FunctionSummary(BaseModel):
             else func_dict["spec"]["graph"]["steps"]["PushToMonitoringWriter"]["after"][
                 0
             ],
+            project_name=func_dict["metadata"]["project"],
             updated_time=func_dict["metadata"].get("updated"),
             status=func_dict["status"].get("state"),
             base_period=base_period,

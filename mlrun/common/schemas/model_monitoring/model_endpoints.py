@@ -14,7 +14,7 @@
 import abc
 import json
 from datetime import datetime
-from typing import Any, NamedTuple, Optional, TypeVar
+from typing import Any, Literal, NamedTuple, Optional, TypeVar
 from uuid import UUID
 
 from pydantic import validator  # use `validator` if you’re still on Pydantic v1
@@ -332,6 +332,24 @@ class ModelEndpointMonitoringMetricNoData(_ModelEndpointMonitoringMetricValuesBa
     full_name: str
     type: ModelEndpointMonitoringMetricType
     data: bool = False
+
+
+class ApplicationBaseRecord(BaseModel):
+    type: Literal["metric", "result"]
+    time: datetime
+    value: float
+
+
+class ApplicationResultRecord(ApplicationBaseRecord):
+    kind: ResultKindApp
+    status: ResultStatusApp
+    result_name: str
+    type: Literal["result"] = "result"
+
+
+class ApplicationMetricRecord(ApplicationBaseRecord):
+    metric_name: str
+    type: Literal["metric"] = "metric"
 
 
 def _mapping_attributes(

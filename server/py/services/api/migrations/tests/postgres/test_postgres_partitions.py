@@ -101,5 +101,4 @@ def test_drop_partitions_postgres(alembic_engine):
     assert cutoff in remaining  # cutoff kept
     newer = {name for name, _ in parts[2:]}  # newest kept
     assert newer <= remaining
-
     session.close()

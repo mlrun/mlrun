@@ -4193,6 +4193,36 @@ class HTTPRunDB(RunDBInterface):
             results.append(FunctionSummary(**item))
         return results
 
+    def get_monitoring_function_summary(
+        self,
+        project: str,
+        function_name: str,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> FunctionSummary:
+        """
+        Get a monitoring function summary for the specified project and function.
+        :param project:                The name of the project.
+        :param function_name:          The name of the function.
+        :param start:                  Start time for filtering the results (optional).
+        :param end:                    End time for filtering the results (optional).
+        :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
+
+        :return: A FunctionSummary object containing information about the monitoring function.
+        """
+
+        response = self.api_call(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path=f"projects/{project}/model-monitoring/function-summaries/{function_name}",
+            params={
+                "start": datetime_to_iso(start),
+                "end": datetime_to_iso(end),
+                "include-latest-metrics": include_latest_metrics,
+            },
+        )
+        return FunctionSummary(**response.json())
+
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
     ):

@@ -1287,6 +1287,16 @@ class SQLRunDB(RunDBInterface):
     ) -> [mlrun.common.schemas.model_monitoring.FunctionSummary]:
         raise NotImplementedError
 
+    def get_monitoring_function_summary(
+        self,
+        project: str,
+        function_name: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
+        raise NotImplementedError
+
     def _transform_db_error(self, func, *args, **kwargs):
         try:
             return func(*args, **kwargs)

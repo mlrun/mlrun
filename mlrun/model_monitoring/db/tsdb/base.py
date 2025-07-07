@@ -358,6 +358,58 @@ class TSDBConnector(ABC):
                  }
         """
 
+    @abstractmethod
+    def count_processed_model_endpoints(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+    ) -> dict[str, int]:
+        """
+        Count the number of processed model endpoints within a given time range for specific applications.
+        :param start:              The start time of the query. Last 24 hours is used by default.
+        :param end:                The end time of the query. The current time is used by default.
+        :param application_names:  A list of application names to filter the results by. If not provided, all
+                                   applications are included.
+        :return:                   The count of processed model endpoints.
+        """
+
+    @abstractmethod
+    def calculate_latest_metrics(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+    ) -> list[
+        Union[mm_schemas.ApplicationResultRecord, mm_schemas.ApplicationMetricRecord]
+    ]:
+        """
+        Calculate the latest metrics and results across applications.
+        :param start:              The start time of the query. Last 24 hours is used by default.
+        :param end:                The end time of the query. The current time is used by default.
+        :param application_names:  A list of application names to filter the results by. If not provided, all
+                                   applications are included.
+        :return:                   A list containing the latest metrics and results for each application.
+                                   example::
+                                   [
+                                       {
+                                           "type": "metric",
+                                           "time": "2025-06-29 13:36:37 +00:00",
+                                           "metric_name": "hellinger_mean",
+                                           "value": 0.123456,
+                                       },
+                                        {
+                                             "type": "result",
+                                             "time": "2025-06-29 13:36:37 +00:00",
+                                             "result_name": "drift_status",
+                                             "kind": "2",
+                                             "status": 0,
+                                             "value": 15.4,
+                                        },
+                                       ...
+                                   ]
+        """
+
     async def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
@@ -651,22 +703,3 @@ class TSDBConnector(ABC):
                 )
             )
         return {dict_key: metrics}
-
-    @staticmethod
-    def _get_start_end(
-        start: Union[datetime, None],
-        end: Union[datetime, None],
-    ) -> tuple[datetime, datetime]:
-        """
-        static utils function for tsdb start end format
-        :param start:       Either None or datetime, None is handled as datetime.min(tz=timezone.utc)
-        :param end:         Either None or datetime, None is handled as datetime.now(tz=timezone.utc)
-        :return:            start datetime, end datetime
-        """
-        start = start or mlrun.utils.datetime_min()
-        end = end or mlrun.utils.datetime_now()
-        if not (isinstance(start, datetime) and isinstance(end, datetime)):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Both start and end must be datetime objects"
-            )
-        return start, end

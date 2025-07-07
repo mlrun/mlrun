@@ -43,6 +43,7 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileV3io,
     datastore_profile_read,
 )
+from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import logger
@@ -1079,6 +1080,9 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         if artifact_uri is not None and not isinstance(artifact_uri, str):
             raise MLRunInvalidArgumentError("'artifact_uri' argument must be a string")
         self.artifact_uri = artifact_uri
+        self.invocation_artifact: Optional[LLMPromptArtifact] = None
+        self.model_artifact: Optional[ModelArtifact] = None
+        self.model_provider: Optional[ModelProvider] = None
 
     def __init_subclass__(cls):
         super().__init_subclass__()
@@ -1090,12 +1094,27 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
     def load(self) -> None:
         """Override to load model if needed."""
-        pass
+        self._load_artifacts()
+        if self.model_artifact:
+            self.model_provider = mlrun.get_model_provider(
+                url=self.model_artifact.model_url,
+                default_invoke_kwargs=self.model_artifact.default_config,
+                raise_missing_schema_exception=False,
+            )
 
-    def _get_artifact_object(self) -> Union[ModelArtifact, None]:
+    def _load_artifacts(self) -> None:
+        artifact = self._get_artifact_object()
+        if isinstance(artifact, LLMPromptArtifact):
+            self.invocation_artifact = artifact
+            self.model_artifact = self.invocation_artifact.model_artifact
+        else:
+            self.model_artifact = artifact
+
+    def _get_artifact_object(self) -> Union[ModelArtifact, LLMPromptArtifact, None]:
         if self.artifact_uri:
             if mlrun.datastore.is_store_uri(self.artifact_uri):
-                return get_store_resource(self.artifact_uri)
+                artifact, _ = mlrun.store_manager.get_store_artifact(self.artifact_uri)
+                return artifact
             else:
                 raise ValueError(
                     "Could not get artifact, 'artifact_uri' must be a valid artifact store URI"
@@ -1575,6 +1594,9 @@ class ModelRunnerStep(MonitoredStep):
             return monitoring_data
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        if not self._is_local_function(context):
+            # skip init of non local functions
+            return
         model_selector = self.class_args.get("model_selector")
         execution_mechanism_by_model_name = self.class_args.get(
             schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM

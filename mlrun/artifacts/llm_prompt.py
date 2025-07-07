@@ -127,7 +127,7 @@ class LLMPromptArtifact(Artifact):
         if self.spec._model_artifact:
             return self.spec._model_artifact
         if self.spec.model_uri:
-            self.spec._model_artifact, target = (
+            self.spec._model_artifact, _ = (
                 mlrun.datastore.store_manager.get_store_artifact(self.spec.model_uri)
             )
             return self.spec._model_artifact

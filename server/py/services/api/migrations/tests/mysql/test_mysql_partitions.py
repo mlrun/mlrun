@@ -121,5 +121,4 @@ def test_drop_partitions_mysql(alembic_engine):
     assert parts[0][0] not in remaining
     newer = {name for name, _ in parts[2:]}
     assert newer <= remaining
-
     session.close()

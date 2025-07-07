@@ -34,6 +34,8 @@ from sqlalchemy.types import TypeDecorator
 
 import mlrun.common.db.dialects
 
+from framework.utils.db.utils import DBUtil
+
 
 class DateTime(TypeDecorator):
     impl = sqlalchemy.types.DateTime
@@ -158,3 +160,21 @@ class UuidType(TypeDecorator):
     def coerce_compared_value(self, op: Any, value: Any) -> TypeDecorator:
         # ensure STR comparisons are coerced through this type
         return self
+
+
+# TODO: Remove this class and usages once old alembic migrations that use it are squashed.
+class Collations:
+    mysql = "utf8mb3_bin"
+
+    @classmethod
+    def collation(cls):
+        dsn = DBUtil().get_parsed_dsn()
+        if dsn.dialect == mlrun.common.db.dialects.Dialects.MYSQL:
+            return cls.mysql
+        return None
+
+
+class SQLTypesUtil:
+    @classmethod
+    def collation(cls):
+        return Collations.collation()

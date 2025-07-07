@@ -36,6 +36,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun_pipelines.utils
+from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
 
@@ -1150,6 +1151,22 @@ def get_dataitem(url, secrets=None, db=None) -> "DataItem":
     """get mlrun dataitem object (from path/url)"""
     stores = store_manager.set(secrets, db=db)
     return stores.object(url=url)
+
+
+def get_model_provider(
+    url,
+    secrets=None,
+    db=None,
+    default_invoke_kwargs: Optional[dict] = None,
+    raise_missing_schema_exception=True,
+) -> ModelProvider:
+    """get mlrun dataitem object (from path/url)"""
+    store_manager.set(secrets, db=db)
+    return store_manager.model_provider_object(
+        url=url,
+        default_invoke_kwargs=default_invoke_kwargs,
+        raise_missing_schema_exception=raise_missing_schema_exception,
+    )
 
 
 def download_object(url, target, secrets=None):

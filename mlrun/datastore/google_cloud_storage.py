@@ -105,12 +105,12 @@ class GoogleCloudStorageStore(DataStore):
             except json.JSONDecodeError:
                 # If it's not json, handle it as a filename
                 token = credentials
-            return self._sanitize_storage_options(dict(token=token))
+            return self._sanitize_options(dict(token=token))
         else:
             logger.info(
                 "No GCS credentials available - auth will rely on auto-discovery of credentials"
             )
-            return self._sanitize_storage_options(None)
+            return self._sanitize_options(None)
 
     def get_storage_options(self):
         return self.storage_options

@@ -202,12 +202,12 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         assert " " not in result.strip()  # checking one-word answer
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
-            match="can not provide 'messages' and 'prompt' to invoke",
+            match="can not provide 'messages' and 'prompt' to invoke a model",
         ):
             model_provider.invoke(prompt="what is LLM?", messages=messages)
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
-            match="must provide 'messages' or 'prompt' to invoke",
+            match="must provide 'messages' or 'prompt' to invoke a model",
         ):
             model_provider.invoke()
 

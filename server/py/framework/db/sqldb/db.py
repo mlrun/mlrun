@@ -59,7 +59,6 @@ import mlrun.common.types
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.model
-import mlrun.utils.db
 from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.common.db.dialects import Dialects
 from mlrun.common.schemas.feature_store import (
@@ -91,6 +90,7 @@ from mlrun.utils import (
 
 import framework.constants
 import framework.db.session
+import framework.db.sqldb.base
 import framework.utils.helpers
 from framework.db.base import DBInterface
 from framework.db.sqldb.helpers import (
@@ -3253,9 +3253,9 @@ class SQLDB(DBInterface):
     def _delete_multi_objects(
         self,
         session: Session,
-        main_table: mlrun.utils.db.BaseModel,
+        main_table: framework.db.sqldb.base.BaseModel,
         project: str,
-        related_tables: typing.Optional[list[mlrun.utils.db.BaseModel]] = None,
+        related_tables: typing.Optional[list[framework.db.sqldb.base.BaseModel]] = None,
         main_table_identifier: typing.Optional[Column] = None,
         main_table_identifier_values: typing.Optional[
             typing.Union[str, list[str]]
@@ -3340,7 +3340,7 @@ class SQLDB(DBInterface):
     @staticmethod
     def _delete_table_in_batches(
         session: Session,
-        table: mlrun.utils.db.BaseModel,
+        table: framework.db.sqldb.base.BaseModel,
         where_clause,
     ) -> int:
         """
@@ -3829,7 +3829,7 @@ class SQLDB(DBInterface):
     @staticmethod
     def _filter_query_by_resource_project(
         query: sqlalchemy.orm.query.Query,
-        resource: type[mlrun.utils.db.BaseModel],
+        resource: type[framework.db.sqldb.base.BaseModel],
         project: typing.Optional[typing.Union[str, list[str]]] = None,
     ) -> sqlalchemy.orm.query.Query:
         if isinstance(project, list):
@@ -6210,9 +6210,7 @@ class SQLDB(DBInterface):
         model_endpoint_full_dict[ModelEndpointSchema.CREATED] = (
             model_endpoint_record.created
         )
-        model_endpoint_full_dict[ModelEndpointSchema.UID] = (
-            model_endpoint_record.uid.hex
-        )
+        model_endpoint_full_dict[ModelEndpointSchema.UID] = model_endpoint_record.uid
 
         model_endpoint_full_dict = self._fill_model_endpoint_with_function_data(
             model_endpoint_record,
@@ -8008,7 +8006,7 @@ class SQLDB(DBInterface):
             obj_name_attribute=["name"],
             obj_name_suffix=obj_name_suffix,
         )
-        return mep.uid.hex
+        return mep.uid
 
     def _get_mep_function(
         self, session, function_name, function_tag, project

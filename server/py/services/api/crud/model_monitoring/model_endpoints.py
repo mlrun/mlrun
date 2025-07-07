@@ -851,11 +851,9 @@ class ModelEndpoints:
             ModelEndpoints.delete_tsdb_records,
             mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_tsdb_leftovers,
             background_task_name,
+            None,
             project,
             uids,
-            int(
-                mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_tsdb_leftovers
-            ),
         )
 
         # delete feature sets
@@ -875,9 +873,7 @@ class ModelEndpoints:
         )
 
     @staticmethod
-    async def delete_tsdb_records(
-        project: str, uids: list[str], delete_timeout: Optional[int] = None
-    ):
+    async def delete_tsdb_records(project: str, uids: list[str]):
         try:
             tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
                 project=project,
@@ -885,9 +881,7 @@ class ModelEndpoints:
                     project=project
                 ),
             )
-            tsdb_connector.delete_tsdb_records(
-                endpoint_ids=uids, delete_timeout=delete_timeout
-            )
+            tsdb_connector.delete_tsdb_records(endpoint_ids=uids)
             logger.info("TSDB resources were deleted")
         except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
             logger.info(

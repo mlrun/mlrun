@@ -213,10 +213,10 @@ class TestModelEndpoint(TestDatabaseBase):
             self._db_session,
             "project-1",
             {
-                uuid.UUID("5cfeed66-72cc4d978ff9b7b06ebe77f2"): {
+                uuid.UUID("5cfeed6672cc4d978ff9b7b06ebe77f2").hex: {
                     "monitoring_mode": ModelMonitoringMode.disabled
                 },
-                uuid.UUID("2127986e91f544af9be31250295f03b6"): {
+                uuid.UUID("2127986e91f544af9be31250295f03b6").hex: {
                     "model_class": "new_class"
                 },
             },

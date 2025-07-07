@@ -16,15 +16,51 @@ import datetime
 
 import pandas as pd
 import pytest
+import sqlalchemy
 import sqlalchemy as db
+from sqlalchemy import Dialect, TypeDecorator
+from sqlalchemy.dialects.mysql import DATETIME as MYSQL_DATETIME
+from sqlalchemy.dialects.postgresql import TIMESTAMP as PG_TIMESTAMP
 
 import mlrun
+import mlrun.common.db.dialects
 import mlrun.feature_store as fstore
 from mlrun.datastore.sources import SQLSource
 from mlrun.datastore.targets import SQLTarget
-from mlrun.db.sql_types import MicroSecondDateTime
 from mlrun.feature_store.steps import OneHotEncoder
 from tests.system.base import TestMLRunSystem
+
+
+# This class is redefined here from framework.db.sqldb.sql_types to prevent breaking the import contract
+class DateTime(TypeDecorator):
+    impl = sqlalchemy.types.DateTime
+    cache_ok = True
+    precision: int = 3
+
+    def load_dialect_impl(
+        self,
+        dialect: Dialect,
+    ) -> sqlalchemy.types.TypeEngine:
+        if dialect.name == mlrun.common.db.dialects.Dialects.MYSQL:
+            return dialect.type_descriptor(
+                MYSQL_DATETIME(
+                    fsp=self.precision,
+                    timezone=True,
+                )
+            )
+        if dialect.name == mlrun.common.db.dialects.Dialects.POSTGRESQL:
+            return dialect.type_descriptor(
+                PG_TIMESTAMP(
+                    precision=self.precision,
+                    timezone=True,
+                )
+            )
+        return dialect.type_descriptor(sqlalchemy.types.DateTime)
+
+
+class MicroSecondDateTime(DateTime):
+    cache_ok = True
+    precision: int = 6
 
 
 @pytest.mark.skipif(

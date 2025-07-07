@@ -1286,6 +1286,18 @@ class MLClientCtx:
                 self.to_dict(), self._uid, self.project, iter=self._iteration
             )
 
+    def update_run(self):
+        """
+        Store the run object in the DB - removes missing fields.
+        Use _update_run for coherent updates.
+        Should be called by the logging worker only (see is_logging_worker()).
+        """
+        self._write_tmpfile()
+        if self._rundb:
+            self._rundb.update_run(
+                self.to_dict(), self._uid, self.project, iter=self._iteration
+            )
+
     def is_logging_worker(self):
         """
         Check if the current worker is the logging worker.

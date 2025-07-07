@@ -88,10 +88,12 @@ class OpenAIProvider(ModelProvider):
             return self._default_operation(**invoke_kwargs, model=self.model)
 
     def _get_messages_parameter(
-        self, prompt: Optional[str] = None, **invoke_kwargs
+        self,
+        prompt: Optional[str] = None,
+        messages: Optional[dict] = None,
+        **invoke_kwargs,
     ) -> (str, dict):
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
-        messages = invoke_kwargs.get("messages")
         if messages:
             if prompt:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -110,9 +112,14 @@ class OpenAIProvider(ModelProvider):
             )
         return messages, invoke_kwargs
 
-    def invoke(self, prompt: Optional[str] = None, **invoke_kwargs) -> str:
+    def invoke(
+        self,
+        prompt: Optional[str] = None,
+        messages: Optional[dict] = None,
+        **invoke_kwargs,
+    ) -> str:
         messages, invoke_kwargs = self._get_messages_parameter(
-            prompt=prompt, **invoke_kwargs
+            prompt=prompt, messages=messages, **invoke_kwargs
         )
         response = self._default_operation(
             model=self.endpoint, messages=messages, **invoke_kwargs

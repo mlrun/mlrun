@@ -54,7 +54,7 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
             self._open_schedules = False
 
     @abstractmethod
-    def get_data_item_object(self) -> mlrun.DataItem:
+    def get_data_item_object(self) -> "mlrun.DataItem":
         pass
 
     def _exists(self) -> bool:
@@ -148,7 +148,7 @@ class ModelMonitoringSchedulesFileEndpoint(ModelMonitoringSchedulesFileBase):
         self._endpoint_id = endpoint_id
         super().__init__()
 
-    def get_data_item_object(self) -> mlrun.DataItem:
+    def get_data_item_object(self) -> "mlrun.DataItem":
         return mlrun.model_monitoring.helpers.get_monitoring_schedules_endpoint_data(
             project=self._project, endpoint_id=self._endpoint_id
         )
@@ -193,7 +193,7 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
         self._project = project
         super().__init__()
 
-    def get_data_item_object(self) -> mlrun.DataItem:
+    def get_data_item_object(self) -> "mlrun.DataItem":
         return mlrun.model_monitoring.helpers.get_monitoring_schedules_chief_data(
             project=self._project
         )
@@ -240,7 +240,7 @@ class ModelMonitoringSchedulesFileApplication(ModelMonitoringSchedulesFileBase):
         self._application = application
         super().__init__()
 
-    def get_data_item_object(self) -> mlrun.DataItem:
+    def get_data_item_object(self) -> "mlrun.DataItem":
         return mlrun.model_monitoring.helpers.get_monitoring_schedules_user_application_data(
             out_path=self._out_path, application=self._application
         )

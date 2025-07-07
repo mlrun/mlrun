@@ -40,7 +40,6 @@ from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.common.ops import (
     format_summary_from_kfp_run,
-    is_run_terminated,
     show_kfp_run,
 )
 
@@ -1005,21 +1004,14 @@ def wait_for_pipeline_completion(
 
         dag_display_id = create_ipython_display()
 
-        def _wait_for_pipeline_completion() -> tuple[dict, bool]:
+        def _wait_for_pipeline_completion() -> dict:
             """
             Wait for pipeline completion
-            :return: tuple of (pipeline, is_terminated)
+            :return: pipeline
             """
             pipeline = mldb.get_pipeline(run_id, namespace=namespace, project=project)
-            logger.info("Pipeline details", run_id=run_id, pipeline=pipeline)
             pipeline_status = pipeline["run"]["status"]
             show_kfp_run(pipeline, dag_display_id=dag_display_id, with_html=False)
-            if is_run_terminated(kfp_run=pipeline):
-                logger.info(
-                    "Pipeline run is terminated",
-                    run_id=run_id,
-                )
-                return pipeline, True
             if pipeline_status in [
                 RunStatuses.terminating,
                 RunStatuses.canceling,
@@ -1037,7 +1029,7 @@ def wait_for_pipeline_completion(
                     status=pipeline_status,
                 )
                 raise RuntimeError("Pipeline run has not completed yet")
-            return pipeline, False
+            return pipeline
 
         if mldb.kind != "http":
             raise ValueError(
@@ -1063,10 +1055,9 @@ def wait_for_pipeline_completion(
             resp = format_summary_from_kfp_run(resp)
         show_kfp_run(resp)
 
-    terminated = is_run_terminated(kfp_run=resp)
-    if terminated:
+    if resp.get("terminated"):
         status = RunStatuses.canceled
-        message = "Pipeline run was terminated"
+        message = "Run was terminated by user"
     else:
         status = resp["run"]["status"] if resp else "unknown"
         message = resp["run"].get("message", "") if resp else ""

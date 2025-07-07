@@ -508,37 +508,6 @@ def format_summary_from_kfp_run(
     return short_run
 
 
-def is_run_terminated(
-    kfp_run: dict,
-) -> bool:
-    if kfp_run.get("kfp_run_was_terminated", False):
-        return True
-
-    manifest_str = kfp_run.get("pipeline_runtime", {}).get("workflow_manifest")
-    if manifest_str:
-        try:
-            manifest = orjson.loads(manifest_str)
-        except json.JSONDecodeError as err:
-            logger.error("Cannot parse workflow_manifest", err=err_to_str(err))
-            raise
-        else:
-            is_argo_workflow = manifest.get("apiVersion") == "argoproj.io/v1alpha1"
-            active_deadline_seconds_is_zero = (
-                manifest.get("spec", {}).get("activeDeadlineSeconds") == 0
-            )
-            if is_argo_workflow and active_deadline_seconds_is_zero:
-                logger.info(
-                    "Argo terminate detected (activeDeadlineSeconds=0)",
-                )
-                kfp_run["kfp_run_was_terminated"] = True
-                return True
-    else:
-        logger.warning(
-            "No workflow_manifest found in KFP run, cannot determine if run is terminated"
-        )
-        return False
-
-
 def show_kfp_run(
     kfp_run: dict,
     html_display_id: typing.Optional[str] = None,

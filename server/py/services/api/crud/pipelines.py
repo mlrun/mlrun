@@ -260,13 +260,13 @@ class Pipelines(
                 project=project,
                 namespace=namespace,
             )
-            run = self._format_run(run, format_, kfp_client)
         except mlrun.errors.MLRunHTTPError as exc:
             raise exc
         except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(
                 f"Failed getting KFP run: {mlrun.errors.err_to_str(exc)}"
             ) from exc
+        run = self._format_run(run, format_, kfp_client)
         return run
 
     def get_original_workflow_run(

@@ -1627,6 +1627,7 @@ def format_run(run: PipelineRun, with_project=False) -> dict:
         "finished_at",
         "description",
         "experiment_id",
+        "terminated",
     ]
 
     if with_project:

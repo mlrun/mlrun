@@ -254,6 +254,23 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         token_count = len(encoding.encode(result))
         assert token_count == 100
 
+    @pytest.mark.asyncio
+    async def test_async_customized_invoke(self):
+        model_name = "text-embedding-3-small"
+        model_url = self.url_prefix + model_name
+        model_provider = mlrun.get_model_provider(url=model_url)
+        prompt = "OpenAI is amazing"
+        client: OpenAI = model_provider.client
+        embeddings = await model_provider.async_customized_invoke(
+            operation=client.embeddings.create, input=prompt
+        )
+        encoding = tiktoken.encoding_for_model(model_name)
+        token_count = len(encoding.encode(prompt))
+        assert embeddings.data[0].embedding is not None
+        assert len(embeddings.data[0].embedding) > 0
+        assert embeddings.usage.total_tokens == token_count
+        assert isinstance(embeddings, CreateEmbeddingResponse)
+
 
 class TestOpenAIModel(TestBasicOpenAIProvider):
     @pytest.fixture

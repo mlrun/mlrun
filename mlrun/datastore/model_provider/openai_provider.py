@@ -95,12 +95,12 @@ class OpenAIProvider(ModelProvider):
 
     async def async_customized_invoke(
         self,
-        async_operation: Optional[Callable[..., Awaitable[T]]] = None,
+        operation: Optional[Callable[..., Awaitable[T]]] = None,
         **invoke_kwargs,
     ) -> Awaitable[T]:
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
-        if async_operation:
-            return async_operation(**invoke_kwargs, model=self.model)
+        if operation:
+            return operation(**invoke_kwargs, model=self.model)
         else:
             return self._default_async_operation(**invoke_kwargs, model=self.model)
 

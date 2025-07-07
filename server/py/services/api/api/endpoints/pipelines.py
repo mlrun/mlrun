@@ -191,6 +191,7 @@ async def retry_pipeline(
     # bypass MLRun's workflow runner logic and submit the retry directly to KFP.
     if (
         submit_mode == mlrun_constants.WorkflowSubmitMode.direct
+        or not original_runner
         or not original_runner.spec.notifications
     ):
         mlrun.utils.logger.info("Direct-submitting retry to KFP API", run_id=run_id)

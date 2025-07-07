@@ -1083,11 +1083,6 @@ def rerun_workflow(
     """
     db = mlrun.get_run_db()
 
-    # pick up any user‐defined "running" notifications
-    for notification in context.get_notifications(unmask_secret_params=True):
-        if mlrun.common.runtimes.constants.RunStates.running in notification.when:
-            notification.when = [mlrun.common.runtimes.constants.RunStates.running]
-
     try:
         # Invoke the KFP retry endpoint (direct-submit mode)
         new_pipeline_id = db.retry_pipeline(

@@ -222,6 +222,35 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             model_url=model_url, secrets=self.env_secrets, model_name=configurable_model
         )
 
+    def test_basic_invoke_messages(self, use_datastore_profile):
+        if not use_datastore_profile:
+            pytest.skip(
+                "test_basic_invoke_messages is tested on datastore profile only"
+            )
+        model_url = self.url_prefix + self.basic_llm_model
+        system_prompt = "You are a special LLM model that always answers user questions with one word only."
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": "What is your opinion on climate change?"},
+        ]
+        model_provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs={"max_tokens": 200}
+        )
+        result = model_provider.invoke(messages=messages).strip()
+        assert result
+        assert " " not in result.strip()  # checking one-word answer
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="can not provide 'messages' and 'prompt' to invoke an OpenAIProvider",
+        ):
+            model_provider.invoke(prompt="what is LLM?", messages=messages)
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="must provide 'messages' or 'prompt' to invoke an OpenAIProvider",
+        ):
+            model_provider.invoke()
+
     @pytest.mark.asyncio
     async def test_async_invoke(self):
         model_url = self.url_prefix + self.basic_llm_model

@@ -123,7 +123,6 @@ def openai_configured():
     not openai_configured(),
     reason="Requires OPENAI_API_KEY and OPENAI_BASE_URL to be set under test-openai.yml",
 )
-@pytest.mark.parametrize("use_datastore_profile", [True, False])
 class TestBasicOpenAIProvider:
     profile_name = "openai_profile"
     env_secrets = config
@@ -139,28 +138,29 @@ class TestBasicOpenAIProvider:
                 os.environ.pop(key, None)
 
     @pytest.fixture(autouse=True)
-    def setup_before_each_test(self, use_datastore_profile):
-        if use_datastore_profile:
-            # noinspection PyAttributeOutsideInit
-            self.profile = OpenAIProfile(
-                name=self.profile_name,
-                api_key=self.env_secrets.get("OPENAI_API_KEY"),
-                organization=self.env_secrets.get("OPENAI_ORG_ID"),
-                project=self.env_secrets.get("OPENAI_PROJECT_ID"),
-                base_url=self.env_secrets.get("OPENAI_BASE_URL"),
-                timeout=self.env_secrets.get("OPENAI_TIMEOUT"),
-                max_retries=self.env_secrets.get("OPENAI_MAX_RETRIES"),
-            )
-            register_temporary_client_datastore_profile(self.profile)
-            self.url_prefix = f"ds://{self.profile_name}/"
-            self.reset_env()
-        else:
-            for key, env_param in self.env_secrets.items():
-                if env_param:
-                    os.environ[key] = env_param
-            store_manager.reset_secrets()
-            # noinspection PyAttributeOutsideInit
-            self.url_prefix = "openai://"
+    def setup_before_each_test(self):
+        for key, env_param in self.env_secrets.items():
+            if env_param:
+                os.environ[key] = env_param
+        store_manager.reset_secrets()
+        # noinspection PyAttributeOutsideInit
+        self.url_prefix = "openai://"
+
+    def setup_datastore_profile(self):
+        # noinspection PyAttributeOutsideInit
+        self.profile = OpenAIProfile(
+            name=self.profile_name,
+            api_key=self.env_secrets.get("OPENAI_API_KEY"),
+            organization=self.env_secrets.get("OPENAI_ORG_ID"),
+            project=self.env_secrets.get("OPENAI_PROJECT_ID"),
+            base_url=self.env_secrets.get("OPENAI_BASE_URL"),
+            timeout=self.env_secrets.get("OPENAI_TIMEOUT"),
+            max_retries=self.env_secrets.get("OPENAI_MAX_RETRIES"),
+        )
+        register_temporary_client_datastore_profile(self.profile)
+        # noinspection PyAttributeOutsideInit
+        self.url_prefix = f"ds://{self.profile_name}/"
+        self.reset_env()
 
 
 class TestOpenAIProvider(TestBasicOpenAIProvider):
@@ -168,7 +168,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
     def check_basic_invoke(model_url: str, secrets: dict, model_name: str):
         prompt = "What is the capital of France? Provide a detailed and thorough history of the city"
         model_provider = mlrun.get_model_provider(
-            url=model_url, secrets=secrets, default_invoke_kwargs={"max_tokens": 200}
+            url=model_url, secrets=secrets, default_invoke_kwargs={"max_tokens": 100}
         )
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == model_name
@@ -177,7 +177,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
 
         encoding = tiktoken.encoding_for_model(model_name)
         token_count = len(encoding.encode(result))
-        assert token_count == 200
+        assert token_count == 100
 
         result = model_provider.invoke(
             prompt=prompt,
@@ -186,7 +186,10 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         token_count = len(encoding.encode(result))
         assert token_count == 50
 
-    def test_basic_invoke(self):
+    @pytest.mark.parametrize("use_datastore_profile", [True, False])
+    def test_basic_invoke(self, use_datastore_profile):
+        if use_datastore_profile:
+            self.setup_datastore_profile()
         model_url = self.url_prefix + self.basic_llm_model
         #  env check
         self.check_basic_invoke(
@@ -240,7 +243,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         model_url = self.url_prefix + self.basic_llm_model
         prompt = "What is the capital of France? Provide a detailed and thorough history of the city"
         model_provider = mlrun.get_model_provider(
-            url=model_url, default_invoke_kwargs={"max_tokens": 200}
+            url=model_url, default_invoke_kwargs={"max_tokens": 100}
         )
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == self.basic_llm_model
@@ -249,7 +252,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
 
         encoding = tiktoken.encoding_for_model(self.basic_llm_model)
         token_count = len(encoding.encode(result))
-        assert token_count == 200
+        assert token_count == 100
 
 
 class TestOpenAIModel(TestBasicOpenAIProvider):
@@ -294,9 +297,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
     def prompt_expected_results(self):
         return ["paris", "4", "shakespeare", "blue", "earth"]
 
-    def test_model_runner_with_openai(self, use_datastore_profile, prompt_data):
-        if not use_datastore_profile:
-            pytest.skip("test_model_runner_with_openai supports datastore profile only")
+    def _get_test_attributes(self):
         project = mlrun.new_project("test-openai-model", save=False)
         model_url = self.url_prefix + self.basic_llm_model
         model_artifact = project.log_model(
@@ -313,9 +314,14 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             model_artifact=model_artifact.uri,
         )
         function = mlrun.new_function("tests", kind="serving")
-
         graph = function.set_topology("flow", engine="async")
         model_runner_step = ModelRunnerStep(name="my_model_runner")
+        return model_artifact, llm_prompt_artifact, function, graph, model_runner_step
+
+    def test_model_runner_with_openai(self, prompt_data):
+        model_artifact, llm_prompt_artifact, function, graph, model_runner_step = (
+            self._get_test_attributes()
+        )
         model_runner_step.add_model(
             model_class="MyOpenAILLM",
             endpoint_name="my_endpoint",
@@ -349,32 +355,10 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         finally:
             server.wait_for_completion()
 
-    def test_model_runner_with_openai_async(
-        self, use_datastore_profile, prompt_data, prompt_expected_results
-    ):
-        if not use_datastore_profile:
-            pytest.skip(
-                "test_model_runner_with_openai_async supports datastore profile only"
-            )
-        project = mlrun.new_project("test-async-openai-model", save=False)
-        model_url = self.url_prefix + self.basic_llm_model
-        model_artifact = project.log_model(
-            "my_model",
-            model_url=model_url,
-            default_config={"max_tokens": 100},
+    def test_model_runner_with_openai_async(self, prompt_data, prompt_expected_results):
+        model_artifact, llm_prompt_artifact, function, graph, model_runner_step = (
+            self._get_test_attributes()
         )
-        prompt_template = (
-            "{question}. Explain {depth_level} as a {persona} in {tone} style."
-        )
-        llm_prompt_artifact = project.log_llm_prompt(
-            "my_llm_prompt",
-            prompt_string=prompt_template,
-            model_artifact=model_artifact.uri,
-        )
-        function = mlrun.new_function("tests", kind="serving")
-
-        graph = function.set_topology("flow", engine="async")
-        model_runner_step = ModelRunnerStep(name="my_model_runner")
         model_runner_step.add_model(
             model_class="MyOpenAILLM",
             endpoint_name="my_endpoint",

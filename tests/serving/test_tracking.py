@@ -632,6 +632,12 @@ def test_sampling_model_runner(sampling_percentage: float):
 
 @pytest.mark.parametrize("enable_tracking", [True, False])
 def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
+    project = mlrun.new_project("remote-model-project", save=False)
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
     with patch("mlrun.get_run_db", return_value=rundb_mock):
         function = mlrun.new_function("tests-1", kind="serving")
         graph = function.set_topology("flow", engine="async")
@@ -639,6 +645,7 @@ def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
             model_class=MyModel(name="shared-model", raise_exception=False, inc=1),
             name="shared-model",
             execution_mechanism="naive",
+            model_artifact=model_artifact,
         )
         model_runner_step = ModelRunnerStep(
             name="my_model_runner", raise_exception=True
@@ -648,12 +655,13 @@ def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
             input_path="n",
             result_path="n",
             shared_model_name="shared-model",
+            model_artifact=model_artifact,
         )
         model_runner_step.add_shared_model_proxy(
             endpoint_name="my_model-2",
             input_path="n",
             result_path="n",
-            shared_model_name="shared-model",
+            model_artifact=model_artifact,
         )
         graph.to(model_runner_step).respond()
         function.set_tracking(stream_args={"mock": True})
@@ -685,12 +693,24 @@ def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
 
 
 def test_negative_for_shared_model():
+    project = mlrun.new_project("remote-model-project", save=False)
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    model_artifact_2 = project.log_model(
+        "my_model-2",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
     graph.add_shared_model(
         model_class=MyModel(name="shared-model", raise_exception=False, inc=1),
         name="shared-model",
         execution_mechanism="naive",
+        model_artifact=model_artifact,
     )
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
     model_runner_step.add_shared_model_proxy(
@@ -698,6 +718,16 @@ def test_negative_for_shared_model():
         input_path="n",
         result_path="n",
         shared_model_name="shared-model-2",
+        model_artifact=model_artifact,
+    )
+    with pytest.raises(mlrun.serving.states.GraphError):
+        graph.to(model_runner_step).respond()
+
+    model_runner_step.add_shared_model_proxy(
+        endpoint_name="my_model-2",
+        input_path="n",
+        result_path="n",
+        model_artifact=model_artifact_2,
     )
     with pytest.raises(mlrun.serving.states.GraphError):
         graph.to(model_runner_step).respond()
@@ -710,22 +740,26 @@ def test_negative_for_shared_model():
             input_path="n",
             result_path="n",
             shared_model_name="shared-model-2",
+            model_artifact=model_artifact,
         )
+
     model_runner_step_2.add_shared_model_proxy(
         endpoint_name="my_model",
         input_path="n",
         result_path="n",
-        shared_model_name="shared-model",
+        model_artifact=model_artifact,
     )
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         graph.add_shared_model(
             model_class=MyModel(name="shared-model", raise_exception=False, inc=1),
             name="shared-model",
             execution_mechanism="naive",
+            model_artifact=model_artifact,
         )
     graph.add_shared_model(
         model_class=MyModel(name="shared-model", raise_exception=False, inc=1),
         name="shared-model",
         execution_mechanism="naive",
         override=True,
+        model_artifact=model_artifact,
     )

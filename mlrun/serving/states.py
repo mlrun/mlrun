@@ -44,7 +44,6 @@ from mlrun.datastore.datastore_profile import (
     datastore_profile_read,
 )
 from mlrun.datastore.model_provider.model_provider import ModelProvider
-from mlrun.datastore.store_resources import get_store_resource
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
 from mlrun.utils import logger
 
@@ -531,15 +530,29 @@ class BaseStep(ModelObj):
                 f"The graph already contains the model endpoints named - {common_endpoints_names}."
             )
 
+        # Check if shared models are defined in the graph
+        proxy_endpoint = []
+        shared_models = []
         for name in step_model_endpoints_names:
+            if (
+                step.class_args.get(
+                    schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM, {}
+                ).get(name)
+                == ParallelExecutionMechanisms.shared_executor
+            ):
+                proxy_endpoint.append(name)
+
+        for name in proxy_endpoint:
             shared_runnable_name = (
                 step.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
                 .get(name, ["", {}])[schemas.ModelsData.MODEL_PARAMETERS.value]
                 .get("shared_runnable_name")
             )
-            model_artifact_uri = step.class_args.get(
-                schemas.ModelRunnerStepData.MODELS, {}
-            )[schemas.ModelsData.MODEL_PARAMETERS.value].get("artifact_uri")
+            model_artifact_uri = (
+                step.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
+                .get(name, ["", {}])[schemas.ModelsData.MODEL_PARAMETERS.value]
+                .get("artifact_uri")
+            )
             prefix, _ = mlrun.datastore.parse_store_uri(model_artifact_uri)
             if prefix == mlrun.utils.StorePrefix.LLMPrompt:
                 model_artifact, _ = mlrun.datastore.store_manager.get_store_artifact(
@@ -559,25 +572,17 @@ class BaseStep(ModelObj):
                     step.class_args[schemas.ModelRunnerStepData.MODELS][name][
                         schemas.ModelsData.MODEL_PARAMETERS.value
                     ]["shared_runnable_name"] = actual_shared_name
+                    shared_models.append(actual_shared_name)
             elif actual_shared_name != shared_runnable_name:
                 raise GraphError(
                     f"Model endpoint {name} shared runnable name mismatch: "
                     f"expected {actual_shared_name}, got {shared_runnable_name}"
                 )
+            else:
+                shared_models.append(actual_shared_name)
 
-        # Check if shared models are defined in the graph
-        step_shared_model_endpoints_names = [
-            step.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
-            .get(name, ["", {}])[schemas.ModelsData.MODEL_PARAMETERS.value]
-            .get("shared_runnable_name")
-            for name in step_model_endpoints_names
-            if step.class_args.get(
-                schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM, {}
-            ).get(name)
-            == ParallelExecutionMechanisms.shared_executor
-        ]
         undefined_shared_models = list(
-            set(step_shared_model_endpoints_names) - set(root.shared_models.keys())
+            set(shared_models) - set(root.shared_models.keys())
         )
         if undefined_shared_models:
             raise GraphError(
@@ -1278,6 +1283,25 @@ class ModelRunnerStep(MonitoredStep):
 
     kind = "model_runner"
 
+    def __init__(
+        self,
+        *args,
+        name: Optional[str] = None,
+        model_selector: Optional[Union[str, ModelSelector]] = None,
+        raise_exception: bool = True,
+        **kwargs,
+    ):
+        super().__init__(
+            *args,
+            name=name,
+            raise_exception=raise_exception,
+            class_name="mlrun.serving.ModelRunner",
+            class_args=dict(model_selector=model_selector),
+            **kwargs,
+        )
+        self.raise_exception = raise_exception
+        self.shape = "folder"
+
     def add_shared_model_proxy(
         self,
         endpoint_name: str,
@@ -1298,8 +1322,9 @@ class ModelRunnerStep(MonitoredStep):
         within the graph
 
         :param endpoint_name:       str, will identify the model in the ModelRunnerStep, and assign model endpoint name
+        :param model_artifact:      model artifact or mlrun model artifact uri, according to the model artifact
+                                    we will match the model endpoint to the correct shared model.
         :param shared_model_name:   str, the name of the shared model that is already defined within the graph
-        :param model_artifact:      model artifact or mlrun model artifact uri
         :param labels:              model endpoint labels, should be list of str or mapping of str:str
         :param model_endpoint_creation_strategy:   Strategy for creating or updating the model endpoint:
           * **overwrite**:

@@ -138,6 +138,7 @@ class Logs(
         size: int = -1,
         offset: int = 0,
         source: LogSources = LogSources.AUTO,
+        attempt: int = 0,
     ) -> tuple[str, typing.AsyncIterable[bytes]]:
         """
         Get logs
@@ -149,11 +150,16 @@ class Logs(
         :param source: log source (default auto) Relevant only for legacy log_collector mode
           if auto, it will use the mode configured in `mlrun.mlconf.log_collector.mode`
           if other than auto, it will fall back to legacy log_collector mode
+        :param attempt: for retriable runs, the attempt number to get logs for
         :return: run state and logs
         """
         run = await self._get_run_for_log(db_session, project, uid)
         run_state = run.get("status", {}).get("state", "")
         log_stream = None
+        if attempt and attempt > 1:
+            # if attempt is specified, we need to get the logs for the specific attempt
+            uid = f"{uid}-attempt-{attempt}"
+
         if (
             mlrun.mlconf.log_collector.mode
             == mlrun.common.schemas.LogsCollectorMode.best_effort

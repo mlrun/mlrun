@@ -139,6 +139,7 @@ class RunStates:
     aborted = "aborted"
     aborting = "aborting"
     skipped = "skipped"
+    pending_retry = "pendingRetry"
 
     @staticmethod
     def all():
@@ -152,6 +153,7 @@ class RunStates:
             RunStates.aborted,
             RunStates.aborting,
             RunStates.skipped,
+            RunStates.pending_retry,
         ]
 
     @staticmethod
@@ -168,6 +170,7 @@ class RunStates:
         return [
             RunStates.error,
             RunStates.aborted,
+            RunStates.pending_retry,
         ]
 
     @staticmethod
@@ -186,11 +189,17 @@ class RunStates:
         return list(set(RunStates.all()) - set(RunStates.terminal_states()))
 
     @staticmethod
+    def terminal_or_error_states():
+        return list(
+            set(RunStates.terminal_states())
+            | set(RunStates.error_and_abortion_states())
+        )
+
+    @staticmethod
     def not_allowed_for_deletion_states():
         return [
             RunStates.running,
             RunStates.pending,
-            # TODO: add aborting state once we have it
         ]
 
     @staticmethod

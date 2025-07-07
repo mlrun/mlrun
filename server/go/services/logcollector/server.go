@@ -1243,8 +1243,14 @@ func (s *Server) successfulBaseResponse() *protologcollector.BaseResponse {
 
 func (s *Server) deleteRunLogFiles(ctx context.Context, runUID, project string) error {
 
-	// get all files that have the runUID as a prefix
 	pattern := path.Join(s.baseDir, project, runUID)
+
+	// guard to not delete all project log files
+	if len(runUID) > 0 {
+
+		// get all files that have the runUID as a prefix
+		pattern += "*"
+	}
 	files, err := filepath.Glob(pattern)
 	if err != nil {
 		return errors.Wrap(err, "Failed to get log files")

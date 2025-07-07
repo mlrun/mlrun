@@ -61,6 +61,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
     ) -> "mlrun.run.RunObject":
         self.enrich_runtime(runtime, project)
         run = self._create_run_object(task)
@@ -82,8 +83,9 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
             workdir=workdir,
             notifications=notifications,
             state_thresholds=state_thresholds,
+            retry=retry,
         )
-        self._validate_runtime(runtime, run)
+        self._validate_run(runtime, run)
 
         if not runtime.is_deployed():
             if runtime.spec.build.auto_build or auto_build:
@@ -190,7 +192,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         return self._wrap_run_result(runtime, resp, run, schedule=schedule)
 
     @classmethod
-    def _validate_run_single_param(cls, param_name, param_value):
+    def _validate_run_single_param(cls, param_name: str, param_value: int):
         if isinstance(param_value, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"Parameter '{param_name}' has an unsupported value of type"

@@ -97,7 +97,7 @@ class OpenAIProvider(ModelProvider):
         if messages:
             if prompt:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "can not provide 'messages' and 'prompt' to invoke a model"
+                    "can not provide 'messages' and 'prompt' to invoke an OpenAIProvider"
                 )
         elif prompt:
             messages = [
@@ -108,7 +108,7 @@ class OpenAIProvider(ModelProvider):
             ]
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "must provide 'messages' or 'prompt' to invoke a model"
+                "must provide 'messages' or 'prompt' to invoke an OpenAIProvider"
             )
         return messages, invoke_kwargs
 

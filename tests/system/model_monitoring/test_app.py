@@ -784,17 +784,8 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
     def test_app_flow(self, with_training_set: bool, with_model_runner: bool) -> None:
         self.apps_data = self._get_apps_data(with_training_set)
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
+
         self._log_model(with_training_set)
-
-        for i in range(len(self.apps_data)):
-            if "with_training_set" in self.apps_data[i].kwargs:
-                self.apps_data[i].kwargs["with_training_set"] = with_training_set
-
-        # workaround for ML-5997
-        if not with_training_set and _DefaultDataDriftAppData in self.apps_data:
-            self.apps_data.remove(_DefaultDataDriftAppData)
-
-        self._log_model(with_training_set=with_training_set)
 
         self._submit_controller_and_deploy_writer(
             deploy_histogram_data_drift_app=_DefaultDataDriftAppData in self.apps_data

@@ -313,33 +313,13 @@ def test_partition_filtering_year_month():
 
         # Calculate expected results manually
         # Should include: June 15&25, July 5&15&25, August 5&15 = 7 records
-        expected_df = df[(df[time_column] > start_time) & (df[time_column] <= end_time)]
-
-        expected_count = 7  # June(2) + July(3) + August(2) = 7 records
-
-        # Verify results
-        assert len(result) == expected_count, (
-            f"Expected {expected_count} rows, got {len(result)} rows. "
-            f"Filter: {start_time} to {end_time}"
+        expected_df = df[
+            (df[time_column] > start_time) & (df[time_column] <= end_time)
+        ].reset_index(drop=True)
+        pd.testing.assert_frame_equal(
+            result,
+            expected_df,
+            check_like=True,
+            check_dtype=False,
+            check_categorical=False,
         )
-
-        assert len(result) == len(
-            expected_df
-        ), f"Expected {len(expected_df)} rows (calculated), got {len(result)} rows"
-
-        # Verify all results are within the expected date range
-        for _, row in result.iterrows():
-            row_date = pd.to_datetime(row["timestamp"])
-            assert (
-                row_date > start_time
-            ), f"Date {row_date} should be after {start_time}"
-            assert (
-                row_date <= end_time
-            ), f"Date {row_date} should be before/equal {end_time}"
-
-        # Verify we got data from the right months
-        result_months = set(pd.to_datetime(result["timestamp"]).dt.month)
-        expected_months = {6, 7, 8}  # June, July, August
-        assert (
-            result_months == expected_months
-        ), f"Expected months {expected_months}, got {result_months}"

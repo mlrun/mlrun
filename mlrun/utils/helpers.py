@@ -913,8 +913,13 @@ def enrich_image_url(
 
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
-
+    if ":" in image_url:
+        _, image_tag = image_url.rsplit(":", 1)
+    else:
+        image_tag = None
     if is_mlrun_image and "mlrun/ml-base" in image_url:
+        # use the tag from image URL if available, else fallback to the given tag
+        tag = image_tag or tag
         if tag:
             if mlrun.utils.helpers.validate_component_version_compatibility(
                 "mlrun-client", "1.10.0-rc0", mlrun_client_version=tag

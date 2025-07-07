@@ -289,11 +289,6 @@ class BackgroundTaskStatus(storey.MapClass):
                 return None
         elif (
             self._background_task_state
-            == mlrun.common.schemas.BackgroundTaskState.failed
-        ):
-            return None
-        elif (
-            self._background_task_state
             == mlrun.common.schemas.BackgroundTaskState.succeeded
         ):
             return event

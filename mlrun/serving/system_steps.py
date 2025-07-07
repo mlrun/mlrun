@@ -263,19 +263,17 @@ class BackgroundTaskStatus(storey.MapClass):
     def do(self, event):
         if self.server is None:
             return None
-        timestamp = mlrun.utils.now_date()
         if (
             self._background_task_state
             == mlrun.common.schemas.BackgroundTaskState.running
             and (
                 self._background_task_check_timestamp is None
-                or timestamp - self._background_task_check_timestamp
+                or mlrun.utils.now_date() - self._background_task_check_timestamp
                 >= timedelta(
                     seconds=mlrun.mlconf.model_endpoint_monitoring.model_endpoint_creation_check_period
                 )
             )
         ):
-            print(f"{timestamp}, {self._background_task_check_timestamp}")
             background_task = mlrun.get_run_db().get_project_background_task(
                 self.server.project, self.server.model_endpoint_creation_task_name
             )
@@ -294,6 +292,11 @@ class BackgroundTaskStatus(storey.MapClass):
             == mlrun.common.schemas.BackgroundTaskState.failed
         ):
             return None
+        elif (
+            self._background_task_state
+            == mlrun.common.schemas.BackgroundTaskState.succeeded
+        ):
+            return event
         else:
             return None
 

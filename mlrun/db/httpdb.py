@@ -43,12 +43,13 @@ import mlrun.projects
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.nuclio.function
 import mlrun.utils
+import mlrun_pipelines.models
 from mlrun.alerts.alert import AlertConfig
 from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 from mlrun.secrets import get_secret_or_env
 from mlrun_pipelines.utils import compile_pipeline
-import mlrun_pipelines.models
+
 from ..artifacts import Artifact
 from ..common.schemas import AlertActivations
 from ..common.schemas.model_monitoring import FunctionSummary

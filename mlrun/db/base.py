@@ -28,6 +28,7 @@ import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.model_monitoring
 import mlrun_pipelines.models
 
+
 class RunDBError(Exception):
     pass
 

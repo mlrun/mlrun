@@ -312,7 +312,7 @@ def test_partition_filtering_year_month():
         )
 
         # Calculate expected results manually
-        # Should include: June 15&25, July 5&15&25, August 5&15 = 7 records
+        # Should include: June 15 & 25 + July 5, 15 & 25 + August 5 & 15 = 7 records
         expected_df = df[
             (df[time_column] > start_time) & (df[time_column] <= end_time)
         ].reset_index(drop=True)

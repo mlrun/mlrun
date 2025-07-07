@@ -530,6 +530,41 @@ class BaseStep(ModelObj):
                 f"The graph already contains the model endpoints named - {common_endpoints_names}."
             )
 
+        for name in step_model_endpoints_names:
+            shared_runnable_name = (
+                step.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
+                .get(name, ["", {}])[schemas.ModelsData.MODEL_PARAMETERS.value]
+                .get("shared_runnable_name")
+            )
+            model_artifact_uri = step.class_args.get(
+                schemas.ModelRunnerStepData.MODELS, {}
+            )[schemas.ModelsData.MODEL_PARAMETERS.value].get("artifact_uri")
+            prefix, _ = mlrun.datastore.parse_store_uri(model_artifact_uri)
+            if prefix == mlrun.utils.StorePrefix.LLMPrompt:
+                model_artifact, _ = mlrun.datastore.store_manager.get_store_artifact(
+                    model_artifact_uri
+                )
+                model_artifact_uri = model_artifact.model_uri
+            actual_shared_name = root.get_shared_model_name_by_artifact_uri(
+                model_artifact_uri
+            )
+
+            if not shared_runnable_name:
+                if not actual_shared_name:
+                    raise GraphError(
+                        f"Can't find shared model for {name} model endpoint"
+                    )
+                else:
+                    step.class_args[schemas.ModelRunnerStepData.MODELS][name][
+                        schemas.ModelsData.MODEL_PARAMETERS.value
+                    ]["shared_runnable_name"] = actual_shared_name
+            elif actual_shared_name != shared_runnable_name:
+                raise GraphError(
+                    f"Model endpoint {name} shared runnable name mismatch: "
+                    f"expected {actual_shared_name}, got {shared_runnable_name}"
+                )
+
+        # Check if shared models are defined in the graph
         step_shared_model_endpoints_names = [
             step.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
             .get(name, ["", {}])[schemas.ModelsData.MODEL_PARAMETERS.value]
@@ -1224,30 +1259,11 @@ class ModelRunnerStep(MonitoredStep):
 
     kind = "model_runner"
 
-    def __init__(
-        self,
-        *args,
-        name: Optional[str] = None,
-        model_selector: Optional[Union[str, ModelSelector]] = None,
-        raise_exception: bool = True,
-        **kwargs,
-    ):
-        super().__init__(
-            *args,
-            name=name,
-            raise_exception=raise_exception,
-            class_name="mlrun.serving.ModelRunner",
-            class_args=dict(model_selector=model_selector),
-            **kwargs,
-        )
-        self.raise_exception = raise_exception
-        self.shape = "folder"
-
     def add_shared_model_proxy(
         self,
         endpoint_name: str,
-        shared_model_name: str,
-        model_artifact: Optional[Union[str, ModelArtifact, LLMPromptArtifact]] = None,
+        model_artifact: Union[str, ModelArtifact, LLMPromptArtifact],
+        shared_model_name: Optional[str] = None,
         labels: Optional[Union[list[str], dict[str, str]]] = None,
         model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
@@ -1294,19 +1310,31 @@ class ModelRunnerStep(MonitoredStep):
             name=endpoint_name,
             shared_runnable_name=shared_model_name,
         )
-
+        if isinstance(model_artifact, str):
+            model_artifact_uri = model_artifact
+        elif isinstance(model_artifact, ModelArtifact):
+            model_artifact_uri = model_artifact.uri
+        elif isinstance(model_artifact, LLMPromptArtifact):
+            model_artifact_uri = model_artifact.model_artifact.uri
+        else:
+            raise MLRunInvalidArgumentError(
+                "model_artifact must be a string, ModelArtifact or LLMPromptArtifact"
+            )
         root = self._extract_root_step()
-        if isinstance(root, RootFlowStep) and (
-            (not root.shared_models)
-            or (
+        if isinstance(root, RootFlowStep):
+            shared_model_name = (
+                shared_model_name
+                or root.get_shared_model_name_by_artifact_uri(model_artifact_uri)
+            )
+            if not root.shared_models or (
                 root.shared_models
+                and shared_model_name
                 and shared_model_name not in root.shared_models.keys()
-            )
-        ):
-            raise GraphError(
-                f"ModelRunnerStep can only add proxy models that were added to the root flow step, "
-                f"model {shared_model_name} is not in the shared models."
-            )
+            ):
+                raise GraphError(
+                    f"ModelRunnerStep can only add proxy models that were added to the root flow step, "
+                    f"model {shared_model_name} is not in the shared models."
+                )
         self.add_model(
             endpoint_name=endpoint_name,
             model_class=model_class,
@@ -1399,17 +1427,12 @@ class ModelRunnerStep(MonitoredStep):
         model_parameters = model_parameters or (
             model_class.to_dict() if isinstance(model_class, Model) else {}
         )
-        if outputs is None and isinstance(
-            model_artifact,
-            ModelArtifact,
-        ):
-            outputs = [feature.name for feature in model_artifact.spec.outputs]
-        elif outputs is None and isinstance(
-            model_artifact,
-            LLMPromptArtifact,
-        ):
-            _model_artifact = model_artifact.model_artifact
-            outputs = [feature.name for feature in _model_artifact.spec.outputs]
+        model_outputs = None
+        if outputs is None or isinstance(model_artifact, str):
+            model_outputs = ModelRunnerStep._get_model_output_schema(
+                model_artifact
+            )  # also checks if the uri is valid
+        outputs = outputs or model_outputs
         model_artifact = (
             model_artifact.uri
             if isinstance(model_artifact, mlrun.artifacts.Artifact)
@@ -1466,6 +1489,33 @@ class ModelRunnerStep(MonitoredStep):
 
     @staticmethod
     def _get_model_output_schema(
+        model_artifact: Union[str, ModelArtifact, LLMPromptArtifact],
+    ) -> Optional[list[str]]:
+        if isinstance(
+            model_artifact,
+            ModelArtifact,
+        ):
+            return [feature.name for feature in model_artifact.spec.outputs]
+        elif isinstance(
+            model_artifact,
+            LLMPromptArtifact,
+        ):
+            _model_artifact = model_artifact.model_artifact
+            return [feature.name for feature in _model_artifact.spec.outputs]
+        elif isinstance(
+            model_artifact,
+            str,
+        ):
+            try:
+                model_artifact, _ = mlrun.datastore.store_manager.get_store_artifact(
+                    model_artifact
+                )
+            except mlrun.errors.MLRunNotFoundError:
+                raise mlrun.errors.MLRunInvalidArgumentError("Artifact not found.")
+            return ModelRunnerStep._get_model_output_schema(model_artifact)
+
+    @staticmethod
+    def _get_model_endpoint_output_schema(
         model_name: str, model_endpoint_uid: str, project: Optional[str] = None
     ) -> list[str]:
         output_schema = None
@@ -1501,7 +1551,7 @@ class ModelRunnerStep(MonitoredStep):
             for model in monitoring_data:
                 monitoring_data[model][schemas.MonitoringData.OUTPUTS] = (
                     monitoring_data.get(model, {}).get(schemas.MonitoringData.OUTPUTS)
-                    or self._get_model_output_schema(
+                    or self._get_model_endpoint_output_schema(
                         model,
                         monitoring_data.get(schemas.MonitoringData.MODEL_ENDPOINT_UID),
                     )
@@ -2265,7 +2315,7 @@ class RootFlowStep(FlowStep):
         name: str,
         model_class: Union[str, Model],
         execution_mechanism: Union[str, ParallelExecutionMechanisms],
-        model_artifact: Optional[Union[str, ModelArtifact]] = None,
+        model_artifact: Optional[Union[str, ModelArtifact]],
         override: bool = False,
         **model_parameters,
     ) -> None:
@@ -2341,6 +2391,17 @@ class RootFlowStep(FlowStep):
         )
         self.shared_models[name] = (model_class, model_parameters)
         self.shared_models_mechanism[name] = execution_mechanism
+
+    def get_shared_model_name_by_artifact_uri(self, artifact_uri: str) -> Optional[str]:
+        """
+        Get a shared model by its artifact URI.
+        :param artifact_uri: The artifact URI of the model.
+        :return: A tuple of (model_class, model_parameters) if found, otherwise None.
+        """
+        for model_name, (model_class, model_params) in self.shared_models.items():
+            if model_params.get("artifact_uri") == artifact_uri:
+                return model_name
+        return None
 
     def config_pool_resource(
         self,

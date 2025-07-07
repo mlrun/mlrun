@@ -93,7 +93,7 @@ class TestBasicOpenAIProvider:
 
     @classmethod
     def setup_class(cls):
-        cls.basic_llm_model = "gpt-4o"
+        cls.basic_llm_model = "gpt-4o-mini"
 
     @classmethod
     def reset_env(cls):

@@ -51,7 +51,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             pytest.skip(
                 f"The following snowflake keys are missing: {missing_env_variables}"
             )
-        cls.basic_llm_model = "gpt-4o"
+        cls.basic_llm_model = "gpt-4o-mini"
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self):

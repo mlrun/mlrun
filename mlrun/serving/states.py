@@ -1078,7 +1078,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         return self.predict(body)
 
     async def run_async(self, body: Any, path: str) -> Any:
-        return self.predict(body)
+        return await self.predict_async(body)
 
     def get_local_model_path(self, suffix="") -> (str, dict):
         """

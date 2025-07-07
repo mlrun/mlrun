@@ -169,10 +169,13 @@ class MyModel(Model):
         body.pop("models", None)
         if self.gpu_number is not None:
             body["gpu"] = self.gpu_number
+        body["async"] = False
         return body
 
     async def predict_async(self, body):
-        return self.predict(body)
+        body = self.predict(body)
+        body["async"] = True
+        return body
 
     def do(self, event):
         return self.predict(event)
@@ -527,7 +530,7 @@ def test_model_runner_with_selector(execution_mechanism: str):
         execution_mechanism="naive",
         inc=1,
     )
-    m2 = MyModel(name="m2", execution_mechanism=execution_mechanism, inc=2)
+    m2 = MyModel(name="m2", inc=2)
 
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
@@ -536,10 +539,14 @@ def test_model_runner_with_selector(execution_mechanism: str):
         model_selector="MyModelSelector",
     )
     model_runner_step.add_model(
-        endpoint_name=m1.name, model_class=m1, execution_mechanism="naive"
+        endpoint_name=m1.name,
+        model_class=m1,
+        execution_mechanism="naive",
     )
     model_runner_step.add_model(
-        endpoint_name=m2.name, model_class=m2, execution_mechanism="naive"
+        endpoint_name=m2.name,
+        model_class=m2,
+        execution_mechanism=execution_mechanism,
     )
     graph.to(model_runner_step).respond()
 
@@ -547,11 +554,14 @@ def test_model_runner_with_selector(execution_mechanism: str):
     try:
         # both models
         resp = server.test(body={"n": 1})
-        assert resp == {"m1": {"n": 2}, "m2": {"n": 3}}
+        assert resp == {
+            "m1": {"n": 2, "async": False},
+            "m2": {"n": 3, "async": execution_mechanism == "asyncio"},
+        }
 
         # only m2
         resp = server.test(body={"n": 1, "models": ["m2"]})
-        assert resp == {"m2": {"n": 3}}
+        assert resp == {"m2": {"n": 3, "async": execution_mechanism == "asyncio"}}
     finally:
         server.wait_for_completion()
 

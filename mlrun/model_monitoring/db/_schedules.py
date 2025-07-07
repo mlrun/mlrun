@@ -13,11 +13,12 @@
 # limitations under the License.
 
 import json
+import sys
 from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
 from datetime import datetime, timezone
 from types import TracebackType
-from typing import Final, Optional
+from typing import TYPE_CHECKING, Final, Optional
 
 import botocore.exceptions
 
@@ -28,13 +29,19 @@ import mlrun.model_monitoring.helpers
 import mlrun.utils.helpers
 from mlrun.utils import logger
 
+if TYPE_CHECKING:
+    if sys.version_info >= (3, 11):
+        from typing import Self
+    else:
+        from typing_extensions import Self
+
 
 class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
     DEFAULT_SCHEDULES: Final = {}
     INITIAL_CONTENT = json.dumps(DEFAULT_SCHEDULES)
     ENCODING = "utf-8"
 
-    def __init__(self):
+    def __init__(self) -> None:
         # `self._item` is the persistent version of the monitoring schedules.
         self._item = self.get_data_item_object()
         if self._item:
@@ -108,7 +115,7 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
         self._schedules = self.DEFAULT_SCHEDULES
         self._open_schedules = False
 
-    def __enter__(self) -> "ModelMonitoringSchedulesFileBase":
+    def __enter__(self) -> "Self":
         self._open()
         return super().__enter__()
 
@@ -238,7 +245,7 @@ class ModelMonitoringSchedulesFileApplication(ModelMonitoringSchedulesFileBase):
             out_path=self._out_path, application=self._application
         )
 
-    def _open(self) -> bool:
+    def _open(self) -> None:
         if not self._exists():
             # Create the file when it is needed the first time
             logger.info(

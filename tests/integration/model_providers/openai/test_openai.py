@@ -32,10 +32,10 @@ from mlrun.datastore.datastore_profile import (
     register_temporary_client_datastore_profile,
 )
 from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
-from mlrun.serving import ModelRunnerStep
 from tests.datastore.remote_model.remote_model_utils import (
-    EXPECTED_RESULTS,
     INPUT_DATA,
+    assert_async_invocations,
+    setup_remote_model_test,
 )
 
 here = os.path.dirname(__file__)
@@ -240,38 +240,12 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
 
 
 class TestOpenAIModel(TestBasicOpenAIProvider):
-    def _setup_remote_model_test(self):
+    def test_model_runner_with_openai(self):
         project = mlrun.new_project("test-openai-model", save=False)
         model_url = self.url_prefix + self.basic_llm_model
-        model_artifact = project.log_model(
-            "my_model",
-            model_url=model_url,
-            default_config={"max_tokens": 100},
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project, model_url
         )
-        prompt_template = (
-            "{question}. Explain {depth_level} as a {persona} in {tone} style."
-        )
-        llm_prompt_artifact = project.log_llm_prompt(
-            "my_llm_prompt",
-            prompt_string=prompt_template,
-            model_artifact=model_artifact.uri,
-        )
-        function = mlrun.new_function("tests", kind="serving")
-        graph = function.set_topology("flow", engine="async")
-        model_runner_step = ModelRunnerStep(name="my_model_runner")
-        return model_artifact, llm_prompt_artifact, function, graph, model_runner_step
-
-    def test_model_runner_with_openai(self):
-        model_artifact, llm_prompt_artifact, function, graph, model_runner_step = (
-            self._setup_remote_model_test()
-        )
-        model_runner_step.add_model(
-            model_class="MyOpenAILLM",
-            endpoint_name="my_endpoint",
-            execution_mechanism="naive",
-            model_artifact=llm_prompt_artifact,
-        )
-        graph.to(model_runner_step).respond()
         # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
         # # Mocked function used to verify artifact URI is passed correctly.
         #
@@ -299,16 +273,11 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             server.wait_for_completion()
 
     def test_model_runner_with_openai_async(self):
-        model_artifact, llm_prompt_artifact, function, graph, model_runner_step = (
-            self._setup_remote_model_test()
+        project = mlrun.new_project("test-openai-model", save=False)
+        model_url = self.url_prefix + self.basic_llm_model
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project, model_url, execution_mechanism="asyncio"
         )
-        model_runner_step.add_model(
-            model_class="MyOpenAILLM",
-            endpoint_name="my_endpoint",
-            execution_mechanism="asyncio",
-            model_artifact=llm_prompt_artifact,
-        )
-        graph.to(model_runner_step).respond()
         # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
         # # Mocked function used to verify artifact URI is passed correctly.
         #
@@ -332,12 +301,8 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             results_with_times = server.test(body=INPUT_DATA)
             total_duration = time.perf_counter() - start
 
-            results = results_with_times["results"]
-            invoke_times = results_with_times["invoke_times"]
-            encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-            for i in range(len(EXPECTED_RESULTS)):
-                assert EXPECTED_RESULTS[i] in results[i].lower()
-                assert len(encoding.encode(results[i])) == 100
-            assert total_duration < sum(invoke_times)
+            assert_async_invocations(
+                results_with_times=results_with_times, model_name=self.basic_llm_model, total_duration=total_duration
+            )
         finally:
             server.wait_for_completion()

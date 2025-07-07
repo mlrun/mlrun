@@ -14,10 +14,13 @@
 import asyncio
 import time
 
+import tiktoken
+
 import mlrun
 import mlrun.artifacts
 import mlrun.serving
 from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.serving import ModelRunnerStep
 
 INPUT_DATA = {
     "input": [
@@ -55,6 +58,44 @@ INPUT_DATA = {
 }
 
 EXPECTED_RESULTS = ["paris", "4", "shakespeare", "blue", "earth"]
+
+
+def setup_remote_model_test(
+    project, model_url, execution_mechanism="naive", image=None, requirements=None
+):
+    model_artifact = project.log_model(
+        "my_model",
+        model_url=model_url,
+        default_config={"max_tokens": 100},
+    )
+    prompt_template = (
+        "{question}. Explain {depth_level} as a {persona} in {tone} style."
+    )
+    llm_prompt_artifact = project.log_llm_prompt(
+        "my_llm_prompt",
+        prompt_string=prompt_template,
+        model_artifact=model_artifact.uri,
+    )
+    # function = mlrun.new_function("tests", kind="serving")
+    function = mlrun.code_to_function(
+        name="tests",
+        kind="serving",
+        tag="latest",
+        project=project.name,
+        filename=__file__,
+        image=image,
+        requirements=requirements,
+    )
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(
+        model_class="MyOpenAILLM",
+        endpoint_name="my_endpoint",
+        execution_mechanism=execution_mechanism,
+        model_artifact=llm_prompt_artifact,
+    )
+    graph.to(model_runner_step).respond()
+    return model_artifact, llm_prompt_artifact, function
 
 
 async def timed(coro):
@@ -110,3 +151,13 @@ class MyOpenAILLM(mlrun.serving.states.Model):
             sub_dict = {k: body[k] for k in needed_params if k in body}
             return prompt_template.format(**sub_dict)
         return ""
+
+
+def assert_async_invocations(results_with_times, model_name, total_duration):
+    results = results_with_times["results"]
+    invoke_times = results_with_times["invoke_times"]
+    encoding = tiktoken.encoding_for_model(model_name)
+    for i in range(len(EXPECTED_RESULTS)):
+        assert EXPECTED_RESULTS[i] in results[i].lower()
+        assert len(encoding.encode(results[i])) == 100
+    assert total_duration < sum(invoke_times)

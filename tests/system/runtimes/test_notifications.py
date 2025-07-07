@@ -17,6 +17,7 @@ import datetime
 import pytest
 
 import mlrun
+import mlrun.common.runtimes.constants
 import tests.system.base
 
 
@@ -189,6 +190,79 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             self._logger,
             True,
             _assert_notification_in_schedule,
+        )
+
+    def test_run_notifications_with_retries(self):
+        notification_name = "retry-final-failure-notification"
+        notification_kind = "slack"
+
+        # Notification sent when run fails after all retries
+        notification = self._create_notification(
+            name=notification_name,
+            kind=notification_kind,
+            when=[mlrun.common.runtimes.constants.RunStates.error],
+            message="Run failed after retries",
+            secret_params={
+                # dummy slack test url should return 200
+                "webhook": "https://slack.com/api/api.test",
+            },
+        )
+
+        code_path = str(self.assets_path / "raise_func.py")
+        function = self.project.set_function(
+            code_path,
+            name="test-func",
+            kind="job",
+            handler="handler",
+        )
+
+        retry_count = 2
+        retry = mlrun.model.Retry(
+            count=retry_count,
+        )
+
+        # Run the function with retry logic
+        with pytest.raises(mlrun.runtimes.utils.RunError):
+            function.run(
+                verbose=True,
+                retry=retry,
+                notifications=[notification],
+            )
+
+        # Validate that the run in pending retry state
+        runs = self._run_db.list_runs(project=self.project_name)
+        assert len(runs) == 1
+        run = mlrun.RunObject.from_dict(runs[0])
+        assert run.status.retry_count is None
+        assert (
+            run.status.state == mlrun.common.runtimes.constants.RunStates.pending_retry
+        )
+
+        def _assert_notification_received():
+            runs = self._run_db.list_runs(
+                project=self.project_name,
+                with_notifications=True,
+            )
+            assert len(runs) == 1
+            run = mlrun.RunObject.from_dict(runs[0])
+            assert run.status.state == mlrun.common.runtimes.constants.RunStates.error
+
+            notifications = run.status.notifications
+            assert (
+                len(notifications) == 1
+            ), f"Expected one notification, got: {len(notifications)}"
+
+            # Validate final failure notification
+            notification = notifications[notification_name]
+            assert notification["status"] == "sent"
+
+        # Wait until retry attempts are exhausted and notification is processed
+        mlrun.utils.retry_until_successful(
+            1,
+            250,
+            self._logger,
+            True,
+            _assert_notification_received,
         )
 
     @staticmethod

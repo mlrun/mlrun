@@ -21,6 +21,7 @@ import pytest
 import mlrun
 import mlrun.artifacts
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes.constants
 import mlrun.errors
 from mlrun import new_task
 from mlrun_pipelines.models import PipelineRun
@@ -254,6 +255,34 @@ def test_artifact_owner(rundb_mock, owner):
 
     artifact = context.log_artifact("artifact", body="123")
     assert artifact.producer.get("owner") == owner
+
+
+@pytest.mark.parametrize(
+    "max_retries, retry_count, expected_state",
+    [
+        (3, 0, mlrun.common.runtimes.constants.RunStates.pending_retry),
+        (3, 1, mlrun.common.runtimes.constants.RunStates.pending_retry),
+        (3, 2, mlrun.common.runtimes.constants.RunStates.pending_retry),
+        (3, 3, mlrun.common.runtimes.constants.RunStates.error),
+        (0, 0, mlrun.common.runtimes.constants.RunStates.error),
+        (0, 1, mlrun.common.runtimes.constants.RunStates.error),
+    ],
+)
+def test_set_state_pending_retry(rundb_mock, max_retries, retry_count, expected_state):
+    project_name = "test_context_pending_retry"
+    run_dict = _generate_run_dict()
+    run_dict["spec"]["retry"] = {"count": max_retries}
+    run = mlrun.run.RunObject.from_dict(run_dict)
+    context = mlrun.MLClientCtx.from_dict(run.to_dict())
+    context._retry_count = retry_count
+
+    db = mlrun.get_run_db()
+    run = db.read_run(context._uid, project=project_name)
+    assert run["status"]["state"] == "running", "run status not updated in db"
+
+    context.set_state(error="mock error", commit=False)
+
+    assert context._state == expected_state, "task state was not set correctly"
 
 
 def _generate_run_dict():

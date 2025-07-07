@@ -629,7 +629,7 @@ def test_tracked_model_runner_bkg_check(rundb_mock):
     server.test("/", {"n": 1})
     dummy_stream = server.context.stream.output_stream
     assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
-    sleep(20)
+    sleep(mlrun.mlconf.model_endpoint_monitoring.model_endpoint_creation_check_period)
     server.test("/", {"n": 2})
     server.wait_for_completion()
 

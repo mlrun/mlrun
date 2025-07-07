@@ -295,7 +295,16 @@ def test_window_generator_validation(
     expectation: AbstractContextManager,
 ) -> None:
     with expectation:
-        next(ModelMonitoringApplicationBase._window_generator(start, end, base_period))
+        next(
+            ModelMonitoringApplicationBase._window_generator(
+                start=start,
+                end=end,
+                base_period=base_period,
+                application_schedules=None,
+                endpoint_id="",
+                application_name="",
+            )
+        )
 
 
 @pytest.mark.parametrize(
@@ -361,7 +370,12 @@ def test_windows(
     assert (
         list(
             ModelMonitoringApplicationBase._window_generator(
-                start=start.isoformat(), end=end.isoformat(), base_period=base_period
+                start=start.isoformat(),
+                end=end.isoformat(),
+                base_period=base_period,
+                application_schedules=None,
+                endpoint_id="",
+                application_name="",
             )
         )
         == expected_windows

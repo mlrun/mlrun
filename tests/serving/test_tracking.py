@@ -608,7 +608,7 @@ def test_sampling_model_runner(rundb_mock, sampling_percentage: float):
             )
 
 
-def test_tracked_model_runner_bkg_check(rundb_mock):
+def test_tracked_model_runner_background_task(rundb_mock):
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)

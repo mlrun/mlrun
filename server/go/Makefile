@@ -144,9 +144,6 @@ ensure-test-files-annotated:
 	@echo "All go test files have //go:build test_X annotation"
 	@exit $(.SHELLSTATUS)
 
-GOLANGCI_LINT_VERSION := v1.64.6
-GOLANGCI_LINT_BIN := $(CI_BIN_DIR)/golangci-lint
-
 .PHONY: ensure-golangci
 ensure-golangci:
 	@if ! command -v $(GOLANGCI_LINT_BIN) >/dev/null 2>&1; then \

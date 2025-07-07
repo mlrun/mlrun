@@ -320,6 +320,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         application_schedules=application_schedules,
                         endpoint_id=endpoint_id,
                         application_name=application_name,
+                        allow_unordered_data=allow_unordered_data,
                     ):
                         result = call_do_tracking(
                             event={
@@ -442,6 +443,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         end_dt: datetime,
         base_period: Optional[int],
         application_name: str,
+        allow_unordered_data: bool,
     ) -> datetime:
         """Make sure that the (app, endpoint) pair doesn't write output before the last analyzed window"""
         if application_schedules:
@@ -450,12 +452,32 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             )
             if last_analyzed:
                 if start_dt < last_analyzed:
-                    raise mlrun.errors.MLRunValueError(
-                        "The start time for the application and endpoint precedes the last analyzed time: "
-                        f"{start_dt=}, {last_analyzed=}, {application_name=}, {endpoint_id=}. "
-                        "Writing data out of order is not supported. You should change the start time to "
-                        f"'{last_analyzed}' or later."
-                    )
+                    if allow_unordered_data:
+                        if last_analyzed < end_dt and base_period is None:
+                            logger.warn(
+                                "Setting the start time to last_analyzed since the original start time precedes "
+                                "last_analyzed",
+                                original_start=start_dt,
+                                new_start=last_analyzed,
+                                application_name=application_name,
+                                endpoint_id=endpoint_id,
+                            )
+                            start_dt = last_analyzed
+                        else:
+                            raise mlrun.errors.MLRunValueError(
+                                "The start time for the application and endpoint precedes the last analyzed time: "
+                                f"{start_dt=}, {last_analyzed=}, {application_name=}, {endpoint_id=}. "
+                                "Writing data out of order is not supported, and the start time could not be "
+                                "dynamically reset, as last_analyzed is later than the given end time or that "
+                                f"base_period was specified ({end_dt=}, {base_period=})."
+                            )
+                    else:
+                        raise mlrun.errors.MLRunValueError(
+                            "The start time for the application and endpoint precedes the last analyzed time: "
+                            f"{start_dt=}, {last_analyzed=}, {application_name=}, {endpoint_id=}. "
+                            "Writing data out of order is not supported. You should change the start time to "
+                            f"'{last_analyzed}' or later."
+                        )
             else:
                 logger.debug(
                     "The application is running on the endpoint for the first time",
@@ -477,6 +499,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         ],
         endpoint_id: str,
         application_name: str,
+        allow_unordered_data: bool,
     ) -> Iterator[tuple[Optional[datetime], Optional[datetime]]]:
         if start is None or end is None:
             # A single window based on the `sample_data` input - see `_handler`.
@@ -493,6 +516,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             end_dt=end_dt,
             base_period=base_period,
             application_name=application_name,
+            allow_unordered_data=allow_unordered_data,
         )
 
         if base_period is None:

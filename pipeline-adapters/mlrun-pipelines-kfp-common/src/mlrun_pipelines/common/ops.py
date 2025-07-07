@@ -14,8 +14,6 @@
 
 import typing
 
-from orjson import orjson
-
 if typing.TYPE_CHECKING:
     from mlrun.secrets import SecretsStore
 

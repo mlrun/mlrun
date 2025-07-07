@@ -114,9 +114,12 @@ class PipelineRun(FlexibleMapper):
 
     @property
     def terminated(self) -> bool:
-        is_argo_workflow = self._workflow_manifest.get("apiVersion") == "argoproj.io/v1alpha1"
+        print(self.to_dict())
+        is_argo_workflow = (
+            self._workflow_manifest.get("apiVersion") == "argoproj.io/v1alpha1"
+        )
         active_deadline_seconds_is_zero = (
-                self._workflow_manifest.get("spec", {}).get("activeDeadlineSeconds") == 0
+            self._workflow_manifest.get("spec", {}).get("activeDeadlineSeconds") == 0
         )
         if is_argo_workflow and active_deadline_seconds_is_zero:
             return True

@@ -35,6 +35,7 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
+import mlrun_pipelines.models
 import mlrun_pipelines.utils
 from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun_pipelines.common.models import RunStatuses
@@ -968,7 +969,7 @@ def wait_for_pipeline_completion(
     namespace=None,
     remote=True,
     project: Optional[str] = None,
-) -> tuple[dict, bool]:
+) -> mlrun_pipelines.models.PipelineRun:
     """Wait for Pipeline status, timeout in sec
 
     :param run_id:     id of pipelines run
@@ -979,7 +980,7 @@ def wait_for_pipeline_completion(
     :param remote:     read kfp data from mlrun service (default=True)
     :param project:    the project of the pipeline
 
-    :return: kfp run dict, terminated flag
+    :return: mlrun_pipelines.models.PipelineRun
     """
     if expected_statuses is None:
         expected_statuses = [
@@ -1001,7 +1002,6 @@ def wait_for_pipeline_completion(
 
     if remote:
         mldb = mlrun.db.get_run_db()
-
         dag_display_id = create_ipython_display()
 
         def _wait_for_pipeline_completion() -> dict:
@@ -1011,7 +1011,11 @@ def wait_for_pipeline_completion(
             """
             pipeline = mldb.get_pipeline(run_id, namespace=namespace, project=project)
             pipeline_status = pipeline["run"]["status"]
-            show_kfp_run(pipeline, dag_display_id=dag_display_id, with_html=False)
+            show_kfp_run(
+                kfp_run=pipeline,
+                dag_display_id=dag_display_id,
+                with_html=False,
+            )
             if pipeline_status in [
                 RunStatuses.terminating,
                 RunStatuses.canceling,
@@ -1037,7 +1041,7 @@ def wait_for_pipeline_completion(
                 ", set the dbpath url"
             )
 
-        resp, terminated = retry_until_successful(
+        completed_kfp_run = retry_until_successful(
             10,
             timeout,
             logger,
@@ -1049,18 +1053,16 @@ def wait_for_pipeline_completion(
             logger=logger,
             namespace=namespace,
         )
-        resp = client.wait_for_run_completion(run_id, timeout)
-        if resp:
-            resp = resp.to_dict()
-            resp = format_summary_from_kfp_run(resp)
-        show_kfp_run(resp)
+        completed_kfp_run = client.wait_for_run_completion(run_id, timeout)
+        formatted_run = format_summary_from_kfp_run(completed_kfp_run.to_dict())
+        show_kfp_run(formatted_run)
 
-    if resp.get("terminated"):
+    if completed_kfp_run.terminated:
         status = RunStatuses.canceled
         message = "Run was terminated by user"
     else:
-        status = resp["run"]["status"] if resp else "unknown"
-        message = resp["run"].get("message", "") if resp else ""
+        status = completed_kfp_run["run"]["status"] or "unknown"
+        message = completed_kfp_run["run"].get("message", "") or ""
 
     if expected_statuses:
         if status not in expected_statuses:
@@ -1076,7 +1078,7 @@ def wait_for_pipeline_completion(
         f" namespace: {namespace}"
     )
 
-    return resp, terminated
+    return completed_kfp_run
 
 
 def get_pipeline(

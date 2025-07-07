@@ -23,7 +23,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
 import mlrun.lists
 import mlrun.model_monitoring
-
+import mlrun_pipelines.models
 from ..config import config
 from ..utils import logger
 from .base import RunDBInterface
@@ -521,7 +521,7 @@ class NopDB(RunDBInterface):
             str, mlrun.common.formatters.PipelineFormat
         ] = mlrun.common.formatters.PipelineFormat.summary,
         project: Optional[str] = None,
-    ):
+    ) -> mlrun_pipelines.models.PipelineRun:
         pass
 
     def retry_pipeline(

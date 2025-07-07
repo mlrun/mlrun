@@ -48,7 +48,7 @@ from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 from mlrun.secrets import get_secret_or_env
 from mlrun_pipelines.utils import compile_pipeline
-
+import mlrun_pipelines.models
 from ..artifacts import Artifact
 from ..common.schemas import AlertActivations
 from ..common.schemas.model_monitoring import FunctionSummary
@@ -2323,7 +2323,7 @@ class HTTPRunDB(RunDBInterface):
             str, mlrun.common.formatters.PipelineFormat
         ] = mlrun.common.formatters.PipelineFormat.summary,
         project: Optional[str] = None,
-    ):
+    ) -> mlrun_pipelines.models.PipelineRun:
         """Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
 
         params = {}
@@ -2342,7 +2342,7 @@ class HTTPRunDB(RunDBInterface):
             logger.error(f"bad resp!!\n{resp.text}")
             raise ValueError(f"bad get pipeline response, {resp.text}")
 
-        return resp.json()
+        return mlrun_pipelines.models.PipelineRun(resp.json())
 
     def retry_pipeline(
         self,

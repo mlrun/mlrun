@@ -471,7 +471,7 @@ class Client(
         run_id: str,
         timeout: int,
         check_interval_seconds: int = 5,
-    ) -> kfp_server_api.ApiRun:
+    ) -> mlrun_pipelines.models.PipelineRun:
         """
         Wait for a pipeline run to reach a stable status (e.g., Succeeded or Failed).
 
@@ -488,29 +488,34 @@ class Client(
         start_time: datetime.datetime = datetime.datetime.now()
         if isinstance(timeout, datetime.timedelta):
             timeout = int(timeout.total_seconds())
-        get_run_response: typing.Optional[kfp_server_api.ApiRun] = None
 
-        while (
-            status not in mlrun_pipelines.common.models.RunStatuses.stable_statuses()
-            or status
-            not in mlrun_pipelines.common.models.RunStatuses.terminating_statuses()
-        ):
-            try:
-                get_run_response: kfp_server_api.ApiRunDetail = self._run_api.get_run(
-                    run_id=run_id
-                )
-            except kfp_server_api.ApiException as api_ex:
-                raise api_ex
-            status = get_run_response.run.status
-            elapsed_time: float = (datetime.datetime.now() - start_time).total_seconds()
-            self.logger.info("Waiting for the job to complete...", status=status)
+        elapsed_time = 0
+        while True:
             if elapsed_time > timeout:
                 raise TimeoutError(
                     f"Run {run_id} did not complete within {timeout} seconds."
                 )
-            time.sleep(check_interval_seconds)
-
-        return get_run_response
+            try:
+                get_run_response: kfp_server_api.ApiRunDetail = self._run_api.get_run(
+                    run_id=run_id,
+                )
+            except kfp_server_api.ApiException as api_ex:
+                raise api_ex
+            else:
+                if (
+                    status
+                    not in mlrun_pipelines.common.models.RunStatuses.stable_statuses()
+                ):
+                    elapsed_time: float = (
+                        datetime.datetime.now() - start_time
+                    ).total_seconds()
+                    self.logger.info(
+                        "Waiting for the job to complete...",
+                        status=get_run_response.run.status,
+                    )
+                    time.sleep(check_interval_seconds)
+                else:
+                    return mlrun_pipelines.models.PipelineRun(get_run_response)
 
     def upload_pipeline(
         self,

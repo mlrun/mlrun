@@ -734,16 +734,14 @@ class _KFPRunner(_PipelineRunner):
             project=project_name,
         )
         timeout = timeout or 60 * 60
-        run_info, terminated = wait_for_pipeline_completion(
+        run_info = wait_for_pipeline_completion(
             run.run_id,
             timeout=timeout,
             expected_statuses=expected_statuses,
             project=project_name,
         )
         status = ""
-        if terminated:
-            status = mlrun_pipelines.common.models.RunStatuses.canceled
-        elif run_info:
+        if run_info:
             status = run_info["run"].get("status")
         return status
 

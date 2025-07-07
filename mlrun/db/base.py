@@ -26,7 +26,7 @@ import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.model_monitoring
-
+import mlrun_pipelines.models
 
 class RunDBError(Exception):
     pass
@@ -609,7 +609,7 @@ class RunDBInterface(ABC):
             str, mlrun.common.formatters.PipelineFormat
         ] = mlrun.common.formatters.PipelineFormat.summary,
         project: Optional[str] = None,
-    ):
+    ) -> mlrun_pipelines.models.PipelineRun:
         pass
 
     @abstractmethod

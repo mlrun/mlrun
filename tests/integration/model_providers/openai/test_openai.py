@@ -34,7 +34,7 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
-from mlrun.serving import ModelRunnerStep
+from tests.datastore.remote_model.remote_model_utils import setup_remote_model_test, INPUT_DATA, EXPECTED_RESULTS
 
 here = os.path.dirname(__file__)
 config = {}
@@ -293,71 +293,73 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
 
 
 class TestOpenAIModel(TestBasicOpenAIProvider):
-    @pytest.fixture
-    def prompt_data(self):
-        return {
-            "input": [
-                {
-                    "question": "What is the capital of France, and give a brief historical overview.",
-                    "depth_level": "detailed",
-                    "persona": "teacher",
-                    "tone": "casual",
-                },
-                {
-                    "question": "What is 2 + 2? Answer shortly and then explain with details.",
-                    "depth_level": "basic",
-                    "persona": "math teacher",
-                    "tone": "simple",
-                },
-                {
-                    "question": "Who wrote Hamlet? Answer shortly and then explain with details.",
-                    "depth_level": "basic",
-                    "persona": "literature professor",
-                    "tone": "formal",
-                },
-                {
-                    "question": "What color is the sky on a clear day? Answer shortly and then explain with details.",
-                    "depth_level": "basic",
-                    "persona": "child",
-                    "tone": "fun",
-                },
-                {
-                    "question": "What planet do we live on? Answer shortly and then explain with details.",
-                    "depth_level": "basic",
-                    "persona": "astronaut",
-                    "tone": "educational",
-                },
-            ],
-        }
+    # @pytest.fixture
+    # def prompt_data(self):
+    #     return {
+    #         "input": [
+    #             {
+    #                 "question": "What is the capital of France, and give a brief historical overview.",
+    #                 "depth_level": "detailed",
+    #                 "persona": "teacher",
+    #                 "tone": "casual",
+    #             },
+    #             {
+    #                 "question": "What is 2 + 2? Answer shortly and then explain with details.",
+    #                 "depth_level": "basic",
+    #                 "persona": "math teacher",
+    #                 "tone": "simple",
+    #             },
+    #             {
+    #                 "question": "Who wrote Hamlet? Answer shortly and then explain with details.",
+    #                 "depth_level": "basic",
+    #                 "persona": "literature professor",
+    #                 "tone": "formal",
+    #             },
+    #             {
+    #                 "question": "What color is the sky on a clear day? Answer shortly and then explain with details.",
+    #                 "depth_level": "basic",
+    #                 "persona": "child",
+    #                 "tone": "fun",
+    #             },
+    #             {
+    #                 "question": "What planet do we live on? Answer shortly and then explain with details.",
+    #                 "depth_level": "basic",
+    #                 "persona": "astronaut",
+    #                 "tone": "educational",
+    #             },
+    #         ],
+    #     }
+    # 
+    # @pytest.fixture
+    # def prompt_expected_results(self):
+    #     return ["paris", "4", "shakespeare", "blue", "earth"]
 
-    @pytest.fixture
-    def prompt_expected_results(self):
-        return ["paris", "4", "shakespeare", "blue", "earth"]
+    # def setup_remote_model_test(self):
+    #     project = mlrun.new_project("test-openai-model", save=False)
+    #     model_url = self.url_prefix + self.basic_llm_model
+    #     model_artifact = project.log_model(
+    #         "my_model",
+    #         model_url=model_url,
+    #         default_config={"max_tokens": 100},
+    #     )
+    #     prompt_template = (
+    #         "{question}. Explain {depth_level} as a {persona} in {tone} style."
+    #     )
+    #     llm_prompt_artifact = project.log_llm_prompt(
+    #         "my_llm_prompt",
+    #         prompt_string=prompt_template,
+    #         model_artifact=model_artifact.uri,
+    #     )
+    #     function = mlrun.new_function("tests", kind="serving")
+    #     graph = function.set_topology("flow", engine="async")
+    #     model_runner_step = ModelRunnerStep(name="my_model_runner")
+    #     return model_artifact, llm_prompt_artifact, function, graph, model_runner_step
 
-    def _get_test_attributes(self):
+    def test_model_runner_with_openai(self):
         project = mlrun.new_project("test-openai-model", save=False)
         model_url = self.url_prefix + self.basic_llm_model
-        model_artifact = project.log_model(
-            "my_model",
-            model_url=model_url,
-            default_config={"max_tokens": 100},
-        )
-        prompt_template = (
-            "{question}. Explain {depth_level} as a {persona} in {tone} style."
-        )
-        llm_prompt_artifact = project.log_llm_prompt(
-            "my_llm_prompt",
-            prompt_string=prompt_template,
-            model_artifact=model_artifact.uri,
-        )
-        function = mlrun.new_function("tests", kind="serving")
-        graph = function.set_topology("flow", engine="async")
-        model_runner_step = ModelRunnerStep(name="my_model_runner")
-        return model_artifact, llm_prompt_artifact, function, graph, model_runner_step
-
-    def test_model_runner_with_openai(self, prompt_data):
         model_artifact, llm_prompt_artifact, function, graph, model_runner_step = (
-            self._get_test_attributes()
+            setup_remote_model_test(project=project, model_url=model_url)
         )
         model_runner_step.add_model(
             model_class="MyOpenAILLM",
@@ -385,16 +387,18 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         ):
             server = function.to_mock_server()
         try:
-            result = server.test(body=prompt_data["input"][0])["result"]
+            result = server.test(body=INPUT_DATA["input"][0])["result"]
             assert "paris" in result.lower()
             encoding = tiktoken.encoding_for_model(self.basic_llm_model)
             assert len(encoding.encode(result)) == 100
         finally:
             server.wait_for_completion()
 
-    def test_model_runner_with_openai_async(self, prompt_data, prompt_expected_results):
+    def test_model_runner_with_openai_async(self):
+        project = mlrun.new_project("test-openai-model", save=False)
+        model_url = self.url_prefix + self.basic_llm_model
         model_artifact, llm_prompt_artifact, function, graph, model_runner_step = (
-            self._get_test_attributes()
+            setup_remote_model_test(project=project, model_url=model_url)
         )
         model_runner_step.add_model(
             model_class="MyOpenAILLM",
@@ -423,14 +427,14 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             server = function.to_mock_server()
         try:
             start = time.perf_counter()
-            results_with_times = server.test(body=prompt_data)
+            results_with_times = server.test(body=INPUT_DATA)
             total_duration = time.perf_counter() - start
 
             results = results_with_times["results"]
             invoke_times = results_with_times["invoke_times"]
             encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-            for i in range(len(prompt_expected_results)):
-                assert prompt_expected_results[i] in results[i].lower()
+            for i in range(len(EXPECTED_RESULTS)):
+                assert EXPECTED_RESULTS[i] in results[i].lower()
                 assert len(encoding.encode(results[i])) == 100
             assert total_duration < sum(invoke_times)
         finally:

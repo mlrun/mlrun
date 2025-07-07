@@ -279,14 +279,8 @@ class BackgroundTaskStatus(storey.MapClass):
             self._background_task_check_timestamp = mlrun.utils.now_date()
             self._log_background_task_state(background_task.status.state)
             self._background_task_state = background_task.status.state
-            if (
-                background_task.status.state
-                == mlrun.common.schemas.BackgroundTaskState.succeeded
-            ):
-                return event
-            else:
-                return None
-        elif (
+
+        if (
             self._background_task_state
             == mlrun.common.schemas.BackgroundTaskState.succeeded
         ):
@@ -382,7 +376,8 @@ class MockStreamPusher(storey.MapClass):
     def __init__(self, output_stream=None, **kwargs):
         super().__init__(**kwargs)
         context = kwargs.get("context")
-        self.output_stream = output_stream or context.stream.output_stream
+        stream = context.stream if context else None
+        self.output_stream = output_stream or getattr(stream, "output_stream", None)
 
     def do(self, event):
         self.output_stream.push(

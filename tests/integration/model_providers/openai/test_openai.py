@@ -21,7 +21,7 @@ from typing import cast
 import pytest
 import tiktoken
 import yaml
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 from openai.types import CreateEmbeddingResponse
 
 import mlrun
@@ -222,22 +222,6 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             model_url=model_url, secrets=self.env_secrets, model_name=configurable_model
         )
 
-    def test_customized_invoke(self):
-        model_name = "text-embedding-3-small"
-        model_url = self.url_prefix + model_name
-        model_provider = mlrun.get_model_provider(url=model_url)
-        prompt = "OpenAI is amazing"
-        client: OpenAI = model_provider.client
-        embeddings = model_provider.customized_invoke(
-            operation=client.embeddings.create, input=prompt
-        )
-        encoding = tiktoken.encoding_for_model(model_name)
-        token_count = len(encoding.encode(prompt))
-        assert embeddings.data[0].embedding is not None
-        assert len(embeddings.data[0].embedding) > 0
-        assert embeddings.usage.total_tokens == token_count
-        assert isinstance(embeddings, CreateEmbeddingResponse)
-
     @pytest.mark.asyncio
     async def test_async_invoke(self):
         model_url = self.url_prefix + self.basic_llm_model
@@ -255,15 +239,22 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         assert token_count == 100
 
     @pytest.mark.asyncio
-    async def test_async_customized_invoke(self):
+    @pytest.mark.parametrize("run_async", [True, False])
+    async def test_customized_invoke(self, run_async):
         model_name = "text-embedding-3-small"
         model_url = self.url_prefix + model_name
         model_provider = mlrun.get_model_provider(url=model_url)
         prompt = "OpenAI is amazing"
         client: OpenAI = model_provider.client
-        embeddings = await model_provider.async_customized_invoke(
-            operation=client.embeddings.create, input=prompt
-        )
+        async_client: AsyncOpenAI = model_provider.async_client
+        if run_async:
+            embeddings = await model_provider.async_customized_invoke(
+                operation=async_client.embeddings.create, input=prompt
+            )
+        else:
+            embeddings = model_provider.customized_invoke(
+                operation=client.embeddings.create, input=prompt
+            )
         encoding = tiktoken.encoding_for_model(model_name)
         token_count = len(encoding.encode(prompt))
         assert embeddings.data[0].embedding is not None

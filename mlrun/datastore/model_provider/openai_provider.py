@@ -97,12 +97,14 @@ class OpenAIProvider(ModelProvider):
         self,
         operation: Optional[Callable[..., Awaitable[T]]] = None,
         **invoke_kwargs,
-    ) -> Awaitable[T]:
+    ) -> Optional[T]:
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         if operation:
-            return operation(**invoke_kwargs, model=self.model)
+            return await operation(**invoke_kwargs, model=self.model)
         else:
-            return self._default_async_operation(**invoke_kwargs, model=self.model)
+            return await self._default_async_operation(
+                **invoke_kwargs, model=self.model
+            )
 
     def _get_messages_parameter(
         self, prompt: Optional[str] = None, **invoke_kwargs

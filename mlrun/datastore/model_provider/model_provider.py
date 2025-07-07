@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar
 
 import mlrun.errors
@@ -75,8 +74,8 @@ class ModelProvider(BaseRemoteClient):
             )
         return self._async_client
 
-    async def async_customized_invoke(self, **kwargs):
+    async def async_customized_invoke(self, **kwargs) -> Optional[T]:
         raise NotImplementedError("async_customized_invoke is not implemented")
 
-    async def async_invoke(self, prompt: str, **invoke_kwargs) -> Awaitable[str]:
+    async def async_invoke(self, prompt: str, **invoke_kwargs) -> Optional[str]:
         raise NotImplementedError("async_invoke is not implemented")

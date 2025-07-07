@@ -23,6 +23,7 @@ import v3io
 import v3iofs  # noqa
 
 import mlrun
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.feature_store.common
 import mlrun.model
@@ -451,7 +452,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         runs = mlrun.get_run_db().list_runs(
             project=self.project_name,
             end_time_from=beginning_time,
-            states=mlrun.common.runtimes.constants.RunStates.error,
+            states=[mlrun.common.runtimes.constants.RunStates.error],
         )
         assert len(runs) == 1
 
@@ -460,7 +461,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         runs = mlrun.get_run_db().list_runs(
             project=self.project_name,
             end_time_from=now,
-            states=mlrun.common.runtimes.constants.RunStates.error,
+            states=[mlrun.common.runtimes.constants.RunStates.error],
         )
         assert len(runs) == 0
 
@@ -723,3 +724,57 @@ def print_df(df):
             ), f"Dataframe {read_back_df} was not transformed as expected"
         finally:
             v3io_client.close()
+
+    def test_retry_job_exhausted(self):
+        code_path = str(self.assets_path / "raise_func.py")
+
+        function = self.project.set_function(
+            code_path,
+            name="raise-func",
+            kind="job",
+            handler="handler",
+        )
+
+        retry_count = 3
+        retry = mlrun.model.Retry(
+            count=retry_count,
+        )
+
+        with pytest.raises(mlrun.runtimes.utils.RunError):
+            function.run(verbose=True, retry=retry)
+
+        runs = self._run_db.list_runs(project=self.project_name)
+        assert len(runs) == 1
+        run = mlrun.RunObject.from_dict(runs[0])
+        assert run.status.retry_count is None
+        assert (
+            run.status.state == mlrun.common.runtimes.constants.RunStates.pending_retry
+        )
+        max_attempts = retry_count + 1
+        assert f"Run failed attempt 1 of {max_attempts}" in run.status.status_text
+
+        def _assert_retry_count():
+            runs = self._run_db.list_runs(project=self.project_name)
+            assert len(runs) == 1
+            run = mlrun.RunObject.from_dict(runs[0])
+            assert (
+                run.status.retry_count == 3
+            ), f"Expected retry_count=3, got {run.status.retry_count}"
+            assert run.status.state == mlrun.common.runtimes.constants.RunStates.error
+            assert f"Run failed after {max_attempts} attempts" in run.status.status_text
+
+        mlrun.utils.retry_until_successful(
+            1,
+            250,
+            self._logger,
+            True,
+            _assert_retry_count,
+        )
+
+        state, content = self._run_db.get_log(
+            run.metadata.uid, project=self.project_name, attempt=2
+        )
+        assert state == mlrun.common.runtimes.constants.RunStates.error
+        assert "Retrying run - attempt: 2" in str(
+            content
+        ), "Expected logs to contain retry attempt message"

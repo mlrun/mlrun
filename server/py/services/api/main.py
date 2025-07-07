@@ -22,6 +22,7 @@ import fastapi
 import fastapi.concurrency
 import sqlalchemy.orm
 
+import mlrun
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
@@ -42,6 +43,7 @@ import framework.utils.background_tasks
 import framework.utils.clients.chief
 import framework.utils.clients.log_collector
 import framework.utils.clients.messaging
+import framework.utils.helpers
 import framework.utils.notifications.notification_pusher
 import framework.utils.pagination_cache
 import framework.utils.time_window_tracker
@@ -82,6 +84,7 @@ class Service(framework.service.Service):
             (services.api.crud.Functions, "list_functions"),
             (services.api.crud.Artifacts, "list_artifacts"),
         ]
+        self._retry_in_progress_run_uids = set()
 
     async def _move_service_to_online(self):
         # scheduler is needed on both workers and chief
@@ -195,6 +198,8 @@ class Service(framework.service.Service):
         self._start_periodic_partition_management()
         self._start_periodic_refresh_smtp_configuration()
         self._start_periodic_background_task_cleanup()
+        if mlconf.httpdb.clusterization.chief.feature_gates.retry_jobs == "enabled":
+            self._start_periodic_retry_jobs()
         if mlconf.httpdb.clusterization.chief.feature_gates.start_logs == "enabled":
             await self._start_periodic_logs_collection()
         if mlconf.httpdb.clusterization.chief.feature_gates.stop_logs == "enabled":
@@ -484,6 +489,7 @@ class Service(framework.service.Service):
             run_kind = run.get("metadata", {}).get("labels", {}).get("kind", None)
             project_name = run.get("metadata", {}).get("project", None)
             run_uid = run.get("metadata", {}).get("uid", None)
+            retry_count = run.get("status", {}).get("retry_count", None)
 
             # information for why runtime isn't log collectable is inside the method
             if not mlrun.runtimes.RuntimeKinds.is_log_collectable_runtime(run_kind):
@@ -504,9 +510,16 @@ class Service(framework.service.Service):
                     # runtimes that the user will create with hundreds of resources (e.g mpi job can have multiple
                     # workers which aren't really important for log collection
                     with_main_runtime_resource_label_selector=True,
+                    retry_count=retry_count,
                 )
+                logs_run_uid = run_uid
+                if retry_count:
+                    # Adding the attempt number to the run uid since the log collector does not support multiple pods
+                    # per run uid. This separates the attempts so that each attempt has its own logs file.
+                    # Incrementing the retry count by 1 since the first retry is the 2nd attempt and so on.
+                    logs_run_uid = f"{run_uid}-attempt-{int(retry_count)+1}"
                 success, _ = await logs_collector_client.start_logs(
-                    run_uid=run_uid,
+                    run_uid=logs_run_uid,
                     selector=label_selector,
                     project=project_name,
                     best_effort=best_effort,
@@ -523,6 +536,7 @@ class Service(framework.service.Service):
                 self._logger.warning(
                     "Failed to start logs for run",
                     run_uid=run_uid,
+                    retry_count=retry_count,
                     exc=mlrun.errors.err_to_str(exc),
                 )
                 return None
@@ -605,6 +619,17 @@ class Service(framework.service.Service):
                 False,
                 framework.utils.notifications.notification_pusher.RunNotificationPusher.get_mail_notification_default_params,
                 refresh=True,
+            )
+
+    def _start_periodic_retry_jobs(self):
+        interval = int(mlconf.monitoring.runs.retry.interval)
+        if interval > 0:
+            self._logger.info("Starting periodic retry job", interval=interval)
+            run_function_periodically(
+                interval,
+                self._retry_jobs.__name__,
+                False,
+                self._retry_jobs,
             )
 
     def _start_periodic_background_task_cleanup(self):
@@ -929,6 +954,137 @@ class Service(framework.service.Service):
                         project=project_name,
                         chunked_run_uids=chunked_run_uids,
                     )
+
+    async def _retry_jobs(self):
+        """
+        Retry jobs that are in a failed state and have a retry policy configured.
+        This function is called periodically to retry jobs that have failed and can be retried.
+        """
+        self._logger.debug("Retrying jobs with retry policy configured")
+        db_session = await fastapi.concurrency.run_in_threadpool(create_session)
+        fetch_runs_limit = int(mlconf.monitoring.runs.retry.fetch_runs_limit)
+        try:
+            offset = 0
+            while runs := await fastapi.concurrency.run_in_threadpool(
+                get_db().list_runs,
+                db_session,
+                project="*",
+                states=[mlrun.common.runtimes.constants.RunStates.pending_retry],
+                limit=fetch_runs_limit,
+                offset=offset,
+            ):
+                self._logger.debug(
+                    "Found runs to retry", runs_count=len(runs), offset=offset
+                )
+                offset = offset + len(runs)
+
+                futures = []
+                for run_dict in runs:
+                    run = mlrun.RunObject.from_dict(run_dict)
+                    if run.metadata.uid in self._retry_in_progress_run_uids:
+                        self._logger.debug(
+                            "Run is already being retried, skipping",
+                            run_uid=run.metadata.uid,
+                        )
+                        continue
+
+                    # retry_count may be None on the first attempt
+                    run.status.retry_count = run.status.retry_count or 0
+                    # sanity - if run retry was exhausted, the run should not be in pending_retry state
+                    if not run.status.retry_count < run.spec.retry.count:
+                        self._logger.warn(
+                            "Run has reached max retry count, skipping",
+                            run_uid=run.metadata.uid,
+                            retry_count=run.status.retry_count,
+                            max_retry_count=run.spec.retry.count,
+                        )
+                        futures.append(
+                            fastapi.concurrency.run_in_threadpool(
+                                framework.db.session.run_function_with_new_db_session,
+                                get_db().update_run,
+                                updates={
+                                    "status.state": mlrun.common.runtimes.constants.RunStates.error,
+                                    "status.status_text": "Run retries exhausted",
+                                },
+                                uid=run.metadata.uid,
+                                project=run.metadata.project,
+                            )
+                        )
+                        continue
+
+                    try:
+                        self._submit_run_for_retry(run)
+                    except Exception as exc:
+                        self._logger.warning(
+                            "Failed retrying run",
+                            run_uid=run.metadata.uid,
+                            exc=err_to_str(exc),
+                            traceback=traceback.format_exc(),
+                        )
+
+                if futures:
+                    exceptions = await asyncio.gather(*futures, return_exceptions=True)
+                    for exception in exceptions:
+                        if isinstance(exception, Exception):
+                            self._logger.warning(
+                                "Failed task in retry job",
+                                exc=err_to_str(exception),
+                            )
+
+        except Exception as exc:
+            self._logger.warning(
+                "Failed retrying jobs",
+                exc=err_to_str(exc),
+                traceback=traceback.format_exc(),
+            )
+        finally:
+            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+
+    def _submit_run_for_retry(self, run: mlrun.RunObject):
+        self._retry_in_progress_run_uids.add(run.metadata.uid)
+        loop = asyncio.get_running_loop()
+
+        # Calculate the delay based on the retry policy
+        delay = framework.utils.helpers.time_string_to_seconds(
+            run.spec.retry.backoff.base_delay,
+            mlrun.mlconf.function.spec.retry.backoff.min_base_delay,
+        ) * (run.status.retry_count + 1)
+        delta = (
+            datetime.datetime.fromisoformat(run.status.end_time)
+            + datetime.timedelta(seconds=delay)
+            - datetime.datetime.now(datetime.timezone.utc)
+        )
+        call_after_seconds = max(delta.total_seconds(), 0)
+
+        # Submit the job with the calculated delay
+        self._logger.debug(
+            "Submitting run for retry",
+            run_uid=run.metadata.uid,
+            delay=call_after_seconds,
+            retry_count=run.status.retry_count,
+            max_retry_count=run.spec.retry.count,
+        )
+        loop.call_later(
+            call_after_seconds,
+            self._submit_retry_wrapper,
+            run,
+        )
+
+    def _submit_retry_wrapper(self, run: mlrun.RunObject):
+        try:
+            submit_job_body = {
+                "task": run.to_dict(),
+            }
+            framework.db.session.run_function_with_new_db_session(
+                framework.api.utils.submit_run_sync,
+                # auth is already masked on the function
+                mlrun.common.schemas.AuthInfo(),
+                # TODO: pass values for param_file_secrets ?
+                submit_job_body,
+            )
+
+        finally:
+            self._retry_in_progress_run_uids.discard(run.metadata.uid)
 
 
 if __name__ == "__main__":

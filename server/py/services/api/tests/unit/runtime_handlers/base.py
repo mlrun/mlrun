@@ -69,11 +69,14 @@ class TestRuntimeHandlerBase:
         name: Optional[str] = None,
         uid: Optional[str] = None,
         start_time: Optional[datetime] = None,
+        retry_spec: Optional[dict] = None,
+        retry_count: Optional[int] = None,
     ):
         self.run = {
             "status": {
                 "state": RunStates.created,
                 "last_update": now_date().isoformat(),
+                "retry_count": retry_count,
             },
             "metadata": {
                 "project": self.project,
@@ -86,6 +89,7 @@ class TestRuntimeHandlerBase:
             "spec": {
                 "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
                 "node_selector": {"test/host": "node1"},
+                "retry": retry_spec,
             },
         }
         if start_time:
@@ -610,4 +614,4 @@ class TestRuntimeHandlerBase:
         assert run["status"]["state"] == expected_state
 
         for key, val in expected_status_attrs.items():
-            assert run["status"][key] == val
+            assert run["status"][key] == val, run["status"][key]

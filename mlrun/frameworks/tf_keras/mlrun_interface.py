@@ -107,14 +107,10 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             )
 
         # Call the pre compile method:
-        (optimizer, experimental_run_tf_function) = self._pre_compile(
-            optimizer=kwargs["optimizer"]
-        )
+        optimizer = self._pre_compile(optimizer=kwargs["optimizer"])
 
         # Assign parameters:
         kwargs["optimizer"] = optimizer
-        if experimental_run_tf_function is not None:
-            kwargs["experimental_run_tf_function"] = experimental_run_tf_function
 
         # Call the original compile method:
         return self.original_compile(*args, **kwargs)
@@ -235,23 +231,20 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         """
         self._RANK_0_ONLY_CALLBACKS.add(callback_name)
 
-    def _pre_compile(self, optimizer: Optimizer) -> tuple[Optimizer, Union[bool, None]]:
+    def _pre_compile(self, optimizer: Optimizer) -> Optimizer:
         """
         Method to call before calling 'compile' to setup the run and inputs for using horovod.
 
         :param optimizer: The optimzier to compile. It will be wrapped in horovod's distributed optimizer:
                           'hvd.DistributedOptimizer'.
 
-        :return: The updated parameters:
-                 [0] = Wrapped optimizer.
-                 [1] = The 'experimental_run_tf_function' parameter for 'compile' kwargs or 'None' if horovod should not
-                       be used.
+        :return: The updated Wrapped optimizer.
 
         :raise MLRunInvalidArgumentError: In case the optimizer was passed as a string.
         """
         # Check if needed to run with horovod:
         if self._hvd is None:
-            return optimizer, None
+            return optimizer
 
         # Validate the optimizer input:
         if isinstance(optimizer, str):
@@ -281,18 +274,14 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
         # Adjust learning rate based on the number of GPUs:
         if hasattr(optimizer, "lr"):
-            optimizer.lr *= self._hvd.size()
+            optimizer.lr = optimizer.lr * self._hvd.size()
         else:
-            optimizer.learning_rate *= self._hvd.size()
+            optimizer.learning_rate = optimizer.learning_rate * self._hvd.size()
 
         # Wrap the optimizer in horovod's distributed optimizer: 'hvd.DistributedOptimizer'.
         optimizer = self._hvd.DistributedOptimizer(optimizer)
 
-        # Compile the model with `experimental_run_tf_function=False` to ensure Tensorflow uses the distributed
-        # optimizer to compute the gradients:
-        experimental_run_tf_function = False
-
-        return optimizer, experimental_run_tf_function
+        return optimizer
 
     def _pre_fit(
         self,

@@ -47,8 +47,9 @@ class WorkflowRequest(pydantic.v1.BaseModel):
 
 
 class RerunWorkflowRequest(pydantic.v1.BaseModel):
-    run_name: typing.Optional[str] = (None,)
-    run_id: typing.Optional[str] = (None,)
+    run_name: typing.Optional[str] = None
+    run_id: typing.Optional[str] = None
+    original_workflow_id: typing.Optional[str] = None
     notifications: typing.Optional[list[Notification]] = None
     workflow_runner_node_selector: typing.Optional[dict[str, str]] = None
 

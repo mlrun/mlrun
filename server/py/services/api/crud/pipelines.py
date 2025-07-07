@@ -23,6 +23,7 @@ import kfp_server_api
 import sqlalchemy.orm
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.helpers
 import mlrun.common.schemas
@@ -37,9 +38,12 @@ import mlrun_pipelines.imports
 import mlrun_pipelines.mixins
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
+from mlrun.k8s_utils import sanitize_label_value
 
 import framework.api.utils
 import services.api.crud
+from services.api.crud.workflows import RerunRunner
+from services.api.utils.helpers import resolve_client_default_kfp_image
 
 
 class Pipelines(
@@ -265,7 +269,44 @@ class Pipelines(
             ) from exc
         return run
 
-    def retry_pipeline(
+    def get_original_workflow_run(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        run_id: str,
+        project: str,
+    ) -> typing.Optional[mlrun.model.RunObject]:
+        """
+        Given a KFP pipeline run ID, find the original remote-workflow run if it exists:
+
+        1. First, try to find a workflow-runner run whose `workflow-id` label == run_id.
+        2. If not found, look for a rerun-runner with the same workflow-id label.
+
+        Returns:
+            The run object, or None if the run ID doesn't correspond to any remote workflow.
+
+        Raises:
+            MLRunNotFoundError: If the run ID doesn't correspond to any remote workflow.
+        """
+        for job_type in [
+            mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER,
+            mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER,
+        ]:
+            runs = services.api.crud.Runs().list_runs(
+                db_session=db_session,
+                project=project,
+                labels=[
+                    f"{mlrun_constants.MLRunInternalLabels.workflow_id}={run_id}",
+                    f"{mlrun_constants.MLRunInternalLabels.job_type}={job_type}",
+                ],
+            )
+            if runs:
+                return runs.to_objects()[0]
+
+        raise mlrun.errors.MLRunNotFoundError(
+            f"No remote workflow runner found with workflow-id={run_id} in project '{project}'"
+        )
+
+    def rerun_pipeline_direct(
         self,
         run_id: str,
         project: str,
@@ -311,6 +352,89 @@ class Pipelines(
         return kfp_client.retry_run(
             run_id=run_id,
             project=project,
+        )
+
+    def rerun_pipeline_via_runner(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        run_id: str,
+        project: mlrun.common.schemas.ProjectOut,
+        original_runner: mlrun.run.RunObject,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        client_version: typing.Optional[str] = None,
+    ):
+        """
+        Re-run a completed KFP pipeline by launching an MLRun RerunRunner job.
+
+        This will:
+        1. Choose a KFP image (honoring any client_version header).
+        2. Create & save an MLRun function (the RerunRunner) that invokes `mlrun.projects.rerun_workflow`
+           with the original run_id.
+        3. Submit that function to Kubernetes, returning a WorkflowResponse for the new MLRun-run.
+
+        :param db_session:       SQLAlchemy session for persisting the runner function.
+        :param run_id:           The pipeline run ID to retry (the original KFP run UID).
+        :param project:          The MLRun project description (ProjectOut).
+        :param original_runner:  The RunObject of the original workflow-runner function.
+        :param auth_info:        Caller’s authentication info.
+        :param client_version:   Optional SDK version header, to pin the runner image.
+        :return:                 A WorkflowResponse with:
+                                   - project: same project name
+                                   - name:    the MLRun function name for the rerun
+                                   - status:  `"running"`
+                                   - run_id:  the new MLRun-run UID for the RerunRunner job
+        """
+        client_image = resolve_client_default_kfp_image(
+            project,
+            workflow_spec=None,
+            client_version=client_version,
+        )
+        run_name = f"rerun-runner-{run_id[:8]}"
+
+        rerun_runner: mlrun.run.KubejobRuntime = RerunRunner().create_runner(
+            run_name=run_name,
+            project=project.metadata.name,
+            db_session=db_session,
+            auth_info=auth_info,
+            image=client_image,
+        )
+
+        mlrun.utils.logger.debug(
+            "Saved function for rerun workflow",
+            project_name=rerun_runner.metadata.project,
+            function_name=rerun_runner.metadata.name,
+            kind=rerun_runner.kind,
+            image=rerun_runner.spec.image,
+        )
+
+        if client_version is not None:
+            rerun_runner.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.client_version
+            ] = sanitize_label_value(client_version)
+
+        rerun_request = mlrun.common.schemas.RerunWorkflowRequest(
+            run_name=run_name,
+            run_id=run_id,
+            notifications=[],  # TODO: will pass notifications from original runner in follow up PR,
+            workflow_runner_node_selector=original_runner.spec.node_selector,
+            original_workflow_id=original_runner.metadata.labels["workflow-id"],
+        )
+
+        run = RerunRunner().run(
+            runner=rerun_runner,
+            project=project,
+            run_uid=run_id,
+            rerun_request=rerun_request,
+            auth_info=auth_info,
+        )
+        status = mlrun_pipelines.common.models.RunStatuses.running
+        runner_uid = run.uid()
+
+        return mlrun.common.schemas.WorkflowResponse(
+            project=project.metadata.name,
+            name=rerun_request.run_name,
+            status=str(status),
+            run_id=runner_uid,
         )
 
     def terminate_pipeline(

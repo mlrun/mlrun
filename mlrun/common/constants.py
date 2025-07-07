@@ -27,6 +27,10 @@ DASK_LABEL_PREFIX = "dask.org/"
 NUCLIO_LABEL_PREFIX = "nuclio.io/"
 RESERVED_TAG_NAME_LATEST = "latest"
 
+JOB_TYPE_WORKFLOW_RUNNER = "workflow-runner"
+JOB_TYPE_PROJECT_LOADER = "project-loader"
+JOB_TYPE_RERUN_WORKFLOW_RUNNER = "rerun-workflow-runner"
+
 
 class MLRunInternalLabels:
     ### dask
@@ -76,7 +80,9 @@ class MLRunInternalLabels:
     kind = "kind"
     component = "component"
     mlrun_type = "mlrun__type"
+    rerun_of = "rerun-of"
     original_workflow_id = "original-workflow-id"
+    workflow_id = "workflow-id"
 
     owner = "owner"
     v3io_user = "v3io_user"
@@ -102,3 +108,8 @@ class MLRunInternalLabels:
 class DeployStatusTextKind(mlrun.common.types.StrEnum):
     logs = "logs"
     events = "events"
+
+
+class WorkflowSubmitMode(mlrun.common.types.StrEnum):
+    direct = "direct"  # call KFP retry API directly
+    rerun = "rerun"  # launch a RerunRunner function

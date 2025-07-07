@@ -245,6 +245,7 @@ class RunDBMock:
         self._runs = {}
         self._api_gateways = {}
         self._get_model_endpoint_calls = 0
+        self._get_background_task_calls = 1
 
     def reset(self):
         self._functions = {}
@@ -761,6 +762,34 @@ class RunDBMock:
         return mlrun.common.schemas.model_monitoring.ModelEndpointList(
             endpoints=endpoints
         )
+
+    def get_project_background_task(self, project, task_name):
+        if self._get_background_task_calls == 0:
+            task = mlrun.common.schemas.BackgroundTask(
+                kind=mlrun.common.schemas.object.ObjectKind.background_task,
+                metadata=mlrun.common.schemas.BackgroundTaskMetadata(
+                    name="name", project=project
+                ),
+                spec=mlrun.common.schemas.BackgroundTaskSpec(),
+                status=mlrun.common.schemas.BackgroundTaskStatus(
+                    state=mlrun.common.schemas.BackgroundTaskState.running,
+                    error="No error",
+                ),
+            )
+            self._get_background_task_calls += 1
+        else:
+            task = mlrun.common.schemas.BackgroundTask(
+                kind=mlrun.common.schemas.object.ObjectKind.background_task,
+                metadata=mlrun.common.schemas.BackgroundTaskMetadata(
+                    name="name", project=project
+                ),
+                spec=mlrun.common.schemas.BackgroundTaskSpec(),
+                status=mlrun.common.schemas.BackgroundTaskStatus(
+                    state=mlrun.common.schemas.BackgroundTaskState.succeeded,
+                    error="No error",
+                ),
+            )
+        return task
 
 
 @pytest.fixture()

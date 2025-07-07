@@ -11,8 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
+import time
+
 import mlrun
-from mlrun.serving import ModelRunnerStep
+import mlrun.artifacts
+import mlrun.serving
+from mlrun.datastore.model_provider.model_provider import ModelProvider
 
 INPUT_DATA = {
     "input": [
@@ -52,21 +57,56 @@ INPUT_DATA = {
 EXPECTED_RESULTS = ["paris", "4", "shakespeare", "blue", "earth"]
 
 
-def setup_remote_model_test(project, model_url):
-    model_artifact = project.log_model(
-        "my_model",
-        model_url=model_url,
-        default_config={"max_tokens": 100},
-    )
-    prompt_template = (
-        "{question}. Explain {depth_level} as a {persona} in {tone} style."
-    )
-    llm_prompt_artifact = project.log_llm_prompt(
-        "my_llm_prompt",
-        prompt_string=prompt_template,
-        model_artifact=model_artifact.uri,
-    )
-    function = mlrun.new_function("tests", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
-    return model_artifact, llm_prompt_artifact, function, graph, model_runner_step
+async def timed(coro):
+    start = time.perf_counter()
+    result = await coro
+    duration = time.perf_counter() - start
+    return result, duration
+
+
+class MyOpenAILLM(mlrun.serving.states.Model):
+    def predict(self, body):
+        if isinstance(
+            self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
+        ) and isinstance(self.model_provider, ModelProvider):
+            prompt = self.enrich_prompt(body)
+            body["result"] = self.model_provider.invoke(
+                prompt=prompt,
+                **(self.invocation_artifact.spec.model_configuration or {}),
+            )
+        return body
+
+    async def predict_async(self, body):
+        if isinstance(
+            self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
+        ) and isinstance(self.model_provider, ModelProvider):
+            prompt_parameters: list = body["input"]
+            prompts = [
+                self.enrich_prompt(single_prompt_parameters)
+                for single_prompt_parameters in prompt_parameters
+            ]
+
+            tasks = [
+                timed(
+                    self.model_provider.async_invoke(
+                        prompt,
+                        **(self.invocation_artifact.spec.model_configuration or {}),
+                    )
+                )
+                for prompt in prompts
+            ]
+            results_with_times = await asyncio.gather(*tasks)
+            results = [r for r, _ in results_with_times]
+            invoke_times = [t for _, t in results_with_times]
+            body["results"] = results
+            body["invoke_times"] = invoke_times
+        return body
+
+    def enrich_prompt(self, body) -> str:
+        # TODO: Update this once ML-8172 is completed
+        if isinstance(self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact):
+            prompt_template = self.invocation_artifact.spec.prompt_string
+            needed_params = ["question", "depth_level", "persona", "tone"]
+            sub_dict = {k: body[k] for k in needed_params if k in body}
+            return prompt_template.format(**sub_dict)
+        return ""

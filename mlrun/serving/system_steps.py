@@ -261,8 +261,8 @@ class BackgroundTaskStatus(storey.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-        if (self.context and self.context.is_mock) or self.context is None:
-            return event
+        # if (self.context and self.context.is_mock) or self.context is None:
+        #     return event
         if self.server is None:
             return None
 

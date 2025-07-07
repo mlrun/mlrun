@@ -1085,8 +1085,8 @@ def rerun_workflow(
 
     # pick up any user‐defined "running" notifications
     for notification in context.get_notifications(unmask_secret_params=True):
-        if "running" in notification.when:
-            notification.when = ["running"]
+        if mlrun.common.runtimes.constants.RunStates.running in notification.when:
+            notification.when = [mlrun.common.runtimes.constants.RunStates.running]
 
     try:
         # Invoke the KFP retry endpoint (direct-submit mode)
@@ -1095,7 +1095,11 @@ def rerun_workflow(
             project=project_name,
             submit_mode=mlrun_constants.WorkflowSubmitMode.direct,
         )
-        logger.info("KFP retry submitted", new_pipeline_id=new_pipeline_id)
+        logger.info(
+            "KFP retry submitted",
+            new_pipeline_id=new_pipeline_id,
+            rerun_of_workflow=run_uid,
+        )
 
     except mlrun.errors.MLRunHTTPError as http_exc:
         logger.error(
@@ -1224,13 +1228,13 @@ def load_and_run_workflow(
     start_notifications = [
         notification
         for notification in context.get_notifications(unmask_secret_params=True)
-        if "running" in notification.when
+        if mlrun.common.runtimes.constants.RunStates.running in notification.when
     ]
 
     # Prevent redundant notifications for run completion by ensuring that notifications are only triggered when the run
     # reaches the "running" state, as the server already handles the completion notifications.
     for notification in start_notifications:
-        notification.when = ["running"]
+        notification.when = [mlrun.common.runtimes.constants.RunStates.running]
 
     workflow_log_message = workflow_name or workflow_path
     context.logger.info(

@@ -926,11 +926,11 @@ def retry_pipeline(
             rerun = mldb.read_run(rerun_response.run_id, project)
             workflow_id = rerun["metadata"]["labels"].get("workflow-id")
             if not workflow_id:
-                raise RuntimeError("workflow-id label not set yet")
+                raise mlrun.errors.MLRunRuntimeError("workflow-id label not set yet")
             return workflow_id
 
         pipeline_run_id = mlrun.utils.helpers.retry_until_successful(
-            backoff=1,
+            backoff=3,
             timeout=int(mlrun.mlconf.workflows.timeouts.remote),
             logger=logger,
             verbose=False,

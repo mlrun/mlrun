@@ -522,6 +522,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             model_runner_step.add_model(
                 endpoint_name=f"{cls.model_name}_{with_training_set}",
                 model_class="MyModel",
+                execution_mechanism="naive",
                 model_artifact=f"store://models/{cls.project_name}/{cls.model_name}_{with_training_set}:latest",
                 input_path="inputs",
                 result_path="outputs",
@@ -1848,6 +1849,7 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
             model_runner_step.add_model(
                 endpoint_name=self._model_name,
                 model_class="MyModel",
+                execution_mechanism="naive",
                 model_artifact=model_uri,
                 input_path="inputs",
                 result_path="outputs",

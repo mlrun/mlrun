@@ -378,7 +378,7 @@ class MockStreamPusher(storey.MapClass):
     def __init__(self, output_stream=None, **kwargs):
         super().__init__(**kwargs)
         stream = self.context.stream if self.context else None
-        self.output_stream = output_stream or getattr(stream, "output_stream")
+        self.output_stream = output_stream or stream.output_stream
 
     def do(self, event):
         self.output_stream.push(

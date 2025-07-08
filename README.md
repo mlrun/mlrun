@@ -8,6 +8,7 @@
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/mlrun/mlrun?sort=semver)](https://github.com/mlrun/mlrun/releases)
 [![Join MLOps Live](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://mlopslive.slack.com)
 
+
 <div>
   <span>
     <picture>

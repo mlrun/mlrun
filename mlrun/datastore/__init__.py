@@ -14,6 +14,7 @@
 
 __all__ = [
     "DataItem",
+    "ModelProvider",
     "get_store_resource",
     "ParquetTarget",
     "CSVTarget",
@@ -32,12 +33,12 @@ __all__ = [
     "get_stream_pusher",
     "ConfigProfile",
     "VectorStoreCollection",
+    "store_manager",
 ]
 
 from urllib.parse import urlparse
 
 import fsspec
-from mergedeep import merge
 
 import mlrun.datastore.wasbfs
 from mlrun.datastore.datastore_profile import (
@@ -45,6 +46,7 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaTarget,
     DatastoreProfileV3io,
 )
+from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.platforms.iguazio import (
     HTTPOutputStream,
     KafkaOutputStream,

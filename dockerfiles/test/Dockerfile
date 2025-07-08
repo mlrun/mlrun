@@ -59,20 +59,26 @@ ARG MLRUN_PYTHON_VERSION=3.9
 # explicitly set the python version to ensure uv installs the correct version
 # as per the python version or we will handle situtations where python 3.11 tries to install
 # kfp 1.8 *even though it is explicitly set on locked file that kfp 1.8 is for python < 3.11*
+
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/test/locked-requirements.txt,target=locked-requirements.txt \
     uv pip sync --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
 
-COPY . .
-
-RUN rm -rf ./server/go
-
-RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION}
-
+COPY pipeline-adapters pipeline-adapters
 # Install the pipeline adapters development versions since we release them only after merging
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common --python-version ${MLRUN_PYTHON_VERSION} && \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
+
+COPY *requirements.txt .
+COPY dependencies.py .
+COPY pyproject.toml .
+
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    uv pip install .[complete,dev-postgres] --python-version ${MLRUN_PYTHON_VERSION}
+
+COPY . .
+
+RUN rm -rf ./server/go

@@ -92,6 +92,7 @@ class DaskSpec(KubeResourceSpec):
         preemption_mode=None,
         security_context=None,
         state_thresholds=None,
+        serving_spec=None,
     ):
         super().__init__(
             command=command,
@@ -121,6 +122,7 @@ class DaskSpec(KubeResourceSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             state_thresholds=state_thresholds,
+            serving_spec=serving_spec,
         )
         self.args = args
 
@@ -503,6 +505,7 @@ class DaskCluster(KubejobRuntime):
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
         output_path: Optional[str] = "",
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
         **launcher_kwargs,
     ) -> RunObject:
         if state_thresholds:

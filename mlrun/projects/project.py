@@ -3967,6 +3967,7 @@ class MlrunProject(ModelObj):
         builder_env: Optional[dict] = None,
         reset_on_run: Optional[bool] = None,
         output_path: Optional[str] = None,
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
     ) -> typing.Union[mlrun.model.RunObject, PipelineNodeWrapper]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -4029,7 +4030,7 @@ class MlrunProject(ModelObj):
                                 This ensures latest code changes are executed. This argument must be used in
                                 conjunction with the local=True argument.
         :param output_path:     path to store artifacts, when running in a workflow this will be set automatically
-
+        :param retry:           Retry configuration for the run, can be a dict or an instance of mlrun.model.Retry.
         :return: MLRun RunObject or PipelineNodeWrapper
         """
         if artifact_path:
@@ -4068,6 +4069,7 @@ class MlrunProject(ModelObj):
                 returns=returns,
                 builder_env=builder_env,
                 reset_on_run=reset_on_run,
+                retry=retry,
             )
 
     def build_function(
@@ -4966,6 +4968,36 @@ class MlrunProject(ModelObj):
             labels=labels,
             include_stats=include_stats,
             include_infra=include_infra,
+        )
+
+    def get_monitoring_function_summary(
+        self,
+        name: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
+        """Get a monitoring function summary for the specified project and function name.
+        :param name:                   Name of the monitoring function to retrieve the summary for.
+        :param start:                  Start time for filtering the results (optional).
+        :param end:                    End time for filtering the results (optional).
+        :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
+
+        :return: A FunctionSummary object containing information about the monitoring function.
+        """
+        if start is not None and end is not None:
+            if start.tzinfo is None or end.tzinfo is None:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    "Custom start and end times must contain the timezone."
+                )
+
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.get_monitoring_function_summary(
+            project=self.metadata.name,
+            function_name=name,
+            start=start,
+            end=end,
+            include_latest_metrics=include_latest_metrics,
         )
 
     def list_runs(

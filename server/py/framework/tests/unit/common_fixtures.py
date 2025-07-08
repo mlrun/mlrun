@@ -154,6 +154,18 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
 
 
 class TestServiceBase:
+    @classmethod
+    def setup_class(cls):
+        cls.custom_setup_class()
+
+    @classmethod
+    def custom_setup_class(cls):
+        """
+        This method is called after the class is created, allowing for custom setup.
+        It can be overridden by inheriting classes to perform additional setup.
+        """
+        pass
+
     @pytest.fixture(scope="module")
     def app(self) -> fastapi.FastAPI:
         raise NotImplementedError(
@@ -214,9 +226,8 @@ class TestServiceBase:
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.close()
 
-            # forcing from scratch because we created an empty file for the db
             # TODO: init data initializes the tables, we should remove this coupling with the API service code
-            init_data(from_scratch=True)
+            init_data()
             framework.utils.singletons.db.initialize_db()
             framework.utils.singletons.project_member.initialize_project_member()
 

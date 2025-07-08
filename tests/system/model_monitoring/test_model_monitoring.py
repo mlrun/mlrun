@@ -637,6 +637,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         )
         model_runner_step.add_model(
             model_class="MyRemoteModel",
+            execution_mechanism="naive",
             endpoint_name="my-model-1",
             model_artifact=model_artifact.uri,
         )

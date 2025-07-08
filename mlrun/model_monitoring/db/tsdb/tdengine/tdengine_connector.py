@@ -29,7 +29,7 @@ from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
     Statement,
     TDEngineConnection,
 )
-from mlrun.model_monitoring.helpers import get_invocations_fqn
+from mlrun.model_monitoring.helpers import get_invocations_fqn, get_start_end
 from mlrun.utils import logger
 
 # Thread-local storage for connections
@@ -689,7 +689,7 @@ class TDEngineConnector(TSDBConnector):
             filter_column=mm_schemas.EventFieldType.ENDPOINT_ID,
             filter_values=endpoint_ids,
         )
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.PREDICTIONS].super_table,
             start=start,
@@ -734,7 +734,7 @@ class TDEngineConnector(TSDBConnector):
             filter_values=endpoint_ids,
         )
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS].super_table,
             start=start,
@@ -768,9 +768,9 @@ class TDEngineConnector(TSDBConnector):
         result_status_list: Optional[list[int]] = None,
     ) -> dict[tuple[str, int], int]:
         filter_query = ""
-        now = mlrun.utils.datetime_now()
-        start = start or (now - timedelta(hours=24))
-        end = end or now
+
+        start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
+
         if endpoint_ids:
             filter_query = self._generate_filter_query(
                 filter_column=mm_schemas.EventFieldType.ENDPOINT_ID,
@@ -825,13 +825,182 @@ class TDEngineConnector(TSDBConnector):
             for _, row in df.iterrows()
         }
 
+    def count_processed_model_endpoints(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+    ) -> dict:
+        filter_query = ""
+        start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
+
+        if application_names:
+            filter_query = self._generate_filter_query(
+                filter_column=mm_schemas.WriterEvent.APPLICATION_NAME,
+                filter_values=application_names,
+            )
+
+        def get_application_endpoints_records(super_table: str) -> pd.DataFrame:
+            return self._get_records(
+                table=super_table,
+                start=start,
+                end=end,
+                timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+                columns=[
+                    mm_schemas.WriterEvent.APPLICATION_NAME,
+                    mm_schemas.EventFieldType.ENDPOINT_ID,
+                ],
+                filter_query=filter_query,
+                group_by=[
+                    mm_schemas.WriterEvent.APPLICATION_NAME,
+                    mm_schemas.EventFieldType.ENDPOINT_ID,
+                ],
+                preform_agg_columns=[mm_schemas.ResultData.RESULT_VALUE],
+                agg_funcs=["last"],
+            )
+
+        df_results = get_application_endpoints_records(
+            super_table=self.tables[
+                mm_schemas.TDEngineSuperTables.APP_RESULTS
+            ].super_table
+        )
+        df_metrics = get_application_endpoints_records(
+            super_table=self.tables[mm_schemas.TDEngineSuperTables.METRICS].super_table
+        )
+
+        combined_df = pd.concat([df_results, df_metrics]).drop_duplicates()
+
+        if combined_df.empty:
+            return {}
+        grouped_df = combined_df.groupby(
+            mm_schemas.WriterEvent.APPLICATION_NAME
+        ).count()
+
+        # Convert DataFrame to a dictionary
+        return grouped_df[mm_schemas.WriterEvent.ENDPOINT_ID].to_dict()
+
+    def calculate_latest_metrics(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+    ) -> list[
+        Union[mm_schemas.ApplicationResultRecord, mm_schemas.ApplicationMetricRecord]
+    ]:
+        metric_list = []
+        filter_query = ""
+        start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
+
+        if application_names:
+            filter_query = self._generate_filter_query(
+                filter_column=mm_schemas.WriterEvent.APPLICATION_NAME,
+                filter_values=application_names,
+            )
+
+        def get_latest_metrics_records(
+            record_type: Literal["metrics", "results"],
+        ) -> pd.DataFrame:
+            columns = [
+                mm_schemas.WriterEvent.END_INFER_TIME,
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+            ]
+            if record_type == "results":
+                table = self.tables[
+                    mm_schemas.TDEngineSuperTables.APP_RESULTS
+                ].super_table
+                columns += [
+                    mm_schemas.ResultData.RESULT_NAME,
+                    mm_schemas.ResultData.RESULT_VALUE,
+                    mm_schemas.ResultData.RESULT_STATUS,
+                    mm_schemas.ResultData.RESULT_KIND,
+                ]
+                agg_column = mm_schemas.ResultData.RESULT_VALUE
+            else:
+                table = self.tables[mm_schemas.TDEngineSuperTables.METRICS].super_table
+                columns += [
+                    mm_schemas.MetricData.METRIC_NAME,
+                    mm_schemas.MetricData.METRIC_VALUE,
+                ]
+                agg_column = mm_schemas.MetricData.METRIC_VALUE
+
+            return self._get_records(
+                table=table,
+                start=start,
+                end=end,
+                columns=columns,
+                filter_query=filter_query,
+                timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+                # Aggregate per application/metric pair regardless of timestamp
+                group_by=columns[1:],
+                preform_agg_columns=[agg_column],
+                agg_funcs=["last"],
+            )
+
+        df_results = get_latest_metrics_records(record_type="results")
+        df_metrics = get_latest_metrics_records(record_type="metrics")
+
+        if df_results.empty and df_metrics.empty:
+            return metric_list
+
+        def build_metric_objects() -> (
+            list[
+                Union[
+                    mm_schemas.ApplicationResultRecord,
+                    mm_schemas.ApplicationMetricRecord,
+                ]
+            ]
+        ):
+            metric_objects = []
+
+            if not df_results.empty:
+                df_results.rename(
+                    columns={
+                        f"last({mm_schemas.ResultData.RESULT_VALUE})": mm_schemas.ResultData.RESULT_VALUE,
+                    },
+                    inplace=True,
+                )
+                for _, row in df_results.iterrows():
+                    metric_objects.append(
+                        mm_schemas.ApplicationResultRecord(
+                            time=datetime.fromisoformat(
+                                row[mm_schemas.WriterEvent.END_INFER_TIME]
+                            ),
+                            result_name=row[mm_schemas.ResultData.RESULT_NAME],
+                            kind=row[mm_schemas.ResultData.RESULT_KIND],
+                            status=row[mm_schemas.ResultData.RESULT_STATUS],
+                            value=row[mm_schemas.ResultData.RESULT_VALUE],
+                        )
+                    )
+
+            if not df_metrics.empty:
+                df_metrics.rename(
+                    columns={
+                        f"last({mm_schemas.MetricData.METRIC_VALUE})": mm_schemas.MetricData.METRIC_VALUE,
+                    },
+                    inplace=True,
+                )
+                for _, row in df_metrics.iterrows():
+                    metric_objects.append(
+                        mm_schemas.ApplicationMetricRecord(
+                            time=datetime.fromisoformat(
+                                row[mm_schemas.WriterEvent.END_INFER_TIME]
+                            ),
+                            metric_name=row[mm_schemas.MetricData.METRIC_NAME],
+                            value=row[mm_schemas.MetricData.METRIC_VALUE],
+                        )
+                    )
+
+            return metric_objects
+
+        return build_metric_objects()
+
     def get_metrics_metadata(
         self,
         endpoint_id: Union[str, list[str]],
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.METRICS].super_table,
             start=start,
@@ -871,7 +1040,7 @@ class TDEngineConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS].super_table,
             start=start,
@@ -919,7 +1088,7 @@ class TDEngineConnector(TSDBConnector):
             filter_values=endpoint_ids,
         )
         filter_query += f"AND {mm_schemas.EventFieldType.ERROR_TYPE} = '{mm_schemas.EventFieldType.INFER_ERROR}'"
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.ERRORS].super_table,
             start=start,
@@ -951,8 +1120,7 @@ class TDEngineConnector(TSDBConnector):
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
-        start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end, delta=timedelta(hours=24))
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.PREDICTIONS].super_table,
             start=start,

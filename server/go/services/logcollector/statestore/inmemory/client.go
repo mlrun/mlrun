@@ -38,7 +38,7 @@ func (s *Store) Initialize(ctx context.Context) error {
 }
 
 func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string) error {
-	if s.Store.AdvancedLogLevel >= 1 {
+	if s.AdvancedLogLevel >= 1 {
 		s.Logger.DebugWithCtx(ctx,
 			"Adding item to in memory state",
 			"runUID", runUID,
@@ -49,7 +49,7 @@ func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string
 }
 
 func (s *Store) RemoveLogItem(ctx context.Context, runUID, project string) error {
-	if s.Store.AdvancedLogLevel >= 1 {
+	if s.AdvancedLogLevel >= 1 {
 		s.Logger.DebugWithCtx(ctx,
 			"Removing item from in memory state",
 			"runUID", runUID,

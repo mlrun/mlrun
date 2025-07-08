@@ -1567,13 +1567,18 @@ class ModelRunnerStep(MonitoredStep):
 
     @staticmethod
     def _get_model_endpoint_output_schema(
-        model_name: str, model_endpoint_uid: str, project: Optional[str] = None
+        name: str,
+        project: str,
+        uid: str,
     ) -> list[str]:
         output_schema = None
         try:
             model_endpoint: mlrun.common.schemas.model_monitoring.ModelEndpoint = (
                 mlrun.db.get_run_db().get_model_endpoint(
-                    name=model_name, project=project, endpoint_id=model_endpoint_uid
+                    name=name,
+                    project=project,
+                    endpoint_id=uid,
+                    tsdb_metrics=False,
                 )
             )
             output_schema = model_endpoint.spec.label_names
@@ -1603,8 +1608,11 @@ class ModelRunnerStep(MonitoredStep):
                 monitoring_data[model][schemas.MonitoringData.OUTPUTS] = (
                     monitoring_data.get(model, {}).get(schemas.MonitoringData.OUTPUTS)
                     or self._get_model_endpoint_output_schema(
-                        model,
-                        monitoring_data.get(schemas.MonitoringData.MODEL_ENDPOINT_UID),
+                        name=model,
+                        project=self.context.project if self.context else None,
+                        uid=monitoring_data.get(model, {}).get(
+                            mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
+                        ),
                     )
                 )
                 # Prevent calling _get_model_output_schema for same model more than once
@@ -1626,6 +1634,7 @@ class ModelRunnerStep(MonitoredStep):
             return monitoring_data
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        self.context = context
         if not self._is_local_function(context):
             # skip init of non local functions
             return

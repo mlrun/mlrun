@@ -46,7 +46,11 @@ class ModelProvider(BaseRemoteClient):
         raise NotImplementedError("load_client method is not implemented")
 
     def invoke(
-        self, prompt: Optional[str] = None, as_str: bool = False, **invoke_kwargs
+        self,
+        prompt: Optional[str] = None,
+        messages: Optional[dict] = None,
+        as_str: bool = False,
+        **invoke_kwargs,
     ) -> Optional[Union[str, T]]:
         raise NotImplementedError("invoke method is not implemented")
 
@@ -79,5 +83,11 @@ class ModelProvider(BaseRemoteClient):
     async def async_customized_invoke(self, **kwargs) -> Optional[T]:
         raise NotImplementedError("async_customized_invoke is not implemented")
 
-    async def async_invoke(self, prompt: str, **invoke_kwargs) -> Optional[str]:
+    async def async_invoke(
+        self,
+        prompt: Optional[str] = None,
+        messages: Optional[dict] = None,
+        as_str: bool = False,
+        **invoke_kwargs,
+    ) -> Optional[str]:
         raise NotImplementedError("async_invoke is not implemented")

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import asyncio
 import os
 import time
 import unittest.mock
@@ -35,6 +35,7 @@ from mlrun.datastore.datastore_profile import (
 from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from tests.datastore.remote_model.remote_model_utils import (
     INPUT_DATA,
+    EXPECTED_RESULTS,
     assert_async_invocations,
     setup_remote_model_test,
 )
@@ -114,7 +115,7 @@ class TestBasicOpenAIProvider:
 class TestOpenAIProvider(TestBasicOpenAIProvider):
     @staticmethod
     def check_basic_invoke(model_url: str, secrets: dict, model_name: str):
-        prompt = "What is the capital of France? Provide a detailed and thorough history of the city"
+        prompt = INPUT_DATA["input"][0]
         model_provider = mlrun.get_model_provider(
             url=model_url, secrets=secrets, default_invoke_kwargs={"max_tokens": 100}
         )
@@ -209,6 +210,9 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         )
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == self.basic_llm_model
+        coroutine1 = model_provider.async_invoke(prompt=prompt)
+        coroutine2 =
+        asyncio.gather()
         result = await model_provider.async_invoke(prompt=prompt)
         assert "paris" in result.lower()
 
@@ -304,7 +308,9 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             total_duration = time.perf_counter() - start
 
             assert_async_invocations(
-                results_with_times=results_with_times, model_name=self.basic_llm_model, total_duration=total_duration
+                results_with_times=results_with_times,
+                model_name=self.basic_llm_model,
+                total_duration=total_duration,
             )
         finally:
             server.wait_for_completion()

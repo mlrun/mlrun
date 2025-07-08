@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar, Union
 
 import mlrun
@@ -133,8 +134,8 @@ class OpenAIProvider(ModelProvider):
     def invoke(
         self,
         prompt: Optional[str] = None,
-        as_str: bool = False,
         messages: Optional[dict] = None,
+        as_str: bool = False,
         **invoke_kwargs,
     ) -> Optional[Union[str, T]]:
         messages, invoke_kwargs = self._get_messages_parameter(
@@ -151,6 +152,7 @@ class OpenAIProvider(ModelProvider):
         self,
         prompt: Optional[str] = None,
         messages: Optional[dict] = None,
+        as_str: bool = False,
         **invoke_kwargs,
     ) -> str:
         messages, invoke_kwargs = self._get_messages_parameter(

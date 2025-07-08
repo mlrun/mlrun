@@ -35,8 +35,7 @@ class MonitoringPreProcessor(storey.MapClass):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        context = kwargs.get("context")
-        self.server: mlrun.serving.GraphServer = getattr(context, "server", None)
+        self.server: mlrun.serving.GraphServer = getattr(self.context, "server", None)
 
     def reconstruct_request_resp_fields(
         self, event, model: str, model_monitoring_data: dict
@@ -253,11 +252,10 @@ class BackgroundTaskStatus(storey.MapClass):
     """
 
     def __init__(self, **kwargs):
-        context = kwargs.get("context")
-        self.server: mlrun.serving.GraphServer = getattr(context, "server", None)
+        super().__init__(**kwargs)
+        self.server: mlrun.serving.GraphServer = getattr(self.context, "server", None)
         self._background_task_check_timestamp = None
         self._background_task_state = mlrun.common.schemas.BackgroundTaskState.running
-        super().__init__(**kwargs)
 
     def do(self, event):
         if self.server is None:
@@ -375,8 +373,7 @@ class SamplingStep(storey.MapClass):
 class MockStreamPusher(storey.MapClass):
     def __init__(self, output_stream=None, **kwargs):
         super().__init__(**kwargs)
-        context = kwargs.get("context")
-        stream = context.stream if context else None
+        stream = self.context.stream if self.context else None
         self.output_stream = output_stream or getattr(stream, "output_stream", None)
 
     def do(self, event):

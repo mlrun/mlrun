@@ -19,10 +19,10 @@ import fastapi.testclient
 import pytest
 import sqlalchemy.orm
 
+import mlrun.common.db.dialects
 import mlrun.common.schemas
-from mlrun.utils import logger
 
-import framework.utils.db.mysql
+import framework.db.sqldb
 import services.api.initial_data
 import services.api.utils.db.alembic
 import services.api.utils.db.backup
@@ -90,59 +90,87 @@ def test_init_data_migration_required_recognition(
     schema_migration,
     data_migration,
 ) -> None:
-    logger.info(
-        "Testing init data migration required recognition",
-        schema_migration=schema_migration,
-        data_migration=data_migration,
+    # Simulate a MySQL engine with existing tables
+    dummy_engine = unittest.mock.Mock()
+    dummy_engine.dialect = mlrun.common.db.dialects.Dialects.MYSQL
+    dummy_engine.url = "mysql://test"
+    monkeypatch.setattr(
+        framework.db.sqldb.sql_session,
+        "get_engine",
+        lambda: dummy_engine,
     )
-    alembic_util_mock = unittest.mock.Mock()
-    monkeypatch.setattr(framework.utils.db.mysql, "MySQLUtil", unittest.mock.Mock())
-    monkeypatch.setattr(services.api.utils.db.alembic, "AlembicUtil", alembic_util_mock)
-    is_latest_data_version_mock = unittest.mock.Mock()
+
+    # Database exists and has tables
+    monkeypatch.setattr(
+        services.api.initial_data.sqlalchemy_utils,
+        "database_exists",
+        lambda url: True,
+    )
+    monkeypatch.setattr(
+        services.api.initial_data.sqlalchemy,
+        "inspect",
+        lambda eng: type(
+            "I",
+            (),
+            {"get_table_names": lambda self: ["fake_table"]},
+        )(),
+    )
+
+    # Stub DBUtil to avoid real connectivity
+    db_util_inst = unittest.mock.Mock()
+    monkeypatch.setattr(
+        services.api.initial_data,
+        "DBUtil",
+        lambda: db_util_inst,
+    )
+
+    # Stub AlembicUtil and data-version check
+    alembic_inst = unittest.mock.Mock()
+    monkeypatch.setattr(
+        services.api.utils.db.alembic,
+        "AlembicUtil",
+        unittest.mock.Mock(return_value=alembic_inst),
+    )
+    alembic_inst.is_schema_migration_needed.return_value = schema_migration
     monkeypatch.setattr(
         services.api.initial_data,
         "_is_latest_data_version",
-        is_latest_data_version_mock,
+        lambda: not data_migration,
     )
-    db_backup_util_mock = unittest.mock.Mock()
+
+    # Stub backup and migration routines
     monkeypatch.setattr(
-        services.api.utils.db.backup, "DBBackupUtil", db_backup_util_mock
+        services.api.utils.db.backup,
+        "DBBackupUtil",
+        unittest.mock.Mock(),
     )
-    perform_schema_migrations_mock = unittest.mock.Mock()
+    perform_schema_migrations = unittest.mock.Mock()
     monkeypatch.setattr(
         services.api.initial_data,
         "_perform_schema_migrations",
-        perform_schema_migrations_mock,
+        perform_schema_migrations,
     )
-    perform_data_migrations_mock = unittest.mock.Mock()
+    perform_data_migrations = unittest.mock.Mock()
     monkeypatch.setattr(
         services.api.initial_data,
         "_perform_data_migrations",
-        perform_data_migrations_mock,
+        perform_data_migrations,
     )
 
-    # this specific case means mlrun is fresh installed and no migrations are needed
-    # thus it will just put some initial data and move to online state
-
-    alembic_util_mock.return_value.is_schema_migration_needed.return_value = (
-        schema_migration
-    )
-    is_latest_data_version_mock.return_value = not data_migration
-
+    # Start from online state
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
+    # Run init_data (default perform_migrations_if_needed=False)
     services.api.initial_data.init_data()
 
-    expected_state = mlrun.common.schemas.APIStates.waiting_for_migrations
+    # Expect waiting_for_migrations if any migration needed, otherwise remain online
+    expected = (
+        mlrun.common.schemas.APIStates.waiting_for_migrations
+        if (schema_migration or data_migration)
+        else mlrun.common.schemas.APIStates.online
+    )
+    assert mlrun.mlconf.httpdb.state == expected
 
-    # remain online if nothing is needed
-    if not (schema_migration or data_migration):
-        expected_state = mlrun.common.schemas.APIStates.online
-
-    assert expected_state == mlrun.mlconf.httpdb.state
-    # assert the api just changed state and no operation was done
-    assert db_backup_util_mock.call_count == 0
-
-    # we bound the execution to 1 if from_scratch because during startup the migration is run inplace
-    # and not waiting for trigger migration to occur
-    assert perform_schema_migrations_mock.call_count == 0
-    assert perform_data_migrations_mock.call_count == 0
+    # No backup or migrations should have been executed in this recognition-only path
+    assert services.api.utils.db.backup.DBBackupUtil.call_count == 0
+    assert perform_schema_migrations.call_count == 0
+    assert perform_data_migrations.call_count == 0

@@ -34,7 +34,7 @@ from sqlalchemy.types import TypeDecorator
 
 import mlrun.common.db.dialects
 
-import framework.utils.db.mysql
+from framework.utils.db.utils import DBUtil
 
 
 class DateTime(TypeDecorator):
@@ -164,15 +164,14 @@ class UuidType(TypeDecorator):
 
 # TODO: Remove this class and usages once old alembic migrations that use it are squashed.
 class Collations:
-    sqlite = None
     mysql = "utf8mb3_bin"
 
     @classmethod
     def collation(cls):
-        mysql_dsn_data = framework.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
-        if mysql_dsn_data:
+        dsn = DBUtil().get_parsed_dsn()
+        if dsn.dialect == mlrun.common.db.dialects.Dialects.MYSQL:
             return cls.mysql
-        return cls.sqlite
+        return None
 
 
 class SQLTypesUtil:

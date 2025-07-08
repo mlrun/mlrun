@@ -26,7 +26,7 @@ import mlrun.datastore
 import mlrun.utils.helpers
 from mlrun.config import config as mlconf
 
-from .base import Artifact, ArtifactSpec, StorePrefix
+from .base import Artifact, ArtifactSpec, StorePrefix, verify_target_path
 
 default_preview_rows_length = 20
 max_preview_columns = mlconf.artifacts.datasets.max_preview_columns
@@ -424,6 +424,7 @@ def update_dataset_meta(
         artifact_spec = artifact
     elif mlrun.datastore.is_store_uri(artifact):
         artifact_spec, _ = mlrun.datastore.store_manager.get_store_artifact(artifact)
+        verify_target_path(artifact_spec)
     else:
         raise ValueError("model path must be a model store object/URL/DataItem")
 

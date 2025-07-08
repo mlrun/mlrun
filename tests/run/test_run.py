@@ -20,6 +20,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 import mlrun
+import mlrun.common.runtimes.constants
 import mlrun.errors
 import mlrun.launcher.factory
 from mlrun import new_function, new_task
@@ -389,3 +390,36 @@ def test_code_to_function_file_include_invalid_handler_name_for_nuclio_mlrun_run
             image="mlrun/mlrun",
             kind="nuclio:mlrun",
         )
+
+
+def test_run_status_retry_updates(rundb_mock):
+    """
+    Test that the run status is updated to pending_retry when the run fails
+    """
+    function = new_function(command=f"{assets_path}/kwargs.py")
+    with pytest.raises(mlrun.runtimes.RunError) as exc:
+        function.run(
+            runspec={"spec": {"retry": {"count": 10}}},
+            local=True,
+            handler="func_with_default",
+        )
+        assert "Run is pending retry, error: kwargs is empty" in str(exc)
+
+    result = rundb_mock.list_runs()[0]
+    assert (
+        result["status"]["state"]
+        == mlrun.common.runtimes.constants.RunStates.pending_retry
+    ), "Expected run state to be pending_retry"
+
+    with pytest.raises(mlrun.runtimes.RunError) as exc:
+        function.run(
+            runspec=result,
+            local=True,
+            handler="func_with_default",
+        )
+        assert "Run is pending retry, error: kwargs is empty" in str(exc)
+    result = rundb_mock.list_runs()[0]
+    assert (
+        result["status"]["state"]
+        == mlrun.common.runtimes.constants.RunStates.pending_retry
+    ), "Expected run state to be pending_retry"

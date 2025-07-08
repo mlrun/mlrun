@@ -33,14 +33,14 @@ class _DummyStreamRaiser:
         raise ValueError("DummyStreamRaiser raises an error")
 
 
-def create_mocked_get_store_resource(model_artifact):
-    def mocked_get_store_resource(uri, **kwargs):
+def create_mocked_get_store_artifact(model_artifact):
+    def mocked_get_store_artifact(uri, **kwargs):
         if uri == model_artifact.uri:
-            return model_artifact
+            return model_artifact, None
         else:
             raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
 
-    return mocked_get_store_resource
+    return mocked_get_store_artifact
 
 
 def test_async_basic():
@@ -172,29 +172,19 @@ class MyModel(Model):
         return body
 
     async def predict_async(self, body):
-        return self.predict(body)
+        body = self.predict(body)
+        body["async"] = True
+        return body
 
     def do(self, event):
         return self.predict(event)
 
 
 class MyRemoteModel(Model):
-    def __init__(self, name, raise_exception, artifact_uri, **kwargs):
-        super().__init__(
-            name=name,
-            raise_exception=raise_exception,
-            artifact_uri=artifact_uri,
-            **kwargs,
-        )
-        self.artifact = None
-
     def predict(self, body):
-        body["url"] = self.artifact.model_url
-        body["default_config"] = self.artifact.default_config
+        body["url"] = self.model_artifact.model_url
+        body["default_config"] = self.model_artifact.default_config
         return body
-
-    def load(self):
-        self.artifact = self._get_artifact_object()
 
 
 class MyPklModel(Model):
@@ -539,7 +529,7 @@ def test_model_runner_with_selector(execution_mechanism: str):
         execution_mechanism="naive",
         inc=1,
     )
-    m2 = MyModel(name="m2", execution_mechanism=execution_mechanism, inc=2)
+    m2 = MyModel(name="m2", inc=2)
 
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
@@ -548,10 +538,14 @@ def test_model_runner_with_selector(execution_mechanism: str):
         model_selector="MyModelSelector",
     )
     model_runner_step.add_model(
-        endpoint_name=m1.name, model_class=m1, execution_mechanism="naive"
+        endpoint_name=m1.name,
+        model_class=m1,
+        execution_mechanism="naive",
     )
     model_runner_step.add_model(
-        endpoint_name=m2.name, model_class=m2, execution_mechanism="naive"
+        endpoint_name=m2.name,
+        model_class=m2,
+        execution_mechanism=execution_mechanism,
     )
     graph.to(model_runner_step).respond()
 
@@ -559,11 +553,20 @@ def test_model_runner_with_selector(execution_mechanism: str):
     try:
         # both models
         resp = server.test(body={"n": 1})
-        assert resp == {"m1": {"n": 2}, "m2": {"n": 3}}
+        expected = {
+            "m1": {"n": 2},
+            "m2": {"n": 3},
+        }
+        if execution_mechanism == "asyncio":
+            expected["m2"]["async"] = True
+        assert resp == expected
 
         # only m2
         resp = server.test(body={"n": 1, "models": ["m2"]})
-        assert resp == {"m2": {"n": 3}}
+        expected = {"m2": {"n": 3}}
+        if execution_mechanism == "asyncio":
+            expected["m2"]["async"] = True
+        assert resp == expected
     finally:
         server.wait_for_completion()
 
@@ -622,8 +625,8 @@ def test_model_runner_with_remote_model():
     # Mocked function used to verify artifact URI is passed correctly.
 
     with unittest.mock.patch(
-        "mlrun.serving.states.get_store_resource",
-        side_effect=create_mocked_get_store_resource(model_artifact=model_artifact),
+        "mlrun.serving.states.mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
     ):
         server = function.to_mock_server()
     try:
@@ -652,8 +655,8 @@ def test_get_local_model_path():
     )
     graph.to(model_runner_step).respond()
     with unittest.mock.patch(
-        "mlrun.serving.states.get_store_resource",
-        side_effect=create_mocked_get_store_resource(model_artifact=model_artifact),
+        "mlrun.serving.states.mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
     ):
         server = function.to_mock_server()
     try:

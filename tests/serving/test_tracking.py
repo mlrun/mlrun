@@ -15,6 +15,7 @@
 import json
 import pathlib
 from collections.abc import Iterator
+from time import sleep
 from typing import Union, cast
 from unittest.mock import patch
 
@@ -327,7 +328,7 @@ def _test_graph_structure(graph: RootFlowStep, tracked: bool):
 
 
 @pytest.mark.parametrize("enable_tracking", [True, False])
-def test_tracked_model_runner(enable_tracking: bool):
+def test_tracked_model_runner(rundb_mock, enable_tracking: bool):
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
@@ -342,7 +343,6 @@ def test_tracked_model_runner(enable_tracking: bool):
     )
     graph.to(model_runner_step).respond()
     function.set_tracking(stream_args={"mock": True})
-
     function.set_tracking("dummy://", enable_tracking=enable_tracking)
     server = function.to_mock_server()
     server.test("/", {"n": 1})
@@ -359,7 +359,7 @@ def test_tracked_model_runner(enable_tracking: bool):
     _test_graph_structure(server.graph, enable_tracking)
 
 
-def test_tracked_model_runner_dict():
+def test_tracked_model_runner_dict(rundb_mock):
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
@@ -385,7 +385,7 @@ def test_tracked_model_runner_dict():
     assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [[1, 2, 3, 4]]
 
 
-def test_tracked_model_runner_multiple_steps():
+def test_tracked_model_runner_multiple_steps(rundb_mock):
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step_0 = ModelRunnerStep(
@@ -431,7 +431,7 @@ def test_tracked_model_runner_multiple_steps():
     assert dummy_stream.event_list[1].get("request", {}).get("inputs") == [1]
 
 
-def test_tracked_model_runner_multiple_models():
+def test_tracked_model_runner_multiple_models(rundb_mock):
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step_0 = ModelRunnerStep(
@@ -485,7 +485,7 @@ def test_tracked_model_runner_multiple_models():
     _test_graph_structure(server.graph, True)
 
 
-def test_set_untracked_with_model_runner():
+def test_set_untracked_with_model_runner(rundb_mock):
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
@@ -519,7 +519,7 @@ def test_set_untracked_with_model_runner():
     ), "expected stream to still have single message"
 
 
-def test_tracked_multiple_to_mock_with_model_runner():
+def test_tracked_multiple_to_mock_with_model_runner(rundb_mock):
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(
@@ -560,7 +560,7 @@ def test_tracked_multiple_to_mock_with_model_runner():
 
 
 @pytest.mark.parametrize("sampling_percentage", [100.0, 50.0, 20.0])
-def test_sampling_model_runner(sampling_percentage: float):
+def test_sampling_model_runner(rundb_mock, sampling_percentage: float):
     function = mlrun.new_function("tests-sampling", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
@@ -606,3 +606,34 @@ def test_sampling_model_runner(sampling_percentage: float):
                 f" some outputs with sampling_percentage"
                 f" = {sampling_percentage} "
             )
+
+
+def test_tracked_model_runner_background_task(rundb_mock):
+    function = mlrun.new_function("tests-1", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        input_path="n",
+        result_path="n",
+        raise_error=False,
+        inc=1,
+    )
+    rundb_mock._get_background_task_calls = 0
+    graph.to(model_runner_step).respond()
+    function.set_tracking(stream_args={"mock": True})
+    function.set_tracking("dummy://", enable_tracking=True)
+    server = function.to_mock_server()
+    server.test("/", {"n": 1})
+    dummy_stream = server.context.stream.output_stream
+    assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
+    mlrun.mlconf.model_endpoint_monitoring.model_endpoint_creation_check_period = 1
+    sleep(mlrun.mlconf.model_endpoint_monitoring.model_endpoint_creation_check_period)
+    server.test("/", {"n": 2})
+    server.wait_for_completion()
+
+    assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+    assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [3]
+    assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [2]

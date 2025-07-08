@@ -31,6 +31,7 @@ import sqlalchemy_utils
 
 import mlrun.artifacts
 import mlrun.artifacts.base
+import mlrun.common.db.dialects
 import mlrun.common.formatters
 import mlrun.common.runtimes
 import mlrun.common.schemas
@@ -46,11 +47,11 @@ import framework.db.sqldb.db
 import framework.db.sqldb.helpers
 import framework.db.sqldb.models
 import framework.db.sqldb.sql_session
-import framework.utils.db.mysql
 import framework.utils.pagination_cache
 import services.api.utils.db.alembic
 import services.api.utils.db.backup
 import services.api.utils.scheduler
+from framework.utils.db.utils import DBUtil
 
 
 def init_data(
@@ -81,6 +82,7 @@ def init_data(
         _initialize_db_from_scratch(engine, url)
     else:
         _migrate_existing_data(
+            engine,
             perform_migrations_if_needed,
         )
 
@@ -132,28 +134,19 @@ def _initialize_db_from_scratch(
 
 
 def _migrate_existing_data(
+    engine: sqlalchemy.engine.Engine,
     perform_migrations_if_needed: bool = False,
 ):
-    # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
-    mysql_util = framework.utils.db.mysql.MySQLUtil(
-        mlrun.utils.logger
-    )  # TODO make this DB agnostic
     alembic_util = _create_alembic_util()
-    if mysql_util.get_mysql_dsn_data():
-        mysql_util.wait_for_db_liveness()
-        mysql_util.set_modes(mlrun.mlconf.httpdb.db.mysql.modes)
+    db_util = DBUtil()
+    db_util.wait_for_db_liveness()
+    db_util.set_configurations()
+    if engine.name != mlrun.common.db.dialects.Dialects.SQLITE:
         (
             is_migration_needed,
             is_backup_needed,
         ) = _resolve_needed_operations(alembic_util)
     else:
-        dsn = mysql_util.get_dsn()
-        if dsn.startswith(mlrun.common.db.dialects.Dialects.SQLITE):
-            mlrun.utils.logger.debug("SQLite DB is used, liveness check not needed")
-        else:
-            mlrun.utils.logger.warn(
-                f"Invalid mysql dsn: {dsn}, assuming live and skipping liveness verification"
-            )
         # ON SQLite, we don't have schema migrations, so we don't need to check for them
         is_migration_needed = False
         is_backup_needed = False

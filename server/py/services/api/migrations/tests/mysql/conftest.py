@@ -15,23 +15,26 @@ import os
 
 import pytest
 import pytest_mock_resources
+import sqlalchemy
 
 import mlrun
 
+import framework.utils.db.utils
 import framework.utils.singletons.db
 
-mysql = pytest_mock_resources.create_mysql_fixture()
+mysql_engine = pytest_mock_resources.create_mysql_fixture()
 
 
 @pytest.fixture
-def alembic_engine(mysql):
-    os.environ["MLRUN_HTTPDB__DSN"] = str(mysql.engine.url)
+def alembic_engine(
+    mysql_engine: sqlalchemy.engine.Engine,
+) -> sqlalchemy.engine.Engine:
+    os.environ["MLRUN_HTTPDB__DSN"] = mysql_engine.url.render_as_string(
+        hide_password=False,
+    )
     mlrun.mlconf.reload()
-    engine = mysql.engine
-
     framework.utils.singletons.db.initialize_db()
-    engine = engine.execution_options(isolation_level="AUTOCOMMIT")
-    return engine
+    return mysql_engine.execution_options(isolation_level="AUTOCOMMIT")
 
 
 @pytest.fixture
@@ -48,9 +51,17 @@ def pmr_mysql_container(pytestconfig, pmr_mysql_config):
 def pmr_mysql_config():
     return pytest_mock_resources.MysqlConfig(
         image="mysql:8.0",
-        host="localhost",
         port=3306,
         username="root",
         password="pass",
         root_database="mlrun",
     )
+
+
+@pytest.fixture
+def db_util(
+    alembic_engine: sqlalchemy.engine.Engine,
+) -> framework.utils.db.utils.DBUtil:
+    util = framework.utils.db.utils.DBUtil()
+    util.wait_for_db_liveness()
+    return util

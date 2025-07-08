@@ -456,6 +456,36 @@ class DatastoreProfileTDEngine(DatastoreProfile):
         )
 
 
+class OpenAIProfile(DatastoreProfile):
+    type: str = pydantic.v1.Field("openai")
+    _private_attributes = "api_key"
+    api_key: typing.Optional[str] = None
+    organization: typing.Optional[str] = None
+    project: typing.Optional[str] = None
+    base_url: typing.Optional[str] = None
+    timeout: typing.Optional[float] = None
+    max_retries: typing.Optional[int] = None
+
+    def secrets(self) -> dict:
+        res = {}
+        if self.api_key:
+            res["OPENAI_API_KEY"] = self.api_key
+        if self.organization:
+            res["OPENAI_ORG_ID"] = self.organization
+        if self.project:
+            res["OPENAI_PROJECT_ID"] = self.project
+        if self.base_url:
+            res["OPENAI_BASE_URL"] = self.base_url
+        if self.timeout:
+            res["OPENAI_TIMEOUT"] = self.timeout
+        if self.max_retries:
+            res["OPENAI_MAX_RETRIES"] = self.max_retries
+        return res
+
+    def url(self, subpath):
+        return f"{self.type}://{subpath.lstrip('/')}"
+
+
 _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
     "v3io": DatastoreProfileV3io,
     "s3": DatastoreProfileS3,
@@ -469,6 +499,7 @@ _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
     "hdfs": DatastoreProfileHdfs,
     "taosws": DatastoreProfileTDEngine,
     "config": ConfigProfile,
+    "openai": OpenAIProfile,
 }
 
 

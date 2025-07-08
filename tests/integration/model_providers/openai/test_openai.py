@@ -34,9 +34,10 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from tests.datastore.remote_model.remote_model_utils import (
-    INPUT_DATA,
     EXPECTED_RESULTS,
+    INPUT_DATA,
     assert_async_invocations,
+    fixed_prompts,
     setup_remote_model_test,
 )
 
@@ -115,14 +116,14 @@ class TestBasicOpenAIProvider:
 class TestOpenAIProvider(TestBasicOpenAIProvider):
     @staticmethod
     def check_basic_invoke(model_url: str, secrets: dict, model_name: str):
-        prompt = INPUT_DATA["input"][0]
+        prompt = fixed_prompts[0]
         model_provider = mlrun.get_model_provider(
             url=model_url, secrets=secrets, default_invoke_kwargs={"max_tokens": 100}
         )
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == model_name
         result = model_provider.invoke(prompt=prompt, as_str=True)
-        assert "paris" in result.lower()
+        assert EXPECTED_RESULTS[0] in result.lower()
 
         encoding = tiktoken.encoding_for_model(model_name)
         token_count = len(encoding.encode(result))
@@ -172,11 +173,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             model_url=model_url, secrets=self.env_secrets, model_name=configurable_model
         )
 
-    def test_basic_invoke_messages(self, use_datastore_profile):
-        if not use_datastore_profile:
-            pytest.skip(
-                "test_basic_invoke_messages is tested on datastore profile only"
-            )
+    def test_basic_invoke_messages(self):
         model_url = self.url_prefix + self.basic_llm_model
         system_prompt = "You are a special LLM model that always answers user questions with one word only."
 
@@ -202,23 +199,26 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             model_provider.invoke()
 
     @pytest.mark.asyncio
-    async def test_async_invoke(self):
+    @pytest.mark.parametrize("use_datastore_profile", [True, False])
+    async def test_async_invoke(self, use_datastore_profile):
+        if use_datastore_profile:
+            self.setup_datastore_profile()
         model_url = self.url_prefix + self.basic_llm_model
-        prompt = "What is the capital of France? Provide a detailed and thorough history of the city"
         model_provider = mlrun.get_model_provider(
             url=model_url, default_invoke_kwargs={"max_tokens": 100}
         )
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == self.basic_llm_model
-        coroutine1 = model_provider.async_invoke(prompt=prompt)
-        coroutine2 =
-        asyncio.gather()
-        result = await model_provider.async_invoke(prompt=prompt)
-        assert "paris" in result.lower()
+        coroutine1 = model_provider.async_invoke(prompt=fixed_prompts[0], as_str=True)
+        coroutine2 = model_provider.async_invoke(prompt=fixed_prompts[1])
+        result1, result2 = await asyncio.gather(coroutine1, coroutine2)
+        result2 = result2.choices[0].message.content
+        assert EXPECTED_RESULTS[0] in result1.lower()
+        assert EXPECTED_RESULTS[1] in result2.lower()
 
         encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-        token_count = len(encoding.encode(result))
-        assert token_count == 100
+        assert len(encoding.encode(result1)) == 100
+        assert len(encoding.encode(result2)) == 100
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("run_async", [True, False])
@@ -272,7 +272,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             server = function.to_mock_server()
         try:
             result = server.test(body=INPUT_DATA["input"][0])["result"]
-            assert "paris" in result.lower()
+            assert EXPECTED_RESULTS[0] in result.lower()
             encoding = tiktoken.encoding_for_model(self.basic_llm_model)
             assert len(encoding.encode(result)) == 100
         finally:

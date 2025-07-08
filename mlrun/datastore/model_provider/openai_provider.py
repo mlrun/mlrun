@@ -161,4 +161,6 @@ class OpenAIProvider(ModelProvider):
         response = await self._default_async_operation(
             model=self.endpoint, messages=messages, **invoke_kwargs
         )
-        return response.choices[0].message.content
+        if as_str:
+            return response.choices[0].message.content
+        return response

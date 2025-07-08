@@ -25,7 +25,7 @@ from mlrun.serving import ModelRunnerStep
 INPUT_DATA = {
     "input": [
         {
-            "question": "What is the capital of France, and give a brief historical overview.",
+            "question": "What is the capital of France, and give a historical overview.",
             "depth_level": "detailed",
             "persona": "teacher",
             "tone": "casual",
@@ -59,6 +59,12 @@ INPUT_DATA = {
 
 EXPECTED_RESULTS = ["paris", "4", "shakespeare", "blue", "earth"]
 
+PROMPT_TEMPLATE = "{question}. Explain {depth_level} as a {persona} in {tone} style."
+
+fixed_prompts = [
+    PROMPT_TEMPLATE.format(**input_data) for input_data in INPUT_DATA["input"]
+]
+
 
 def setup_remote_model_test(
     project, model_url, execution_mechanism="naive", image=None, requirements=None
@@ -68,12 +74,9 @@ def setup_remote_model_test(
         model_url=model_url,
         default_config={"max_tokens": 100},
     )
-    prompt_template = (
-        "{question}. Explain {depth_level} as a {persona} in {tone} style."
-    )
     llm_prompt_artifact = project.log_llm_prompt(
         "my_llm_prompt",
-        prompt_string=prompt_template,
+        prompt_string=PROMPT_TEMPLATE,
         model_artifact=model_artifact.uri,
     )
     # function = mlrun.new_function("tests", kind="serving")
@@ -113,6 +116,7 @@ class MyOpenAILLM(mlrun.serving.states.Model):
             prompt = self.enrich_prompt(body)
             body["result"] = self.model_provider.invoke(
                 prompt=prompt,
+                as_str=True,
                 **(self.invocation_artifact.spec.model_configuration or {}),
             )
         return body
@@ -131,6 +135,7 @@ class MyOpenAILLM(mlrun.serving.states.Model):
                 timed(
                     self.model_provider.async_invoke(
                         prompt,
+                        as_str=True,
                         **(self.invocation_artifact.spec.model_configuration or {}),
                     )
                 )

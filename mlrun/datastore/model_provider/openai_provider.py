@@ -90,7 +90,7 @@ class OpenAIProvider(ModelProvider):
     def _get_messages_parameter(
         self,
         prompt: Optional[str] = None,
-        messages: Optional[dict] = None,
+        messages: Optional[list[dict]] = None,
         **invoke_kwargs,
     ) -> (str, dict):
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)

@@ -169,7 +169,6 @@ class MyModel(Model):
         body.pop("models", None)
         if self.gpu_number is not None:
             body["gpu"] = self.gpu_number
-        body["async"] = False
         return body
 
     async def predict_async(self, body):
@@ -554,14 +553,20 @@ def test_model_runner_with_selector(execution_mechanism: str):
     try:
         # both models
         resp = server.test(body={"n": 1})
-        assert resp == {
-            "m1": {"n": 2, "async": False},
-            "m2": {"n": 3, "async": execution_mechanism == "asyncio"},
+        expected = {
+            "m1": {"n": 2},
+            "m2": {"n": 3},
         }
+        if execution_mechanism == "asyncio":
+            expected["m2"]["async"] = True
+        assert resp == expected
 
         # only m2
         resp = server.test(body={"n": 1, "models": ["m2"]})
-        assert resp == {"m2": {"n": 3, "async": execution_mechanism == "asyncio"}}
+        expected = {"m2": {"n": 3}}
+        if execution_mechanism == "asyncio":
+            expected["m2"]["async"] = True
+        assert resp == expected
     finally:
         server.wait_for_completion()
 

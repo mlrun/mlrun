@@ -104,6 +104,9 @@ async def get_log_size(
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        framework.api.deps.get_db_session
+    ),
 ):
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -115,9 +118,9 @@ async def get_log_size(
         )
     )
 
-    if attempt and attempt > 1:
-        uid = f"{uid}-attempt-{attempt}"
-    log_file_size = await services.api.crud.Logs().get_log_size(project, uid)
+    log_file_size = await services.api.crud.Logs().get_log_size(
+        db_session, project, uid, attempt=attempt
+    )
     return {
         "size": log_file_size,
     }

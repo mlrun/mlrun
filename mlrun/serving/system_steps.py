@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import random
-from copy import copy, deepcopy
+from copy import deepcopy
 from datetime import timedelta
 from typing import Any, Optional, Union
 
@@ -32,11 +32,12 @@ class MonitoringPreProcessor(storey.MapClass):
 
     def __init__(
         self,
-        context,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.context = copy(context)
+        self.server: mlrun.serving.GraphServer = (
+            getattr(self.context, "server", None) if self.context else None
+        )
 
     def reconstruct_request_resp_fields(
         self, event, model: str, model_monitoring_data: dict
@@ -148,9 +149,8 @@ class MonitoringPreProcessor(storey.MapClass):
 
     def do(self, event):
         monitoring_event_list = []
-        server: mlrun.serving.GraphServer = getattr(self.context, "server", None)
         model_runner_name = event._metadata.get("model_runner_name", "")
-        step = server.graph.steps[model_runner_name] if server else {}
+        step = self.server.graph.steps[model_runner_name] if self.server else {}
         monitoring_data = step.monitoring_data
         logger.debug(
             "monitoring preprocessor started",
@@ -184,8 +184,8 @@ class MonitoringPreProcessor(storey.MapClass):
                             mm_schemas.StreamProcessingEvent.LABELS: monitoring_data[
                                 model
                             ].get(mlrun.common.schemas.MonitoringData.OUTPUTS),
-                            mm_schemas.StreamProcessingEvent.FUNCTION_URI: server.function_uri
-                            if server
+                            mm_schemas.StreamProcessingEvent.FUNCTION_URI: self.server.function_uri
+                            if self.server
                             else None,
                             mm_schemas.StreamProcessingEvent.REQUEST: request,
                             mm_schemas.StreamProcessingEvent.RESPONSE: resp,
@@ -226,8 +226,8 @@ class MonitoringPreProcessor(storey.MapClass):
                     mm_schemas.StreamProcessingEvent.LABELS: monitoring_data[model].get(
                         mlrun.common.schemas.MonitoringData.OUTPUTS
                     ),
-                    mm_schemas.StreamProcessingEvent.FUNCTION_URI: server.function_uri
-                    if server
+                    mm_schemas.StreamProcessingEvent.FUNCTION_URI: self.server.function_uri
+                    if self.server
                     else None,
                     mm_schemas.StreamProcessingEvent.REQUEST: request,
                     mm_schemas.StreamProcessingEvent.RESPONSE: resp,
@@ -253,12 +253,13 @@ class BackgroundTaskStatus(storey.MapClass):
     creation failed or in progress
     """
 
-    def __init__(self, context, **kwargs):
-        self.context = copy(context)
-        self.server: mlrun.serving.GraphServer = getattr(self.context, "server", None)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.server: mlrun.serving.GraphServer = (
+            getattr(self.context, "server", None) if self.context else None
+        )
         self._background_task_check_timestamp = None
         self._background_task_state = mlrun.common.schemas.BackgroundTaskState.running
-        super().__init__(**kwargs)
 
     def do(self, event):
         if self.server is None:
@@ -280,14 +281,8 @@ class BackgroundTaskStatus(storey.MapClass):
             self._background_task_check_timestamp = mlrun.utils.now_date()
             self._log_background_task_state(background_task.status.state)
             self._background_task_state = background_task.status.state
-            if (
-                background_task.status.state
-                == mlrun.common.schemas.BackgroundTaskState.succeeded
-            ):
-                return event
-            else:
-                return None
-        elif (
+
+        if (
             self._background_task_state
             == mlrun.common.schemas.BackgroundTaskState.succeeded
         ):
@@ -380,9 +375,10 @@ class SamplingStep(storey.MapClass):
 
 
 class MockStreamPusher(storey.MapClass):
-    def __init__(self, context, output_stream=None, **kwargs):
+    def __init__(self, output_stream=None, **kwargs):
         super().__init__(**kwargs)
-        self.output_stream = output_stream or context.stream.output_stream
+        stream = self.context.stream if self.context else None
+        self.output_stream = output_stream or stream.output_stream
 
     def do(self, event):
         self.output_stream.push(

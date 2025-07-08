@@ -14,8 +14,6 @@
 import asyncio
 import time
 
-import tiktoken
-
 import mlrun
 import mlrun.artifacts
 import mlrun.serving
@@ -67,10 +65,15 @@ fixed_prompts = [
 
 
 def setup_remote_model_test(
-    project, model_url, execution_mechanism="naive", image=None, requirements=None
+    project,
+    model_url,
+    mlrun_model_name="mymodel",
+    execution_mechanism="naive",
+    image=None,
+    requirements=None,
 ):
     model_artifact = project.log_model(
-        "my_model",
+        mlrun_model_name,
         model_url=model_url,
         default_config={"max_tokens": 100},
     )
@@ -159,6 +162,9 @@ class MyOpenAILLM(mlrun.serving.states.Model):
 
 
 def assert_async_invocations(results_with_times, model_name, total_duration):
+    # Imported inside the function to avoid ImportError in pod while using MyOpenAILLM class.
+    import tiktoken
+
     results = results_with_times["results"]
     invoke_times = results_with_times["invoke_times"]
     encoding = tiktoken.encoding_for_model(model_name)

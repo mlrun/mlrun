@@ -56,8 +56,8 @@ def test_http_fs_parquet_with_params_as_df():
 
 def test_s3_fs_parquet_as_df():
     data_item = mlrun.datastore.store_manager.object(
-        "s3://aws-public-blockchain/v1.0/btc/blocks/date=2023-02-27/"
-        "part-00000-7de4c87e-242f-4568-b5d7-aae4cc75e9ad-c000.snappy.parquet"
+        "s3://noaa-ghcn-pds/parquet/by_station/STATION=ASN00006024/"
+        "ELEMENT=MDPR/d62699538bf2414fb6adca7047df9bea_0.snappy.parquet"
     )
     data_item.as_df()
 
@@ -264,3 +264,62 @@ def test_as_df_time_filters(start_time_tz, end_time_tz, df_tz):
                 190 - (80 if start_time_tz else 0) - (90 if end_time_tz else 0)
             )
             assert len(resp) == num_row_expected
+
+
+def test_partition_filtering_year_month():
+    """
+    Simple test for partition filtering with year/month structure.
+    Tests filtering data from 2020-2022 with year=YYYY/month=MM partitions.
+    """
+    time_column = "timestamp"
+
+    # Create test data spanning 2020-2022, all months
+    test_data = []
+    for year in range(2020, 2023):  # 2020, 2021, 2022
+        for month in range(1, 13):  # Jan-Dec
+            for day in [5, 15, 25]:  # 3 records per month
+                timestamp = datetime(year, month, day, 12, 0, 0)
+                test_data.append(
+                    {
+                        "timestamp": timestamp,
+                        "year": year,
+                        "month": month,
+                        "value": year * 100 + month * 10 + day,
+                    }
+                )
+
+    df = pd.DataFrame(test_data)
+
+    # Create partitioned parquet structure: year=YYYY/month=MM/
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Write partitioned parquet files
+        df.to_parquet(temp_dir, partition_cols=["year", "month"], engine="pyarrow")
+
+        # Create DataItem with trailing slash for directory
+        dir_url = f"file://{temp_dir}/"
+        data_item = mlrun.datastore.store_manager.object(dir_url)
+
+        # Test filter: Get data from June 2021 to August 2021
+        start_time = datetime(2021, 6, 10, 0, 0, 0)  # June 10, 2021
+        end_time = datetime(2021, 8, 20, 0, 0, 0)  # August 20, 2021
+
+        # Execute the filter
+        result = data_item.as_df(
+            start_time=start_time,
+            end_time=end_time,
+            time_column=time_column,
+            format="parquet",
+        )
+
+        # Calculate expected results manually
+        # Should include: June 15 & 25 + July 5, 15 & 25 + August 5 & 15 = 7 records
+        expected_df = df[
+            (df[time_column] > start_time) & (df[time_column] <= end_time)
+        ].reset_index(drop=True)
+        pd.testing.assert_frame_equal(
+            result,
+            expected_df,
+            check_like=True,
+            check_dtype=False,
+            check_categorical=False,
+        )

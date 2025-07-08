@@ -1701,16 +1701,19 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
         start = model_endpoint.status.first_request - timedelta(microseconds=1)
 
         end = model_endpoint.status.last_request
+        # Make sure `end - start` is a multiple of the `base_period` in `evaluate`
+        end = start + timedelta(minutes=(end - start).total_seconds() // 60 + 1)
 
         endpoints_params = [
             [(model_endpoint.metadata.name, model_endpoint.metadata.uid)],
-            model_endpoint.metadata.name,
-            [
-                model_endpoint.metadata.name,
-            ],
+            [model_endpoint.metadata.name],
+            "all",
         ]
 
         for i, endpoints in enumerate(endpoints_params):
+            # Do not write except the first time
+            write_output_this_time = write_output if i == 0 else False
+
             run_result = CountApp.evaluate(
                 func_path=str(Path(__file__).parent / "assets/application.py"),
                 func_name=f"function-{i}",
@@ -1720,9 +1723,11 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
                 run_local=run_local,
                 image=self.image,
                 base_period=1,
-                write_output=write_output,
+                write_output=write_output_this_time,
                 stream_profile=(
-                    self.mm_stream_profile if run_local and write_output else None
+                    self.mm_stream_profile
+                    if run_local and write_output_this_time
+                    else None
                 ),
             )
 

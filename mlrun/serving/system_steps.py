@@ -378,11 +378,7 @@ class MockStreamPusher(storey.MapClass):
     def __init__(self, output_stream=None, **kwargs):
         super().__init__(**kwargs)
         stream = self.context.stream if self.context else None
-        self.output_stream = output_stream or getattr(stream, "output_stream", None)
-        if self.output_stream is None:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "output_stream is None meaning not provided and " "not part of contex"
-            )
+        self.output_stream = output_stream or getattr(stream, "output_stream")
 
     def do(self, event):
         self.output_stream.push(

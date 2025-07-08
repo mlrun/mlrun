@@ -159,7 +159,7 @@ When the installation is complete, the helm command prints the URLs and ports of
 
 ## Configuring the user Jupyter conda environment
 
-The default Jupyter comes with aß conda env named `mlrun`. This conda is installed on a non-persistent path `/opt/conda/envs/mlrun`.
+The default Jupyter comes with a conda env named `mlrun`. This conda is installed on a non-persistent path.
 If you install Python packages on this conda env, and then the Jupyter pod gets deleted or moved to another node, those Python packages will be deleted.
 
 To create a new, persistent, environment, run this in your Jupyter terminal, where `myenv` is the name of your environment:

@@ -222,7 +222,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("run_async", [True, False])
-    async def test_customized_invoke(self, run_async):
+    async def test_custom_invoke(self, run_async):
         model_name = "text-embedding-3-small"
         model_url = self.url_prefix + model_name
         model_provider = mlrun.get_model_provider(url=model_url)
@@ -230,11 +230,11 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         client: OpenAI = model_provider.client
         async_client: AsyncOpenAI = model_provider.async_client
         if run_async:
-            embeddings = await model_provider.async_customized_invoke(
+            embeddings = await model_provider.async_custom_invoke(
                 operation=async_client.embeddings.create, input=prompt
             )
         else:
-            embeddings = model_provider.customized_invoke(
+            embeddings = model_provider.custom_invoke(
                 operation=client.embeddings.create, input=prompt
             )
         encoding = tiktoken.encoding_for_model(model_name)

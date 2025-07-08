@@ -84,7 +84,7 @@ class OpenAIProvider(ModelProvider):
         )
         return self._sanitize_options(res)
 
-    def customized_invoke(
+    def custom_invoke(
         self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs
     ) -> Optional[T]:
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
@@ -93,7 +93,7 @@ class OpenAIProvider(ModelProvider):
         else:
             return self._default_operation(**invoke_kwargs, model=self.model)
 
-    async def async_customized_invoke(
+    async def async_custom_invoke(
         self,
         operation: Optional[Callable[..., Awaitable[T]]] = None,
         **invoke_kwargs,

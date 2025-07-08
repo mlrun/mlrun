@@ -214,8 +214,6 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         ):
             model_provider.invoke()
 
-    # TODO add async and customized invoke tests.
-
 
 class TestOpenAIModel(TestBasicOpenAIProvider):
     def test_model_runner_with_openai(self, use_datastore_profile):

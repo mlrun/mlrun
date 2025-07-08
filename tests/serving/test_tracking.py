@@ -17,7 +17,6 @@ import pathlib
 from collections.abc import Iterator
 from time import sleep
 from typing import Union, cast
-from unittest.mock import patch
 
 import numpy as np
 import pytest

@@ -35,7 +35,9 @@ class MonitoringPreProcessor(storey.MapClass):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.server: mlrun.serving.GraphServer = getattr(self.context, "server", None)
+        self.server: mlrun.serving.GraphServer = (
+            getattr(self.context, "server", None) if self.context else None
+        )
 
     def reconstruct_request_resp_fields(
         self, event, model: str, model_monitoring_data: dict
@@ -253,7 +255,9 @@ class BackgroundTaskStatus(storey.MapClass):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.server: mlrun.serving.GraphServer = getattr(self.context, "server", None)
+        self.server: mlrun.serving.GraphServer = (
+            getattr(self.context, "server", None) if self.context else None
+        )
         self._background_task_check_timestamp = None
         self._background_task_state = mlrun.common.schemas.BackgroundTaskState.running
 
@@ -375,6 +379,10 @@ class MockStreamPusher(storey.MapClass):
         super().__init__(**kwargs)
         stream = self.context.stream if self.context else None
         self.output_stream = output_stream or getattr(stream, "output_stream", None)
+        if self.output_stream is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "output_stream is None meaning not provided and " "not part of contex"
+            )
 
     def do(self, event):
         self.output_stream.push(

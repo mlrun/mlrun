@@ -185,7 +185,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         *,
         write_output: bool,
         application_name: str,
-        out_path: str,
+        artifact_path: str,
         stream_profile: Optional[ds_profile.DatastoreProfile],
         project: "mlrun.MlrunProject",
     ) -> Iterator[
@@ -200,7 +200,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             cls._check_writer_is_up(project)
             application_schedules = (
                 mm_schedules.ModelMonitoringSchedulesFileApplication(
-                    out_path, application=application_name
+                    artifact_path, application=application_name
                 )
             )
         try:
@@ -283,7 +283,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             write_output=write_output,
             stream_profile=stream_profile,
             application_name=application_name,
-            out_path=context.out_path,
+            artifact_path=context.artifact_path,
             project=project,
         ) as (endpoints_output, application_schedules):
 

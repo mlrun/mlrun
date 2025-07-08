@@ -69,7 +69,7 @@ class OSSStore(DataStore):
             key=self._get_secret_or_env("ALIBABA_ACCESS_KEY_ID"),
             secret=self._get_secret_or_env("ALIBABA_SECRET_ACCESS_KEY"),
         )
-        return self._sanitize_storage_options(res)
+        return self._sanitize_options(res)
 
     def get_bucket_and_key(self, key):
         path = self._join(key)[1:]

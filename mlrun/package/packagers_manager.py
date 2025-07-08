@@ -21,6 +21,7 @@ from typing import Any, Optional, Union
 
 import mlrun.errors
 from mlrun.artifacts import Artifact
+from mlrun.artifacts.base import verify_target_path
 from mlrun.datastore import DataItem, get_store_resource, store_manager
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.utils import logger
@@ -276,6 +277,7 @@ class PackagersManager:
         if data_item.get_artifact_type():
             # Get the artifact object in the data item:
             artifact, _ = store_manager.get_store_artifact(url=data_item.artifact_url)
+            verify_target_path(artifact)
             # Get the key from the artifact's metadata and instructions from the artifact's spec:
             artifact_key = artifact.metadata.key
             packaging_instructions = artifact.spec.unpackaging_instructions

@@ -44,7 +44,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_log(self, uid, project="", offset=0, size=0):
+    def get_log(self, uid, project="", offset=0, size=0, attempt=None):
         pass
 
     @abstractmethod
@@ -645,6 +645,7 @@ class RunDBInterface(ABC):
         project: str,
         namespace: Optional[str] = None,
         timeout: int = 30,
+        submit_mode: str = "",
     ):
         pass
 
@@ -1128,6 +1129,17 @@ class RunDBInterface(ABC):
         include_stats: bool = False,
         include_infra: bool = True,
     ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
+        pass
+
+    @abstractmethod
+    def get_monitoring_function_summary(
+        self,
+        project: str,
+        function_name: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
         pass
 
     @abstractmethod

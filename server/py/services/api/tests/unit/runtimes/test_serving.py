@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import base64
-import gzip
-import json
 import os
 import unittest
 import unittest.mock
@@ -132,10 +129,8 @@ class TestServingRuntime(TestNuclioRuntime):
                 "~", "/root"
             )
 
-            func_name = None
             for env in deploy_spec["env"]:
                 if env["name"] == "SERVING_CURRENT_FUNCTION":
-                    func_name = env["value"]
                     break
 
             # TODO: Vault: uncomment when vault returns to be relevant
@@ -165,23 +160,6 @@ class TestServingRuntime(TestNuclioRuntime):
                     },
                 },
             ]
-            if use_config_map:
-                expected_volumes.append(
-                    {
-                        "volume": {
-                            "configMap": {
-                                "name": f"{self.project}-{self.name}"
-                                + (f"-{func_name}" if func_name else "")
-                            },
-                            "name": "serving-conf",
-                        },
-                        "volumeMount": {
-                            "mountPath": "/tmp/mlrun/serving-conf",
-                            "name": "serving-conf",
-                            "readOnly": True,
-                        },
-                    }
-                )
 
             assert (
                 deepdiff.DeepDiff(
@@ -195,32 +173,8 @@ class TestServingRuntime(TestNuclioRuntime):
                 # "MLRUN_SECRET_STORES__VAULT__ROLE": f"project:{self.project}",
                 # "MLRUN_SECRET_STORES__VAULT__URL": mlconf.secret_stores.vault.url,
             }
-            if not use_config_map:
-                # For now, just checking the variable exists, later we check specific contents
-                expected_env["SERVING_SPEC_ENV"] = None
 
             self._assert_pod_env(deploy_spec["env"], expected_env)
-
-            serving_spec = None
-            if use_config_map:
-                body = self._mock_get_config_map_body()
-                decoded_data = base64.b64decode(body.data["serving_spec.json"])
-                decompressed_data = gzip.decompress(decoded_data)
-                serving_spec = json.loads(decompressed_data.decode("utf-8"))
-            else:
-                for env_variable in deploy_spec["env"]:
-                    if env_variable["name"] == "SERVING_SPEC_ENV":
-                        serving_spec = json.loads(env_variable["value"])
-                        break
-
-            assert (
-                deepdiff.DeepDiff(
-                    serving_spec["secret_sources"],
-                    expected_secret_sources,
-                    ignore_order=True,
-                )
-                == {}
-            )
 
     def _generate_expected_secret_sources(self):
         full_inline_secrets = self.inline_secrets.copy()
@@ -422,15 +376,3 @@ class TestServingRuntime(TestNuclioRuntime):
 
         # verify the handler points to mlrun serving wrapper handler
         assert config["spec"]["handler"].startswith("mlrun.serving")
-
-    def test_serving_spec_too_large(self):
-        self._setup_serving_spec_in_config_map()
-        function = self._create_serving_function()
-        function._get_serving_spec = unittest.mock.Mock()
-
-        # Mock a serving spec that is too large
-        function._get_serving_spec.return_value = (
-            "x" * services.api.crud.runtimes.nuclio.function.SERVING_SPEC_MAX_LENGTH
-        )
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            function.deploy(verbose=True)

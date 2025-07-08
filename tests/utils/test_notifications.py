@@ -1314,6 +1314,54 @@ def test_enrich_unmasked_secret_params_from_project_secret(
             assert notification.secret_params == expected_params
 
 
+@pytest.mark.parametrize(
+    "retry_count, max_retries, run_state, expected_retry, expected_final_failure",
+    [
+        # No retries attempted — no retry info should be included
+        (None, None, runtimes_constants.RunStates.completed, False, False),
+        (0, 0, runtimes_constants.RunStates.completed, False, False),
+        # Job succeeded after retries — include retry log line only
+        (2, 5, runtimes_constants.RunStates.completed, True, False),
+        # Retries exhausted and job failed — both log lines should be included
+        (3, 3, runtimes_constants.RunStates.error, True, True),
+        # retry_count is None — no retry info expected
+        (None, 3, runtimes_constants.RunStates.completed, False, False),
+        (None, 3, runtimes_constants.RunStates.error, False, False),
+        # Job was aborted after retries
+        (2, 3, runtimes_constants.RunStates.aborted, True, False),
+    ],
+)
+def test_prepare_notification_retry_messages(
+    retry_count, max_retries, run_state, expected_retry, expected_final_failure
+):
+    run_dict = {
+        "metadata": {"project": "test"},
+        "status": {"state": run_state},
+        "spec": {},
+    }
+    if retry_count is not None:
+        run_dict["status"]["retry_count"] = retry_count
+    if max_retries is not None:
+        run_dict["spec"]["retry"] = {"count": max_retries}
+
+    run = mlrun.model.RunObject.from_dict(run_dict)
+    notification = mlrun.model.Notification(name="notify", when=[run_state])
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    )
+    message, _, _ = notification_pusher._prepare_notification_args(run, notification)
+
+    if expected_retry and retry_count is not None:
+        assert f"Retries attempted: {retry_count}" in message
+    else:
+        assert "Retries attempted" not in message
+
+    if expected_final_failure:
+        assert "Retry limit reached" in message
+    else:
+        assert "Retry limit reached" not in message
+
+
 def _mock_async_response(monkeypatch, method, result):
     response_json_future = asyncio.Future()
     response_json_future.set_result(result)

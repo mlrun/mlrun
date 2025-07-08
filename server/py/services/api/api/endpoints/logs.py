@@ -61,6 +61,7 @@ async def get_log(
     uid: str,
     size: int = -1,
     offset: int = 0,
+    attempt: int = 0,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
@@ -81,8 +82,9 @@ async def get_log(
             auth_info,
         )
     )
+
     run_state, log_stream = await services.api.crud.Logs().get_logs(
-        db_session, project, uid, size, offset
+        db_session, project, uid, size, offset, attempt=attempt
     )
     headers = {
         "x-mlrun-run-state": run_state,
@@ -98,6 +100,7 @@ async def get_log(
 async def get_log_size(
     project: str,
     uid: str,
+    attempt: int = 0,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
@@ -111,6 +114,9 @@ async def get_log_size(
             auth_info,
         )
     )
+
+    if attempt and attempt > 1:
+        uid = f"{uid}-attempt-{attempt}"
     log_file_size = await services.api.crud.Logs().get_log_size(project, uid)
     return {
         "size": log_file_size,

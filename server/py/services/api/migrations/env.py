@@ -23,11 +23,11 @@ import sqlalchemy.exc
 import sqlalchemy.pool
 import sqlalchemy.sql.type_api
 
-import mlrun.db.sql_types
 import mlrun.utils
 
 import framework.db.sqldb.lock_killer
 import framework.db.sqldb.models
+import framework.db.sqldb.sql_types
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -69,7 +69,8 @@ def compare_type(
     if isinstance(inspected_type, sqlalchemy.dialects.mysql.VARCHAR):
         # suppress VARCHAR→Uuid/UuidType only if lengths are equal
         if isinstance(
-            metadata_column.type, (sqlalchemy.Uuid, mlrun.db.sql_types.UuidType)
+            metadata_column.type,
+            (sqlalchemy.Uuid, framework.db.sqldb.sql_types.UuidType),
         ):
             inspected_len = getattr(inspected_type, "length", None)
             meta_len = getattr(metadata_column.type, "length", None)
@@ -78,7 +79,9 @@ def compare_type(
         # handle Utf8BinText by collation + length
         coll = (inspected_type.collation or "").lower()
         if coll in ("utf8mb3_bin", "utf8_bin"):
-            if isinstance(metadata_column.type, mlrun.db.sql_types.Utf8BinText):
+            if isinstance(
+                metadata_column.type, framework.db.sqldb.sql_types.Utf8BinText
+            ):
                 dialect = context.dialect
                 meta_impl = metadata_column.type.load_dialect_impl(dialect)
                 if getattr(inspected_type, "length", None) == getattr(
@@ -93,7 +96,10 @@ def compare_type(
         (sqlalchemy.dialects.mysql.DATETIME, sqlalchemy.dialects.mysql.TIMESTAMP),
     ) and isinstance(
         metadata_column.type,
-        (mlrun.db.sql_types.DateTime, mlrun.db.sql_types.MicroSecondDateTime),
+        (
+            framework.db.sqldb.sql_types.DateTime,
+            framework.db.sqldb.sql_types.MicroSecondDateTime,
+        ),
     ):
         if getattr(inspected_type, "fsp", None) == metadata_column.type.precision:
             return False
@@ -104,7 +110,10 @@ def compare_type(
         inspected_type, sqlalchemy.dialects.postgresql.TIMESTAMP
     ) and isinstance(
         metadata_column.type,
-        (mlrun.db.sql_types.DateTime, mlrun.db.sql_types.MicroSecondDateTime),
+        (
+            framework.db.sqldb.sql_types.DateTime,
+            framework.db.sqldb.sql_types.MicroSecondDateTime,
+        ),
     ):
         if getattr(inspected_type, "precision", None) == metadata_column.type.precision:
             return False

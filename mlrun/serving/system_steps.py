@@ -261,11 +261,8 @@ class BackgroundTaskStatus(storey.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-        if (self.context and self.context.is_mock) or self.context is None:
-            return event
         if self.server is None:
             return None
-
         if (
             self._background_task_state
             == mlrun.common.schemas.BackgroundTaskState.running
@@ -292,10 +289,11 @@ class BackgroundTaskStatus(storey.MapClass):
                 return None
         elif (
             self._background_task_state
-            == mlrun.common.schemas.BackgroundTaskState.failed
+            == mlrun.common.schemas.BackgroundTaskState.succeeded
         ):
+            return event
+        else:
             return None
-        return event
 
     def _log_background_task_state(
         self, background_task_state: mlrun.common.schemas.BackgroundTaskState

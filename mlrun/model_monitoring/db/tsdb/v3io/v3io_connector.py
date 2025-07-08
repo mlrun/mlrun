@@ -26,7 +26,7 @@ import mlrun.feature_store.steps
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas import EventFieldType
 from mlrun.model_monitoring.db import TSDBConnector
-from mlrun.model_monitoring.helpers import get_invocations_fqn
+from mlrun.model_monitoring.helpers import get_invocations_fqn, get_start_end
 from mlrun.utils import logger
 
 _TSDB_BE = "tsdb"
@@ -522,7 +522,7 @@ class V3IOTSDBConnector(TSDBConnector):
             try:
                 self.v3io_client.kv.delete(
                     container=self.container,
-                    table=self.last_request_table,
+                    table_path=self.last_request_table,
                     key=endpoint_id,
                 )
             except Exception as e:
@@ -956,8 +956,7 @@ class V3IOTSDBConnector(TSDBConnector):
             filter_values=endpoint_ids,
         )
 
-        start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end, delta=timedelta(hours=24))
         res = self._get_records(
             table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
             start=start,
@@ -984,7 +983,7 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         filter_query = self._generate_filter_query(
             filter_key=mm_schemas.ApplicationEvent.ENDPOINT_ID,
             filter_values=endpoint_id,
@@ -1009,7 +1008,7 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         filter_query = self._generate_filter_query(
             filter_key=mm_schemas.ApplicationEvent.ENDPOINT_ID,
             filter_values=endpoint_id,
@@ -1048,7 +1047,7 @@ class V3IOTSDBConnector(TSDBConnector):
             filter_query += f"AND {mm_schemas.EventFieldType.ERROR_TYPE} == '{mm_schemas.EventFieldType.INFER_ERROR}'"
         else:
             filter_query = f"{mm_schemas.EventFieldType.ERROR_TYPE} == '{mm_schemas.EventFieldType.INFER_ERROR}' z"
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         res = self._get_records(
             table=mm_schemas.FileTargetKind.ERRORS,
             start=start,
@@ -1085,7 +1084,7 @@ class V3IOTSDBConnector(TSDBConnector):
             filter_values=endpoint_ids,
         )
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-        start, end = self._get_start_end(start, end)
+        start, end = get_start_end(start, end)
         res = self._get_records(
             table=mm_schemas.V3IOTSDBTables.PREDICTIONS,
             start=start,
@@ -1207,9 +1206,7 @@ class V3IOTSDBConnector(TSDBConnector):
         application_names: Optional[Union[str, list[str]]] = None,
         result_status_list: Optional[list[int]] = None,
     ) -> dict[tuple[str, int], int]:
-        now = mlrun.utils.datetime_now()
-        start = start or (now - timedelta(hours=24))
-        end = end or now
+        start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
         filter_query = ""
         if endpoint_ids:
             filter_query = self._generate_filter_query(
@@ -1268,3 +1265,21 @@ class V3IOTSDBConnector(TSDBConnector):
             )
 
             return df[mm_schemas.ResultData.RESULT_VALUE].to_dict()
+
+    def count_processed_model_endpoints(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+    ) -> dict[str, int]:
+        raise NotImplementedError
+
+    def calculate_latest_metrics(
+        self,
+        start: Optional[Union[datetime, str]] = None,
+        end: Optional[Union[datetime, str]] = None,
+        application_names: Optional[Union[str, list[str]]] = None,
+    ) -> list[
+        Union[mm_schemas.ApplicationResultRecord, mm_schemas.ApplicationMetricRecord]
+    ]:
+        raise NotImplementedError

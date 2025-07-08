@@ -120,6 +120,12 @@ default_config = {
             # max number of parallel abort run jobs in runs monitoring
             "concurrent_abort_stale_runs_workers": 10,
             "list_runs_time_period_in_days": 7,  # days
+            "retry": {
+                # periodic job for triggering retries interval in seconds
+                "interval": "30",
+                # runs limit to fetch for retrying
+                "fetch_runs_limit": 1000,
+            },
         },
         "projects": {
             "summaries": {
@@ -184,6 +190,9 @@ default_config = {
         "url": "",
     },
     "v3io_framesd": "http://framesd:8080",
+    "model_providers": {
+        "openai_default_model": "gpt-4",
+    },
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
     # default priority class to be applied to functions running on k8s cluster
@@ -270,6 +279,12 @@ default_config = {
                     "executing": "24h",
                 }
             },
+            "retry": {
+                "backoff": {
+                    "default_base_delay": "30s",
+                    "min_base_delay": "30s",
+                },
+            },
             # When the module is reloaded, the maximum depth recursion configuration for the recursive reload
             # function is used to prevent infinite loop
             "reload_max_recursion_depth": 100,
@@ -316,6 +331,7 @@ default_config = {
                     "project_summaries": "enabled",
                     "start_logs": "enabled",
                     "stop_logs": "enabled",
+                    "retry_jobs": "enabled",
                 },
             },
             "worker": {
@@ -641,7 +657,7 @@ default_config = {
         "offline_storage_path": "model-endpoints/{kind}",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
-        "model_endpoint_creation_check_period": "15",
+        "model_endpoint_creation_check_period": 15,
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory

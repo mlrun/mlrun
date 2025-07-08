@@ -186,7 +186,7 @@ class S3Store(DataStore):
         if profile:
             storage_options["profile"] = profile
 
-        return self._sanitize_storage_options(storage_options)
+        return self._sanitize_options(storage_options)
 
     @property
     def spark_url(self):

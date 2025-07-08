@@ -24,7 +24,8 @@ from mlrun.datastore.datastore_profile import (
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
-    setup_remote_model_test, assert_async_invocations,
+    assert_async_invocations,
+    setup_remote_model_test,
 )
 from tests.system.base import TestMLRunSystem
 

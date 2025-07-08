@@ -1002,7 +1002,8 @@ class Service(framework.service.Service):
                                     project=run.metadata.project,
                                     uid=run.metadata.uid,
                                     run_updates={
-                                        "status.status_text": f"Run retry timed out after {staleness_threshold} days",
+                                        "status.status_text": "Retry aborted: run was pending retry for more than "
+                                        f"{staleness_threshold} days",
                                     },
                                     run=run_dict,
                                 )
@@ -1067,7 +1068,9 @@ class Service(framework.service.Service):
             await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
     def _submit_run_for_retry(self, run: mlrun.RunObject):
-        self._retry_in_progress_run_uids[run.metadata.uid] = datetime.datetime.now()
+        self._retry_in_progress_run_uids[run.metadata.uid] = datetime.datetime.now(
+            datetime.timezone.utc
+        )
         loop = asyncio.get_running_loop()
 
         # Calculate the delay based on the retry policy

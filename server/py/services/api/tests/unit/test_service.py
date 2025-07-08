@@ -111,7 +111,8 @@ class TestService(TestAPIBase):
             assert mock_submit_run_sync.call_count == 10
 
     async def test_retry_stale_job(self, db: Session):
-        mlrun.mlconf.monitoring.runs.retry.staleness_threshold = 1
+        staleness_threshold = 1
+        mlrun.mlconf.monitoring.runs.retry.staleness_threshold = staleness_threshold
         run_uid = "test-stale-job-uid"
         run = self._generate_retry_job(uid=run_uid)
 
@@ -129,7 +130,10 @@ class TestService(TestAPIBase):
         assert (
             run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.aborted
         )
-        assert "Run retry timed out" in run["status"]["status_text"]
+        assert (
+            f"Retry aborted: run was pending retry for more than {staleness_threshold} days"
+            in run["status"]["status_text"]
+        )
 
     def _generate_retry_job(
         self,

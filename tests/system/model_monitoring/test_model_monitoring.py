@@ -612,7 +612,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         assert mep.spec.model_name == "my-llm-prompt"
         assert mep.spec.model_uri == llm_prompt.get_store_url(with_tag=False)
 
-    def test_mep_with_model_runner(self, model_kind):
+    def test_mep_with_model_runner(self):
         function = mlrun.code_to_function(
             name="function_with_model",
             kind="serving",

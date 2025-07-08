@@ -531,16 +531,25 @@ class BaseStep(ModelObj):
             )
 
         # Check if shared models are defined in the graph
-        proxy_endpoint = []
+        self._verify_shared_models(root, step, step_model_endpoints_names)
+        # Update model endpoints names in the root step
+        root.update_model_endpoints_names(step_model_endpoints_names)
+
+    @staticmethod
+    def _verify_shared_models(
+        root: "RootFlowStep",
+        step: "ModelRunnerStep",
+        step_model_endpoints_names: list[str],
+    ) -> None:
+        proxy_endpoint = [
+            name
+            for name in step_model_endpoints_names
+            if step.class_args.get(
+                schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM, {}
+            ).get(name)
+            == ParallelExecutionMechanisms.shared_executor
+        ]
         shared_models = []
-        for name in step_model_endpoints_names:
-            if (
-                step.class_args.get(
-                    schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM, {}
-                ).get(name)
-                == ParallelExecutionMechanisms.shared_executor
-            ):
-                proxy_endpoint.append(name)
 
         for name in proxy_endpoint:
             shared_runnable_name = (
@@ -554,6 +563,8 @@ class BaseStep(ModelObj):
                 .get("artifact_uri")
             )
             prefix, _ = mlrun.datastore.parse_store_uri(model_artifact_uri)
+            # if the model artifact is a prompt, we need to get the model URI
+            # to ensure that the shared runnable name is correct
             if prefix == mlrun.utils.StorePrefix.LLMPrompt:
                 model_artifact, _ = mlrun.datastore.store_manager.get_store_artifact(
                     model_artifact_uri
@@ -588,7 +599,6 @@ class BaseStep(ModelObj):
             raise GraphError(
                 f"The following shared models are not defined in the graph: {undefined_shared_models}."
             )
-        root.update_model_endpoints_names(step_model_endpoints_names)
 
 
 class TaskStep(BaseStep):
@@ -1471,12 +1481,20 @@ class ModelRunnerStep(MonitoredStep):
         model_parameters = model_parameters or (
             model_class.to_dict() if isinstance(model_class, Model) else {}
         )
-        model_outputs = None
-        if outputs is None or isinstance(model_artifact, str):
-            model_outputs = ModelRunnerStep._get_model_output_schema(
-                model_artifact
-            )  # also checks if the uri is valid
-        outputs = outputs or model_outputs
+
+        if isinstance(
+            model_artifact,
+            str,
+        ):
+            try:
+                model_artifact, _ = mlrun.datastore.store_manager.get_store_artifact(
+                    model_artifact
+                )
+            except mlrun.errors.MLRunNotFoundError:
+                raise mlrun.errors.MLRunInvalidArgumentError("Artifact not found.")
+
+        outputs = outputs or self._get_model_output_schema(model_artifact)
+
         model_artifact = (
             model_artifact.uri
             if isinstance(model_artifact, mlrun.artifacts.Artifact)
@@ -1546,17 +1564,6 @@ class ModelRunnerStep(MonitoredStep):
         ):
             _model_artifact = model_artifact.model_artifact
             return [feature.name for feature in _model_artifact.spec.outputs]
-        elif isinstance(
-            model_artifact,
-            str,
-        ):
-            try:
-                model_artifact, _ = mlrun.datastore.store_manager.get_store_artifact(
-                    model_artifact
-                )
-            except mlrun.errors.MLRunNotFoundError:
-                raise mlrun.errors.MLRunInvalidArgumentError("Artifact not found.")
-            return ModelRunnerStep._get_model_output_schema(model_artifact)
 
     @staticmethod
     def _get_model_endpoint_output_schema(

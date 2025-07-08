@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Optional, TypeVar
+from typing import Callable, Optional, TypeVar, Union
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import ModelProvider
@@ -116,12 +116,15 @@ class OpenAIProvider(ModelProvider):
         self,
         prompt: Optional[str] = None,
         messages: Optional[dict] = None,
+        as_str: bool = False,
         **invoke_kwargs,
-    ) -> str:
+    ) -> Optional[Union[str, T]]:
         messages, invoke_kwargs = self._get_messages_parameter(
             prompt=prompt, messages=messages, **invoke_kwargs
         )
         response = self._default_operation(
             model=self.endpoint, messages=messages, **invoke_kwargs
         )
-        return response.choices[0].message.content
+        if as_str:
+            return response.choices[0].message.content
+        return response

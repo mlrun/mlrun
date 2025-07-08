@@ -16,6 +16,7 @@ import os
 import unittest.mock
 from typing import cast
 
+import openai.types.chat
 import pytest
 import tiktoken
 import yaml
@@ -48,6 +49,7 @@ class MyOpenAILLM(mlrun.serving.states.Model):
             prompt = self.enrich_prompt(body)
             body["result"] = self.model_provider.invoke(
                 prompt=prompt,
+                as_str=True,
                 **(self.invocation_artifact.spec.model_configuration or {}),
             )
         return body
@@ -135,18 +137,19 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         )
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == model_name
-        result = model_provider.invoke(prompt=prompt)
+        result = model_provider.invoke(prompt=prompt, as_str=True)
         assert "paris" in result.lower()
 
         encoding = tiktoken.encoding_for_model(model_name)
         token_count = len(encoding.encode(result))
         assert token_count == 200
-
-        result = model_provider.invoke(
+        # checking as_str = False
+        response = model_provider.invoke(
             prompt=prompt,
             max_tokens=50,
         )
-        token_count = len(encoding.encode(result))
+        token_count = len(encoding.encode(response.choices[0].message.content))
+        assert isinstance(response, openai.types.chat.ChatCompletion)
         assert token_count == 50
 
     def test_basic_invoke(self):
@@ -197,14 +200,14 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         model_provider = mlrun.get_model_provider(
             url=model_url, default_invoke_kwargs={"max_tokens": 200}
         )
-        result = model_provider.invoke(messages=messages).strip()
+        result = model_provider.invoke(messages=messages, as_str=True).strip()
         assert result
         assert " " not in result.strip()  # checking one-word answer
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
             match="can not provide 'messages' and 'prompt' to invoke an OpenAIProvider",
         ):
-            model_provider.invoke(prompt="what is LLM?", messages=messages)
+            model_provider.invoke(prompt="what is LLM?", messages=messages, as_str=True)
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
             match="must provide 'messages' or 'prompt' to invoke an OpenAIProvider",

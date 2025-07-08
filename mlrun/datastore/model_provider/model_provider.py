@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections.abc import Awaitable
-from typing import Callable, Optional, TypeVar
+from typing import Callable, Optional, TypeVar, Union
 
 import mlrun.errors
 from mlrun.datastore.remote_client import (
@@ -46,7 +46,9 @@ class ModelProvider(BaseRemoteClient):
     def load_client(self) -> None:
         raise NotImplementedError("load_client method is not implemented")
 
-    def invoke(self, prompt: Optional[str] = None, **invoke_kwargs) -> str:
+    def invoke(
+        self, prompt: Optional[str] = None, **invoke_kwargs
+    ) -> Optional[Union[str, T]]:
         raise NotImplementedError("invoke method is not implemented")
 
     def customized_invoke(

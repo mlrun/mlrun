@@ -26,6 +26,7 @@ class MyOpenAILLM(mlrun.serving.states.Model):
             prompt = self.enrich_prompt(body)
             body["result"] = self.model_provider.invoke(
                 prompt=prompt,
+                as_str=True,
                 **(self.invocation_artifact.spec.model_configuration or {}),
             )
         return body

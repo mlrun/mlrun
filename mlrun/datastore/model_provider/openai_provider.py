@@ -115,8 +115,8 @@ class OpenAIProvider(ModelProvider):
     def invoke(
         self,
         prompt: Optional[str] = None,
+        messages: Optional[list[dict]] = None,
         as_str: bool = False,
-        messages: Optional[dict] = None,
         **invoke_kwargs,
     ) -> Optional[Union[str, T]]:
         messages, invoke_kwargs = self._get_messages_parameter(

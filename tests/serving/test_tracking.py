@@ -15,7 +15,9 @@
 import json
 import pathlib
 from collections.abc import Iterator
+from time import sleep
 from typing import Union, cast
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -337,7 +339,6 @@ def test_tracked_model_runner(rundb_mock, enable_tracking: bool):
     )
     graph.to(model_runner_step).respond()
     function.set_tracking(stream_args={"mock": True})
-
     function.set_tracking("dummy://", enable_tracking=enable_tracking)
     server = function.to_mock_server()
     server.test("/", {"n": 1})
@@ -354,7 +355,7 @@ def test_tracked_model_runner(rundb_mock, enable_tracking: bool):
     _test_graph_structure(server.graph, enable_tracking)
 
 
-def test_tracked_model_runner_dict():
+def test_tracked_model_runner_dict(rundb_mock):
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
@@ -557,7 +558,7 @@ def test_tracked_multiple_to_mock_with_model_runner(rundb_mock):
 
 
 @pytest.mark.parametrize("sampling_percentage", [100.0, 50.0, 20.0])
-def test_sampling_model_runner(sampling_percentage: float):
+def test_sampling_model_runner(rundb_mock, sampling_percentage: float):
     function = mlrun.new_function("tests-sampling", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
@@ -731,3 +732,34 @@ def test_negative_for_shared_model():
         override=True,
         model_artifact=model_artifact,
     )
+
+
+def test_tracked_model_runner_background_task(rundb_mock):
+    function = mlrun.new_function("tests-1", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        input_path="n",
+        result_path="n",
+        raise_error=False,
+        inc=1,
+    )
+    rundb_mock._get_background_task_calls = 0
+    graph.to(model_runner_step).respond()
+    function.set_tracking(stream_args={"mock": True})
+    function.set_tracking("dummy://", enable_tracking=True)
+    server = function.to_mock_server()
+    server.test("/", {"n": 1})
+    dummy_stream = server.context.stream.output_stream
+    assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
+    mlrun.mlconf.model_endpoint_monitoring.model_endpoint_creation_check_period = 1
+    sleep(mlrun.mlconf.model_endpoint_monitoring.model_endpoint_creation_check_period)
+    server.test("/", {"n": 2})
+    server.wait_for_completion()
+
+    assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+    assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [3]
+    assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [2]

@@ -20,6 +20,7 @@ import semver
 from dependency_injector import containers, providers
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas.schedule
 import mlrun.config
 import mlrun.execution
@@ -32,15 +33,17 @@ import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.runtimes.utils
 import mlrun.utils
+import mlrun.utils.helpers
 import mlrun.utils.regex
 from mlrun.model import RunSpec, RunTemplate
 from mlrun.runtimes import KubejobRuntime, RemoteRuntime
 
 import framework.api.utils
+import framework.db.session
 import framework.utils.helpers
+import framework.utils.singletons.db
 import services.api.crud
 import services.api.runtime_handlers
-from framework.db.sqldb.sql_session import create_session
 
 # Configmap objects on Kubernetes have 10Mb size limit
 SERVING_SPEC_MAX_LENGTH = 10485760
@@ -91,6 +94,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
     ) -> mlrun.run.RunObject:
         self.enrich_runtime(runtime, project)
 
@@ -113,8 +117,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
             workdir=workdir,
             notifications=notifications,
             state_thresholds=state_thresholds,
+            retry=retry,
         )
-        self._validate_runtime(runtime, run)
+        self._validate_run(runtime, run)
 
         if runtime.verbose:
             mlrun.utils.logger.info(f"Run:\n{run.to_yaml()}")
@@ -147,6 +152,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # post verifications, store execution in db and run pre run hooks
         execution.store_run()
+        self._configure_attempt_for_logging(run)
         runtime._pre_run(run, execution)  # hook for runtime specific prep
 
         last_err = None
@@ -167,10 +173,15 @@ class ServerSideLauncher(launcher.BaseLauncher):
         else:
             # single run
             try:
-                runtime_handler = services.api.runtime_handlers.get_runtime_handler(
-                    runtime.kind
-                )
-                runtime_handler.run(runtime, run, execution)
+                # Skip retried run if it was aborted or deleted
+                if self._should_skip_run(run):
+                    run.status.state = mlrun.common.runtimes.constants.RunStates.aborted
+
+                else:
+                    runtime_handler = services.api.runtime_handlers.get_runtime_handler(
+                        runtime.kind
+                    )
+                    runtime_handler.run(runtime, run, execution)
             except mlrun.runtimes.utils.RunError as err:
                 last_err = err
 
@@ -186,6 +197,76 @@ class ServerSideLauncher(launcher.BaseLauncher):
         runtime._post_run(result, execution)  # hook for runtime specific cleanup
 
         return self._wrap_run_result(runtime, result, run, err=last_err)
+
+    def enrich_runtime(
+        self,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        project_name: Optional[str] = "",
+        full: bool = True,
+        client_version: str = "",
+    ):
+        """
+        Enrich the runtime object with the project spec and metadata.
+        This is done only on the server side, since it's the source of truth for the project, and we want to keep the
+        client side enrichment as minimal as possible.
+        :param runtime:         the runtime object to enrich
+        :param project_name:    the project name of the project to enrich the runtime with
+        :param full:            whether to enrich the runtime with the project's full spec (before run)
+                                e.g. mount, service account, etc.
+        :param client_version:  MLRun client version
+        """
+
+        # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
+        # be able to communicate with the api
+        framework.api.utils.ensure_function_has_auth_set(
+            runtime, self._auth_info, allow_empty_access_key=not full
+        )
+
+        if full:
+            self._enrich_full_spec(runtime)
+        # mask sensitive data after full spec enrichment in case auth was enriched by auto mount
+        framework.api.utils.mask_function_sensitive_data(runtime, self._auth_info)
+
+        # ensure the runtime has a project before we enrich it with the project's spec
+        runtime.metadata.project = project_name or runtime.metadata.project
+        if not runtime.metadata.project:
+            raise mlrun.errors.MLRunMissingProjectError("Runtime must have a project")
+        project = runtime._get_db().get_project(runtime.metadata.project)
+        # this is mainly for tests with nop db
+        # in normal use cases if no project is found we will get an error
+        if project:
+            if not isinstance(project, mlrun.projects.project.MlrunProject):
+                project = mlrun.projects.project.MlrunProject.from_dict(project.dict())
+            # there is no need to auto mount here as it was already done in the full spec enrichment with the auth info
+            mlrun.projects.pipelines.enrich_function_object(
+                project, runtime, copy_function=False, try_auto_mount=False
+            )
+
+        if (
+            not runtime.spec.image
+            and not runtime.requires_build()
+            and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
+            and not runtime.skip_image_enrichment()
+        ):
+            runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
+                runtime.kind
+            ]
+
+        serving_spec = getattr(runtime, "serving_spec", None)
+        if serving_spec and isinstance(runtime, (KubejobRuntime, RemoteRuntime)):
+            serving_spec_volume = self._configure_serving_spec(
+                client_version=client_version,
+                function=runtime,
+                project=project.name,
+                serving_spec=serving_spec,
+            )
+            if serving_spec_volume:
+                runtime.spec.volumes = runtime.spec.volumes + [
+                    serving_spec_volume["volume"]
+                ]
+                runtime.spec.volume_mounts = runtime.spec.volume_mounts + [
+                    serving_spec_volume["volumeMount"]
+                ]
 
     def _enrich_run(
         self,
@@ -205,6 +286,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         workdir=None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
     ):
         run = super()._enrich_run(
             runtime=runtime,
@@ -223,10 +305,41 @@ class ServerSideLauncher(launcher.BaseLauncher):
             workdir=workdir,
             notifications=notifications,
             state_thresholds=state_thresholds,
+            retry=retry,
         )
 
+        self._handle_retry(run)
         run = self._pre_run_image_pull_secret_enrichment(run)
         return self._pre_run_scheduling_constraints_enrichment(runtime, run)
+
+    @staticmethod
+    def _handle_retry(run: mlrun.run.RunObject):
+        if run.status.state != mlrun.common.runtimes.constants.RunStates.pending_retry:
+            return
+
+        run.status.state = mlrun.common.runtimes.constants.RunStates.running
+        # retry_count may be None on first run attempt
+        run.status.retry_count = run.status.retry_count or 0
+        run.status.retry_count += 1
+        # TODO: Maintain start time of each retry ML-10169
+        run.status.start_time = None
+        # The combination of retry attempt label and requested logs `False` is required for the log collector to
+        # collect logs from the current run attempt.
+        run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.retry] = str(
+            run.status.retry_count
+        )
+
+    @staticmethod
+    def _configure_attempt_for_logging(run: mlrun.run.RunObject):
+        if not run.status.retry_count:
+            # Run is not a retry, continue
+            return
+
+        framework.db.session.run_function_with_new_db_session(
+            framework.utils.singletons.db.get_db().update_runs_requested_logs,
+            uids=[run.metadata.uid],
+            requested_logs=False,
+        )
 
     def _pre_run_scheduling_constraints_enrichment(
         self,
@@ -379,75 +492,45 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 function.spec.env["SERVING_SPEC_ENV"] = serving_spec
         return serving_spec_volume
 
-    def enrich_runtime(
-        self,
-        runtime: "mlrun.runtimes.base.BaseRuntime",
-        project_name: Optional[str] = "",
-        full: bool = True,
-        client_version: str = "",
-    ):
+    @staticmethod
+    def _should_skip_run(run: mlrun.run.RunObject) -> bool:
         """
-        Enrich the runtime object with the project spec and metadata.
-        This is done only on the server side, since it's the source of truth for the project, and we want to keep the
-        client side enrichment as minimal as possible.
-        :param runtime:         the runtime object to enrich
-        :param project_name:    the project name of the project to enrich the runtime with
-        :param full:            whether to enrich the runtime with the project's full spec (before run)
-                                e.g. mount, service account, etc.
-        :param client_version:  MLRun client version
+        Determine whether a retried run should be skipped based on its state.
+        A run should be skipped if it is in 'pending_retry' state and was either aborted or deleted after being
+        scheduled for retry.
         """
+        if run.status.state != mlrun.common.runtimes.constants.RunStates.pending_retry:
+            return False
 
-        # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
-        # be able to communicate with the api
-        framework.api.utils.ensure_function_has_auth_set(
-            runtime, self._auth_info, allow_empty_access_key=not full
-        )
-
-        if full:
-            self._enrich_full_spec(runtime)
-        # mask sensitive data after full spec enrichment in case auth was enriched by auto mount
-        framework.api.utils.mask_function_sensitive_data(runtime, self._auth_info)
-
-        # ensure the runtime has a project before we enrich it with the project's spec
-        runtime.metadata.project = project_name or runtime.metadata.project
-        if not runtime.metadata.project:
-            raise mlrun.errors.MLRunMissingProjectError("Runtime must have a project")
-        project = runtime._get_db().get_project(runtime.metadata.project)
-        # this is mainly for tests with nop db
-        # in normal use cases if no project is found we will get an error
-        if project:
-            if not isinstance(project, mlrun.projects.project.MlrunProject):
-                project = mlrun.projects.project.MlrunProject.from_dict(project.dict())
-            # there is no need to auto mount here as it was already done in the full spec enrichment with the auth info
-            mlrun.projects.pipelines.enrich_function_object(
-                project, runtime, copy_function=False, try_auto_mount=False
+        # fetch the run from the db to check if it was deleted after the retry attempt
+        db = framework.utils.singletons.db.get_db()
+        try:
+            db_run = framework.db.session.run_function_with_new_db_session(
+                db.read_run,
+                uid=run.metadata.uid,
+                project=run.metadata.project,
             )
+        except mlrun.errors.MLRunNotFoundError:
+            mlrun.utils.logger.info(
+                "Skipping retry for run - run was deleted",
+                uid=run.metadata.uid,
+                project=run.metadata.project,
+            )
+            return True
 
+        # check if it was aborted after the retry attempt
         if (
-            not runtime.spec.image
-            and not runtime.requires_build()
-            and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
-            and not runtime.skip_image_enrichment()
+            db_run.get("status", {}).get("state")
+            == mlrun.common.runtimes.constants.RunStates.aborted
         ):
-            runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
-                runtime.kind
-            ]
-
-        serving_spec = getattr(runtime, "serving_spec", None)
-        if serving_spec and isinstance(runtime, (KubejobRuntime, RemoteRuntime)):
-            serving_spec_volume = self._configure_serving_spec(
-                client_version=client_version,
-                function=runtime,
-                project=project.name,
-                serving_spec=serving_spec,
+            mlrun.utils.logger.info(
+                "Skipping retry for run - run was aborted",
+                uid=run.metadata.uid,
+                project=run.metadata.project,
             )
-            if serving_spec_volume:
-                runtime.spec.volumes = runtime.spec.volumes + [
-                    serving_spec_volume["volume"]
-                ]
-                runtime.spec.volume_mounts = runtime.spec.volume_mounts + [
-                    serving_spec_volume["volumeMount"]
-                ]
+            return True
+
+        return False
 
     def _enrich_full_spec(
         self,
@@ -476,9 +559,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # If in the api server, we can assume that watch=False, so we save notification
         # configs to the DB, for the run monitor to later pick up and push.
-        session = create_session()
-        services.api.crud.Notifications().store_run_notifications(
-            session,
+        framework.db.session.run_function_with_new_db_session(
+            services.api.crud.Notifications().store_run_notifications,
             runobj.spec.notifications,
             runobj.metadata.uid,
             runobj.metadata.project,
@@ -496,7 +578,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             )
             run.spec.function = runtime._function_uri(hash_key=hash_key)
 
-    def _validate_runtime(
+    def _validate_run(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
         run: "mlrun.run.RunObject",
@@ -510,6 +592,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             )
 
         self._validate_state_thresholds(run.spec.state_thresholds)
+        self._validate_retry(runtime.kind, run.spec.retry)
 
         if (
             mlrun.runtimes.RuntimeKinds.requires_image_name_for_execution(runtime.kind)
@@ -519,7 +602,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 f"This runtime kind ({runtime.kind}) must have a valid image"
             )
 
-        super()._validate_runtime(runtime, run)
+        super()._validate_run(runtime, run)
 
     @staticmethod
     def _validate_state_thresholds(
@@ -556,6 +639,35 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Threshold '{threshold}' for state '{state}' is not a valid timelength string. "
                     f"Error: {mlrun.errors.err_to_str(exc)}"
+                ) from exc
+
+    @staticmethod
+    def _validate_retry(runtime_kind: str, retry: Optional["mlrun.model.Retry"]):
+        if retry is None or not retry.count:
+            return
+
+        if retry.count is not None and retry.count < 0:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Retry count must be at least 0, got {retry.count}"
+            )
+
+        if runtime_kind not in mlrun.runtimes.RuntimeKinds.retriable_runtimes():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Retry is not supported for runtime kind {runtime_kind}, supported kinds are: "
+                f"{mlrun.runtimes.RuntimeKinds.retriable_runtimes()}"
+            )
+
+        backoff = retry.backoff
+        if backoff is not None and backoff.base_delay is not None:
+            min_base_delay = mlrun.mlconf.function.spec.retry.backoff.min_base_delay
+            try:
+                framework.utils.helpers.time_string_to_seconds(
+                    backoff.base_delay,
+                    mlrun.mlconf.function.spec.retry.backoff.min_base_delay,
+                )
+            except ValueError as exc:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Retry backoff base_delay must be at least {min_base_delay}, got {backoff.base_delay}"
                 ) from exc
 
 

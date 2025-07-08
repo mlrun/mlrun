@@ -18,6 +18,8 @@ import os
 import uuid
 from typing import Any, Callable, Optional, Union
 
+import mlrun.common.constants
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -72,6 +74,7 @@ class BaseLauncher(abc.ABC):
         notifications: Optional[list[mlrun.model.Notification]] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
     ) -> "mlrun.run.RunObject":
         """run the function from the server/client[local/remote]"""
         pass
@@ -133,7 +136,7 @@ class BaseLauncher(abc.ABC):
         """Check if the runtime requires to build the image and updates the spec accordingly"""
         pass
 
-    def _validate_runtime(
+    def _validate_run(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
         run: "mlrun.run.RunObject",
@@ -194,7 +197,7 @@ class BaseLauncher(abc.ABC):
             )
 
     @classmethod
-    def _validate_run_single_param(cls, param_name, param_value):
+    def _validate_run_single_param(cls, param_name: str, param_value: int):
         # verify that integer parameters don't exceed a int64
         if isinstance(param_value, int) and abs(param_value) >= 2**63:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -203,8 +206,6 @@ class BaseLauncher(abc.ABC):
 
     @staticmethod
     def _create_run_object(task):
-        valid_task_types = (dict, mlrun.run.RunTemplate, mlrun.run.RunObject)
-
         if not task:
             # if task passed generate default RunObject
             return mlrun.run.RunObject.from_dict(task)
@@ -215,18 +216,18 @@ class BaseLauncher(abc.ABC):
         if isinstance(task, str):
             task = ast.literal_eval(task)
 
-        if not isinstance(task, valid_task_types):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Task is not a valid object, type={type(task)}, expected types={valid_task_types}"
-            )
-
+        valid_task_types = (dict, mlrun.run.RunTemplate, mlrun.run.RunObject)
+        if isinstance(task, mlrun.run.RunObject):
+            # if task is already a RunObject, we can return it as is
+            return task
         if isinstance(task, mlrun.run.RunTemplate):
             return mlrun.run.RunObject.from_template(task)
         elif isinstance(task, dict):
             return mlrun.run.RunObject.from_dict(task)
 
-        # task is already a RunObject
-        return task
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Task is not a valid object, type={type(task)}, expected types={valid_task_types}"
+        )
 
     @staticmethod
     def _enrich_run(
@@ -246,6 +247,7 @@ class BaseLauncher(abc.ABC):
         workdir=None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
     ):
         run.spec.handler = (
             handler or run.spec.handler or runtime.spec.default_handler or ""
@@ -364,6 +366,7 @@ class BaseLauncher(abc.ABC):
             | state_thresholds
         )
         run.spec.state_thresholds = state_thresholds or run.spec.state_thresholds
+        run.spec.retry = retry or run.spec.retry
         return run
 
     @staticmethod
@@ -410,7 +413,7 @@ class BaseLauncher(abc.ABC):
             )
             if (
                 run.status.state
-                in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
+                in mlrun.common.runtimes.constants.RunStates.error_states()
             ):
                 if runtime._is_remote and not runtime.is_child:
                     logger.error(
@@ -418,7 +421,14 @@ class BaseLauncher(abc.ABC):
                         state=run.status.state,
                         status=run.status.to_dict(),
                     )
-                raise mlrun.runtimes.utils.RunError(run.error)
+
+                error = run.error
+                if (
+                    run.status.state
+                    == mlrun.common.runtimes.constants.RunStates.pending_retry
+                ):
+                    error = f"Run is pending retry, error: {run.error}"
+                raise mlrun.runtimes.utils.RunError(error)
             return run
 
         return None

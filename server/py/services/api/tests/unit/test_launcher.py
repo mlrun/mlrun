@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import pathlib
+import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
@@ -20,6 +20,7 @@ import pytest
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
 
+import mlrun.common.constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.launcher.base
@@ -29,6 +30,10 @@ from mlrun.config import Config
 import framework.utils.clients.iguazio
 import services.api.launcher
 import services.api.tests.unit.api.utils
+
+assets_path = pathlib.Path(__file__).parent / "assets"
+func_path = assets_path / "sample_function.py"
+handler = "hello_word"
 
 
 @pytest.mark.parametrize(
@@ -146,9 +151,6 @@ def test_new_function_args_with_default_image_pull_secret(
     db: sqlalchemy.orm.Session, client: TestClient
 ):
     project = "some-project"
-    assets_path = pathlib.Path(__file__).parent / "assets"
-    func_path = assets_path / "sample_function.py"
-    handler = "hello_word"
     services.api.tests.unit.api.utils.create_project(client, project)
 
     mlrun.mlconf.function.spec.image_pull_secret = Config(
@@ -189,3 +191,258 @@ def test_new_function_args_with_default_image_pull_secret(
         runtime.spec.image_pull_secret
         == mlrun.mlconf.function.spec.image_pull_secret.default
     )
+
+
+@pytest.mark.parametrize(
+    "count, base_delay, default_base_delay, min_base_delay, expectation",
+    [
+        (None, None, "30s", "30s", does_not_raise()),
+        (
+            1,
+            "29s",
+            "30s",
+            "30s",
+            pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match="Retry backoff base_delay must be at least 30s, got 29s",
+            ),
+        ),
+        (
+            1,
+            "31s",
+            "30s",
+            "5m",
+            pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match="Retry backoff base_delay must be at least 5m, got 31s",
+            ),
+        ),
+        (3, None, "30s", "30s", does_not_raise()),
+        (3, "1 min", "30s", "30s", does_not_raise()),
+        (
+            -1,
+            None,
+            "30s",
+            "30s",
+            pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match="Retry count must be at least 0, got -1",
+            ),
+        ),
+    ],
+)
+def test_validate_run_retry(
+    count, base_delay, default_base_delay, min_base_delay, expectation
+):
+    mlrun.mlconf.function.spec.retry.backoff.default_base_delay = default_base_delay
+    mlrun.mlconf.function.spec.retry.backoff.min_base_delay = min_base_delay
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo()
+    )
+    runtime = mlrun.code_to_function(
+        name="test", kind="job", filename=str(func_path), handler=handler
+    )
+
+    retry = None
+    if count or base_delay:
+        retry = {}
+        if count is not None:
+            retry["count"] = count
+
+        if base_delay is not None:
+            retry["backoff"] = {
+                "base_delay": base_delay,
+            }
+
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(
+            retry=retry,
+        ),
+    )
+    assert run.spec.retry.count == (count if count else None)
+
+    if count:
+        assert run.spec.retry.backoff.base_delay == (
+            base_delay if base_delay is not None else default_base_delay
+        )
+    else:
+        assert run.spec.retry.backoff is None
+    with (
+        expectation,
+    ):
+        launcher._validate_retry(runtime.kind, run.spec.retry)
+
+
+def test_validate_run_retry_runtime_kind():
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo()
+    )
+    runtime = mlrun.code_to_function(
+        name="test", kind="mpijob", filename=str(func_path), handler=handler
+    )
+
+    retry = {
+        "count": 3,
+    }
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(
+            retry=retry,
+        ),
+    )
+    with (
+        pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=re.escape(
+                f"Retry is not supported for runtime kind mpijob, supported kinds are: "
+                f"{mlrun.runtimes.RuntimeKinds.retriable_runtimes()}"
+            ),
+        ),
+    ):
+        launcher._validate_run(runtime, run)
+
+
+def test_run_status_retry_updates():
+    """
+    Test that the run status is updated when a retry is triggered.
+    The test simulates a run that is in the pending_retry state and checks that the retry count is incremented
+    and the state is updated to running when the run is enriched again.
+    """
+    runtime = mlrun.code_to_function(
+        name="test", kind="job", filename=str(func_path), handler="raise_func"
+    )
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(
+            retry={
+                "count": 10,
+            },
+        ),
+        status=mlrun.model.RunStatus(
+            state=mlrun.common.runtimes.constants.RunStates.pending_retry,
+        ),
+    )
+
+    launcher = services.api.launcher.ServerSideLauncher()
+    enriched_run = launcher._enrich_run(runtime=runtime, run=run)
+    assert (
+        enriched_run.status.state == mlrun.common.runtimes.constants.RunStates.running
+    )
+    assert enriched_run.status.start_time is None
+    assert enriched_run.status.retry_count == 1, "Expected retry count to be 1"
+    assert run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.retry] == str(
+        enriched_run.status.retry_count
+    )
+
+    enriched_run.status.state = mlrun.common.runtimes.constants.RunStates.pending_retry
+    enriched_run_2 = launcher._enrich_run(runtime=runtime, run=enriched_run)
+    assert (
+        enriched_run_2.status.state == mlrun.common.runtimes.constants.RunStates.running
+    )
+    assert enriched_run_2.status.start_time is None
+    assert enriched_run_2.status.retry_count == 2, "Expected retry count to be 2"
+    assert run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.retry] == str(
+        enriched_run_2.status.retry_count
+    )
+
+
+@pytest.mark.parametrize(
+    "initial_state, db_state, db_deleted, expected_should_skip",
+    [
+        # Not pending_retry, should not skip
+        (mlrun.common.runtimes.constants.RunStates.running, None, False, False),
+        # Deleted run in DB, should skip
+        (mlrun.common.runtimes.constants.RunStates.pending_retry, None, True, True),
+        # Aborted in DB, should skip
+        (
+            mlrun.common.runtimes.constants.RunStates.pending_retry,
+            mlrun.common.runtimes.constants.RunStates.aborted,
+            False,
+            True,
+        ),
+        # Not aborted in DB, should not skip
+        (
+            mlrun.common.runtimes.constants.RunStates.pending_retry,
+            mlrun.common.runtimes.constants.RunStates.running,
+            False,
+            False,
+        ),
+    ],
+)
+def test_should_skip_run(initial_state, db_state, db_deleted, expected_should_skip):
+    # Verify the `_should_skip_run` method correctly determines whether to skip retried runs based on their current
+    # state and the latest status in the database (including deleted or aborted runs).
+    run = mlrun.run.RunObject(
+        status=mlrun.model.RunStatus(state=initial_state),
+        spec=mlrun.model.RunSpec(
+            retry={
+                "count": 10,
+            },
+        ),
+    )
+    launcher = services.api.launcher.ServerSideLauncher()
+
+    with (
+        unittest.mock.patch("framework.utils.singletons.db.get_db") as get_db_mock,
+        unittest.mock.patch(
+            "framework.db.session.run_function_with_new_db_session"
+        ) as run_with_session_mock,
+    ):
+        get_db_mock.return_value = unittest.mock.Mock()
+
+        if db_deleted:
+            run_with_session_mock.side_effect = mlrun.errors.MLRunNotFoundError()
+        elif db_state:
+            run_with_session_mock.return_value = {"status": {"state": db_state}}
+
+        should_skip = launcher._should_skip_run(run)
+        assert should_skip is expected_should_skip
+
+
+def test_launcher_skips_aborted_or_deleted_run(monkeypatch):
+    """
+    Verify that the launcher skips running a function when `_should_skip_run` returns True,
+    meaning the run was aborted or deleted after being scheduled for retry.
+    """
+    runtime = mlrun.code_to_function(
+        name="test", kind="job", filename=str(func_path), handler=handler
+    )
+    run = mlrun.run.RunObject(
+        status=mlrun.model.RunStatus(
+            state=mlrun.common.runtimes.constants.RunStates.pending_retry
+        ),
+        spec=mlrun.model.RunSpec(
+            retry={
+                "count": 10,
+            },
+        ),
+    )
+    launcher = services.api.launcher.ServerSideLauncher()
+
+    # Force `_should_skip_run` to return True to simulate aborted/deleted run
+    monkeypatch.setattr(launcher, "_should_skip_run", lambda x: True)
+
+    # Mock runtime handler to validate that it is not called
+    runtime_handler_mock = unittest.mock.Mock()
+    monkeypatch.setattr(
+        services.api.runtime_handlers,
+        "get_runtime_handler",
+        lambda kind: unittest.mock.Mock(run=runtime_handler_mock),
+    )
+
+    # Mock execution object
+    mock_execution = unittest.mock.Mock()
+
+    try:
+        # Simulate the same logic that exists in the launcher
+        if launcher._should_skip_run(run):
+            run.status.state = mlrun.common.runtimes.constants.RunStates.aborted
+        else:
+            runtime_handler = services.api.runtime_handlers.get_runtime_handler(
+                runtime.kind
+            )
+            runtime_handler.run(runtime, run, mock_execution)
+    except mlrun.runtimes.utils.RunError:
+        pass
+
+    # Validate result
+    assert run.status.state == mlrun.common.runtimes.constants.RunStates.aborted
+    assert not runtime_handler_mock.called

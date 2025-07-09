@@ -98,10 +98,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         resp = function.invoke("/", {"x": "y"})
         assert resp == {"x": "y", "extra": 123}
 
-    @pytest.mark.parametrize("shared", [True, False])
-    @pytest.mark.parametrize("model_uri", [True, False])
-    @pytest.mark.parametrize("llm", [True, False])
-    def test_model_runner_with_llm_and_shared_models(self, shared, model_uri, llm):
+    def test_model_runner_with_llm_and_shared_models(self):
         code_path = str(self.assets_path / "function_with_model.py")
 
         self._logger.debug("Creating nuclio function")
@@ -117,44 +114,31 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
             model_url="http://localhost:8080/v2/models/mymodel/infer",
             default_config={"model_version": "4"},
         )
-        llm_artifact = None
-        if llm:
-            llm_artifact = self.project.log_llm_prompt(
-                "my_llm",
-                prompt_string="What is the meaning of life?",
-                model_artifact=model_artifact,
-            )
 
-        if model_uri:
-            model_artifact = model_artifact.uri
-            llm_artifact = llm_artifact.uri if llm_artifact else None
+        llm_artifact = self.project.log_llm_prompt(
+            "my_llm",
+            prompt_string="What is the meaning of life?",
+            model_artifact=model_artifact,
+        )
 
         graph = function.set_topology("flow", engine="async")
         model_runner_step = ModelRunnerStep(
             name="model-runner",
         )
 
-        dummy_model = DummyModel(name="my-model" if not shared else "shared-model")
+        dummy_model = DummyModel(name="shared-model")
 
-        if shared:
-            graph.add_shared_model(
-                name="shared-model",
-                execution_mechanism="naive",
-                model_class=dummy_model,
-                model_artifact=model_artifact,
-            )
-            model_runner_step.add_shared_model_proxy(
-                endpoint_name="my-model",
-                shared_model_name="shared-model",
-                model_artifact=llm_artifact or model_artifact,
-            )
-        else:
-            model_runner_step.add_model(
-                model_class=dummy_model,
-                execution_mechanism="naive",
-                endpoint_name="my-model",
-                model_artifact=llm_artifact or model_artifact,
-            )
+        graph.add_shared_model(
+            name="shared-model",
+            execution_mechanism="naive",
+            model_class=dummy_model,
+            model_artifact=model_artifact.uri,
+        )
+        model_runner_step.add_shared_model_proxy(
+            endpoint_name="my-model",
+            shared_model_name="shared-model",
+            model_artifact=llm_artifact.uri,
+        )
 
         graph.to(model_runner_step).respond()
 

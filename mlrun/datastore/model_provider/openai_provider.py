@@ -87,41 +87,13 @@ class OpenAIProvider(ModelProvider):
         else:
             return self._default_operation(**invoke_kwargs, model=self.model)
 
-    def _get_messages_parameter(
-        self,
-        prompt: Optional[str] = None,
-        messages: Optional[list[dict]] = None,
-        **invoke_kwargs,
-    ) -> (str, dict):
-        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
-        if messages:
-            if prompt:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "can not provide 'messages' and 'prompt' to invoke an OpenAIProvider"
-                )
-        elif prompt:
-            messages = [
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ]
-        else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "must provide 'messages' or 'prompt' to invoke an OpenAIProvider"
-            )
-        return messages, invoke_kwargs
-
     def invoke(
         self,
-        prompt: Optional[str] = None,
         messages: Optional[list[dict]] = None,
         as_str: bool = False,
         **invoke_kwargs,
     ) -> Optional[Union[str, T]]:
-        messages, invoke_kwargs = self._get_messages_parameter(
-            prompt=prompt, messages=messages, **invoke_kwargs
-        )
+        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         response = self._default_operation(
             model=self.endpoint, messages=messages, **invoke_kwargs
         )

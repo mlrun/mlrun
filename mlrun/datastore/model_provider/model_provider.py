@@ -48,7 +48,6 @@ class ModelProvider(BaseRemoteClient):
 
     def invoke(
         self,
-        prompt: Optional[str] = None,
         messages: Optional[list[dict]] = None,
         as_str: bool = False,
         **invoke_kwargs,
@@ -84,5 +83,10 @@ class ModelProvider(BaseRemoteClient):
     async def async_customized_invoke(self, **kwargs):
         raise NotImplementedError("async_customized_invoke is not implemented")
 
-    async def async_invoke(self, prompt: str, **invoke_kwargs) -> Awaitable[str]:
+    async def async_invoke(
+        self,
+        messages: Optional[list[dict]] = None,
+        as_str: bool = False,
+        **invoke_kwargs,
+    ) -> Awaitable[str]:
         raise NotImplementedError("async_invoke is not implemented")

@@ -35,9 +35,10 @@ var ErrRetryUntilSuccessfulTimeout = errors.New(TimedOutErrorMessage)
 // value if the environment variable is not set
 func GetEnvOrDefaultString(key string, defaultValue string) string {
 	value := os.Getenv(key)
-	if value == "" {
+	switch value {
+	case "":
 		return defaultValue
-	} else if value == "nil" || value == "none" {
+	case "nil", "none":
 		return ""
 	}
 	return value

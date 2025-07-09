@@ -95,10 +95,19 @@ class Logs(
 
     async def get_log_size(
         self,
+        db_session: Session,
         project: str,
         run_uid: str,
+        attempt: int = 0,
     ):
-        logger.debug("Getting log size for run", project=project, run_uid=run_uid)
+        logger.debug(
+            "Getting log size for run",
+            project=project,
+            run_uid=run_uid,
+            attempt=attempt,
+        )
+        run = await self._get_run_for_log(db_session, project, run_uid)
+        run_uid = self._resolve_run_uid(run_uid, run, attempt)
         if (
             mlrun.mlconf.log_collector.mode
             == mlrun.common.schemas.LogsCollectorMode.sidecar
@@ -138,6 +147,7 @@ class Logs(
         size: int = -1,
         offset: int = 0,
         source: LogSources = LogSources.AUTO,
+        attempt: int = 0,
     ) -> tuple[str, typing.AsyncIterable[bytes]]:
         """
         Get logs
@@ -149,11 +159,14 @@ class Logs(
         :param source: log source (default auto) Relevant only for legacy log_collector mode
           if auto, it will use the mode configured in `mlrun.mlconf.log_collector.mode`
           if other than auto, it will fall back to legacy log_collector mode
+        :param attempt: for retriable runs, the attempt number to get logs for
         :return: run state and logs
         """
         run = await self._get_run_for_log(db_session, project, uid)
         run_state = run.get("status", {}).get("state", "")
         log_stream = None
+        uid = self._resolve_run_uid(uid, run, attempt)
+
         if (
             mlrun.mlconf.log_collector.mode
             == mlrun.common.schemas.LogsCollectorMode.best_effort
@@ -430,3 +443,22 @@ class Logs(
         logger.debug(
             f"Successfully deleted {resource} logs", project=project, runs=run_uids
         )
+
+    @staticmethod
+    def _resolve_run_uid(uid: str, run: dict, attempt: int) -> str:
+        """
+        Resolve the run uid based on the attempt number.
+        If the attempt is not specified or 0, we will get the logs for the last attempt.
+        If the attempt is specified and greater than 1, we add the attempt suffix to the run uid in order
+        to get the correct logs from the log collector.
+        """
+        retry_count = run.get("status", {}).get("retry_count", 0)
+        if not attempt and retry_count:
+            # if attempt is not specified, we will get the logs for the last attempt
+            # which is the retry_count + 1 (the first run is considered attempt 1)
+            attempt = retry_count + 1
+
+        if attempt and attempt > 1:
+            # if attempt is specified, we need to get the logs for the specific attempt
+            uid = f"{uid}-attempt-{attempt}"
+        return uid

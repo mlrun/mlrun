@@ -296,6 +296,21 @@ class NotificationPusher(_NotificationPusherBase):
             + custom_message
         )
 
+        retry_count = run.status.retry_count or 0
+        max_retries = (run.spec.retry.count or 0) if run.spec.retry else 0
+
+        # If any retries were attempted, include retry info in the final notification message.
+        # This is only shown when the final notification is sent (after success or final failure)
+        if retry_count > 0:
+            message += f"\nRetries attempted: {retry_count}"
+            if (
+                run.state() == runtimes_constants.RunStates.error
+                and retry_count >= max_retries
+            ):
+                message += (
+                    "\nRetry limit reached — run has failed after all retry attempts."
+                )
+
         severity = (
             notification_object.severity
             or mlrun.common.schemas.NotificationSeverity.INFO

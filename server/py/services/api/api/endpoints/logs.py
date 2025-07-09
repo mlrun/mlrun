@@ -61,6 +61,7 @@ async def get_log(
     uid: str,
     size: int = -1,
     offset: int = 0,
+    attempt: int = 0,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
@@ -81,8 +82,9 @@ async def get_log(
             auth_info,
         )
     )
+
     run_state, log_stream = await services.api.crud.Logs().get_logs(
-        db_session, project, uid, size, offset
+        db_session, project, uid, size, offset, attempt=attempt
     )
     headers = {
         "x-mlrun-run-state": run_state,
@@ -98,8 +100,12 @@ async def get_log(
 async def get_log_size(
     project: str,
     uid: str,
+    attempt: int = 0,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        framework.api.deps.get_db_session
     ),
 ):
     await (
@@ -111,7 +117,10 @@ async def get_log_size(
             auth_info,
         )
     )
-    log_file_size = await services.api.crud.Logs().get_log_size(project, uid)
+
+    log_file_size = await services.api.crud.Logs().get_log_size(
+        db_session, project, uid, attempt=attempt
+    )
     return {
         "size": log_file_size,
     }

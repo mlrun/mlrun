@@ -1,7 +1,7 @@
 (alerts)=
 # Alerts 
 
-Alerts are a generic mechanism that allows you to define specific rules using events, such as: an event happens N times within a specified time period. They can also be used for model monitoring where the basic notification is just for jobs and workflows.
+The alert mechanism provides a flexible way to detect and respond to important system events, such as job failures or model drift. You can define alerts using conditions like “event X happens N times in T minutes,” and attach notifications that are sent when the alert is activated. 
 
 **In this section**
 - [System configuration](#system-configuration)
@@ -14,7 +14,7 @@ Alerts are a generic mechanism that allows you to define specific rules using ev
 - [Alert templates](#alert-templates)
 - [Creating an alert with a template](#creating-an-alert-with-a-template)
 
-See also:
+**See also**
 - {ref}`alert_activations`: When an alert is activated by its configured trigger, MLRun saves the activation records that you can list, filter, etc. 
 
 ## System configuration 
@@ -55,13 +55,23 @@ See {ref}`model-monitoring-overview` for more details on drift and performance.
 
 ## Creating an alert
 When creating an alert you can select an event type for a specific model, for example `data_drift_suspected` or any of the predefined events above.
-You can optionally specify the frequency of the alert through the criteria field in the configuration (how many times in what time window, etc.). 
-If not specified, it uses the default.
+You can optionally specify the frequency of the alert using the criteria field, which controls the threshold number of events in a given time window that triggers the alert.
+If criteria is not specified, the default is `count=1` and `period=None`, in which case the alert triggers immediately upon the first matching event.
+You can configure Slack, Git, or webhook notifications for the alert.
+``` {Admonition} Note on run identification
+Alerts track the job runs by name (`run.metadata.name`), not by the unique run UID. The run name can either be set explicitly or automatically generated when a job is executed. 
+You can access the run name from the result of the `run_function` call, for example:
+```python
+run = project.run_function("my-function", handler="handler", local=True)
+run_id = run.metadata.name
+```
 See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`. 
-You can configure Git, Slack, and webhook notifications for the alert. For alerts on model endpoints, see [Creating a model monitoring alert](#creating-a-model-monitoring-alert).
 
-This example illustrates creating an alert with a Slack notification for a job failure with defined criteria.
-This alert gets triggered if the job fails 3 times in a 10 minute period.
+For alerts on model endpoints, see [Creating a model monitoring alert](#creating-a-model-monitoring-alert).
+
+This example illustrates creating an alert with a Slack notification for a job failure with defined criteria. 
+This example uses `run_id`. You can set it to the run’s name (`run.metadata.name`), which is assigned when you run a job function.
+The same run-name could be reused for multiple executions, especially in cases where functions are retried or triggered with a fixed name. In this example, the alert is triggered if 3 separate job runs with the same name fail within 10 minutes (even though each job run has a different internal UID).
 
 ```python
 notification = mlrun.model.Notification(
@@ -148,9 +158,10 @@ The `ResetPolicy` options are:
 - manual &mdash; for manual reset of the alert
 - auto &mdash; if the criteria contains a time period such that the alert is reset once there are no more invocations in the relevant time window.
 
-**Note:** If an alert is in an active state and its `reset-policy` is changed from manual to auto, the alert is immediately reset. 
+``` {Admonition} Note
+If you change the `reset-policy` of an active alert from manual to auto, the alert is immediately reset. 
 This ensures that the behavior aligns with the `auto-reset` behavior.
-
+```
 ## Alert templates
 Alert templates simplify the creation of alerts by providing a predefined set of configurations. The system comes with several 
 predefined templates that can be used with MLRun applications. 

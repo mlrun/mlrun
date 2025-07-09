@@ -604,7 +604,7 @@ def test_tracked_multiple_to_mock_with_model_runner(rundb_mock):
         model_class="DictOutputModel",
         execution_mechanism="naive",
         endpoint_name="my_dict_model",
-        input_path="inputs",
+        input_path="inputs.my_dict_model",
         result_path="outputs",
         outputs=["o1", "o2", "o3", "o4"],
         raise_error=False,
@@ -621,14 +621,22 @@ def test_tracked_multiple_to_mock_with_model_runner(rundb_mock):
         model_class="DictOutputModel",
         execution_mechanism="naive",
         endpoint_name="my_dict_model_1",
-        input_path="inputs",
+        input_path="inputs.my_dict_model_1",
         result_path="outputs",
         outputs=["o1", "o2", "o3", "o4"],
         raise_error=False,
     )
     graph.to(model_runner_step_1)
     server = function.to_mock_server()
-    server.test("/", {"inputs": {"f1": 1, "f2": 2, "f3": 3, "f4": 4}})
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "my_dict_model_1": {"f1": 1, "f2": 2, "f3": 3, "f4": 4},
+                "my_dict_model": {"f1": 1, "f2": 2, "f3": 3, "f4": 4},
+            }
+        },
+    )
     server.wait_for_completion()
     dummy_stream = server.context.stream.output_stream
     assert len(dummy_stream.event_list) == 2, "expected stream to get one message"

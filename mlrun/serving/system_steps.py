@@ -94,6 +94,11 @@ class MonitoringPreProcessor(storey.MapClass):
                     output_len=len(outputs),
                     schema_len=len(output_schema),
                 )
+        if len(inputs) != len(outputs):
+            logger.warn(
+                "outputs and inputs are not in the same length check 'input_path' and "
+                "'output_path' was specified if needed"
+            )
         request = {"inputs": inputs, "id": getattr(event, "id", None)}
         resp = {"outputs": outputs}
 

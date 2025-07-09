@@ -654,6 +654,10 @@ def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
         assert len(dummy_stream.event_list) == 2, "expected stream to get one message"
         assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
         assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
+        assert dummy_stream.event_list[0].get("model") == "my_model"
+        assert dummy_stream.event_list[1].get("resp", {}).get("outputs") == [2]
+        assert dummy_stream.event_list[1].get("request", {}).get("inputs") == [1]
+        assert dummy_stream.event_list[1].get("model") == "my_model-2"
     else:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 

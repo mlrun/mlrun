@@ -2,7 +2,7 @@
 # Change log
 
 The change log lists updates per release, open issues, limitations, and deprecations.
-- [v1.9.1](#v191) | [v1.9.0](#v190)
+- [v1.9.2](#v192) | [v1.9.1](#v191) | [v1.9.0](#v190)
 - [v1.8.0](#v180)
 - [v1.7.2](#v172-16-january-2025) | [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
 - [v1.6.4](#v164-2-july-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
@@ -15,6 +15,27 @@ The change log lists updates per release, open issues, limitations, and deprecat
 - [Open issues](#open-issues)
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
+
+(v192)=
+## v1.9.2 (July 2025)
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-10147|Fixed the tutorial: Model monitoring using LLM.|
+|ML-10296|Now, when using `project.delete_artifact()` on an` mlrun.artifacts.base.Artifact` object that doesn’t have the “latest” tag, only the specified artifact is deleted.|
+|ML-10358/10359|MLRun now supports TensorFlow up to 2.19.0.|
+|ML-ML-10368/10383/10424|Fixed the demo: LLM monitoring and feedback loop: banking.|
+|ML-10399|Fixed the tutorial: Deploying an LLM using MLRun.|
+|NA|Security fixes.|
+
+
+### Documentation
+
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-10376|Improved the description of creating an alert, including `run-id`. See [Creating an alert](../concepts/alerts.md#creating-an-alert).|
+
+
 
 (v191)=
 ## v1.9.1 (June 2025)

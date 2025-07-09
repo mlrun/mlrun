@@ -52,6 +52,50 @@ class ModelProvider(BaseRemoteClient):
         as_str: bool = False,
         **invoke_kwargs,
     ) -> Optional[Union[str, T]]:
+        """
+        Invokes a generative AI model with the provided messages and additional parameters.
+
+        This method is designed to be a flexible interface for interacting with various
+        generative AI backends (e.g., OpenAI, Hugging Face, etc.). It allows users to send
+        a list of messages (following a standardized format) and receive a response. The
+        response can be returned as plain text or in its full structured format, depending
+        on the `as_str` parameter.
+
+        :param messages:
+            A list of dictionaries representing the conversation history or input messages.
+            Each dictionary should follow the format:
+            {
+                "role": "system" | "user" | "assistant",
+                "content": "Message content as a string"
+            }
+            Example:
+            [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "What is the capital of France?"}
+            ]
+            This format is consistent across all backends. Defaults to None if no messages
+            are provided.
+
+        :param as_str:
+            A boolean flag indicating whether to return the response as a plain string.
+            - If True, the function extracts and returns the main content of the first
+              response.
+               For example, in OpenAI's format, this corresponds to
+              `response.choices[0].message.content`.
+            - If False, the function returns the full response object,
+              which may include additional metadata or multiple response options.
+            Defaults to False.
+
+        :param invoke_kwargs:
+            Additional keyword arguments to be passed to the underlying model API call.
+            These can include parameters such as temperature, max tokens, etc.,
+            depending on the capabilities of the specific backend being used.
+
+        :return:
+            - If `as_str` is True: Returns the main content of the first response as a string.
+            - If `as_str` is False: Returns the full response object (or a custom type `T`).
+            - If no response is generated or an error occurs, returns None.
+        """
         raise NotImplementedError("invoke method is not implemented")
 
     def customized_invoke(

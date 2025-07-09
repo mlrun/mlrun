@@ -112,13 +112,23 @@ async def timed(coro):
 
 
 class MyOpenAILLM(mlrun.serving.states.Model):
+    @staticmethod
+    def _build_messages_from_prompt(prompt):
+        return [
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ]
+
     def predict(self, body):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
             prompt = self.enrich_prompt(body)
+            messages = self._build_messages_from_prompt(prompt)
             body["result"] = self.model_provider.invoke(
-                prompt=prompt,
+                messages=messages,
                 as_str=True,
                 **(self.invocation_artifact.spec.model_configuration or {}),
             )
@@ -137,7 +147,7 @@ class MyOpenAILLM(mlrun.serving.states.Model):
             tasks = [
                 timed(
                     self.model_provider.async_invoke(
-                        prompt,
+                        messages=self._build_messages_from_prompt(prompt),
                         as_str=True,
                         **(self.invocation_artifact.spec.model_configuration or {}),
                     )

@@ -1054,6 +1054,7 @@ class SQLDB(DBInterface):
 
         artifact = db_artifact.full_object
         artifact["spec"]["has_children"] = bool(db_artifact.child_artifacts)
+        artifact["metadata"]["iter"] = db_artifact.iteration
         self._set_parent_uri(artifact, db_artifact.parent)
 
         # If connected to a tag add it to metadata
@@ -1641,7 +1642,7 @@ class SQLDB(DBInterface):
                 uri=generate_artifact_uri(
                     project=parent.project,
                     key=parent.key,
-                    iter=parent.iteration if parent.iteration else None,
+                    iter=parent.iteration,
                     tree=parent.producer_id,
                     uid=parent.uid,
                 ),

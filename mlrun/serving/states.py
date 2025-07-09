@@ -566,10 +566,10 @@ class BaseStep(ModelObj):
             # if the model artifact is a prompt, we need to get the model URI
             # to ensure that the shared runnable name is correct
             if prefix == mlrun.utils.StorePrefix.LLMPrompt:
-                model_artifact, _ = mlrun.datastore.store_manager.get_store_artifact(
+                llm_artifact, _ = mlrun.store_manager.get_store_artifact(
                     model_artifact_uri
                 )
-                model_artifact_uri = model_artifact.model_uri
+                model_artifact_uri = llm_artifact.spec.parent_uri
             actual_shared_name = root.get_shared_model_name_by_artifact_uri(
                 model_artifact_uri
             )
@@ -1487,7 +1487,7 @@ class ModelRunnerStep(MonitoredStep):
             str,
         ):
             try:
-                model_artifact, _ = mlrun.datastore.store_manager.get_store_artifact(
+                model_artifact, _ = mlrun.store_manager.get_store_artifact(
                     model_artifact
                 )
             except mlrun.errors.MLRunNotFoundError:
@@ -1551,7 +1551,7 @@ class ModelRunnerStep(MonitoredStep):
 
     @staticmethod
     def _get_model_output_schema(
-        model_artifact: Union[str, ModelArtifact, LLMPromptArtifact],
+        model_artifact: Union[ModelArtifact, LLMPromptArtifact],
     ) -> Optional[list[str]]:
         if isinstance(
             model_artifact,

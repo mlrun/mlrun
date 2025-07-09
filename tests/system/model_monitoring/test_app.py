@@ -526,7 +526,6 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 model_artifact=f"store://models/{cls.project_name}/{cls.model_name}_{with_training_set}:latest",
                 input_path="inputs",
                 result_path="outputs",
-                execution_mechanism="naive",
             )
             graph = serving_fn.set_topology("flow", engine="async")
             graph.to(model_runner_step).respond()
@@ -1854,6 +1853,7 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
                 model_artifact=model_uri,
                 input_path="inputs",
                 result_path="outputs",
+                execution_mechanism="naive",
             )
             graph = serving_fn.set_topology("flow", engine="async")
             graph.to(model_runner_step).respond()

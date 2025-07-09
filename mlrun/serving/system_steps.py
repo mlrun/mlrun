@@ -17,6 +17,7 @@ from copy import deepcopy
 from datetime import timedelta
 from typing import Any, Optional, Union
 
+import numpy as np
 import storey
 
 import mlrun
@@ -52,17 +53,8 @@ class MonitoringPreProcessor(storey.MapClass):
         input_schema = model_monitoring_data.get(MonitoringData.INPUTS)
         logger.debug("output schema retrieved", output_schema=output_schema)
         if isinstance(result, dict):
-            if len(result) > 1:
-                # transpose by key the outputs:
-                outputs = self.transpose_by_key(result, output_schema)
-            elif len(result) == 1:
-                outputs = (
-                    result[output_schema[0]]
-                    if output_schema
-                    else list(result.values())[0]
-                )
-            else:
-                outputs = []
+            # transpose by key the outputs:
+            outputs = self.transpose_by_key(result, output_schema)
             if not output_schema:
                 logger.warn(
                     "Output schema was not provided using Project:log_model or by ModelRunnerStep:add_model order "
@@ -74,14 +66,12 @@ class MonitoringPreProcessor(storey.MapClass):
         event_inputs = event._metadata.get("inputs", {})
         event_inputs = self._get_data_from_path(input_path, event_inputs)
         if isinstance(event_inputs, dict):
-            if len(event_inputs) > 1:
-                # transpose by key the inputs:
-                inputs = self.transpose_by_key(event_inputs, input_schema)
-            else:
-                inputs = (
-                    event_inputs[input_schema[0]]
-                    if input_schema
-                    else list(result.values())[0]
+            # transpose by key the inputs:
+            inputs = self.transpose_by_key(event_inputs, input_schema)
+            if not input_schema:
+                logger.warn(
+                    "Input schema was not provided using by ModelRunnerStep:add_model, order "
+                    "may not preserved"
                 )
         else:
             inputs = event_inputs
@@ -111,21 +101,72 @@ class MonitoringPreProcessor(storey.MapClass):
 
     @staticmethod
     def transpose_by_key(
-        data_to_transpose, schema: Optional[list[str]] = None
-    ) -> list[list[float]]:
-        values = (
-            list(data_to_transpose.values())
-            if not schema
-            else [data_to_transpose[key] for key in schema]
-        )
-        if values and not isinstance(values[0], list):
-            values = [values]
-        transposed = (
-            list(map(list, zip(*values)))
-            if all(isinstance(v, list) for v in values) and len(values) > 1
-            else values
-        )
-        return transposed
+        data: dict, schema: Optional[Union[str, list[str]]] = None
+    ) -> Union[list[float], list[list[float]]]:
+        """
+        Transpose values from a dictionary by keys.
+
+        Given a dictionary and an optional schema (a key or list of keys), this function:
+        - Extracts the values for the specified keys (or all keys if no schema is provided).
+        - Ensures the data is represented as a list of rows, then transposes it (i.e., switches rows to columns).
+        - Handles edge cases:
+            * If a single scalar or single-element list is provided, returns a flat list.
+            * If a single key is provided (as a string or a list with one element), handles it properly.
+            * If only one row remains after transposition, unwraps it to avoid nested list-of-one.
+
+        Example::
+
+            transpose_by_key({"a": 1})
+            # returns: [1]
+
+            transpose_by_key({"a": [1, 2]})
+            # returns: [[1], [2]]
+
+            transpose_by_key({"a": [1, 2], "b": [3, 4]})
+            # returns: [[1, 3], [2, 4]]
+
+        :param data:     Dictionary with values that are either scalars or lists.
+        :param schema:   Optional key or list of keys to extract. If not provided, all keys are used.
+                         Can be a string (single key) or a list of strings.
+
+        :return:         Transposed values:
+                         * If result is a single column or row, returns a flat list.
+                         * If result is a matrix, returns a list of lists.
+
+        :raises ValueError: If the values include a mix of scalars and lists, or if the list lengths do not match.
+        """
+
+        # Normalize schema to list
+        if schema is None:
+            keys = list(data.keys())
+        elif isinstance(schema, str):
+            keys = [schema]
+        else:
+            keys = schema
+
+        values = [data[key] for key in keys]
+
+        # Detect if all are scalars
+        all_scalars = all(not isinstance(v, (list, tuple, np.ndarray)) for v in values)
+        all_lists = all(isinstance(v, (list, tuple, np.ndarray)) for v in values)
+
+        if not (all_scalars or all_lists):
+            raise ValueError(
+                "All values must be either scalars or lists of equal length."
+            )
+
+        if all_scalars:
+            transposed = np.array([values])
+        elif all_lists and len(keys) > 1:
+            arrays = [np.array(v) for v in values]
+            mat = np.stack(arrays, axis=0)
+            transposed = mat.T
+        else:
+            return values[0]
+
+        if transposed.shape[1] == 1 and transposed.shape[0] == 1:
+            return transposed[:, 0].tolist()
+        return transposed.tolist()
 
     @staticmethod
     def _get_data_from_path(

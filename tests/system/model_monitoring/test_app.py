@@ -1853,7 +1853,6 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
                 model_artifact=model_uri,
                 input_path="inputs",
                 result_path="outputs",
-                execution_mechanism="naive",
             )
             graph = serving_fn.set_topology("flow", engine="async")
             graph.to(model_runner_step).respond()

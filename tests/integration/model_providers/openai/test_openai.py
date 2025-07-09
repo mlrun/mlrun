@@ -77,6 +77,15 @@ class TestBasicOpenAIProvider:
     profile_name = "openai_profile"
     env_secrets = config
 
+    @staticmethod
+    def _get_messages(prompt):
+        return [
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ]
+
     @classmethod
     def setup_class(cls):
         cls.basic_llm_model = "gpt-4o-mini"
@@ -114,15 +123,16 @@ class TestBasicOpenAIProvider:
 
 
 class TestOpenAIProvider(TestBasicOpenAIProvider):
-    @staticmethod
-    def check_basic_invoke(model_url: str, secrets: dict, model_name: str):
+    @classmethod
+    def check_basic_invoke(cls, model_url: str, secrets: dict, model_name: str):
         prompt = fixed_prompts[0]
+        messages = cls._get_messages(prompt)
         model_provider = mlrun.get_model_provider(
             url=model_url, secrets=secrets, default_invoke_kwargs={"max_tokens": 100}
         )
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == model_name
-        result = model_provider.invoke(prompt=prompt, as_str=True)
+        result = model_provider.invoke(messages=messages, as_str=True)
         assert EXPECTED_RESULTS[0] in result.lower()
 
         encoding = tiktoken.encoding_for_model(model_name)
@@ -130,7 +140,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         assert token_count == 100
         # checking as_str = False
         response = model_provider.invoke(
-            prompt=prompt,
+            messages=messages,
             max_tokens=50,
         )
         token_count = len(encoding.encode(response.choices[0].message.content))
@@ -173,7 +183,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             model_url=model_url, secrets=self.env_secrets, model_name=configurable_model
         )
 
-    def test_basic_invoke_messages(self):
+    def test_system_prompt(self):
         model_url = self.url_prefix + self.basic_llm_model
         system_prompt = "You are a special LLM model that always answers user questions with one word only."
 
@@ -187,16 +197,6 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         result = model_provider.invoke(messages=messages, as_str=True).strip()
         assert result
         assert " " not in result.strip()  # checking one-word answer
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError,
-            match="can not provide 'messages' and 'prompt' to invoke an OpenAIProvider",
-        ):
-            model_provider.invoke(prompt="what is LLM?", messages=messages, as_str=True)
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError,
-            match="must provide 'messages' or 'prompt' to invoke an OpenAIProvider",
-        ):
-            model_provider.invoke()
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("use_datastore_profile", [True, False])

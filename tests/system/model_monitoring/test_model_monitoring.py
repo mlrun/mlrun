@@ -587,10 +587,16 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         graph = function.set_topology("flow", engine="async")
         model_runner_step = mlrun.serving.states.ModelRunnerStep(name="model-runner")
         model_runner_step.add_model(
-            model_class="IncModel", endpoint_name="my-model-1", inc=1
+            model_class="IncModel",
+            endpoint_name="my-model-1",
+            execution_mechanism="naive",
+            inc=1,
         )
         model_runner_step.add_model(
-            model_class="IncModel", endpoint_name="my-model-2", inc=2
+            model_class="IncModel",
+            endpoint_name="my-model-2",
+            execution_mechanism="naive",
+            inc=2,
         )
         graph.to(name="echo", class_name="Echo").to(
             model_runner_step, "runner"

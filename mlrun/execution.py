@@ -26,6 +26,7 @@ from dateutil import parser
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
+import mlrun.common.runtimes.constants
 from mlrun.artifacts import (
     Artifact,
     DatasetArtifact,
@@ -91,6 +92,8 @@ class MLClientCtx:
         self._autocommit = autocommit
         self._notifications = []
         self._state_thresholds = {}
+        self._retry_spec = {}
+        self._retry_count = None
 
         self._labels = {}
         self._annotations = {}
@@ -432,6 +435,7 @@ class MLClientCtx:
             self._tolerations = spec.get("tolerations", self._tolerations)
             self._affinity = spec.get("affinity", self._affinity)
             self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
+            self._retry_spec = spec.get("retry", self._retry_spec)
 
         self._init_dbs(rundb)
 
@@ -450,10 +454,11 @@ class MLClientCtx:
         if start:
             start = parser.parse(start) if isinstance(start, str) else start
             self._start_time = start
-        self._state = "running"
+        self._state = mlrun.common.runtimes.constants.RunStates.running
 
         status = attrs.get("status")
-        if include_status and status:
+        retry_configured = self._retry_spec and self._retry_spec.get("count")
+        if (include_status or retry_configured) and status:
             self._results = status.get("results", self._results)
             for artifact in status.get("artifacts", []):
                 artifact_obj = dict_to_artifact(artifact)
@@ -462,7 +467,10 @@ class MLClientCtx:
                 )
             for key, uri in status.get("artifact_uris", {}).items():
                 self._artifacts_manager.artifact_uris[key] = uri
-            self._state = status.get("state", self._state)
+            self._retry_count = status.get("retry_count", self._retry_count)
+            # if run is a retry, the state needs to move to running
+            if include_status:
+                self._state = status.get("state", self._state)
 
         # No need to store the run for every worker
         if store_run and self.is_logging_worker():
@@ -1107,13 +1115,13 @@ class MLClientCtx:
         :param completed: Mark run as completed
         """
         # Changing state to completed is allowed only when the execution is in running state
-        if self._state != "running":
+        if self._state != mlrun.common.runtimes.constants.RunStates.running:
             completed = False
 
         if message:
             self._annotations["message"] = message
         if completed:
-            self._state = "completed"
+            self._state = mlrun.common.runtimes.constants.RunStates.completed
 
         if self._parent:
             self._parent.update_child_iterations()
@@ -1147,9 +1155,15 @@ class MLClientCtx:
         updates = {"status.last_update": now_date().isoformat()}
 
         if error is not None:
-            self._state = "error"
+            state = mlrun.common.runtimes.constants.RunStates.error
+            max_retries = self._retry_spec.get("count", 0)
+            self._retry_count = self._retry_count or 0
+            if max_retries and self._retry_count < max_retries:
+                state = mlrun.common.runtimes.constants.RunStates.pending_retry
+
+            self._state = state
             self._error = str(error)
-            updates["status.state"] = "error"
+            updates["status.state"] = state
             updates["status.error"] = error
         elif (
             execution_state
@@ -1241,11 +1255,13 @@ class MLClientCtx:
                 "node_selector": self._node_selector,
                 "tolerations": self._tolerations,
                 "affinity": self._affinity,
+                "retry": self._retry_spec,
             },
             "status": {
                 "results": self._results,
                 "start_time": to_date_str(self._start_time),
                 "last_update": to_date_str(self._last_update),
+                "retry_count": self._retry_count,
             },
         }
 

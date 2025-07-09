@@ -22,6 +22,18 @@ T = TypeVar("T")
 
 
 class OpenAIProvider(ModelProvider):
+    """
+    OpenAIProvider is a wrapper around the OpenAI SDK that provides an interface
+    for interacting with OpenAI's generative AI services.
+
+    It supports both synchronous and asynchronous operations, allowing flexible
+    integration into various workflows.
+
+    This class extends the ModelProvider base class and implements OpenAI-specific
+    functionality, including client initialization, model invocation, and custom
+    operations tailored to the OpenAI API.
+    """
+
     support_async = True
 
     def __init__(
@@ -133,14 +145,11 @@ class OpenAIProvider(ModelProvider):
 
     def invoke(
         self,
-        prompt: Optional[str] = None,
         messages: Optional[list[dict]] = None,
         as_str: bool = False,
         **invoke_kwargs,
     ) -> Optional[Union[str, T]]:
-        messages, invoke_kwargs = self._get_messages_parameter(
-            prompt=prompt, messages=messages, **invoke_kwargs
-        )
+        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         response = self._default_operation(
             model=self.endpoint, messages=messages, **invoke_kwargs
         )

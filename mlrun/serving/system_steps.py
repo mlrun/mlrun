@@ -150,7 +150,7 @@ class MonitoringPreProcessor(storey.MapClass):
     def do(self, event):
         monitoring_event_list = []
         model_runner_name = event._metadata.get("model_runner_name", "")
-        step = self.server.graph.steps.get(model_runner_name) if self.server else None
+        step = self.server.graph.steps[model_runner_name] if self.server else None
         if not step or not hasattr(step, "monitoring_data"):
             raise mlrun.errors.MLRunRuntimeError(
                 f"ModelRunnerStep name {model_runner_name} is not found in the graph or does not have monitoring data"

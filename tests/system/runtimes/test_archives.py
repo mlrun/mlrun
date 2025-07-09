@@ -377,3 +377,22 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
 
         spark_run = fn.run(auto_build=True)
         assert spark_run.status.state == RunStates.completed
+
+    def test_http_source(self):
+        source = (
+            "https://raw.githubusercontent.com/mlrun/mlrun/refs/heads/development/tests/system/runtimes/assets/"
+            "kubejob_function.py"
+        )
+        command = "kubejob_function.py"
+
+        function = mlrun.new_function(
+            name="hello-world",
+            kind="job",
+            image="mlrun/mlrun",
+            command=command,
+        )
+
+        function.with_source_archive(
+            source=source, pull_at_runtime=False, workdir="/home/mlrun_code"
+        )
+        function.run(auto_build=True, handler="hello_world")

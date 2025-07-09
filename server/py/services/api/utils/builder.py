@@ -115,7 +115,7 @@ def make_dockerfile(
                 f"FROM {base_image} AS extractor",
                 args,
                 f"RUN mkdir -p {source_dir}",
-                f"COPY {source} {source_dir}",
+                f"ADD {source} {source_dir}",
                 f"RUN cd {source_dir} && unzip {source} && rm {source}",
             ]
             stage = textwrap.dedent("\n".join(stage_lines)).strip()
@@ -431,9 +431,10 @@ def build_image(
 
     context = "/context"
     to_mount = False
-    is_v3io_source = False
+    is_v3io_source, is_http_source = False, False
     if source:
         is_v3io_source = source.startswith("v3io://") or source.startswith("v3ios://")
+        is_http_source = source.startswith("http")
 
     access_key = builder_env.get(
         "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
@@ -449,7 +450,7 @@ def build_image(
         context = "/empty"
 
     # source is remote
-    elif source and "://" in source and not is_v3io_source:
+    elif source and "://" in source and not is_v3io_source and not is_http_source:
         if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
@@ -459,6 +460,9 @@ def build_image(
         # set remote source as kaniko's build context and copy it
         context = source
         source_to_copy = "."
+
+    elif is_http_source:
+        source_to_copy = source
 
     # source is local / v3io
     else:

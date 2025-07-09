@@ -125,7 +125,9 @@ default_config = {
                 "interval": "30",
                 # runs limit to fetch for retrying
                 "fetch_runs_limit": 1000,
-                "staleness_threshold": 3,  # days until a run is considered stale and will be aborted
+                "staleness_threshold": 60
+                * 24
+                * 3,  # minutes until a run is considered stale and will be aborted
             },
         },
         "projects": {

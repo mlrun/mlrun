@@ -660,7 +660,7 @@ def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
     _test_graph_structure(server.graph, enable_tracking)
 
 
-def test_negative_for_shared_model():
+def test_shared_model_invalid_usage():
     project = mlrun.new_project("remote-model-project", save=False)
     model_artifact = project.log_model(
         "my_model",

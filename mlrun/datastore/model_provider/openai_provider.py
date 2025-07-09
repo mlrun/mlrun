@@ -99,6 +99,26 @@ class OpenAIProvider(ModelProvider):
     def custom_invoke(
         self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs
     ) -> Optional[T]:
+        """
+        OpenAI-specific implementation of `ModelProvider.custom_invoke`.
+
+        Invokes an OpenAI model operation using the sync client. For full details, see
+        `ModelProvider.custom_invoke`.
+
+        Example:
+            ```python
+            result = openai_model_provider.invoke(
+                openai_model_provider.client.images.generate,
+                prompt="A futuristic cityscape at sunset",
+                n=1,
+                size="1024x1024",
+            )
+            ```
+        :param operation: A callable representing the model operation (e.g., a client method).
+        :param invoke_kwargs: Keyword arguments to pass to the operation.
+        :return: The full response returned by the operation.
+
+        """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         if operation:
             return operation(**invoke_kwargs, model=self.model)
@@ -110,6 +130,26 @@ class OpenAIProvider(ModelProvider):
         operation: Optional[Callable[..., Awaitable[T]]] = None,
         **invoke_kwargs,
     ) -> Optional[T]:
+        """
+        OpenAI-specific implementation of `ModelProvider.async_custom_invoke`.
+
+        Invokes an OpenAI model operation using the async client. For full details, see
+        `ModelProvider.async_custom_invoke`.
+
+        Example:
+            ```python
+            result = openai_model_provider.invoke(
+                openai_model_provider.async_client.images.generate,
+                prompt="A futuristic cityscape at sunset",
+                n=1,
+                size="1024x1024",
+            )
+            ```
+        :param operation: An async callable representing the model operation (e.g., an async_client method).
+        :param invoke_kwargs: Keyword arguments to pass to the operation.
+        :return: The full response returned by the awaited operation.
+
+        """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         if operation:
             return await operation(**invoke_kwargs, model=self.model)

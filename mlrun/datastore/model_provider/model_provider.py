@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar, Union
 
 import mlrun.errors
@@ -127,6 +128,16 @@ class ModelProvider(BaseRemoteClient):
     def custom_invoke(
         self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs
     ) -> Optional[T]:
+        """
+        Invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.) with the given keyword arguments.
+
+        Useful for dynamically calling model methods like text generation, chat completions, or image generation.
+        The operation must be a callable that accepts keyword arguments.
+
+        :param operation: A callable representing the model operation (e.g., a client method).
+        :param invoke_kwargs: Keyword arguments to pass to the operation.
+        :return: The full response returned by the operation.
+        """
         raise NotImplementedError("custom_invoke method is not implemented")
 
     @property
@@ -150,7 +161,19 @@ class ModelProvider(BaseRemoteClient):
             )
         return self._async_client
 
-    async def async_custom_invoke(self, **kwargs) -> Optional[T]:
+    async def async_custom_invoke(
+        self, operation: Optional[Callable[..., Awaitable[T]]], **invoke_kwargs
+    ) -> Optional[T]:
+        """
+        Asynchronously invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.)
+        with the given keyword arguments.
+
+        The operation must be an async callable (e.g., a method from an async client) that accepts keyword arguments.
+
+        :param operation: An async callable representing the model operation.
+        :param invoke_kwargs: Keyword arguments to pass to the operation.
+        :return: The full response returned by the awaited operation.
+        """
         raise NotImplementedError("async_custom_invoke is not implemented")
 
     async def async_invoke(
@@ -159,4 +182,5 @@ class ModelProvider(BaseRemoteClient):
         as_str: bool = False,
         **invoke_kwargs,
     ) -> Optional[str]:
+        """Async version of `invoke`. See `invoke` for full documentation."""
         raise NotImplementedError("async_invoke is not implemented")

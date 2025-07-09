@@ -91,7 +91,7 @@ class ModelProvider(BaseRemoteClient):
 
         :return:
                             - If `as_str` is True: Returns the main content of the first response as a string.
-                            - If `as_str` is False: Returns the full response object (or a custom type `T`).
+                            - If `as_str` is False: Returns the full response object.
                             - If no response is generated or an error occurs, returns None.
 
         """

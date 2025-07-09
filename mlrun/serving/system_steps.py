@@ -117,7 +117,7 @@ class MonitoringPreProcessor(storey.MapClass):
         - Handles edge cases:
             * If a single scalar or single-element list is provided, returns a flat list.
             * If a single key is provided (as a string or a list with one element), handles it properly.
-            * If only one row remains after transposition, unwraps it to avoid nested list-of-one.
+            * If only one row with len of one remains after transposition, unwraps it to avoid nested list-of-one.
 
         Example::
 
@@ -125,7 +125,7 @@ class MonitoringPreProcessor(storey.MapClass):
             # returns: [1]
 
             transpose_by_key({"a": [1, 2]})
-            # returns: [[1], [2]]
+            # returns: [1 ,2]
 
             transpose_by_key({"a": [1, 2], "b": [3, 4]})
             # returns: [[1, 3], [2, 4]]

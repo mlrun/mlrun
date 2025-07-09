@@ -113,7 +113,11 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         graph = function.set_topology("flow", engine="async")
         model_runner_step = ModelRunnerStep(name="model-runner", raise_exception=True)
-        model_runner_step.add_model(model_class="DummyModel", endpoint_name="my-model")
+        model_runner_step.add_model(
+            model_class="DummyModel",
+            execution_mechanism="naive",
+            endpoint_name="my-model",
+        )
         step = graph.to(model_runner_step).respond()
         step.to(name="inc", handler="inc", function="child")
         function.add_child_function(

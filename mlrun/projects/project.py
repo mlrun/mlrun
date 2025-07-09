@@ -159,7 +159,8 @@ def new_project(
     parameters: Optional[dict] = None,
     default_function_node_selector: Optional[dict] = None,
 ) -> "MlrunProject":
-    """Create a new MLRun project, optionally load it from a yaml/zip/git template
+    """Create a new MLRun project, optionally load it from a yaml/zip/git template.
+    The project will become the active project for the current session.
 
     A new project is created and returned, you can customize the project by placing a project_setup.py file
     in the project root dir, it will be executed upon project creation or loading.
@@ -326,7 +327,8 @@ def load_project(
     parameters: Optional[dict] = None,
     allow_cross_project: Optional[bool] = None,
 ) -> "MlrunProject":
-    """Load an MLRun project from git or tar or dir
+    """Load an MLRun project from git or tar or dir. The project will become the active project for
+    the current session.
 
     MLRun looks for a project.yaml file with project definition and objects in the project root path
     and use it to initialize the project, in addition it runs the project_setup.py file (if it exists)
@@ -2688,8 +2690,8 @@ class MlrunProject(ModelObj):
         requirements_file: str = "",
     ) -> mlrun.runtimes.BaseRuntime:
         """
-        | Update or add a function object to the project.
-        | Function can be provided as an object (func) or a .py/.ipynb/.yaml URL.
+        Update or add a function object to the project.
+        Function can be provided as an object (func) or a .py/.ipynb/.yaml URL.
 
         | Creating a function from a single file is done by specifying ``func`` and disabling ``with_repo``.
         | Creating a function with project source (specify ``with_repo=True``):
@@ -2733,6 +2735,20 @@ class MlrunProject(ModelObj):
 
             # By providing a path to a pip requirements file
             proj.set_function("my.py", requirements="requirements.txt")
+
+        One of the most important parameters is 'kind', used to specify the chosen runtime. The options are:
+           - local: execute a local python or shell script
+           - job: insert the code into a Kubernetes pod and execute it
+           - nuclio: insert the code into a real-time serverless nuclio function
+           - serving: insert code into orchestrated nuclio function(s) forming a DAG
+           - dask: run the specified python code / script as Dask Distributed job
+           - mpijob: run distributed Horovod jobs over the MPI job operator
+           - spark: run distributed Spark job using Spark Kubernetes Operator
+           - remote-spark: run distributed Spark job on remote Spark service
+           - databricks: run code on Databricks cluster (python scripts, Spark etc.)
+           - application: run a long living application (e.g. a web server, UI, etc.)
+
+        Learn more about :doc:`../../concepts/functions-overview`.
 
         :param func:                Function object or spec/code url, None refers to current Notebook
         :param name:                Name of the function (under the project), can be specified with a tag to support

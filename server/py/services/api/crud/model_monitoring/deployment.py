@@ -48,6 +48,7 @@ import mlrun.model_monitoring.writer
 import mlrun.serving.states
 import mlrun.utils.v3io_clients
 from mlrun import feature_store as fstore
+from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
 from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFileChief
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
@@ -58,7 +59,6 @@ import framework.api.utils
 import framework.db.session
 import framework.utils.background_tasks
 import framework.utils.singletons.k8s
-import services.api.api.endpoints.nuclio
 import services.api.crud.model_monitoring.helpers
 import services.api.utils.functions
 from framework.db.sqldb.models import ModelEndpoint
@@ -413,6 +413,46 @@ class MonitoringDeployment:
         function.spec.min_replicas = stream_args.kafka.min_replicas
         function.spec.max_replicas = stream_args.kafka.max_replicas
 
+    @staticmethod
+    def create_model_monitoring_stream(
+        project: str,
+        stream_path: str,
+        shard_count: int,
+        retention_period_hours: int,
+        access_key: typing.Optional[str] = None,
+    ):
+        if stream_path.startswith("v3io://"):
+            import v3io.dataplane
+
+            _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
+
+            logger.info(
+                "Creating stream",
+                project=project,
+                stream_path=stream_path,
+                shard_count=shard_count,
+                container=container,
+                endpoint=mlrun.mlconf.v3io_api,
+            )
+
+            v3io_client = v3io.dataplane.Client(
+                endpoint=mlrun.mlconf.v3io_api, access_key=access_key
+            )
+
+            response = v3io_client.stream.create(
+                container=container,
+                stream_path=stream_path,
+                shard_count=shard_count,
+                retention_period_hours=retention_period_hours,
+                raise_for_status=v3io.dataplane.RaiseForStatus.never,
+                access_key=access_key,
+            )
+
+            if not (
+                response.status_code == 400 and "ResourceInUse" in str(response.body)
+            ):
+                response.raise_for_status([409, 204])
+
     def _apply_and_create_v3io_source(
         self,
         *,
@@ -439,7 +479,7 @@ class MonitoringDeployment:
             "worker_allocation_mode": "static",
             "max_workers": stream_args.v3io.num_workers,
         }
-        services.api.api.endpoints.nuclio.create_model_monitoring_stream(
+        self.create_model_monitoring_stream(
             project=self.project,
             stream_path=stream_path,
             shard_count=stream_args.v3io.shard_count,

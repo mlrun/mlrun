@@ -1050,7 +1050,14 @@ def fill_function_hash(function_dict, tag=""):
 
 
 def retry_until_successful(
-    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+    backoff: int,
+    timeout: int,
+    logger,
+    verbose: bool,
+    _function,
+    fatal_exceptions: tuple[type] = (),
+    *args,
+    **kwargs,
 ):
     """
     Runs function with given *args and **kwargs.
@@ -1062,11 +1069,14 @@ def retry_until_successful(
     :param logger: a logger so we can log the failures
     :param verbose: whether to log the failure on each retry
     :param _function: function to run
+    :param fatal_exceptions: exception types that should not be retried
     :param args: functions args
     :param kwargs: functions kwargs
     :return: function result
     """
-    return Retryer(backoff, timeout, logger, verbose, _function, *args, **kwargs).run()
+    return Retryer(
+        backoff, timeout, logger, verbose, _function, fatal_exceptions, *args, **kwargs
+    ).run()
 
 
 async def retry_until_successful_async(

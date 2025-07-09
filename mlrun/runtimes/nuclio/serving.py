@@ -720,6 +720,7 @@ class ServingRuntime(RemoteRuntime):
             "track_models": self.spec.track_models,
             "default_content_type": self.spec.default_content_type,
             "model_endpoint_creation_task_name": self.spec.model_endpoint_creation_task_name,
+            # TODO: find another way to pass this (needed for local run)
             "filename": getattr(self.spec, "filename", None),
         }
 
@@ -858,6 +859,7 @@ class ServingRuntime(RemoteRuntime):
             description=self.spec.description,
             workdir=self.spec.workdir,
             image_pull_secret=self.spec.image_pull_secret,
+            build=self.spec.build,
             node_name=self.spec.node_name,
             node_selector=self.spec.node_selector,
             affinity=self.spec.affinity,
@@ -868,6 +870,9 @@ class ServingRuntime(RemoteRuntime):
             security_context=self.spec.security_context,
             state_thresholds=self.spec.state_thresholds,
             serving_spec=self._get_serving_spec(),
+            track_models=self.spec.track_models,
+            parameters=self.spec.parameters,
+            graph=self.spec.graph,
         )
         job = KubejobRuntime(
             spec=spec,

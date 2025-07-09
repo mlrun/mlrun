@@ -77,7 +77,17 @@ def create_exponential_backoff(base=2, max_value=120, scale_factor=1):
 
 
 class Retryer:
-    def __init__(self, backoff, timeout, logger, verbose, function, *args, **kwargs):
+    def __init__(
+        self,
+        backoff,
+        timeout,
+        logger,
+        verbose,
+        function,
+        fatal_exceptions,
+        *args,
+        **kwargs,
+    ):
         """
         Initialize function retryer with given *args and **kwargs.
         Tries to run it until success or timeout reached (timeout is optional)
@@ -88,6 +98,7 @@ class Retryer:
         :param logger: a logger so we can log the failures
         :param verbose: whether to log the failure on each retry
         :param _function: function to run
+        :param fatal_exceptions: exception types that should not be retried
         :param args: functions args
         :param kwargs: functions kwargs
         """
@@ -96,6 +107,7 @@ class Retryer:
         self.logger = logger
         self.verbose = verbose
         self.function = function
+        self.fatal_exceptions = tuple(fatal_exceptions or ())
         self.args = args
         self.kwargs = kwargs
         self.start_time = None
@@ -107,12 +119,15 @@ class Retryer:
         while not self._timeout_exceeded():
             next_interval = self.first_interval or next(self.backoff)
             result, exc, retry = self._perform_call(next_interval)
+
+            if not exc:
+                return result
+
+            if type(exc) in self.fatal_exceptions:
+                break
+
             if retry:
                 time.sleep(next_interval)
-            elif not exc:
-                return result
-            else:
-                break
 
         self._raise_last_exception()
 

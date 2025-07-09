@@ -15,6 +15,7 @@
 __all__ = ["GraphServer", "create_graph_server", "GraphContext", "MockEvent"]
 
 import asyncio
+import base64
 import copy
 import json
 import os
@@ -76,7 +77,6 @@ class _StreamContext:
         self.hostname = socket.gethostname()
         self.function_uri = function_uri
         self.output_stream = None
-        stream_uri = None
         log_stream = parameters.get(FileTargetKind.LOG_STREAM, "")
 
         if (enabled or log_stream) and function_uri:
@@ -86,12 +86,6 @@ class _StreamContext:
             )
 
             stream_args = parameters.get("stream_args", {})
-
-            if log_stream == DUMMY_STREAM:
-                # Dummy stream used for testing, see tests/serving/test_serving.py
-                stream_uri = DUMMY_STREAM
-            elif not stream_args.get("mock"):  # if not a mock: `context.is_mock = True`
-                stream_uri = mlrun.model_monitoring.get_stream_path(project=project)
 
             if log_stream:
                 # Update the stream path to the log stream value
@@ -547,13 +541,40 @@ async def async_execute_graph(
 ) -> list[Any]:
     spec = mlrun.utils.get_serving_spec()
 
-    source_filename = spec.get("filename", None)
     namespace = {}
-    if source_filename:
-        with open(source_filename) as f:
-            exec(f.read(), namespace)
+    code = os.getenv("MLRUN_EXEC_CODE")
+    if code:
+        code = base64.b64decode(code).decode("utf-8")
+        exec(code, namespace)
+    else:
+        source_filename = spec.get("filename", None)
+        if source_filename:
+            with open(source_filename) as f:
+                exec(f.read(), namespace)
 
     server = GraphServer.from_dict(spec)
+
+    if server.model_endpoint_creation_task_name:
+        context.logger.info(
+            f"Waiting for model endpoint creation task '{server.model_endpoint_creation_task_name}'..."
+        )
+        background_task = (
+            mlrun.get_run_db().wait_for_background_task_to_reach_terminal_state(
+                project=server.project,
+                name=server.model_endpoint_creation_task_name,
+            )
+        )
+        task_state = background_task.status.state
+        if task_state == mlrun.common.schemas.BackgroundTaskState.failed:
+            raise mlrun.errors.MLRunRuntimeError(
+                "Aborting job due to model endpoint creation background task failure"
+            )
+        elif task_state != mlrun.common.schemas.BackgroundTaskState.succeeded:
+            # this shouldn't happen, but we need to know if it does
+            raise mlrun.errors.MLRunRuntimeError(
+                "Aborting job because the model endpoint creation background task did not succeed "
+                f"(status='{task_state}')"
+            )
 
     if config.log_level.lower() == "debug":
         server.verbose = True

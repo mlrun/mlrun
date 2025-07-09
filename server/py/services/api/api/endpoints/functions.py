@@ -16,6 +16,7 @@ import traceback
 from http import HTTPStatus
 from typing import Optional
 
+import fastapi
 import kubernetes.client
 from fastapi import (
     APIRouter,
@@ -214,6 +215,7 @@ async def list_functions(
 @router.post("/build/function/")
 async def build_function(
     request: Request,
+    background_tasks: fastapi.BackgroundTasks,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
     client_version: Optional[str] = Header(
@@ -291,6 +293,7 @@ async def build_function(
         client_version,
         client_python_version,
         force_build,
+        background_tasks,
     )
 
     func_dict = fn.to_dict()

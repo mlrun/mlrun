@@ -638,6 +638,11 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    def wait_for_background_task_to_reach_terminal_state(
+        self, name: str, project: str = ""
+    ) -> mlrun.common.schemas.BackgroundTask:
+        pass
+
     @abstractmethod
     def retry_pipeline(
         self,

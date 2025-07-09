@@ -606,6 +606,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             name=model_endpoint.metadata.name,
             function_name=model_endpoint.spec.function_name,
             function_tag=model_endpoint.spec.function_tag,
+            feature_analysis=True,
         )
         assert mep.spec.feature_names == ["f1"]
         assert mep.spec.label_names == ["l1"]

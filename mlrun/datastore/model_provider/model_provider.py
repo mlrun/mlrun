@@ -23,6 +23,23 @@ T = TypeVar("T")
 
 
 class ModelProvider(BaseRemoteClient):
+    """
+    The ModelProvider class is an abstract base for integrating with external
+    model providers, primarily generative AI (GenAI) services.
+
+    Designed to be subclassed, it defines a consistent interface and shared
+    functionality for tasks such as text generation, embeddings, and invoking
+    fine-tuned models. Subclasses should implement provider-specific logic,
+    including SDK client initialization, model invocation, and custom operations.
+
+    Key Features:
+    - Establishes a consistent, reusable client management for model provider integrations.
+    - Simplifies GenAI service integration by abstracting common operations.
+    - Reduces duplication through shared components for common tasks.
+    - Holds default invocation parameters (e.g., temperature, max_tokens) to avoid boilerplate
+    code and promote consistency.
+    """
+
     support_async = False
 
     def __init__(
@@ -44,6 +61,17 @@ class ModelProvider(BaseRemoteClient):
         self._default_async_operation = None
 
     def load_client(self) -> None:
+        """
+        Initializes the SDK client for the model provider with the given keyword arguments
+        and assigns it to an instance attribute (e.g., self._client).
+
+        Subclasses should override this method to:
+        - Create and configure the provider-specific client instance.
+        - Assign the client instance to self._client.
+        - Define a default operation callable (e.g., a method to invoke model completions)
+        and assign it to self._default_operation.
+        """
+
         raise NotImplementedError("load_client method is not implemented")
 
     def invoke(

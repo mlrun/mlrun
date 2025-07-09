@@ -21,6 +21,18 @@ T = TypeVar("T")
 
 
 class OpenAIProvider(ModelProvider):
+    """
+    OpenAIProvider is a wrapper around the OpenAI SDK that provides an interface
+    for interacting with OpenAI's generative AI services.
+
+    It supports both synchronous and asynchronous operations, allowing flexible
+    integration into various workflows.
+
+    This class extends the ModelProvider base class and implements OpenAI-specific
+    functionality, including client initialization, model invocation, and custom
+    operations tailored to the OpenAI API.
+    """
+
     def __init__(
         self,
         parent,

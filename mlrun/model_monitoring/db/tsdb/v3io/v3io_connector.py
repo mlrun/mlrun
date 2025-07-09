@@ -830,7 +830,7 @@ class V3IOTSDBConnector(TSDBConnector):
             selection = "*"
 
         with StringIO() as query:
-            query.write(f"SELECT {selection} FROM '{table_path}' ")
+            query.write(f"SELECT {selection} FROM '{table_path}'")
             if endpoint_id:
                 query.write(
                     f" WHERE {mm_schemas.WriterEvent.ENDPOINT_ID}='{endpoint_id}'"

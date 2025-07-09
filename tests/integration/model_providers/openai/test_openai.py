@@ -209,8 +209,8 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         )
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == self.basic_llm_model
-        coroutine1 = model_provider.async_invoke(prompt=fixed_prompts[0], as_str=True)
-        coroutine2 = model_provider.async_invoke(prompt=fixed_prompts[1])
+        coroutine1 = model_provider.async_invoke(messages=self._get_messages(fixed_prompts[0]), as_str=True)
+        coroutine2 = model_provider.async_invoke(messages=self._get_messages(fixed_prompts[1]))
         result1, result2 = await asyncio.gather(coroutine1, coroutine2)
         result2 = result2.choices[0].message.content
         assert EXPECTED_RESULTS[0] in result1.lower()

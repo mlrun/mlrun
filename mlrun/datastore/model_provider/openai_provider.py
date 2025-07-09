@@ -134,7 +134,7 @@ class OpenAIProvider(ModelProvider):
 
     async def async_invoke(
         self,
-        messages: Optional[dict] = None,
+        messages: Optional[list[dict]] = None,
         as_str: bool = False,
         **invoke_kwargs,
     ) -> str:

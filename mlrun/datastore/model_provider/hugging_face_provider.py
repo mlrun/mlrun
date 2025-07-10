@@ -23,7 +23,7 @@ T = TypeVar("T")
 
 class HuggingFaceProvider(ModelProvider):
     """
-    OpenAIProvider is a wrapper around the OpenAI SDK that provides an interface
+    HuggingFaceProvider is a wrapper around the OpenAI SDK that provides an interface
     for interacting with OpenAI's generative AI services.
 
     It supports both synchronous and asynchronous operations, allowing flexible

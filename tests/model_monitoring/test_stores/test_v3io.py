@@ -71,7 +71,15 @@ def metric_event() -> dict[str, Any]:
 
 
 @pytest.mark.parametrize(
-    ("endpoint_id", "names", "table_path", "columns", "expected_query"),
+    (
+        "endpoint_id",
+        "names",
+        "table_path",
+        "columns",
+        "expected_query",
+        "application_names",
+        "group_by_columns",
+    ),
     [
         (
             "ddw2lke",
@@ -79,6 +87,8 @@ def metric_event() -> dict[str, Any]:
             "app-results",
             None,
             "SELECT * FROM 'app-results' WHERE endpoint_id='ddw2lke';",
+            None,
+            None,
         ),
         (
             "ep123",
@@ -90,6 +100,8 @@ def metric_event() -> dict[str, Any]:
                 "FROM 'path/to/app-results' WHERE endpoint_id='ep123' "
                 "AND ((application_name='app1' AND result_name='res1'));"
             ),
+            None,
+            None,
         ),
         (
             "ep123",
@@ -103,15 +115,32 @@ def metric_event() -> dict[str, Any]:
                 "(application_name='app1' AND result_name='res2') OR "
                 "(application_name='app2' AND result_name='res1'));"
             ),
+            None,
+            None,
+        ),
+        (
+            None,
+            None,
+            "app-results",
+            ["result_value", "result_status", "result_kind"],
+            (
+                "SELECT result_value,result_status,result_kind FROM 'app-results' "
+                "WHERE (application_name='some-app-v1' OR application_name='some-app-v2') "
+                "GROUP BY application_name,result_kind;"
+            ),
+            ["some-app-v1", "some-app-v2"],
+            ["application_name", "result_kind"],
         ),
     ],
 )
 def test_tsdb_query(
-    endpoint_id: str,
-    names: list[tuple[str, str]],
+    endpoint_id: Optional[str],
+    names: Optional[list[tuple[str, str]]],
     table_path: str,
     expected_query: str,
     columns: Optional[list[str]],
+    application_names: Optional[list[str]],
+    group_by_columns: Optional[list[str]],
 ) -> None:
     assert (
         V3IOTSDBConnector._get_sql_query(
@@ -119,6 +148,8 @@ def test_tsdb_query(
             metric_and_app_names=names,
             table_path=table_path,
             columns=columns,
+            application_names=application_names,
+            group_by_columns=group_by_columns,
         )
         == expected_query
     )

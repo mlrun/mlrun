@@ -24,8 +24,15 @@ class MyOpenAILLM(mlrun.serving.states.Model):
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
             prompt = self.enrich_prompt(body)
+            messages = [
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ]
             body["result"] = self.model_provider.invoke(
-                prompt=prompt,
+                messages=messages,
+                as_str=True,
                 **(self.invocation_artifact.spec.model_configuration or {}),
             )
         return body

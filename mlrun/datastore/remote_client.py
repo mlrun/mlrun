@@ -18,6 +18,17 @@ import mlrun
 
 
 class BaseRemoteClient:
+    """
+    The BaseRemoteClient class serves as a foundational component for managing
+    secrets and configurations.
+    It is designed to be extended by subclasses that interact with external services,
+     such as file systems (e.g., Datastore) or model providers (e.g., ModelProvider).
+
+    This class is intended to provide shared functionality and should not be
+    used directly. Instead, create a subclass to implement logic specific to
+    your use case, such as interactions with S3 storage or invoking model providers like OpenAI.
+    """
+
     def __init__(self, parent, kind, name, endpoint="", secrets: Optional[dict] = None):
         self._parent = parent
         self.kind = kind

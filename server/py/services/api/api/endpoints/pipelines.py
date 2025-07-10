@@ -187,8 +187,9 @@ async def retry_pipeline(
     except mlrun.errors.MLRunNotFoundError:
         original_runner = None
 
-    # If direct mode is requested, or the original workflow runner was not found,
-    # bypass MLRun's workflow runner logic and submit the retry directly to KFP.
+    # If running in direct mode, or if we couldn’t locate a previous workflow-runner,
+    # or if the original runner had no notifications to preserve,
+    # skip the RerunRunner orchestration and retry the pipeline directly via the KFP API.
     if (
         submit_mode == mlrun_constants.WorkflowSubmitMode.direct
         or not original_runner

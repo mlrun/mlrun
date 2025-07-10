@@ -913,6 +913,10 @@ def retry_pipeline(
             "Retrying a pipeline requires access to remote API service. "
             "Please set the dbpath URL."
         )
+
+    # Invoke retry pipeline run. Depending on the context, this call returns either:
+    # 1. A simple string of a workflow-id, for direct retries or non-remote workflows, or
+    # 2. A dict payload representing a WorkflowResponse when rerunning remote workflows.
     rerun_response = mldb.retry_pipeline(
         run_id=run_id,
         project=project,

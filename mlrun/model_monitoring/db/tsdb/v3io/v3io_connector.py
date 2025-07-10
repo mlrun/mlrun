@@ -1290,7 +1290,6 @@ class V3IOTSDBConnector(TSDBConnector):
             end: datetime,
     ) -> mm_schemas.ModelEndpointDriftValues:
         table = mm_schemas.V3IOTSDBTables.APP_RESULTS
-        start, end = get_start_end(start, end, delta=timedelta(hours=24))
         start, end, interval = self._prepare_aligned_start_end(start, end)
 
         # get per time-interval x endpoint_id combination the max result status

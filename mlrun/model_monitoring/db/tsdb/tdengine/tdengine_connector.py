@@ -1221,7 +1221,6 @@ class TDEngineConnector(TSDBConnector):
             ],
         )
         table = self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS].super_table
-        start, end = get_start_end(start, end, delta=timedelta(hours=24))
         start, end, interval = self._prepare_aligned_start_end(start, end)
 
         # get per time-interval x endpoint_id combination the max result status

@@ -495,6 +495,7 @@ async def get_model_endpoint_drift_over_time(
             error=mlrun.errors.err_to_str(e),
         )
         return schemas.ModelEndpointDriftValues(values=[])
+    start, end = _validate_time_range(start, end)
     result = await run_in_threadpool(tsdb_connector.get_drift_data, start, end)
 
     return result
@@ -578,6 +579,28 @@ class _MetricsValuesParams:
     start: datetime
     end: datetime
 
+def _validate_time_range(
+    start: Optional[datetime] = None, end: Optional[datetime] = None
+)-> tuple[datetime, datetime]:
+    """
+    validate start and end parameters and set default values if needed.
+    :param start:       Either None or datetime, None is handled as datetime.now(tz=timezone.utc) - timedelta(days=1)
+    :param end:         Either None or datetime, None is handled as datetime.now(tz=timezone.utc)
+    :return:            start datetime, end datetime
+    """
+    end = end or mlrun.utils.helpers.datetime_now()
+    start = start or (end - timedelta(days=1))
+    if start.tzinfo is None or end.tzinfo is None:
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            "Custom start and end times must contain the timezone."
+        )
+    if start > end:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "The start time must be before the end time. Note that if end time is not provided, "
+            "the current time is used by default."
+        )
+    return start, end
+
 
 async def _get_metrics_values_params(
     project: ProjectAnnotation,
@@ -605,17 +628,7 @@ async def _get_metrics_values_params(
     await _verify_model_endpoint_read_permission(
         project=project, name_or_uid=endpoint_id, auth_info=auth_info
     )
-    end = end or mlrun.utils.helpers.datetime_now()
-    start = start or (end - timedelta(days=1))
-    if start.tzinfo is None or end.tzinfo is None:
-        raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            "Custom start and end times must contain the timezone."
-        )
-    if start > end:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "The start time must be before the end time. Note that if end time is not provided, "
-            "the current time is used by default."
-        )
+    start, end = _validate_time_range(start, end)
 
     metrics = []
     results = []

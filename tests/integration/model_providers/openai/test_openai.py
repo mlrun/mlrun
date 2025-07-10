@@ -55,7 +55,7 @@ class MyOpenAILLM(mlrun.serving.states.Model):
     def enrich_prompt(self, body) -> str:
         # TODO: Update this once ML-8172 is completed
         if isinstance(self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact):
-            prompt_template = self.invocation_artifact.spec.prompt_string
+            prompt_template = self.invocation_artifact.spec.prompt_template
             needed_params = ["question", "depth_level", "persona", "tone"]
             sub_dict = {k: body[k] for k in needed_params if k in body}
             return prompt_template.format(**sub_dict)
@@ -200,7 +200,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         )
         llm_prompt_artifact = project.log_llm_prompt(
             "my_llm_prompt",
-            prompt_string=prompt_template,
+            prompt_template=prompt_template,
             model_artifact=model_artifact.uri,
         )
         function = mlrun.new_function("tests", kind="serving")

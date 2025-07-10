@@ -33,7 +33,7 @@ class MyOpenAILLM(mlrun.serving.states.Model):
     def enrich_prompt(self, body) -> str:
         # TODO: Update this once ML-8172 is completed
         if isinstance(self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact):
-            prompt_template = self.invocation_artifact.spec.prompt_string
+            prompt_template = self.invocation_artifact.spec.prompt_template
             needed_params = ["question", "depth_level", "persona", "tone"]
             sub_dict = {k: body[k] for k in needed_params if k in body}
             return prompt_template.format(**sub_dict)

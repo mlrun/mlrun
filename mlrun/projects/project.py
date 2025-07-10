@@ -1889,7 +1889,7 @@ class MlrunProject(ModelObj):
     def log_llm_prompt(
         self,
         key,
-        prompt_string: Optional[str] = None,
+        prompt_template: Optional[list[dict]] = None,
         prompt_path: Optional[str] = None,
         prompt_legend: Optional[dict] = None,
         model_artifact: Union[ModelArtifact, str] = None,
@@ -1923,7 +1923,7 @@ class MlrunProject(ModelObj):
             )
 
         :param key: Unique key for the prompt artifact.
-        :param prompt_string: Raw prompt text. Mutually exclusive with `prompt_path`.
+        :param prompt_template: Raw prompt list of dict. Mutually exclusive with `prompt_path`.
         :param prompt_path: Path to a file containing the prompt. Mutually exclusive with `prompt_string`.
         :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., ``{user_name}``)
                and the value is a description or explanation of what that placeholder represents.
@@ -1942,15 +1942,15 @@ class MlrunProject(ModelObj):
         :returns: The logged `LLMPromptArtifact` object.
         """
 
-        if not prompt_string and not prompt_path:
+        if not prompt_template and not prompt_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Either 'prompt_string' or 'prompt_path' must be provided"
+                "Either 'prompt_template' or 'prompt_path' must be provided"
             )
 
         llm_prompt = LLMPromptArtifact(
             key=key,
             project=self.name,
-            prompt_string=prompt_string,
+            prompt_template=prompt_template,
             prompt_path=prompt_path,
             prompt_legend=prompt_legend,
             model_artifact=model_artifact,

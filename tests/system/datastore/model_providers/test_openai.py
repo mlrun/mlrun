@@ -80,7 +80,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         )
         llm_prompt_artifact = self.project.log_llm_prompt(
             "my_llm_prompt",
-            prompt_string=prompt_template,
+            prompt_template=prompt_template,
             model_artifact=model_artifact,
         )
         function = mlrun.code_to_function(

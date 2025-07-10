@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import tempfile
 from typing import Optional, Union
 
 import mlrun
 import mlrun.artifacts.model as model_art
-import mlrun.common
+import mlrun.common.schemas
 from mlrun.artifacts import Artifact, ArtifactMetadata, ArtifactSpec
 from mlrun.utils import StorePrefix, logger
 
@@ -25,7 +26,7 @@ MAX_PROMPT_LENGTH = 1024
 
 class LLMPromptArtifactSpec(ArtifactSpec):
     _dict_fields = ArtifactSpec._dict_fields + [
-        "prompt_string",
+        "prompt_template",
         "prompt_legend",
         "model_configuration",
         "description",
@@ -34,7 +35,7 @@ class LLMPromptArtifactSpec(ArtifactSpec):
     def __init__(
         self,
         model_artifact: Union[model_art.ModelArtifact, str] = None,
-        prompt_string: Optional[str] = None,
+        prompt_template: Optional[list[dict]] = None,
         prompt_path: Optional[str] = None,
         prompt_legend: Optional[dict] = None,
         model_configuration: Optional[dict] = None,
@@ -42,22 +43,33 @@ class LLMPromptArtifactSpec(ArtifactSpec):
         target_path: Optional[str] = None,
         **kwargs,
     ):
-        if prompt_string and prompt_path:
+        if prompt_template and prompt_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Cannot specify both 'prompt_string' and 'prompt_path'"
+                "Cannot specify both 'prompt_template' and 'prompt_path'"
             )
-
+        if prompt_legend:
+            self._verify_prompt_legend(prompt_legend)
+        if prompt_path:
+            self._verify_prompt_path(prompt_path)
+        if prompt_template:
+            if not (
+                isinstance(prompt_template, list)
+                and all(isinstance(item, dict) for item in prompt_template)
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Expected prompt_template to be a list of dicts"
+                )
         super().__init__(
             src_path=prompt_path,
             target_path=target_path,
             parent_uri=model_artifact.uri
             if isinstance(model_artifact, model_art.ModelArtifact)
             else model_artifact,
-            body=prompt_string,
             **kwargs,
         )
 
-        self.prompt_string = prompt_string
+        self._prompt_template = None
+        self.prompt_template = prompt_template
         self.prompt_legend = prompt_legend
         self.model_configuration = model_configuration
         self.description = description
@@ -66,6 +78,43 @@ class LLMPromptArtifactSpec(ArtifactSpec):
     @property
     def model_uri(self):
         return self.parent_uri
+
+    @staticmethod
+    def _verify_prompt_legend(prompt_legend: dict):
+        if prompt_legend is None:
+            return True
+        for place_holder, body_map in prompt_legend.items():
+            if isinstance(body_map, dict):
+                if body_map.get("field") is None:
+                    body_map["field"] = place_holder
+                body_map["description"] = body_map.get("description")
+                if diff := set(body_map.keys()) - {"field", "description"}:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "prompt_legend values must contain only 'field' and "
+                        f"'description' keys, got extra fields: {diff}"
+                    )
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Wrong prompt_legend format, {place_holder} is not mapped to dict"
+                )
+
+    @staticmethod
+    def _verify_prompt_path(prompt_path: str):
+        with mlrun.datastore.store_manager.object(prompt_path).open(mode="r") as p_file:
+            try:
+                json.load(p_file)
+            except json.JSONDecodeError:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Failed on decoding str in path "
+                    f"{prompt_path} expected file to contain a "
+                    f"json format."
+                )
+
+    def get_body(self):
+        if self.prompt_template:
+            return json.dumps(self.prompt_template)
+        else:
+            return None
 
 
 class LLMPromptArtifact(Artifact):
@@ -86,7 +135,7 @@ class LLMPromptArtifact(Artifact):
         model_artifact: Union[
             model_art.ModelArtifact, str
         ] = None,  # TODO support partial model uri
-        prompt_string: Optional[str] = None,
+        prompt_template: Optional[list[dict]] = None,
         prompt_path: Optional[str] = None,
         prompt_legend: Optional[dict] = None,
         model_configuration: Optional[dict] = None,
@@ -95,7 +144,7 @@ class LLMPromptArtifact(Artifact):
         **kwargs,
     ):
         llm_prompt_spec = LLMPromptArtifactSpec(
-            prompt_string=prompt_string,
+            prompt_template=prompt_template,
             prompt_path=prompt_path,
             prompt_legend=prompt_legend,
             model_artifact=model_artifact,
@@ -133,33 +182,48 @@ class LLMPromptArtifact(Artifact):
             return self.spec._model_artifact
         return None
 
-    def read_prompt(self) -> Optional[str]:
+    def read_prompt(self, as_str: bool = False) -> Optional[Union[str, list[dict]]]:
         """
-        Read the prompt string from the artifact.
+        Read the prompt json from the artifact or if provided prompt template.
+        @:param as_str: True to return the prompt string or a list of dicts.
+        @:return prompt string or list of dicts
         """
-        if self.spec.prompt_string:
-            return self.spec.prompt_string
+        if self.spec.prompt_template:
+            if as_str:
+                return json.dumps(self.spec.prompt_template)
+            return self.spec.prompt_template
         if self.spec.target_path:
             with mlrun.datastore.store_manager.object(url=self.spec.target_path).open(
                 mode="r"
             ) as p_file:
-                return p_file.read()
+                if as_str:
+                    return p_file.read()
+                try:
+                    return json.load(p_file)
+                except json.JSONDecodeError:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Failed on decoding str in path "
+                        f"{self.spec.target_path} expected file to contain a "
+                        f"json format."
+                    )
 
     def before_log(self):
         """
         Prepare the artifact before logging.
         This method is called before the artifact is logged.
         """
-        if self.spec.prompt_string and len(self.spec.prompt_string) > MAX_PROMPT_LENGTH:
+        if (
+            self.spec.prompt_template
+            and len(str(self.spec.prompt_template)) > MAX_PROMPT_LENGTH
+        ):
             logger.debug(
                 "Prompt string exceeds maximum length, saving to a temporary file."
             )
             with tempfile.NamedTemporaryFile(
-                delete=False, mode="w", suffix=".txt"
+                delete=False, mode="w", suffix=".json"
             ) as temp_file:
-                temp_file.write(self.spec.prompt_string)
+                temp_file.write(json.dumps(self.spec.prompt_template))
             self.spec.src_path = temp_file.name
-            self.spec.prompt_string = None
+            self.spec.prompt_template = None
             self._src_is_temp = True
-
         super().before_log()

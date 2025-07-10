@@ -106,8 +106,6 @@ class ModelProvider(BaseRemoteClient):
         :param as_str:      A boolean flag indicating whether to return the response as a plain string.
                             - If True, the function extracts and returns the main content of the first
                             response.
-                            For example, in OpenAI's format, this corresponds to
-                            `response.choices[0].message.content`.
                             - If False, the function returns the full response object,
                             which may include additional metadata or multiple response options.
                             Defaults to False.
@@ -120,7 +118,6 @@ class ModelProvider(BaseRemoteClient):
         :return:
                             - If `as_str` is True: Returns the main content of the first response as a string.
                             - If `as_str` is False: Returns the full response object.
-                            - If no response is generated or an error occurs, returns None.
 
         """
         raise NotImplementedError("invoke method is not implemented")

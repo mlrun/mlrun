@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
+
 from pydantic.v1 import BaseModel
 
 from mlrun.common.types import StrEnum
@@ -40,3 +42,8 @@ class MonitoringData(StrEnum):
     MODEL_PATH = "model_path"
     MODEL_ENDPOINT_UID = "model_endpoint_uid"
     MODEL_CLASS = "model_class"
+
+
+class ModelsData(enum.Enum):
+    MODEL_CLASS = 0
+    MODEL_PARAMETERS = 1

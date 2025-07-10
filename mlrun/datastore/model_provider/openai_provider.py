@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar, Union
 
@@ -74,6 +73,19 @@ class OpenAIProvider(ModelProvider):
         return self.endpoint
 
     def load_client(self) -> None:
+        """
+        Initializes the OpenAI SDK client using the provided options.
+
+        This method imports the `OpenAI` class from the `openai` package, instantiates
+        a client with the given keyword arguments (`self.options`), and assigns it to
+        `self._client`.
+
+        It also sets the default operation to `self.client.chat.completions.create`, which is
+        typically used for invoking chat-based model completions.
+
+        Raises:
+            ImportError: If the `openai` package is not installed.
+        """
         try:
             from openai import OpenAI, AsyncOpenAI  # noqa
 
@@ -159,11 +171,28 @@ class OpenAIProvider(ModelProvider):
             )
 
     def invoke(
-        self,
-        messages: Optional[list[dict]] = None,
-        as_str: bool = False,
-        **invoke_kwargs,
+            self,
+            messages: Optional[list[dict]] = None,
+            as_str: bool = False,
+            **invoke_kwargs,
     ) -> Optional[Union[str, T]]:
+        """
+        OpenAI-specific implementation of `ModelProvider.invoke`.
+        Invokes an OpenAI model operation using the sync client.
+        For full details, see `ModelProvider.invoke`.
+
+        :param messages:    Same as ModelProvider.invoke.
+
+        :param as_str: bool
+                            If `True`, returns only the main content of the first response
+                            (`response.choices[0].message.content`).
+                            If `False`, returns the full response object, whose type depends on
+                            the specific OpenAI SDK operation used (e.g., chat completion, completion, etc.).
+
+        :param invoke_kwargs:
+                            Same as ModelProvider.invoke.
+
+        """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         response = self._default_operation(
             model=self.endpoint, messages=messages, **invoke_kwargs

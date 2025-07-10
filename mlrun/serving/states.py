@@ -1582,7 +1582,10 @@ class ModelRunnerStep(MonitoredStep):
                 )
             )
             output_schema = model_endpoint.spec.label_names
-        except mlrun.errors.MLRunNotFoundError:
+        except (
+            mlrun.errors.MLRunNotFoundError,
+            mlrun.errors.MLRunInvalidArgumentError,
+        ):
             logger.warning(
                 f"Model endpoint not found, using default output schema for model {name}"
             )

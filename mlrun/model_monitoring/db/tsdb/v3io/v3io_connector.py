@@ -830,16 +830,19 @@ class V3IOTSDBConnector(TSDBConnector):
             selection = "*"
 
         with StringIO() as query:
+            where_added = False
             query.write(f"SELECT {selection} FROM '{table_path}'")
             if endpoint_id:
                 query.write(
                     f" WHERE {mm_schemas.WriterEvent.ENDPOINT_ID}='{endpoint_id}'"
                 )
+                where_added = True
             if metric_and_app_names:
-                if endpoint_id:
+                if where_added:
                     query.write(" AND (")
                 else:
                     query.write(" WHERE (")
+                    where_added = True
 
                 for i, (app_name, result_name) in enumerate(metric_and_app_names):
                     sub_cond = (
@@ -853,7 +856,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 query.write(")")
 
             if application_names:
-                if endpoint_id or metric_and_app_names:
+                if where_added:
                     query.write(" AND (")
                 else:
                     query.write(" WHERE (")

@@ -476,6 +476,7 @@ async def get_model_endpoint_drift_over_time(
     end: Optional[datetime] = None,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
 ) -> schemas.ModelEndpointDriftValues:
+    start, end = _validate_time_range(start, end)
     await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=schemas.AuthorizationAction.read,
@@ -495,7 +496,6 @@ async def get_model_endpoint_drift_over_time(
             error=mlrun.errors.err_to_str(e),
         )
         return schemas.ModelEndpointDriftValues(values=[])
-    start, end = _validate_time_range(start, end)
     result = await run_in_threadpool(tsdb_connector.get_drift_data, start, end)
 
     return result

@@ -285,6 +285,7 @@ async def build_function(
         services.api.utils.functions.build_function,
         db_session,
         auth_info,
+        background_tasks,
         function,
         with_mlrun,
         skip_deployed,
@@ -293,7 +294,6 @@ async def build_function(
         client_version,
         client_python_version,
         force_build,
-        background_tasks,
     )
 
     func_dict = fn.to_dict()

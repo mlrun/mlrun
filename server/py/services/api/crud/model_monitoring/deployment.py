@@ -196,7 +196,10 @@ class MonitoringDeployment:
                 stream_image=stream_image, parquet_target=parquet_target
             )
             fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=fn
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                background_tasks=None,
+                function=fn,
             )
             logger.debug(
                 "Submitted the stream deployment",
@@ -251,7 +254,10 @@ class MonitoringDeployment:
                 ),
             )
             fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=fn
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                background_tasks=None,
+                function=fn,
             )
             logger.debug(
                 "Submitted the controller deployment",
@@ -283,7 +289,10 @@ class MonitoringDeployment:
                 writer_image=writer_image
             )
             fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=fn
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                background_tasks=None,
+                function=fn,
             )
             logger.debug(
                 "Submitted the writer deployment",
@@ -780,7 +789,10 @@ class MonitoringDeployment:
             )
 
             fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=func
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                background_tasks=None,
+                function=func,
             )
 
             logger.debug(

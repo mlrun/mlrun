@@ -541,7 +541,7 @@ class BaseStep(ModelObj):
         step: "ModelRunnerStep",
         step_model_endpoints_names: list[str],
     ) -> None:
-        proxy_endpoint = [
+        proxy_endpoints = [
             name
             for name in step_model_endpoints_names
             if step.class_args.get(
@@ -551,7 +551,7 @@ class BaseStep(ModelObj):
         ]
         shared_models = []
 
-        for name in proxy_endpoint:
+        for name in proxy_endpoints:
             shared_runnable_name = (
                 step.class_args.get(schemas.ModelRunnerStepData.MODELS, {})
                 .get(name, ["", {}])[schemas.ModelsData.MODEL_PARAMETERS.value]

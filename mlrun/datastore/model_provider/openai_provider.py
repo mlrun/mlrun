@@ -126,9 +126,9 @@ class OpenAIProvider(ModelProvider):
                 size="1024x1024",
             )
             ```
-        :param operation: A callable representing the model operation (e.g., a client method).
-        :param invoke_kwargs: Keyword arguments to pass to the operation.
-        :return: The full response returned by the operation.
+        :param      operation:      Same as ModelProvider.custom_invoke.
+        :param      invoke_kwargs:  Same as ModelProvider.custom_invoke.
+        :return:                    The full response returned by the operation.
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
@@ -157,9 +157,9 @@ class OpenAIProvider(ModelProvider):
                 size="1024x1024",
             )
             ```
-        :param operation: An async callable representing the model operation (e.g., an async_client method).
-        :param invoke_kwargs: Keyword arguments to pass to the operation.
-        :return: The full response returned by the awaited operation.
+        :param operation:       Same as ModelProvider.async_custom_invoke.
+        :param invoke_kwargs:   Same as ModelProvider.async_custom_invoke.
+        :return:                The full response returned by the awaited operation.
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
@@ -171,10 +171,10 @@ class OpenAIProvider(ModelProvider):
             )
 
     def invoke(
-            self,
-            messages: Optional[list[dict]] = None,
-            as_str: bool = False,
-            **invoke_kwargs,
+        self,
+        messages: Optional[list[dict]] = None,
+        as_str: bool = False,
+        **invoke_kwargs,
     ) -> Optional[Union[str, T]]:
         """
         OpenAI-specific implementation of `ModelProvider.invoke`.
@@ -207,6 +207,23 @@ class OpenAIProvider(ModelProvider):
         as_str: bool = False,
         **invoke_kwargs,
     ) -> str:
+        """
+        OpenAI-specific implementation of `ModelProvider.async_invoke`.
+        Invokes an OpenAI model operation using the async client.
+        For full details, see `ModelProvider.async_invoke`.
+
+        :param messages:    Same as ModelProvider.async_invoke.
+
+        :param as_str: bool
+                            If `True`, returns only the main content of the first response
+                            (`response.choices[0].message.content`).
+                            If `False`, returns the full awaited response object, whose type depends on
+                            the specific OpenAI SDK operation used (e.g., chat completion, completion, etc.).
+
+        :param invoke_kwargs:
+                            Same as ModelProvider.async_invoke.
+
+        """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         response = await self._default_async_operation(
             model=self.endpoint, messages=messages, **invoke_kwargs

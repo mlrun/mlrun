@@ -131,9 +131,9 @@ class ModelProvider(BaseRemoteClient):
         Useful for dynamically calling model methods like text generation, chat completions, or image generation.
         The operation must be a callable that accepts keyword arguments.
 
-        :param operation: A callable representing the model operation (e.g., a client method).
-        :param invoke_kwargs: Keyword arguments to pass to the operation.
-        :return: The full response returned by the operation.
+        :param operation:       A callable representing the model operation (e.g., a client method).
+        :param invoke_kwargs:   Keyword arguments to pass to the operation.
+        :return:                The full response returned by the operation.
         """
         raise NotImplementedError("custom_invoke method is not implemented")
 
@@ -167,9 +167,9 @@ class ModelProvider(BaseRemoteClient):
 
         The operation must be an async callable (e.g., a method from an async client) that accepts keyword arguments.
 
-        :param operation: An async callable representing the model operation.
-        :param invoke_kwargs: Keyword arguments to pass to the operation.
-        :return: The full response returned by the awaited operation.
+        :param operation:       An async callable representing the model operation (e.g., an async_client method).
+        :param invoke_kwargs:   Keyword arguments to pass to the operation.
+        :return:                The full response returned by the awaited operation.
         """
         raise NotImplementedError("async_custom_invoke is not implemented")
 

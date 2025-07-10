@@ -1283,3 +1283,29 @@ class V3IOTSDBConnector(TSDBConnector):
         Union[mm_schemas.ApplicationResultRecord, mm_schemas.ApplicationMetricRecord]
     ]:
         raise NotImplementedError
+
+    def get_drift_data(
+            self,
+            start: datetime,
+            end: datetime,
+    ) -> mm_schemas.ModelEndpointDriftValues:
+        table = mm_schemas.V3IOTSDBTables.APP_RESULTS
+        start, end = get_start_end(start, end, delta=timedelta(hours=24))
+        start, end, interval = self._prepare_aligned_start_end(start, end)
+
+        # get per time-interval x endpoint_id combination the max result status
+        df = self._get_records(
+            table=table,
+            start=start,
+            end=end,
+            interval=interval,
+            sliding_window_step=interval,
+            columns=[mm_schemas.ResultData.RESULT_STATUS],
+            agg_funcs=["max"],
+            group_by=mm_schemas.WriterEvent.ENDPOINT_ID,
+        )
+        if df.empty:
+            return mm_schemas.ModelEndpointDriftValues(values=[])
+        df = df[df[f"max({mm_schemas.ResultData.RESULT_STATUS})"] >= 1]
+        df["_wstart"] = df.index.floor("1h")
+        return self._df_to_drift_data(df)

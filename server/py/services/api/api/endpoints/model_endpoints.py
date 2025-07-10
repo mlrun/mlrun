@@ -465,6 +465,39 @@ async def get_metrics_by_multiple_endpoints(
         )
     return events
 
+@router.get(
+    "/drift-over-time",
+    status_code=HTTPStatus.OK.value,
+    response_model=schemas.ModelEndpointDriftValues,
+)
+async def get_model_endpoint_drift_over_time(
+    project: ProjectAnnotation,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
+) -> schemas.ModelEndpointDriftValues:
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project_name=project,
+        action=schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+    try:
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=project,
+            secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                project=project
+            ),
+        )
+    except mlrun.errors.MLRunNotFoundError as e:
+        logger.debug(
+            "Failed to retrieve model endpoint metrics-values because the TSDB datastore profile was not found. "
+            "Returning an empty list of metric-values",
+            error=mlrun.errors.err_to_str(e),
+        )
+        return schemas.ModelEndpointDriftValues(values=[])
+    result = await run_in_threadpool(tsdb_connector.get_drift_data, start, end)
+
+    return result
 
 @router.get(
     "/{name}",

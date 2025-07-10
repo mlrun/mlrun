@@ -351,6 +351,14 @@ class ApplicationMetricRecord(ApplicationBaseRecord):
     metric_name: str
     type: Literal["metric"] = "metric"
 
+class _DriftBin(NamedTuple):
+    timestamp: datetime
+    count_suspected: int
+    count_detected: int
+
+
+class ModelEndpointDriftValues(BaseModel):
+    values: list[_DriftBin]
 
 def _mapping_attributes(
     model_class: type[Model],

@@ -147,6 +147,7 @@ from .model_monitoring import (
     GrafanaTable,
     ModelEndpoint,
     ModelEndpointCreationStrategy,
+    ModelEndpointDriftValues,
     ModelEndpointList,
     ModelEndpointMetadata,
     ModelEndpointSchema,

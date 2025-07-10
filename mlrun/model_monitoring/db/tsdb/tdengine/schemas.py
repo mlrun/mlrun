@@ -165,6 +165,7 @@ class TDEngineSchema:
         preform_agg_funcs_columns: Optional[list[str]] = None,
         order_by: Optional[str] = None,
         desc: Optional[bool] = None,
+        partition_by: Optional[str] = None,
     ) -> str:
         if agg_funcs and not columns_to_filter:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -232,6 +233,8 @@ class TDEngineSchema:
                 if isinstance(group_by, list):
                     group_by = ", ".join(group_by)
                 query.write(f" GROUP BY {group_by}")
+            if partition_by:
+                query.write(f" PARTITION BY {partition_by}")
             if order_by:
                 desc = " DESC" if desc else ""
                 query.write(f" ORDER BY {order_by}{desc}")

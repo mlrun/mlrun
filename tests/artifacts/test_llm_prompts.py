@@ -78,14 +78,14 @@ def test_prompt_limitation():
     llm_prompt = context.log_llm_prompt(
         llm_key,
         artifact_path=artifact_path,
-        prompt_template=[{"role":"user", "content" : "A" * 2000}],
+        prompt_template=[{"role": "user", "content": "A" * 2000}],
         description="long-prompt",
     )
     assert llm_prompt.target_path.startswith(str(artifact_path))
     assert llm_prompt.spec.prompt_template is None
 
     prompt_template = llm_prompt.read_prompt()
-    assert prompt_template == [{"role":"user", "content" : "A" * 2000}]
+    assert prompt_template == [{"role": "user", "content": "A" * 2000}]
 
 
 @pytest.mark.parametrize(
@@ -115,7 +115,7 @@ def test_unauthorised_model(project_name_llm):
         context_llm.log_llm_prompt(
             llm_key,
             artifact_path=artifact_path_llm,
-            prompt_template=[{"role":"user", "content" : "A" * 2000}],
+            prompt_template=[{"role": "user", "content": "A" * 2000}],
             description="long-prompt",
             model_artifact=model,
         )
@@ -125,7 +125,7 @@ def test_unauthorised_model(project_name_llm):
         context_llm.log_llm_prompt(
             llm_key,
             artifact_path=artifact_path_llm,
-            prompt_template=[{"role":"user", "content" : "A" * 2000}],
+            prompt_template=[{"role": "user", "content": "A" * 2000}],
             description="long-prompt",
             model_artifact="dasdcfsfv",
         )

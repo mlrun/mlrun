@@ -42,10 +42,9 @@ from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.run import import_function, new_function
-from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.utils import enrich_function_from_dict
 from mlrun.utils import get_in, logger
-from server.py.services.api.utils.model_monitoring import (
+from server.py.framework.utils.model_monitoring import (
     start_model_endpoint_creation_background_task,
 )
 

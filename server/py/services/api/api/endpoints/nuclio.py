@@ -31,7 +31,7 @@ from mlrun.common.schemas.serving import DeployResponse
 from mlrun.config import config
 from mlrun.utils import logger
 from mlrun.utils.helpers import generate_object_uri
-from server.py.services.api.utils.model_monitoring import (
+from server.py.framework.utils.model_monitoring import (
     start_model_endpoint_creation_background_task,
 )
 

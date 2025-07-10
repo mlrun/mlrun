@@ -20,6 +20,8 @@ import mlrun.common.schemas
 from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import logger
 
+import services.api.crud.model_monitoring.deployment as mm_deployment
+
 
 async def start_model_endpoint_creation_background_task(
     project: str,
@@ -28,9 +30,6 @@ async def start_model_endpoint_creation_background_task(
     function: dict,
     db_session: sqlalchemy.orm.Session,
 ):
-    # avoid circular import
-    import services.api.crud.model_monitoring.deployment as mm_deployment
-
     returned_background_tasks = mlrun.common.schemas.BackgroundTaskList(
         background_tasks=[]
     )

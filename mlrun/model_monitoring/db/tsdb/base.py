@@ -725,7 +725,7 @@ class TSDBConnector(ABC):
             start: datetime, end: datetime
     ) -> tuple[datetime, datetime, str]:
         delta = end - start
-        if delta <= timedelta(hours=2):
+        if delta <= timedelta(hours=6):
             interval = "10m"
             start = start.replace(
                 minute=start.minute // 10 * 10, second=0, microsecond=0

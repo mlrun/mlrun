@@ -123,7 +123,7 @@ class OpenAIProvider(ModelProvider):
         Invokes an OpenAI model operation using the sync client.
         For full details, see `ModelProvider.invoke`.
 
-        :param messages:    Same as ModelProvider Class.
+        :param messages:    Same as ModelProvider.invoke.
 
         :param as_str: bool
                             If `True`, returns only the main content of the first response
@@ -132,7 +132,7 @@ class OpenAIProvider(ModelProvider):
                             the specific OpenAI SDK operation used (e.g., chat completion, completion, etc.).
 
         :param invoke_kwargs:
-                            Same as ModelProvider Class.
+                            Same as ModelProvider.invoke.
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)

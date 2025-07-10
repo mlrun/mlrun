@@ -84,8 +84,8 @@ class Retryer:
         logger,
         verbose,
         function,
-        fatal_exceptions,
         *args,
+        fatal_exceptions=(),
         **kwargs,
     ):
         """
@@ -98,8 +98,8 @@ class Retryer:
         :param logger: a logger so we can log the failures
         :param verbose: whether to log the failure on each retry
         :param _function: function to run
-        :param fatal_exceptions: exception types that should not be retried
         :param args: functions args
+        :param fatal_exceptions: exception types that should not be retried
         :param kwargs: functions kwargs
         """
         self.backoff = backoff
@@ -120,14 +120,12 @@ class Retryer:
             next_interval = self.first_interval or next(self.backoff)
             result, exc, retry = self._perform_call(next_interval)
 
-            if not exc:
-                return result
-
-            if type(exc) in self.fatal_exceptions:
-                break
-
-            if retry:
+            if retry and type(exc) not in self.fatal_exceptions:
                 time.sleep(next_interval)
+            elif not exc:
+                return result
+            else:
+                break
 
         self._raise_last_exception()
 

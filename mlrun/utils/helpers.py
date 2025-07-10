@@ -1055,8 +1055,45 @@ def retry_until_successful(
     logger,
     verbose: bool,
     _function,
-    fatal_exceptions: tuple[type] = (),
     *args,
+    fatal_exceptions=(),
+    **kwargs,
+):
+    """
+    Runs function with given *args and **kwargs.
+    Tries to run it until success or timeout reached (timeout is optional)
+    :param backoff: can either be a:
+            - number (int / float) that will be used as interval.
+            - generator of waiting intervals. (support next())
+    :param timeout: pass None if timeout is not wanted, number of seconds if it is
+    :param logger: a logger so we can log the failures
+    :param verbose: whether to log the failure on each retry
+    :param _function: function to run
+    :param args: functions args
+    :param fatal_exceptions: exception types that should not be retried
+    :param kwargs: functions kwargs
+    :return: function result
+    """
+    return Retryer(
+        backoff,
+        timeout,
+        logger,
+        verbose,
+        _function,
+        *args,
+        fatal_exceptions=fatal_exceptions,
+        **kwargs,
+    ).run()
+
+
+async def retry_until_successful_async(
+    backoff: int,
+    timeout: int,
+    logger,
+    verbose: bool,
+    _function,
+    *args,
+    fatal_exceptions=(),
     **kwargs,
 ):
     """
@@ -1074,30 +1111,15 @@ def retry_until_successful(
     :param kwargs: functions kwargs
     :return: function result
     """
-    return Retryer(
-        backoff, timeout, logger, verbose, _function, fatal_exceptions, *args, **kwargs
-    ).run()
-
-
-async def retry_until_successful_async(
-    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
-):
-    """
-    Runs function with given *args and **kwargs.
-    Tries to run it until success or timeout reached (timeout is optional)
-    :param backoff: can either be a:
-            - number (int / float) that will be used as interval.
-            - generator of waiting intervals. (support next())
-    :param timeout: pass None if timeout is not wanted, number of seconds if it is
-    :param logger: a logger so we can log the failures
-    :param verbose: whether to log the failure on each retry
-    :param _function: function to run
-    :param args: functions args
-    :param kwargs: functions kwargs
-    :return: function result
-    """
     return await AsyncRetryer(
-        backoff, timeout, logger, verbose, _function, *args, **kwargs
+        backoff,
+        timeout,
+        logger,
+        verbose,
+        _function,
+        *args,
+        fatal_exceptions=fatal_exceptions,
+        **kwargs,
     ).run()
 
 

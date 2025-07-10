@@ -256,7 +256,7 @@ async def start_model_endpoint_creation_background_task(
         else None
     )
 
-    return model_endpoint_creation_task_name, returned_background_tasks
+    return function, model_endpoint_creation_task_name, returned_background_tasks
 
 
 async def submit_run(
@@ -282,6 +282,7 @@ async def submit_run(
 
         if track_models and background_tasks and db_session:
             (
+                fn,
                 model_endpoint_creation_task_name,
                 _,
             ) = await start_model_endpoint_creation_background_task(

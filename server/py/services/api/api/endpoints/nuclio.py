@@ -269,7 +269,7 @@ async def start_model_endpoint_creation_background_task(
         else None
     )
 
-    return model_endpoint_creation_task_name, returned_background_tasks
+    return function, model_endpoint_creation_task_name, returned_background_tasks
 
 
 @router.post(
@@ -320,6 +320,7 @@ async def deploy_function(
         )
     )
     (
+        function,
         model_endpoint_creation_task_name,
         returned_background_tasks,
     ) = await start_model_endpoint_creation_background_task(

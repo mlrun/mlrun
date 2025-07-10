@@ -61,7 +61,7 @@ class LLMPromptArtifactSpec(ArtifactSpec):
         self.prompt_legend = prompt_legend
         self.model_configuration = model_configuration
         self.description = description
-        self._model_artifact = None
+        self._model_artifact = model_artifact
 
     @property
     def model_uri(self):

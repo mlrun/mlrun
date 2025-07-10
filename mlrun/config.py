@@ -555,7 +555,7 @@ default_config = {
         },
         "v3io_api": "",
         "v3io_framesd": "",
-        # If running from sdk and MLRUN_DBPATH is not set, the db will fallback to a nop db which will not preform any
+        # If running from sdk and MLRUN_DBPATH is not set, the db will fallback to a nop db which will not perform any
         # run db operations.
         "nop_db": {
             # if set to true, will raise an error for trying to use run db functionality
@@ -657,7 +657,7 @@ default_config = {
         "offline_storage_path": "model-endpoints/{kind}",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
-        "model_endpoint_creation_check_period": "15",
+        "model_endpoint_creation_check_period": 15,
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -1235,6 +1235,7 @@ class Config:
         """
         Get the default value for the ssl_redirect configuration.
         In Iguazio we always want to redirect to HTTPS, in other cases we don't.
+
         :return: True if we should redirect to HTTPS, False otherwise.
         """
         return self.is_running_on_iguazio()

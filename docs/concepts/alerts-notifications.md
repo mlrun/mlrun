@@ -1,7 +1,7 @@
 (alerts-notifications)=
 # Alerts and notifications 
 
-{ref}`notifications` are used to notify you of the system events, for example, start/finish of processes, and error messages; {ref}`alerts` are a generic mechanism that allows you to define more specific rules, such as an event happens N times within a time period, and can also be used for model monitoring where the basic notification is just for jobs and workflows.
+{ref}`notifications` are used to notify you of system events on jobs (both scheduled and manually triggered), for example, job finish, and additionally on job start of workflows; {ref}`alerts` are a broader mechanism that allows defining rules like "event X happens N times in T minutes," and are often used for monitoring production models or failing jobs.
 
 **In this section**
 

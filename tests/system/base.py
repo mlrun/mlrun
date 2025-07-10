@@ -16,10 +16,12 @@ import base64
 import json
 import os
 import pathlib
+import re
 import sys
 import typing
 from tempfile import NamedTemporaryFile
 
+import git
 import igz_mgmt
 import kubernetes.client as k8s_client
 import kubernetes.config
@@ -435,3 +437,32 @@ class TestMLRunSystem:
                     source_path
                 )
         self.uploaded_code = True
+
+    @staticmethod
+    def _resolve_current_git_branch_and_fork():
+        """
+        Resolve the current git branch and fork name.
+        Falls back to any available remote if 'origin' is not found.
+        """
+        repo = git.Repo(search_parent_directories=True)
+
+        # Try to get the 'origin' remote, or fall back to the first available remote
+        remote = (
+            repo.remotes.origin
+            if "origin" in repo.remotes
+            else next(iter(repo.remotes), None)
+        )
+        if remote is None:
+            raise RuntimeError("No remotes found in the Git repository.")
+
+        git_url = remote.url
+
+        # Extract the username (fork) from the git URL
+        match = re.search(r"git@[^:]+:([^/]+)/", git_url)
+        if not match:
+            raise ValueError(f"Could not extract fork from git URL: {git_url}")
+
+        fork = match.group(1)
+        branch = repo.active_branch.name
+
+        return branch, fork

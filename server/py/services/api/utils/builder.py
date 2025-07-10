@@ -111,12 +111,13 @@ def make_dockerfile(
         # it is up to base image to have unzip included in case source is zip
         if source.endswith(".zip"):
             source_dir = os.path.join(target_dir, "source")
+            filename = os.path.basename(source)
             stage_lines = [
                 f"FROM {base_image} AS extractor",
                 args,
                 f"RUN mkdir -p {source_dir}",
                 f"ADD {source} {source_dir}",
-                f"RUN cd {source_dir} && unzip {source} && rm {source}",
+                f"RUN cd {source_dir} && unzip {filename} && rm {filename}",
             ]
             stage = textwrap.dedent("\n".join(stage_lines)).strip()
             dock = stage + "\n" + dock

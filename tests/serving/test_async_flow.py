@@ -721,7 +721,7 @@ def test_get_local_model_path():
 @pytest.mark.parametrize("with_object", [True, False])
 @pytest.mark.parametrize("shared", [True, False])
 @pytest.mark.parametrize("model_uri", [True, False])
-@pytest.mark.parametrize("llm", [True, False])
+@pytest.mark.parametrize("llm", [None, "uri_based", "object_based"])
 def test_deploy_function_with_model_runner(
     raise_exception, with_object, shared, model_uri, llm
 ):
@@ -737,7 +737,9 @@ def test_deploy_function_with_model_runner(
         llm_artifact = project.log_llm_prompt(
             "my_llm",
             prompt_string="What is the meaning of life?",
-            model_artifact=model_artifact,
+            model_artifact=model_artifact
+            if llm == "object_based"
+            else model_artifact.uri,
         )
 
     with unittest.mock.patch(

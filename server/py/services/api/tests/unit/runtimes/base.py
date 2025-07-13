@@ -434,7 +434,7 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
     def deploy(db_session, runtime, with_mlrun=True):
         auth_info = mlrun.common.schemas.AuthInfo()
         services.api.utils.functions.build_function(
-            db_session, auth_info, None, runtime, with_mlrun=with_mlrun
+            db_session, auth_info, runtime, with_mlrun=with_mlrun
         )
 
     def _reset_mocks(self):

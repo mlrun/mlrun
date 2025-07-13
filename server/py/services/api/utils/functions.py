@@ -16,8 +16,6 @@ import os
 import traceback
 from http import HTTPStatus
 
-import fastapi
-
 import mlrun.common.schemas
 from mlrun.errors import err_to_str
 from mlrun.run import new_function
@@ -33,7 +31,6 @@ from services.api.utils.builder import build_runtime
 def build_function(
     db_session,
     auth_info: mlrun.common.schemas.AuthInfo,
-    background_tasks: fastapi.BackgroundTasks,
     function,
     with_mlrun=True,
     skip_deployed=False,

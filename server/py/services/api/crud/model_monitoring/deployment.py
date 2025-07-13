@@ -198,7 +198,6 @@ class MonitoringDeployment:
             fn, ready = services.api.utils.functions.build_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
-                background_tasks=None,
                 function=fn,
             )
             logger.debug(
@@ -256,7 +255,6 @@ class MonitoringDeployment:
             fn, ready = services.api.utils.functions.build_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
-                background_tasks=None,
                 function=fn,
             )
             logger.debug(
@@ -291,7 +289,6 @@ class MonitoringDeployment:
             fn, ready = services.api.utils.functions.build_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
-                background_tasks=None,
                 function=fn,
             )
             logger.debug(
@@ -791,7 +788,6 @@ class MonitoringDeployment:
             fn, ready = services.api.utils.functions.build_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
-                background_tasks=None,
                 function=func,
             )
 

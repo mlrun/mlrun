@@ -984,7 +984,7 @@ class NopDB(RunDBInterface):
     def get_project_drift_over_time(
         self,
         project: str,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
         pass

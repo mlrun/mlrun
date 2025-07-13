@@ -574,6 +574,45 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         assert mep_3.spec.feature_names == ["f1"]
         assert mep_3.spec.label_names == ["l1", "l2"]
 
+    def test_mep_with_llm(self):
+        model_obj = self.project.log_model(
+            "my-model",
+            model_dir=str(self.assets_path),
+            model_file="model.pkl",
+            artifact_path=f"v3io:///projects/{self.project.metadata.name}",
+            outputs=[mlrun.feature_store.Feature(name="l1", value_type="float")],
+            inputs=[mlrun.feature_store.Feature(name="f1", value_type="float")],
+            tag="latest",
+        )
+
+        llm_prompt = self.project.log_llm_prompt(
+            "my-llm-prompt",
+            prompt_string="What is the capital of France?",
+            artifact_path=f"v3io:///projects/{self.project.metadata.name}",
+            model_artifact=model_obj,
+        )
+
+        model_endpoint = mock_random_endpoint(
+            self.project_name,
+            "llm-testing",
+            model_path=f"store://llm-prompts/{self.project_name}/{llm_prompt.key}:latest",
+        )
+
+        db = mlrun.get_run_db()
+        db.create_model_endpoint(model_endpoint)
+
+        mep = db.get_model_endpoint(
+            project=model_endpoint.metadata.project,
+            name=model_endpoint.metadata.name,
+            function_name=model_endpoint.spec.function_name,
+            function_tag=model_endpoint.spec.function_tag,
+            feature_analysis=True,
+        )
+        assert mep.spec.feature_names == ["f1"]
+        assert mep.spec.label_names == ["l1"]
+        assert mep.spec.model_name == "my-llm-prompt"
+        assert mep.spec.model_uri == llm_prompt.get_store_url(with_tag=False)
+
     def test_mep_with_model_runner(self):
         function = mlrun.code_to_function(
             name="function_with_model",

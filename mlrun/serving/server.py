@@ -788,6 +788,7 @@ class GraphContext:
         self.verbose = False
         self.stream = None
         self.root = None
+        self.executor: Optional[storey.flow.RunnableExecutor] = None
 
         if nuclio_context:
             self.logger: NuclioLogger = nuclio_context.logger

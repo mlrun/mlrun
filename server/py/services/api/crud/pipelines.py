@@ -298,6 +298,7 @@ class Pipelines(
                     f"{mlrun_constants.MLRunInternalLabels.workflow_id}={run_id}",
                     f"{mlrun_constants.MLRunInternalLabels.job_type}={job_type}",
                 ],
+                with_notifications=True,
             )
             if runs:
                 return runs.to_objects()[0]
@@ -412,10 +413,16 @@ class Pipelines(
                 mlrun_constants.MLRunInternalLabels.client_version
             ] = sanitize_label_value(client_version)
 
+        original_runner_notifications = (
+            original_runner.spec.notifications.to_dict()
+            if original_runner.spec.notifications
+            else None
+        )
+
         rerun_request = mlrun.common.schemas.RerunWorkflowRequest(
             run_name=run_name,
             run_id=run_id,
-            notifications=[],  # TODO: will pass notifications from original runner in follow up PR,
+            notifications=original_runner_notifications,
             workflow_runner_node_selector=original_runner.spec.node_selector,
             original_workflow_id=original_runner.metadata.labels["workflow-id"],
         )

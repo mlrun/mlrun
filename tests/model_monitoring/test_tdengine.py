@@ -545,5 +545,8 @@ class TestTDEngineConnector:
             }
         ])
         connector._get_records = unittest.mock.Mock(return_value=df)
-        drift_data = connector.get_drift_data(start=start, end=end)
-        assert drift_data is not None
+        drift_over_time: mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues = connector.get_drift_data(start=start, end=end)
+        assert drift_over_time is not None
+        assert len(drift_over_time.values) == 2, "Drift over time should have one value"
+        assert drift_over_time.values[0].count_suspected == 1, "Drift over time should have one detected drift"
+        assert drift_over_time.values[1].count_detected == 1, "Drift over time should not have potential drift"

@@ -14,7 +14,7 @@
 
 from collections import Counter
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 from unittest.mock import Mock, patch
 
@@ -29,6 +29,7 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetricNoData,
     ModelEndpointMonitoringResultValues,
     _MetricPoint,
+    ModelEndpointDriftValues,
 )
 from mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps import (
     _normalize_dict_for_v3io_frames,
@@ -269,6 +270,21 @@ def predictions_df() -> pd.DataFrame:
         ],
     )
 
+@pytest.fixture
+def drift_df() -> pd.DataFrame:
+    now = datetime.now().astimezone()
+    return pd.DataFrame([
+        {
+            "_wstart": now - timedelta(hours=1),
+            "_wend": now - timedelta(hours=1),
+            "max(result_status)": 2,
+        },
+        {
+            "_wstart": now - timedelta(hours=2),
+            "_wend": now - timedelta(hours=2),
+            "max(result_status)": 1,
+        }
+    ])
 
 @pytest.fixture
 def _mock_frames_client(tsdb_df: pd.DataFrame) -> Iterator[None]:
@@ -302,6 +318,14 @@ def _mock_frames_client_predictions(predictions_df: pd.DataFrame) -> Iterator[No
     ):
         yield
 
+@pytest.fixture
+def _mock_frames_client_drift(drift_df):
+    frames_client_mock = Mock()
+    frames_client_mock.read = Mock(return_value=drift_df)
+    with patch.object(
+        mlrun.utils.v3io_clients, "get_frames_client", return_value=frames_client_mock
+    ):
+        yield
 
 @pytest.mark.parametrize(("with_result_extra_data"), [False, True])
 @pytest.mark.usefixtures("_mock_frames_client")
@@ -410,3 +434,15 @@ def count_read_results_by_status():
 
     data = tsdb_connector.count_results_by_status(result_status_list=[-1])
     assert len(data) == 0
+
+@pytest.mark.usefixtures("_mock_frames_client_drift")
+def test_get_drift_data():
+    tsdb_connector = V3IOTSDBConnector(project="fictitious-one")
+    end = datetime.now().astimezone()
+    start = end - timedelta(hours=24)
+    drift_over_time: ModelEndpointDriftValues = tsdb_connector.get_drift_data(
+        start=start, end=end)
+    assert drift_over_time is not None
+    assert len(drift_over_time.values) == 2, "Drift over time should have one value"
+    assert drift_over_time.values[0].count_suspected == 1, "Drift over time should have one detected drift"
+    assert drift_over_time.values[1].count_detected == 1, "Drift over time should not have potential drift"

@@ -688,7 +688,7 @@ def test_build_function_with_mlrun_bool(
             json=request_body,
         )
         assert response.status_code == HTTPStatus.OK.value
-        assert services.api.utils.functions.build_function.call_args[0][4] == with_mlrun
+        assert services.api.utils.functions.build_function.call_args[0][3] == with_mlrun
     services.api.utils.functions.build_function = original_build_function
 
 

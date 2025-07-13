@@ -527,26 +527,33 @@ class TestTDEngineConnector:
             "2024-12-27 05:13:47 +00:00"
         ).astimezone(datetime.timezone.utc)
 
-
     def test_get_drift_data(self, connector):
         now = datetime.datetime.now().astimezone()
         end = now
         start = now - datetime.timedelta(hours=24)
-        df = pd.DataFrame([
-            {
-                "_wstart": now - datetime.timedelta(hours=1),
-                "_wend": now - datetime.timedelta(hours=1),
-                "max(result_status)": 2,
-            },
-            {
-                "_wstart": now - datetime.timedelta(hours=2),
-                "_wend": now - datetime.timedelta(hours=2),
-                "max(result_status)": 1,
-            }
-        ])
+        df = pd.DataFrame(
+            [
+                {
+                    "_wstart": now - datetime.timedelta(hours=1),
+                    "_wend": now - datetime.timedelta(hours=1),
+                    "max(result_status)": 2,
+                },
+                {
+                    "_wstart": now - datetime.timedelta(hours=2),
+                    "_wend": now - datetime.timedelta(hours=2),
+                    "max(result_status)": 1,
+                },
+            ]
+        )
         connector._get_records = unittest.mock.Mock(return_value=df)
-        drift_over_time: mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues = connector.get_drift_data(start=start, end=end)
+        drift_over_time: mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues = connector.get_drift_data(
+            start=start, end=end
+        )
         assert drift_over_time is not None
         assert len(drift_over_time.values) == 2, "Drift over time should have one value"
-        assert drift_over_time.values[0].count_suspected == 1, "Drift over time should have one detected drift"
-        assert drift_over_time.values[1].count_detected == 1, "Drift over time should not have potential drift"
+        assert (
+            drift_over_time.values[0].count_suspected == 1
+        ), "Drift over time should have one detected drift"
+        assert (
+            drift_over_time.values[1].count_detected == 1
+        ), "Drift over time should not have potential drift"

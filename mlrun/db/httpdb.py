@@ -5158,7 +5158,7 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", endpoint_path, error_message)
         return mlrun.common.schemas.ProjectSummary(**response.json())
 
-    def get_project_drift_over_time(
+    def get_drift_over_time(
         self,
         project: str,
         start: Optional[datetime] = None,

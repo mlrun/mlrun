@@ -5546,13 +5546,13 @@ class MlrunProject(ModelObj):
             **kwargs,
         )
 
-    def get_project_drift_over_time(
+    def get_drift_over_time(
         self,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        return db.get_project_drift_over_time(
+        return db.get_drift_over_time(
             project=self.metadata.name,
             start=start,
             end=end,

@@ -1147,7 +1147,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_project_drift_over_time(
+    def get_drift_over_time(
         self,
         project: str,
         start: Optional[datetime.datetime] = None,

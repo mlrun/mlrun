@@ -1387,7 +1387,7 @@ class SQLRunDB(RunDBInterface):
     def get_project_summary(self, project: str):
         raise NotImplementedError
 
-    def get_project_drift_over_time(
+    def get_drift_over_time(
         self,
         project: str,
         start: Optional[datetime.datetime] = None,

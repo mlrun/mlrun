@@ -72,7 +72,7 @@ class HuggingFaceProvider(ModelProvider):
 
     def load_client(self) -> None:
         try:
-            from transformers import pipeline, AutoModelForCausalLM # noqa
+            from transformers import pipeline, AutoModelForCausalLM  # noqa
             from transformers import AutoTokenizer  # noqa
 
             self._client = pipeline(model=self.model, **self.options)
@@ -153,9 +153,7 @@ class HuggingFaceProvider(ModelProvider):
         if operation:
             return await operation(**invoke_kwargs)
         else:
-            return await self._default_async_operation(
-                **invoke_kwargs
-            )
+            return await self._default_async_operation(**invoke_kwargs)
 
     def invoke(
         self,
@@ -164,11 +162,9 @@ class HuggingFaceProvider(ModelProvider):
         **invoke_kwargs,
     ) -> Optional[Union[str, T]]:
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
-        response = self._default_operation(
-            messages, **invoke_kwargs
-        )
+        response = self._default_operation(messages, **invoke_kwargs)
         if as_str:
-            return response[0]['generated_text']
+            return response[0]["generated_text"]
         return response
 
     async def async_invoke(

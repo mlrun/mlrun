@@ -486,6 +486,30 @@ class OpenAIProfile(DatastoreProfile):
         return f"{self.type}://{subpath.lstrip('/')}"
 
 
+class HuggingFaceProfile(DatastoreProfile):
+    type: str = pydantic.v1.Field("huggingface")
+    _private_attributes = "token"
+    task: typing.Optional[str] = None
+    token: typing.Optional[str] = None
+    device: typing.Optional[typing.Union[int, str]] = None
+    device_map = None
+
+    def secrets(self) -> dict:
+        res = {}
+        if self.task:
+            res["HF_TASK"] = self.task
+        if self.token:
+            res["HF_TOKEN"] = self.token
+        if self.device:
+            res["HF_DEVICE"] = self.device
+        if self.device_map:
+            res["HF_DEVICE_MAP"] = self.device_map
+        return res
+
+    def url(self, subpath):
+        return f"{self.type}://{subpath.lstrip('/')}"
+
+
 _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
     "v3io": DatastoreProfileV3io,
     "s3": DatastoreProfileS3,
@@ -500,6 +524,7 @@ _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
     "taosws": DatastoreProfileTDEngine,
     "config": ConfigProfile,
     "openai": OpenAIProfile,
+    "huggingface": HuggingFaceProfile,
 }
 
 

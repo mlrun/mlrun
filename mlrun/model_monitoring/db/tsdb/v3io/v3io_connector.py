@@ -1366,7 +1366,7 @@ class V3IOTSDBConnector(TSDBConnector):
         # Get the latest results
         def get_latest_metrics_records(
             record_type: Literal["metrics", "results"],
-        ) -> Union[pd.DataFrame]:
+        ) -> pd.DataFrame:
             group_by_columns = [mm_schemas.ApplicationEvent.APPLICATION_NAME]
             if record_type == "results":
                 table_path = self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS]

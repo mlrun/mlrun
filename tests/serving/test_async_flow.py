@@ -14,12 +14,14 @@
 import pathlib
 import unittest.mock
 from types import SimpleNamespace
-from typing import Optional
+from typing import Optional, Union
 
 import pytest
 
 import mlrun
 import mlrun.common.schemas as schemas
+from mlrun.artifacts.llm_prompt import LLMPromptArtifact
+from mlrun.artifacts.model import ModelArtifact
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.serving import LLModel, Model, ModelRunnerStep, ModelSelector, RouterStep
 from mlrun.utils import logger
@@ -33,12 +35,17 @@ class _DummyStreamRaiser:
         raise ValueError("DummyStreamRaiser raises an error")
 
 
-def create_mocked_get_store_artifact(model_artifact):
+def create_mocked_get_store_artifact(
+    model_artifact: Union[ModelArtifact, LLMPromptArtifact],
+    origin_model: ModelArtifact = None,
+):
+    _model_artifact = origin_model
+
     def mocked_get_store_artifact(uri, **kwargs):
         if uri == model_artifact.uri:
             return model_artifact, None
         elif uri == model_artifact.spec.parent_uri:
-            return model_artifact.model_artifact, None
+            return _model_artifact, None
         else:
             raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
 
@@ -721,7 +728,7 @@ def test_get_local_model_path():
 @pytest.mark.parametrize("raise_exception", [True, False])
 @pytest.mark.parametrize("shared", [True, False])
 @pytest.mark.parametrize("model_uri", [True, False])
-@pytest.mark.parametrize("llm", [True, False])
+@pytest.mark.parametrize("llm", [None, "uri_based", "object_based"])
 def test_deploy_function_with_model_runner(
     raise_exception, shared, model_uri, llm
 ):
@@ -739,14 +746,16 @@ def test_deploy_function_with_model_runner(
             prompt_template=[
                 {"role": "user", "content": "What is the capital city of {country}?"}
             ],
-            model_artifact=model_artifact,
+            model_artifact=model_artifact
+            if llm == "object_based"
+            else model_artifact.uri,
             prompt_legend={"country": {"field": None, "description": "Great"}},
         )
 
     with unittest.mock.patch(
         "mlrun.store_manager.get_store_artifact",
         side_effect=create_mocked_get_store_artifact(
-            model_artifact=llm_artifact if llm else model_artifact
+            model_artifact=llm_artifact or model_artifact, origin_model=model_artifact
         ),
     ):
         if model_uri:

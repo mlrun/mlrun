@@ -68,7 +68,11 @@ class LLMPromptArtifactSpec(ArtifactSpec):
         self.prompt_legend = prompt_legend
         self.model_configuration = model_configuration
         self.description = description
-        self._model_artifact = model_artifact
+        self._model_artifact = (
+            model_artifact
+            if isinstance(model_artifact, model_art.ModelArtifact)
+            else None
+        )
 
     def _verify_prompt_template(self, prompt_template):
         if not (

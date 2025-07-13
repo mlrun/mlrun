@@ -16,6 +16,7 @@ import os
 import unittest.mock
 from typing import cast
 
+import openai.types.chat
 import pytest
 import tiktoken
 import yaml
@@ -46,8 +47,15 @@ class MyOpenAILLM(mlrun.serving.states.Model):
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
             prompt = self.enrich_prompt(body)
+            messages = [
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ]
             body["result"] = self.model_provider.invoke(
-                prompt=prompt,
+                messages=messages,
+                as_str=True,
                 **(self.invocation_artifact.spec.model_configuration or {}),
             )
         return body
@@ -91,6 +99,15 @@ class TestBasicOpenAIProvider:
     profile_name = "openai_profile"
     env_secrets = config
 
+    @staticmethod
+    def _get_messages(prompt):
+        return [
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ]
+
     @classmethod
     def setup_class(cls):
         cls.basic_llm_model = "gpt-4o"
@@ -127,26 +144,28 @@ class TestBasicOpenAIProvider:
 
 
 class TestOpenAIProvider(TestBasicOpenAIProvider):
-    @staticmethod
-    def check_basic_invoke(model_url: str, secrets: dict, model_name: str):
+    @classmethod
+    def check_basic_invoke(cls, model_url: str, secrets: dict, model_name: str):
         prompt = "What is the capital of France? Provide a detailed and thorough history of the city"
+        messages = cls._get_messages(prompt)
         model_provider = mlrun.get_model_provider(
             url=model_url, secrets=secrets, default_invoke_kwargs={"max_tokens": 200}
         )
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == model_name
-        result = model_provider.invoke(prompt=prompt)
+        result = model_provider.invoke(messages=messages, as_str=True)
         assert "paris" in result.lower()
 
         encoding = tiktoken.encoding_for_model(model_name)
         token_count = len(encoding.encode(result))
         assert token_count == 200
-
-        result = model_provider.invoke(
-            prompt=prompt,
+        # checking as_str = False
+        response = model_provider.invoke(
+            messages=messages,
             max_tokens=50,
         )
-        token_count = len(encoding.encode(result))
+        token_count = len(encoding.encode(response.choices[0].message.content))
+        assert isinstance(response, openai.types.chat.ChatCompletion)
         assert token_count == 50
 
     def test_basic_invoke(self):
@@ -181,7 +200,25 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         self.check_basic_invoke(
             model_url=model_url, secrets=self.env_secrets, model_name=configurable_model
         )
-        # TODO add async and customized invoke tests.
+
+    def test_system_prompt(self, use_datastore_profile):
+        if not use_datastore_profile:
+            pytest.skip(
+                "test_basic_invoke_messages is tested on datastore profile only"
+            )
+        model_url = self.url_prefix + self.basic_llm_model
+        system_prompt = "You are a special LLM model that always answers user questions with one word only."
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": "What is your opinion on climate change?"},
+        ]
+        model_provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs={"max_tokens": 200}
+        )
+        result = model_provider.invoke(messages=messages, as_str=True).strip()
+        assert result
+        assert " " not in result.strip()  # checking one-word answer
 
 
 class TestOpenAIModel(TestBasicOpenAIProvider):

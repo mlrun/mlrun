@@ -21,7 +21,7 @@ import pytest
 import mlrun
 import mlrun.common.schemas as schemas
 from mlrun.errors import MLRunInvalidArgumentError
-from mlrun.serving import Model, ModelRunnerStep, ModelSelector, RouterStep
+from mlrun.serving import LLModel, Model, ModelRunnerStep, ModelSelector, RouterStep
 from mlrun.utils import logger
 from tests.conftest import results
 
@@ -186,6 +186,14 @@ class MyRemoteModel(Model):
     def predict(self, body):
         body["url"] = self.model_artifact.model_url
         body["default_config"] = self.model_artifact.default_config
+        return body
+
+
+class MyLLM(LLModel):
+    def predict(self, body, messages):
+        body["url"] = self.model_artifact.model_url
+        body["default_config"] = self.model_artifact.default_config
+        body["prompt"] = messages
         return body
 
 
@@ -711,12 +719,11 @@ def test_get_local_model_path():
 
 
 @pytest.mark.parametrize("raise_exception", [True, False])
-@pytest.mark.parametrize("with_object", [True, False])
 @pytest.mark.parametrize("shared", [True, False])
 @pytest.mark.parametrize("model_uri", [True, False])
 @pytest.mark.parametrize("llm", [True, False])
 def test_deploy_function_with_model_runner(
-    raise_exception, with_object, shared, model_uri, llm
+    raise_exception, shared, model_uri, llm
 ):
     project = mlrun.new_project("get-model-path-project", save=False)
     function = mlrun.new_function("tests", kind="serving")
@@ -730,15 +737,16 @@ def test_deploy_function_with_model_runner(
         llm_artifact = project.log_llm_prompt(
             "my_llm",
             prompt_template=[
-                {"role": "user", "content": "What is the meaning of life?"}
+                {"role": "user", "content": "What is the capital city of {country}?"}
             ],
             model_artifact=model_artifact,
+            prompt_legend={"country": {"field": None, "description": "Great"}},
         )
 
     with unittest.mock.patch(
         "mlrun.store_manager.get_store_artifact",
         side_effect=create_mocked_get_store_artifact(
-            model_artifact=llm_artifact or model_artifact
+            model_artifact=llm_artifact if llm else model_artifact
         ),
     ):
         if model_uri:
@@ -752,17 +760,12 @@ def test_deploy_function_with_model_runner(
         model_runner_step = ModelRunnerStep(
             name="model-runner", raise_exception=raise_exception
         )
-        if with_object:
-            dummy_model = MyRemoteModel(
-                name="my-model" if not shared else "shared-model"
-            )
-        else:
-            dummy_model = "MyRemoteModel"
+        model_class = "MyLLM" if llm else "MyRemoteModel"
         if shared:
             graph.add_shared_model(
                 name="shared-model",
                 execution_mechanism="naive",
-                model_class=dummy_model,
+                model_class=model_class,
                 model_artifact=model_artifact_param,
             )
             model_runner_step.add_shared_model_proxy(
@@ -772,7 +775,7 @@ def test_deploy_function_with_model_runner(
             )
         else:
             model_runner_step.add_model(
-                model_class=dummy_model,
+                model_class=model_class,
                 execution_mechanism="naive",
                 endpoint_name="my-model",
                 model_artifact=llm_artifact_param or model_artifact_param,
@@ -781,10 +784,13 @@ def test_deploy_function_with_model_runner(
         graph.to(model_runner_step).respond()
 
         server = function.to_mock_server()
-    try:
-        resp = server.test(body={"prompt": "What is the capital of france?"})
-        assert resp["default_config"] == {"model_version": "4"}
-        assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
-        assert resp["prompt"] == "What is the capital of france?"
-    finally:
-        server.wait_for_completion()
+        try:
+            resp = server.test(body={"country": "france"})
+            assert resp["default_config"] == {"model_version": "4"}
+            assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
+            if llm:
+                assert resp["prompt"] == [
+                    {"role": "user", "content": "What is the capital city of france?"}
+                ]
+        finally:
+            server.wait_for_completion()

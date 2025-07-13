@@ -43,6 +43,7 @@ class LLMPromptArtifactSpec(ArtifactSpec):
         target_path: Optional[str] = None,
         **kwargs,
     ):
+        self.PROMPT_TEMPLATE_KEYS = ("content", "role")
         if prompt_template and prompt_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot specify both 'prompt_template' and 'prompt_path'"
@@ -52,13 +53,7 @@ class LLMPromptArtifactSpec(ArtifactSpec):
         if prompt_path:
             self._verify_prompt_path(prompt_path)
         if prompt_template:
-            if not (
-                isinstance(prompt_template, list)
-                and all(isinstance(item, dict) for item in prompt_template)
-            ):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Expected prompt_template to be a list of dicts"
-                )
+            self._verify_prompt_template(prompt_template)
         super().__init__(
             src_path=prompt_path,
             target_path=target_path,
@@ -74,6 +69,28 @@ class LLMPromptArtifactSpec(ArtifactSpec):
         self.model_configuration = model_configuration
         self.description = description
         self._model_artifact = model_artifact
+
+    def _verify_prompt_template(self, prompt_template):
+        if not (
+            isinstance(prompt_template, list)
+            and all(isinstance(item, dict) for item in prompt_template)
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Expected prompt_template to be a list of dicts"
+            )
+        for message in prompt_template:
+            for key in message.keys():
+                if isinstance(key, str):
+                    if key.lower() not in self.PROMPT_TEMPLATE_KEYS:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"Expected prompt_template to contain dict that "
+                            f"only has keys from {self.PROMPT_TEMPLATE_KEYS}"
+                        )
+                else:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Expected prompt_template to contain dict that only"
+                        f" has str keys got {key} of type {type(key)}"
+                    )
 
     @property
     def model_uri(self):

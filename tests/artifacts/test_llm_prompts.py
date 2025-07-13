@@ -89,6 +89,78 @@ def test_prompt_limitation():
 
 
 @pytest.mark.parametrize(
+    "prompt_template",
+    [
+        [{"role": "user", "content": "A", "should_not_be_prompted": "I am here"}],
+        "just a regular str",
+        {"role": "user", "content": "A"},
+    ],
+)
+def test_prompt_template_verification(prompt_template):
+    project_name = "project-test"
+    artifact_path = str(results_dir / project_name)
+    llm_key = "llm-prompt"
+
+    context = mlrun.get_or_create_ctx("test", project=project_name)
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        context.log_llm_prompt(
+            llm_key,
+            artifact_path=artifact_path,
+            prompt_template=prompt_template,
+            description="long-prompt",
+        )
+
+
+@pytest.mark.parametrize(
+    "prompt_legend ,with_failure",
+    [
+        (
+            {
+                "country": {
+                    "field": "my_country",
+                    "description": "my-country-description",
+                }
+            },
+            False,
+        ),
+        (
+                {
+                    "country": {
+                        "field": "my_country",
+                        "description": "my-country-description",
+                        "another_field": "not here"
+                    }
+                },
+                True,
+        ),
+    ],
+)
+def test_prompt_legend(prompt_legend, with_failure):
+    project_name = "project-test"
+    artifact_path = str(results_dir / project_name)
+    llm_key = "llm-prompt"
+
+    context = mlrun.get_or_create_ctx("test", project=project_name)
+    if with_failure:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            context.log_llm_prompt(
+                llm_key,
+                artifact_path=artifact_path,
+                prompt_template=[{"role": "user", "content": "A {country}"}],
+                description="long-prompt",
+                prompt_legend=prompt_legend,
+            )
+    else:
+        context.log_llm_prompt(
+            llm_key,
+            artifact_path=artifact_path,
+            prompt_template=[{"role": "user", "content": "A {country}"}],
+            description="long-prompt",
+            prompt_legend=prompt_legend,
+        )
+
+
+@pytest.mark.parametrize(
     "project_name_llm",
     ["project-test-1", None],
 )

@@ -729,9 +729,7 @@ def test_get_local_model_path():
 @pytest.mark.parametrize("shared", [True, False])
 @pytest.mark.parametrize("model_uri", [True, False])
 @pytest.mark.parametrize("llm", [None, "uri_based", "object_based"])
-def test_deploy_function_with_model_runner(
-    raise_exception, shared, model_uri, llm
-):
+def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
     project = mlrun.new_project("get-model-path-project", save=False)
     function = mlrun.new_function("tests", kind="serving")
     model_artifact = project.log_model(

@@ -78,9 +78,10 @@ class OpenAIProvider(ModelProvider):
 
         This method imports the `OpenAI` class from the `openai` package, instantiates
         a client with the given keyword arguments (`self.options`), and assigns it to
-        `self._client`.
+        `self._client` and `self._async_client`.
 
-        It also sets the default operation to `self.client.chat.completions.create`, which is
+        It also sets the default operation to `self.client.chat.completions.create`,
+        (or `self.async_client.chat.completions.create` in async operation) which is
         typically used for invoking chat-based model completions.
 
         Raises:
@@ -128,7 +129,7 @@ class OpenAIProvider(ModelProvider):
             ```
         :param      operation:      Same as ModelProvider.custom_invoke.
         :param      invoke_kwargs:  Same as ModelProvider.custom_invoke.
-        :return:                    The full response returned by the operation.
+        :return:                    Same as ModelProvider.custom_invoke.
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
@@ -159,7 +160,7 @@ class OpenAIProvider(ModelProvider):
             ```
         :param operation:       Same as ModelProvider.async_custom_invoke.
         :param invoke_kwargs:   Same as ModelProvider.async_custom_invoke.
-        :return:                The full response returned by the awaited operation.
+        :return:                Same as ModelProvider.async_custom_invoke.
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
@@ -191,6 +192,7 @@ class OpenAIProvider(ModelProvider):
 
         :param invoke_kwargs:
                             Same as ModelProvider.invoke.
+        :return:            Same as ModelProvider.invoke.
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
@@ -222,6 +224,7 @@ class OpenAIProvider(ModelProvider):
 
         :param invoke_kwargs:
                             Same as ModelProvider.async_invoke.
+        :returns            Same as ModelProvider.async_invoke.
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)

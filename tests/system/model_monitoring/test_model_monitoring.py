@@ -43,6 +43,7 @@ import mlrun.runtimes.mounts
 import mlrun.runtimes.utils
 import mlrun.serving.routers
 import mlrun.utils
+from mlrun.common.schemas import EndpointType
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpoint,
     ModelEndpointList,
@@ -2017,6 +2018,7 @@ class TestModelMonitoringOverJob(TestMLRunSystemModelMonitoring):
 
         assert len(model_endpoints) == 1
         assert model_endpoints[0].metadata.name == "my_model"
+        assert model_endpoints[0].metadata.endpoint_type == EndpointType.BATCH_EP
 
 
 def _validate_model_uri(model_obj, model_endpoint):

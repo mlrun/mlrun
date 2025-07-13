@@ -214,6 +214,7 @@ async def start_model_endpoint_creation_background_task(
     background_tasks: fastapi.BackgroundTasks,
     function: dict,
     db_session: sqlalchemy.orm.Session,
+    is_batch: bool,
 ):
     returned_background_tasks = mlrun.common.schemas.BackgroundTaskList(
         background_tasks=[]
@@ -233,6 +234,7 @@ async def start_model_endpoint_creation_background_task(
             function=function,
             function_name=name,
             project=project,
+            is_batch=is_batch,
         )
         logger.info(
             "Creating Background Task for model endpoints creation",
@@ -291,6 +293,7 @@ async def submit_run(
                 background_tasks=background_tasks,
                 function=fn.to_dict(),
                 db_session=db_session,
+                is_batch=True,
             )
             fn.spec.model_endpoint_creation_task_name = (
                 model_endpoint_creation_task_name

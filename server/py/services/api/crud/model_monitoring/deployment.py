@@ -1763,6 +1763,7 @@ class MonitoringDeployment:
         function: dict,
         function_name: str,
         project: str,
+        is_batch: bool,
     ) -> tuple[
         list[
             tuple[
@@ -1817,6 +1818,7 @@ class MonitoringDeployment:
                 ),
                 model_endpoints_dict=model_endpoints_dict,
                 project=project,
+                override_type=mm_constants.EndpointType.BATCH_EP if is_batch else None,
             )
         )  # model endpoint, creation strategy, model path
         function.spec.graph = graph
@@ -1833,6 +1835,7 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
     ) -> tuple[
         list[
             tuple[
@@ -1867,6 +1870,7 @@ class MonitoringDeployment:
                     sampling_percentage=sampling_percentage,
                     model_endpoints_dict=model_endpoints_dict,
                     project=project,
+                    override_type=override_type,
                 )
             )
         return model_endpoints_instructions, graph
@@ -1880,6 +1884,7 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -1909,7 +1914,9 @@ class MonitoringDeployment:
                     (
                         self._model_endpoint_draft(
                             name=route.name,
-                            endpoint_type=route.endpoint_type,
+                            endpoint_type=override_type
+                            if override_type
+                            else route.endpoint_type,
                             model_class=route.class_name,
                             function_name=function_name,
                             function_tag=function_tag,
@@ -1947,7 +1954,9 @@ class MonitoringDeployment:
                 (
                     self._model_endpoint_draft(
                         name=router_step.name,
-                        endpoint_type=router_step.endpoint_type,
+                        endpoint_type=override_type
+                        if override_type
+                        else router_step.endpoint_type,
                         model_class=router_step.class_name,
                         function_name=function_name,
                         function_tag=function_tag,
@@ -1972,6 +1981,7 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -1990,6 +2000,7 @@ class MonitoringDeployment:
                         sampling_percentage=sampling_percentage,
                         model_endpoints_dict=model_endpoints_dict,
                         project=project,
+                        override_type=override_type,
                     )
                 )
             elif isinstance(step, mlrun.serving.states.ModelRunnerStep):
@@ -2002,6 +2013,7 @@ class MonitoringDeployment:
                         sampling_percentage=sampling_percentage,
                         model_endpoints_dict=model_endpoints_dict,
                         project=project,
+                        override_type=override_type,
                     )
                 )
             else:
@@ -2024,7 +2036,9 @@ class MonitoringDeployment:
                         (
                             self._model_endpoint_draft(
                                 name=step.name,
-                                endpoint_type=step.endpoint_type,
+                                endpoint_type=override_type
+                                if override_type
+                                else step.endpoint_type,
                                 model_class=step.class_name,
                                 function_name=function_name,
                                 function_tag=function_tag,
@@ -2149,6 +2163,7 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2189,7 +2204,9 @@ class MonitoringDeployment:
                     (
                         self._model_endpoint_draft(
                             name=endpoint_name,
-                            endpoint_type=model_runner.endpoint_type,
+                            endpoint_type=override_type
+                            if override_type
+                            else model_runner.endpoint_type,
                             model_class=monitoring_data[endpoint_name].get(
                                 mlrun.common.schemas.MonitoringData.MODEL_CLASS
                             ),

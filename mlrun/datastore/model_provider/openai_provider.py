@@ -68,10 +68,6 @@ class OpenAIProvider(ModelProvider):
             subpath = ""
         return endpoint, subpath
 
-    @property
-    def model(self):
-        return self.endpoint
-
     def load_client(self) -> None:
         """
         Initializes the OpenAI SDK client using the provided options.

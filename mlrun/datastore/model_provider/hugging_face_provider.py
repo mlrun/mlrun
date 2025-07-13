@@ -19,6 +19,7 @@ import mlrun
 from mlrun.datastore.model_provider.model_provider import ModelProvider
 
 T = TypeVar("T")
+ChatType = list[dict[str, str]]  # according to transformers.pipelines.text_generation
 
 
 class HuggingFaceProvider(ModelProvider):
@@ -48,7 +49,7 @@ class HuggingFaceProvider(ModelProvider):
         endpoint = endpoint or mlrun.mlconf.model_providers.openai_default_model
         if schema != "huggingface":
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "OpenAIProvider supports only 'openai' as the provider kind."
+                "HuggingFaceProvider supports only 'huggingface' as the provider kind."
             )
         super().__init__(
             parent=parent,
@@ -65,34 +66,32 @@ class HuggingFaceProvider(ModelProvider):
     def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):
         if endpoint and subpath:
             endpoint = endpoint + subpath
-            #  in openai there is no usage of subpath variable. if the model contains "/", it is part of the model name.
+            #  in hf there is no usage of subpath variable. if the model contains "/", it is part of the model name.
             subpath = ""
         return endpoint, subpath
 
-    @property
-    def model(self):
-        return self.endpoint
-
     def load_client(self) -> None:
         try:
-            from openai import OpenAI, AsyncOpenAI  # noqa
+            from transformers import pipeline, AutoModelForCausalLM # noqa
+            from transformers import AutoTokenizer  # noqa
 
-            self._client = OpenAI(**self.options)
-            self._default_operation = self.client.chat.completions.create
+            self._client = pipeline(model=self.model, **self.options)
+            self._default_operation = self._client
 
-            self._async_client = AsyncOpenAI(**self.options)
-            self._default_async_operation = self.async_client.chat.completions.create
+            # self._async_client = AsyncOpenAI(**self.options)
+            # self._default_async_operation = self.async_client.chat.completions.create
         except ImportError as exc:
             raise ImportError("openai package is not installed") from exc
 
     def get_client_options(self):
         res = dict(
-            api_key=self._get_secret_or_env("OPENAI_API_KEY"),
-            organization=self._get_secret_or_env("OPENAI_ORG_ID"),
-            project=self._get_secret_or_env("OPENAI_PROJECT_ID"),
-            base_url=self._get_secret_or_env("OPENAI_BASE_URL"),
-            timeout=self._get_secret_or_env("OPENAI_TIMEOUT"),
-            max_retries=self._get_secret_or_env("OPENAI_MAX_RETRIES"),
+            task=self._get_secret_or_env("HF_TASK"),
+            token=self._get_secret_or_env("HF_TOKEN"),
+            device=self._get_secret_or_env("HF_DEVICE"),
+            device_map=self._get_secret_or_env("HF_DEVICE_MAP"),
+            # base_url=self._get_secret_or_env("OPENAI_BASE_URL"),
+            # timeout=self._get_secret_or_env("OPENAI_TIMEOUT"),
+            # max_retries=self._get_secret_or_env("OPENAI_MAX_RETRIES"),
         )
         return self._sanitize_options(res)
 
@@ -121,9 +120,9 @@ class HuggingFaceProvider(ModelProvider):
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         if operation:
-            return operation(**invoke_kwargs, model=self.model)
+            return operation(**invoke_kwargs)
         else:
-            return self._default_operation(**invoke_kwargs, model=self.model)
+            return self._default_operation(**invoke_kwargs)
 
     async def async_custom_invoke(
         self,
@@ -152,24 +151,24 @@ class HuggingFaceProvider(ModelProvider):
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         if operation:
-            return await operation(**invoke_kwargs, model=self.model)
+            return await operation(**invoke_kwargs)
         else:
             return await self._default_async_operation(
-                **invoke_kwargs, model=self.model
+                **invoke_kwargs
             )
 
     def invoke(
         self,
-        messages: Optional[list[dict]] = None,
+        messages: Union[str, list[str], ChatType, list[ChatType]] = None,
         as_str: bool = False,
         **invoke_kwargs,
     ) -> Optional[Union[str, T]]:
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         response = self._default_operation(
-            model=self.endpoint, messages=messages, **invoke_kwargs
+            messages, **invoke_kwargs
         )
         if as_str:
-            return response.choices[0].message.content
+            return response[0]['generated_text']
         return response
 
     async def async_invoke(

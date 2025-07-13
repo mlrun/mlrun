@@ -60,6 +60,10 @@ class ModelProvider(BaseRemoteClient):
         self._async_client = None
         self._default_async_operation = None
 
+    @property
+    def model(self):
+        return self.endpoint
+
     def load_client(self) -> None:
         """
         Initializes the SDK client for the model provider with the given keyword arguments

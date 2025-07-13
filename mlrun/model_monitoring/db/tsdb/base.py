@@ -757,6 +757,8 @@ class TSDBConnector(ABC):
             .reindex(
                 columns=[suspected_val, detected_val], fill_value=0
             )  # ensure both columns exists
+            .fillna(0)
+            .astype(int)
             .rename(
                 columns={
                     suspected_val: "count_suspected",

@@ -47,6 +47,7 @@ import mlrun.serving
 from mlrun.common.schemas.model_monitoring import ResultKindApp
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
+    ModelEndpointDriftValues,
 )
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
@@ -783,13 +784,13 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
     def _test_drift_over_time(self) -> None:
         self._logger.debug("Checking drift over time")
         end = datetime.now().astimezone() + timedelta(hours=1) # add 1 hour because end is rounded to the start of the hour
-        drift_over_time: mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues = self.project.get_drift_over_time(end=end)
+        drift_over_time: ModelEndpointDriftValues = self.project.get_drift_over_time(end=end)
         assert drift_over_time is not None
         assert len(drift_over_time.values) == 1, "Drift over time should have one value"
         assert drift_over_time.values[0].count_detected == 1, "Drift over time should have one detected drift"
         assert drift_over_time.values[0].count_suspected == 0, "Drift over time should not have potential drift"
         end = datetime.now().astimezone() - timedelta(hours=1)
-        drift_over_time: mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues = self.project.get_drift_over_time(
+        drift_over_time: ModelEndpointDriftValues = self.project.get_drift_over_time(
             end=end)
         assert drift_over_time is not None
         assert len(drift_over_time.values) == 0, "No drift over time should be detected in the past"

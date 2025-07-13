@@ -253,6 +253,7 @@ async def start_model_endpoint_creation_background_task(
             "Creating Background Task for model endpoints creation",
             project=project,
             function=name,
+            is_batch=is_batch,
         )
         returned_background_task = await run_in_threadpool(
             monitoring_deployment._create_model_endpoint_background_task,

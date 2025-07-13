@@ -477,6 +477,14 @@ async def get_model_endpoint_drift_over_time(
     end: Optional[datetime] = None,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
 ) -> schemas.ModelEndpointDriftValues:
+    """
+    Get drift counts over time for the project.
+
+    :param start: Start time of the range to retrieve drift counts from.
+    :param end: End time of the range to retrieve drift counts from.
+
+    :return: A ModelEndpointDriftValues object containing the drift counts over time.
+    """
     start, end = _validate_time_range(start, end)
     await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,

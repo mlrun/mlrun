@@ -124,14 +124,14 @@ def test_prompt_template_verification(prompt_template):
             False,
         ),
         (
-                {
-                    "country": {
-                        "field": "my_country",
-                        "description": "my-country-description",
-                        "another_field": "not here"
-                    }
-                },
-                True,
+            {
+                "country": {
+                    "field": "my_country",
+                    "description": "my-country-description",
+                    "another_field": "not here",
+                }
+            },
+            True,
         ),
     ],
 )

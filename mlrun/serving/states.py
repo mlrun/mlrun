@@ -1154,10 +1154,12 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         """Override to implement prediction logic if the logic requires asyncio."""
         return body
 
-    def run(self, body: Any, origin_name: str, path: str) -> Any:
+    def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         return self.predict(body)
 
-    async def run_async(self, body: Any, origin_name: str, path: str) -> Any:
+    async def run_async(
+        self, body: Any, path: str, origin_name: Optional[str] = None
+    ) -> Any:
         return await self.predict_async(body)
 
     def get_local_model_path(self, suffix="") -> (str, dict):
@@ -1202,11 +1204,13 @@ class LLModel(Model):
     async def predict_async(self, body: Any, messages: list[dict]) -> Any:
         return body
 
-    def run(self, body: Any, origin_name: str, path: str) -> Any:
+    def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         messages = self.enrich_prompt_with_legend(body, origin_name)
         return self.predict(body, messages)
 
-    async def run_async(self, body: Any, origin_name: str, path: str) -> Any:
+    async def run_async(
+        self, body: Any, path: str, origin_name: Optional[str] = None
+    ) -> Any:
         messages = self.enrich_prompt_with_legend(body, origin_name)
         return await self.predict_async(body, messages)
 

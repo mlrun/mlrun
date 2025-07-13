@@ -5546,13 +5546,12 @@ class MlrunProject(ModelObj):
             **kwargs,
         )
 
-    def get_model_endpoint_drift_over_time(self,
-
-                                           start: Optional[datetime] = None,
-                                           end: Optional[datetime] = None,
-                                           ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
+    def get_model_endpoint_drift_over_time(
+        self,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
         db = mlrun.db.get_run_db(secrets=self._secrets)
-
 
     def _run_authenticated_git_action(
         self,

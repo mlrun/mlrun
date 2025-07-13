@@ -465,6 +465,7 @@ async def get_metrics_by_multiple_endpoints(
         )
     return events
 
+
 @router.get(
     "/drift-over-time",
     status_code=HTTPStatus.OK.value,
@@ -499,6 +500,7 @@ async def get_model_endpoint_drift_over_time(
     result = await run_in_threadpool(tsdb_connector.get_drift_data, start, end)
 
     return result
+
 
 @router.get(
     "/{name}",
@@ -579,9 +581,10 @@ class _MetricsValuesParams:
     start: datetime
     end: datetime
 
+
 def _validate_time_range(
     start: Optional[datetime] = None, end: Optional[datetime] = None
-)-> tuple[datetime, datetime]:
+) -> tuple[datetime, datetime]:
     """
     validate start and end parameters and set default values if needed.
     :param start:       Either None or datetime, None is handled as datetime.now(tz=timezone.utc) - timedelta(days=1)

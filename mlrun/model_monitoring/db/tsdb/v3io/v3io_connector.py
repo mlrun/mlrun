@@ -1285,9 +1285,9 @@ class V3IOTSDBConnector(TSDBConnector):
         raise NotImplementedError
 
     def get_drift_data(
-            self,
-            start: datetime,
-            end: datetime,
+        self,
+        start: datetime,
+        end: datetime,
     ) -> mm_schemas.ModelEndpointDriftValues:
         table = mm_schemas.V3IOTSDBTables.APP_RESULTS
         start, end, interval = self._prepare_aligned_start_end(start, end)

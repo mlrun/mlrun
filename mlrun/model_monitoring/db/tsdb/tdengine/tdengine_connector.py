@@ -1209,9 +1209,9 @@ class TDEngineConnector(TSDBConnector):
         )
 
     def get_drift_data(
-            self,
-            start: datetime,
-            end: datetime,
+        self,
+        start: datetime,
+        end: datetime,
     ) -> mm_schemas.ModelEndpointDriftValues:
         filter_query = self._generate_filter_query(
             filter_column=mm_schemas.ResultData.RESULT_STATUS,

@@ -82,9 +82,9 @@ class TSDBConnector(ABC):
 
     @abstractmethod
     def get_drift_data(
-            self,
-            start: datetime,
-            end: datetime,
+        self,
+        start: datetime,
+        end: datetime,
     ) -> mm_schemas.ModelEndpointDriftValues:
         """
         Fetches drift counts per interval in the specified time range.
@@ -719,10 +719,9 @@ class TSDBConnector(ABC):
             )
         return {dict_key: metrics}
 
-
     @staticmethod
     def _prepare_aligned_start_end(
-            start: datetime, end: datetime
+        start: datetime, end: datetime
     ) -> tuple[datetime, datetime, str]:
         delta = end - start
         if delta <= timedelta(hours=6):

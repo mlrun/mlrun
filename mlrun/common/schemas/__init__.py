@@ -214,7 +214,7 @@ from .secret import (
     SecretsData,
     UserSecretCreationRequest,
 )
-from .serving import ModelRunnerStepData, MonitoringData
+from .serving import ModelRunnerStepData, ModelsData, MonitoringData
 from .tag import Tag, TagObjects
 from .workflow import (
     GetWorkflowResponse,

@@ -526,3 +526,24 @@ class TestTDEngineConnector:
         assert last_request["last_request"][1] == parser.parse(
             "2024-12-27 05:13:47 +00:00"
         ).astimezone(datetime.timezone.utc)
+
+
+    def test_get_drift_data(self, connector):
+        now = datetime.datetime.now().astimezone()
+        end = now
+        start = now - datetime.timedelta(hours=24)
+        df = pd.DataFrame([
+            {
+                "_wstart": now - datetime.timedelta(hours=1),
+                "_wend": now - datetime.timedelta(hours=1),
+                "max(result_status)": 2,
+            },
+            {
+                "_wstart": now - datetime.timedelta(hours=2),
+                "_wend": now - datetime.timedelta(hours=2),
+                "max(result_status)": 1,
+            }
+        ])
+        connector._get_records = unittest.mock.Mock(return_value=df)
+        drift_data = connector.get_drift_data(start=start, end=end)
+        assert drift_data is not None

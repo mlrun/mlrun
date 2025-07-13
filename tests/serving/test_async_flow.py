@@ -651,6 +651,7 @@ def test_model_runner_with_remote_model():
         assert resp["default_config"] == {"model_version": "4"}
         assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
         assert resp["prompt"] == "What is the capital of france?"
+        assert resp["async_triggered"] == "Async predict was triggered."
     finally:
         server.wait_for_completion()
 
@@ -693,7 +694,6 @@ def test_model_runner_with_remote_shared_model():
         assert resp["default_config"] == {"model_version": "4"}
         assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
         assert resp["prompt"] == "What is the capital of france?"
-        assert resp["async_triggered"] == "Async predict was triggered."
     finally:
         server.wait_for_completion()
 

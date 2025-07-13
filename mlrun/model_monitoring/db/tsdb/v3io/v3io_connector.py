@@ -1450,8 +1450,7 @@ class V3IOTSDBConnector(TSDBConnector):
             return metric_objects
 
         return build_metric_objects()
-      
-      
+
     def get_drift_data(
         self,
         start: datetime,

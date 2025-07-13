@@ -432,7 +432,7 @@ def _mock_frames_client_drift(drift_df):
     ):
         yield
 
-    
+
 @pytest.fixture
 def _mock_frames_client_results(
     df_results: pd.DataFrame, df_metrics: pd.DataFrame
@@ -582,7 +582,7 @@ def test_get_drift_data():
         drift_over_time.values[1].count_detected == 1
     ), "Drift over time should not have potential drift"
 
-    
+
 @pytest.mark.usefixtures("_mock_frames_client_extended")
 def test_processed_model_endpoints():
     """Test reading processed model endpoints from V3IOTSDBConnector."""

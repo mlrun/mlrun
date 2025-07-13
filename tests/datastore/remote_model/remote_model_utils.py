@@ -80,7 +80,7 @@ def setup_remote_model_test(
     llm_prompt_artifact = project.log_llm_prompt(
         "my_llm_prompt",
         prompt_string=PROMPT_TEMPLATE,
-        model_artifact=model_artifact.uri,
+        model_artifact=model_artifact,
     )
     # function = mlrun.new_function("tests", kind="serving")
     function = mlrun.code_to_function(

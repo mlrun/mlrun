@@ -285,7 +285,6 @@ async def build_function(
         services.api.utils.functions.build_function,
         db_session,
         auth_info,
-        background_tasks,
         function,
         with_mlrun,
         skip_deployed,

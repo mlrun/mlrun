@@ -62,6 +62,34 @@ class HuggingFaceProvider(ModelProvider):
         self.options = self.get_client_options()
         self.load_client()
 
+    @staticmethod
+    def _extract_string_output(result) -> str:
+        """
+        Extracts the first generated string from Hugging Face pipeline output,
+        regardless of whether it's plain text-generation or chat-style output.
+        """
+        if not isinstance(result, list) or len(result) == 0:
+            raise ValueError("Empty or invalid pipeline output")
+
+        item = result[0]
+
+        if isinstance(item, dict):
+            generated = item.get("generated_text")
+
+            if isinstance(generated, str):
+                return generated.strip()
+
+            elif isinstance(generated, list):
+                for message in reversed(generated):
+                    if isinstance(message, dict) and message.get("role") == "assistant":
+                        return message.get("content", "").strip()
+
+                # Fallback: just get the last message content
+                if isinstance(generated[-1], dict):
+                    return generated[-1].get("content", "").strip()
+
+        raise ValueError("Unsupported pipeline output format")
+
     @classmethod
     def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):
         if endpoint and subpath:
@@ -85,7 +113,7 @@ class HuggingFaceProvider(ModelProvider):
 
     def get_client_options(self):
         res = dict(
-            task=self._get_secret_or_env("HF_TASK"),
+            task=self._get_secret_or_env("HF_TASK") or "text-generation",
             token=self._get_secret_or_env("HF_TOKEN"),
             device=self._get_secret_or_env("HF_DEVICE"),
             device_map=self._get_secret_or_env("HF_DEVICE_MAP"),
@@ -152,6 +180,7 @@ class HuggingFaceProvider(ModelProvider):
         else:
             return await self._default_async_operation(**invoke_kwargs)
 
+
     def invoke(
         self,
         messages: Union[str, list[str], ChatType, list[ChatType]] = None,
@@ -161,7 +190,7 @@ class HuggingFaceProvider(ModelProvider):
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         response = self._default_operation(messages, **invoke_kwargs)
         if as_str:
-            return response[0]["generated_text"]
+            return self._extract_string_output(response)
         return response
 
     async def async_invoke(

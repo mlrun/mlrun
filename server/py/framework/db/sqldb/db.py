@@ -1456,7 +1456,7 @@ class SQLDB(DBInterface):
             session=session,
             main_table=ArtifactV2,
             project=project,
-            additional_filter=(ArtifactV2.parent is not None),
+            additional_filter=(ArtifactV2.paren != None),  # noqa: E711
         )
         self._delete_multi_objects(
             session=session,

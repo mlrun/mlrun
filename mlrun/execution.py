@@ -935,7 +935,7 @@ class MLClientCtx:
             # Log an inline prompt
             context.log_llm_prompt(
                 key="qa-prompt",
-                prompt_string="Q: {question}",
+                prompt_template=[{"role: "user", "content": "question with {place_holder}"}],
                 model_artifact=model,
                 prompt_legend={"question": "user_input"},
                 model_configuration={"temperature": 0.7, "max_tokens": 128},

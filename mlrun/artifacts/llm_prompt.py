@@ -31,6 +31,8 @@ class LLMPromptArtifactSpec(ArtifactSpec):
         "model_configuration",
         "description",
     ]
+    PROMPT_TEMPLATE_KEYS = ("content", "role")
+    PROMPT_LEGENDS_KEYS = ("field", "description")
 
     def __init__(
         self,
@@ -43,7 +45,6 @@ class LLMPromptArtifactSpec(ArtifactSpec):
         target_path: Optional[str] = None,
         **kwargs,
     ):
-        self.PROMPT_TEMPLATE_KEYS = ("content", "role")
         if prompt_template and prompt_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot specify both 'prompt_template' and 'prompt_path'"
@@ -63,7 +64,6 @@ class LLMPromptArtifactSpec(ArtifactSpec):
             **kwargs,
         )
 
-        self._prompt_template = None
         self.prompt_template = prompt_template
         self.prompt_legend = prompt_legend
         self.model_configuration = model_configuration
@@ -82,6 +82,7 @@ class LLMPromptArtifactSpec(ArtifactSpec):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Expected prompt_template to be a list of dicts"
             )
+        keys_to_pop = []
         for message in prompt_template:
             for key in message.keys():
                 if isinstance(key, str):
@@ -90,11 +91,17 @@ class LLMPromptArtifactSpec(ArtifactSpec):
                             f"Expected prompt_template to contain dict that "
                             f"only has keys from {self.PROMPT_TEMPLATE_KEYS}"
                         )
+                    else:
+                        if not key.islower():
+                            message[key.lower()] = message[key]
+                            keys_to_pop.append(key)
                 else:
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"Expected prompt_template to contain dict that only"
                         f" has str keys got {key} of type {type(key)}"
                     )
+            for key_to_pop in keys_to_pop:
+                message.pop(key_to_pop)
 
     @property
     def model_uri(self):
@@ -109,7 +116,9 @@ class LLMPromptArtifactSpec(ArtifactSpec):
                 if body_map.get("field") is None:
                     body_map["field"] = place_holder
                 body_map["description"] = body_map.get("description")
-                if diff := set(body_map.keys()) - {"field", "description"}:
+                if diff := set(body_map.keys()) - set(
+                    LLMPromptArtifactSpec.PROMPT_LEGENDS_KEYS
+                ):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "prompt_legend values must contain only 'field' and "
                         f"'description' keys, got extra fields: {diff}"
@@ -203,22 +212,18 @@ class LLMPromptArtifact(Artifact):
             return self.spec._model_artifact
         return None
 
-    def read_prompt(self, as_str: bool = False) -> Optional[Union[str, list[dict]]]:
+    def read_prompt(self) -> Optional[Union[str, list[dict]]]:
         """
         Read the prompt json from the artifact or if provided prompt template.
         @:param as_str: True to return the prompt string or a list of dicts.
         @:return prompt string or list of dicts
         """
         if self.spec.prompt_template:
-            if as_str:
-                return json.dumps(self.spec.prompt_template)
             return self.spec.prompt_template
         if self.spec.target_path:
             with mlrun.datastore.store_manager.object(url=self.spec.target_path).open(
                 mode="r"
             ) as p_file:
-                if as_str:
-                    return p_file.read()
                 try:
                     return json.load(p_file)
                 except json.JSONDecodeError:

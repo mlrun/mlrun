@@ -1097,7 +1097,9 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         if artifact_uri is not None and not isinstance(artifact_uri, str):
             raise MLRunInvalidArgumentError("'artifact_uri' argument must be a string")
         self.artifact_uri = artifact_uri
-        self.shared_proxy_mapping = shared_proxy_mapping
+        self.shared_proxy_mapping: dict[
+            str : Union[str, ModelArtifact, LLMPromptArtifact]
+        ] = shared_proxy_mapping
         self.invocation_artifact: Optional[LLMPromptArtifact] = None
         self.model_artifact: Optional[ModelArtifact] = None
         self.model_provider: Optional[ModelProvider] = None
@@ -1198,43 +1200,59 @@ class LLModel(Model):
     def __init__(self, name: str, **kwargs):
         super().__init__(name, **kwargs)
 
-    def predict(self, body: Any, messages: list[dict]) -> Any:
+    def predict(
+        self, body: Any, messages: list[dict], model_configuration: dict
+    ) -> Any:
         return body
 
-    async def predict_async(self, body: Any, messages: list[dict]) -> Any:
+    async def predict_async(
+        self, body: Any, messages: list[dict], model_configuration: dict
+    ) -> Any:
         return body
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
-        messages = self.enrich_prompt_with_legend(body, origin_name)
-        return self.predict(body, messages)
+        messages, model_configuration = self.enrich_prompt(body, origin_name)
+        return self.predict(
+            body, messages=messages, model_configuration=model_configuration
+        )
 
     async def run_async(
         self, body: Any, path: str, origin_name: Optional[str] = None
     ) -> Any:
-        messages = self.enrich_prompt_with_legend(body, origin_name)
-        return await self.predict_async(body, messages)
+        messages, model_configuration = self.enrich_prompt(body, origin_name)
+        return await self.predict_async(
+            body, messages=messages, model_configuration=model_configuration
+        )
 
-    def enrich_prompt_with_legend(self, body: dict, origin_name: str) -> list[dict]:
+    def enrich_prompt(
+        self, body: dict, origin_name: str
+    ) -> Union[tuple[list[dict], dict], tuple[None, None]]:
         if origin_name and self.shared_proxy_mapping:
-            llm_prompt_artifact_uri = self.shared_proxy_mapping[origin_name]
-            llm_prompt_artifact = self._get_artifact_object(llm_prompt_artifact_uri)
+            llm_prompt_artifact = self.shared_proxy_mapping.get(origin_name)
+            llm_prompt_artifact = (
+                llm_prompt_artifact
+                if not isinstance(llm_prompt_artifact, str)
+                else self._get_artifact_object(llm_prompt_artifact)
+            )
         else:
             llm_prompt_artifact = self._get_artifact_object()
         if not (
             llm_prompt_artifact and isinstance(llm_prompt_artifact, LLMPromptArtifact)
         ):
-            raise MLRunInvalidArgumentError(
-                "LLMModel must be provided with LLMPromptArtifact"
+            logger.warning(
+                "LLMModel must be provided with LLMPromptArtifact",
+                llm_prompt_artifact=llm_prompt_artifact,
             )
+            return None, None
         prompt_legend = llm_prompt_artifact.spec.prompt_legend
-        prompt_template = llm_prompt_artifact.read_prompt()
+        prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
         kwargs = {
             place_holder: body.get(body_map["field"])
             for place_holder, body_map in prompt_legend.items()
         }
         for d in prompt_template:
             d["content"] = d["content"].format(**kwargs)
-        return prompt_template
+        return prompt_template, llm_prompt_artifact.spec.model_configuration
 
 
 class ModelSelector:
@@ -1284,13 +1302,12 @@ class ModelRunner(storey.ParallelExecution):
 
 class MonitoredStep(ABC, TaskStep, StepToDict):
     kind = "monitored"
-    _dict_fields = TaskStep._dict_fields + ["raise_exception", "_shared_proxy_mapping"]
+    _dict_fields = TaskStep._dict_fields + ["raise_exception"]
 
     def __init__(self, *args, name: str, raise_exception=True, **kwargs):
         super().__init__(*args, name=name, **kwargs)
         self.raise_exception = raise_exception
         self._monitoring_data = None
-        self._shared_proxy_mapping = {}
 
     def _calculate_monitoring_data(self) -> dict[str, Any]:
         """
@@ -1344,6 +1361,7 @@ class ModelRunnerStep(MonitoredStep):
     """
 
     kind = "model_runner"
+    _dict_fields = MonitoredStep._dict_fields + ["_shared_proxy_mapping"]
 
     def __init__(
         self,
@@ -2564,19 +2582,22 @@ class RootFlowStep(FlowStep):
             )
             monitored_steps = self.get_monitored_steps().values()
             for monitored_step in monitored_steps:
-                for model, model_params in self.shared_models.values():
-                    if "shared_proxy_mapping" in model_params:
-                        model_params["shared_proxy_mapping"].update(
-                            monitored_step._shared_proxy_mapping.get(
-                                model_params.get("name"), {}
+                if isinstance(monitored_step, ModelRunnerStep):
+                    for model, model_params in self.shared_models.values():
+                        if "shared_proxy_mapping" in model_params:
+                            model_params["shared_proxy_mapping"].update(
+                                deepcopy(
+                                    monitored_step._shared_proxy_mapping.get(
+                                        model_params.get("name"), {}
+                                    )
+                                )
                             )
-                        )
-                    else:
-                        model_params["shared_proxy_mapping"] = deepcopy(
-                            monitored_step._shared_proxy_mapping.get(
-                                model_params.get("name"), {}
+                        else:
+                            model_params["shared_proxy_mapping"] = deepcopy(
+                                monitored_step._shared_proxy_mapping.get(
+                                    model_params.get("name"), {}
+                                )
                             )
-                        )
             for model, model_params in self.shared_models.values():
                 model = get_class(model, namespace).from_dict(
                     model_params, init_with_params=True

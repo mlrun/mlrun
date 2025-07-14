@@ -46,7 +46,7 @@ class HuggingFaceProvider(ModelProvider):
         secrets: Optional[dict] = None,
         default_invoke_kwargs: Optional[dict] = None,
     ):
-        endpoint = endpoint or mlrun.mlconf.model_providers.openai_default_model
+        endpoint = endpoint or mlrun.mlconf.model_providers.huggingface_default_model
         if schema != "huggingface":
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "HuggingFaceProvider supports only 'huggingface' as the provider kind."

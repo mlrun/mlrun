@@ -753,7 +753,7 @@ def print_df(df):
         max_attempts = retry_count + 1
         assert f"Run failed attempt 1 of {max_attempts}" in run.status.status_text
 
-        def _assert_retry_count():
+        def _assert_retry_info():
             runs = self._run_db.list_runs(project=self.project_name)
             assert len(runs) == 1
             run = mlrun.RunObject.from_dict(runs[0])
@@ -762,13 +762,14 @@ def print_df(df):
             ), f"Expected retry_count=3, got {run.status.retry_count}"
             assert run.status.state == mlrun.common.runtimes.constants.RunStates.error
             assert f"Run failed after {max_attempts} attempts" in run.status.status_text
+            self._assert_retry_attempts_metadata(run.status.retries)
 
         mlrun.utils.retry_until_successful(
             1,
             250,
             self._logger,
             True,
-            _assert_retry_count,
+            _assert_retry_info,
         )
 
         state, content = self._run_db.get_log(
@@ -778,3 +779,20 @@ def print_df(df):
         assert "Retrying run - attempt: 2" in str(
             content
         ), "Expected logs to contain retry attempt message"
+
+    @staticmethod
+    def _assert_retry_attempts_metadata(retry_attempts):
+        assert len(retry_attempts) == 3
+
+        previous_start_time = None
+        for i, retry in enumerate(retry_attempts):
+            assert "start_time" in retry
+            assert "error" in retry
+
+            current_start_time = retry["start_time"]
+            if previous_start_time is not None:
+                assert previous_start_time < current_start_time, (
+                    f"Retry {i + 1} start_time is not after retry {i}: "
+                    f"{previous_start_time} >= {current_start_time}"
+                )
+            previous_start_time = current_start_time

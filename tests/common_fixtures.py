@@ -709,7 +709,7 @@ class RunDBMock:
         return mlrun.common.schemas.model_monitoring.ModelEndpoint(
             metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
                 name=name,
-                project=project,
+                project=project or "project",
                 labels={},
                 uid=model_uid,
             ),

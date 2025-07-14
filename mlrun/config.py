@@ -125,6 +125,8 @@ default_config = {
                 "interval": "30",
                 # runs limit to fetch for retrying
                 "fetch_runs_limit": 1000,
+                # minutes until a run is considered stale and will be aborted
+                "staleness_threshold": 60 * 24 * 3,
             },
         },
         "projects": {
@@ -555,7 +557,7 @@ default_config = {
         },
         "v3io_api": "",
         "v3io_framesd": "",
-        # If running from sdk and MLRUN_DBPATH is not set, the db will fallback to a nop db which will not preform any
+        # If running from sdk and MLRUN_DBPATH is not set, the db will fallback to a nop db which will not perform any
         # run db operations.
         "nop_db": {
             # if set to true, will raise an error for trying to use run db functionality
@@ -1235,6 +1237,7 @@ class Config:
         """
         Get the default value for the ssl_redirect configuration.
         In Iguazio we always want to redirect to HTTPS, in other cases we don't.
+
         :return: True if we should redirect to HTTPS, False otherwise.
         """
         return self.is_running_on_iguazio()

@@ -39,6 +39,7 @@ import framework.utils.singletons.k8s
 import services.api.crud.runtimes.nuclio.helpers
 import services.api.runtime_handlers
 import services.api.utils.builder
+from services.api.crud.runtimes.nuclio.helpers import pure_nuclio_deployed_restricted
 
 
 def deploy_nuclio_function(
@@ -227,28 +228,6 @@ async def delete_nuclio_functions_in_batches(
                     failed_requests.append(error_message)
 
     return failed_requests
-
-
-def pure_nuclio_deployed_restricted():
-    """
-    Decorator to restrict the usage of the decorated function to pure nuclio deployed runtimes only.
-    Pure nuclio deployed runtimes are runtimes that their images are not built by MLRun, but are built and deployed
-    completely by nuclio.
-    """
-
-    def decorator(callback):
-        def wrapper(function, *args, **kwargs):
-            if (
-                function.kind
-                not in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes()
-            ):
-                return
-
-            return callback(function, *args, **kwargs)
-
-        return wrapper
-
-    return decorator
 
 
 def _compile_function_config(
@@ -502,7 +481,7 @@ def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=Non
     # handle archive build params
     if function.spec.build.source:
         services.api.crud.runtimes.nuclio.helpers.compile_nuclio_archive_config(
-            nuclio_spec, function, builder_env, project, auth_info=auth_info
+            function, nuclio_spec, builder_env, project, auth_info=auth_info
         )
 
     if function.spec.no_cache:

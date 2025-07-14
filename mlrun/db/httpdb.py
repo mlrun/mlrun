@@ -608,7 +608,7 @@ class HTTPRunDB(RunDBInterface):
         error = f"store log {project}/{uid}"
         self.api_call("POST", path, error, params, body)
 
-    def get_log(self, uid, project="", offset=0, size=None):
+    def get_log(self, uid, project="", offset=0, size=None, attempt=None):
         """Retrieve 1 MB data of log.
 
         :param uid: Log unique ID
@@ -616,6 +616,8 @@ class HTTPRunDB(RunDBInterface):
         :param offset: Retrieve partial log, get up to ``size`` bytes starting at offset ``offset``
             from beginning of log (must be >= 0)
         :param size: If set to ``-1`` will retrieve and print all data to end of the log by chunks of 1MB each.
+        :param attempt: For retriable runs, the attempt number to retrieve the log for.
+            1 is the initial attempt.
         :returns: The following objects:
 
             - state - The state of the runtime object which generates this log, if it exists. In case no known state
@@ -636,6 +638,8 @@ class HTTPRunDB(RunDBInterface):
             return state, offset
 
         params = {"offset": offset, "size": size}
+        if attempt:
+            params["attempt"] = attempt
         path = self._path_of("logs", project, uid)
         error = f"get log {project}/{uid}"
         resp = self.api_call("GET", path, error, params=params)
@@ -658,7 +662,7 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", path, error)
         return resp.json()["size"]
 
-    def watch_log(self, uid, project="", watch=True, offset=0):
+    def watch_log(self, uid, project="", watch=True, offset=0, attempt=None):
         """Retrieve logs of a running process by chunks of 1MB, and watch the progress of the execution until it
         completes. This method will print out the logs and continue to periodically poll for, and print,
         new logs as long as the state of the runtime which generates this log is either ``pending`` or ``running``.
@@ -668,10 +672,11 @@ class HTTPRunDB(RunDBInterface):
         :param watch: If set to ``True`` will continue tracking the log as described above. Otherwise this function
             is practically equivalent to the :py:func:`~get_log` function.
         :param offset: Minimal offset in the log to watch.
+        :param attempt: For retriable runs, the attempt number to retrieve the log for. 1 is the initial attempt.
         :returns: The final state of the log being watched and the final offset.
         """
 
-        state, text = self.get_log(uid, project, offset=offset)
+        state, text = self.get_log(uid, project, offset=offset, attempt=attempt)
         if text:
             print(text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors))
         nil_resp = 0
@@ -687,7 +692,7 @@ class HTTPRunDB(RunDBInterface):
                         mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval
                     )
                 )
-            state, text = self.get_log(uid, project, offset=offset)
+            state, text = self.get_log(uid, project, offset=offset, attempt=attempt)
             if text:
                 nil_resp = 0
                 print(
@@ -2350,6 +2355,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         namespace: Optional[str] = None,
         timeout: int = 30,
+        submit_mode: str = "",
     ):
         """
         Retry a specific pipeline run using its run ID. This function sends an API request
@@ -2359,6 +2365,7 @@ class HTTPRunDB(RunDBInterface):
         :param namespace: Kubernetes namespace where the pipeline is running. Optional.
         :param timeout: Timeout (in seconds) for the API call. Defaults to 30 seconds.
         :param project: Name of the MLRun project associated with the pipeline.
+        :param submit_mode: Whether to submit the pipeline directly to the API.
 
         :raises ValueError: Raised if the API response is not successful or contains an
             error.
@@ -2369,6 +2376,9 @@ class HTTPRunDB(RunDBInterface):
         params = {}
         if namespace:
             params["namespace"] = namespace
+
+        if submit_mode:
+            params["submit-mode"] = submit_mode
 
         resp_text = ""
         resp_code = None
@@ -4187,6 +4197,36 @@ class HTTPRunDB(RunDBInterface):
         for item in response.json():
             results.append(FunctionSummary(**item))
         return results
+
+    def get_monitoring_function_summary(
+        self,
+        project: str,
+        function_name: str,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> FunctionSummary:
+        """
+        Get a monitoring function summary for the specified project and function.
+        :param project:                The name of the project.
+        :param function_name:          The name of the function.
+        :param start:                  Start time for filtering the results (optional).
+        :param end:                    End time for filtering the results (optional).
+        :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
+
+        :return: A FunctionSummary object containing information about the monitoring function.
+        """
+
+        response = self.api_call(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path=f"projects/{project}/model-monitoring/function-summaries/{function_name}",
+            params={
+                "start": datetime_to_iso(start),
+                "end": datetime_to_iso(end),
+                "include-latest-metrics": include_latest_metrics,
+            },
+        )
+        return FunctionSummary(**response.json())
 
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]

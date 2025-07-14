@@ -13,6 +13,7 @@
 # limitations under the License.
 import os
 import pathlib
+from os import environ
 from typing import Callable, Optional, Union
 
 import mlrun.common.constants as mlrun_constants
@@ -71,6 +72,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
     ) -> "mlrun.run.RunObject":
         # do not allow local function to be scheduled
         if schedule is not None:
@@ -121,8 +123,9 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
             workdir=workdir,
             notifications=notifications,
             state_thresholds=state_thresholds,
+            retry=retry,
         )
-        self._validate_runtime(runtime, run)
+        self._validate_run(runtime, run)
         result = self._execute(
             runtime=runtime,
             run=run,
@@ -251,6 +254,9 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
             # copy the code/base-spec to the local function (for the UI and code logging)
             fn.spec.description = runtime.spec.description
             fn.spec.build = runtime.spec.build
+            serving_spec = getattr(runtime.spec, "serving_spec", None)
+            if serving_spec:
+                environ["SERVING_SPEC_ENV"] = serving_spec
 
         run.spec.handler = handler
         run.spec.reset_on_run = reset_on_run

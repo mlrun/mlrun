@@ -32,11 +32,12 @@ from mlrun import feature_store as fstore
 from mlrun.datastore.sources import KafkaSource
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.serving import ModelRunnerStep
+from tests.system.runtimes.assets.function_with_model import DummyModel
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
-    project_name = "does-not-exist-3"
+    project_name = "test-nuclio-runtime"
 
     def test_deploy_function_with_error_handler(self):
         code_path = str(self.assets_path / "function-with-catcher.py")
@@ -60,7 +61,8 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         assert deployment == function.get_url()  # check function url
 
     @pytest.mark.parametrize("raise_exception", [True, False])
-    def test_deploy_function_with_model_runner(self, raise_exception):
+    @pytest.mark.parametrize("with_object", [True, False])
+    def test_deploy_function_with_model_runner(self, raise_exception, with_object):
         code_path = str(self.assets_path / "function_with_model.py")
 
         self._logger.debug("Creating nuclio function")
@@ -76,7 +78,15 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         model_runner_step = ModelRunnerStep(
             name="model-runner", raise_exception=raise_exception
         )
-        model_runner_step.add_model(model_class="DummyModel", endpoint_name="my-model")
+        if with_object:
+            dummy_model = DummyModel(name="my-model")
+        else:
+            dummy_model = "DummyModel"
+        model_runner_step.add_model(
+            model_class=dummy_model,
+            execution_mechanism="naive",
+            endpoint_name="my-model",
+        )
 
         graph.to(model_runner_step).respond()
 
@@ -87,6 +97,90 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         resp = function.invoke("/", {"x": "y"})
         assert resp == {"x": "y", "extra": 123}
+
+    def test_model_runner_with_llm_and_shared_models(self):
+        code_path = str(self.assets_path / "function_with_model.py")
+
+        self._logger.debug("Creating nuclio function")
+        function = mlrun.code_to_function(
+            name="function_with_model",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        model_artifact = self.project.log_model(
+            "my_model",
+            model_url="http://localhost:8080/v2/models/mymodel/infer",
+            default_config={"model_version": "4"},
+        )
+
+        llm_artifact = self.project.log_llm_prompt(
+            "my_llm",
+            prompt_string="What is the meaning of life?",
+            model_artifact=model_artifact,
+        )
+
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(
+            name="model-runner",
+        )
+
+        dummy_model = DummyModel(name="shared-model")
+
+        graph.add_shared_model(
+            name="shared-model",
+            execution_mechanism="naive",
+            model_class=dummy_model,
+            model_artifact=model_artifact.uri,
+        )
+        model_runner_step.add_shared_model_proxy(
+            endpoint_name="my-model",
+            shared_model_name="shared-model",
+            model_artifact=llm_artifact.uri,
+        )
+
+        graph.to(model_runner_step).respond()
+
+        self._logger.debug("Deploying nuclio function")
+        deployment = function.deploy()
+
+        assert deployment == function.get_url()  # check function url
+
+        resp = function.invoke("/", {"x": "y"})
+        assert resp == {"x": "y", "extra": 123}
+
+    def test_deploy_function_with_model_runner_with_child_function(self):
+        code_path = str(self.assets_path / "function_with_model.py")
+        child_code_path = str(self.assets_path / "child_function.py")
+        self._logger.debug("Creating nuclio function")
+        image = "mlrun/mlrun"
+        function = mlrun.code_to_function(
+            name="function_with_model",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=image,
+        )
+
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="model-runner", raise_exception=True)
+        model_runner_step.add_model(
+            model_class="DummyModel",
+            execution_mechanism="naive",
+            endpoint_name="my-model",
+        )
+        step = graph.to(model_runner_step).respond()
+        step.to(name="inc", handler="inc", function="child")
+        function.add_child_function(
+            "child",
+            child_code_path,
+            image=image,
+        )
+        self._logger.debug("Deploying nuclio function")
+        deployment = function.deploy()
+
+        assert deployment == function.get_url()  # check function url
 
     @pytest.mark.parametrize("raise_exception", [True, False])
     def test_deploy_model_runner_error_handler(self, raise_exception: bool):
@@ -105,7 +199,11 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         model_runner_step = ModelRunnerStep(
             name="model-runner", raise_exception=raise_exception
         )
-        model_runner_step.add_model(model_class="ErrorModel", endpoint_name="my-model")
+        model_runner_step.add_model(
+            model_class="ErrorModel",
+            execution_mechanism="naive",
+            endpoint_name="my-model",
+        )
 
         step = graph.to(model_runner_step).respond()
         step.error_handler("catcher", handler="catcher_echo", full_event=True)

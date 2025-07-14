@@ -19,8 +19,11 @@ from sys import executable
 
 import pandas as pd
 import pytest
+import v3io
+import v3iofs  # noqa
 
 import mlrun
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.feature_store.common
 import mlrun.model
@@ -449,7 +452,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         runs = mlrun.get_run_db().list_runs(
             project=self.project_name,
             end_time_from=beginning_time,
-            states=mlrun.common.runtimes.constants.RunStates.error,
+            states=[mlrun.common.runtimes.constants.RunStates.error],
         )
         assert len(runs) == 1
 
@@ -458,7 +461,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         runs = mlrun.get_run_db().list_runs(
             project=self.project_name,
             end_time_from=now,
-            states=mlrun.common.runtimes.constants.RunStates.error,
+            states=[mlrun.common.runtimes.constants.RunStates.error],
         )
         assert len(runs) == 0
 
@@ -685,3 +688,93 @@ def print_df(df):
         assert background_task.metadata.name in [
             task.metadata.name for task in background_tasks
         ]
+
+    def test_job_from_serving_runtime(self):
+        function = self.project.set_function(
+            func=str(self.assets_path / "function_with_simple_transformation.py"),
+            name="test",
+            kind="serving",
+            image="artifactory.iguazeng.com:10557/galt/mlrun:1.10.0-rc9-46c395",
+        )
+        graph = function.set_topology("flow", engine="async")
+
+        graph.to(name="transformation", handler="transform").to(
+            name="parquet",
+            class_name="storey.ParquetTarget",
+            path=f"v3io:///projects/{self.project_name}/out.parquet",
+        )
+
+        job = function.to_job()
+
+        with open(str(self.assets_path / "test_data.csv")) as f:
+            csv_content = f.read()
+
+        v3io_client = v3io.Client()
+        try:
+            v3io_client.object.put(
+                "projects", f"{self.project_name}/in.csv", body=csv_content
+            )
+            inputs = {"data": f"v3io:///projects/{self.project_name}/in.csv"}
+            self.project.run_function(job, inputs=inputs, local=True)
+            read_back_df = pd.read_parquet(
+                f"v3io:///projects/{self.project_name}/out.parquet"
+            )
+            assert (
+                "Mickey Mouse" in read_back_df["Product"].values
+            ), f"Dataframe {read_back_df} was not transformed as expected"
+        finally:
+            v3io_client.close()
+
+    def test_retry_job_exhausted(self):
+        code_path = str(self.assets_path / "raise_func.py")
+
+        function = self.project.set_function(
+            code_path,
+            name="raise-func",
+            kind="job",
+            handler="handler",
+        )
+
+        retry_count = 3
+        retry = mlrun.model.Retry(
+            count=retry_count,
+        )
+
+        with pytest.raises(mlrun.runtimes.utils.RunError):
+            function.run(verbose=True, retry=retry)
+
+        runs = self._run_db.list_runs(project=self.project_name)
+        assert len(runs) == 1
+        run = mlrun.RunObject.from_dict(runs[0])
+        assert run.status.retry_count is None
+        assert (
+            run.status.state == mlrun.common.runtimes.constants.RunStates.pending_retry
+        )
+        max_attempts = retry_count + 1
+        assert f"Run failed attempt 1 of {max_attempts}" in run.status.status_text
+
+        def _assert_retry_count():
+            runs = self._run_db.list_runs(project=self.project_name)
+            assert len(runs) == 1
+            run = mlrun.RunObject.from_dict(runs[0])
+            assert (
+                run.status.retry_count == 3
+            ), f"Expected retry_count=3, got {run.status.retry_count}"
+            assert run.status.state == mlrun.common.runtimes.constants.RunStates.error
+            assert f"Run failed after {max_attempts} attempts" in run.status.status_text
+
+        mlrun.utils.retry_until_successful(
+            1,
+            250,
+            self._logger,
+            True,
+            _assert_retry_count,
+        )
+
+        state, content = self._run_db.get_log(
+            run.metadata.uid, project=self.project_name, attempt=2
+        )
+        assert state == mlrun.common.runtimes.constants.RunStates.error
+        assert "Retrying run - attempt: 2" in str(
+            content
+        ), "Expected logs to contain retry attempt message"

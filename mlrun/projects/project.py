@@ -159,7 +159,8 @@ def new_project(
     parameters: Optional[dict] = None,
     default_function_node_selector: Optional[dict] = None,
 ) -> "MlrunProject":
-    """Create a new MLRun project, optionally load it from a yaml/zip/git template
+    """Create a new MLRun project, optionally load it from a yaml/zip/git template.
+    The project will become the active project for the current session.
 
     A new project is created and returned, you can customize the project by placing a project_setup.py file
     in the project root dir, it will be executed upon project creation or loading.
@@ -326,7 +327,8 @@ def load_project(
     parameters: Optional[dict] = None,
     allow_cross_project: Optional[bool] = None,
 ) -> "MlrunProject":
-    """Load an MLRun project from git or tar or dir
+    """Load an MLRun project from git or tar or dir. The project will become the active project for
+    the current session.
 
     MLRun looks for a project.yaml file with project definition and objects in the project root path
     and use it to initialize the project, in addition it runs the project_setup.py file (if it exists)
@@ -1940,6 +1942,11 @@ class MlrunProject(ModelObj):
         :returns: The logged `LLMPromptArtifact` object.
         """
 
+        if not prompt_string and not prompt_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Either 'prompt_string' or 'prompt_path' must be provided"
+            )
+
         llm_prompt = LLMPromptArtifact(
             key=key,
             project=self.name,
@@ -2688,8 +2695,8 @@ class MlrunProject(ModelObj):
         requirements_file: str = "",
     ) -> mlrun.runtimes.BaseRuntime:
         """
-        | Update or add a function object to the project.
-        | Function can be provided as an object (func) or a .py/.ipynb/.yaml URL.
+        Update or add a function object to the project.
+        Function can be provided as an object (func) or a .py/.ipynb/.yaml URL.
 
         | Creating a function from a single file is done by specifying ``func`` and disabling ``with_repo``.
         | Creating a function with project source (specify ``with_repo=True``):
@@ -2733,6 +2740,20 @@ class MlrunProject(ModelObj):
 
             # By providing a path to a pip requirements file
             proj.set_function("my.py", requirements="requirements.txt")
+
+        One of the most important parameters is 'kind', used to specify the chosen runtime. The options are:
+           - local: execute a local python or shell script
+           - job: insert the code into a Kubernetes pod and execute it
+           - nuclio: insert the code into a real-time serverless nuclio function
+           - serving: insert code into orchestrated nuclio function(s) forming a DAG
+           - dask: run the specified python code / script as Dask Distributed job
+           - mpijob: run distributed Horovod jobs over the MPI job operator
+           - spark: run distributed Spark job using Spark Kubernetes Operator
+           - remote-spark: run distributed Spark job on remote Spark service
+           - databricks: run code on Databricks cluster (python scripts, Spark etc.)
+           - application: run a long living application (e.g. a web server, UI, etc.)
+
+        Learn more about :doc:`../../concepts/functions-overview`.
 
         :param func:                Function object or spec/code url, None refers to current Notebook
         :param name:                Name of the function (under the project), can be specified with a tag to support
@@ -3967,6 +3988,7 @@ class MlrunProject(ModelObj):
         builder_env: Optional[dict] = None,
         reset_on_run: Optional[bool] = None,
         output_path: Optional[str] = None,
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
     ) -> typing.Union[mlrun.model.RunObject, PipelineNodeWrapper]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -4029,7 +4051,7 @@ class MlrunProject(ModelObj):
                                 This ensures latest code changes are executed. This argument must be used in
                                 conjunction with the local=True argument.
         :param output_path:     path to store artifacts, when running in a workflow this will be set automatically
-
+        :param retry:           Retry configuration for the run, can be a dict or an instance of mlrun.model.Retry.
         :return: MLRun RunObject or PipelineNodeWrapper
         """
         if artifact_path:
@@ -4068,6 +4090,7 @@ class MlrunProject(ModelObj):
                 returns=returns,
                 builder_env=builder_env,
                 reset_on_run=reset_on_run,
+                retry=retry,
             )
 
     def build_function(
@@ -4966,6 +4989,36 @@ class MlrunProject(ModelObj):
             labels=labels,
             include_stats=include_stats,
             include_infra=include_infra,
+        )
+
+    def get_monitoring_function_summary(
+        self,
+        name: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
+        """Get a monitoring function summary for the specified project and function name.
+        :param name:                   Name of the monitoring function to retrieve the summary for.
+        :param start:                  Start time for filtering the results (optional).
+        :param end:                    End time for filtering the results (optional).
+        :param include_latest_metrics: Whether to include the latest metrics in the response (default is False).
+
+        :return: A FunctionSummary object containing information about the monitoring function.
+        """
+        if start is not None and end is not None:
+            if start.tzinfo is None or end.tzinfo is None:
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                    "Custom start and end times must contain the timezone."
+                )
+
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.get_monitoring_function_summary(
+            project=self.metadata.name,
+            function_name=name,
+            start=start,
+            end=end,
+            include_latest_metrics=include_latest_metrics,
         )
 
     def list_runs(

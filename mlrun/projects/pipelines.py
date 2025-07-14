@@ -21,6 +21,7 @@ import typing
 import uuid
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.function
@@ -1070,6 +1071,68 @@ def github_webhook(request):
     return {"msg": "pushed"}
 
 
+def rerun_workflow(
+    context: mlrun.execution.MLClientCtx, run_uid: str, project_name: str
+):
+    """
+    Re-run a workflow by retrying a previously failed KFP pipeline.
+
+    :param context:      MLRun context.
+    :param run_uid:      The run UID of the original workflow to retry.
+    :param project_name: The project name.
+    """
+    db = mlrun.get_run_db()
+
+    try:
+        # Invoke the KFP retry endpoint (direct-submit mode)
+        new_pipeline_id = db.retry_pipeline(
+            run_id=run_uid,
+            project=project_name,
+            submit_mode=mlrun_constants.WorkflowSubmitMode.direct,
+        )
+        logger.info(
+            "KFP retry submitted",
+            new_pipeline_id=new_pipeline_id,
+            rerun_of_workflow=run_uid,
+        )
+
+    except mlrun.errors.MLRunHTTPError as http_exc:
+        logger.error(
+            "Failed calling KFP retry API",
+            run_id=run_uid,
+            error=err_to_str(http_exc),
+        )
+        raise
+
+    # Enqueue "running" notifications server-side for this RerunRunner run
+    db.push_run_notifications(context.uid, project_name)
+
+    context.set_label(mlrun_constants.MLRunInternalLabels.workflow_id, new_pipeline_id)
+    context.update_run()
+
+    context.log_result("workflow_id", new_pipeline_id)
+
+    try:
+        pipeline = wait_for_pipeline_completion(
+            new_pipeline_id,
+            project=project_name,
+        )
+    except Exception as exc:
+        mlrun.utils.logger.error(
+            "Failed waiting for workflow completion",
+            rerun_pipeline_id=new_pipeline_id,
+            exc=err_to_str(exc),
+        )
+    else:
+        final_state = pipeline["run"]["status"]
+        context.log_result("workflow_state", final_state, commit=True)
+
+        if final_state != mlrun_pipelines.common.models.RunStatuses.succeeded:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Pipeline retry of {run_uid} finished in state={final_state}"
+            )
+
+
 def load_and_run(context, *args, **kwargs):
     """
     This function serves as an alias to `load_and_run_workflow`,
@@ -1160,13 +1223,13 @@ def load_and_run_workflow(
     start_notifications = [
         notification
         for notification in context.get_notifications(unmask_secret_params=True)
-        if "running" in notification.when
+        if mlrun.common.runtimes.constants.RunStates.running in notification.when
     ]
 
     # Prevent redundant notifications for run completion by ensuring that notifications are only triggered when the run
     # reaches the "running" state, as the server already handles the completion notifications.
     for notification in start_notifications:
-        notification.when = ["running"]
+        notification.when = [mlrun.common.runtimes.constants.RunStates.running]
 
     workflow_log_message = workflow_name or workflow_path
     context.logger.info(
@@ -1192,7 +1255,9 @@ def load_and_run_workflow(
     context.logger.info(
         "Associating workflow-runner with workflow ID", run_id=run.run_id
     )
-    context.set_label("workflow-id", run.run_id)
+    context.set_label(mlrun_constants.MLRunInternalLabels.workflow_id, run.run_id)
+    context.update_run()
+
     context.log_result(key="workflow_id", value=run.run_id)
     context.log_result(key="engine", value=run._engine.engine, commit=True)
 

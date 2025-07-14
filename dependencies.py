@@ -19,10 +19,6 @@ def base_requirements() -> list[str]:
     return list(_load_dependencies_from_file("requirements.txt"))
 
 
-def dev_requirements() -> list[str]:
-    return list(_load_dependencies_from_file("dev-requirements.txt"))
-
-
 def extra_requirements() -> dict[str, list[str]]:
     # NOTE:
     #     - These are tested in `automation/package_test/test.py`. If you modify these, make sure to change the
@@ -79,6 +75,7 @@ def extra_requirements() -> dict[str, list[str]]:
         "alibaba-oss": ["ossfs==2023.12.0", "oss2==2.18.1"],
         "tdengine": ["taos-ws-py==0.3.2"],
         "snowflake": ["snowflake-connector-python~=3.7"],
+        "openai": ["openai~=1.88"],
     }
 
     api_deps = list(
@@ -86,6 +83,7 @@ def extra_requirements() -> dict[str, list[str]]:
     )
     extras_require.update(
         {
+            "dev-postgres": ["pytest-mock-resources[postgres]~=2.12"],
             "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]>=0.5.0; python_version < '3.11'"],
             # TODO uncomment when KFP 1.8 support is removed
             # "kfp2": ["mlrun_pipelines_kfp_v2[kfp]>=0.5.0 ; python_version >= '3.11'"],

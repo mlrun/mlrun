@@ -67,11 +67,11 @@ def test_validate_inputs():
     )
     run = mlrun.run.RunObject(spec=mlrun.model.RunSpec(inputs={"input1": 1}))
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError) as exc:
-        launcher._validate_runtime(runtime, run)
+        launcher._validate_run(runtime, run)
     assert "'Inputs' should be of type Dict[str, str]" in str(exc.value)
 
 
-def test_validate_runtime_success():
+def test_validate_run_success():
     launcher = mlrun.launcher.remote.ClientRemoteLauncher()
     runtime = mlrun.code_to_function(
         name="test", kind="local", filename=str(func_path), handler=handler
@@ -79,7 +79,7 @@ def test_validate_runtime_success():
     run = mlrun.run.RunObject(
         spec=mlrun.model.RunSpec(inputs={"input1": ""}, output_path="./some_path")
     )
-    launcher._validate_runtime(runtime, run)
+    launcher._validate_run(runtime, run)
 
 
 @pytest.mark.parametrize(

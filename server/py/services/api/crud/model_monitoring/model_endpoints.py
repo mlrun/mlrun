@@ -141,6 +141,14 @@ class ModelEndpoints:
                 model_endpoint.metadata.labels.update(
                     model_obj.labels
                 )  # todo : check if we still need this
+                if db_artifact.kind == mlrun.artifacts.LLMPromptArtifact.kind:
+                    artifact = db_artifact.parent.full_object
+                    model_obj = mlrun.artifacts.dict_to_artifact(
+                        mlrun.common.formatters.ArtifactFormat.format_obj(
+                            artifact, "full"
+                        )
+                    )
+
             except mlrun.errors.MLRunNotFoundError:
                 logger.info("The model endpoint is created on a non-existing model")
 
@@ -851,11 +859,9 @@ class ModelEndpoints:
             ModelEndpoints.delete_tsdb_records,
             mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_tsdb_leftovers,
             background_task_name,
+            None,
             project,
             uids,
-            int(
-                mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_tsdb_leftovers
-            ),
         )
 
         # delete feature sets
@@ -875,9 +881,7 @@ class ModelEndpoints:
         )
 
     @staticmethod
-    async def delete_tsdb_records(
-        project: str, uids: list[str], delete_timeout: Optional[int] = None
-    ):
+    async def delete_tsdb_records(project: str, uids: list[str]):
         try:
             tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
                 project=project,
@@ -885,9 +889,7 @@ class ModelEndpoints:
                     project=project
                 ),
             )
-            tsdb_connector.delete_tsdb_records(
-                endpoint_ids=uids, delete_timeout=delete_timeout
-            )
+            tsdb_connector.delete_tsdb_records(endpoint_ids=uids)
             logger.info("TSDB resources were deleted")
         except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
             logger.info(
@@ -1420,11 +1422,11 @@ class ModelEndpoints:
         """
 
         run_db = framework.api.utils.get_run_db_instance(session)
-        model_obj: mlrun.artifacts.ModelArtifact = (
-            mlrun.datastore.store_resources.get_store_resource(
-                model_endpoint_object.spec.model_uri, db=run_db
-            )
+        model_obj = mlrun.datastore.store_resources.get_store_resource(
+            model_endpoint_object.spec.model_uri, db=run_db
         )
+        if isinstance(model_obj, mlrun.artifacts.LLMPromptArtifact):
+            model_obj = model_obj.model_artifact
         feature_stats: dict = model_obj.spec.feature_stats or {}
         mlrun.common.model_monitoring.helpers.pad_features_hist(
             mlrun.common.model_monitoring.helpers.FeatureStats(feature_stats)

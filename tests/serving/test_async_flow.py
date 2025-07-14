@@ -14,12 +14,14 @@
 import pathlib
 import unittest.mock
 from types import SimpleNamespace
-from typing import Optional
+from typing import Optional, Union
 
 import pytest
 
 import mlrun
 import mlrun.common.schemas as schemas
+from mlrun.artifacts.llm_prompt import LLMPromptArtifact
+from mlrun.artifacts.model import ModelArtifact
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.serving import Model, ModelRunnerStep, ModelSelector, RouterStep
 from mlrun.utils import logger
@@ -33,14 +35,21 @@ class _DummyStreamRaiser:
         raise ValueError("DummyStreamRaiser raises an error")
 
 
-def create_mocked_get_store_resource(model_artifact):
-    def mocked_get_store_resource(uri, **kwargs):
+def create_mocked_get_store_artifact(
+    model_artifact: Union[ModelArtifact, LLMPromptArtifact],
+    origin_model: ModelArtifact = None,
+):
+    _model_artifact = origin_model
+
+    def mocked_get_store_artifact(uri, **kwargs):
         if uri == model_artifact.uri:
-            return model_artifact
+            return model_artifact, None
+        elif uri == model_artifact.spec.parent_uri:
+            return _model_artifact, None
         else:
             raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
 
-    return mocked_get_store_resource
+    return mocked_get_store_artifact
 
 
 def test_async_basic():
@@ -159,10 +168,8 @@ def test_push_error():
 
 
 class MyModel(Model):
-    execution_mechanism = "naive"
-
-    def __init__(self, *args, inc: int, gpu_number: Optional[int] = None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, inc: int, gpu_number: Optional[int] = None, **kwargs):
+        super().__init__(**kwargs)
         self.inc = inc
         self.gpu_number = gpu_number
 
@@ -174,36 +181,22 @@ class MyModel(Model):
         return body
 
     async def predict_async(self, body):
-        return self.predict(body)
+        body = self.predict(body)
+        body["async"] = True
+        return body
 
     def do(self, event):
         return self.predict(event)
 
 
 class MyRemoteModel(Model):
-    execution_mechanism = "naive"
-
-    def __init__(self, name, raise_exception, artifact_uri, **kwargs):
-        super().__init__(
-            name=name,
-            raise_exception=raise_exception,
-            artifact_uri=artifact_uri,
-            **kwargs,
-        )
-        self.artifact = None
-
     def predict(self, body):
-        body["url"] = self.artifact.model_url
-        body["default_config"] = self.artifact.default_config
+        body["url"] = self.model_artifact.model_url
+        body["default_config"] = self.model_artifact.default_config
         return body
-
-    def load(self):
-        self.artifact = self._get_artifact_object()
 
 
 class MyPklModel(Model):
-    execution_mechanism = "naive"
-
     def __init__(self, name, raise_exception, artifact_uri, **kwargs):
         super().__init__(
             name=name,
@@ -229,7 +222,12 @@ def test_model_runner():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
-    model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model", inc=1)
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        inc=1,
+    )
     graph.to(model_runner_step).respond()
 
     assert "my_model" in graph.model_endpoints_names, "model endpoint name not in graph"
@@ -248,10 +246,16 @@ def test_model_runner_add_model(method: str):
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
-        model_class="MyModel", endpoint_name="my_model_1", inc=1
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model_1",
+        inc=1,
     )
     model_runner_step.add_model(
-        model_class="MyModel", endpoint_name="my_model_2", inc=2
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model_2",
+        inc=2,
     )
     if method == "add_step":
         graph.add_step(model_runner_step).respond()
@@ -281,11 +285,19 @@ def test_model_runner_add_model_failure(method: str):
     function = mlrun.new_function("tests", kind="serving")
     function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
-    model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model", inc=1)
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        inc=1,
+    )
     try:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             model_runner_step.add_model(
-                model_class="MyModel", endpoint_name="my_model", inc=2
+                model_class="MyModel",
+                execution_mechanism="naive",
+                endpoint_name="my_model",
+                inc=2,
             )
     except AssertionError:
         pytest.fail(
@@ -297,10 +309,16 @@ def test_model_runner_add_model_failure(method: str):
     model_runner_step_0 = ModelRunnerStep(name="my_model_runner_0")
     model_runner_step_1 = ModelRunnerStep(name="my_model_runner_1")
     model_runner_step_0.add_model(
-        model_class="MyModel", endpoint_name="my_model", inc=1
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        inc=1,
     )
     model_runner_step_1.add_model(
-        model_class="MyModel", endpoint_name="my_model", inc=2
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        inc=2,
     )
     try:
         with pytest.raises(mlrun.serving.states.GraphError):
@@ -325,7 +343,12 @@ def test_model_runner_with_route_failure(model_runner_first: bool, method: str):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
-    model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model", inc=1)
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        inc=1,
+    )
     graph.to(class_name=RouterStep())
 
     if method == "add_step":
@@ -339,13 +362,17 @@ def test_model_runner_with_route_failure(model_runner_first: bool, method: str):
         adding_method(model_runner_step)
         try:
             with pytest.raises(mlrun.serving.states.GraphError):
-                function.add_model(class_name="MyModel", key="my_model")
+                function.add_model(
+                    class_name="MyModel", execution_mechanism="naive", key="my_model"
+                )
         except AssertionError:
             pytest.fail(
                 "Expected 'mlrun.serving.states.GraphError' using the same model name with router and ModelRunnerStep"
             )
     else:
-        function.add_model(class_name="MyModel", key="my_model")
+        function.add_model(
+            class_name="MyModel", execution_mechanism="naive", key="my_model"
+        )
         try:
             with pytest.raises(mlrun.serving.states.GraphError):
                 adding_method(model_runner_step)
@@ -361,7 +388,12 @@ def test_model_runner_with_route(model_runner_first: bool, method: str):
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner_with_route")
-    model_runner_step.add_model(model_class="MyModel", endpoint_name="my_model", inc=1)
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        inc=1,
+    )
     graph.to(class_name=RouterStep()).respond()
 
     if method == "add_step":
@@ -378,6 +410,7 @@ def test_model_runner_with_route(model_runner_first: bool, method: str):
         "my_model_1",
         ".",
         class_name="MyModel",
+        execution_mechanism="naive",
         name="my_model_1",
         inc=1,
     )
@@ -404,7 +437,11 @@ def test_model_runner_error_raiser(raise_error: bool, with_error: bool):
         name="my_model_runner", raise_exception=raise_error
     )
     model_runner_step.add_model(
-        model_class="MyModel", endpoint_name="my_model", raise_error=False, inc=1
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        raise_error=False,
+        inc=1,
     )
     graph.to(model_runner_step).respond()
     _test_model_runner_raise_error_output(function, raise_error, with_error)
@@ -419,10 +456,18 @@ def test_model_runner_error_raiser_multiple_models(raise_error: bool, with_error
         name="my_model_runner", raise_exception=raise_error
     )
     model_runner_step.add_model(
-        model_class="MyModel", endpoint_name="my_model_0", raise_error=False, inc=1
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model_0",
+        raise_error=False,
+        inc=1,
     )
     model_runner_step.add_model(
-        model_class="MyModel", endpoint_name="my_model_1", raise_error=False, inc=1
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model_1",
+        raise_error=False,
+        inc=1,
     )
     graph.to(model_runner_step).respond()
     _test_model_runner_raise_error_output(
@@ -439,7 +484,11 @@ def test_model_runner_multiple_downstream_steps(raise_error: bool, with_error: b
         name="my_model_runner", raise_exception=raise_error
     )
     model_runner_step.add_model(
-        model_class="MyModel", endpoint_name="my_model", raise_error=False, inc=1
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        raise_error=False,
+        inc=1,
     )
     step = graph.to(model_runner_step)
     for i in range(5):
@@ -484,10 +533,12 @@ class MyModelSelector(ModelSelector):
     ("process_pool", "dedicated_process", "thread_pool", "asyncio", "naive"),
 )
 def test_model_runner_with_selector(execution_mechanism: str):
-    m1 = MyModel(name="m1", inc=1)
+    m1 = MyModel(
+        name="m1",
+        execution_mechanism="naive",
+        inc=1,
+    )
     m2 = MyModel(name="m2", inc=2)
-    # Normally, this is set at the class level, but for testing purposes, we set it on the instance
-    m2.execution_mechanism = execution_mechanism
 
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
@@ -495,36 +546,59 @@ def test_model_runner_with_selector(execution_mechanism: str):
         name="my_model_runner",
         model_selector="MyModelSelector",
     )
-    model_runner_step.add_model(endpoint_name=m1.name, model_class=m1)
-    model_runner_step.add_model(endpoint_name=m2.name, model_class=m2)
+    model_runner_step.add_model(
+        endpoint_name=m1.name,
+        model_class=m1,
+        execution_mechanism="naive",
+    )
+    model_runner_step.add_model(
+        endpoint_name=m2.name,
+        model_class=m2,
+        execution_mechanism=execution_mechanism,
+    )
     graph.to(model_runner_step).respond()
 
     server = function.to_mock_server()
     try:
         # both models
         resp = server.test(body={"n": 1})
-        assert resp == {"m1": {"n": 2}, "m2": {"n": 3}}
+        expected = {
+            "m1": {"n": 2},
+            "m2": {"n": 3},
+        }
+        if execution_mechanism == "asyncio":
+            expected["m2"]["async"] = True
+        assert resp == expected
 
         # only m2
         resp = server.test(body={"n": 1, "models": ["m2"]})
-        assert resp == {"m2": {"n": 3}}
+        expected = {"m2": {"n": 3}}
+        if execution_mechanism == "asyncio":
+            expected["m2"]["async"] = True
+        assert resp == expected
     finally:
         server.wait_for_completion()
 
 
 def test_model_runner_with_gpu_allocation():
-    m1 = MyModel(name="m1", inc=1, gpu_number=1)
-    m2 = MyModel(name="m2", inc=2, gpu_number=2)
-
-    m1.execution_mechanism = m2.execution_mechanism = "dedicated_process"
+    m1 = MyModel(
+        name="m1", execution_mechanism="dedicated_process", inc=1, gpu_number=1
+    )
+    m2 = MyModel(
+        name="m2", execution_mechanism="dedicated_process", inc=2, gpu_number=2
+    )
 
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(
         name="my_model_runner",
     )
-    model_runner_step.add_model(endpoint_name=m1.name, model_class=m1)
-    model_runner_step.add_model(endpoint_name=m2.name, model_class=m2)
+    model_runner_step.add_model(
+        endpoint_name=m1.name, model_class=m1, execution_mechanism="naive"
+    )
+    model_runner_step.add_model(
+        endpoint_name=m2.name, model_class=m2, execution_mechanism="naive"
+    )
     graph.to(model_runner_step).respond()
 
     server = function.to_mock_server()
@@ -548,6 +622,7 @@ def test_model_runner_with_remote_model():
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
         model_class="MyRemoteModel",
+        execution_mechanism="naive",
         endpoint_name="my_endpoint",
         model_artifact=model_artifact,
     )
@@ -559,8 +634,50 @@ def test_model_runner_with_remote_model():
     # Mocked function used to verify artifact URI is passed correctly.
 
     with unittest.mock.patch(
-        "mlrun.serving.states.get_store_resource",
-        side_effect=create_mocked_get_store_resource(model_artifact=model_artifact),
+        "mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
+    ):
+        server = function.to_mock_server()
+    try:
+        resp = server.test(body={"prompt": "What is the capital of france?"})
+        assert resp["default_config"] == {"model_version": "4"}
+        assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
+        assert resp["prompt"] == "What is the capital of france?"
+    finally:
+        server.wait_for_completion()
+
+
+def test_model_runner_with_remote_shared_model():
+    project = mlrun.new_project("remote-model-project", save=False)
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    graph.add_shared_model(
+        name="my_model",
+        model_class="MyRemoteModel",
+        model_artifact=model_artifact,
+        execution_mechanism="naive",
+    )
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_shared_model_proxy(
+        endpoint_name="my_endpoint",
+        model_artifact=model_artifact,
+        shared_model_name="my_model",
+    )
+    graph.to(model_runner_step).respond()
+    assert (
+        "my_endpoint" in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+    # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
+    # Mocked function used to verify artifact URI is passed correctly.
+
+    with unittest.mock.patch(
+        "mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
     ):
         server = function.to_mock_server()
     try:
@@ -583,17 +700,98 @@ def test_get_local_model_path():
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
         model_class="MyPklModel",
+        execution_mechanism="naive",
         endpoint_name="my_endpoint",
         model_artifact=model_artifact,
     )
     graph.to(model_runner_step).respond()
     with unittest.mock.patch(
-        "mlrun.serving.states.get_store_resource",
-        side_effect=create_mocked_get_store_resource(model_artifact=model_artifact),
+        "mlrun.serving.states.mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
     ):
         server = function.to_mock_server()
     try:
         resp = server.test(body={})
         assert resp["result"] == "123"
+    finally:
+        server.wait_for_completion()
+
+
+@pytest.mark.parametrize("raise_exception", [True, False])
+@pytest.mark.parametrize("with_object", [True, False])
+@pytest.mark.parametrize("shared", [True, False])
+@pytest.mark.parametrize("model_uri", [True, False])
+@pytest.mark.parametrize("llm", [None, "uri_based", "object_based"])
+def test_deploy_function_with_model_runner(
+    raise_exception, with_object, shared, model_uri, llm
+):
+    project = mlrun.new_project("get-model-path-project", save=False)
+    function = mlrun.new_function("tests", kind="serving")
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    llm_artifact = None
+    if llm:
+        llm_artifact = project.log_llm_prompt(
+            "my_llm",
+            prompt_string="What is the meaning of life?",
+            model_artifact=model_artifact
+            if llm == "object_based"
+            else model_artifact.uri,
+        )
+
+    with unittest.mock.patch(
+        "mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(
+            model_artifact=llm_artifact or model_artifact, origin_model=model_artifact
+        ),
+    ):
+        if model_uri:
+            model_artifact_param = model_artifact.uri
+            llm_artifact_param = llm_artifact.uri if llm_artifact else None
+        else:
+            model_artifact_param = model_artifact
+            llm_artifact_param = llm_artifact
+
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(
+            name="model-runner", raise_exception=raise_exception
+        )
+        if with_object:
+            dummy_model = MyRemoteModel(
+                name="my-model" if not shared else "shared-model"
+            )
+        else:
+            dummy_model = "MyRemoteModel"
+        if shared:
+            graph.add_shared_model(
+                name="shared-model",
+                execution_mechanism="naive",
+                model_class=dummy_model,
+                model_artifact=model_artifact_param,
+            )
+            model_runner_step.add_shared_model_proxy(
+                endpoint_name="my-model",
+                shared_model_name="shared-model",
+                model_artifact=llm_artifact_param or model_artifact_param,
+            )
+        else:
+            model_runner_step.add_model(
+                model_class=dummy_model,
+                execution_mechanism="naive",
+                endpoint_name="my-model",
+                model_artifact=llm_artifact_param or model_artifact_param,
+            )
+
+        graph.to(model_runner_step).respond()
+
+        server = function.to_mock_server()
+    try:
+        resp = server.test(body={"prompt": "What is the capital of france?"})
+        assert resp["default_config"] == {"model_version": "4"}
+        assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
+        assert resp["prompt"] == "What is the capital of france?"
     finally:
         server.wait_for_completion()

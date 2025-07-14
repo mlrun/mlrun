@@ -21,7 +21,13 @@ import mlrun.common.schemas
 
 import framework.db.sqldb.db
 
+pytest.importorskip(
+    "psycopg2",
+    reason="psycopg2 not installed",
+)
 
+
+@pytest.mark.integration
 @pytest.mark.usefixtures("pmr_postgres_container")
 def test_create_partitions_postgres(alembic_engine):
     session = sessionmaker(bind=alembic_engine)()
@@ -55,6 +61,7 @@ def test_create_partitions_postgres(alembic_engine):
     session.close()
 
 
+@pytest.mark.integration
 @pytest.mark.usefixtures("pmr_postgres_container")
 def test_drop_partitions_postgres(alembic_engine):
     session = sessionmaker(bind=alembic_engine)()
@@ -94,5 +101,4 @@ def test_drop_partitions_postgres(alembic_engine):
     assert cutoff in remaining  # cutoff kept
     newer = {name for name, _ in parts[2:]}  # newest kept
     assert newer <= remaining
-
     session.close()

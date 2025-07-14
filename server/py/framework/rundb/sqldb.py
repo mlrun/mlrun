@@ -73,15 +73,9 @@ class SQLRunDB(RunDBInterface):
             append,
         )
 
-    def get_log(self, uid, project="", offset=0, size=0):
-        # TODO: this is method which is not being called through the API (only through the SDK), but due to changes in
-        #  the API we changed the get_log method to async so we cannot call it here, and in this PR we won't change the
-        #  SDK to run async, we will use the legacy method for now, and later when we will have a better solution
-        #  we will change it.
+    def get_log(self, uid, project="", offset=0, size=0, attempt=None):
         raise NotImplementedError(
-            "This should be changed to async call, if you are running in the API, use `services.api.crud.get_log`"
-            " method directly instead and not through the get_db().get_log() method. "
-            "This will be removed in 1.5.0",
+            "Use `services.api.crud.get_log` method directly instead, and not through the get_db().get_log() method."
         )
 
     def store_run(self, struct, uid, project="", iter=0):
@@ -908,6 +902,13 @@ class SQLRunDB(RunDBInterface):
             function,
         )
 
+    def get_project_background_task(
+        self,
+        project: str,
+        name: str,
+    ) -> mlrun.common.schemas.BackgroundTask:
+        raise NotImplementedError()
+
     def list_hub_sources(
         self,
         item_name: Optional[str] = None,
@@ -931,6 +932,15 @@ class SQLRunDB(RunDBInterface):
             str, mlrun.common.formatters.PipelineFormat
         ] = mlrun.common.formatters.PipelineFormat.summary,
         project: Optional[str] = None,
+    ):
+        raise NotImplementedError()
+
+    def retry_pipeline(
+        self,
+        run_id: str,
+        project: str,
+        namespace: Optional[str] = None,
+        timeout: int = 30,
     ):
         raise NotImplementedError()
 
@@ -1269,6 +1279,16 @@ class SQLRunDB(RunDBInterface):
         include_stats: bool = False,
         include_infra: bool = True,
     ) -> [mlrun.common.schemas.model_monitoring.FunctionSummary]:
+        raise NotImplementedError
+
+    def get_monitoring_function_summary(
+        self,
+        project: str,
+        function_name: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        include_latest_metrics: bool = False,
+    ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
         raise NotImplementedError
 
     def _transform_db_error(self, func, *args, **kwargs):

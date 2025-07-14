@@ -25,6 +25,7 @@ import pandas as pd
 import pytest
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.utils
@@ -842,6 +843,101 @@ class TestProject(TestMLRunSystem):
                 "caused by: pipeline run has not completed yet"
             )
             != -1
+        )
+
+    def test_rerun_failed_pipeline(self):
+        project_name = "pipeline-rerun-failed"
+        self.custom_project_names_to_delete.append(project_name)
+
+        project = self._load_remote_pipeline_project(name=project_name)
+        project.set_workflow("main", "kflow.py")
+
+        # Nuclio function for storing notifications, to validate the notifications from the pipeline
+        nuclio_function_url = notification_helpers.deploy_notification_nuclio(project)
+
+        notification = mlrun.model.Notification(
+            kind="webhook",
+            when=[RunStates.running, RunStates.completed, RunStates.error],
+            name="webhook_notification",
+            message="some message",
+            condition="",
+            severity="info",
+            params={"url": nuclio_function_url},
+        )
+
+        run_id = project.run("main", engine="remote", notifications=[notification])
+
+        timeout = 60
+        start_time = time.time()
+
+        pipeline = mlrun.get_pipeline(run_id, project=project_name)
+        pipeline_status = pipeline["run"]["status"]
+        while pipeline_status != mlrun_pipelines.common.models.RunStatuses.running:
+            if time.time() - start_time > timeout:
+                raise TimeoutError(
+                    "Pipeline did not reach running state within timeout"
+                )
+            pipeline = mlrun.get_pipeline(run_id, project=project_name)
+            pipeline_status = pipeline["run"]["status"]
+            time.sleep(1)
+
+        mlrun.terminate_pipeline(run_id=run_id.run_id, project=project_name)
+        mlrun.wait_for_pipeline_completion(
+            run_id.run_id,
+            project=project_name,
+            expected_statuses=[mlrun_pipelines.common.models.RunStatuses.failed],
+        )
+        # In order to trigger the periodic monitor runs function
+        time.sleep(35)
+        notifications = list(
+            notification_helpers.get_notifications_from_nuclio_and_reset_notification_cache(
+                nuclio_function_url
+            )
+        )
+        assert len(notifications) == 2
+        assert (
+            notifications[0][0]["status"]["state"]
+            == mlrun.common.runtimes.constants.RunStates.running
+        )
+        assert (
+            notifications[1][0]["status"]["state"]
+            == mlrun.common.runtimes.constants.RunStates.error
+        )
+
+        # Retrying pipeline
+        rerun_id = mlrun.retry_pipeline(run_id=run_id.run_id, project=project_name)
+
+        res = mlrun.wait_for_pipeline_completion(rerun_id)
+        assert (
+            res["run"]["status"] == mlrun_pipelines.common.models.RunStatuses.succeeded
+        )
+        runner_run_result = project.list_runs(
+            labels=[
+                f"{mlrun_constants.MLRunInternalLabels.rerun_of}={run_id.run_id}",
+                f"{mlrun_constants.MLRunInternalLabels.workflow_id}={rerun_id}",
+                f"{mlrun_constants.MLRunInternalLabels.job_type}={mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER}",
+            ]
+        )
+        assert (
+            len(runner_run_result) == 1
+        ), f"Expected exactly one rerun runner, but found {len(runner_run_result)}."
+
+        # in order to trigger the periodic monitor runs function
+        time.sleep(35)
+
+        notifications = list(
+            notification_helpers.get_notifications_from_nuclio_and_reset_notification_cache(
+                nuclio_function_url
+            )
+        )
+        assert len(notifications) == 2
+        assert (
+            notifications[0][0]["status"]["state"]
+            == mlrun.common.runtimes.constants.RunStates.running
+        )
+        assert (
+            notifications[1][0]["status"]["state"]
+            == mlrun.common.runtimes.constants.RunStates.completed
         )
 
     def test_build_and_run(self):

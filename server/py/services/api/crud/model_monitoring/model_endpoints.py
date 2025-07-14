@@ -1207,6 +1207,9 @@ class ModelEndpoints:
                 df=df, type=type, project=project
             )
         elif metrics_format == mm_constants.GetEventsFormat.INTERSECTION:
+            if set(df["endpoint_id"].unique().tolist()) != set(endpoint_id):
+                logger.info("some endpoints does not have metrics, intersection is empty")
+                return { mlrun.common.schemas.model_monitoring.INTERSECT_DICT_KEYS[type]: []}
             return tsdb_connector.df_to_events_intersection_dict(
                 df=df, type=type, project=project
             )

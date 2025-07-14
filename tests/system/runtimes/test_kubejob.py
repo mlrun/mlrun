@@ -787,12 +787,19 @@ def print_df(df):
         previous_start_time = None
         for i, retry in enumerate(retry_attempts):
             assert "start_time" in retry
+            assert "end_time" in retry
             assert "error" in retry
 
             current_start_time = retry["start_time"]
+            current_end_time = retry["end_time"]
+
+            assert current_start_time < current_end_time, (
+                f"Retry {i} has end_time <= start_time: "
+                f"{current_end_time} <= {current_start_time}"
+            )
             if previous_start_time is not None:
                 assert previous_start_time < current_start_time, (
-                    f"Retry {i + 1} start_time is not after retry {i}: "
+                    f"Retry {i} start_time is not after retry {i-1}: "
                     f"{previous_start_time} >= {current_start_time}"
                 )
             previous_start_time = current_start_time

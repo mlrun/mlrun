@@ -1229,13 +1229,13 @@ class LLModel(Model):
     ) -> Union[tuple[list[dict], dict], tuple[None, None]]:
         if origin_name and self.shared_proxy_mapping:
             llm_prompt_artifact = self.shared_proxy_mapping.get(origin_name)
-            llm_prompt_artifact = (
-                llm_prompt_artifact
-                if not isinstance(llm_prompt_artifact, str)
-                else self._get_artifact_object(llm_prompt_artifact)
-            )
+            if isinstance(llm_prompt_artifact, str):
+                llm_prompt_artifact = self._get_artifact_object(llm_prompt_artifact)
+                self.shared_proxy_mapping[origin_name] = llm_prompt_artifact
         else:
-            llm_prompt_artifact = self._get_artifact_object()
+            llm_prompt_artifact = (
+                self.invocation_artifact or self._get_artifact_object()
+            )
         if not (
             llm_prompt_artifact and isinstance(llm_prompt_artifact, LLMPromptArtifact)
         ):

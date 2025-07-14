@@ -799,5 +799,6 @@ def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
                 assert resp["prompt"] == [
                     {"role": "user", "content": "What is the capital city of france?"}
                 ]
+            server.test(body={"country": "france"})
         finally:
             server.wait_for_completion()

@@ -336,8 +336,8 @@ class ModelEndpointMonitoringMetricNoData(_ModelEndpointMonitoringMetricValuesBa
 
 class ApplicationBaseRecord(BaseModel):
     type: Literal["metric", "result"]
-    time: datetime
     value: float
+    time: Optional[datetime] = None
 
 
 class ApplicationResultRecord(ApplicationBaseRecord):

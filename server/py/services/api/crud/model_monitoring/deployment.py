@@ -794,7 +794,7 @@ class MonitoringDeployment:
             tag="*",
         )
 
-    def function_summaries(
+    async def function_summaries(
         self,
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
@@ -836,19 +836,21 @@ class MonitoringDeployment:
         )
 
         # Enrich response with monitoring applications
-        application_function_summaries_list = self._get_function_summary_applications(
-            base_period=base_period,
-            start=start,
-            end=end,
-            names=names,
-            labels=labels,
-            include_stats=include_stats,
-            include_processed_model_endpoints=include_processed_model_endpoints,
+        application_function_summaries_list = (
+            await self._get_function_summary_applications(
+                base_period=base_period,
+                start=start,
+                end=end,
+                names=names,
+                labels=labels,
+                include_stats=include_stats,
+                include_processed_model_endpoints=include_processed_model_endpoints,
+            )
         )
 
         return infra_function_summaries_list + application_function_summaries_list
 
-    def function_summary(
+    async def function_summary(
         self,
         name: str,
         start: typing.Optional[datetime] = None,
@@ -872,7 +874,7 @@ class MonitoringDeployment:
         start = start or (now - timedelta(hours=24))
         end = end or now
 
-        function_summary = self.function_summaries(
+        function_summary = await self.function_summaries(
             start=start,
             end=end,
             names=[name],
@@ -887,12 +889,11 @@ class MonitoringDeployment:
 
         if include_latest_metrics:
             # Enrich the function summary with latest metrics
-            function_summary[0].stats["metrics"] = (
-                self._tsdb_connector.calculate_latest_metrics(
-                    start=start,
-                    end=end,
-                    application_names=[name],
-                )
+            function_summary[0].stats["metrics"] = await run_in_threadpool(
+                self._tsdb_connector.calculate_latest_metrics,
+                start=start,
+                end=end,
+                application_names=[name],
             )
 
         return function_summary[0]
@@ -947,7 +948,7 @@ class MonitoringDeployment:
                 )
         return function_summaries_list, base_period
 
-    def _get_function_summary_applications(
+    async def _get_function_summary_applications(
         self,
         base_period: typing.Optional[float] = None,
         start: typing.Optional[datetime] = None,
@@ -983,7 +984,8 @@ class MonitoringDeployment:
 
         if include_stats:
             # enrich func stats with #detections and #possible_detections
-            detection_stats_dict = self._tsdb_connector.count_results_by_status(
+            detection_stats_dict = await run_in_threadpool(
+                self._tsdb_connector.count_results_by_status,
                 start=start,
                 end=end,
                 result_status_list=[
@@ -991,12 +993,14 @@ class MonitoringDeployment:
                     mm_constants.ResultStatusApp.potential_detection.value,
                 ],
             )
+
         if include_processed_model_endpoints:
             # enrich func stats with processed model endpoints
-            processed_model_endpoints_dict = (
-                self._tsdb_connector.count_processed_model_endpoints(
-                    start=start, end=end, application_names=names
-                )
+            processed_model_endpoints_dict = await run_in_threadpool(
+                self._tsdb_connector.count_processed_model_endpoints,
+                start=start,
+                end=end,
+                application_names=names,
             )
 
         for function in mm_functions_list:

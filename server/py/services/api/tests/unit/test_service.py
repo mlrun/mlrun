@@ -110,6 +110,31 @@ class TestService(TestAPIBase):
             await self._service._retry_jobs()
             assert mock_submit_run_sync.call_count == 10
 
+    async def test_retry_stale_job(self, db: Session):
+        staleness_threshold = 60 * 24 * 1
+        mlrun.mlconf.monitoring.runs.retry.staleness_threshold = staleness_threshold
+        run_uid = "test-stale-job-uid"
+        run = self._generate_retry_job(uid=run_uid)
+
+        run_db = mlrun.db.get_run_db()
+        run_db.store_run(struct=run, uid=run_uid, project=self._project)
+
+        # manually add the run to the retry in progress dictionary to simulate a stale run
+        self._service._retry_in_progress_run_uids[run_uid] = datetime.datetime.now(
+            datetime.timezone.utc
+        ) - datetime.timedelta(days=2)
+
+        await self._service._retry_jobs()
+
+        run = run_db.read_run(uid=run_uid, project=self._project)
+        assert (
+            run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.aborted
+        )
+        assert (
+            f"Retry aborted: run was pending retry for more than {staleness_threshold} minutes"
+            in run["status"]["status_text"]
+        )
+
     def _generate_retry_job(
         self,
         uid: str = "test-job-uid",
@@ -117,19 +142,23 @@ class TestService(TestAPIBase):
         state: typing.Optional[str] = None,
         count: int = 3,
         retry_count: int = 0,
+        base_delay: str = "1s",
     ):
         return {
             "metadata": {
                 "name": "test-job",
                 "project": project or self._project,
                 "uid": uid or str(uuid.uuid4()),
+                "labels": {
+                    "kind": "job",
+                },
             },
             "spec": {
                 "function": f"{self._project}/test@c37401e5c6bf55b826bafa336a2c6e796280292a",
                 "retry": {
                     "count": count,
                     "backoff": {
-                        "base_delay": "1s",
+                        "base_delay": base_delay,
                     },
                 },
             },

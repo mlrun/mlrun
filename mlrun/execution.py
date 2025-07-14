@@ -961,6 +961,11 @@ class MLClientCtx:
         :returns: The logged `LLMPromptArtifact` object.
         """
 
+        if not prompt_string and not prompt_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Either 'prompt_string' or 'prompt_path' must be provided"
+            )
+
         llm_prompt = LLMPromptArtifact(
             key=key,
             project=self.project or "",

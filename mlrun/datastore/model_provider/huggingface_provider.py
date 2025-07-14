@@ -89,9 +89,6 @@ class HuggingFaceProvider(ModelProvider):
             token=self._get_secret_or_env("HF_TOKEN"),
             device=self._get_secret_or_env("HF_DEVICE"),
             device_map=self._get_secret_or_env("HF_DEVICE_MAP"),
-            # base_url=self._get_secret_or_env("OPENAI_BASE_URL"),
-            # timeout=self._get_secret_or_env("OPENAI_TIMEOUT"),
-            # max_retries=self._get_secret_or_env("OPENAI_MAX_RETRIES"),
         )
         return self._sanitize_options(res)
 

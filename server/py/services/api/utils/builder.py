@@ -450,8 +450,12 @@ def build_image(
     if inline_code or runtime_spec.build.load_source_on_run or not source:
         context = "/empty"
 
+    # http is not officially supported by kaniko's context so we handle it explicitly
+    elif is_http_source:
+        source_to_copy = source
+
     # source is remote
-    elif source and "://" in source and not is_v3io_source and not is_http_source:
+    elif source and "://" in source and not is_v3io_source:
         if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
@@ -461,9 +465,6 @@ def build_image(
         # set remote source as kaniko's build context and copy it
         context = source
         source_to_copy = "."
-
-    elif is_http_source:
-        source_to_copy = source
 
     # source is local / v3io
     else:

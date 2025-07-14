@@ -26,7 +26,7 @@ function_path = str(pathlib.Path(__file__).parent / "assets" / "function.py")
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestAPIArtifacts(TestMLRunSystem):
-    project_name = "test-project-artifacts-87"
+    project_name = "test-project-artifacts"
 
     @pytest.mark.enterprise
     def test_import_artifact(self):

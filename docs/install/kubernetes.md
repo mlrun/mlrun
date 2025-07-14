@@ -159,20 +159,23 @@ When the installation is complete, the helm command prints the URLs and ports of
 
 ## Configuring the user Jupyter conda environment
 
-Run this in your Jupyter terminal, where `myenv` is the name of your environment:
+The default Jupyter comes with a conda env named `mlrun`. This conda is not persistent.
+If you install any packages on this conda env, and then the Jupyter pod gets restarted or deleted, those packages will be deleted.
+
+To create a new, persistent, environment, run this in your Jupyter terminal, where `myenv` is the name of your environment:
 
 ```bash
 # Create the virtual environment
-conda create -n myenv python=3.9 -y
+conda create -n <myenv> python=<3.9 or 3.11> -y
 
 # Activate the virtual environment
-conda activate myenv
+conda activate <myenv>
 
 # Make sure that ipykernel is installed
 pip install --user ipykernel
 
 # Add the new virtual environment to Jupyter
-python -m ipykernel install --user --name myenv --display-name "Python (myenv)"
+python -m ipykernel install --user --name <myenv> --display-name "Python (<myenv>)"
 ```
 
 ## Configuring TDengine and Kafka for model monitoring

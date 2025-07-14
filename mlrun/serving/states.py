@@ -1431,7 +1431,7 @@ class ModelRunnerStep(MonitoredStep):
                                     in path.
         :param override:            bool allow override existing model on the current ModelRunnerStep.
         """
-        model_class = Model(
+        model_class = mlrun.serving.Model(
             name=endpoint_name,
             shared_runnable_name=shared_model_name,
         )

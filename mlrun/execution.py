@@ -943,10 +943,16 @@ class MLClientCtx:
             )
 
         :param key: Unique name of the artifact.
-        :param prompt_template: Raw prompt list of dicts. Cannot be used with `prompt_path`.
+        :param prompt_template: Raw prompt list of dicts -
+         [{"role": "system", "content": "You are a {profession} advisor"},
+         "role": "user", "content": "I need your help with {profession}"]. only "role" and "content" keys allow in any
+         str format (upper/lower case), keys will be modified to lower case.
+         Cannot be used with `prompt_path`.
         :param prompt_path: Path to a file containing the prompt content. Cannot be used with `prompt_string`.
         :param prompt_legend: A dictionary where each key is a placeholder in the prompt (e.g., ``{user_name}``)
-               and the value is a description or explanation of what that placeholder represents.
+               and the value is a dictionary holding two keys, "field", "description". "field" points to the field in
+               the event where the value of the place-holder inside the event, if None or not exist will be replaced
+               with the place-holder name. "description" will point to explanation of what that placeholder represents.
                Useful for documenting and clarifying dynamic parts of the prompt.
         :param model_artifact: Reference to the parent model (either `ModelArtifact` or model URI string).
         :param model_configuration: Dictionary of generation parameters (e.g., temperature, max_tokens).

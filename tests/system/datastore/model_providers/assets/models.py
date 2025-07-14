@@ -18,30 +18,14 @@ import mlrun.serving.states
 from mlrun.datastore.model_provider.model_provider import ModelProvider
 
 
-class MyOpenAILLM(mlrun.serving.states.Model):
-    def predict(self, body):
+class MyOpenAILLM(mlrun.serving.states.LLModel):
+    def predict(self, body, messages, model_configuration):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
-            prompt = self.enrich_prompt(body)
-            messages = [
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ]
             body["result"] = self.model_provider.invoke(
                 messages=messages,
                 as_str=True,
                 **(self.invocation_artifact.spec.model_configuration or {}),
             )
         return body
-
-    def enrich_prompt(self, body) -> str:
-        # TODO: Update this once ML-8172 is completed
-        if isinstance(self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact):
-            prompt_template = self.invocation_artifact.spec.prompt_template
-            needed_params = ["question", "depth_level", "persona", "tone"]
-            sub_dict = {k: body[k] for k in needed_params if k in body}
-            return prompt_template.format(**sub_dict)
-        return body["prompt"]

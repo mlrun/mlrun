@@ -100,7 +100,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         assert resp == {"x": "y", "extra": 123}
 
     def test_model_runner_with_llm_and_shared_models(self):
-        code_path = str(self.assets_path / "function_with_model.py")
+        code_path = str(self.assets_path / "function_with_llm.py")
 
         self._logger.debug("Creating nuclio function")
         function = mlrun.code_to_function(

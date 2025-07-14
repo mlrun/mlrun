@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.serving import LLModel
+from mlrun.serving import LLModel, Model  # noqa: F401
 
 
 class MyLLM(LLModel):
-    def predict(self, body, messages):
+    def predict(self, body, messages, model_configuration):
         body["url"] = self.model_artifact.model_url
         body["default_config"] = self.model_artifact.default_config
         body["prompt"] = messages

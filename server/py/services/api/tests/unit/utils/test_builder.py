@@ -894,7 +894,7 @@ def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
 
             if source.endswith(".zip"):
                 expected_output_re = re.compile(
-                    rf"COPY {expected_source} /home/mlrun_code/source"
+                    rf"ADD {expected_source} /home/mlrun_code/source"
                 )
                 expected_line_index = 2
 

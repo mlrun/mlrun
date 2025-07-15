@@ -328,7 +328,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             {
                 "attempt": retry_count,
                 "start_time": start_time,
-                "end_time": mlrun.utils.now_date().isoformat(),
+                "end_time": run.status.end_time,
                 "error": run.status.error,
             }
         )

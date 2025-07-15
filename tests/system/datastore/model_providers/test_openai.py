@@ -84,7 +84,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         function.deploy()
         response = function.invoke(
             f"v2/models/{mlrun_model_name}/infer",
-            json.dumps(INPUT_DATA["input"][0]),
+            json.dumps(INPUT_DATA[0]),
         )
         result = response["result"]
         assert EXPECTED_RESULTS[0] in result.lower()
@@ -108,7 +108,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         start = time.perf_counter()
         results_with_times = function.invoke(
             f"v2/models/{mlrun_model_name}/infer",
-            json.dumps(INPUT_DATA),
+            json.dumps({"input": INPUT_DATA}),
         )
         total_duration = time.perf_counter() - start
         assert_async_invocations(

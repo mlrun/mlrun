@@ -746,10 +746,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             assert evidently_stats["detected"] == 0
 
             # check the stream stats if stream is v3io
-            if (
-                type(self.mm_stream_profile)
-                == mlrun.datastore.datastore_profile.DatastoreProfileV3io
-            ):
+            if isinstance(self.mm_stream_profile, DatastoreProfileV3io):
                 assert evidently_stats["stream_stats"]
                 assert evidently_stats["stream_stats"]["committed"] == 1
                 assert evidently_stats["stream_stats"]["lag"] == 0

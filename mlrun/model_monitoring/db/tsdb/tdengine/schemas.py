@@ -177,7 +177,10 @@ class TDEngineSchema:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "`agg_funcs` must be provided when using interval"
             )
-
+        if partition_by and not agg_funcs:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "`agg_funcs` must be provided when using partition by"
+            )
         if sliding_window_step and not interval:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "`interval` must be provided when using sliding window"

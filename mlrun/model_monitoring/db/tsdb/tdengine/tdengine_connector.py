@@ -23,7 +23,6 @@ import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.common.types
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
-from mlrun.common.schemas.model_monitoring.constants import ResultStatusApp
 from mlrun.datastore.datastore_profile import DatastoreProfile
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
@@ -498,6 +497,8 @@ class TDEngineConnector(TSDBConnector):
                                       if an empty list was provided The aggregation won't be performed.
         :param order_by:              The column or alias to preform ordering on the query.
         :param desc:                  Whether or not to sort the results in descending order.
+        :param partition_by:          The column to partition the results by. Note that if interval is provided,
+                                      `agg_funcs` must bg provided as well.
 
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunInvalidArgumentError if query the provided table failed.
@@ -1216,8 +1217,8 @@ class TDEngineConnector(TSDBConnector):
         filter_query = self._generate_filter_query(
             filter_column=mm_schemas.ResultData.RESULT_STATUS,
             filter_values=[
-                ResultStatusApp.potential_detection.value,
-                ResultStatusApp.detected.value,
+                mm_schemas.ResultStatusApp.potential_detection.value,
+                mm_schemas.ResultStatusApp.detected.value,
             ],
         )
         table = self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS].super_table

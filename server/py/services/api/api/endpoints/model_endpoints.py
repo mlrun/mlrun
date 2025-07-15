@@ -480,8 +480,10 @@ async def get_model_endpoint_drift_over_time(
     """
     Get drift counts over time for the project.
 
-    :param start: Start time of the range to retrieve drift counts from.
-    :param end: End time of the range to retrieve drift counts from.
+    :param project:     The name of the project.
+    :param start:       Start time of the range to retrieve drift counts from.
+    :param end:         End time of the range to retrieve drift counts from.
+    :param auth_info:   The auth info of the request.
 
     :return: A ModelEndpointDriftValues object containing the drift counts over time.
     """
@@ -505,9 +507,7 @@ async def get_model_endpoint_drift_over_time(
             error=mlrun.errors.err_to_str(e),
         )
         return schemas.ModelEndpointDriftValues(values=[])
-    result = await run_in_threadpool(tsdb_connector.get_drift_data, start, end)
-
-    return result
+    return await run_in_threadpool(tsdb_connector.get_drift_data, start, end)
 
 
 @router.get(

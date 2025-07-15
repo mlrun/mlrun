@@ -187,6 +187,7 @@ class TestTDEngineSchema:
             "preform_agg_funcs_columns",
             "order_by",
             "desc",
+            "partition_by",
         ),
         [
             (
@@ -196,6 +197,7 @@ class TestTDEngineSchema:
                 mlrun.utils.datetime_now() - datetime.timedelta(hours=1),
                 mlrun.utils.datetime_now(),
                 "time",
+                None,
                 None,
                 None,
                 None,
@@ -214,6 +216,7 @@ class TestTDEngineSchema:
                 None,
                 None,
                 None,
+                None,
             ),
             (
                 "subtable_3",
@@ -224,6 +227,7 @@ class TestTDEngineSchema:
                 "time_column",
                 ["avg"],
                 ["column1"],
+                None,
                 None,
                 None,
                 None,
@@ -240,6 +244,7 @@ class TestTDEngineSchema:
                 None,
                 ["column2"],
                 True,
+                None,
             ),
             (
                 "subtable_5",
@@ -253,6 +258,35 @@ class TestTDEngineSchema:
                 None,
                 None,
                 None,
+                None,
+            ),
+            (
+                "subtable_6",
+                ["column1", "column2"],
+                "column1 > 0",
+                mlrun.utils.datetime_now() - datetime.timedelta(hours=2),
+                mlrun.utils.datetime_now() - datetime.timedelta(hours=1),
+                "time_column",
+                ["avg"],
+                ["column1"],
+                None,
+                ["column2"],
+                True,
+                True,
+            ),
+            (
+                "subtable_7",
+                ["column1", "column2"],
+                "column1 > 0",
+                mlrun.utils.datetime_now() - datetime.timedelta(hours=2),
+                mlrun.utils.datetime_now() - datetime.timedelta(hours=1),
+                "time_column",
+                None,
+                ["column1"],
+                None,
+                ["column2"],
+                True,
+                True,
             ),
         ],
     )
@@ -270,11 +304,25 @@ class TestTDEngineSchema:
         preform_agg_funcs_columns: list[str],
         order_by: Optional[str],
         desc: bool,
+        partition_by: Optional[str],
     ):
         if columns_to_filter:
             columns_to_select = ", ".join(columns_to_filter)
         else:
             columns_to_select = "*"
+        if partition_by and not agg_funcs:
+            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                super_table._get_records_query(
+                    table=subtable,
+                    columns_to_filter=columns_to_filter,
+                    filter_query=filter_query,
+                    start=start,
+                    end=end,
+                    timestamp_column=timestamp_column,
+                    group_by=group_by,
+                    partition_by=partition_by,
+                )
+            return
         if not group_by:
             if filter_query:
                 expected_query = (
@@ -355,7 +403,8 @@ class TestTDEngineSchema:
                             agg_funcs=agg_funcs,
                         )
                     return
-
+                if partition_by:
+                    expected_query_group_by.write(f" PARTITION BY {partition_by}")
                 if order_by:
                     desc = "DESC" if desc else ""
                     expected_query_group_by.write(f" ORDER BY {order_by} {desc}")
@@ -372,6 +421,7 @@ class TestTDEngineSchema:
                         agg_funcs=agg_funcs,
                         order_by=order_by,
                         desc=desc,
+                        partition_by=partition_by,
                     )
                     == expected_query_group_by.getvalue()
                 )

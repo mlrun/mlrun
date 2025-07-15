@@ -1456,7 +1456,7 @@ class SQLDB(DBInterface):
             session=session,
             main_table=ArtifactV2,
             project=project,
-        )
+        )m
 
     def _mark_best_iteration_artifact(
         self,

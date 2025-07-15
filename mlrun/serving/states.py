@@ -1081,6 +1081,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         "raise_exception",
         "artifact_uri",
         "shared_runnable_name",
+        "shared_proxy_mapping",
     ]
     kind = "model"
 
@@ -1089,12 +1090,16 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         name: str,
         raise_exception: bool = True,
         artifact_uri: Optional[str] = None,
+        shared_proxy_mapping: Optional[dict] = None,
         **kwargs,
     ):
         super().__init__(name=name, raise_exception=raise_exception, **kwargs)
         if artifact_uri is not None and not isinstance(artifact_uri, str):
             raise MLRunInvalidArgumentError("'artifact_uri' argument must be a string")
         self.artifact_uri = artifact_uri
+        self.shared_proxy_mapping: dict[
+            str : Union[str, ModelArtifact, LLMPromptArtifact]
+        ] = shared_proxy_mapping
         self.invocation_artifact: Optional[LLMPromptArtifact] = None
         self.model_artifact: Optional[ModelArtifact] = None
         self.model_provider: Optional[ModelProvider] = None
@@ -1125,10 +1130,13 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         else:
             self.model_artifact = artifact
 
-    def _get_artifact_object(self) -> Union[ModelArtifact, LLMPromptArtifact, None]:
-        if self.artifact_uri:
-            if mlrun.datastore.is_store_uri(self.artifact_uri):
-                artifact, _ = mlrun.store_manager.get_store_artifact(self.artifact_uri)
+    def _get_artifact_object(
+        self, proxy_uri: Optional[str] = None
+    ) -> Union[ModelArtifact, LLMPromptArtifact, None]:
+        uri = proxy_uri or self.artifact_uri
+        if uri:
+            if mlrun.datastore.is_store_uri(uri):
+                artifact, _ = mlrun.store_manager.get_store_artifact(uri)
                 return artifact
             else:
                 raise ValueError(
@@ -1148,10 +1156,12 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         """Override to implement prediction logic if the logic requires asyncio."""
         return body
 
-    def run(self, body: Any, path: str) -> Any:
+    def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         return self.predict(body)
 
-    async def run_async(self, body: Any, path: str) -> Any:
+    async def run_async(
+        self, body: Any, path: str, origin_name: Optional[str] = None
+    ) -> Any:
         return await self.predict_async(body)
 
     def get_local_model_path(self, suffix="") -> (str, dict):
@@ -1184,6 +1194,65 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
             )
             return model_file, extra_dataitems
         return None, None
+
+
+class LLModel(Model):
+    def __init__(self, name: str, **kwargs):
+        super().__init__(name, **kwargs)
+
+    def predict(
+        self, body: Any, messages: list[dict], model_configuration: dict
+    ) -> Any:
+        return body
+
+    async def predict_async(
+        self, body: Any, messages: list[dict], model_configuration: dict
+    ) -> Any:
+        return body
+
+    def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
+        messages, model_configuration = self.enrich_prompt(body, origin_name)
+        return self.predict(
+            body, messages=messages, model_configuration=model_configuration
+        )
+
+    async def run_async(
+        self, body: Any, path: str, origin_name: Optional[str] = None
+    ) -> Any:
+        messages, model_configuration = self.enrich_prompt(body, origin_name)
+        return await self.predict_async(
+            body, messages=messages, model_configuration=model_configuration
+        )
+
+    def enrich_prompt(
+        self, body: dict, origin_name: str
+    ) -> Union[tuple[list[dict], dict], tuple[None, None]]:
+        if origin_name and self.shared_proxy_mapping:
+            llm_prompt_artifact = self.shared_proxy_mapping.get(origin_name)
+            if isinstance(llm_prompt_artifact, str):
+                llm_prompt_artifact = self._get_artifact_object(llm_prompt_artifact)
+                self.shared_proxy_mapping[origin_name] = llm_prompt_artifact
+        else:
+            llm_prompt_artifact = (
+                self.invocation_artifact or self._get_artifact_object()
+            )
+        if not (
+            llm_prompt_artifact and isinstance(llm_prompt_artifact, LLMPromptArtifact)
+        ):
+            logger.warning(
+                "LLMModel must be provided with LLMPromptArtifact",
+                llm_prompt_artifact=llm_prompt_artifact,
+            )
+            return None, None
+        prompt_legend = llm_prompt_artifact.spec.prompt_legend
+        prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
+        kwargs = {
+            place_holder: body.get(body_map["field"])
+            for place_holder, body_map in prompt_legend.items()
+        }
+        for d in prompt_template:
+            d["content"] = d["content"].format(**kwargs)
+        return prompt_template, llm_prompt_artifact.spec.model_configuration
 
 
 class ModelSelector:
@@ -1292,6 +1361,7 @@ class ModelRunnerStep(MonitoredStep):
     """
 
     kind = "model_runner"
+    _dict_fields = MonitoredStep._dict_fields + ["_shared_proxy_mapping"]
 
     def __init__(
         self,
@@ -1311,6 +1381,7 @@ class ModelRunnerStep(MonitoredStep):
         )
         self.raise_exception = raise_exception
         self.shape = "folder"
+        self._shared_proxy_mapping = {}
 
     def add_shared_model_proxy(
         self,
@@ -1360,7 +1431,7 @@ class ModelRunnerStep(MonitoredStep):
                                     in path.
         :param override:            bool allow override existing model on the current ModelRunnerStep.
         """
-        model_class = Model(
+        model_class = mlrun.serving.Model(
             name=endpoint_name,
             shared_runnable_name=shared_model_name,
         )
@@ -1389,6 +1460,20 @@ class ModelRunnerStep(MonitoredStep):
                     f"ModelRunnerStep can only add proxy models that were added to the root flow step, "
                     f"model {shared_model_name} is not in the shared models."
                 )
+        if shared_model_name not in self._shared_proxy_mapping:
+            self._shared_proxy_mapping[shared_model_name] = {
+                endpoint_name: model_artifact.uri
+                if isinstance(model_artifact, (ModelArtifact, LLMPromptArtifact))
+                else model_artifact
+            }
+        else:
+            self._shared_proxy_mapping[shared_model_name].update(
+                {
+                    endpoint_name: model_artifact.uri
+                    if isinstance(model_artifact, (ModelArtifact, LLMPromptArtifact))
+                    else model_artifact
+                }
+            )
         self.add_model(
             endpoint_name=endpoint_name,
             model_class=model_class,
@@ -1659,6 +1744,7 @@ class ModelRunnerStep(MonitoredStep):
             model_selector=model_selector,
             runnables=model_objects,
             execution_mechanism_by_runnable_name=execution_mechanism_by_model_name,
+            shared_proxy_mapping=self._shared_proxy_mapping or None,
             name=self.name,
             context=context,
         )
@@ -2494,7 +2580,24 @@ class RootFlowStep(FlowStep):
                 max_threads=self.shared_max_threads,
                 pool_factor=self.pool_factor,
             )
-
+            monitored_steps = self.get_monitored_steps().values()
+            for monitored_step in monitored_steps:
+                if isinstance(monitored_step, ModelRunnerStep):
+                    for model, model_params in self.shared_models.values():
+                        if "shared_proxy_mapping" in model_params:
+                            model_params["shared_proxy_mapping"].update(
+                                deepcopy(
+                                    monitored_step._shared_proxy_mapping.get(
+                                        model_params.get("name"), {}
+                                    )
+                                )
+                            )
+                        else:
+                            model_params["shared_proxy_mapping"] = deepcopy(
+                                monitored_step._shared_proxy_mapping.get(
+                                    model_params.get("name"), {}
+                                )
+                            )
             for model, model_params in self.shared_models.values():
                 model = get_class(model, namespace).from_dict(
                     model_params, init_with_params=True

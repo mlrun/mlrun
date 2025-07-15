@@ -111,12 +111,13 @@ def make_dockerfile(
         # it is up to base image to have unzip included in case source is zip
         if source.endswith(".zip"):
             source_dir = os.path.join(target_dir, "source")
+            filename = os.path.basename(source)
             stage_lines = [
                 f"FROM {base_image} AS extractor",
                 args,
                 f"RUN mkdir -p {source_dir}",
-                f"COPY {source} {source_dir}",
-                f"RUN cd {source_dir} && unzip {source} && rm {source}",
+                f"ADD {source} {source_dir}",
+                f"RUN cd {source_dir} && unzip {filename} && rm {filename}",
             ]
             stage = textwrap.dedent("\n".join(stage_lines)).strip()
             dock = stage + "\n" + dock
@@ -431,9 +432,10 @@ def build_image(
 
     context = "/context"
     to_mount = False
-    is_v3io_source = False
+    is_v3io_source, is_http_source = False, False
     if source:
         is_v3io_source = source.startswith("v3io://") or source.startswith("v3ios://")
+        is_http_source = source.startswith("http")
 
     access_key = builder_env.get(
         "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
@@ -447,6 +449,10 @@ def build_image(
     source_dir_to_mount = None
     if inline_code or runtime_spec.build.load_source_on_run or not source:
         context = "/empty"
+
+    # http is not officially supported by kaniko's context so we handle it explicitly
+    elif is_http_source:
+        source_to_copy = source
 
     # source is remote
     elif source and "://" in source and not is_v3io_source:

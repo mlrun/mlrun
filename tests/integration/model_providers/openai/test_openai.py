@@ -41,33 +41,17 @@ if os.path.exists(config_file_path):
         config = yaml.safe_load(yaml_file).get("env", {})
 
 
-class MyOpenAILLM(mlrun.serving.states.Model):
-    def predict(self, body):
+class MyOpenAILLM(mlrun.serving.states.LLModel):
+    def predict(self, body, messages, model_configuration):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
-            prompt = self.enrich_prompt(body)
-            messages = [
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ]
             body["result"] = self.model_provider.invoke(
                 messages=messages,
                 as_str=True,
                 **(self.invocation_artifact.spec.model_configuration or {}),
             )
         return body
-
-    def enrich_prompt(self, body) -> str:
-        # TODO: Update this once ML-8172 is completed
-        if isinstance(self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact):
-            prompt_template = self.invocation_artifact.spec.prompt_string
-            needed_params = ["question", "depth_level", "persona", "tone"]
-            sub_dict = {k: body[k] for k in needed_params if k in body}
-            return prompt_template.format(**sub_dict)
-        return body["prompt"]
 
 
 def create_mocked_get_store_artifact(uri_to_artifact: dict):
@@ -232,13 +216,22 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             model_url=model_url,
             default_config={"max_tokens": 100},
         )
-        prompt_template = (
-            "{question}. Explain {depth_level} as a {persona} in {tone} style."
-        )
+        prompt_template = [
+            {
+                "role": "user",
+                "content": "{question}. Explain {depth_level} as a {persona} in {tone} style.",
+            }
+        ]
         llm_prompt_artifact = project.log_llm_prompt(
             "my_llm_prompt",
-            prompt_string=prompt_template,
+            prompt_template=prompt_template,
             model_artifact=model_artifact.uri,
+            prompt_legend={
+                "question": {"field": None, "description": None},
+                "depth_level": {"field": None, "description": None},
+                "persona": {"field": None, "description": None},
+                "tone": {"field": None, "description": None},
+            },
         )
         function = mlrun.new_function("tests", kind="serving")
 

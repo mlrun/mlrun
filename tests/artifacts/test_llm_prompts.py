@@ -22,7 +22,7 @@ import mlrun.artifacts
 from tests import conftest
 
 results_dir = (pathlib.Path(conftest.results) / "artifacts").absolute()
-llm_file = pathlib.Path(__file__).parent / "assets" / "prompt.txt"
+llm_file = pathlib.Path(__file__).parent / "assets" / "prompt.json"
 
 
 @pytest.mark.parametrize(
@@ -38,7 +38,7 @@ def test_prompt_target_paths(generate_target_path_from_artifact_hash, from_file)
         generate_target_path_from_artifact_hash
     )
     project_name = "project-test"
-    artifact_path = results_dir / project_name
+    artifact_path = str(results_dir / project_name)
     llm_key = "llm-prompt"
 
     context = mlrun.get_or_create_ctx("test", project=project_name)
@@ -53,18 +53,24 @@ def test_prompt_target_paths(generate_target_path_from_artifact_hash, from_file)
         llm_prompt = context.log_llm_prompt(
             llm_key,
             artifact_path=artifact_path,
-            prompt_string="Q : {question}",
+            prompt_template=[
+                {"role": "system", "content": "remarks"},
+                {"role": "user", "content": "question"},
+            ],
             description="best-prompt",
         )
     assert llm_prompt.target_path.startswith(str(artifact_path))
 
     prompt_template = llm_prompt.read_prompt()
-    assert prompt_template == "Q : {question}"
+    assert prompt_template == [
+        {"role": "system", "content": "remarks"},
+        {"role": "user", "content": "question"},
+    ]
 
 
 def test_prompt_limitation():
     project_name = "project-test"
-    artifact_path = results_dir / project_name
+    artifact_path = str(results_dir / project_name)
     llm_key = "llm-prompt"
 
     context = mlrun.get_or_create_ctx("test", project=project_name)
@@ -72,14 +78,86 @@ def test_prompt_limitation():
     llm_prompt = context.log_llm_prompt(
         llm_key,
         artifact_path=artifact_path,
-        prompt_string="A" * 2000,
+        prompt_template=[{"role": "user", "content": "A" * 2000}],
         description="long-prompt",
     )
     assert llm_prompt.target_path.startswith(str(artifact_path))
-    assert llm_prompt.spec.prompt_string is None
+    assert llm_prompt.spec.prompt_template is None
 
     prompt_template = llm_prompt.read_prompt()
-    assert prompt_template == "A" * 2000
+    assert prompt_template == [{"role": "user", "content": "A" * 2000}]
+
+
+@pytest.mark.parametrize(
+    "prompt_template",
+    [
+        [{"role": "user", "content": "A", "should_not_be_prompted": "I am here"}],
+        "just a regular str",
+        {"role": "user", "content": "A"},
+    ],
+)
+def test_prompt_template_verification(prompt_template):
+    project_name = "project-test"
+    artifact_path = str(results_dir / project_name)
+    llm_key = "llm-prompt"
+
+    context = mlrun.get_or_create_ctx("test", project=project_name)
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        context.log_llm_prompt(
+            llm_key,
+            artifact_path=artifact_path,
+            prompt_template=prompt_template,
+            description="long-prompt",
+        )
+
+
+@pytest.mark.parametrize(
+    "prompt_legend ,with_failure",
+    [
+        (
+            {
+                "country": {
+                    "field": "my_country",
+                    "description": "my-country-description",
+                }
+            },
+            False,
+        ),
+        (
+            {
+                "country": {
+                    "field": "my_country",
+                    "description": "my-country-description",
+                    "another_field": "not here",
+                }
+            },
+            True,
+        ),
+    ],
+)
+def test_prompt_legend(prompt_legend, with_failure):
+    project_name = "project-test"
+    artifact_path = str(results_dir / project_name)
+    llm_key = "llm-prompt"
+
+    context = mlrun.get_or_create_ctx("test", project=project_name)
+    if with_failure:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            context.log_llm_prompt(
+                llm_key,
+                artifact_path=artifact_path,
+                prompt_template=[{"role": "user", "content": "A {country}"}],
+                description="long-prompt",
+                prompt_legend=prompt_legend,
+            )
+    else:
+        context.log_llm_prompt(
+            llm_key,
+            artifact_path=artifact_path,
+            prompt_template=[{"role": "user", "content": "A {country}"}],
+            description="long-prompt",
+            prompt_legend=prompt_legend,
+        )
 
 
 @pytest.mark.parametrize(
@@ -88,8 +166,8 @@ def test_prompt_limitation():
 )
 def test_unauthorised_model(project_name_llm):
     project_name_model = "project-test"
-    artifact_path_llm = results_dir / (project_name_llm or "")
-    artifact_path_model = results_dir / project_name_model
+    artifact_path_llm = str(results_dir / (project_name_llm or ""))
+    artifact_path_model = str(results_dir / project_name_model)
     llm_key = "llm-prompt"
     model_key = "model"
 
@@ -109,7 +187,7 @@ def test_unauthorised_model(project_name_llm):
         context_llm.log_llm_prompt(
             llm_key,
             artifact_path=artifact_path_llm,
-            prompt_string="A" * 2000,
+            prompt_template=[{"role": "user", "content": "A" * 2000}],
             description="long-prompt",
             model_artifact=model,
         )
@@ -119,7 +197,7 @@ def test_unauthorised_model(project_name_llm):
         context_llm.log_llm_prompt(
             llm_key,
             artifact_path=artifact_path_llm,
-            prompt_string="A" * 2000,
+            prompt_template=[{"role": "user", "content": "A" * 2000}],
             description="long-prompt",
             model_artifact="dasdcfsfv",
         )

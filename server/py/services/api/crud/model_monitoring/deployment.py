@@ -981,9 +981,8 @@ class MonitoringDeployment:
         :param agg_stats: If True, aggregate the stream stats by function name.
         """
 
-        if (
-            type(self._stream_profile)
-            == mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        if isinstance(
+            self._stream_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
         ):
             async with framework.utils.clients.async_nuclio.Client(
                 self.auth_info

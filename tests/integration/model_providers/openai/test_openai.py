@@ -77,15 +77,6 @@ class TestBasicOpenAIProvider:
     profile_name = "openai_profile"
     env_secrets = config
 
-    # @staticmethod
-    # def _get_messages(prompt):
-    #     return [
-    #         {
-    #             "role": "user",
-    #             "content": prompt,
-    #         },
-    #     ]
-
     @classmethod
     def setup_class(cls):
         cls.basic_llm_model = "gpt-4o-mini"
@@ -247,11 +238,12 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
 
 
 class TestOpenAIModel(TestBasicOpenAIProvider):
-    def test_model_runner_with_openai(self):
+    @pytest.mark.parametrize("execution_mechanism", ["naive", "asyncio"])
+    def test_model_runner_with_openai(self, execution_mechanism):
         project = mlrun.new_project("test-openai-model", save=False)
         model_url = self.url_prefix + self.basic_llm_model
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
-            project, model_url
+            project, model_url, execution_mechanism=execution_mechanism
         )
         # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
         # # Mocked function used to verify artifact URI is passed correctly.
@@ -279,11 +271,14 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         finally:
             server.wait_for_completion()
 
-    def test_model_runner_with_openai_async(self):
+    def test_open_ai_async_parallel_events(self):
         project = mlrun.new_project("test-openai-model", save=False)
         model_url = self.url_prefix + self.basic_llm_model
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
-            project, model_url, execution_mechanism="asyncio"
+            project,
+            model_url,
+            execution_mechanism="asyncio",
+            model_class="MyOpenAIAsyncEvents",
         )
         # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
         # # Mocked function used to verify artifact URI is passed correctly.

@@ -20,6 +20,7 @@ import mlrun.artifacts
 import mlrun.serving
 from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.serving import ModelRunnerStep
+from mlrun.serving.states import LLModel  # noqa
 
 INPUT_DATA = [
     {
@@ -64,9 +65,6 @@ PROMPT_TEMPLATE = [
     }
 ]
 
-# formatted_messages = [
-#     PROMPT_TEMPLATE.format(**input_data) for input_data in INPUT_DATA["input"]
-# ]
 formatted_messages = [
     {"role": prompt["role"], "content": prompt["content"].format(**input_data)}
     for input_data in INPUT_DATA
@@ -81,6 +79,7 @@ def setup_remote_model_test(
     execution_mechanism="naive",
     image=None,
     requirements=None,
+    model_class="LLmodel",
 ):
     model_artifact = project.log_model(
         mlrun_model_name,
@@ -111,7 +110,7 @@ def setup_remote_model_test(
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
-        model_class="MyOpenAILLM",
+        model_class=model_class,
         endpoint_name="my_endpoint",
         execution_mechanism=execution_mechanism,
         model_artifact=llm_prompt_artifact,
@@ -127,26 +126,19 @@ async def timed(coro):
     return result, duration
 
 
-class MyOpenAILLM(mlrun.serving.states.LLModel):
-    @staticmethod
-    def _build_messages_from_prompt(prompt):
-        return [
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ]
-
-    def predict(self, body, messages, model_configuration):
-        if isinstance(
-            self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
-        ) and isinstance(self.model_provider, ModelProvider):
-            body["result"] = self.model_provider.invoke(
-                messages=messages,
-                as_str=True,
-                **(model_configuration or {}),
-            )
-        return body
+class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
+    async def run_async(
+        self, body: Any, path: str, origin_name: Optional[str] = None
+    ) -> Any:
+        # Temporary workaround for testing purposes only, until events execution will be able to run in parallel
+        model_configuration = {}
+        all_messages = []
+        for event in body["input"]:
+            messages, model_configuration = self.enrich_prompt(event, origin_name)
+            all_messages.extend(messages)
+        return await self.predict_async(
+            body, messages=all_messages, model_configuration=model_configuration
+        )
 
     async def predict_async(
         self, body, messages: list[dict], model_configuration: dict
@@ -154,12 +146,6 @@ class MyOpenAILLM(mlrun.serving.states.LLModel):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
-            # prompt_parameters: list = body["input"]
-            # prompts = [
-            #     self.enrich_prompt(single_prompt_parameters)
-            #     for single_prompt_parameters in prompt_parameters
-            # ]
-
             coros = [
                 timed(
                     self.model_provider.async_invoke(
@@ -177,22 +163,9 @@ class MyOpenAILLM(mlrun.serving.states.LLModel):
             body["invoke_times"] = invoke_times
         return body
 
-    async def run_async(
-        self, body: Any, path: str, origin_name: Optional[str] = None
-    ) -> Any:
-        # Temporary workaround for testing purposes only, until events execution will be able to run in parallel
-        model_configuration = {}
-        all_messages = []
-        for event in body["input"]:
-            messages, model_configuration = self.enrich_prompt(event, origin_name)
-            all_messages.extend(messages)
-        return await self.predict_async(
-            body, messages=all_messages, model_configuration=model_configuration
-        )
-
 
 def assert_async_invocations(results_with_times, model_name, total_duration):
-    # Imported inside the function to avoid ImportError in pod while using MyOpenAILLM class.
+    # Imported inside the function to avoid ImportError in pod while using MyOpenAIAsyncEvents class.
     import tiktoken
 
     results = results_with_times["results"]

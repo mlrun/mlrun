@@ -81,7 +81,6 @@ class MLRunInternalLabels:
     kind = "kind"
     component = "component"
     mlrun_type = "mlrun__type"
-    rerun_of = "rerun-of"
     original_workflow_id = "original-workflow-id"
     workflow_id = "workflow-id"
 

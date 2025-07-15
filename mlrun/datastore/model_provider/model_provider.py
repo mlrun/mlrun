@@ -60,6 +60,15 @@ class ModelProvider(BaseRemoteClient):
         self._async_client = None
         self._default_async_operation = None
 
+    def get_client_options(self) -> dict:
+        """
+        Returns a dictionary containing credentials and configuration
+        options required for client creation.
+
+        :return:           A dictionary with client-specific settings.
+        """
+        return {}
+
     def load_client(self) -> None:
         """
         Initializes the SDK client for the model provider with the given keyword arguments
@@ -142,7 +151,7 @@ class ModelProvider(BaseRemoteClient):
         return self._client
 
     @property
-    def model(self):
+    def model(self) -> Optional[str]:
         return None
 
     def get_invoke_kwargs(self, invoke_kwargs):

@@ -789,17 +789,13 @@ class ServingRuntime(RemoteRuntime):
             monitoring_mock=self.spec.track_models,
         )
 
-        if (
-            isinstance(self.spec.graph, RootFlowStep)
-            and self.spec.graph.include_monitored_step()
-        ):
-            server.graph = add_system_steps_to_graph(
-                server.project,
-                server.graph,
-                self.spec.track_models,
-                server.context,
-                self.spec,
-            )
+        server.graph = add_system_steps_to_graph(
+            server.project,
+            server.graph,
+            self.spec.track_models,
+            server.context,
+            self.spec,
+        )
 
         if workdir:
             os.chdir(old_workdir)

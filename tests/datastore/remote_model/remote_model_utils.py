@@ -13,6 +13,7 @@
 # limitations under the License.
 import asyncio
 import time
+from typing import Any, Optional
 
 import mlrun
 import mlrun.artifacts
@@ -20,47 +21,56 @@ import mlrun.serving
 from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.serving import ModelRunnerStep
 
-INPUT_DATA = {
-    "input": [
-        {
-            "question": "What is the capital of France, and give a historical overview.",
-            "depth_level": "detailed",
-            "persona": "teacher",
-            "tone": "casual",
-        },
-        {
-            "question": "What is 2 + 2? Answer shortly and then explain with details.",
-            "depth_level": "basic",
-            "persona": "math teacher",
-            "tone": "simple",
-        },
-        {
-            "question": "Who wrote Hamlet? Answer shortly and then explain with details.",
-            "depth_level": "basic",
-            "persona": "literature professor",
-            "tone": "formal",
-        },
-        {
-            "question": "What color is the sky on a clear day? Answer shortly and then explain with details.",
-            "depth_level": "basic",
-            "persona": "child",
-            "tone": "fun",
-        },
-        {
-            "question": "What planet do we live on? Answer shortly and then explain with details.",
-            "depth_level": "basic",
-            "persona": "astronaut",
-            "tone": "educational",
-        },
-    ],
-}
+INPUT_DATA = [
+    {
+        "question": "What is the capital of France, and give a historical overview.",
+        "depth_level": "detailed",
+        "persona": "teacher",
+        "tone": "casual",
+    },
+    {
+        "question": "What is 2 + 2? Answer shortly and then explain with details.",
+        "depth_level": "basic",
+        "persona": "math teacher",
+        "tone": "simple",
+    },
+    {
+        "question": "Who wrote Hamlet? Answer shortly and then explain with details.",
+        "depth_level": "basic",
+        "persona": "literature professor",
+        "tone": "formal",
+    },
+    {
+        "question": "What color is the sky on a clear day? Answer shortly and then explain with details.",
+        "depth_level": "basic",
+        "persona": "child",
+        "tone": "fun",
+    },
+    {
+        "question": "What planet do we live on? Answer shortly and then explain with details.",
+        "depth_level": "basic",
+        "persona": "astronaut",
+        "tone": "educational",
+    },
+]
 
 EXPECTED_RESULTS = ["paris", "4", "shakespeare", "blue", "earth"]
 
-PROMPT_TEMPLATE = "{question}. Explain {depth_level} as a {persona} in {tone} style."
+# PROMPT_TEMPLATE = "{question}. Explain {depth_level} as a {persona} in {tone} style."
+PROMPT_TEMPLATE = [
+    {
+        "role": "user",
+        "content": "{question}. Explain {depth_level} as a {persona} in {tone} style.",
+    }
+]
 
-fixed_prompts = [
-    PROMPT_TEMPLATE.format(**input_data) for input_data in INPUT_DATA["input"]
+# formatted_messages = [
+#     PROMPT_TEMPLATE.format(**input_data) for input_data in INPUT_DATA["input"]
+# ]
+formatted_messages = [
+    {"role": prompt["role"], "content": prompt["content"].format(**input_data)}
+    for input_data in INPUT_DATA
+    for prompt in PROMPT_TEMPLATE
 ]
 
 
@@ -79,8 +89,14 @@ def setup_remote_model_test(
     )
     llm_prompt_artifact = project.log_llm_prompt(
         "my_llm_prompt",
-        prompt_string=PROMPT_TEMPLATE,
+        prompt_template=PROMPT_TEMPLATE,
         model_artifact=model_artifact,
+        prompt_legend={
+            "question": {"field": None, "description": None},
+            "depth_level": {"field": None, "description": None},
+            "persona": {"field": None, "description": None},
+            "tone": {"field": None, "description": None},
+        },
     )
     # function = mlrun.new_function("tests", kind="serving")
     function = mlrun.code_to_function(
@@ -111,7 +127,7 @@ async def timed(coro):
     return result, duration
 
 
-class MyOpenAILLM(mlrun.serving.states.Model):
+class MyOpenAILLM(mlrun.serving.states.LLModel):
     @staticmethod
     def _build_messages_from_prompt(prompt):
         return [
@@ -121,54 +137,58 @@ class MyOpenAILLM(mlrun.serving.states.Model):
             },
         ]
 
-    def predict(self, body):
+    def predict(self, body, messages, model_configuration):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
-            prompt = self.enrich_prompt(body)
-            messages = self._build_messages_from_prompt(prompt)
             body["result"] = self.model_provider.invoke(
                 messages=messages,
                 as_str=True,
-                **(self.invocation_artifact.spec.model_configuration or {}),
+                **(model_configuration or {}),
             )
         return body
 
-    async def predict_async(self, body):
+    async def predict_async(
+        self, body, messages: list[dict], model_configuration: dict
+    ):
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
-            prompt_parameters: list = body["input"]
-            prompts = [
-                self.enrich_prompt(single_prompt_parameters)
-                for single_prompt_parameters in prompt_parameters
-            ]
+            # prompt_parameters: list = body["input"]
+            # prompts = [
+            #     self.enrich_prompt(single_prompt_parameters)
+            #     for single_prompt_parameters in prompt_parameters
+            # ]
 
-            tasks = [
+            coros = [
                 timed(
                     self.model_provider.async_invoke(
-                        messages=self._build_messages_from_prompt(prompt),
+                        messages=[message],
                         as_str=True,
-                        **(self.invocation_artifact.spec.model_configuration or {}),
+                        **(model_configuration or {}),
                     )
                 )
-                for prompt in prompts
+                for message in messages
             ]
-            results_with_times = await asyncio.gather(*tasks)
+            results_with_times = await asyncio.gather(*coros)
             results = [r for r, _ in results_with_times]
             invoke_times = [t for _, t in results_with_times]
             body["results"] = results
             body["invoke_times"] = invoke_times
         return body
 
-    def enrich_prompt(self, body) -> str:
-        # TODO: Update this once ML-8172 is completed
-        if isinstance(self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact):
-            prompt_template = self.invocation_artifact.spec.prompt_string
-            needed_params = ["question", "depth_level", "persona", "tone"]
-            sub_dict = {k: body[k] for k in needed_params if k in body}
-            return prompt_template.format(**sub_dict)
-        return ""
+    async def run_async(
+        self, body: Any, path: str, origin_name: Optional[str] = None
+    ) -> Any:
+        # Temporary workaround for testing purposes only, until events execution will be able to run in parallel
+        model_configuration = {}
+        all_messages = []
+        for event in body["input"]:
+            messages, model_configuration = self.enrich_prompt(event, origin_name)
+            all_messages.extend(messages)
+        return await self.predict_async(
+            body, messages=all_messages, model_configuration=model_configuration
+        )
 
 
 def assert_async_invocations(results_with_times, model_name, total_duration):

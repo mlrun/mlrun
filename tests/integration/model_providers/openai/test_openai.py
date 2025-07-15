@@ -37,7 +37,7 @@ from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
     assert_async_invocations,
-    fixed_prompts,
+    formatted_messages,
     setup_remote_model_test,
 )
 
@@ -77,14 +77,14 @@ class TestBasicOpenAIProvider:
     profile_name = "openai_profile"
     env_secrets = config
 
-    @staticmethod
-    def _get_messages(prompt):
-        return [
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ]
+    # @staticmethod
+    # def _get_messages(prompt):
+    #     return [
+    #         {
+    #             "role": "user",
+    #             "content": prompt,
+    #         },
+    #     ]
 
     @classmethod
     def setup_class(cls):
@@ -125,8 +125,7 @@ class TestBasicOpenAIProvider:
 class TestOpenAIProvider(TestBasicOpenAIProvider):
     @classmethod
     def check_basic_invoke(cls, model_url: str, secrets: dict, model_name: str):
-        prompt = fixed_prompts[0]
-        messages = cls._get_messages(prompt)
+        messages = [formatted_messages[0]]
         model_provider = mlrun.get_model_provider(
             url=model_url, secrets=secrets, default_invoke_kwargs={"max_tokens": 100}
         )
@@ -210,11 +209,9 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == self.basic_llm_model
         coroutine1 = model_provider.async_invoke(
-            messages=self._get_messages(fixed_prompts[0]), as_str=True
+            messages=[formatted_messages[0]], as_str=True
         )
-        coroutine2 = model_provider.async_invoke(
-            messages=self._get_messages(fixed_prompts[1])
-        )
+        coroutine2 = model_provider.async_invoke(messages=[formatted_messages[1]])
         result1, result2 = await asyncio.gather(coroutine1, coroutine2)
         result2 = result2.choices[0].message.content
         assert EXPECTED_RESULTS[0] in result1.lower()
@@ -275,7 +272,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         ):
             server = function.to_mock_server()
         try:
-            result = server.test(body=INPUT_DATA["input"][0])["result"]
+            result = server.test(body=INPUT_DATA[0])["result"]
             assert EXPECTED_RESULTS[0] in result.lower()
             encoding = tiktoken.encoding_for_model(self.basic_llm_model)
             assert len(encoding.encode(result)) == 100
@@ -308,7 +305,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             server = function.to_mock_server()
         try:
             start = time.perf_counter()
-            results_with_times = server.test(body=INPUT_DATA)
+            results_with_times = server.test(body={"input": INPUT_DATA})
             total_duration = time.perf_counter() - start
 
             assert_async_invocations(

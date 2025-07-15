@@ -1456,12 +1456,6 @@ class SQLDB(DBInterface):
             session=session,
             main_table=ArtifactV2,
             project=project,
-            additional_filter=(ArtifactV2.parent_id != None),  # noqa: E711
-        )
-        self._delete_multi_objects(
-            session=session,
-            main_table=ArtifactV2,
-            project=project,
         )
 
     def _mark_best_iteration_artifact(

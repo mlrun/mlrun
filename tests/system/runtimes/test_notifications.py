@@ -218,8 +218,8 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         [
             (True, "error", "https://self-signed.badssl.com/"),
             (False, "sent", "https://self-signed.badssl.com/"),
-            (None, "sent", "http://httpstat.us/200"),
-            (False, "sent", "http://httpstat.us/200"),
+            (None, "sent", "http://httpbin.org/get"),
+            (False, "sent", "http://httpbin.org/get"),
         ],
     )
     def test_webhook_notification_ssl(self, verify_ssl, expected_run_status, url):

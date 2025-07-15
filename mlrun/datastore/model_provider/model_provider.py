@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections.abc import Awaitable
-from typing import Callable, Optional, TypeVar, Union
+from typing import Any, Callable, Optional, TypeVar, Union
 
 import mlrun.errors
 from mlrun.datastore.remote_client import (
@@ -147,20 +147,20 @@ class ModelProvider(BaseRemoteClient):
         raise NotImplementedError("custom_invoke method is not implemented")
 
     @property
-    def client(self):
+    def client(self) -> Any:
         return self._client
 
     @property
     def model(self) -> Optional[str]:
         return None
 
-    def get_invoke_kwargs(self, invoke_kwargs):
+    def get_invoke_kwargs(self, invoke_kwargs) -> dict:
         kwargs = self.default_invoke_kwargs.copy()
         kwargs.update(invoke_kwargs)
         return kwargs
 
     @property
-    def async_client(self):
+    def async_client(self) -> Any:
         if not self.support_async:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"{self.__class__.__name__} does not support async operations"

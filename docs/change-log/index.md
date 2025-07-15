@@ -152,6 +152,7 @@ To upgrade the MLRun server:
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-8314|KFP is no longer part of the MLRun images, except for the new `mlrun/mlrun-kfp`. This gives you greater flexibility for installing packages whose dependencies conflict with KFP 1.8. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images).|
+|NA|MLRun supports Pydantic 2.|
 
 
 

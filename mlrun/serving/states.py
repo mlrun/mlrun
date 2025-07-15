@@ -1552,39 +1552,39 @@ class ModelRunnerStep(MonitoredStep):
                                       be equal to the model_class predict method outputs (length, and order)
           :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
                                       (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
-          :param result_path:         result path inside the user output event, expect scopes to be defined by dot
-                                      notation (e.g "outputs.my_model_outputs") expects list or dictionary type object
-                                      in path.
+          :param result_path:         Path inside the user output event. Expects dot notation
+                                      (e.g., `"outputs.my_model_outputs"`) and a list or dictionary-type object in the
+                                       specified path.
 
-                Working with dictionary inside input/result path example::
+                    Example mappings::
 
-                body:
-                {
-                    "path" :{"a": 1}
-                }
-                # will be monitored as: [1]
+                        body:
+                        {
+                            "path": {"a": 1}
+                        }
+                        # → [1]
 
-                body:
-                {
-                    "path" :{"a": [1, 2]}
-                }
-                # will be monitored as: [1 ,2]
+                        body:
+                        {
+                            "path": {"a": [1, 2]}
+                        }
+                        # → [1, 2]
 
-                body:
-                {
-                    "path" :{"a": [1, 2], "b": [3, 4]}
-                }
-                # will be monitored as: [[1, 3], [2, 4]]
+                        body:
+                        {
+                            "path": {"a": [1, 2], "b": [3, 4]}
+                        }
+                        # → [[1, 3], [2, 4]]
 
-                if inputs/outputs provided we will keep the schema order, example:
+                    If `outputs` is provided, the schema order will be respected. Example::
 
-                outputs = ["a", "b"]
+                        outputs = ["a", "b"]
 
-                body:
-                {
-                    "path" :{"b": [1, 2], "a": [3, 4]}
-                }
-                # will be monitored as: [[3, 1], [4, 2]]
+                        body:
+                        {
+                            "path": {"b": [1, 2], "a": [3, 4]}
+                        }
+                        # → [[3, 1], [4, 2]]
 
           :param override:            bool allow override existing model on the current ModelRunnerStep.
           :param model_parameters:    Parameters for model instantiation

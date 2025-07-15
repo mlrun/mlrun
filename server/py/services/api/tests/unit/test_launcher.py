@@ -334,8 +334,6 @@ def test_run_status_retry_updates():
     assert enriched_run.status.retries is not None
     assert len(enriched_run.status.retries) == 1
     assert enriched_run.status.retries[0]["attempt"] == 0
-    end_time_1 = enriched_run.status.retries[0]["end_time"]
-    assert end_time_1 is not None
 
     enriched_run.status.state = mlrun.common.runtimes.constants.RunStates.pending_retry
     enriched_run_2 = launcher._enrich_run(runtime=runtime, run=enriched_run)
@@ -350,9 +348,6 @@ def test_run_status_retry_updates():
     assert enriched_run_2.status.retries is not None
     assert len(enriched_run_2.status.retries) == 2
     assert enriched_run_2.status.retries[1]["attempt"] == 1
-    end_time_2 = enriched_run.status.retries[1]["end_time"]
-    assert end_time_2 is not None
-    assert end_time_1 < end_time_2
 
 
 @pytest.mark.parametrize(

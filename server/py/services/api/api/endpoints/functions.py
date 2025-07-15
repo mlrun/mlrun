@@ -215,7 +215,6 @@ async def list_functions(
 @router.post("/build/function/")
 async def build_function(
     request: Request,
-    background_tasks: fastapi.BackgroundTasks,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
     client_version: Optional[str] = Header(

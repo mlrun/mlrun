@@ -151,7 +151,7 @@ class MonitoringPreProcessor(storey.MapClass):
 
         values = [data[key] for key in keys]
 
-        # Detect if all are scalars
+        # Detect if all are scalars ie: int,float,str
         all_scalars = all(not isinstance(v, (list, tuple, np.ndarray)) for v in values)
         all_lists = all(isinstance(v, (list, tuple, np.ndarray)) for v in values)
 
@@ -170,6 +170,7 @@ class MonitoringPreProcessor(storey.MapClass):
             return values[0]
 
         if transposed.shape[1] == 1 and transposed.shape[0] == 1:
+            # Transform [[0]] -> [0]:
             return transposed[:, 0].tolist()
         return transposed.tolist()
 

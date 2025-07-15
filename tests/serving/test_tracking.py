@@ -291,6 +291,18 @@ class DictOutputModel(Model):
         return self.predict(body)
 
 
+class StrDictOutputModel(Model):
+    def predict(self, body):
+        body["outputs"] = {}
+        for key, value in body["inputs"][self.name].items():
+            body["outputs"][key.replace("f", "o")] = (
+                value + "_output"
+                if not isinstance(value, list)
+                else [v + "_output" for v in value]
+            )
+        return body
+
+
 def _test_monitoring_system_steps_structure(
     graph: RootFlowStep, model_runners_names: list[str]
 ):
@@ -453,6 +465,118 @@ def test_tracked_model_runner_dict(rundb_mock, with_schema):
     assert dummy_stream.event_list[3].get("resp", {}).get("outputs") == [[2, 3, 4, 5]]
     assert dummy_stream.event_list[4].get("request", {}).get("inputs") == [1]
     assert dummy_stream.event_list[4].get("resp", {}).get("outputs") == [2]
+
+
+@pytest.mark.parametrize("with_schema", [True, False])
+def test_tracked_model_runner_str_dict(rundb_mock, with_schema):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="StrDictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model",
+        input_path="inputs.dict_model",
+        result_path="outputs",
+        inputs=["f1", "f2", "f3", "f4"] if with_schema else None,
+        outputs=["o1", "o2", "o3", "o4"] if with_schema else None,
+        raise_error=False,
+    )
+    model_runner_step.add_model(
+        model_class="StrDictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model_2",
+        input_path="inputs.dict_model_2",
+        result_path="outputs",
+        inputs=["f1"] if with_schema else None,
+        outputs=["o1"] if with_schema else None,
+        raise_error=False,
+    )
+    model_runner_step.add_model(
+        model_class="StrDictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model_single_event",
+        input_path="inputs.dict_model_single_event",
+        result_path="outputs",
+        raise_error=False,
+    )
+    model_runner_step.add_model(
+        model_class="StrDictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model_single_event_wrapped",
+        input_path="inputs.dict_model_single_event_wrapped",
+        result_path="outputs",
+        inputs=["f1", "f2", "f3", "f4"] if with_schema else None,
+        outputs=["o1", "o2", "o3", "o4"] if with_schema else None,
+        raise_error=False,
+    )
+    model_runner_step.add_model(
+        model_class="StrDictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model_scalar",
+        input_path="inputs.dict_model_scalar",
+        result_path="outputs",
+        inputs=["f1"] if with_schema else None,
+        outputs=["o1"] if with_schema else None,
+        raise_error=False,
+    )
+    graph.to(model_runner_step).respond()
+
+    function.set_tracking("dummy://", enable_tracking=True)
+    server = function.to_mock_server()
+    inputs_model = (
+        {"f1": ["1", "2"], "f2": ["2", "3"], "f3": ["3", "4"], "f4": ["4", "5"]}
+        if not with_schema
+        else {"f4": ["4", "5"], "f2": ["2", "3"], "f1": ["1", "2"], "f3": ["3", "4"]}
+    )
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "dict_model": inputs_model,
+                "dict_model_2": {"f1": ["1", "2"]},
+                "dict_model_single_event": {"f1": "1", "f2": "2", "f3": "3", "f4": "4"},
+                "dict_model_single_event_wrapped": {
+                    "f1": ["1"],
+                    "f2": ["2"],
+                    "f3": ["3"],
+                    "f4": ["4"],
+                },
+                "dict_model_scalar": {"f1": "1"},
+            }
+        },
+    )
+    server.wait_for_completion()
+
+    dummy_stream = server.context.stream.output_stream
+    assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [
+        ["1", "2", "3", "4"],
+        ["2", "3", "4", "5"],
+    ]
+    assert len(dummy_stream.event_list) == 5, "expected stream to get one message"
+    assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [
+        ["1_output", "2_output", "3_output", "4_output"],
+        ["2_output", "3_output", "4_output", "5_output"],
+    ]
+    assert dummy_stream.event_list[1].get("request", {}).get("inputs") == ["1", "2"]
+    assert dummy_stream.event_list[1].get("resp", {}).get("outputs") == [
+        "1_output",
+        "2_output",
+    ]
+    assert dummy_stream.event_list[2].get("request", {}).get("inputs") == [
+        ["1", "2", "3", "4"]
+    ]
+    assert dummy_stream.event_list[2].get("resp", {}).get("outputs") == [
+        ["1_output", "2_output", "3_output", "4_output"]
+    ]
+    assert dummy_stream.event_list[3].get("request", {}).get("inputs") == [
+        ["1", "2", "3", "4"]
+    ]
+    assert dummy_stream.event_list[3].get("resp", {}).get("outputs") == [
+        ["1_output", "2_output", "3_output", "4_output"]
+    ]
+    assert dummy_stream.event_list[4].get("request", {}).get("inputs") == ["1"]
+    assert dummy_stream.event_list[4].get("resp", {}).get("outputs") == ["1_output"]
 
 
 def test_tracked_model_runner_multiple_steps(rundb_mock):

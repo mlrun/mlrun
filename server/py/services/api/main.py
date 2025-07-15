@@ -84,7 +84,7 @@ class Service(framework.service.Service):
             (services.api.crud.Functions, "list_functions"),
             (services.api.crud.Artifacts, "list_artifacts"),
         ]
-        self._retry_in_progress_run_uids = set()
+        self._retry_in_progress_run_uids: dict[str, datetime.datetime] = {}
 
     async def _move_service_to_online(self):
         # scheduler is needed on both workers and chief
@@ -963,6 +963,9 @@ class Service(framework.service.Service):
         self._logger.debug("Retrying jobs with retry policy configured")
         db_session = await fastapi.concurrency.run_in_threadpool(create_session)
         fetch_runs_limit = int(mlconf.monitoring.runs.retry.fetch_runs_limit)
+        staleness_threshold = int(mlconf.monitoring.runs.retry.staleness_threshold)
+        stale_after = datetime.timedelta(minutes=staleness_threshold)
+        now = datetime.datetime.now(datetime.timezone.utc)
         try:
             offset = 0
             while runs := await fastapi.concurrency.run_in_threadpool(
@@ -982,10 +985,34 @@ class Service(framework.service.Service):
                 for run_dict in runs:
                     run = mlrun.RunObject.from_dict(run_dict)
                     if run.metadata.uid in self._retry_in_progress_run_uids:
-                        self._logger.debug(
-                            "Run is already being retried, skipping",
-                            run_uid=run.metadata.uid,
-                        )
+                        first_retry_time = self._retry_in_progress_run_uids[
+                            run.metadata.uid
+                        ]
+                        if now - first_retry_time > stale_after:
+                            self._logger.warning(
+                                "Run is stale, aborting retry",
+                                run_uid=run.metadata.uid,
+                                first_retry_time=first_retry_time,
+                                now=now,
+                            )
+                            futures.append(
+                                fastapi.concurrency.run_in_threadpool(
+                                    framework.db.session.run_function_with_new_db_session,
+                                    services.api.crud.Runs().abort_run,
+                                    project=run.metadata.project,
+                                    uid=run.metadata.uid,
+                                    run_updates={
+                                        "status.status_text": "Retry aborted: run was pending retry for more than "
+                                        f"{staleness_threshold} minutes",
+                                    },
+                                    run=run_dict,
+                                )
+                            )
+                        else:
+                            self._logger.debug(
+                                "Run is already being retried, skipping",
+                                run_uid=run.metadata.uid,
+                            )
                         continue
 
                     # retry_count may be None on the first attempt
@@ -1041,7 +1068,9 @@ class Service(framework.service.Service):
             await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
     def _submit_run_for_retry(self, run: mlrun.RunObject):
-        self._retry_in_progress_run_uids.add(run.metadata.uid)
+        self._retry_in_progress_run_uids[run.metadata.uid] = datetime.datetime.now(
+            datetime.timezone.utc
+        )
         loop = asyncio.get_running_loop()
 
         # Calculate the delay based on the retry policy
@@ -1084,7 +1113,7 @@ class Service(framework.service.Service):
             )
 
         finally:
-            self._retry_in_progress_run_uids.discard(run.metadata.uid)
+            self._retry_in_progress_run_uids.pop(run.metadata.uid)
 
 
 if __name__ == "__main__":

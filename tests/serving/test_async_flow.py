@@ -14,14 +14,16 @@
 import pathlib
 import unittest.mock
 from types import SimpleNamespace
-from typing import Optional
+from typing import Optional, Union
 
 import pytest
 
 import mlrun
 import mlrun.common.schemas as schemas
+from mlrun.artifacts.llm_prompt import LLMPromptArtifact
+from mlrun.artifacts.model import ModelArtifact
 from mlrun.errors import MLRunInvalidArgumentError
-from mlrun.serving import Model, ModelRunnerStep, ModelSelector, RouterStep
+from mlrun.serving import LLModel, Model, ModelRunnerStep, ModelSelector, RouterStep
 from mlrun.utils import logger
 from tests.conftest import results
 
@@ -33,10 +35,17 @@ class _DummyStreamRaiser:
         raise ValueError("DummyStreamRaiser raises an error")
 
 
-def create_mocked_get_store_artifact(model_artifact):
+def create_mocked_get_store_artifact(
+    model_artifact: Union[ModelArtifact, LLMPromptArtifact],
+    origin_model: ModelArtifact = None,
+):
+    _model_artifact = origin_model
+
     def mocked_get_store_artifact(uri, **kwargs):
         if uri == model_artifact.uri:
             return model_artifact, None
+        elif uri == model_artifact.spec.parent_uri:
+            return _model_artifact, None
         else:
             raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
 
@@ -184,6 +193,14 @@ class MyRemoteModel(Model):
     def predict(self, body):
         body["url"] = self.model_artifact.model_url
         body["default_config"] = self.model_artifact.default_config
+        return body
+
+
+class MyLLM(LLModel):
+    def predict(self, body, messages, model_configuration):
+        body["url"] = self.model_artifact.model_url
+        body["default_config"] = self.model_artifact.default_config
+        body["prompt"] = messages
         return body
 
 
@@ -625,7 +642,49 @@ def test_model_runner_with_remote_model():
     # Mocked function used to verify artifact URI is passed correctly.
 
     with unittest.mock.patch(
-        "mlrun.serving.states.mlrun.store_manager.get_store_artifact",
+        "mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
+    ):
+        server = function.to_mock_server()
+    try:
+        resp = server.test(body={"prompt": "What is the capital of france?"})
+        assert resp["default_config"] == {"model_version": "4"}
+        assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
+        assert resp["prompt"] == "What is the capital of france?"
+    finally:
+        server.wait_for_completion()
+
+
+def test_model_runner_with_remote_shared_model():
+    project = mlrun.new_project("remote-model-project", save=False)
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    graph.add_shared_model(
+        name="my_model",
+        model_class="MyRemoteModel",
+        model_artifact=model_artifact,
+        execution_mechanism="naive",
+    )
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_shared_model_proxy(
+        endpoint_name="my_endpoint",
+        model_artifact=model_artifact,
+        shared_model_name="my_model",
+    )
+    graph.to(model_runner_step).respond()
+    assert (
+        "my_endpoint" in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+    # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
+    # Mocked function used to verify artifact URI is passed correctly.
+
+    with unittest.mock.patch(
+        "mlrun.store_manager.get_store_artifact",
         side_effect=create_mocked_get_store_artifact(model_artifact=model_artifact),
     ):
         server = function.to_mock_server()
@@ -664,3 +723,82 @@ def test_get_local_model_path():
         assert resp["result"] == "123"
     finally:
         server.wait_for_completion()
+
+
+@pytest.mark.parametrize("raise_exception", [True, False])
+@pytest.mark.parametrize("shared", [True, False])
+@pytest.mark.parametrize("model_uri", [True, False])
+@pytest.mark.parametrize("llm", [None, "uri_based", "object_based"])
+def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
+    project = mlrun.new_project("get-model-path-project", save=False)
+    function = mlrun.new_function("tests", kind="serving")
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    llm_artifact = None
+    if llm:
+        llm_artifact = project.log_llm_prompt(
+            "my_llm",
+            prompt_template=[
+                {"role": "user", "content": "What is the capital city of {country}?"}
+            ],
+            model_artifact=model_artifact
+            if llm == "object_based"
+            else model_artifact.uri,
+            prompt_legend={"country": {"field": None, "description": "Great"}},
+        )
+
+    with unittest.mock.patch(
+        "mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(
+            model_artifact=llm_artifact or model_artifact, origin_model=model_artifact
+        ),
+    ):
+        if model_uri:
+            model_artifact_param = model_artifact.uri
+            llm_artifact_param = llm_artifact.uri if llm_artifact else None
+        else:
+            model_artifact_param = model_artifact
+            llm_artifact_param = llm_artifact
+
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(
+            name="model-runner", raise_exception=raise_exception
+        )
+        model_class = "MyLLM" if llm else "MyRemoteModel"
+        if shared:
+            graph.add_shared_model(
+                name="shared-model",
+                execution_mechanism="naive",
+                model_class=model_class,
+                model_artifact=model_artifact_param,
+            )
+            model_runner_step.add_shared_model_proxy(
+                endpoint_name="my-model",
+                shared_model_name="shared-model",
+                model_artifact=llm_artifact_param or model_artifact_param,
+            )
+        else:
+            model_runner_step.add_model(
+                model_class=model_class,
+                execution_mechanism="naive",
+                endpoint_name="my-model",
+                model_artifact=llm_artifact_param or model_artifact_param,
+            )
+
+        graph.to(model_runner_step).respond()
+
+        server = function.to_mock_server()
+        try:
+            resp = server.test(body={"country": "france"})
+            assert resp["default_config"] == {"model_version": "4"}
+            assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
+            if llm:
+                assert resp["prompt"] == [
+                    {"role": "user", "content": "What is the capital city of france?"}
+                ]
+            server.test(body={"country": "france"})
+        finally:
+            server.wait_for_completion()

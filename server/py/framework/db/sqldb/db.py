@@ -1054,6 +1054,7 @@ class SQLDB(DBInterface):
 
         artifact = db_artifact.full_object
         artifact["spec"]["has_children"] = bool(db_artifact.child_artifacts)
+        artifact["metadata"]["iter"] = db_artifact.iteration
         self._set_parent_uri(artifact, db_artifact.parent)
 
         # If connected to a tag add it to metadata
@@ -1641,7 +1642,7 @@ class SQLDB(DBInterface):
                 uri=generate_artifact_uri(
                     project=parent.project,
                     key=parent.key,
-                    iter=parent.iteration if parent.iteration else None,
+                    iter=parent.iteration,
                     tree=parent.producer_id,
                     uid=parent.uid,
                 ),
@@ -5625,6 +5626,7 @@ class SQLDB(DBInterface):
                         ArtifactV2.iteration,
                         ArtifactV2.producer_id,
                         ArtifactV2.uid,
+                        ArtifactV2.kind,
                     )
                 ),
                 selectinload(ModelEndpoint.tags),
@@ -5676,6 +5678,7 @@ class SQLDB(DBInterface):
                         ArtifactV2.iteration,
                         ArtifactV2.producer_id,
                         ArtifactV2.uid,
+                        ArtifactV2.kind,
                     )
                 ),
                 selectinload(ModelEndpoint.tags),
@@ -5996,6 +5999,7 @@ class SQLDB(DBInterface):
                         ArtifactV2.iteration,
                         ArtifactV2.producer_id,
                         ArtifactV2.uid,
+                        ArtifactV2.kind,
                     )
                 ),
                 selectinload(ModelEndpoint.tags),
@@ -6289,7 +6293,9 @@ class SQLDB(DBInterface):
                 [tag.name for tag in model_tags] if model_tags else []
             )
             model_artifact_uri = mlrun.datastore.get_store_uri(
-                kind=mlrun.utils.helpers.StorePrefix.Model,
+                kind=mlrun.utils.helpers.StorePrefix.Model
+                if model.kind == mlrun.artifacts.ModelArtifact.kind
+                else mlrun.utils.helpers.StorePrefix.LLMPrompt,
                 uri=generate_artifact_uri(
                     project=model.project,
                     key=model.key,

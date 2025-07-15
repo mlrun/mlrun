@@ -417,7 +417,7 @@ async def get_model_monitoring_function_summaries(
 
     :return: A list of FunctionSummary objects containing information about the monitoring functions.
     """
-    return MonitoringDeployment(
+    return await MonitoringDeployment(
         project=commons.project,
         auth_info=commons.auth_info,
         db_session=commons.db_session,
@@ -448,7 +448,7 @@ async def get_model_monitoring_function_summary(
     :return: A FunctionSummary object containing information about the monitoring function.
     """
 
-    res = MonitoringDeployment(
+    return await MonitoringDeployment(
         project=commons.project,
         auth_info=commons.auth_info,
         db_session=commons.db_session,
@@ -458,5 +458,3 @@ async def get_model_monitoring_function_summary(
         name=function_name,
         include_latest_metrics=include_latest_metrics,
     )
-
-    return res

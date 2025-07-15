@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Optional, TypeVar
+from typing import Callable, Optional, TypeVar, Union
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import ModelProvider
@@ -21,6 +21,18 @@ T = TypeVar("T")
 
 
 class OpenAIProvider(ModelProvider):
+    """
+    OpenAIProvider is a wrapper around the OpenAI SDK that provides an interface
+    for interacting with OpenAI's generative AI services.
+
+    It supports both synchronous and asynchronous operations, allowing flexible
+    integration into various workflows.
+
+    This class extends the ModelProvider base class and implements OpenAI-specific
+    functionality, including client initialization, model invocation, and custom
+    operations tailored to the OpenAI API.
+    """
+
     def __init__(
         self,
         parent,
@@ -59,6 +71,19 @@ class OpenAIProvider(ModelProvider):
         return self.endpoint
 
     def load_client(self) -> None:
+        """
+        Initializes the OpenAI SDK client using the provided options.
+
+        This method imports the `OpenAI` class from the `openai` package, instantiates
+        a client with the given keyword arguments (`self.options`), and assigns it to
+        `self._client`.
+
+        It also sets the default operation to `self.client.chat.completions.create`, which is
+        typically used for invoking chat-based model completions.
+
+        Raises:
+            ImportError: If the `openai` package is not installed.
+        """
         try:
             from openai import OpenAI  # noqa
 
@@ -87,34 +112,33 @@ class OpenAIProvider(ModelProvider):
         else:
             return self._default_operation(**invoke_kwargs, model=self.model)
 
-    def _get_messages_parameter(
-        self, prompt: Optional[str] = None, **invoke_kwargs
-    ) -> (str, dict):
-        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
-        messages = invoke_kwargs.get("messages")
-        if messages:
-            if prompt:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "can not provide 'messages' and 'prompt' to invoke"
-                )
-        elif prompt:
-            messages = [
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ]
-        else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "must provide 'messages' or 'prompt' to invoke"
-            )
-        return messages, invoke_kwargs
+    def invoke(
+        self,
+        messages: Optional[list[dict]] = None,
+        as_str: bool = False,
+        **invoke_kwargs,
+    ) -> Optional[Union[str, T]]:
+        """
+        OpenAI-specific implementation of `ModelProvider.invoke`.
+        Invokes an OpenAI model operation using the sync client.
+        For full details, see `ModelProvider.invoke`.
 
-    def invoke(self, prompt: Optional[str] = None, **invoke_kwargs) -> str:
-        messages, invoke_kwargs = self._get_messages_parameter(
-            prompt=prompt, **invoke_kwargs
-        )
+        :param messages:    Same as ModelProvider.invoke.
+
+        :param as_str: bool
+                            If `True`, returns only the main content of the first response
+                            (`response.choices[0].message.content`).
+                            If `False`, returns the full response object, whose type depends on
+                            the specific OpenAI SDK operation used (e.g., chat completion, completion, etc.).
+
+        :param invoke_kwargs:
+                            Same as ModelProvider.invoke.
+
+        """
+        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         response = self._default_operation(
             model=self.endpoint, messages=messages, **invoke_kwargs
         )
-        return response.choices[0].message.content
+        if as_str:
+            return response.choices[0].message.content
+        return response

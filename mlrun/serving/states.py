@@ -1558,7 +1558,6 @@ class ModelRunnerStep(MonitoredStep):
 
                 Working with dictionary inside input/result path example::
 
-
                 body:
                 {
                     "path" :{"a": 1}

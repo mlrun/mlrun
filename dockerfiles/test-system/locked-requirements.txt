@@ -4860,8 +4860,8 @@ statsmodels==0.14.5 \
     --hash=sha256:f2ad5aee04ae7196c429df2174df232c057e478c5fa63193d01c8ec9aae04d31 \
     --hash=sha256:f402fc793458dd6d96e099acb44cd1de1428565bf7ef3030878a8daff091f08a
     # via evidently
-storey==1.10.7 \
-    --hash=sha256:22ebb08c544a40dd416c5eba544dcd329231b48fd13607af621f796a414e4352
+storey==1.10.8 \
+    --hash=sha256:dc8c7339231d78e9965f715ca943e1b834dd3d532ead480d49cf0135254b0b67
     # via -r requirements.txt
 strip-hints==0.1.13 ; python_full_version < '3.11' \
     --hash=sha256:1feaebde61269ba0dea1e7f093df7ff9d4df4980cce7e3c22ed6d86ae43dbd06 \

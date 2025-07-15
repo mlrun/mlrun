@@ -12,20 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mlrun
-import mlrun.artifacts
-import mlrun.serving.states
-from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.serving import LLModel, Model  # noqa: F401
 
 
-class MyOpenAILLM(mlrun.serving.states.LLModel):
+class MyLLM(LLModel):
     def predict(self, body, messages, model_configuration):
-        if isinstance(
-            self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
-        ) and isinstance(self.model_provider, ModelProvider):
-            body["result"] = self.model_provider.invoke(
-                messages=messages,
-                as_str=True,
-                **(self.invocation_artifact.spec.model_configuration or {}),
-            )
+        body["url"] = self.model_artifact.model_url
+        body["default_config"] = self.model_artifact.default_config
+        body["prompt"] = messages
         return body

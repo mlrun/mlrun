@@ -309,16 +309,12 @@ class Pipelines(
             )
         }
 
-        originals = runner_results[mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER]
-        reruns = runner_results[mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER]
-
-        if originals:
+        if originals := runner_results.get(mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER):
             original_workflow_runner = originals.to_objects()[0]
             return original_workflow_runner, original_workflow_runner.metadata.labels[
                 mlrun_constants.MLRunInternalLabels.workflow_id
             ]
-
-        if reruns:
+        if reruns := runner_results.get(mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER):
             rerun_runner = reruns.to_objects()[0]
             return rerun_runner, rerun_runner.metadata.labels[
                 mlrun_constants.MLRunInternalLabels.original_workflow_id

@@ -178,14 +178,17 @@ async def retry_pipeline(
     )
 
     try:
-        original_runner = await fastapi.concurrency.run_in_threadpool(
+        (
+            original_runner,
+            original_workflow_id,
+        ) = await fastapi.concurrency.run_in_threadpool(
             services.api.crud.Pipelines().get_original_workflow_run,
             db_session=db_session,
             run_id=run_id,
             project=project.metadata.name,
         )
     except mlrun.errors.MLRunNotFoundError:
-        original_runner = None
+        original_runner, original_workflow_id = None, None
 
     # If running in direct mode, or if we couldn’t locate a previous workflow-runner,
     # or if the original runner had no notifications to preserve,
@@ -211,7 +214,7 @@ async def retry_pipeline(
             await fastapi.concurrency.run_in_threadpool(
                 services.api.crud.Pipelines().rerun_pipeline_via_runner,
                 db_session=db_session,
-                run_id=run_id,
+                run_id=original_workflow_id,
                 project=project,
                 original_runner=original_runner,
                 auth_info=auth_info,
@@ -223,7 +226,7 @@ async def retry_pipeline(
     except Exception as error:
         mlrun.utils.logger.error(
             "Failed to rerun workflow",
-            run_id=run_id,
+            run_id=original_workflow_id,
             project=project.metadata.name,
             error=mlrun.errors.err_to_str(error),
         )

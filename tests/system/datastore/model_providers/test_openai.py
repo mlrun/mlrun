@@ -75,13 +75,22 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             model_url=self.model_url,
             default_config={"max_tokens": 100},
         )
-        prompt_template = (
-            "{question}. Explain {depth_level} as a {persona} in {tone} style."
-        )
+        prompt_template = [
+            {
+                "role": "user",
+                "content": "{question}. Explain {depth_level} as a {persona} in {tone} style.",
+            }
+        ]
         llm_prompt_artifact = self.project.log_llm_prompt(
             "my_llm_prompt",
-            prompt_string=prompt_template,
+            prompt_template=prompt_template,
             model_artifact=model_artifact,
+            prompt_legend={
+                "question": {"field": None, "description": None},
+                "depth_level": {"field": None, "description": None},
+                "persona": {"field": None, "description": None},
+                "tone": {"field": None, "description": None},
+            },
         )
         function = mlrun.code_to_function(
             name="tests",

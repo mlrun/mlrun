@@ -274,24 +274,27 @@ class Pipelines(
         db_session: sqlalchemy.orm.Session,
         run_id: str,
         project: str,
-    ) -> typing.Optional[mlrun.model.RunObject]:
+    ) -> tuple[typing.Optional[mlrun.model.RunObject], str]:
         """
-        Given a KFP pipeline run ID, find the original remote-workflow run if it exists:
+        Given any KFP pipeline run UID (whether the very first run or a retry),
+        resolve back to the *original* workflow‐runner RunObject and its workflow ID.
 
-        1. First, try to find a workflow-runner run whose `workflow-id` label == run_id.
-        2. If not found, look for a rerun-runner with the same workflow-id label.
+        1. Look for a workflow‐runner job whose "workflow-id" label == run_id.
+           If found, that *is* our original runner.
+        2. Otherwise, look for a rerun‐runner job whose "rerun-of" label == run_id.
+           That job carries an "original-workflow-id" label pointing back to step (1).
+        3. Fetch the workflow‐runner from step (1) using that original ID.
 
-        Returns:
-            The run object, or None if the run ID doesn't correspond to any remote workflow.
+        :returns:
+          Tuple of:
+            * the RunObject for the original workflow‐runner
+            * the original_workflow_id (str)
 
-        Raises:
+        :raises:
             MLRunNotFoundError: If the run ID doesn't correspond to any remote workflow.
         """
-        for job_type in [
-            mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER,
-            mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER,
-        ]:
-            runs = services.api.crud.Runs().list_runs(
+        runner_results = {
+            job_type: services.api.crud.Runs().list_runs(
                 db_session=db_session,
                 project=project,
                 labels=[
@@ -300,8 +303,22 @@ class Pipelines(
                 ],
                 with_notifications=True,
             )
-            if runs:
-                return runs.to_objects()[0]
+            for job_type in (
+                mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER,
+                mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER,
+            )
+        }
+
+        if originals := runner_results.get(mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER):
+            original_workflow_runner = originals.to_objects()[0]
+            return original_workflow_runner, original_workflow_runner.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.workflow_id
+            ]
+        if reruns := runner_results.get(mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER):
+            rerun_runner = reruns.to_objects()[0]
+            return rerun_runner, rerun_runner.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.original_workflow_id
+            ]
 
         raise mlrun.errors.MLRunNotFoundError(
             f"No remote workflow runner found with workflow-id={run_id} in project '{project}'"
@@ -424,7 +441,6 @@ class Pipelines(
             run_id=run_id,
             notifications=original_runner_notifications,
             workflow_runner_node_selector=original_runner.spec.node_selector,
-            original_workflow_id=original_runner.metadata.labels["workflow-id"],
         )
 
         run = RerunRunner().run(

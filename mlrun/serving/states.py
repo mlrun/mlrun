@@ -1555,6 +1555,38 @@ class ModelRunnerStep(MonitoredStep):
           :param result_path:         result path inside the user output event, expect scopes to be defined by dot
                                       notation (e.g "outputs.my_model_outputs") expects list or dictionary type object
                                       in path.
+
+                Working with dictionary inside input/result path example::
+
+
+                body:
+                {
+                    "path" :{"a": 1}
+                }
+                # will be monitored as: [1]
+
+                body:
+                {
+                    "path" :{"a": [1, 2]}
+                }
+                # will be monitored as: [1 ,2]
+
+                body:
+                {
+                    "path" :{"a": [1, 2], "b": [3, 4]}
+                }
+                # will be monitored as: [[1, 3], [2, 4]]
+
+                if inputs/outputs provided we will keep the schema order, example:
+
+                outputs = ["a", "b"]
+
+                body:
+                {
+                    "path" :{"b": [1, 2], "a": [3, 4]}
+                }
+                # will be monitored as: [[3, 1], [4, 2]]
+
           :param override:            bool allow override existing model on the current ModelRunnerStep.
           :param model_parameters:    Parameters for model instantiation
         """

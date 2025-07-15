@@ -64,5 +64,5 @@ class FunctionSummary(BaseModel):
             updated_time=func_dict["metadata"].get("updated"),
             status=func_dict["status"].get("state"),
             base_period=base_period,
-            stats=stats,
+            stats=stats or {},
         )

@@ -142,7 +142,7 @@ class MonitoringPreProcessor(storey.MapClass):
         """
 
         # Normalize schema to list
-        if schema is None:
+        if not schema:
             keys = list(data.keys())
         elif isinstance(schema, str):
             keys = [schema]

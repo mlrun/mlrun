@@ -448,11 +448,11 @@ def test_tracked_model_runner_dict(rundb_mock, with_schema):
     server.wait_for_completion()
 
     dummy_stream = server.context.stream.output_stream
+    assert len(dummy_stream.event_list) == 5, "expected stream to get one message"
     assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [
         [1, 2, 3, 4],
         [2, 3, 4, 5],
     ]
-    assert len(dummy_stream.event_list) == 5, "expected stream to get one message"
     assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [
         [2, 3, 4, 5],
         [3, 4, 5, 6],

@@ -272,6 +272,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             server.wait_for_completion()
 
     def test_open_ai_async_parallel_events(self):
+        # test that we have the ability to run multiple events asynchronously, by custom model setup
         project = mlrun.new_project("test-openai-model", save=False)
         model_url = self.url_prefix + self.basic_llm_model
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(

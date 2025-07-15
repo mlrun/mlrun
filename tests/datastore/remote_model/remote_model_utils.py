@@ -57,7 +57,6 @@ INPUT_DATA = [
 
 EXPECTED_RESULTS = ["paris", "4", "shakespeare", "blue", "earth"]
 
-# PROMPT_TEMPLATE = "{question}. Explain {depth_level} as a {persona} in {tone} style."
 PROMPT_TEMPLATE = [
     {
         "role": "user",
@@ -79,7 +78,7 @@ def setup_remote_model_test(
     execution_mechanism="naive",
     image=None,
     requirements=None,
-    model_class="LLmodel",
+    model_class="LLModel",
 ):
     model_artifact = project.log_model(
         mlrun_model_name,
@@ -97,7 +96,6 @@ def setup_remote_model_test(
             "tone": {"field": None, "description": None},
         },
     )
-    # function = mlrun.new_function("tests", kind="serving")
     function = mlrun.code_to_function(
         name="tests",
         kind="serving",
@@ -166,7 +164,7 @@ class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
 
 def assert_async_invocations(results_with_times, model_name, total_duration):
     # Imported inside the function to avoid ImportError in pod while using MyOpenAIAsyncEvents class.
-    import tiktoken
+    import tiktoken  # noqa
 
     results = results_with_times["results"]
     invoke_times = results_with_times["invoke_times"]

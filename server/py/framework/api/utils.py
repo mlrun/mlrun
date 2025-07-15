@@ -223,13 +223,6 @@ async def submit_run(
         fn.set_db_connection(run_db)
 
         track_models = getattr(fn.spec, "track_models", False)
-        logger.info(
-            "Starting model endpoint creation?",
-            track_models=track_models,
-            background_tasks=str(background_tasks),
-            db_session=str(db_session),
-        )
-
         if track_models and background_tasks and db_session:
             project = task["metadata"]["project"]
             function_name = fn.metadata.name

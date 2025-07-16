@@ -454,7 +454,7 @@ class Pipelines(
             run_id=run_id,
             notifications=original_runner_notifications,
             workflow_runner_node_selector=original_runner.spec.node_selector,
-            original_workflow_runner_uid=original_runner.metadata.uid
+            original_workflow_runner_uid=original_runner.metadata.uid,
         )
 
         run = RerunRunner().run(

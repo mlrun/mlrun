@@ -27,7 +27,7 @@ This section describes the current guidelines. Specific changes are listed under
 ### KFP
 MLRun supports the KFP 2.x server, but workflows still require the KFP 1.8 syntax. Usage guidelines:
 - Client code, workflow code and syntax (DSL) is still the KFP 1.8 syntax. Working with the newer KFP 2.x syntax is not yet supported by MLRun.
-- Starting with v1.8.0, KFP is not pre-installed on images such as `mlrun/mlrun`. The image `mlrun/mlrun-kfp` includes KFP, but works only with Python 3.9.
+- Starting with MLRun v1.8.0, KFP client package is not pre-installed on images such as `mlrun/mlrun`. The image `mlrun/mlrun-kfp` includes KFP, but works only with Python 3.9.
 - You can install KFP manually (`pip install kfp~=1.8`), for example, to run KFP pipelines locally using the KFP 1.8 client, which requires Python 3.9.
 ### Python 
 The MLRun server is based on a Python 3.11 environment. It's recommended to move the client to a Python 3.11 environment as well, although the MLRun client supports both Python 3.9 and Python 3.11.

@@ -26,6 +26,7 @@ RUN apt-get update && \
       gcc \
       wget \
       git-core \
+      unzip \
     && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade \
     && rm -rf /var/lib/apt/lists/*
 

@@ -1870,7 +1870,9 @@ def get_archive_spec(function, secrets):
     spec = nuclio.ConfigSpec()
     config = {}
     services.api.crud.runtimes.nuclio.helpers.compile_nuclio_archive_config(
-        spec, function, secrets
+        function,
+        spec,
+        secrets,
     )
     spec.merge(config)
     return config

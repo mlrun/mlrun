@@ -94,7 +94,7 @@ class OpenAIProvider(ModelProvider):
         except ImportError as exc:
             raise ImportError("openai package is not installed") from exc
 
-    def get_client_options(self):
+    def get_client_options(self) -> dict:
         res = dict(
             api_key=self._get_secret_or_env("OPENAI_API_KEY"),
             organization=self._get_secret_or_env("OPENAI_ORG_ID"),

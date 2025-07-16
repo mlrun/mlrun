@@ -13,17 +13,27 @@
 # limitations under the License.
 
 import json
+import sys
 from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
+from datetime import datetime, timezone
 from types import TracebackType
-from typing import Final, Optional
+from typing import TYPE_CHECKING, Final, Optional
 
 import botocore.exceptions
 
+import mlrun
 import mlrun.common.schemas as schemas
 import mlrun.errors
 import mlrun.model_monitoring.helpers
+import mlrun.utils.helpers
 from mlrun.utils import logger
+
+if TYPE_CHECKING:
+    if sys.version_info >= (3, 11):
+        from typing import Self
+    else:
+        from typing_extensions import Self
 
 
 class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
@@ -31,7 +41,8 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
     INITIAL_CONTENT = json.dumps(DEFAULT_SCHEDULES)
     ENCODING = "utf-8"
 
-    def __init__(self):
+    def __init__(self) -> None:
+        # `self._item` is the persistent version of the monitoring schedules.
         self._item = self.get_data_item_object()
         if self._item:
             self._path = self._item.url
@@ -43,8 +54,15 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
             self._open_schedules = False
 
     @abstractmethod
-    def get_data_item_object(self) -> mlrun.DataItem:
+    def get_data_item_object(self) -> "mlrun.DataItem":
         pass
+
+    def _exists(self) -> bool:
+        """Return whether the file exists or not"""
+        return (
+            self._fs is None  # In-memory store
+            or self._fs.exists(self._path)
+        )
 
     def create(self) -> None:
         """Create a schedules file with initial content - an empty dictionary"""
@@ -53,10 +71,7 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
 
     def delete(self) -> None:
         """Delete schedules file if it exists"""
-        if (
-            self._fs is None  # In-memory store
-            or self._fs.exists(self._path)
-        ):
+        if self._exists():
             logger.debug(
                 "Deleting model monitoring schedules file", path=self._item.url
             )
@@ -100,7 +115,7 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
         self._schedules = self.DEFAULT_SCHEDULES
         self._open_schedules = False
 
-    def __enter__(self) -> "ModelMonitoringSchedulesFileBase":
+    def __enter__(self) -> "Self":
         self._open()
         return super().__enter__()
 
@@ -129,12 +144,11 @@ class ModelMonitoringSchedulesFileEndpoint(ModelMonitoringSchedulesFileBase):
         :param project:     The project name.
         :param endpoint_id: The endpoint ID.
         """
-        # `self._item` is the persistent version of the monitoring schedules.
         self._project = project
         self._endpoint_id = endpoint_id
         super().__init__()
 
-    def get_data_item_object(self) -> mlrun.DataItem:
+    def get_data_item_object(self) -> "mlrun.DataItem":
         return mlrun.model_monitoring.helpers.get_monitoring_schedules_endpoint_data(
             project=self._project, endpoint_id=self._endpoint_id
         )
@@ -179,7 +193,7 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
         self._project = project
         super().__init__()
 
-    def get_data_item_object(self) -> mlrun.DataItem:
+    def get_data_item_object(self) -> "mlrun.DataItem":
         return mlrun.model_monitoring.helpers.get_monitoring_schedules_chief_data(
             project=self._project
         )
@@ -216,22 +230,49 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
         return set(self._schedules.keys())
 
     def get_or_create(self) -> None:
-        try:
-            self._open()
-        except (
-            mlrun.errors.MLRunNotFoundError,
-            # Different errors are raised for S3 or local storage, see ML-8042
-            botocore.exceptions.ClientError,
-            FileNotFoundError,
-        ):
+        if not self._exists():
             self.create()
 
 
-def delete_model_monitoring_schedules_folder(project: str) -> None:
-    """Delete the model monitoring schedules folder of the project"""
-    folder = mlrun.model_monitoring.helpers._get_monitoring_schedules_folder_path(
-        project
-    )
+class ModelMonitoringSchedulesFileApplication(ModelMonitoringSchedulesFileBase):
+    def __init__(self, out_path: str, application: str) -> None:
+        self._out_path = out_path
+        self._application = application
+        super().__init__()
+
+    def get_data_item_object(self) -> "mlrun.DataItem":
+        return mlrun.model_monitoring.helpers.get_monitoring_schedules_user_application_data(
+            out_path=self._out_path, application=self._application
+        )
+
+    def _open(self) -> None:
+        if not self._exists():
+            # Create the file when it is needed the first time
+            logger.info(
+                "Creating the application schedules file",
+                application=self._application,
+                path=self._path,
+            )
+            self.create()
+        super()._open()
+
+    def get_endpoint_last_analyzed(self, endpoint_uid: str) -> Optional[datetime]:
+        self._check_open_schedules()
+        if endpoint_uid in self._schedules:
+            return datetime.fromisoformat(self._schedules[endpoint_uid])
+        else:
+            return None
+
+    def update_endpoint_last_analyzed(
+        self, endpoint_uid: str, last_analyzed: datetime
+    ) -> None:
+        self._check_open_schedules()
+        self._schedules[endpoint_uid] = last_analyzed.astimezone(
+            timezone.utc
+        ).isoformat()
+
+
+def _delete_folder(folder: str) -> None:
     fs = mlrun.datastore.store_manager.object(folder).store.filesystem
     if fs and fs.exists(folder):
         logger.debug("Deleting model monitoring schedules folder", folder=folder)
@@ -240,3 +281,22 @@ def delete_model_monitoring_schedules_folder(project: str) -> None:
         raise mlrun.errors.MLRunValueError(
             "Cannot delete a folder without a file-system"
         )
+
+
+def delete_model_monitoring_schedules_folder(project: str) -> None:
+    """Delete the model monitoring schedules folder of the project"""
+    folder = mlrun.model_monitoring.helpers._get_monitoring_schedules_folder_path(
+        project
+    )
+    _delete_folder(folder)
+
+
+def delete_model_monitoring_schedules_user_folder(project: str) -> None:
+    """Delete the user created schedules folder (created through `app.evaluate`)"""
+    out_path = mlrun.utils.helpers.template_artifact_path(
+        mlrun.mlconf.artifact_path, project=project
+    )
+    folder = mlrun.model_monitoring.helpers._get_monitoring_schedules_user_folder_path(
+        out_path
+    )
+    _delete_folder(folder)

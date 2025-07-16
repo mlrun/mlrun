@@ -24,7 +24,7 @@ import yaml
 from openai import AsyncOpenAI, OpenAI
 from openai.types import CreateEmbeddingResponse
 from transformers import AutoTokenizer
-
+from PIL import Image
 import mlrun
 import mlrun.artifacts
 import mlrun.serving.states
@@ -209,29 +209,26 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
     #     assert len(encoding.encode(result1)) == 100
     #     assert len(encoding.encode(result2)) == 100
     #
-    # @pytest.mark.asyncio
-    # @pytest.mark.parametrize("run_async", [True, False])
-    # async def test_custom_invoke(self, run_async):
-    #     model_name = "text-embedding-3-small"
-    #     model_url = self.url_prefix + model_name
-    #     model_provider = mlrun.get_model_provider(url=model_url)
-    #     prompt = "OpenAI is amazing"
-    #     client: OpenAI = model_provider.client
-    #     async_client: AsyncOpenAI = model_provider.async_client
-    #     if run_async:
-    #         embeddings = await model_provider.async_custom_invoke(
-    #             operation=async_client.embeddings.create, input=prompt
-    #         )
-    #     else:
-    #         embeddings = model_provider.custom_invoke(
-    #             operation=client.embeddings.create, input=prompt
-    #         )
-    #     encoding = tiktoken.encoding_for_model(model_name)
-    #     token_count = len(encoding.encode(prompt))
-    #     assert embeddings.data[0].embedding is not None
-    #     assert len(embeddings.data[0].embedding) > 0
-    #     assert embeddings.usage.total_tokens == token_count
-    #     assert isinstance(embeddings, CreateEmbeddingResponse)
+    @pytest.mark.asyncio
+    #@pytest.mark.parametrize("run_async", [True, False])
+    @pytest.mark.parametrize("run_async", [False])
+    async def test_custom_invoke(self, run_async):
+        model_name = "microsoft/resnet-50"
+        model_url = self.url_prefix + model_name
+        image_path = os.path.join(os.path.dirname(__file__), "cat.jpg")
+
+        model_provider = mlrun.get_model_provider(url=model_url, secrets={"HF_TASK": "image-classification"},
+                                                  default_invoke_kwargs={"top_k": 2})
+        image = Image.open(image_path)
+        if run_async:
+            classification_results = []
+            pass # TODO
+        else:
+            classification_results = model_provider.custom_invoke(
+                inputs=image
+            )
+        assert len(classification_results) == 2
+        assert "cat" in classification_results[0]["label"]
 
 
 # class TestOpenAIModel(TestBasicOpenAIProvider):

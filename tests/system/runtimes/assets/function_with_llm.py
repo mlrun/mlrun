@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.serving import LLModel, Model  # noqa: F401
+from mlrun.serving import LLModel
 
 
 class MyLLM(LLModel):

@@ -783,17 +783,8 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
     def test_app_flow(self, with_training_set: bool, with_model_runner: bool) -> None:
         self.apps_data = self._get_apps_data(with_training_set)
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
+
         self._log_model(with_training_set)
-
-        for i in range(len(self.apps_data)):
-            if "with_training_set" in self.apps_data[i].kwargs:
-                self.apps_data[i].kwargs["with_training_set"] = with_training_set
-
-        # workaround for ML-5997
-        if not with_training_set and _DefaultDataDriftAppData in self.apps_data:
-            self.apps_data.remove(_DefaultDataDriftAppData)
-
-        self._log_model(with_training_set=with_training_set)
 
         self._submit_controller_and_deploy_writer(
             deploy_histogram_data_drift_app=_DefaultDataDriftAppData in self.apps_data
@@ -1709,16 +1700,19 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
         start = model_endpoint.status.first_request - timedelta(microseconds=1)
 
         end = model_endpoint.status.last_request
+        # Make sure `end - start` is a multiple of the `base_period` in `evaluate`
+        end = start + timedelta(minutes=(end - start).total_seconds() // 60 + 1)
 
         endpoints_params = [
             [(model_endpoint.metadata.name, model_endpoint.metadata.uid)],
-            model_endpoint.metadata.name,
-            [
-                model_endpoint.metadata.name,
-            ],
+            [model_endpoint.metadata.name],
+            "all",
         ]
 
         for i, endpoints in enumerate(endpoints_params):
+            # Do not write except the first time
+            write_output_this_time = write_output if i == 0 else False
+
             run_result = CountApp.evaluate(
                 func_path=str(Path(__file__).parent / "assets/application.py"),
                 func_name=f"function-{i}",
@@ -1728,9 +1722,11 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
                 run_local=run_local,
                 image=self.image,
                 base_period=1,
-                write_output=write_output,
+                write_output=write_output_this_time,
                 stream_profile=(
-                    self.mm_stream_profile if run_local and write_output else None
+                    self.mm_stream_profile
+                    if run_local and write_output_this_time
+                    else None
                 ),
             )
 

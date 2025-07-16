@@ -14,7 +14,7 @@
 
 from collections import Counter
 from collections.abc import Iterator
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Optional
 from unittest.mock import Mock, patch
 
@@ -25,7 +25,6 @@ import v3io_frames
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
-    ModelEndpointDriftValues,
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricNoData,
     ModelEndpointMonitoringResultValues,
@@ -372,25 +371,6 @@ def predictions_df() -> pd.DataFrame:
 
 
 @pytest.fixture
-def drift_df() -> pd.DataFrame:
-    now = datetime.now().astimezone()
-    return pd.DataFrame(
-        [
-            {
-                "_wstart": now - timedelta(hours=1),
-                "_wend": now - timedelta(hours=1),
-                "max(result_status)": 2,
-            },
-            {
-                "_wstart": now - timedelta(hours=2),
-                "_wend": now - timedelta(hours=2),
-                "max(result_status)": 1,
-            },
-        ]
-    )
-
-
-@pytest.fixture
 def _mock_frames_client(tsdb_df: pd.DataFrame) -> Iterator[None]:
     frames_client_mock = Mock()
     frames_client_mock.read = Mock(return_value=tsdb_df)
@@ -417,16 +397,6 @@ def _mock_frames_client_predictions(predictions_df: pd.DataFrame) -> Iterator[No
     frames_client_mock = Mock()
     frames_client_mock.read = Mock(return_value=predictions_df)
 
-    with patch.object(
-        mlrun.utils.v3io_clients, "get_frames_client", return_value=frames_client_mock
-    ):
-        yield
-
-
-@pytest.fixture
-def _mock_frames_client_drift(drift_df):
-    frames_client_mock = Mock()
-    frames_client_mock.read = Mock(return_value=drift_df)
     with patch.object(
         mlrun.utils.v3io_clients, "get_frames_client", return_value=frames_client_mock
     ):
@@ -563,24 +533,6 @@ def test_count_read_results_by_status():
 
     data = tsdb_connector.count_results_by_status(result_status_list=[-1])
     assert len(data) == 0
-
-
-@pytest.mark.usefixtures("_mock_frames_client_drift")
-def test_get_drift_data():
-    tsdb_connector = V3IOTSDBConnector(project="fictitious-one")
-    end = datetime.now().astimezone()
-    start = end - timedelta(hours=24)
-    drift_over_time: ModelEndpointDriftValues = tsdb_connector.get_drift_data(
-        start=start, end=end
-    )
-    assert drift_over_time is not None
-    assert len(drift_over_time.values) == 2, "Drift over time should have one value"
-    assert (
-        drift_over_time.values[0].count_suspected == 1
-    ), "Drift over time should have one detected drift"
-    assert (
-        drift_over_time.values[1].count_detected == 1
-    ), "Drift over time should not have potential drift"
 
 
 @pytest.mark.usefixtures("_mock_frames_client_extended")

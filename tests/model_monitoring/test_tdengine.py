@@ -187,7 +187,6 @@ class TestTDEngineSchema:
             "preform_agg_funcs_columns",
             "order_by",
             "desc",
-            "partition_by",
         ),
         [
             (
@@ -197,7 +196,6 @@ class TestTDEngineSchema:
                 mlrun.utils.datetime_now() - datetime.timedelta(hours=1),
                 mlrun.utils.datetime_now(),
                 "time",
-                None,
                 None,
                 None,
                 None,
@@ -216,7 +214,6 @@ class TestTDEngineSchema:
                 None,
                 None,
                 None,
-                None,
             ),
             (
                 "subtable_3",
@@ -227,7 +224,6 @@ class TestTDEngineSchema:
                 "time_column",
                 ["avg"],
                 ["column1"],
-                None,
                 None,
                 None,
                 None,
@@ -244,7 +240,6 @@ class TestTDEngineSchema:
                 None,
                 ["column2"],
                 True,
-                None,
             ),
             (
                 "subtable_5",
@@ -258,35 +253,6 @@ class TestTDEngineSchema:
                 None,
                 None,
                 None,
-                None,
-            ),
-            (
-                "subtable_6",
-                ["column1", "column2"],
-                "column1 > 0",
-                mlrun.utils.datetime_now() - datetime.timedelta(hours=2),
-                mlrun.utils.datetime_now() - datetime.timedelta(hours=1),
-                "time_column",
-                ["avg"],
-                ["column1"],
-                None,
-                ["column2"],
-                True,
-                True,
-            ),
-            (
-                "subtable_7",
-                ["column1", "column2"],
-                "column1 > 0",
-                mlrun.utils.datetime_now() - datetime.timedelta(hours=2),
-                mlrun.utils.datetime_now() - datetime.timedelta(hours=1),
-                "time_column",
-                None,
-                ["column1"],
-                None,
-                ["column2"],
-                True,
-                True,
             ),
         ],
     )
@@ -304,25 +270,11 @@ class TestTDEngineSchema:
         preform_agg_funcs_columns: list[str],
         order_by: Optional[str],
         desc: bool,
-        partition_by: Optional[str],
     ):
         if columns_to_filter:
             columns_to_select = ", ".join(columns_to_filter)
         else:
             columns_to_select = "*"
-        if partition_by and not agg_funcs:
-            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-                super_table._get_records_query(
-                    table=subtable,
-                    columns_to_filter=columns_to_filter,
-                    filter_query=filter_query,
-                    start=start,
-                    end=end,
-                    timestamp_column=timestamp_column,
-                    group_by=group_by,
-                    partition_by=partition_by,
-                )
-            return
         if not group_by:
             if filter_query:
                 expected_query = (
@@ -403,8 +355,7 @@ class TestTDEngineSchema:
                             agg_funcs=agg_funcs,
                         )
                     return
-                if partition_by:
-                    expected_query_group_by.write(f" PARTITION BY {partition_by}")
+
                 if order_by:
                     desc = "DESC" if desc else ""
                     expected_query_group_by.write(f" ORDER BY {order_by} {desc}")
@@ -421,7 +372,6 @@ class TestTDEngineSchema:
                         agg_funcs=agg_funcs,
                         order_by=order_by,
                         desc=desc,
-                        partition_by=partition_by,
                     )
                     == expected_query_group_by.getvalue()
                 )
@@ -576,34 +526,3 @@ class TestTDEngineConnector:
         assert last_request["last_request"][1] == parser.parse(
             "2024-12-27 05:13:47 +00:00"
         ).astimezone(datetime.timezone.utc)
-
-    def test_get_drift_data(self, connector):
-        now = datetime.datetime.now().astimezone()
-        end = now
-        start = now - datetime.timedelta(hours=24)
-        df = pd.DataFrame(
-            [
-                {
-                    "_wstart": now - datetime.timedelta(hours=1),
-                    "_wend": now - datetime.timedelta(hours=1),
-                    "max(result_status)": 2,
-                },
-                {
-                    "_wstart": now - datetime.timedelta(hours=2),
-                    "_wend": now - datetime.timedelta(hours=2),
-                    "max(result_status)": 1,
-                },
-            ]
-        )
-        connector._get_records = unittest.mock.Mock(return_value=df)
-        drift_over_time: mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues = connector.get_drift_data(
-            start=start, end=end
-        )
-        assert drift_over_time is not None
-        assert len(drift_over_time.values) == 2, "Drift over time should have one value"
-        assert (
-            drift_over_time.values[0].count_suspected == 1
-        ), "Drift over time should have one detected drift"
-        assert (
-            drift_over_time.values[1].count_detected == 1
-        ), "Drift over time should not have potential drift"

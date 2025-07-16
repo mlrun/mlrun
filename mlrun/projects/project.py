@@ -5557,31 +5557,6 @@ class MlrunProject(ModelObj):
             **kwargs,
         )
 
-    def get_drift_over_time(
-        self,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
-    ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
-        """
-        Get drift counts over time for the project.
-
-        This method returns a list of tuples, each representing a time-interval in a granularity set by the
-        duration of the given time range and the number of suspected drifts and detected drifts in that interval.
-        For a range of 6 hours or less, the granularity is 10 minute, for a range of 2 hours to 72 hours, the
-        granularity is 1 hour, and for a range of more than 72 hours, the granularity is 24 hours.
-
-        :param start: Start time of the range to retrieve drift counts from.
-        :param end: End time of the range to retrieve drift counts from.
-
-        :return: A ModelEndpointDriftValues object containing the drift counts over time.
-        """
-        db = mlrun.db.get_run_db(secrets=self._secrets)
-        return db.get_drift_over_time(
-            project=self.metadata.name,
-            start=start,
-            end=end,
-        )
-
     def _run_authenticated_git_action(
         self,
         action: Callable,

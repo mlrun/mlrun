@@ -5158,20 +5158,6 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", endpoint_path, error_message)
         return mlrun.common.schemas.ProjectSummary(**response.json())
 
-    def get_drift_over_time(
-        self,
-        project: str,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-    ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
-        endpoint_path = f"projects/{project}/model-endpoints/drift-over-time"
-        response = self.api_call(
-            method="GET", path=endpoint_path, params={"start": start, "end": end}
-        )
-        return mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues(
-            **response.json()
-        )
-
     @staticmethod
     def _parse_labels(
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]],

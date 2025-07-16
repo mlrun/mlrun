@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Callable, ClassVar, Literal, Optional, Union
 
 import pandas as pd
@@ -78,21 +78,6 @@ class TSDBConnector(ABC):
         Write a single application or metric to TSDB.
 
         :raise mlrun.errors.MLRunRuntimeError: If an error occurred while writing the event.
-        """
-
-    @abstractmethod
-    def get_drift_data(
-        self,
-        start: datetime,
-        end: datetime,
-    ) -> mm_schemas.ModelEndpointDriftValues:
-        """
-        Fetches drift counts per interval in the specified time range.
-
-        :param start: The start time of the query.
-        :param end:   The end time of the query.
-
-        :return: A ModelEndpointDriftValues object containing drift data.
         """
 
     @abstractmethod
@@ -718,59 +703,3 @@ class TSDBConnector(ABC):
                 )
             )
         return {dict_key: metrics}
-
-    @staticmethod
-    def _prepare_aligned_start_end(
-        start: datetime, end: datetime
-    ) -> tuple[datetime, datetime, str]:
-        delta = end - start
-        if delta <= timedelta(hours=6):
-            interval = "10m"
-            start = start.replace(
-                minute=start.minute // 10 * 10, second=0, microsecond=0
-            )
-        elif delta <= timedelta(hours=72):
-            interval = "1h"
-            start = start.replace(minute=0, second=0, microsecond=0)
-        else:
-            interval = "1d"
-            start = start.replace(hour=0, minute=0, second=0, microsecond=0)
-
-        interval_map = {
-            "10m": timedelta(minutes=10),
-            "1h": timedelta(hours=1),
-            "1d": timedelta(days=1),
-        }
-        delta = end - start
-        interval_td = interval_map[interval]
-        end = start + (delta // interval_td) * interval_td
-        return start, end, interval
-
-    @staticmethod
-    def _df_to_drift_data(df: pd.DataFrame) -> mm_schemas.ModelEndpointDriftValues:
-        suspected_val = mm_schemas.constants.ResultStatusApp.potential_detection.value
-        detected_val = mm_schemas.constants.ResultStatusApp.detected.value
-        aggregated_df = (
-            df.groupby(["_wstart", f"max({mm_schemas.ResultData.RESULT_STATUS})"])
-            .size()  # add size column for each interval x result-status combination
-            .unstack()  # create a size column for each result-status
-            .reindex(
-                columns=[suspected_val, detected_val], fill_value=0
-            )  # ensure both columns exists
-            .fillna(0)
-            .astype(int)
-            .rename(
-                columns={
-                    suspected_val: "count_suspected",
-                    detected_val: "count_detected",
-                }
-            )
-        )
-        values = list(
-            zip(
-                aggregated_df.index,
-                aggregated_df["count_suspected"],
-                aggregated_df["count_detected"],
-            )
-        )
-        return mm_schemas.ModelEndpointDriftValues(values=values)

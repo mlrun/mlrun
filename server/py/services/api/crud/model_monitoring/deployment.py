@@ -974,7 +974,7 @@ class MonitoringDeployment:
             list[mlrun.common.schemas.model_monitoring.FunctionSummary]
         ],
         agg_stats: bool = True,
-    ):
+    ) -> None:
         """
         Enrich the function with stream stats.
         :param function_summaries: List of `FunctionSummary` objects to enrich with stream stats.
@@ -1014,7 +1014,7 @@ class MonitoringDeployment:
                     if stream_stats and agg_stats:
                         lag = 0
                         committed = 0
-                        for shard, stats in stream_stats.items():
+                        for _, stats in stream_stats.items():
                             lag += stats.get("lag", 0)
                             committed += stats.get("committed", 0)
                         stream_stats = {

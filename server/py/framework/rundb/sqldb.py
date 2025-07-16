@@ -98,6 +98,15 @@ class SQLRunDB(RunDBInterface):
             updates,
         )
 
+    def toggle_run_retrying_state(self, project: str, uid: str, retrying: bool):
+        return self._transform_db_error(
+            services.api.crud.Runs().toggle_run_retrying_state,
+            self.session,
+            project,
+            uid,
+            retrying,
+        )
+
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         raise NotImplementedError()
 

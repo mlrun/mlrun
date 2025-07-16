@@ -712,6 +712,7 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             parameters={
                 "run_uid": rerun_request.run_id,
                 "project_name": project.metadata.name,
+                "original_runner_uid": rerun_request.original_workflow_runner_uid,
             },
             notifications=notifications,
             run_name=rerun_request.run_name,

@@ -735,6 +735,11 @@ class HTTPRunDB(RunDBInterface):
         body = _as_json(updates)
         self.api_call("PATCH", path, error, params=params, body=body, timeout=timeout)
 
+    def toggle_run_retrying_state(self, project: str, uid: str, retrying: bool):
+        path = f"projects/{project}/runs/{uid}/retrying"
+        params = {"retrying": retrying}
+        self.api_call("POST", path, f"set retrying on {project}/{uid}", params=params)
+
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         """
         Abort a running run - will remove the run's runtime resources and mark its state as aborted.

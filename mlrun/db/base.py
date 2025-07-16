@@ -56,6 +56,10 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def toggle_run_retrying_state(self, project: str, uid: str, retrying: bool):
+        pass
+
+    @abstractmethod
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         pass
 

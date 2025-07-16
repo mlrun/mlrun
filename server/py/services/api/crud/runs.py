@@ -135,6 +135,14 @@ class Runs(
 
         return run
 
+    def toggle_run_retrying_state(
+        self, db_session, project: str, run_id: str, retrying: bool
+    ):
+        """Mark this original-runner as ‘retrying’. Blocks until exclusive lock acquired."""
+        framework.utils.singletons.db.get_db().toggle_run_retrying_state(
+            session=db_session, project=project, uid=run_id, retrying=retrying
+        )
+
     def list_runs(
         self,
         db_session: sqlalchemy.orm.Session,

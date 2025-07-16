@@ -1072,7 +1072,7 @@ def github_webhook(request):
 
 
 def rerun_workflow(
-    context: mlrun.execution.MLClientCtx, run_uid: str, project_name: str
+    context: mlrun.execution.MLClientCtx, run_uid: str, project_name: str, original_runner_uid: str
 ):
     """
     Re-run a workflow by retrying a previously failed KFP pipeline.
@@ -1080,6 +1080,7 @@ def rerun_workflow(
     :param context:      MLRun context.
     :param run_uid:      The run UID of the original workflow to retry.
     :param project_name: The project name.
+    :param original_runner_uid: The original workflow runner UID.
     """
     db = mlrun.get_run_db()
 
@@ -1126,6 +1127,8 @@ def rerun_workflow(
     else:
         final_state = pipeline["run"]["status"]
         context.log_result("workflow_state", final_state, commit=True)
+
+        db.toggle_run_retrying_state(project=project_name, uid=original_runner_uid, retrying=False)
 
         if final_state != mlrun_pipelines.common.models.RunStatuses.succeeded:
             raise mlrun.errors.MLRunRuntimeError(

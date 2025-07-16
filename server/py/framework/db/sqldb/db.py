@@ -331,6 +331,41 @@ class SQLDB(DBInterface):
         self._delete_empty_labels(session, Run.Label)
         return run.struct
 
+    def toggle_run_retrying_state(
+        self,
+        session: Session,
+        project: str,
+        uid: str,
+        retrying: bool,
+    ) -> dict:
+        """
+        Atomically LOCK the run row FOR UPDATE, then either add or remove the
+        `retrying` label according to the `retrying` argument.
+        """
+        run = self._get_run(session, uid, project, iteration=0, with_for_update=True)
+        if not run:
+            raise mlrun.errors.MLRunNotFoundError(f"Run {project}/{uid} not found")
+
+        struct = run.struct
+        labels = run_labels(struct)
+        logger.info("Yaelllll", struct=struct, labels=labels, type_struct=type(struct))
+
+        if retrying:
+            if mlrun_constants.MLRunInternalLabels.retrying in labels:
+                raise mlrun.errors.MLRunConflictError
+            else:
+                labels[mlrun_constants.MLRunInternalLabels.retrying] = "true"
+                # optionally bump counter here in follow-up
+                # labels["rerun_counter"] = str(int(labels.get("rerun_counter","0")) + 1)
+        else:
+            labels.pop("retrying", None)
+
+        update_in(struct, "metadata.labels", labels)
+        run.struct = struct
+        self._upsert(session, [run])
+
+        return struct
+
     def list_distinct_runs_uids(
         self,
         session,

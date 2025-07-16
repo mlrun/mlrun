@@ -348,7 +348,6 @@ class SQLDB(DBInterface):
 
         struct = run.struct
         labels = run_labels(struct)
-        logger.info("Yaelllll", struct=struct, labels=labels, type_struct=type(struct))
 
         if retrying:
             if mlrun_constants.MLRunInternalLabels.retrying in labels:

@@ -1131,6 +1131,8 @@ def rerun_workflow(
         final_state = pipeline["run"]["status"]
         context.log_result("workflow_state", final_state, commit=True)
 
+        # Once the rerun has finished, clear the “retrying” label on the original runner
+        # so that subsequent retry requests can acquire the lock again.
         db.toggle_run_retrying_state(
             project=project_name, uid=original_runner_uid, retrying=False
         )

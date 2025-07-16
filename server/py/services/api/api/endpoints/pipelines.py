@@ -211,6 +211,9 @@ async def retry_pipeline(
         return run_id
 
     try:
+        # Prevent two simultaneous retries for the same original workflow—
+        # we lock the original-runner row, mark it retrying, and block any
+        # parallel retry requests until it’s cleared.
         await fastapi.concurrency.run_in_threadpool(
             services.api.crud.Pipelines().lock_run_and_mark_retrying,
             db_session=db_session,
@@ -226,7 +229,9 @@ async def retry_pipeline(
         )
         if workflow_response:
             return workflow_response
-        raise
+        raise mlrun.errors.MLRunConflictError(
+            "A retry is already in progress, but no existing rerun was found."
+        )
 
     try:
         workflow_response: mlrun.common.schemas.WorkflowResponse = (

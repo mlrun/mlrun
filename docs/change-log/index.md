@@ -18,7 +18,7 @@ The change log lists updates per version, open issues, limitations, and deprecat
 
 ## Upgrading KFP, Python, and Pydantic
 Upgrading these three MLRun dependencies spans several releases.  The upgrades are comprised of:
-- KFP: from 1.8 to 2.0. KFP has 2 components: the KFP service, and the KFP client code (which is used in both the MLRun service and various MLRun clients).
+- KFP: from 1.8 to 2.x. KFP has 2 components: the KFP service, and the KFP client package (which is used in both the MLRun service and some MLRun clients) and pipeline code (which is provided by the user).
 - Pydantic: from version 1 to 2.
 - Python: from 3.9 to 3.11.
 

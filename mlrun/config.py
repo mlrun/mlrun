@@ -194,7 +194,7 @@ default_config = {
     "v3io_framesd": "http://framesd:8080",
     "model_providers": {
         "openai_default_model": "gpt-4o",
-        "huggingface_default_model": "google/gemma-2b-it",
+        "huggingface_default_model": "microsoft/Phi-3-mini-4k-instruct",
     },
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",

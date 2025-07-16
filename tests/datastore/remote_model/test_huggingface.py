@@ -11,8 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pytest
 
-env:
-  HF_TOKEN:
-  HF_DEVICE:
-  HF_DEVICE_MAP:
+from mlrun.datastore.model_provider.huggingface_provider import HuggingFaceProvider
+
+
+@pytest.mark.parametrize("response, expected_str_response", [
+    ([{'generated_text': 'The capital of Germany is Berlin.'}], "The capital of Germany is Berlin."),
+])
+def test_response_to_str(response, expected_str_response):
+    extracted_string = HuggingFaceProvider._extract_string_output(result=response)
+    assert extracted_string == expected_str_response

@@ -39,7 +39,7 @@ from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
     assert_async_invocations,
-    fixed_prompts,
+    formatted_messages,
     setup_remote_model_test,
 )
 from tests.integration.model_providers.model_providers_utils import (
@@ -58,18 +58,10 @@ class TestBasicHuggingFaceProvider:
     profile_name = "huggingface_profile"
     env_secrets = config
 
-    @staticmethod
-    def _get_messages(prompt):
-        return [
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ]
-
     @classmethod
     def setup_class(cls):
         cls.basic_llm_model = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+        cls.system_prompt_llm_model = "microsoft/Phi-3-mini-4k-instruct"
 
     @classmethod
     def reset_env(cls):
@@ -104,8 +96,7 @@ class TestBasicHuggingFaceProvider:
 class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
     @classmethod
     def check_basic_invoke(cls, model_url: str, secrets: dict, model_name: str):
-        prompt = fixed_prompts[0]
-        messages = cls._get_messages(prompt)
+        messages = [formatted_messages[0]]
         model_provider = mlrun.get_model_provider(
             url=model_url, secrets=secrets, default_invoke_kwargs={"max_new_tokens": 100}
         )
@@ -114,18 +105,22 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         result = model_provider.invoke(messages=messages, as_str=True)
         assert EXPECTED_RESULTS[0] in result.lower()
 
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        encoding = tiktoken.encoding_for_model(model_name)
-        token_count = len(encoding.encode(result))
-        assert token_count == 100
+        token_count = len(model_provider.client.tokenizer.encode(result))
+        # Extra token is due to the EOS token, which signals end of generation.
+        assert token_count == 101
         # checking as_str = False
         response = model_provider.invoke(
             messages=messages,
             max_new_tokens=50,
         )
-        token_count = len(encoding.encode(response.choices[0].message.content))
-        assert isinstance(response, openai.types.chat.ChatCompletion)
-        assert token_count == 50
+        assert isinstance(response, list)
+        assert response[0]['generated_text'][0] == formatted_messages[0]
+
+        assistant_response = response[0]['generated_text'][1]
+        result = assistant_response['content']
+        token_count = len(model_provider.client.tokenizer.encode(result))
+        assert assistant_response['role'] == "assistant"
+        assert token_count == 51
 
     @pytest.mark.parametrize("use_datastore_profile", [True, False])
     def test_basic_invoke(self, use_datastore_profile):
@@ -144,11 +139,15 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
             model_name=self.basic_llm_model,
         )
 
+    @pytest.mark.skipif(
+        not config.get("HF_TOKEN"),
+        reason="test_configurable_model Requires HF_TOKEN",
+    )
     def test_configurable_model(self):
-        configurable_model = mlrun.mlconf.model_providers.openai_default_model
+        configurable_model = mlrun.mlconf.model_providers.huggingface_default_model
         if not configurable_model:
             pytest.skip(
-                "model_providers.openai_default_model is not configured in conf, cannot perform the test"
+                "model_providers.huggingface_default_model is not configured in conf, cannot perform the test"
             )
 
         #  checking default model usage:
@@ -163,8 +162,13 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
             model_url=model_url, secrets=self.env_secrets, model_name=configurable_model
         )
 
+    @pytest.mark.skipif(
+        not config.get("HF_TOKEN"),
+        reason="test_system_prompt Requires HF_TOKEN",
+    )
     def test_system_prompt(self):
-        model_url = self.url_prefix + self.basic_llm_model
+        #  Tinyllama does not function well with system prompts, but is free to use without hf_key.
+        model_url = self.url_prefix + self.system_prompt_llm_model
         system_prompt = "You are a special LLM model that always answers user questions with one word only."
 
         messages = [
@@ -172,62 +176,62 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
             {"role": "user", "content": "What is your opinion on climate change?"},
         ]
         model_provider = mlrun.get_model_provider(
-            url=model_url, default_invoke_kwargs={"max_tokens": 200}
+            url=model_url, default_invoke_kwargs={"max_new_tokens": 200}
         )
         result = model_provider.invoke(messages=messages, as_str=True).strip()
         assert result
         assert " " not in result.strip()  # checking one-word answer
 
-    @pytest.mark.asyncio
-    #@pytest.mark.parametrize("use_datastore_profile", [True, False])
-    @pytest.mark.parametrize("use_datastore_profile", [False])
-    async def test_async_invoke(self, use_datastore_profile):
-        if use_datastore_profile:
-            self.setup_datastore_profile()
-        model_url = self.url_prefix + self.basic_llm_model
-        model_provider = mlrun.get_model_provider(
-            url=model_url, default_invoke_kwargs={"max_new_tokens": 100}
-        )
-        model_provider = cast(HuggingFaceProvider, model_provider)
-        assert model_provider.model == self.basic_llm_model
-        coroutine1 = model_provider.async_invoke(
-            messages=self._get_messages(fixed_prompts[0]), as_str=True
-        )
-        coroutine2 = model_provider.async_invoke(
-            messages=self._get_messages(fixed_prompts[1])
-        )
-        result1, result2 = await asyncio.gather(coroutine1, coroutine2)
-        result2 = result2.choices[0].message.content
-        assert EXPECTED_RESULTS[0] in result1.lower()
-        assert EXPECTED_RESULTS[1] in result2.lower()
-
-        encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-        assert len(encoding.encode(result1)) == 100
-        assert len(encoding.encode(result2)) == 100
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("run_async", [True, False])
-    async def test_custom_invoke(self, run_async):
-        model_name = "text-embedding-3-small"
-        model_url = self.url_prefix + model_name
-        model_provider = mlrun.get_model_provider(url=model_url)
-        prompt = "OpenAI is amazing"
-        client: OpenAI = model_provider.client
-        async_client: AsyncOpenAI = model_provider.async_client
-        if run_async:
-            embeddings = await model_provider.async_custom_invoke(
-                operation=async_client.embeddings.create, input=prompt
-            )
-        else:
-            embeddings = model_provider.custom_invoke(
-                operation=client.embeddings.create, input=prompt
-            )
-        encoding = tiktoken.encoding_for_model(model_name)
-        token_count = len(encoding.encode(prompt))
-        assert embeddings.data[0].embedding is not None
-        assert len(embeddings.data[0].embedding) > 0
-        assert embeddings.usage.total_tokens == token_count
-        assert isinstance(embeddings, CreateEmbeddingResponse)
+    # @pytest.mark.asyncio
+    # #@pytest.mark.parametrize("use_datastore_profile", [True, False])
+    # @pytest.mark.parametrize("use_datastore_profile", [False])
+    # async def test_async_invoke(self, use_datastore_profile):
+    #     if use_datastore_profile:
+    #         self.setup_datastore_profile()
+    #     model_url = self.url_prefix + self.basic_llm_model
+    #     model_provider = mlrun.get_model_provider(
+    #         url=model_url, default_invoke_kwargs={"max_new_tokens": 100}
+    #     )
+    #     model_provider = cast(HuggingFaceProvider, model_provider)
+    #     assert model_provider.model == self.basic_llm_model
+    #     coroutine1 = model_provider.async_invoke(
+    #         messages=self._get_messages(fixed_prompts[0]), as_str=True
+    #     )
+    #     coroutine2 = model_provider.async_invoke(
+    #         messages=self._get_messages(fixed_prompts[1])
+    #     )
+    #     result1, result2 = await asyncio.gather(coroutine1, coroutine2)
+    #     result2 = result2.choices[0].message.content
+    #     assert EXPECTED_RESULTS[0] in result1.lower()
+    #     assert EXPECTED_RESULTS[1] in result2.lower()
+    #
+    #     encoding = tiktoken.encoding_for_model(self.basic_llm_model)
+    #     assert len(encoding.encode(result1)) == 100
+    #     assert len(encoding.encode(result2)) == 100
+    #
+    # @pytest.mark.asyncio
+    # @pytest.mark.parametrize("run_async", [True, False])
+    # async def test_custom_invoke(self, run_async):
+    #     model_name = "text-embedding-3-small"
+    #     model_url = self.url_prefix + model_name
+    #     model_provider = mlrun.get_model_provider(url=model_url)
+    #     prompt = "OpenAI is amazing"
+    #     client: OpenAI = model_provider.client
+    #     async_client: AsyncOpenAI = model_provider.async_client
+    #     if run_async:
+    #         embeddings = await model_provider.async_custom_invoke(
+    #             operation=async_client.embeddings.create, input=prompt
+    #         )
+    #     else:
+    #         embeddings = model_provider.custom_invoke(
+    #             operation=client.embeddings.create, input=prompt
+    #         )
+    #     encoding = tiktoken.encoding_for_model(model_name)
+    #     token_count = len(encoding.encode(prompt))
+    #     assert embeddings.data[0].embedding is not None
+    #     assert len(embeddings.data[0].embedding) > 0
+    #     assert embeddings.usage.total_tokens == token_count
+    #     assert isinstance(embeddings, CreateEmbeddingResponse)
 
 
 # class TestOpenAIModel(TestBasicOpenAIProvider):

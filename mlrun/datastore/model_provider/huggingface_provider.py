@@ -71,24 +71,7 @@ class HuggingFaceProvider(ModelProvider):
         if not isinstance(result, list) or len(result) == 0:
             raise ValueError("Empty or invalid pipeline output")
 
-        item = result[0]
-
-        if isinstance(item, dict):
-            generated = item.get("generated_text")
-
-            if isinstance(generated, str):
-                return generated.strip()
-
-            elif isinstance(generated, list):
-                for message in reversed(generated):
-                    if isinstance(message, dict) and message.get("role") == "assistant":
-                        return message.get("content", "").strip()
-
-                # Fallback: just get the last message content
-                if isinstance(generated[-1], dict):
-                    return generated[-1].get("content", "").strip()
-
-        raise ValueError("Unsupported pipeline output format")
+        return result[0].get("generated_text")
 
     @classmethod
     def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):
@@ -180,14 +163,15 @@ class HuggingFaceProvider(ModelProvider):
         else:
             return await self._default_async_operation(**invoke_kwargs)
 
-
     def invoke(
         self,
         messages: Union[str, list[str], ChatType, list[ChatType]] = None,
         as_str: bool = False,
         **invoke_kwargs,
-    ) -> Optional[Union[str, T]]:
+    ) -> Optional[Union[str, list, T]]:
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
+        if as_str:
+            invoke_kwargs["return_full_text"] = False
         response = self._default_operation(messages, **invoke_kwargs)
         if as_str:
             return self._extract_string_output(response)

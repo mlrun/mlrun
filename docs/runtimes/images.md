@@ -3,8 +3,6 @@
 
 Every release of MLRun includes several images for different usages. The build and the infrastructure images are described, and located, in the [README](https://github.com/mlrun/mlrun/blob/development/dockerfiles/README.md). They are also published to [DockerHub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).
 
-This release of MLRun supports only Python 3.9.
-
 **In this section**
 - [Using images](#using-images)
 - [MLRun runtime images](#mlrun-runtime-images)

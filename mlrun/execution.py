@@ -94,6 +94,7 @@ class MLClientCtx:
         self._state_thresholds = {}
         self._retry_spec = {}
         self._retry_count = None
+        self._retries = []
 
         self._labels = {}
         self._annotations = {}
@@ -468,6 +469,7 @@ class MLClientCtx:
             for key, uri in status.get("artifact_uris", {}).items():
                 self._artifacts_manager.artifact_uris[key] = uri
             self._retry_count = status.get("retry_count", self._retry_count)
+            self._retries = status.get("retries", self._retries)
             # if run is a retry, the state needs to move to running
             if include_status:
                 self._state = status.get("state", self._state)
@@ -1273,6 +1275,7 @@ class MLClientCtx:
                 "start_time": to_date_str(self._start_time),
                 "last_update": to_date_str(self._last_update),
                 "retry_count": self._retry_count,
+                "retries": self._retries,
             },
         }
 

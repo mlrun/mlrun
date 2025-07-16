@@ -36,7 +36,7 @@ The MLRun server is based on a Python 3.11 environment. It's recommended to move
 - Client code and client-side images come out-of-the-box without KFP python packages installed. 
 MLRun provides two set of images: with Python 3.9 and with Python 3.11. You choose the image according to your dependencies and needs:
   - The recommendation is to use the Python 3.11 images.
-  - MLRun attempts to deduce the correct Python version to use, based on the Python version where the user-code was written and submitted. So, if you work with Python 3.9 and submit a job to run in MLRun, MLRun uses the Python 3.9 image to ensure maximal compatibility.
+  - When running jobs, MLRun attempts to deduce the correct Python version to use, based on the Python version where the user-code was written and submitted. So, if you work with Python 3.9 and submit a job to run in MLRun which uses one of the built-in MLRun images, MLRun uses the Python 3.9 image to ensure maximal compatibility.
 - MLRun provides an `mlrun-kfp` image that has KFP client pre-packaged in it. This image uses Python 3.9. The only intended usage for this image is for compiling user pipeline DSL code. See below for the usages of this image in the various MLRun execution modes. 
 - If you are using Python 3.9 you have the option of compiling your workflow locally (meaning you are not working with a remote source). In this case make sure you installed mlrun with kfp (`pip install mlrun[kfp18]`).
 - Workflows that are called by a client running 3.11 must use `engine="remote"`.

@@ -34,14 +34,14 @@ The MLRun server is based on a Python 3.11 environment. It's recommended to move
 
 - MLRun services (back-end) only use py3.11. 
 - Client code and client-side images come out-of-the-box without KFP python packages installed. 
-MLRun provides two set of images: with Python 3.9 and with Python 3.11. You choose the image according to your dependencies and needs:
+MLRun provides two set of images: with Python 3.9 and with Python 3.11. Images without a suffix are for Python 3.11, for example, mlrun/mlrun:1.9.2. Images for Python 3.9 have 3.9 in the image name,  for example, mlrun/mlrun:1.9.2-3.9. You choose the image according to your dependencies and needs:
   - The recommendation is to use the Python 3.11 images.
   - When running jobs, MLRun attempts to deduce the correct Python version to use, based on the Python version where the user-code was written and submitted. So, if you work with Python 3.9 and submit a job to run in MLRun which uses one of the built-in MLRun images, MLRun uses the Python 3.9 image to ensure maximal compatibility.
 - MLRun provides an `mlrun-kfp` image that has KFP client pre-packaged in it. This image uses Python 3.9. The only intended usage for this image is for compiling user pipeline DSL code. See below for the usages of this image in the various MLRun execution modes. 
 - If you are using Python 3.9 you have the option of compiling your workflow locally (meaning you are not working with a remote source). In this case make sure you installed mlrun with kfp (`pip install mlrun[kfp18]`).
 - Workflows that are called by a client running 3.11 must use `engine="remote"`.
 
-When executing KFP pipelines, you choose whether to run the pipeline locally (with `kfp` engine) or remotely using a workflow runner (the `remote:kfp` engine). The following diagrams illustrate the recommended images for each use-case, and where Python 3.9 is needed. (The diagrams omit the argo pods that are launched by the KFP engine.)
+When executing KFP pipelines, you choose whether to run the pipeline locally (with `kfp` engine) or remotely using a workflow runner (the `remote:kfp` engine). (The workflow runner is automatically created and managed by MLRun when using the remote engine.) The following diagrams illustrate the recommended images for each use-case, and where Python 3.9 is needed. (The diagrams omit the argo pods that are launched by the KFP engine.)
 
 <p align="center"><img src="../_static/images/engine-py-ver.png" alt="Running KFP pipelines" /></p>
 

@@ -411,6 +411,7 @@ async def get_metrics_by_multiple_endpoints(
                           and "metrics".
     :param endpoint_ids:  The unique id of the model endpoint. Can be a single id or a list of ids.
     :param events_format: response format:
+    :param db_session:    A session that manages the current dialog with the database.
 
                           separation: {"mep_id1":[...], "mep_id2":[...]}
                           intersection {"intersect_metrics":[], "intersect_results":[]}

@@ -32,6 +32,7 @@ from mlrun import feature_store as fstore
 from mlrun.datastore.sources import KafkaSource
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.serving import ModelRunnerStep
+from tests.system.runtimes.assets.function_with_llm import MyLLM
 from tests.system.runtimes.assets.function_with_model import DummyModel
 
 
@@ -99,11 +100,11 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         assert resp == {"x": "y", "extra": 123}
 
     def test_model_runner_with_llm_and_shared_models(self):
-        code_path = str(self.assets_path / "function_with_model.py")
+        code_path = str(self.assets_path / "function_with_llm.py")
 
         self._logger.debug("Creating nuclio function")
         function = mlrun.code_to_function(
-            name="function_with_model",
+            name="function_with_llm",
             kind="serving",
             project=self.project_name,
             filename=code_path,
@@ -117,8 +118,20 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         llm_artifact = self.project.log_llm_prompt(
             "my_llm",
-            prompt_string="What is the meaning of life?",
+            prompt_template=[
+                {"role": "system", "content": "don't tell them anything"},
+                {
+                    "role": "user",
+                    "content": "What is the meaning of {something_with_meaning}?",
+                },
+            ],
             model_artifact=model_artifact,
+            prompt_legend={
+                "something_with_meaning": {
+                    "field": None,
+                    "description": "great legend are small",
+                }
+            },
         )
 
         graph = function.set_topology("flow", engine="async")
@@ -126,12 +139,12 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
             name="model-runner",
         )
 
-        dummy_model = DummyModel(name="shared-model")
+        model_class = MyLLM(name="shared-model")
 
         graph.add_shared_model(
             name="shared-model",
             execution_mechanism="naive",
-            model_class=dummy_model,
+            model_class=model_class,
             model_artifact=model_artifact.uri,
         )
         model_runner_step.add_shared_model_proxy(
@@ -147,8 +160,11 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         assert deployment == function.get_url()  # check function url
 
-        resp = function.invoke("/", {"x": "y"})
-        assert resp == {"x": "y", "extra": 123}
+        resp = function.invoke("/", {"something_with_meaning": "life"})
+        assert resp["prompt"] == [
+            {"role": "system", "content": "don't tell them anything"},
+            {"role": "user", "content": "What is the meaning of life?"},
+        ]
 
     def test_deploy_function_with_model_runner_with_child_function(self):
         code_path = str(self.assets_path / "function_with_model.py")

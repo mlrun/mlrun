@@ -587,7 +587,9 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
 
         llm_prompt = self.project.log_llm_prompt(
             "my-llm-prompt",
-            prompt_string="What is the capital of France?",
+            prompt_template=[
+                {"role": "user", "content": "What is the capital of France?"}
+            ],
             artifact_path=f"v3io:///projects/{self.project.metadata.name}",
             model_artifact=model_obj,
         )

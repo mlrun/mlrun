@@ -53,3 +53,4 @@ distributed~=2024.12.1; python_version >= "3.11"
 taos-ws-py==0.3.2
 snowflake-connector-python~=3.7
 openai~=1.88
+huggingface-hub~=0.33.0

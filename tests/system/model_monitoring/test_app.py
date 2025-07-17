@@ -739,8 +739,21 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 )
             )
             evidently_func_summary = evidently_func_summary_list[0]
-            assert evidently_func_summary.stats["potential_detection"] == 1
-            assert evidently_func_summary.stats["detected"] == 0
+
+            evidently_stats = evidently_func_summary.stats
+
+            assert evidently_stats["potential_detection"] == 1
+            assert evidently_stats["detected"] == 0
+
+            # check the stream stats if stream is v3io
+            if isinstance(self.mm_stream_profile, DatastoreProfileV3io):
+                assert evidently_stats["stream_stats"]
+                assert evidently_stats["stream_stats"]["committed"] == 1
+                assert evidently_stats["stream_stats"]["lag"] == 0
+
+            assert evidently_stats["stream_stats"]
+            assert evidently_stats["stream_stats"]["committed"] == 1
+            assert evidently_stats["stream_stats"]["lag"] == 0
         except mlrun.errors.MLRunNotFoundError:
             # Evidently app was not deployed
             pass
@@ -777,6 +790,22 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 "type",
                 "value",
             }, "The metric keys are not as expected"
+
+            assert hist_function_summary.stats["stream_stats"]
+            assert len(hist_function_summary.stats["stream_stats"]) == 1
+            hist_shard_number = list(
+                hist_function_summary.stats["stream_stats"].keys()
+            )[0]
+            assert (
+                hist_function_summary.stats["stream_stats"][hist_shard_number][
+                    "committed"
+                ]
+                == 1
+            )
+            assert (
+                hist_function_summary.stats["stream_stats"][hist_shard_number]["lag"]
+                == 0
+            )
 
     @pytest.mark.parametrize("with_training_set", [True, False])
     @pytest.mark.parametrize("with_model_runner", [True, False])

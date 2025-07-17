@@ -387,7 +387,7 @@ def drift_df() -> pd.DataFrame:
                 "max(result_status)": 1,
             },
         ]
-    )
+    ).set_index("_wstart")
 
 
 @pytest.fixture

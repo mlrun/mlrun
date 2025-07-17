@@ -54,6 +54,11 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_
 
 ENV PATH=/opt/conda/bin:$PATH
 
+# Accept terms of service for the conda channel
+RUN conda tos accept --override-channels \
+    --channel https://repo.anaconda.com/pkgs/main \
+    --channel https://repo.anaconda.com/pkgs/r
+
 RUN conda install -y -n base conda-libmamba-solver && \
     conda config --set solver libmamba && \
     conda clean -aqy

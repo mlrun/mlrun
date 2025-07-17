@@ -195,10 +195,7 @@ class OpenAIProvider(ModelProvider):
         :return:            Same as ModelProvider.invoke.
 
         """
-        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
-        response = self._default_operation(
-            model=self.endpoint, messages=messages, **invoke_kwargs
-        )
+        response = self.custom_invoke(messages=messages, **invoke_kwargs)
         if as_str:
             return response.choices[0].message.content
         return response
@@ -227,10 +224,7 @@ class OpenAIProvider(ModelProvider):
         :returns            Same as ModelProvider.async_invoke.
 
         """
-        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
-        response = await self._default_async_operation(
-            model=self.endpoint, messages=messages, **invoke_kwargs
-        )
+        response = await self.async_custom_invoke(messages=messages, **invoke_kwargs)
         if as_str:
             return response.choices[0].message.content
         return response

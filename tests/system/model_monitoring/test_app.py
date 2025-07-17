@@ -721,9 +721,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                     include_infra=False, names=[DemoEvidentlyMonitoringApp.NAME]
                 )
             )
-            print(
-                "[EYAL] Evidently function summary list:", evidently_func_summary_list
-            )
+
             assert len(evidently_func_summary_list) == 1
             evidently_func_summary = evidently_func_summary_list[0]
 

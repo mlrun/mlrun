@@ -1387,6 +1387,14 @@ class SQLRunDB(RunDBInterface):
     def get_project_summary(self, project: str):
         raise NotImplementedError
 
+    def get_drift_over_time(
+        self,
+        project: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
+        raise NotImplementedError
+
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)
 @containers.override(mlrun.db.factory.RunDBContainer)

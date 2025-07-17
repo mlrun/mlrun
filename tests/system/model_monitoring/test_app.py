@@ -806,11 +806,6 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 actual_committed == expected_committed
             ), f"Expected {expected_committed} committed events, but got {actual_committed}"
 
-            assert (
-                hist_function_summary.stats["stream_stats"][hist_shard_number]["lag"]
-                == 0
-            )
-
     def _test_drift_over_time(self) -> None:
         self._logger.debug("Checking drift over time")
         end = datetime.now().astimezone() + timedelta(

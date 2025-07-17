@@ -39,7 +39,7 @@ WORKDIR /mlrun
 RUN chmod 777 /mlrun
 
 # Install MiniConda:
-ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py312"
+ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py311"
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_25.1.1-2-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \
     rm ~/installconda.sh && \
@@ -50,6 +50,11 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_
     echo "conda activate base" >> ~/.bashrc
 
 ENV PATH=/opt/conda/bin:$PATH
+
+# Accept terms of service for the conda channel
+RUN conda tos accept --override-channels \
+    --channel https://repo.anaconda.com/pkgs/main \
+    --channel https://repo.anaconda.com/pkgs/r
 
 # Install Open-MPI:
 ARG OMPI_VERSION=4.1.5

@@ -22,7 +22,7 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 - Pydantic: from version 1 to 2.
 - Python: from 3.9 to 3.11.
 
-See a full description of KFP, Python, and the workflow engines in in {ref}`local-remote`. Specific changes are listed under the relevant versions.
+See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
 
 (v192)=
 ## v1.9.2 (July 2025)

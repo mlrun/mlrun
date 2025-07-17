@@ -378,6 +378,7 @@ def add_monitoring_general_steps(
     graph: RootFlowStep,
     context,
     serving_spec,
+    pause_until_background_task_completion: bool,
 ) -> tuple[RootFlowStep, FlowStep]:
     """
     Adding the monitoring flow connection steps, this steps allow the graph to reconstruct the serving event enrich it
@@ -386,12 +387,22 @@ def add_monitoring_general_steps(
         "background_task_status_step" --> "filter_none" --> "monitoring_pre_processor_step" --> "flatten_events"
         --> "sampling_step" --> "filter_none_sampling" --> "model_monitoring_stream"
     """
+    background_task_status_step = None
+    if pause_until_background_task_completion:
+        background_task_status_step = graph.add_step(
+            "mlrun.serving.system_steps.BackgroundTaskStatus",
+            "background_task_status_step",
+            model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
+        )
     monitor_flow_step = graph.add_step(
         "storey.Filter",
         "filter_none",
         _fn="(event is not None)",
+        after="background_task_status_step" if background_task_status_step else None,
         model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
     )
+    if background_task_status_step:
+        monitor_flow_step = background_task_status_step
     graph.add_step(
         "mlrun.serving.system_steps.MonitoringPreProcessor",
         "monitoring_pre_processor_step",
@@ -466,15 +477,16 @@ def add_system_steps_to_graph(
     monitored_steps = graph.get_monitored_steps()
     graph = add_error_raiser_step(graph, monitored_steps)
     if track_models:
-        if pause_until_background_task_completion:
-            graph.add_step(
-                "mlrun.serving.system_steps.BackgroundTaskStatus",
-                "background_task_status_step",
-                model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
-            )
+        background_task_status_step = None
         graph, monitor_flow_step = add_monitoring_general_steps(
-            project, graph, context, serving_spec
+            project,
+            graph,
+            context,
+            serving_spec,
+            pause_until_background_task_completion,
         )
+        if background_task_status_step:
+            monitor_flow_step = background_task_status_step
         # Connect each model runner to the monitoring step:
         for step_name, step in monitored_steps.items():
             if monitor_flow_step.after:
@@ -499,13 +511,18 @@ def v2_serving_init(context, namespace=None):
     context.logger.info("Initializing server from spec")
     spec = mlrun.utils.get_serving_spec()
     server = GraphServer.from_dict(spec)
-    server.graph = add_system_steps_to_graph(
-        server.project,
-        copy.deepcopy(server.graph),
-        spec.get("track_models"),
-        context,
-        spec,
-    )
+    if isinstance(server.graph, RootFlowStep) and server.graph.include_monitored_step():
+        server.graph = add_system_steps_to_graph(
+            server.project,
+            copy.deepcopy(server.graph),
+            spec.get("track_models"),
+            context,
+            spec,
+        )
+        context.logger.info_with(
+            "Server graph after adding system steps",
+            graph=str(server.graph.steps),
+        )
 
     if config.log_level.lower() == "debug":
         server.verbose = True
@@ -585,15 +602,6 @@ async def async_execute_graph(
                 "Aborting job because the model endpoint creation background task did not succeed "
                 f"(status='{task_state}')"
             )
-
-    server.graph = add_system_steps_to_graph(
-        server.project,
-        copy.deepcopy(server.graph),
-        spec.get("track_models"),
-        context,
-        spec,
-        pause_until_background_task_completion=False,  # we've already awaited it
-    )
 
     if config.log_level.lower() == "debug":
         server.verbose = True

@@ -16,7 +16,6 @@ import traceback
 from http import HTTPStatus
 from typing import Optional
 
-import fastapi
 import kubernetes.client
 from fastapi import (
     APIRouter,

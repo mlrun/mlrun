@@ -15,7 +15,7 @@
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Union
 from unittest.mock import Mock, patch
@@ -295,7 +295,17 @@ def test_window_generator_validation(
     expectation: AbstractContextManager,
 ) -> None:
     with expectation:
-        next(ModelMonitoringApplicationBase._window_generator(start, end, base_period))
+        next(
+            ModelMonitoringApplicationBase._window_generator(
+                start=start,
+                end=end,
+                base_period=base_period,
+                application_schedules=None,
+                endpoint_id="",
+                application_name="",
+                allow_unordered_data=False,
+            )
+        )
 
 
 @pytest.mark.parametrize(
@@ -314,7 +324,7 @@ def test_window_generator_validation(
         ),
         (
             datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
             600,
             [
                 (
@@ -324,10 +334,6 @@ def test_window_generator_validation(
                 (
                     datetime(2008, 9, 1, 20, 2, 1, tzinfo=timezone.utc),
                     datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
-                ),
-                (
-                    datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
-                    datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
                 ),
             ],
         ),
@@ -365,11 +371,63 @@ def test_windows(
     assert (
         list(
             ModelMonitoringApplicationBase._window_generator(
-                start=start.isoformat(), end=end.isoformat(), base_period=base_period
+                start=start.isoformat(),
+                end=end.isoformat(),
+                base_period=base_period,
+                application_schedules=None,
+                endpoint_id="",
+                application_name="",
+                allow_unordered_data=False,
             )
         )
         == expected_windows
     ), "The generated windows are different than expected"
+
+
+@pytest.mark.parametrize(
+    ("base_period", "start_dt", "end_dt", "expectation"),
+    [
+        (
+            600,
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="The difference between `end` and `start` must be a multiple of "
+                "`base_period`:.*Consider changing the `end` time to.*",
+            ),
+        ),
+        (
+            10,
+            datetime(2025, 7, 1, 0, 0, 0, tzinfo=timezone.utc),
+            datetime(2025, 7, 1, 0, 10, 0, tzinfo=timezone.utc),
+            does_not_raise(),
+        ),
+        (
+            15,
+            datetime(2025, 7, 1, 0, 0, 0, tzinfo=timezone.utc),
+            datetime(2025, 7, 1, 0, 10, 0, tzinfo=timezone.utc),
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="The difference between `end` and `start` must be a multiple of "
+                "`base_period`:.*The `base_period` is longer than the difference between `end` and `start`.*",
+            ),
+        ),
+    ],
+)
+def test_validate_and_get_window_length(
+    base_period: int,
+    start_dt: datetime,
+    end_dt: datetime,
+    expectation: AbstractContextManager,
+) -> None:
+    with expectation:
+        window_length = ModelMonitoringApplicationBase._validate_and_get_window_length(
+            base_period=base_period, start_dt=start_dt, end_dt=end_dt
+        )
+        assert window_length == timedelta(
+            minutes=base_period
+        ), "The window length is different than expected"
 
 
 def test_job_handler() -> None:

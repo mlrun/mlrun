@@ -22,31 +22,7 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 - Pydantic: from version 1 to 2.
 - Python: from 3.9 to 3.11.
 
-This section describes the current guidelines. Specific changes are listed under the relevant versions.
-
-### KFP
-MLRun supports the KFP 2.x server, but workflows still require the KFP 1.8 syntax. Usage guidelines:
-- Client code, workflow code and syntax (DSL) is still the KFP 1.8 syntax. Working with the newer KFP 2.x syntax is not yet supported by MLRun.
-- Starting with MLRun v1.8.0, KFP client package is not pre-installed on images such as `mlrun/mlrun`. The image `mlrun/mlrun-kfp` includes KFP, but works only with Python 3.9.
-- You can install KFP manually (`pip install kfp~=1.8`), for example, to run KFP pipelines locally using the KFP 1.8 client, which requires Python 3.9.
-### Python 
-The MLRun server is based on a Python 3.11 environment. It's recommended to move the client to a Python 3.11 environment as well, although the MLRun client supports both Python 3.9 and Python 3.11.
-
-- MLRun services (back-end) only use py3.11. 
-- Client code and client-side images come out-of-the-box without KFP python packages installed. 
-MLRun provides two set of images: with Python 3.9 and with Python 3.11. Images without a suffix are for Python 3.11, for example, mlrun/mlrun:1.9.2. Images for Python 3.9 have 3.9 in the image name,  for example, mlrun/mlrun:1.9.2-3.9. You choose the image according to your dependencies and needs:
-  - The recommendation is to use the Python 3.11 images.
-  - When running jobs, MLRun attempts to deduce the correct Python version to use, based on the Python version where the user-code was written and submitted. So, if you work with Python 3.9 and submit a job to run in MLRun which uses one of the built-in MLRun images, MLRun uses the Python 3.9 image to ensure maximal compatibility.
-- MLRun provides an `mlrun-kfp` image that has KFP client pre-packaged in it. This image uses Python 3.9. The only intended usage for this image is for compiling user pipeline DSL code. See below for the usages of this image in the various MLRun execution modes. 
-- If you are using Python 3.9 you have the option of compiling your workflow locally (meaning you are not working with a remote source). In this case make sure you installed mlrun with kfp (`pip install mlrun[kfp18]`).
-- For running workflows from Python 3.11 environments, you must use `engine=remote`. When using the remote engine, the workflow is compiled as a remote run that uses a Python 3.9 image and executes the Python 3.11/3.9 functions (because kfp~1.18 does not support Python 3.11).
-
-When executing KFP pipelines, you choose whether to run the pipeline locally (with `kfp` engine) or remotely using a workflow runner (the `remote:kfp` engine). (The workflow runner is automatically created and managed by MLRun when using the remote engine.) The following diagrams illustrate the recommended images for each use-case, and where Python 3.9 is needed. (The diagrams omit the argo pods that are launched by the KFP engine.)
-
-<p align="center"><img src="../_static/images/engine-py-ver.png" alt="Running KFP pipelines" /></p>
-
-### Pydantic
-MLRun supports Pydantic 1 (default) and 2.
+See a full description of KFP, Python, and the workflow engines in in {ref}`local-remote`. Specific changes are listed under the relevant versions.
 
 (v192)=
 ## v1.9.2 (July 2025)
@@ -71,6 +47,12 @@ MLRun supports Pydantic 1 (default) and 2.
 
 (v191)=
 ## v1.9.1 (June 2025)
+
+### Breaking change
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|NA   |The project default image no longer affects the workflow runner image.|
+
 ### Closed issue
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
@@ -85,11 +67,17 @@ MLRun supports Pydantic 1 (default) and 2.
 |ML-9326| MLRun now supports Python 3.11, and also continues to support Python 3.9. </br>Workflows that use Python 3.11 must use `engine="remote"`. |
 |ML-10199|KFP 2.x server is now supported, but workflows still require the KFP 1.8 syntax. </br>Usage guidelines:<ul><li>Client code and workflow code and syntax (DSL) is still the KFP 1.8 syntax. Working with the newer KFP 2.x syntax is not yet supported by MLRun.</li><li>As in MLRun v1.8.0, KFP is not pre-installed on images such as `mlrun/mlrun`. The image `mlrun/mlrun-kfp` includes KFP, but works with Python 3.9.</li><li>You can install KFP manually (`pip install mlrun[kfp18]`), for example, to run KFP pipelines locally using the KFP 1.8 client, and thereby requiring Python 3.9.</li></ul>|
 
+### Breaking change
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-10186|By default, the remote workflow runs with the mlrun/mlrun-kfp image that includes the KFP Python package. If you want to use a different image to compile your workflow, you must install kfp=~1.18 , use Python 3,9, and you can change the image by using `set_workflow(image=<image-name>)`.|
+
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-4767|PyTorch 2.1.0 is now compatible with `mlrun-gpu` image.|
 |ML-9894|Logging artifacts to the V3IO store does not result in an "EOF occurred in violation of protocol" error.|
+
 
 ### Model monitoring
 

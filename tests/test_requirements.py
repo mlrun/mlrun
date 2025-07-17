@@ -174,7 +174,6 @@ def test_requirement_specifiers_convention():
         "grpcio": {"~=1.70.0"},
         "snowballstemmer": {"!=3.0.0"},
         "kafka-python": {"~=2.1.0"},
-        "huggingface-hub": {"~=0.33"},
     }
 
     for (

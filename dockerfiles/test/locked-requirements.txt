@@ -1023,6 +1023,7 @@ filelock==3.18.0 \
     #   iterative-telemetry
     #   pytest-mock-resources
     #   snowflake-connector-python
+    #   transformers
 fire==0.7.0 ; python_full_version < '3.11' \
     --hash=sha256:961550f07936eaf65ad1dc8360f2b2bf8408fad46abbfa4d2a3794f8d2a95cdf
     # via kfp
@@ -1817,7 +1818,9 @@ httpx==0.27.2 \
 huggingface-hub==0.33.4 \
     --hash=sha256:09f9f4e7ca62547c70f8b82767eefadd2667f4e116acba2e3e62a5a81815a7bb \
     --hash=sha256:6af13478deae120e765bfd92adad0ae1aec1ad8c439b46f23058ad5956cbca0a
-    # via -r dev-requirements.txt
+    # via
+    #   tokenizers
+    #   transformers
 humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
@@ -2022,9 +2025,9 @@ jsonpointer==3.0.0 \
     --hash=sha256:13e088adc14fca8b6aa8177c044e12701e6ad4b28ff10e65f2267a90109c9942 \
     --hash=sha256:2b2d729f2091522d61c3b31f82e11870f60b68f43fbc705cb76bf4b832af59ef
     # via jsonschema
-jsonschema==4.24.0 \
-    --hash=sha256:0b4e8069eb12aedfa881333004bccaec24ecef5a8a6a4b6df142b2cc9599d196 \
-    --hash=sha256:a462455f19f5faf404a7902952b6f0e3ce868f3ee09a359b05eca6673bd8412d
+jsonschema==4.24.1 \
+    --hash=sha256:6b916866aa0b61437785f1277aa2cbd63512e8d4b47151072ef13292049b4627 \
+    --hash=sha256:fe45a130cc7f67cd0d67640b4e7e3e2e666919462ae355eda238296eafeb4b5d
     # via
     #   jupyter-events
     #   kfp
@@ -2954,6 +2957,7 @@ numpy==1.26.4 \
     #   storey
     #   tensorboard
     #   tensorflow
+    #   transformers
     #   xgboost
 oauthlib==3.3.1 \
     --hash=sha256:0f0f8aa759826a193cf66c12ea1af1637f87b9b4622d46e866952bb022e538c9 \
@@ -3184,6 +3188,7 @@ packaging==24.2 \
     #   statsmodels
     #   tensorboard
     #   tensorflow
+    #   transformers
 pandas==2.1.4 \
     --hash=sha256:00028e6737c594feac3c2df15636d73ace46b8314d236100b57ed7e4b9ebe8d9 \
     --hash=sha256:0aa6e92e639da0d6e2017d9ccff563222f4eb31e4b2c3cf32a2a392fc3103c0d \
@@ -4024,6 +4029,7 @@ pyyaml==6.0.2 \
     #   mlflow-skinny
     #   nuclio-jupyter
     #   testcontainers
+    #   transformers
     #   uvicorn
 pyzmq==27.0.0 \
     --hash=sha256:00387d12a8af4b24883895f7e6b9495dc20a66027b696536edac35cb988c38f3 \
@@ -4218,6 +4224,7 @@ regex==2024.11.6 \
     # via
     #   nltk
     #   tiktoken
+    #   transformers
 requests==2.32.4 \
     --hash=sha256:27babd3cda2a6d50b30443204ee89830707d396671944c998b5975b031ac2b2c \
     --hash=sha256:27d0316682c8a29834d3264820024b62a36942083d52caf2f14c0591336d3422
@@ -4247,6 +4254,7 @@ requests==2.32.4 \
     #   snowflake-connector-python
     #   tensorflow
     #   tiktoken
+    #   transformers
     #   v3io
     #   v3io-frames
 requests-mock==1.12.1 \
@@ -4471,6 +4479,23 @@ s3transfer==0.10.4 \
     --hash=sha256:244a76a24355363a68164241438de1b72f8781664920260c48465896b712a41e \
     --hash=sha256:29edc09801743c21eb5ecbc617a152df41d3c287f67b615f73e5f750583666a7
     # via boto3
+safetensors==0.5.3 \
+    --hash=sha256:1077f3e94182d72618357b04b5ced540ceb71c8a813d3319f1aba448e68a770d \
+    --hash=sha256:11bce6164887cd491ca75c2326a113ba934be596e22b28b1742ce27b1d076467 \
+    --hash=sha256:21d01c14ff6c415c485616b8b0bf961c46b3b343ca59110d38d744e577f9cce7 \
+    --hash=sha256:32c3ef2d7af8b9f52ff685ed0bc43913cdcde135089ae322ee576de93eae5135 \
+    --hash=sha256:37f1521be045e56fc2b54c606d4455573e717b2d887c579ee1dbba5f868ece04 \
+    --hash=sha256:391ac8cab7c829452175f871fcaf414aa1e292b5448bd02620f675a7f3e7abb9 \
+    --hash=sha256:4a243be3590bc3301c821da7a18d87224ef35cbd3e5f5727e4e0728b8172411e \
+    --hash=sha256:799021e78287bac619c7b3f3606730a22da4cda27759ddf55d37c8db7511c74b \
+    --hash=sha256:836cbbc320b47e80acd40e44c8682db0e8ad7123209f69b093def21ec7cafd11 \
+    --hash=sha256:8bd84b12b1670a6f8e50f01e28156422a2bc07fb16fc4e98bded13039d688a0d \
+    --hash=sha256:b6b0d6ecacec39a4fdd99cc19f4576f5219ce858e6fd8dbe7609df0b8dc56965 \
+    --hash=sha256:bd20eb133db8ed15b40110b7c00c6df51655a2998132193de2f75f72d99c7073 \
+    --hash=sha256:cead1fa41fc54b1e61089fa57452e8834f798cb1dc7a09ba3524f1eb08e0317a \
+    --hash=sha256:cfc0ec0846dcf6763b0ed3d1846ff36008c6e7290683b61616c4b040f6a54ace \
+    --hash=sha256:df26da01aaac504334644e1b7642fa000bfec820e7cef83aeac4e355e03195ff
+    # via transformers
 scikit-learn==1.5.2 \
     --hash=sha256:03b6158efa3faaf1feea3faa884c840ebd61b6484167c711548fce208ea09445 \
     --hash=sha256:178ddd0a5cb0044464fc1bfc4cca5b1833bfc7bb022d70b05db8530da4bb3dd3 \
@@ -4977,6 +5002,23 @@ tinycss2==1.4.0 \
     --hash=sha256:10c0972f6fc0fbee87c3edb76549357415e94548c1ae10ebccdea16fb404a9b7 \
     --hash=sha256:3a49cf47b7675da0b15d0c6e1df8df4ebd96e9394bb905a5775adb0d884c5289
     # via bleach
+tokenizers==0.21.2 \
+    --hash=sha256:0e73770507e65a0e0e2a1affd6b03c36e3bc4377bd10c9ccf51a82c77c0fe365 \
+    --hash=sha256:106746e8aa9014a12109e58d540ad5465b4c183768ea96c03cbc24c44d329958 \
+    --hash=sha256:126df3205d6f3a93fea80c7a8a266a78c1bd8dd2fe043386bafdd7736a23e45f \
+    --hash=sha256:2c41862df3d873665ec78b6be36fcc30a26e3d4902e9dd8608ed61d49a48bc19 \
+    --hash=sha256:342b5dfb75009f2255ab8dec0041287260fed5ce00c323eb6bab639066fef8ec \
+    --hash=sha256:4a32cd81be21168bd0d6a0f0962d60177c447a1aa1b1e48fa6ec9fc728ee0b12 \
+    --hash=sha256:514cd43045c5d546f01142ff9c79a96ea69e4b5cda09e3027708cb2e6d5762ab \
+    --hash=sha256:58747bb898acdb1007f37a7bbe614346e98dc28708ffb66a3fd50ce169ac6c98 \
+    --hash=sha256:5e9944e61239b083a41cf8fc42802f855e1dca0f499196df37a8ce219abac6eb \
+    --hash=sha256:8bd8999538c405133c2ab999b83b17c08b7fc1b48c1ada2469964605a709ef91 \
+    --hash=sha256:b1b9405822527ec1e0f7d8d2fdb287a5730c3a6518189c968254a8441b21faae \
+    --hash=sha256:cabda5a6d15d620b6dfe711e1af52205266d05b379ea85a8a301b3593c60e962 \
+    --hash=sha256:ed21dc7e624e4220e21758b2e62893be7101453525e3d23264081c9ef9a6d00d \
+    --hash=sha256:fdc7cffde3e2113ba0e6cc7318c40e3438a4d74bbc62bf04bcc63bdfb082ac77 \
+    --hash=sha256:fed9a4d51c395103ad24f8e7eb976811c57fbec2af9f133df471afcd922e5020
+    # via transformers
 tomli==2.2.1 ; python_full_version <= '3.11' \
     --hash=sha256:023aa114dd824ade0100497eb2318602af309e5a55595f76b626d6d9f3b7b0a6 \
     --hash=sha256:02abe224de6ae62c19f090f68da4e27b10af2b93213d36cf44e6e1c5abd19fdd \
@@ -5054,6 +5096,7 @@ tqdm==4.67.1 \
     #   nltk
     #   openai
     #   python-on-whales
+    #   transformers
 traitlets==5.14.3 \
     --hash=sha256:9ed0579d3502c94b4b3732ac120375cda96f923114522847de4b3bb98b96b6b7 \
     --hash=sha256:b74e89e397b1ed28cc831db7aea759ba6640cb3de13090ca145426688ff1ac4f
@@ -5069,6 +5112,10 @@ traitlets==5.14.3 \
     #   nbclient
     #   nbconvert
     #   nbformat
+transformers==4.53.2 \
+    --hash=sha256:6c3ed95edfb1cba71c4245758f1b4878c93bf8cde77d076307dacb2cbbd72be2 \
+    --hash=sha256:db8f4819bb34f000029c73c3c557e7d06fc1b8e612ec142eecdae3947a9c78bf
+    # via -r dev-requirements.txt
 typer==0.16.0 \
     --hash=sha256:1f79bed11d4d02d4310e3c1b7ba594183bcedb0ac73b27a9e5f28f6fb5b98855 \
     --hash=sha256:af377ffaee1dbe37ae9440cb4e8f11686ea5ce4e9bae01b84ae7c63b87f1dd3b

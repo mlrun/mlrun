@@ -1473,4 +1473,5 @@ class V3IOTSDBConnector(TSDBConnector):
         if df.empty:
             return mm_schemas.ModelEndpointDriftValues(values=[])
         df = df[df[f"max({mm_schemas.ResultData.RESULT_STATUS})"] >= 1]
+        df = df.reset_index(names="_wstart")
         return self._df_to_drift_data(df)

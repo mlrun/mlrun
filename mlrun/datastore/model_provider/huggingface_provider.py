@@ -133,8 +133,9 @@ class HuggingFaceProvider(ModelProvider):
         **invoke_kwargs,
     ) -> Optional[Union[str, list, T]]:
         if self.client.task != "text-generation":
-            raise mlrun.errors.MLRunInvalidArgumentError("HuggingFaceProvider.invoke"
-                                                         " supports text-generation task only.")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "HuggingFaceProvider.invoke" " supports text-generation task only."
+            )
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         if as_str:
             invoke_kwargs["return_full_text"] = False

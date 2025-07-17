@@ -492,7 +492,7 @@ class HuggingFaceProfile(DatastoreProfile):
     task: typing.Optional[str] = None
     token: typing.Optional[str] = None
     device: typing.Optional[typing.Union[int, str]] = None
-    device_map: typing.Union[str, typing.Dict[str, typing.Union[int, str]], None] = None
+    device_map: typing.Union[str, dict[str, typing.Union[int, str]], None] = None
 
     def secrets(self) -> dict:
         res = {}

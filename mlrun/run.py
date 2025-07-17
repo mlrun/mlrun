@@ -1190,7 +1190,7 @@ def get_model_provider(
         url=url,
         default_invoke_kwargs=default_invoke_kwargs,
         raise_missing_schema_exception=raise_missing_schema_exception,
-        secrets=secrets
+        secrets=secrets,
     )
 
 

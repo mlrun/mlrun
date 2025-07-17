@@ -78,8 +78,8 @@ def setup_remote_model_test(
     execution_mechanism="naive",
     image=None,
     requirements=None,
-    model_class:str="LLModel",
-    default_config:Optional[dict] = None
+    model_class: str = "LLModel",
+    default_config: Optional[dict] = None,
 ):
     model_artifact = project.log_model(
         mlrun_model_name,

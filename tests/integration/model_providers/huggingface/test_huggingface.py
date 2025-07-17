@@ -11,20 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import asyncio
 import os
-import time
 import unittest.mock
 from typing import cast
 
-import openai.types.chat
 import pytest
-import tiktoken
 import yaml
-from openai import AsyncOpenAI, OpenAI
-from openai.types import CreateEmbeddingResponse
-from transformers import AutoTokenizer
 from PIL import Image
+from transformers import AutoTokenizer
+
 import mlrun
 import mlrun.artifacts
 import mlrun.serving.states
@@ -34,11 +29,9 @@ from mlrun.datastore.datastore_profile import (
     register_temporary_client_datastore_profile,
 )
 from mlrun.datastore.model_provider.huggingface_provider import HuggingFaceProvider
-from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
-    assert_async_invocations,
     formatted_messages,
     setup_remote_model_test,
 )
@@ -99,7 +92,9 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
     def check_basic_invoke(cls, model_url: str, secrets: dict, model_name: str):
         messages = [formatted_messages[0]]
         model_provider = mlrun.get_model_provider(
-            url=model_url, secrets=secrets, default_invoke_kwargs={"max_new_tokens": 100}
+            url=model_url,
+            secrets=secrets,
+            default_invoke_kwargs={"max_new_tokens": 100},
         )
         model_provider = cast(HuggingFaceProvider, model_provider)
         assert model_provider.model == model_name
@@ -115,12 +110,12 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
             max_new_tokens=50,
         )
         assert isinstance(response, list)
-        assert response[0]['generated_text'][0] == formatted_messages[0]
+        assert response[0]["generated_text"][0] == formatted_messages[0]
 
-        assistant_response = response[0]['generated_text'][1]
-        result = assistant_response['content']
+        assistant_response = response[0]["generated_text"][1]
+        result = assistant_response["content"]
         token_count = len(model_provider.client.tokenizer.encode(result))
-        assert assistant_response['role'] == "assistant"
+        assert assistant_response["role"] == "assistant"
         assert token_count == 51
 
     @pytest.mark.parametrize("use_datastore_profile", [True, False])
@@ -195,12 +190,11 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         else:
             secrets = {"HF_TASK": task}
         model_url = self.url_prefix + model_name
-        model_provider = mlrun.get_model_provider(url=model_url, secrets=secrets,
-                                                  default_invoke_kwargs={"top_k": top_k})
-        image = Image.open(self.image_path)
-        classification_results = model_provider.custom_invoke(
-            inputs=image
+        model_provider = mlrun.get_model_provider(
+            url=model_url, secrets=secrets, default_invoke_kwargs={"top_k": top_k}
         )
+        image = Image.open(self.image_path)
+        classification_results = model_provider.custom_invoke(inputs=image)
         assert len(classification_results) == top_k
         assert "cat" in classification_results[0]["label"]
 

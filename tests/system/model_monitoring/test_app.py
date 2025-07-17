@@ -723,6 +723,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             )
             assert len(evidently_func_summary_list) == 1
             evidently_func_summary = evidently_func_summary_list[0]
+
             assert evidently_func_summary.name == DemoEvidentlyMonitoringApp.NAME
             assert (
                 evidently_func_summary.status
@@ -740,8 +741,16 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 )
             )
             evidently_func_summary = evidently_func_summary_list[0]
-            assert evidently_func_summary.stats["potential_detection"] == 1
-            assert evidently_func_summary.stats["detected"] == 0
+
+            evidently_stats = evidently_func_summary.stats
+
+            assert evidently_stats["potential_detection"] == 1
+            assert evidently_stats["detected"] == 0
+
+            assert evidently_stats["stream_stats"]
+            assert evidently_stats["stream_stats"]["committed"] == 1
+            assert evidently_stats["stream_stats"]["lag"] == 0
+
         except mlrun.errors.MLRunNotFoundError:
             # Evidently app was not deployed
             pass
@@ -780,7 +789,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             }, "The metric keys are not as expected"
 
             assert hist_function_summary.stats["stream_stats"]
-            assert len(hist_function_summary.stats["stream_stats"]) == 1
+            assert len(hist_function_summary.stats["stream_stats"]) == 4
             hist_shard_number = list(
                 hist_function_summary.stats["stream_stats"].keys()
             )[0]

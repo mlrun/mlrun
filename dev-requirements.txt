@@ -46,3 +46,5 @@ diff-cover~=9.2
 openai~=1.88
 transformers~=4.51
 torch~=2.7
+# for hugging face image classifier test:
+tf-keras~=2.18

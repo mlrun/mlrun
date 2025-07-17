@@ -29,11 +29,10 @@ See a full description of KFP, Python, and the workflow engines in in {ref}`loca
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-10147|Fixed the tutorial: Model monitoring using LLM.|
+|ML-10147|Fixed the image build process, thereby resolving issues with the tutorial Model monitoring using LLM.|
 |ML-10296|Now, when using `project.delete_artifact()` on an` mlrun.artifacts.base.Artifact` object that doesn’t have the “latest” tag, only the specified artifact is deleted.|
 |ML-10358/10359|MLRun now supports TensorFlow up to 2.19.0.|
-|ML-ML-10368/10383/10424|Fixed the demo: LLM monitoring and feedback loop: banking.|
-|ML-10399|Fixed the tutorial: Deploying an LLM using MLRun.|
+|ML-10368|Fixed the demo: LLM monitoring and feedback loop: banking.|
 |NA|Security fixes.|
 
 

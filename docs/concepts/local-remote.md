@@ -7,13 +7,11 @@ A workflow is a Python file that defines and triggers a series of MLRun jobs. Th
 
 <img src="../_static/images/pipelines-flow.png" width="800" >
 
-All three types are configured by the `engine` flag, when running the workflow. Ssee {py:meth}`mlrun.projects.MlrunProject.run`.
-
 - **Compiling** a workflow is converting a workflow file into runnable MLRun steps. This refers to executing the Python workflow file itself.
 - **Running** a workflow is executing the MLRun jobs that are defined as steps within the workflow.
 
 **In this section**
-- [KFP](#kfp)
+- [KFP](#kfp-package)
 - [Python](#python)
 - [Remote on KFP](#remote-kfp)
 - [KFP](#kfp)
@@ -21,7 +19,7 @@ All three types are configured by the `engine` flag, when running the workflow. 
 
 See also {ref}`images-usage`.
  
-## KFP
+## KFP package
 MLRun supports the KFP 2.x server, but workflows still require the KFP 1.8 syntax. Usage guidelines:
 - Client code, workflow code and syntax (DSL) is still the KFP 1.8 syntax. Working with the newer KFP 2.x syntax is not yet supported by MLRun.
 - Starting with MLRun v1.8.0, KFP client package is not pre-installed on images such as `mlrun/mlrun`. The image `mlrun/mlrun-kfp` includes KFP, but works only with Python 3.9.
@@ -47,7 +45,7 @@ MLRun provides two set of images: with Python 3.9 and with Python 3.11. Images w
 ```
 <p align="center"><img src="../_static/images/remote-kfp-engine.png" alt="Remote KFP engine" /></p>
 
-The default [Remote-KFP workflows](https://www.kubeflow.org/docs/components/pipelines/overview/pipelines-overview/) are run on the workflow runner pod, which runs and loads your workflow on a pod named `workflow-runner-<workflow-name>` using the workflow file that is stored in a remote source (e.g. Git, tar.gz or zip). This pod is responsible for loading the files from the remote source and running the KFP by using the files from the remote source. Each step runs as a separate pod. Remote KFP workflows support more advanced operations (conditions, branches, etc.).
+The [Remote-KFP workflows](https://www.kubeflow.org/docs/components/pipelines/overview/pipelines-overview/) are compiled on a pod called "workflow-runner-<workflow-name>" using the workflow file that is stored in a remote source (e.g. Git, tar.gz or zip). This pod is responsible for loading the files from the remote source and running the KFP by using the files from the remote source. Each step runs as a separate pod. Remote KFP workflows support more advanced operations (conditions, branches, etc.).
 If your workflow file imports custom packages, they must be included in the workflow runner image. Use one of the {py:meth}`~mlrun.projects.MlrunProject.build_image` parameters: `requirements` or `requirements_file` to add the packages.
 
 You can modify the:
@@ -57,9 +55,11 @@ You can modify the:
 
 In some cases you might not want to load the files from the remote source, but instead use the files within the running image (see details in [build image](../projects/run-build-deploy.md#build_image)). In this case, you need to build an image that contains the workflow file and then change the workflow runner source to point to the project local files in the running image. See the example below.
 
+Set the workflow type with `engine="remote"` in {py:meth}`~mlrun.projects.MlrunProject.run`.
+
 Remote workflows are used for [scheduled workflows](./scheduled-jobs.md#scheduling-a-workflow). Only workflows that use the remote engine can be scheduled. 
 
-The remote workflow supports [sending notifications](./notifications.md#remote-pipeline-notifications) when runs are complete.
+The remote workflow supports [sending notifications](./notifications.md#remote-pipeline-notifications).
 
 See an example of a remote GitHub project in https://github.com/mlrun/project-demo.
 ```{admonition} Note
@@ -94,24 +94,26 @@ project.run("main", source="./", engine="remote", dirty=True)
 ```
 
 ## KFP
-The KFP workflow spec file is created in MLRun, and is compiled and run in the client side, using the files from your local file system.
-It supports more advanced operations (conditions, branches, etc.).
+KFP workflows are compiled on the client side using the local workflow file. The workflow jobs are run as Kubernetes pods. KFP workflows support more advanced operations (conditions, branches, etc.). Starting from MLRun 1.8+, you must install the KFP package locally: `pip install mlrun[kfp18]`. If your workflow uses additional packages, they must also be installed locally.
+
+Set the workflow type with `engine="kfp"` in {py:meth}`~mlrun.projects.MlrunProject.run`.
 
 <p align="center"><img src="../_static/images/kfp-engine.png" alt="KFP engine" /></p>
 
 For example:
 ```
-project.run("main", engine='kfp')
+project.run("main", engine="kfp")
 ```
 
 ## Local
 The `local` engine runs the workflow as a local process. Local workflows are used to simulate a pipeline run without using KFP. Both compilation and execution happen locally on your machine: the workflows run like regular Python scripts in your IDE or Jupyter Notebook. Local workflows are used mainly for testing and running simple/sequential tasks. 
 
+Set the workflow type with `local="true"` in {py:meth}`~mlrun.projects.MlrunProject.run`.
+
 <p align="center"><img src="../_static/images/local-engine.png" alt="Local engine" /></p>
 
 Local workflows require Python 3.9.
 
-Use `local=True` in `function.run()` to run the functions locally or `project.run(local=True)` to apply for all functions.
 Starting from MLRun 1.8+, you must install the KFP package locally: `pip install mlrun[kfp18]`.
 If your workflow uses additional packages, they must also be installed locally.
 

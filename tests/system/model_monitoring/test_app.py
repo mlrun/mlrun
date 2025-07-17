@@ -721,6 +721,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                     include_infra=False, names=[DemoEvidentlyMonitoringApp.NAME]
                 )
             )
+            print(
+                "[EYAL] Evidently function summary list:", evidently_func_summary_list
+            )
             assert len(evidently_func_summary_list) == 1
             evidently_func_summary = evidently_func_summary_list[0]
 
@@ -790,15 +793,21 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
             assert hist_function_summary.stats["stream_stats"]
             assert len(hist_function_summary.stats["stream_stats"]) == 4
-            hist_shard_number = list(
-                hist_function_summary.stats["stream_stats"].keys()
-            )[0]
-            assert (
-                hist_function_summary.stats["stream_stats"][hist_shard_number][
+
+            # verify the stream stats
+            shards = hist_function_summary.stats["stream_stats"].keys()
+            expected_committed = 1
+            actual_committed = 0
+            for shard in shards:
+                actual_committed += hist_function_summary.stats["stream_stats"][shard][
                     "committed"
                 ]
-                == 1
-            )
+                # Verify that the lag is 0
+                assert hist_function_summary.stats["stream_stats"][shard]["lag"] == 0
+            assert (
+                actual_committed == expected_committed
+            ), f"Expected {expected_committed} committed events, but got {actual_committed}"
+
             assert (
                 hist_function_summary.stats["stream_stats"][hist_shard_number]["lag"]
                 == 0

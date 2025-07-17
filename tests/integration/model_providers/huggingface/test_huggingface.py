@@ -179,7 +179,7 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         assert " " not in result.strip()  # checking one-word answer
 
     @pytest.mark.parametrize("use_datastore_profile", [True, False])
-    async def test_custom_invoke(self, use_datastore_profile):
+    def test_custom_invoke(self, use_datastore_profile):
         model_name = "microsoft/resnet-50"
         task = "image-classification"
         secrets = None

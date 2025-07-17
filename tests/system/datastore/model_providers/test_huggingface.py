@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-
+import os
 from transformers import AutoTokenizer
 
 from mlrun.datastore.datastore_profile import (
@@ -41,9 +41,9 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         self.profile = HuggingFaceProfile(
             name=self.profile_name,
             task=task or "text-generation",
-            token=self.env_secrets.get("HF_TOKEN"),
-            device=self.env_secrets.get("HF_DEVICE"),
-            device_map=self.env_secrets.get("HF_DEVICE_MAP"),
+            token=os.environ.get("HF_TOKEN"),
+            device=os.environ.get("HF_DEVICE"),
+            device_map=os.environ.get("HF_DEVICE_MAP"),
         )
         model_name = model_name or self.basic_llm_model
         self.project.register_datastore_profile(self.profile)
@@ -58,7 +58,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             self.model_url,
             mlrun_model_name=mlrun_model_name,
             image=self.image,
-            requirements=["huggingface-hub==0.33.4"],
+            requirements=["transformers==4.53.2", "torch==2.7.1"],
             default_config={"max_new_tokens": 100},
         )
         function.deploy()

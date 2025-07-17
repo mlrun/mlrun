@@ -198,6 +198,10 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         assert len(classification_results) == top_k
         assert "cat" in classification_results[0]["label"]
 
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError,
+                           match="HuggingFaceProvider.invoke supports text-generation task only"):
+            model_provider.invoke(messages=[formatted_messages[0]])
+
 
 class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
     def test_hf_model_runner(self):

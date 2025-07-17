@@ -84,7 +84,6 @@ class HuggingFaceProvider(ModelProvider):
             from transformers import AutoTokenizer  # noqa
 
             self._client = pipeline(model=self.model, **self.options)
-            self._default_operation = self._client
         except ImportError as exc:
             raise ImportError("openai package is not installed") from exc
 
@@ -124,7 +123,7 @@ class HuggingFaceProvider(ModelProvider):
         if operation:
             return operation(**invoke_kwargs)
         else:
-            return self._default_operation(**invoke_kwargs)
+            return self.client(**invoke_kwargs)
 
     def invoke(
         self,
@@ -134,12 +133,11 @@ class HuggingFaceProvider(ModelProvider):
     ) -> Optional[Union[str, list, T]]:
         if self.client.task != "text-generation":
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "HuggingFaceProvider.invoke" " supports text-generation task only."
+                "HuggingFaceProvider.invoke supports text-generation task only"
             )
-        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         if as_str:
             invoke_kwargs["return_full_text"] = False
-        response = self._default_operation(messages, **invoke_kwargs)
+        response = self.custom_invoke(text_inputs=messages, **invoke_kwargs)
         if as_str:
             return self._extract_string_output(response)
         return response

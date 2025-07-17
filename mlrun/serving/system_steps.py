@@ -338,9 +338,8 @@ class SamplingStep(storey.MapClass):
             event=event,
             sampling_percentage=self.sampling_percentage,
         )
-        if (
-            self.sampling_percentage != 100
-            and not event.get(mm_schemas.StreamProcessingEvent.ERROR)
+        if self.sampling_percentage != 100 and not event.get(
+            mm_schemas.StreamProcessingEvent.ERROR
         ):
             request = event[mm_schemas.StreamProcessingEvent.REQUEST]
             num_of_inputs = len(request["inputs"])

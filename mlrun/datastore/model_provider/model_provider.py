@@ -56,9 +56,7 @@ class ModelProvider(BaseRemoteClient):
         )
         self.default_invoke_kwargs = default_invoke_kwargs or {}
         self._client = None
-        self._default_operation = None
         self._async_client = None
-        self._default_async_operation = None
 
     def get_client_options(self) -> dict:
         """
@@ -77,8 +75,6 @@ class ModelProvider(BaseRemoteClient):
         Subclasses should override this method to:
         - Create and configure the provider-specific client instance.
         - Assign the client instance to self._client.
-        - Define a default operation callable (e.g., a method to invoke model completions)
-        and assign it to self._default_operation.
         """
 
         raise NotImplementedError("load_client method is not implemented")

@@ -76,10 +76,6 @@ class OpenAIProvider(ModelProvider):
         a client with the given keyword arguments (`self.options`), and assigns it to
         `self._client` and `self._async_client`.
 
-        It also sets the default operation to `self.client.chat.completions.create`,
-        (or `self.async_client.chat.completions.create` in async operation) which is
-        typically used for invoking chat-based model completions.
-
         Raises:
             ImportError: If the `openai` package is not installed.
         """
@@ -87,10 +83,7 @@ class OpenAIProvider(ModelProvider):
             from openai import OpenAI, AsyncOpenAI  # noqa
 
             self._client = OpenAI(**self.options)
-            self._default_operation = self.client.chat.completions.create
-
             self._async_client = AsyncOpenAI(**self.options)
-            self._default_async_operation = self.async_client.chat.completions.create
         except ImportError as exc:
             raise ImportError("openai package is not installed") from exc
 
@@ -132,7 +125,9 @@ class OpenAIProvider(ModelProvider):
         if operation:
             return operation(**invoke_kwargs, model=self.model)
         else:
-            return self._default_operation(**invoke_kwargs, model=self.model)
+            return self.client.chat.completions.create(
+                **invoke_kwargs, model=self.model
+            )
 
     async def async_custom_invoke(
         self,
@@ -163,7 +158,7 @@ class OpenAIProvider(ModelProvider):
         if operation:
             return await operation(**invoke_kwargs, model=self.model)
         else:
-            return await self._default_async_operation(
+            return await self.async_client.chat.completions.create(
                 **invoke_kwargs, model=self.model
             )
 
@@ -191,10 +186,7 @@ class OpenAIProvider(ModelProvider):
         :return:            Same as ModelProvider.invoke.
 
         """
-        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
-        response = self._default_operation(
-            model=self.endpoint, messages=messages, **invoke_kwargs
-        )
+        response = self.custom_invoke(messages=messages, **invoke_kwargs)
         if as_str:
             return response.choices[0].message.content
         return response
@@ -223,10 +215,7 @@ class OpenAIProvider(ModelProvider):
         :returns            Same as ModelProvider.async_invoke.
 
         """
-        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
-        response = await self._default_async_operation(
-            model=self.endpoint, messages=messages, **invoke_kwargs
-        )
+        response = await self.async_custom_invoke(messages=messages, **invoke_kwargs)
         if as_str:
             return response.choices[0].message.content
         return response

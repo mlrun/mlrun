@@ -400,8 +400,10 @@ class ApplicationRuntime(RemoteRuntime):
         # nuclio implementation detail - when providing the image and emptying out the source code and build source,
         # nuclio skips rebuilding the image and simply takes the prebuilt image
         self.spec.build.functionSourceCode = ""
+        self.spec.config.pop("spec.build.functionSourceCode", None)
         self.status.application_source = self.spec.build.source
         self.spec.build.source = ""
+        self.spec.config.pop("spec.build.source", None)
 
         # save the image in the status, so we won't repopulate the function source code
         self.status.container_image = image

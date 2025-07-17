@@ -19,6 +19,7 @@ import pathlib
 import re
 import sys
 import typing
+import urllib.parse
 from tempfile import NamedTemporaryFile
 
 import git
@@ -456,13 +457,32 @@ class TestMLRunSystem:
             raise RuntimeError("No remotes found in the Git repository.")
 
         git_url = remote.url
-
-        # Extract the username (fork) from the git URL
-        match = re.search(r"git@[^:]+:([^/]+)/", git_url)
-        if not match:
-            raise ValueError(f"Could not extract fork from git URL: {git_url}")
-
-        fork = match.group(1)
+        fork = TestMLRunSystem._extract_fork(git_url)
         branch = repo.active_branch.name
 
         return branch, fork
+
+    @staticmethod
+    def _extract_fork(git_url: str) -> str:
+        """
+        Return the user / organisation part (“fork”) from common Git remote URLs.
+        Supports:
+          • git@github.com:<fork>/<repo>.git      (classic SSH / scp-like)
+          • https://github.com/<fork>/<repo>.git  (HTTPS)
+          • ssh://git@github.com/<fork>/<repo>.git
+          • git://github.com/<fork>/<repo>.git
+        """
+        # 1) scp-like SSH form: git@github.com:fork/repo(.git)
+        match = re.match(r"git@[^:]+:([^/]+)/", git_url)
+        if match:
+            return match.group(1)
+
+        # 2) Anything with “://” – let urlparse do the heavy lifting
+        if "://" in git_url:
+            parsed = urllib.parse.urlparse(git_url)
+            # parsed.path -> "/fork/repo.git"; we only need the first component
+            parts = [p for p in parsed.path.split("/") if p]
+            if len(parts) >= 2:
+                return parts[0]
+
+        raise ValueError(f"Could not extract fork from git URL: {git_url}")

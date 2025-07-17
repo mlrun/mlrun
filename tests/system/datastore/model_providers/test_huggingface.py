@@ -14,6 +14,7 @@
 
 import json
 import os
+
 from transformers import AutoTokenizer
 
 from mlrun.datastore.datastore_profile import (
@@ -28,7 +29,7 @@ from tests.system.base import TestMLRunSystem
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
-class TestOpenAIModelRunner(TestMLRunSystem):
+class TestHuggingFaceModelRunner(TestMLRunSystem):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
     project_name = "huggingface-system-test"
@@ -50,7 +51,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         self.url_prefix = f"ds://{self.profile_name}/"
         self.model_url = self.url_prefix + model_name
 
-    def test_basic_openai_model_runner(self):
+    def test_basic_huggingface_model_runner(self):
         self.setup_datastore_profile()
         mlrun_model_name = "sync_invoke_model"
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(

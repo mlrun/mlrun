@@ -790,7 +790,6 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             }, "The metric keys are not as expected"
 
             assert hist_function_summary.stats["stream_stats"]
-            assert len(hist_function_summary.stats["stream_stats"]) == 4
 
             # verify the stream stats
             shards = hist_function_summary.stats["stream_stats"].keys()

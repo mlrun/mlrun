@@ -130,7 +130,7 @@ def test_on_error():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     chain = graph.to("Chain", name="s1")
-    chain.to("Raiser").error_handler(
+    chain.to("Raiser").respond().error_handler(
         name="catch", class_name="EchoError", full_event=True
     ).to("Chain", name="s3")
 

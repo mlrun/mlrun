@@ -30,6 +30,7 @@ from mlrun.errors import MLRunBadRequestError
 from mlrun.utils.v3io_clients import get_frames_client
 
 import framework.utils.clients.iguazio
+from framework.utils.auth.verifier import AuthenticationMode
 from services.api.crud.model_monitoring.grafana import (
     parse_query_parameters,
     validate_query_parameters,
@@ -51,7 +52,7 @@ def _is_env_params_dont_exist() -> bool:
 def test_grafana_proxy_model_endpoints_check_connection(
     db: Session, client: TestClient
 ):
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     framework.utils.clients.iguazio.AsyncClient().verify_request_session = (
         unittest.mock.AsyncMock(
             return_value=(

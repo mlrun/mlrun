@@ -45,6 +45,7 @@ import services.api.crud
 import services.api.tests.unit.api.utils
 import services.api.utils.builder
 import services.api.utils.functions
+from framework.utils.auth.verifier import AuthenticationMode
 from services.api.daemon import daemon
 
 PROJECT = "project-name"
@@ -767,7 +768,7 @@ def test_build_function_masks_access_key(
     client: fastapi.testclient.TestClient,
     k8s_secrets_mock,
 ):
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     # set auto mount to ensure it doesn't override the access key
     mlrun.mlconf.storage.auto_mount_type = "v3io_credentials"
     monkeypatch.setattr(
@@ -838,7 +839,7 @@ def test_build_no_access_key(
     expected_status_code,
     expected_reason,
 ):
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     monkeypatch.setattr(
         framework.utils.clients.iguazio,
         "AsyncClient",

@@ -28,6 +28,7 @@ import framework.utils.clients.async_nuclio
 import framework.utils.clients.iguazio
 import services.api.crud
 import services.api.tests.unit.api.utils
+from framework.utils.auth.verifier import AuthenticationMode
 
 PROJECT = "project-name"
 
@@ -57,7 +58,7 @@ async def test_deploy_function(
 def test_list_api_gateways(
     list_api_gateway_mocked, client: fastapi.testclient.TestClient
 ):
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     framework.utils.clients.iguazio.AsyncClient().verify_request_session = (
         unittest.mock.AsyncMock(
             return_value=(
@@ -129,7 +130,7 @@ def test_store_api_gateway(
     get_api_gateway_mocked,
     client: fastapi.testclient.TestClient,
 ):
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     framework.utils.clients.iguazio.AsyncClient().verify_request_session = (
         unittest.mock.AsyncMock(
             return_value=(

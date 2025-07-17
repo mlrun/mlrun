@@ -395,7 +395,7 @@ default_config = {
             "allow_local_run": False,
         },
         "authentication": {
-            "mode": "none",  # one of none, basic, bearer, iguazio
+            "mode": "none",  # one of none, basic, bearer, iguazio, iguazio-v4
             "basic": {"username": "", "password": ""},
             "bearer": {"token": ""},
             "iguazio": {

@@ -23,6 +23,7 @@ import mlrun.common.schemas
 from tests.common_fixtures import aioresponses_mock
 
 import framework.utils.auth.verifier
+from framework.utils.auth.verifier import AuthenticationMode
 
 
 def test_verify_authorization(
@@ -52,7 +53,7 @@ def test_authenticate_request_auth_info_basic(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
 ) -> None:
-    mlrun.mlconf.httpdb.authentication.mode = "basic"
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.BASIC
     mlrun.mlconf.httpdb.authentication.basic.username = "bugs"
     mlrun.mlconf.httpdb.authentication.basic.password = "bunny"
     authorization_verification_input = (
@@ -92,7 +93,7 @@ def test_authenticate_request_auth_info_bearer(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
 ) -> None:
-    mlrun.mlconf.httpdb.authentication.mode = "bearer"
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.BEARER
     mlrun.mlconf.httpdb.authentication.bearer.token = "123"
     authorization_verification_input = (
         mlrun.common.schemas.AuthorizationVerificationInput(
@@ -131,7 +132,7 @@ def test_authenticate_request_auth_info_iguazio(
     client: fastapi.testclient.TestClient,
     aioresponses_mock: aioresponses_mock,
 ) -> None:
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     mock_request_headers = starlette.datastructures.Headers(
         {"cookie": "session=some-session-cookie"}
     )

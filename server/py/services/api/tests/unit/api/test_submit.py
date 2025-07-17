@@ -33,6 +33,7 @@ import framework.utils.auth.verifier
 import framework.utils.clients.chief
 import framework.utils.singletons.k8s
 import services.api.tests.unit.api.utils
+from framework.utils.auth.verifier import AuthenticationMode
 from services.api.daemon import daemon
 from services.api.tests.unit.conftest import K8sSecretsMock
 
@@ -154,7 +155,7 @@ def test_submit_job_auto_mount(
 def test_submit_job_ensure_function_has_auth_set(
     db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock
 ) -> None:
-    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     project = "my-proj1"
     services.api.tests.unit.api.utils.create_project(client, project)
 

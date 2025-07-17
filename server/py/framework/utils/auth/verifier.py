@@ -21,10 +21,19 @@ import fastapi
 import mlrun
 import mlrun.common.schemas
 import mlrun.utils.singleton
+from mlrun.common.types import StrEnum
 
 import framework.utils.auth.providers.nop
 import framework.utils.auth.providers.opa
 import framework.utils.clients.iguazio
+
+
+class AuthenticationMode(StrEnum):
+    NONE = "none"
+    BASIC = "basic"
+    BEARER = "bearer"
+    IGUAZIO = "iguazio"
+    IGUAZIO_V4 = "iguazio-v4"
 
 
 class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
@@ -197,38 +206,22 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         self, request: fastapi.Request
     ) -> mlrun.common.schemas.AuthInfo:
         auth_info = mlrun.common.schemas.AuthInfo()
-        header = request.headers.get("Authorization", "")
+        headers = request.headers
+
         if self._basic_auth_configured():
-            if not header.startswith(self._basic_prefix):
-                raise mlrun.errors.MLRunUnauthorizedError("Missing basic auth header")
-            username, password = self._parse_basic_auth(header)
-            if (
-                username != mlrun.mlconf.httpdb.authentication.basic.username
-                or password != mlrun.mlconf.httpdb.authentication.basic.password
-            ):
-                raise mlrun.errors.MLRunUnauthorizedError(
-                    "Username or password did not match"
-                )
-            auth_info.username = username
-            auth_info.password = password
+            auth_info = self._authenticate_basic(headers)
         elif self._bearer_auth_configured():
-            if not header.startswith(self._bearer_prefix):
-                raise mlrun.errors.MLRunUnauthorizedError("Missing bearer auth header")
-            token = header[len(self._bearer_prefix) :]
-            if token != mlrun.mlconf.httpdb.authentication.bearer.token:
-                raise mlrun.errors.MLRunUnauthorizedError("Token did not match")
-            auth_info.token = token
+            auth_info = self._authenticate_bearer(headers)
         elif self._iguazio_auth_configured():
-            iguazio_client = framework.utils.clients.iguazio.AsyncClient()
-            auth_info = await iguazio_client.verify_request_session(request)
-            if "x-data-session-override" in request.headers:
-                auth_info.data_session = request.headers["x-data-session-override"]
+            auth_info = await self._authenticate_iguazio(request)
+        elif self._iguaziov4_auth_configured():
+            auth_info = await self._authenticate_iguazio_v4(request)
 
         # Fallback in case auth method didn't fill in the username already, and it is provided by the caller
-        if not auth_info.username and "x-remote-user" in request.headers:
-            auth_info.username = request.headers["x-remote-user"]
+        if not auth_info.username and "x-remote-user" in headers:
+            auth_info.username = headers["x-remote-user"]
 
-        projects_role_header = request.headers.get(
+        projects_role_header = headers.get(
             mlrun.common.schemas.HeaderNames.projects_role
         )
         auth_info.projects_role = (
@@ -238,16 +231,16 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         )
         # In Iguazio 3.0 we're running with auth mode none cause auth is done by the ingress, in that auth mode sessions
         # needed for data operations were passed through this header, keep reading it to be backwards compatible
-        if not auth_info.data_session and "X-V3io-Session-Key" in request.headers:
-            auth_info.data_session = request.headers["X-V3io-Session-Key"]
+        if not auth_info.data_session and "X-V3io-Session-Key" in headers:
+            auth_info.data_session = headers["X-V3io-Session-Key"]
         # In Iguazio 3.0 the ingress auth verification overrides the X-V3io-Session-Key from the auth response
         # therefore the above won't work for requests coming from outside the cluster so allowing another header that
         # won't be overridden
-        if not auth_info.data_session and "X-V3io-Access-Key" in request.headers:
-            auth_info.data_session = request.headers["X-V3io-Access-Key"]
+        if not auth_info.data_session and "X-V3io-Access-Key" in headers:
+            auth_info.data_session = headers["X-V3io-Access-Key"]
 
         # Maintain authentication headers for inter-services communication
-        auth_info.request_headers = dict(request.headers)
+        auth_info.request_headers = dict(headers)
         for header in [
             "content-length",
             "content-type",
@@ -297,7 +290,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _basic_auth_configured():
-        return mlrun.mlconf.httpdb.authentication.mode == "basic" and (
+        return mlrun.mlconf.httpdb.authentication.mode == AuthenticationMode.BASIC and (
             mlrun.mlconf.httpdb.authentication.basic.username
             or mlrun.mlconf.httpdb.authentication.basic.password
         )
@@ -305,13 +298,17 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     @staticmethod
     def _bearer_auth_configured():
         return (
-            mlrun.mlconf.httpdb.authentication.mode == "bearer"
+            mlrun.mlconf.httpdb.authentication.mode == AuthenticationMode.BEARER
             and mlrun.mlconf.httpdb.authentication.bearer.token
         )
 
     @staticmethod
     def _iguazio_auth_configured():
-        return mlrun.mlconf.httpdb.authentication.mode == "iguazio"
+        return mlrun.mlconf.httpdb.authentication.mode == AuthenticationMode.IGUAZIO
+
+    @staticmethod
+    def _iguaziov4_auth_configured():
+        return mlrun.mlconf.httpdb.authentication.mode == AuthenticationMode.IGUAZIO_V4
 
     @staticmethod
     def _parse_basic_auth(header):
@@ -322,3 +319,51 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         b64value = header[len(AuthVerifier._basic_prefix) :]
         value = base64.b64decode(b64value).decode()
         return value.split(":", 1)
+
+    def _authenticate_basic(
+        self, headers: typing.Mapping[str, str]
+    ) -> mlrun.common.schemas.AuthInfo:
+        header = headers.get("Authorization", "")
+        if not header.startswith(self._basic_prefix):
+            raise mlrun.errors.MLRunUnauthorizedError("Missing basic auth header")
+
+        username, password = self._parse_basic_auth(header)
+        if (
+            username != mlrun.mlconf.httpdb.authentication.basic.username
+            or password != mlrun.mlconf.httpdb.authentication.basic.password
+        ):
+            raise mlrun.errors.MLRunUnauthorizedError(
+                "Username or password did not match"
+            )
+
+        return mlrun.common.schemas.AuthInfo(username=username, password=password)
+
+    def _authenticate_bearer(
+        self, headers: typing.Mapping[str, str]
+    ) -> mlrun.common.schemas.AuthInfo:
+        header = headers.get("Authorization", "")
+        if not header.startswith(self._bearer_prefix):
+            raise mlrun.errors.MLRunUnauthorizedError("Missing bearer auth header")
+
+        token = header[len(self._bearer_prefix) :]
+        if token != mlrun.mlconf.httpdb.authentication.bearer.token:
+            raise mlrun.errors.MLRunUnauthorizedError("Token did not match")
+
+        return mlrun.common.schemas.AuthInfo(token=token)
+
+    @staticmethod
+    async def _authenticate_iguazio(
+        request: fastapi.Request,
+    ) -> mlrun.common.schemas.AuthInfo:
+        iguazio_client = framework.utils.clients.iguazio.AsyncClient()
+        auth_info = await iguazio_client.verify_request_session(request)
+        if "x-data-session-override" in request.headers:
+            auth_info.data_session = request.headers["x-data-session-override"]
+        return auth_info
+
+    @staticmethod
+    async def _authenticate_iguazio_v4(
+        request: fastapi.Request,
+    ) -> mlrun.common.schemas.AuthInfo:
+        iguazio_client = framework.utils.clients.iguaziov4.AsyncClient()
+        return await iguazio_client.verify_request_session(request)

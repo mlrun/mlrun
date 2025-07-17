@@ -518,18 +518,13 @@ def v2_serving_init(context, namespace=None):
     context.logger.info("Initializing server from spec")
     spec = mlrun.utils.get_serving_spec()
     server = GraphServer.from_dict(spec)
-    if isinstance(server.graph, RootFlowStep) and server.graph.include_monitored_step():
-        server.graph = add_system_steps_to_graph(
-            server.project,
-            copy.deepcopy(server.graph),
-            spec.get("track_models"),
-            context,
-            spec,
-        )
-        context.logger.info_with(
-            "Server graph after adding system steps",
-            graph=str(server.graph.steps),
-        )
+    server.graph = add_system_steps_to_graph(
+        server.project,
+        copy.deepcopy(server.graph),
+        spec.get("track_models"),
+        context,
+        spec,
+    )
 
     if config.log_level.lower() == "debug":
         server.verbose = True
@@ -609,6 +604,15 @@ async def async_execute_graph(
                 "Aborting job because the model endpoint creation background task did not succeed "
                 f"(status='{task_state}')"
             )
+
+    server.graph = add_system_steps_to_graph(
+        server.project,
+        copy.deepcopy(server.graph),
+        spec.get("track_models"),
+        context,
+        spec,
+        pause_until_background_task_completion=False,  # we've already awaited it
+    )
 
     if config.log_level.lower() == "debug":
         server.verbose = True

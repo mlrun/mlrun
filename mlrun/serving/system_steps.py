@@ -289,6 +289,7 @@ class BackgroundTaskStatus(storey.MapClass):
         if (
             self._background_task_state
             == mlrun.common.schemas.BackgroundTaskState.succeeded
+            and self.context.stream.enabled
         ):
             return event
         else:
@@ -337,7 +338,10 @@ class SamplingStep(storey.MapClass):
             event=event,
             sampling_percentage=self.sampling_percentage,
         )
-        if self.sampling_percentage != 100:
+        if (
+            self.sampling_percentage != 100
+            and not event.get(mm_schemas.StreamProcessingEvent.ERROR)
+        ):
             request = event[mm_schemas.StreamProcessingEvent.REQUEST]
             num_of_inputs = len(request["inputs"])
             sampled_requests_indices = self._pick_random_requests(

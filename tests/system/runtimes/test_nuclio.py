@@ -229,9 +229,14 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         assert deployment == function.get_url()  # check function url
         resp = function.invoke("/", {"x": "y"})
-        assert resp == {
-            "error": "catcher_echo",
-        }
+        assert (
+            resp
+            == {
+                "error": "catcher_echo",
+            }
+            if raise_exception
+            else {"error": f"{RuntimeError.__class__}: "}
+        )
 
     # Nuclio sometimes passes b'' instead of None due to dirty memory
     def test_workaround_for_nuclio_bug(self):

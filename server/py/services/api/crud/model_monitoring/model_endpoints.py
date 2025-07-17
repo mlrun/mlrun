@@ -39,6 +39,7 @@ from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFileChief,
     ModelMonitoringSchedulesFileEndpoint,
     delete_model_monitoring_schedules_folder,
+    delete_model_monitoring_schedules_user_folder,
 )
 from mlrun.model_monitoring.db._stats import (
     ModelMonitoringCurrentStatsFile,
@@ -141,6 +142,14 @@ class ModelEndpoints:
                 model_endpoint.metadata.labels.update(
                     model_obj.labels
                 )  # todo : check if we still need this
+                if db_artifact.kind == mlrun.artifacts.LLMPromptArtifact.kind:
+                    artifact = db_artifact.parent.full_object
+                    model_obj = mlrun.artifacts.dict_to_artifact(
+                        mlrun.common.formatters.ArtifactFormat.format_obj(
+                            artifact, "full"
+                        )
+                    )
+
             except mlrun.errors.MLRunNotFoundError:
                 logger.info("The model endpoint is created on a non-existing model")
 
@@ -1145,6 +1154,9 @@ class ModelEndpoints:
         # Delete model monitoring schedules folder
         delete_model_monitoring_schedules_folder(project_name)
 
+        # Delete batch runs schedules folder
+        delete_model_monitoring_schedules_user_folder(project_name)
+
         logger.debug(
             "Successfully deleted model monitoring endpoints resources",
             project_name=project_name,
@@ -1414,11 +1426,11 @@ class ModelEndpoints:
         """
 
         run_db = framework.api.utils.get_run_db_instance(session)
-        model_obj: mlrun.artifacts.ModelArtifact = (
-            mlrun.datastore.store_resources.get_store_resource(
-                model_endpoint_object.spec.model_uri, db=run_db
-            )
+        model_obj = mlrun.datastore.store_resources.get_store_resource(
+            model_endpoint_object.spec.model_uri, db=run_db
         )
+        if isinstance(model_obj, mlrun.artifacts.LLMPromptArtifact):
+            model_obj = model_obj.model_artifact
         feature_stats: dict = model_obj.spec.feature_stats or {}
         mlrun.common.model_monitoring.helpers.pad_features_hist(
             mlrun.common.model_monitoring.helpers.FeatureStats(feature_stats)

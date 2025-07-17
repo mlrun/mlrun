@@ -241,6 +241,7 @@ class BaseRuntimeHandler(ABC):
         label_selector: Optional[str] = None,
         class_mode: Union[RuntimeClassMode, str] = None,
         with_main_runtime_resource_label_selector: bool = False,
+        retry_count: Optional[int] = None,
     ) -> str:
         default_label_selector = self._get_default_label_selector(class_mode=class_mode)
 
@@ -269,6 +270,15 @@ class BaseRuntimeHandler(ABC):
                 label_selector = ",".join(
                     [label_selector, main_runtime_resource_label_selector]
                 )
+
+        if retry_count is not None:
+            # If retry attempt is provided, add it to the label selector to avoid conflicts with previous runs
+            label_selector = ",".join(
+                [
+                    label_selector,
+                    f"{mlrun_constants.MLRunInternalLabels.retry}={retry_count}",
+                ]
+            )
 
         return label_selector
 
@@ -1380,7 +1390,7 @@ class BaseRuntimeHandler(ABC):
         # (A runtime resource might exist before the run is created)
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
 
-        if updated_run_state in RunStates.terminal_states():
+        if updated_run_state in RunStates.terminal_or_error_states():
             self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
 
     def _resolve_resource_state_and_apply_threshold(
@@ -1751,6 +1761,17 @@ class BaseRuntimeHandler(ABC):
             elif run_state == RunStates.error:
                 # Try resolving the error reason
                 reason, message = self._resolve_container_error_status(runtime_resource)
+                # Should run be retried
+                retry_spec = run.get("spec", {}).get("retry")
+                max_retries = retry_spec.get("count") if retry_spec else -1
+                # Run status retry_count may be `None` if the run has never been retried
+                retry_count = run.get("status", {}).get("retry_count", 0) or 0
+                attempts = retry_count + 1
+                if retry_count < max_retries:
+                    run_state = RunStates.pending_retry
+                    message = f"Run failed attempt {attempts} of {max_retries + 1} with error: {message or reason}"
+                elif 0 < max_retries <= retry_count:
+                    message = f"Run failed after {attempts} attempts with error: {message or reason}"
 
         logger.info("Updating run state", run_uid=uid, run_state=run_state)
         run_updates = {

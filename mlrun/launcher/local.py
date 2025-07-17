@@ -72,6 +72,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
+        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
     ) -> "mlrun.run.RunObject":
         # do not allow local function to be scheduled
         if schedule is not None:
@@ -122,8 +123,9 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
             workdir=workdir,
             notifications=notifications,
             state_thresholds=state_thresholds,
+            retry=retry,
         )
-        self._validate_runtime(runtime, run)
+        self._validate_run(runtime, run)
         result = self._execute(
             runtime=runtime,
             run=run,

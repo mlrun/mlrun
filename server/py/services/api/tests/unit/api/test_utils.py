@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
 import mlrun.utils

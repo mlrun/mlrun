@@ -120,6 +120,14 @@ default_config = {
             # max number of parallel abort run jobs in runs monitoring
             "concurrent_abort_stale_runs_workers": 10,
             "list_runs_time_period_in_days": 7,  # days
+            "retry": {
+                # periodic job for triggering retries interval in seconds
+                "interval": "30",
+                # runs limit to fetch for retrying
+                "fetch_runs_limit": 1000,
+                # minutes until a run is considered stale and will be aborted
+                "staleness_threshold": 60 * 24 * 3,
+            },
         },
         "projects": {
             "summaries": {
@@ -273,6 +281,12 @@ default_config = {
                     "executing": "24h",
                 }
             },
+            "retry": {
+                "backoff": {
+                    "default_base_delay": "30s",
+                    "min_base_delay": "30s",
+                },
+            },
             # When the module is reloaded, the maximum depth recursion configuration for the recursive reload
             # function is used to prevent infinite loop
             "reload_max_recursion_depth": 100,
@@ -319,6 +333,7 @@ default_config = {
                     "project_summaries": "enabled",
                     "start_logs": "enabled",
                     "stop_logs": "enabled",
+                    "retry_jobs": "enabled",
                 },
             },
             "worker": {
@@ -542,7 +557,7 @@ default_config = {
         },
         "v3io_api": "",
         "v3io_framesd": "",
-        # If running from sdk and MLRUN_DBPATH is not set, the db will fallback to a nop db which will not preform any
+        # If running from sdk and MLRUN_DBPATH is not set, the db will fallback to a nop db which will not perform any
         # run db operations.
         "nop_db": {
             # if set to true, will raise an error for trying to use run db functionality
@@ -644,7 +659,7 @@ default_config = {
         "offline_storage_path": "model-endpoints/{kind}",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
-        "model_endpoint_creation_check_period": "15",
+        "model_endpoint_creation_check_period": 15,
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -1222,6 +1237,7 @@ class Config:
         """
         Get the default value for the ssl_redirect configuration.
         In Iguazio we always want to redirect to HTTPS, in other cases we don't.
+
         :return: True if we should redirect to HTTPS, False otherwise.
         """
         return self.is_running_on_iguazio()

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from collections.abc import Iterator
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -20,11 +21,16 @@ import pytest
 import mlrun
 import mlrun.utils
 from mlrun.model_monitoring.db._schedules import (
+    ModelMonitoringSchedulesFileApplication,
     ModelMonitoringSchedulesFileChief,
     ModelMonitoringSchedulesFileEndpoint,
     delete_model_monitoring_schedules_folder,
+    delete_model_monitoring_schedules_user_folder,
 )
-from mlrun.model_monitoring.helpers import _get_monitoring_schedules_folder_path
+from mlrun.model_monitoring.helpers import (
+    _get_monitoring_schedules_folder_path,
+    _get_monitoring_schedules_user_folder_path,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -214,6 +220,33 @@ class TestModelMonitoringSchedulesFileChief:
             f1.delete()
 
 
+class TestModelMonitoringSchedulesFileApplication:
+    @staticmethod
+    @pytest.fixture
+    def out_path(tmpdir: Path) -> str:
+        return str(tmpdir)
+
+    @staticmethod
+    def test_model_endpoint(out_path: str) -> None:
+        file = ModelMonitoringSchedulesFileApplication(
+            out_path=out_path, application="app1"
+        )
+
+        ep1_uid = "aknak2s"
+        ep2_uid = "9339rkd"
+        dt1 = datetime(2020, 10, 2, 1, tzinfo=timezone.utc)
+        dt2 = datetime(2020, 10, 2, 2, tzinfo=timezone.utc)
+
+        with file:
+            assert file.get_endpoint_last_analyzed(ep1_uid) is None
+            file.update_endpoint_last_analyzed(ep1_uid, dt1)
+            assert file.get_endpoint_last_analyzed(ep1_uid) == dt1
+            file.update_endpoint_last_analyzed(ep2_uid, dt1)
+            file.update_endpoint_last_analyzed(ep1_uid, dt2)
+            assert file.get_endpoint_last_analyzed(ep1_uid) == dt2
+            assert file.get_endpoint_last_analyzed(ep2_uid) == dt1
+
+
 def test_delete_non_existent_folder() -> None:
     delete_model_monitoring_schedules_folder("proj-without-any-mep")
 
@@ -230,4 +263,30 @@ def test_delete_folder() -> None:
     delete_model_monitoring_schedules_folder(project)
     assert not filesystem.exists(
         _get_monitoring_schedules_folder_path(project)
+    ), "Schedules folder should have been removed"
+
+
+@pytest.fixture
+def _path_artifact_path(tmpdir: Path, monkeypatch: pytest.MonkeyPatch) -> str:
+    artifact_path = f"file://{tmpdir}/projects/{{project}}/artifacts"
+    monkeypatch.setenv("MLRUN_ARTIFACT_PATH", artifact_path)
+    mlrun.mlconf.reload()
+
+
+@pytest.mark.usefixtures("_path_artifact_path")
+def test_delete_user_application_folder() -> None:
+    project = "monitored-endpoints"
+    out_path = mlrun.utils.helpers.template_artifact_path(
+        mlrun.mlconf.artifact_path, project=project
+    )
+    for application in ("app-1", "app_2"):
+        file = ModelMonitoringSchedulesFileApplication(
+            out_path=out_path, application=application
+        )
+        file.create()
+        filesystem = file._fs
+
+    delete_model_monitoring_schedules_user_folder(project)
+    assert not filesystem.exists(
+        _get_monitoring_schedules_user_folder_path(project)
     ), "Schedules folder should have been removed"

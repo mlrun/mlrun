@@ -522,6 +522,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             model_runner_step.add_model(
                 endpoint_name=f"{cls.model_name}_{with_training_set}",
                 model_class="MyModel",
+                execution_mechanism="naive",
                 model_artifact=f"store://models/{cls.project_name}/{cls.model_name}_{with_training_set}:latest",
                 input_path="inputs",
                 result_path="outputs",
@@ -738,60 +739,81 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 )
             )
             evidently_func_summary = evidently_func_summary_list[0]
-            assert evidently_func_summary.stats["potential_detection"] == 1
-            assert evidently_func_summary.stats["detected"] == 0
+
+            evidently_stats = evidently_func_summary.stats
+
+            assert evidently_stats["potential_detection"] == 1
+            assert evidently_stats["detected"] == 0
+
+            # check the stream stats if stream is v3io
+            if isinstance(self.mm_stream_profile, DatastoreProfileV3io):
+                assert evidently_stats["stream_stats"]
+                assert evidently_stats["stream_stats"]["committed"] == 1
+                assert evidently_stats["stream_stats"]["lag"] == 0
+
+            assert evidently_stats["stream_stats"]
+            assert evidently_stats["stream_stats"]["committed"] == 1
+            assert evidently_stats["stream_stats"]["lag"] == 0
         except mlrun.errors.MLRunNotFoundError:
             # Evidently app was not deployed
             pass
 
-        # test a specific function summary
-        hist_function_summary = self.project.get_monitoring_function_summary(
-            name=HistogramDataDriftApplication.NAME, include_latest_metrics=True
-        )
-        assert hist_function_summary.stats
-        assert len(hist_function_summary.stats["metrics"]) == 4
+        if _DefaultDataDriftAppData in self.apps_data:
+            # test a specific function summary
+            hist_function_summary = self.project.get_monitoring_function_summary(
+                name=HistogramDataDriftApplication.NAME, include_latest_metrics=True
+            )
+            assert hist_function_summary.stats
+            assert len(hist_function_summary.stats["metrics"]) == 4
 
-        first_metric = hist_function_summary.stats["metrics"][0]
-        assert first_metric["type"] == "result"
-        # verify the expected keys of a result
-        assert first_metric.keys() == {
-            "kind",
-            "result_name",
-            "status",
-            "time",
-            "type",
-            "value",
-        }, "The result keys are not as expected"
+            first_metric = hist_function_summary.stats["metrics"][0]
+            assert first_metric["type"] == "result"
+            # verify the expected keys of a result
+            assert first_metric.keys() == {
+                "kind",
+                "result_name",
+                "status",
+                "time",
+                "type",
+                "value",
+            }, "The result keys are not as expected"
 
-        assert first_metric["result_name"] == "general_drift"
-        assert first_metric["value"] == 1
+            assert first_metric["result_name"] == "general_drift"
+            assert first_metric["value"] == 1
 
-        second_metric = hist_function_summary.stats["metrics"][1]
-        assert second_metric["type"] == "metric"
-        # verify the expected keys of a metric
-        assert second_metric.keys() == {
-            "metric_name",
-            "time",
-            "type",
-            "value",
-        }, "The metric keys are not as expected"
+            second_metric = hist_function_summary.stats["metrics"][1]
+            assert second_metric["type"] == "metric"
+            # verify the expected keys of a metric
+            assert second_metric.keys() == {
+                "metric_name",
+                "time",
+                "type",
+                "value",
+            }, "The metric keys are not as expected"
+
+            assert hist_function_summary.stats["stream_stats"]
+            assert len(hist_function_summary.stats["stream_stats"]) == 1
+            hist_shard_number = list(
+                hist_function_summary.stats["stream_stats"].keys()
+            )[0]
+            assert (
+                hist_function_summary.stats["stream_stats"][hist_shard_number][
+                    "committed"
+                ]
+                == 1
+            )
+            assert (
+                hist_function_summary.stats["stream_stats"][hist_shard_number]["lag"]
+                == 0
+            )
 
     @pytest.mark.parametrize("with_training_set", [True, False])
     @pytest.mark.parametrize("with_model_runner", [True, False])
     def test_app_flow(self, with_training_set: bool, with_model_runner: bool) -> None:
         self.apps_data = self._get_apps_data(with_training_set)
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
+
         self._log_model(with_training_set)
-
-        for i in range(len(self.apps_data)):
-            if "with_training_set" in self.apps_data[i].kwargs:
-                self.apps_data[i].kwargs["with_training_set"] = with_training_set
-
-        # workaround for ML-5997
-        if not with_training_set and _DefaultDataDriftAppData in self.apps_data:
-            self.apps_data.remove(_DefaultDataDriftAppData)
-
-        self._log_model(with_training_set=with_training_set)
 
         self._submit_controller_and_deploy_writer(
             deploy_histogram_data_drift_app=_DefaultDataDriftAppData in self.apps_data
@@ -1707,16 +1729,19 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
         start = model_endpoint.status.first_request - timedelta(microseconds=1)
 
         end = model_endpoint.status.last_request
+        # Make sure `end - start` is a multiple of the `base_period` in `evaluate`
+        end = start + timedelta(minutes=(end - start).total_seconds() // 60 + 1)
 
         endpoints_params = [
             [(model_endpoint.metadata.name, model_endpoint.metadata.uid)],
-            model_endpoint.metadata.name,
-            [
-                model_endpoint.metadata.name,
-            ],
+            [model_endpoint.metadata.name],
+            "all",
         ]
 
         for i, endpoints in enumerate(endpoints_params):
+            # Do not write except the first time
+            write_output_this_time = write_output if i == 0 else False
+
             run_result = CountApp.evaluate(
                 func_path=str(Path(__file__).parent / "assets/application.py"),
                 func_name=f"function-{i}",
@@ -1726,9 +1751,11 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
                 run_local=run_local,
                 image=self.image,
                 base_period=1,
-                write_output=write_output,
+                write_output=write_output_this_time,
                 stream_profile=(
-                    self.mm_stream_profile if run_local and write_output else None
+                    self.mm_stream_profile
+                    if run_local and write_output_this_time
+                    else None
                 ),
             )
 
@@ -1845,6 +1872,7 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
             model_runner_step.add_model(
                 endpoint_name=self._model_name,
                 model_class="MyModel",
+                execution_mechanism="naive",
                 model_artifact=model_uri,
                 input_path="inputs",
                 result_path="outputs",

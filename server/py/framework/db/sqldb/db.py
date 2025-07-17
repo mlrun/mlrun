@@ -647,17 +647,15 @@ class SQLDB(DBInterface):
         :param run_dict: The run dict
         :param end_time: The end time to set - used when in 'store' flow to set the end time
         """
-        if (
-            run.state in mlrun.common.runtimes.constants.RunStates.terminal_states()
-            and not run.end_time
-        ):
+        endable_states = mlrun.common.runtimes.constants.RunStates.terminal_states() + [
+            mlrun.common.runtimes.constants.RunStates.pending_retry
+        ]
+        if run.state in endable_states and not run.end_time:
             if end_time is None:
                 # Ensures fsp 6 for MySQL NOW() to includes microseconds
                 end_time = func.now(6)
             run.end_time = end_time
-        elif (
-            run.state not in mlrun.common.runtimes.constants.RunStates.terminal_states()
-        ):
+        elif run.state not in endable_states:
             # Ensure end time is not set if the run is not in a terminal state
             run.end_time = None
             run_dict.setdefault("status", {}).pop("end_time", None)
@@ -1056,6 +1054,7 @@ class SQLDB(DBInterface):
 
         artifact = db_artifact.full_object
         artifact["spec"]["has_children"] = bool(db_artifact.child_artifacts)
+        artifact["metadata"]["iter"] = db_artifact.iteration
         self._set_parent_uri(artifact, db_artifact.parent)
 
         # If connected to a tag add it to metadata
@@ -1643,7 +1642,7 @@ class SQLDB(DBInterface):
                 uri=generate_artifact_uri(
                     project=parent.project,
                     key=parent.key,
-                    iter=parent.iteration if parent.iteration else None,
+                    iter=parent.iteration,
                     tree=parent.producer_id,
                     uid=parent.uid,
                 ),
@@ -5627,6 +5626,7 @@ class SQLDB(DBInterface):
                         ArtifactV2.iteration,
                         ArtifactV2.producer_id,
                         ArtifactV2.uid,
+                        ArtifactV2.kind,
                     )
                 ),
                 selectinload(ModelEndpoint.tags),
@@ -5678,6 +5678,7 @@ class SQLDB(DBInterface):
                         ArtifactV2.iteration,
                         ArtifactV2.producer_id,
                         ArtifactV2.uid,
+                        ArtifactV2.kind,
                     )
                 ),
                 selectinload(ModelEndpoint.tags),
@@ -5998,6 +5999,7 @@ class SQLDB(DBInterface):
                         ArtifactV2.iteration,
                         ArtifactV2.producer_id,
                         ArtifactV2.uid,
+                        ArtifactV2.kind,
                     )
                 ),
                 selectinload(ModelEndpoint.tags),
@@ -6291,7 +6293,9 @@ class SQLDB(DBInterface):
                 [tag.name for tag in model_tags] if model_tags else []
             )
             model_artifact_uri = mlrun.datastore.get_store_uri(
-                kind=mlrun.utils.helpers.StorePrefix.Model,
+                kind=mlrun.utils.helpers.StorePrefix.Model
+                if model.kind == mlrun.artifacts.ModelArtifact.kind
+                else mlrun.utils.helpers.StorePrefix.LLMPrompt,
                 uri=generate_artifact_uri(
                     project=model.project,
                     key=model.key,

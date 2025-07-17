@@ -395,7 +395,6 @@ def add_monitoring_general_steps(
     monitor_flow_step = graph.add_step(
         "mlrun.serving.system_steps.BackgroundTaskStatus",
         "background_task_status_step",
-        context=context,
         model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
     )
     graph.add_step(
@@ -410,7 +409,6 @@ def add_monitoring_general_steps(
         "monitoring_pre_processor_step",
         after="filter_none",
         full_event=True,
-        context=context,
         model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
     )
     # flatten the events
@@ -790,6 +788,7 @@ class GraphContext:
         self.verbose = False
         self.stream = None
         self.root = None
+        self.executor: Optional[storey.flow.RunnableExecutor] = None
 
         if nuclio_context:
             self.logger: NuclioLogger = nuclio_context.logger

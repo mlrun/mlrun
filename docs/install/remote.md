@@ -5,6 +5,7 @@ You can write your code on a local machine while running your functions on a rem
 
 **In this section**
 - [Prerequisites](#prerequisites)
+- [MLRun client supported OS](#mlrun-client-supported-os)
 - [Set up your client environment](#set-up-your-client-environment)
 - [Configure remote environment](#configure-remote-environment)
 
@@ -81,6 +82,14 @@ You have a few options to configure your remote environment:
 - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrunset_environment-command-in-mlrun-sdk)
 - [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-eg-pycharm-or-vscode)
 
+```{admonition} Important
+One of the variables you define in your environment is `MLRUN_DBPATH`, the MLRun DB path or API service URL. You can supply an alternate value for this in your code, but you must also run `mlconf.reload()` to explicitly apply the new DB path. For example:
+```python
+url = "https://mlrun-api"
+mlrun.mlconf.dbpath = url
+mlrun.mlconf.reload()
+```
+
 ### Using `mlrun config set` command in MLRun CLI
 
 **Example 1**<br>
@@ -95,8 +104,9 @@ It creates the following environment file:
 MLRUN_DBPATH=http://localhost:8080
 ```
 
-MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it is localhost, username and access_key are not required (as in Example2) <br>
+MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it is localhost, username and access_key are not required (as in [Example 2](#ex2)). 
 
+(ex2)=
 **Example 2**<br>
 **Note:** Only relevant if your remote service is on an instance of the Iguazio AI Platform (**not MLRun CE**). <br>
 Run this command in MLRun CLI:
@@ -174,7 +184,7 @@ If your remote service is on an instance of the Iguazio AI Platform, you can get
 the user-profile picture or icon from the top right corner of any page, and select  **Remote settings**. They are copied to the clipboard.
 ```
 
-```{admonition} Note
+```{admonition} Important
 Make sure that you add `.env` to your `.gitignore` file. The environment file contains sensitive information that you should not store in your source control.
 ```
 

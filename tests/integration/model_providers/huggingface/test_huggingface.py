@@ -62,6 +62,7 @@ class TestBasicHuggingFaceProvider:
     def setup_class(cls):
         cls.basic_llm_model = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
         cls.system_prompt_llm_model = "microsoft/Phi-3-mini-4k-instruct"
+        cls.image_path = os.path.join(os.path.dirname(__file__), "cat.jpg")
 
     @classmethod
     def reset_env(cls):
@@ -78,11 +79,11 @@ class TestBasicHuggingFaceProvider:
         # noinspection PyAttributeOutsideInit
         self.url_prefix = "huggingface://"
 
-    def setup_datastore_profile(self):
+    def setup_datastore_profile(self, task=None):
         # noinspection PyAttributeOutsideInit
         self.profile = HuggingFaceProfile(
             name=self.profile_name,
-            task=self.env_secrets.get("HF_TASK") or "text-generation",
+            task=task or "text-generation",
             token=self.env_secrets.get("HF_TOKEN"),
             device=self.env_secrets.get("HF_DEVICE"),
             device_map=self.env_secrets.get("HF_DEVICE_MAP"),
@@ -182,121 +183,59 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         assert result
         assert " " not in result.strip()  # checking one-word answer
 
-    # @pytest.mark.asyncio
-    # #@pytest.mark.parametrize("use_datastore_profile", [True, False])
-    # @pytest.mark.parametrize("use_datastore_profile", [False])
-    # async def test_async_invoke(self, use_datastore_profile):
-    #     if use_datastore_profile:
-    #         self.setup_datastore_profile()
-    #     model_url = self.url_prefix + self.basic_llm_model
-    #     model_provider = mlrun.get_model_provider(
-    #         url=model_url, default_invoke_kwargs={"max_new_tokens": 100}
-    #     )
-    #     model_provider = cast(HuggingFaceProvider, model_provider)
-    #     assert model_provider.model == self.basic_llm_model
-    #     coroutine1 = model_provider.async_invoke(
-    #         messages=self._get_messages(fixed_prompts[0]), as_str=True
-    #     )
-    #     coroutine2 = model_provider.async_invoke(
-    #         messages=self._get_messages(fixed_prompts[1])
-    #     )
-    #     result1, result2 = await asyncio.gather(coroutine1, coroutine2)
-    #     result2 = result2.choices[0].message.content
-    #     assert EXPECTED_RESULTS[0] in result1.lower()
-    #     assert EXPECTED_RESULTS[1] in result2.lower()
-    #
-    #     encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-    #     assert len(encoding.encode(result1)) == 100
-    #     assert len(encoding.encode(result2)) == 100
-    #
-    @pytest.mark.asyncio
-    #@pytest.mark.parametrize("run_async", [True, False])
-    @pytest.mark.parametrize("run_async", [False])
-    async def test_custom_invoke(self, run_async):
+    @pytest.mark.parametrize("use_datastore_profile", [True, False])
+    async def test_custom_invoke(self, use_datastore_profile):
         model_name = "microsoft/resnet-50"
-        model_url = self.url_prefix + model_name
-        image_path = os.path.join(os.path.dirname(__file__), "cat.jpg")
+        task = "image-classification"
+        secrets = None
+        top_k = 2
 
-        model_provider = mlrun.get_model_provider(url=model_url, secrets={"HF_TASK": "image-classification"},
-                                                  default_invoke_kwargs={"top_k": 2})
-        image = Image.open(image_path)
-        if run_async:
-            classification_results = []
-            pass # TODO
+        if use_datastore_profile:
+            self.setup_datastore_profile(task=task)
         else:
-            classification_results = model_provider.custom_invoke(
-                inputs=image
-            )
-        assert len(classification_results) == 2
+            secrets = {"HF_TASK": task}
+        model_url = self.url_prefix + model_name
+        model_provider = mlrun.get_model_provider(url=model_url, secrets=secrets,
+                                                  default_invoke_kwargs={"top_k": top_k})
+        image = Image.open(self.image_path)
+        classification_results = model_provider.custom_invoke(
+            inputs=image
+        )
+        assert len(classification_results) == top_k
         assert "cat" in classification_results[0]["label"]
 
 
-# class TestOpenAIModel(TestBasicOpenAIProvider):
-#     def test_model_runner_with_openai(self):
-#         project = mlrun.new_project("test-openai-model", save=False)
-#         model_url = self.url_prefix + self.basic_llm_model
-#         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
-#             project, model_url
-#         )
-#         # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
-#         # # Mocked function used to verify artifact URI is passed correctly.
-#         #
-#         mocked_get_store_artifact = create_mocked_get_store_artifact(
-#             {
-#                 model_artifact.uri: model_artifact,
-#                 llm_prompt_artifact.uri: llm_prompt_artifact,
-#             }
-#         )
-#         with (
-#             unittest.mock.patch(
-#                 "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
-#                 side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
-#                     *args, **kwargs
-#                 ),
-#             ),
-#         ):
-#             server = function.to_mock_server()
-#         try:
-#             result = server.test(body=INPUT_DATA["input"][0])["result"]
-#             assert EXPECTED_RESULTS[0] in result.lower()
-#             encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-#             assert len(encoding.encode(result)) == 100
-#         finally:
-#             server.wait_for_completion()
-#
-#     def test_model_runner_with_openai_async(self):
-#         project = mlrun.new_project("test-openai-model", save=False)
-#         model_url = self.url_prefix + self.basic_llm_model
-#         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
-#             project, model_url, execution_mechanism="asyncio"
-#         )
-#         # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
-#         # # Mocked function used to verify artifact URI is passed correctly.
-#         #
-#         mocked_get_store_artifact = create_mocked_get_store_artifact(
-#             {
-#                 model_artifact.uri: model_artifact,
-#                 llm_prompt_artifact.uri: llm_prompt_artifact,
-#             }
-#         )
-#         with (
-#             unittest.mock.patch(
-#                 "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
-#                 side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
-#                     *args, **kwargs
-#                 ),
-#             ),
-#         ):
-#             server = function.to_mock_server()
-#         try:
-#             start = time.perf_counter()
-#             results_with_times = server.test(body=INPUT_DATA)
-#             total_duration = time.perf_counter() - start
-#
-#             assert_async_invocations(
-#                 results_with_times=results_with_times,
-#                 model_name=self.basic_llm_model,
-#                 total_duration=total_duration,
-#             )
-#         finally:
-#             server.wait_for_completion()
+class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
+    def test_hf_model_runner(self):
+        project = mlrun.new_project("test-hf-model", save=False)
+        model_url = self.url_prefix + self.basic_llm_model
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project, model_url, default_config={"max_new_tokens": 100}
+        )
+        # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
+        # # Mocked function used to verify artifact URI is passed correctly.
+        #
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with (
+            unittest.mock.patch(
+                "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+                side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                    *args, **kwargs
+                ),
+            ),
+        ):
+            server = function.to_mock_server()
+        try:
+            result = server.test(body=INPUT_DATA[0])["result"]
+            assert EXPECTED_RESULTS[0] in result.lower()
+            tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
+            token_count = len(tokenizer.encode(result))
+            # Extra token is due to the EOS token, which signals end of generation.
+            assert token_count == 101
+        finally:
+            server.wait_for_completion()

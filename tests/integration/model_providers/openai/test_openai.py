@@ -243,7 +243,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         project = mlrun.new_project("test-openai-model", save=False)
         model_url = self.url_prefix + self.basic_llm_model
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
-            project, model_url, execution_mechanism=execution_mechanism
+            project, model_url, execution_mechanism=execution_mechanism, default_config={"max_tokens": 100}
         )
         # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
         # # Mocked function used to verify artifact URI is passed correctly.
@@ -280,6 +280,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             model_url,
             execution_mechanism="asyncio",
             model_class="MyOpenAIAsyncEvents",
+            default_config={"max_tokens": 100}
         )
         # # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
         # # Mocked function used to verify artifact URI is passed correctly.

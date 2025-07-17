@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar, Union
 
 import mlrun
@@ -34,8 +33,6 @@ class HuggingFaceProvider(ModelProvider):
     functionality, including client initialization, model invocation, and custom
     operations tailored to the OpenAI API.
     """
-
-    support_async = True
 
     def __init__(
         self,
@@ -88,9 +85,6 @@ class HuggingFaceProvider(ModelProvider):
 
             self._client = pipeline(model=self.model, **self.options)
             self._default_operation = self._client
-
-            # self._async_client = AsyncOpenAI(**self.options)
-            # self._default_async_operation = self.async_client.chat.completions.create
         except ImportError as exc:
             raise ImportError("openai package is not installed") from exc
 
@@ -132,37 +126,6 @@ class HuggingFaceProvider(ModelProvider):
         else:
             return self._default_operation(**invoke_kwargs)
 
-    async def async_custom_invoke(
-        self,
-        operation: Optional[Callable[..., Awaitable[T]]] = None,
-        **invoke_kwargs,
-    ) -> Optional[T]:
-        """
-        OpenAI-specific implementation of `ModelProvider.async_custom_invoke`.
-
-        Invokes an OpenAI model operation using the async client. For full details, see
-        `ModelProvider.async_custom_invoke`.
-
-        Example:
-            ```python
-            result = openai_model_provider.invoke(
-                openai_model_provider.async_client.images.generate,
-                prompt="A futuristic cityscape at sunset",
-                n=1,
-                size="1024x1024",
-            )
-            ```
-        :param operation: An async callable representing the model operation (e.g., an async_client method).
-        :param invoke_kwargs: Keyword arguments to pass to the operation.
-        :return: The full response returned by the awaited operation.
-
-        """
-        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
-        if operation:
-            return await operation(**invoke_kwargs)
-        else:
-            return await self._default_async_operation(**invoke_kwargs)
-
     def invoke(
         self,
         messages: Union[str, list[str], ChatType, list[ChatType]] = None,
@@ -178,18 +141,4 @@ class HuggingFaceProvider(ModelProvider):
         response = self._default_operation(messages, **invoke_kwargs)
         if as_str:
             return self._extract_string_output(response)
-        return response
-
-    async def async_invoke(
-        self,
-        messages: Optional[list[dict]] = None,
-        as_str: bool = False,
-        **invoke_kwargs,
-    ) -> str:
-        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
-        response = await self._default_async_operation(
-            model=self.endpoint, messages=messages, **invoke_kwargs
-        )
-        if as_str:
-            return response.choices[0].message.content
         return response

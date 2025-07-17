@@ -82,6 +82,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             image=self.image,
             requirements=["openai==1.77.0"],
             execution_mechanism=execution_mechanism,
+            default_config={"max_tokens": 100}
         )
         function.deploy()
         response = function.invoke(
@@ -105,6 +106,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             image=self.image,
             requirements=["openai==1.77.0"],
             model_class="MyOpenAIAsyncEvents",
+            default_config={"max_tokens": 100}
         )
         function.deploy()
 

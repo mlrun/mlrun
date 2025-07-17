@@ -239,9 +239,9 @@ azure-keyvault-secrets==4.10.0 \
     --hash=sha256:666fa42892f9cee749563e551a90f060435ab878977c95265173a8246d546a36 \
     --hash=sha256:9dbde256077a4ee1a847646671580692e3f9bea36bcfc189c3cf2b9a94eb38b9
     # via -r extras-requirements.txt
-azure-storage-blob==12.25.1 \
-    --hash=sha256:1f337aab12e918ec3f1b638baada97550673911c4ceed892acc8e4e891b74167 \
-    --hash=sha256:4f294ddc9bc47909ac66b8934bd26b50d2000278b10ad82cc109764fdc6e0e3b
+azure-storage-blob==12.26.0 \
+    --hash=sha256:5dd7d7824224f7de00bfeb032753601c982655173061e242f13be6e26d78d71f \
+    --hash=sha256:8c5631b8b22b4f53ec5fff2f3bededf34cfef111e2af613ad42c9e6de00a77fe
     # via adlfs
 beautifulsoup4==4.13.4 \
     --hash=sha256:9bbbb14bfde9d79f38b8cd5f8c7c85f4b8f2523190ebed90e950a8dea4cb1c4b \
@@ -848,54 +848,56 @@ fastjsonschema==2.21.1 \
 filelock==3.18.0 \
     --hash=sha256:adbc88eabb99d2fec8c9c1b229b171f18afa655400173ddc653d5d01501fb9f2 \
     --hash=sha256:c401f4f8377c4464e6db25fff06205fd89bdd83b65eb0488ed1b160f780e21de
-    # via snowflake-connector-python
+    # via
+    #   huggingface-hub
+    #   snowflake-connector-python
 flask==3.1.1 \
     --hash=sha256:07aae2bb5eaf77993ef57e357491839f5fd9f4dc281593a81a9e4d79a24f295c \
     --hash=sha256:284c7b8f2f58cb737f0cf1c30fd7eaf0ccfcde196099d24ecede3fc2005aa59e
     # via mlflow
-fonttools==4.58.5 \
-    --hash=sha256:0162a6a37b0ca70d8505311d541e291cd6cab54d1a986ae3d2686c56c0581e8f \
-    --hash=sha256:082410bc40014db55be5457836043f0dd1e6b3817c7d11a0aeb44eaa862890af \
-    --hash=sha256:0b0983be58d8c8acb11161fdd3b43d64015cef8c3d65ad9289a252243b236128 \
-    --hash=sha256:0bfddfd09aafbbfb3bd98ae67415fbe51eccd614c17db0c8844fe724fbc5d43d \
-    --hash=sha256:0feac9dda9a48a7a342a593f35d50a5cee2dbd27a03a4c4a5192834a4853b204 \
-    --hash=sha256:126c16ec4a672c9cb5c1c255dc438d15436b470afc8e9cac25a2d39dd2dc26eb \
-    --hash=sha256:1cde303422198fdc7f502dbdf1bf65306166cdb9446debd6c7fb826b4d66a530 \
-    --hash=sha256:26ec05319353842d127bd02516eacb25b97ca83966e40e9ad6fab85cab0576f4 \
-    --hash=sha256:2af65836cf84cd7cb882d0b353bdc73643a497ce23b7414c26499bb8128ca1af \
-    --hash=sha256:2d172b92dff59ef8929b4452d5a7b19b8e92081aa87bfb2d82b03b1ff14fc667 \
-    --hash=sha256:3515ac47a9a5ac025d2899d195198314023d89492340ba86e4ba79451f7518a8 \
-    --hash=sha256:36555230e168511e83ad8637232268649634b8dfff6ef58f46e1ebc057a041ad \
-    --hash=sha256:3f2c05a8d82a4d15aebfdb3506e90793aea16e0302cec385134dd960647a36c0 \
-    --hash=sha256:4a036822e915692aa2c03e2decc60f49a8190f8111b639c947a4f4e5774d0d7a \
-    --hash=sha256:688137789dbd44e8757ad77b49a771539d8069195ffa9a8bcf18176e90bbd86d \
-    --hash=sha256:75cf8c2812c898dd3d70d62b2b768df4eeb524a83fb987a512ddb3863d6a8c54 \
-    --hash=sha256:778a632e538f82c1920579c0c01566a8f83dc24470c96efbf2fbac698907f569 \
-    --hash=sha256:79f0c4b1cc63839b61deeac646d8dba46f8ed40332c2ac1b9997281462c2e4ba \
-    --hash=sha256:83a96e4a4e65efd6c098da549ec34f328f08963acd2d7bc910ceba01d2dc73e6 \
-    --hash=sha256:8ddb7c0c3e91b187acc1bed31857376926569a18a348ac58d6a71eb8a6b22393 \
-    --hash=sha256:9e2d71676025dd74a21d682be36d4846aa03644c619f2c2d695a11a7262433f6 \
-    --hash=sha256:9f7e2ab9c10b6811b4f12a0768661325a48e664ec0a0530232c1605896a598db \
-    --hash=sha256:a1a9a2c462760976882131cbab7d63407813413a2d32cd699e86a1ff22bf7aa5 \
-    --hash=sha256:a6d7709fcf4577b0f294ee6327088884ca95046e1eccde87c53bbba4d5008541 \
-    --hash=sha256:a81769fc4d473c808310c9ed91fbe01b67f615e3196fb9773e093939f59e6783 \
-    --hash=sha256:adf440deecfcc2390998e649156e3bdd0b615863228c484732dc06ac04f57385 \
-    --hash=sha256:b00530b84f87792891874938bd42f47af2f7f4c2a1d70466e6eb7166577853ab \
-    --hash=sha256:b2a35b0a19f1837284b3a23dd64fd7761b8911d50911ecd2bdbaf5b2d1b5df9c \
-    --hash=sha256:b5a0e28fb6abc31ba45a2d11dc2fe826e5a074013d13b7b447b441e8236e5f1c \
-    --hash=sha256:b9b5099ca99b79d6d67162778b1b1616fc0e1de02c1a178248a0da8d78a33852 \
-    --hash=sha256:bca61b14031a4b7dc87e14bf6ca34c275f8e4b9f7a37bc2fe746b532a924cf30 \
-    --hash=sha256:bf09f14d73a18c62eb9ad1cac98a37569241ba3cd5789cc578286c128cc29f7f \
-    --hash=sha256:c3af3fefaafb570a03051a0d6899b8374dcf8e6a4560e42575843aef33bdbad6 \
-    --hash=sha256:c5579fb3744dfec151b5c29b35857df83e01f06fe446e8c2ebaf1effd7e6cdce \
-    --hash=sha256:cda226253bf14c559bc5a17c570d46abd70315c9a687d91c0e01147f87736182 \
-    --hash=sha256:cfde5045f1bc92ad11b4b7551807564045a1b38cb037eb3c2bc4e737cd3a8d0f \
-    --hash=sha256:d2d79cfeb456bf438cb9fb87437634d4d6f228f27572ca5c5355e58472d5519d \
-    --hash=sha256:d500d399aa4e92d969a0d21052696fa762385bb23c3e733703af4a195ad9f34c \
-    --hash=sha256:d506652abc285934ee949a5f3a952c5d52a09257bc2ba44a92db3ec2804c76fe \
-    --hash=sha256:e48a487ed24d9b611c5c4b25db1e50e69e9854ca2670e39a3486ffcd98863ec4 \
-    --hash=sha256:eb46a73759efc8a7eca40203843241cd3c79aa983ed7f7515548ed3d82073761 \
-    --hash=sha256:f4b6f1360da13cecc88c0d60716145b31e1015fbe6a59e32f73a4404e2ea92cf
+fonttools==4.59.0 \
+    --hash=sha256:052444a5d0151878e87e3e512a1aa1a0ab35ee4c28afde0a778e23b0ace4a7de \
+    --hash=sha256:169b99a2553a227f7b5fea8d9ecd673aa258617f466b2abc6091fe4512a0dcd0 \
+    --hash=sha256:209b75943d158f610b78320eacb5539aa9e920bee2c775445b2846c65d20e19d \
+    --hash=sha256:21e606b2d38fed938dde871c5736822dd6bda7a4631b92e509a1f5cd1b90c5df \
+    --hash=sha256:241313683afd3baacb32a6bd124d0bce7404bc5280e12e291bae1b9bba28711d \
+    --hash=sha256:26731739daa23b872643f0e4072d5939960237d540c35c14e6a06d47d71ca8fe \
+    --hash=sha256:2e7cf8044ce2598bb87e44ba1d2c6e45d7a8decf56055b92906dc53f67c76d64 \
+    --hash=sha256:31003b6a10f70742a63126b80863ab48175fb8272a18ca0846c0482968f0588e \
+    --hash=sha256:332bfe685d1ac58ca8d62b8d6c71c2e52a6c64bc218dc8f7825c9ea51385aa01 \
+    --hash=sha256:37c377f7cb2ab2eca8a0b319c68146d34a339792f9420fca6cd49cf28d370705 \
+    --hash=sha256:37e01c6ec0c98599778c2e688350d624fa4770fbd6144551bd5e032f1199171c \
+    --hash=sha256:401b1941ce37e78b8fd119b419b617277c65ae9417742a63282257434fd68ea2 \
+    --hash=sha256:4536f2695fe5c1ffb528d84a35a7d3967e5558d2af58b4775e7ab1449d65767b \
+    --hash=sha256:4c908a7036f0f3677f8afa577bcd973e3e20ddd2f7c42a33208d18bee95cdb6f \
+    --hash=sha256:51ab1ff33c19e336c02dee1e9fd1abd974a4ca3d8f7eef2a104d0816a241ce97 \
+    --hash=sha256:524133c1be38445c5c0575eacea42dbd44374b310b1ffc4b60ff01d881fabb96 \
+    --hash=sha256:57bb7e26928573ee7c6504f54c05860d867fd35e675769f3ce01b52af38d48e2 \
+    --hash=sha256:60f6665579e909b618282f3c14fa0b80570fbf1ee0e67678b9a9d43aa5d67a37 \
+    --hash=sha256:62224a9bb85b4b66d1b46d45cbe43d71cbf8f527d332b177e3b96191ffbc1e64 \
+    --hash=sha256:6770d7da00f358183d8fd5c4615436189e4f683bdb6affb02cad3d221d7bb757 \
+    --hash=sha256:6801aeddb6acb2c42eafa45bc1cb98ba236871ae6f33f31e984670b749a8e58e \
+    --hash=sha256:70d6b3ceaa9cc5a6ac52884f3b3d9544e8e231e95b23f138bdb78e6d4dc0eae3 \
+    --hash=sha256:78813b49d749e1bb4db1c57f2d4d7e6db22c253cb0a86ad819f5dc197710d4b2 \
+    --hash=sha256:841b2186adce48903c0fef235421ae21549020eca942c1da773ac380b056ab3c \
+    --hash=sha256:84fc186980231a287b28560d3123bd255d3c6b6659828c642b4cf961e2b923d0 \
+    --hash=sha256:885bde7d26e5b40e15c47bd5def48b38cbd50830a65f98122a8fb90962af7cd1 \
+    --hash=sha256:8b4309a2775e4feee7356e63b163969a215d663399cce1b3d3b65e7ec2d9680e \
+    --hash=sha256:8d77f92438daeaddc05682f0f3dac90c5b9829bcac75b57e8ce09cb67786073c \
+    --hash=sha256:902425f5afe28572d65d2bf9c33edd5265c612ff82c69e6f83ea13eafc0dcbea \
+    --hash=sha256:9bcc1e77fbd1609198966ded6b2a9897bd6c6bcbd2287a2fc7d75f1a254179c5 \
+    --hash=sha256:a408c3c51358c89b29cfa5317cf11518b7ce5de1717abb55c5ae2d2921027de6 \
+    --hash=sha256:a9bf8adc9e1f3012edc8f09b08336272aec0c55bc677422273e21280db748f7c \
+    --hash=sha256:b818db35879d2edf7f46c7e729c700a0bce03b61b9412f5a7118406687cb151d \
+    --hash=sha256:b8974b2a266b54c96709bd5e239979cddfd2dbceed331aa567ea1d7c4a2202db \
+    --hash=sha256:be392ec3529e2f57faa28709d60723a763904f71a2b63aabe14fee6648fe3b14 \
+    --hash=sha256:d3972b13148c1d1fbc092b27678a33b3080d1ac0ca305742b0119b75f9e87e38 \
+    --hash=sha256:d40dcf533ca481355aa7b682e9e079f766f35715defa4929aeb5597f9604272e \
+    --hash=sha256:e93df708c69a193fc7987192f94df250f83f3851fda49413f02ba5dded639482 \
+    --hash=sha256:efd7e6660674e234e29937bc1481dceb7e0336bfae75b856b4fb272b5093c5d4 \
+    --hash=sha256:f9b3a78f69dcbd803cf2fb3f972779875b244c1115481dfbdd567b2c22b31f6b \
+    --hash=sha256:fa39475eaccb98f9199eccfda4298abaf35ae0caec676ffc25b3a5e224044464 \
+    --hash=sha256:fbce6dae41b692a5973d0f2158f782b9ad05babc2c2019a970a1094a23909b1b
     # via matplotlib
 fqdn==1.5.1 \
     --hash=sha256:105ed3677e767fb5ca086a0c1f4bb66ebc3c100be518f0e0d755d9eae164d89f \
@@ -1017,6 +1019,7 @@ fsspec==2024.6.1 \
     #   adlfs
     #   dask
     #   gcsfs
+    #   huggingface-hub
     #   ossfs
     #   s3fs
     #   storey
@@ -1387,6 +1390,16 @@ h11==0.16.0 \
     # via
     #   httpcore
     #   uvicorn
+hf-xet==1.1.5 ; platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64' \
+    --hash=sha256:69ebbcfd9ec44fdc2af73441619eeb06b94ee34511bbcf57cd423820090f5694 \
+    --hash=sha256:73e167d9807d166596b4b2f0b585c6d5bd84a26dea32843665a8b58f6edba245 \
+    --hash=sha256:83088ecea236d5113de478acb2339f92c95b4fb0462acaa30621fac02f5a534a \
+    --hash=sha256:9fa6e3ee5d61912c4a113e0708eaaef987047616465ac7aa30f7121a48fc1af8 \
+    --hash=sha256:ab34c4c3104133c495785d5d8bba3b1efc99de52c02e759cf711a91fd39d3a14 \
+    --hash=sha256:dbba1660e5d810bd0ea77c511a99e9242d920790d0e63c0e4673ed36c4022d18 \
+    --hash=sha256:f52c2fa3635b8c37c7764d8796dfa72706cc4eded19d638331161e82b0792e23 \
+    --hash=sha256:fc874b5c843e642f45fd85cda1ce599e123308ad2901ead23d3510a47ff506d1
+    # via huggingface-hub
 httpcore==1.0.9 \
     --hash=sha256:2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55 \
     --hash=sha256:6e34463af53fd2ab5d807f399a9b45ea31c3dfa2276f15a2c3f00afff6e176e8
@@ -1395,6 +1408,10 @@ httpx==0.28.1 \
     --hash=sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc \
     --hash=sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
     # via openai
+huggingface-hub==0.33.4 \
+    --hash=sha256:09f9f4e7ca62547c70f8b82767eefadd2667f4e116acba2e3e62a5a81815a7bb \
+    --hash=sha256:6af13478deae120e765bfd92adad0ae1aec1ad8c439b46f23058ad5956cbca0a
+    # via -r extras-requirements.txt
 idna==3.10 \
     --hash=sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9 \
     --hash=sha256:946d195a0d259cbba61165e88e65941f16e9b36ea6ddb97f00452bae8b1287d3
@@ -2482,9 +2499,9 @@ oauthlib==3.3.1 \
     # via
     #   kubernetes
     #   requests-oauthlib
-openai==1.96.1 \
-    --hash=sha256:0afaab2019bae8e145e7a1baf6953167084f019dd15042c65edd117398c1eb1c \
-    --hash=sha256:6d505b5cc550e036bfa3fe99d6cff565b11491d12378d4c353f92ef72b0a408a
+openai==1.97.0 \
+    --hash=sha256:0be349569ccaa4fb54f97bb808423fd29ccaeb1246ee1be762e0c81a47bae0aa \
+    --hash=sha256:a1c24d96f4609f3f7f51c9e1c2606d97cc6e334833438659cfd687e9c972c610
     # via -r extras-requirements.txt
 opentelemetry-api==1.35.0 \
     --hash=sha256:a111b959bcfa5b4d7dffc2fbd6a241aa72dd78dd8e79b5b1662bda896c5d2ffe \
@@ -2602,6 +2619,7 @@ packaging==24.2 \
     #   distributed
     #   google-cloud-bigquery
     #   gunicorn
+    #   huggingface-hub
     #   ipykernel
     #   jupyter-events
     #   jupyter-server
@@ -3336,6 +3354,7 @@ pyyaml==6.0.2 \
     #   bokeh
     #   dask
     #   distributed
+    #   huggingface-hub
     #   jupyter-events
     #   kubernetes
     #   kubernetes-asyncio
@@ -3449,6 +3468,7 @@ requests==2.32.4 \
     #   google-api-core
     #   google-cloud-bigquery
     #   google-cloud-storage
+    #   huggingface-hub
     #   kubernetes
     #   mlflow-skinny
     #   msal
@@ -3976,6 +3996,7 @@ tqdm==4.67.1 \
     --hash=sha256:f8aef9c52c08c13a65f30ea34f4e5aac3fd1a34959879d7e59e63027286627f2
     # via
     #   -r dockerfiles/mlrun/requirements.txt
+    #   huggingface-hub
     #   openai
 traitlets==5.14.3 \
     --hash=sha256:9ed0579d3502c94b4b3732ac120375cda96f923114522847de4b3bb98b96b6b7 \
@@ -4014,6 +4035,7 @@ typing-extensions==4.14.1 \
     #   fastapi
     #   graphene
     #   graphql-core
+    #   huggingface-hub
     #   ipython
     #   mistune
     #   mlflow-skinny

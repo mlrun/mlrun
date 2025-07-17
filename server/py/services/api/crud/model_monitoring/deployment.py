@@ -1027,6 +1027,66 @@ class MonitoringDeployment:
                             stats.pop("current", None)
 
                     function.stats["stream_stats"] = stream_stats
+        else:
+            # Kafka stream stats
+            import kafka
+            consumer = kafka.KafkaConsumer(
+                bootstrap_servers=self.__stream_profile.brokers,
+                group_id=self.__stream_profile.group,
+            )
+            # Iterate over each function and get the stream stats
+            for function in function_summaries:
+                topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
+                    project=self.project, function_name=function.name
+                )
+                print("[EYAL]: topic", topic)
+                try:
+                    partitions = consumer.partitions_for_topic(topic)
+                    if not partitions:
+                        logger.warning(
+                            f"No partitions found for topic {topic} in function {function.name}"
+                        )
+                        continue
+
+
+                    if agg_stats:
+                        total_committed = 0
+                        total_lag = 0
+
+                        for partition in partitions:
+                            tp = kafka.TopicPartition(topic, partition)
+                            committed = consumer.committed(tp) or 0
+                            lag = consumer.end_offsets([tp])[tp] - committed
+                            total_committed += committed
+                            total_lag += lag
+
+                        stream_stats = {
+                            "committed": total_committed,
+                            "lag": total_lag,
+                        }
+                    else:
+                        stream_stats = {}
+                        # Get the committed offsets and lag for each partition
+                        for partition in partitions:
+                            tp = kafka.TopicPartition(topic, partition)
+                            committed = consumer.committed(tp) or 0
+                            lag = consumer.end_offsets([tp])[tp] - committed
+                            stream_stats[partition] = {
+                                "committed": committed,
+                                "lag": lag,
+                            }
+
+                    function.stats["stream_stats"] = stream_stats
+
+                except kafka.errors.UnknownTopicOrPartitionError as exc:
+                    logger.warning(
+                        f"Failed to get topic stats",
+                        project=self.project,
+                        function_name=function.name,
+                        topic=topic,
+                        error_message=mlrun.errors.err_to_str(exc)
+                    )
+                print("[EYAL]: stream_stats", stream_stats)
 
     async def _get_function_summary_applications(
         self,

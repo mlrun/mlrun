@@ -52,7 +52,6 @@ RUN git config --global user.email "test@mlrun.org" \
 ARG MLRUN_PIP_VERSION=25.0
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
-WORKDIR /mlrun
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 ARG MLRUN_PYTHON_VERSION=3.9
@@ -63,22 +62,27 @@ ARG MLRUN_PYTHON_VERSION=3.9
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/test/locked-requirements.txt,target=locked-requirements.txt \
-    uv pip sync --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
-
-COPY pipeline-adapters pipeline-adapters
-# Install the pipeline adapters development versions since we release them only after merging
-RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common --python-version ${MLRUN_PYTHON_VERSION} && \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
-
+    uv pip sync  --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
+WORKDIR /tmp/mlrun
 COPY *requirements.txt .
+COPY setup.py .
+COPY packages.py .
+COPY README.md .
 COPY dependencies.py .
 COPY pyproject.toml .
+COPY mlrun mlrun
+COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[complete,dev-postgres] --python-version ${MLRUN_PYTHON_VERSION}
 
-COPY . .
+COPY pipeline-adapters pipeline-adapters
+# Install the pipeline adapters development versions since we release them only after merging
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
 
-RUN rm -rf ./server/go
+WORKDIR /mlrun
+COPY tests tests
+
+RUN rm -rf /tmp/mlrun

@@ -46,20 +46,30 @@ ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/test-system/locked-requirements.txt,target=locked-requirements.txt \
-    uv pip sync --require-hashes locked-requirements.txt
+    uv pip sync  --require-hashes locked-requirements.txt
 
-COPY . .
-
-RUN rm -rf ./server/go
-
+WORKDIR /tmp/mlrun
+COPY *requirements.txt .
+COPY setup.py .
+COPY packages.py .
+COPY README.md .
+COPY dependencies.py .
+COPY pyproject.toml .
+COPY mlrun mlrun
+COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[complete,dev-postgres]
 
-RUN mv tests /tests && mv Makefile /Makefile
+COPY pipeline-adapters pipeline-adapters
+ARG MLRUN_PYTHON_VERSION
+# Install the pipeline adapters development versions since we release them only after merging
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
 
-COPY . /tmp/mlrun
-
+WORKDIR /mlrun
+COPY tests /tests
+COPY Makefile /Makefile
 # Clean up all code used for building to simulate user env
 RUN rm -rf /tmp/mlrun
 

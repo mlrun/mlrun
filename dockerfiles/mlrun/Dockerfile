@@ -86,14 +86,23 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=bind,source=dockerfiles/mlrun/locked-requirements.txt,target=locked-requirements.txt \
     uv pip install --no-deps --require-hashes -r locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
 
-COPY . .
+WORKDIR /tmp/mlrun
+COPY *requirements.txt .
+COPY setup.py .
+COPY packages.py .
+COPY README.md .
+COPY dependencies.py .
+COPY pyproject.toml .
+COPY dockerfiles/mlrun-api ./dockerfiles/mlrun-api
+COPY mlrun mlrun
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION}
 
+
 # Remove server related files that are not needed
 # Remove ensurepip folders from both conda and system python
-RUN rm -rf ./server/go \
-    && rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
-    && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
+RUN rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
+    /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
+    /tmp/mlrun

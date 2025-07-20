@@ -16,11 +16,11 @@ import json
 import os
 import pickle
 import string
-import typing
 from datetime import datetime, timedelta, timezone
 from random import choice, randint, uniform
 from time import monotonic, sleep
 from typing import Optional, Union
+from uuid import uuid4
 
 import fsspec
 import numpy as np
@@ -1775,8 +1775,9 @@ class TestModelEndpointWithManyFeatures(TestMLRunSystemModelMonitoring):
 class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
     """Test get_model_endpoint_monitoring_metrics functionality."""
 
-    project_name = "model-endpoint-get-metrics"
-    image: typing.Optional[str] = None
+    project_name = "proj-v9"
+    # image: typing.Optional[str] = None
+    image = "artifactory.iguazeng.com:10557/danielp/mlrun:1.10.0"
 
     @staticmethod
     def _generate_event(
@@ -1932,13 +1933,15 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
             [result.name for result in intersection_events_by_type[results_key]]
         )
 
-        # test that intersection with mep with no metrics returns only invocations
+        # test that intersection with mep with no metrics returns only invocations metric and nor results
         intersection_events_empty = self._run_db.get_metrics_by_multiple_endpoints(
             project=self.project.name,
             endpoint_ids=[mep_uid, mep3_uid],
             events_format=mm_constants.GetEventsFormat.INTERSECTION,
         )
-        assert ["invocations"] == [metric.name for metric in intersection_events_empty[metrics_key]]
+        assert ["invocations"] == [
+            metric.name for metric in intersection_events_empty[metrics_key]
+        ]
         assert [] == [metric.name for metric in intersection_events_empty[results_key]]
 
         # get nonexistent MEP IDs:
@@ -1947,7 +1950,6 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
         )
         assert result_for_non_exist == []
 
-        from uuid import uuid4
         with pytest.raises(mlrun.errors.MLRunNotFoundError) as err:
             self._run_db.get_metrics_by_multiple_endpoints(
                 project=self.project.name, endpoint_ids=[uuid4().hex], type="results"
@@ -1955,12 +1957,12 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
         assert "were not found in project" in str(err.value)
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError) as err:
-                self._run_db.get_metrics_by_multiple_endpoints(
-                    project=self.project.name,
-                    endpoint_ids=["not_exist", "not_exist2"],
-                    events_format=mm_constants.GetEventsFormat.INTERSECTION,
-                    type="results",
-                )
+            self._run_db.get_metrics_by_multiple_endpoints(
+                project=self.project.name,
+                endpoint_ids=[uuid4().hex, uuid4().hex],
+                events_format=mm_constants.GetEventsFormat.INTERSECTION,
+                type="results",
+            )
         assert "were not found in project" in str(err.value)
 
 

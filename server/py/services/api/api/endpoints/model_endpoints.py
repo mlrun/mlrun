@@ -435,18 +435,11 @@ async def get_metrics_by_multiple_endpoints(
     await asyncio.gather(*permissions_tasks)
 
     # verify all endpoints exist in the project
-    from sqlalchemy.exc import StatementError
-    try:
-        endpoints_data = await services.api.crud.ModelEndpoints().list_model_endpoints(
-            project=project,
-            uids=endpoint_ids,
-            db_session=db_session,
-        )
-    except StatementError:
-        raise mlrun.errors.MLRunNotFoundError(
-            f"Model endpoints with ids {endpoint_ids} were not found in project {project}."
-        )
-
+    endpoints_data = await services.api.crud.ModelEndpoints().list_model_endpoints(
+        project=project,
+        uids=endpoint_ids,
+        db_session=db_session,
+    )
     returned_uids = [endpoint.metadata.uid for endpoint in endpoints_data.endpoints]
     if len(returned_uids) < len(endpoint_ids):
         missing_endpoints = set(endpoint_ids) - set(returned_uids)

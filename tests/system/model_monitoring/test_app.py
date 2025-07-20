@@ -46,6 +46,7 @@ import mlrun.model_monitoring.api
 import mlrun.serving
 from mlrun.common.schemas.model_monitoring import ResultKindApp
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
+    ModelEndpointDriftValues,
     ModelEndpointMonitoringMetric,
 )
 from mlrun.datastore.datastore_profile import (
@@ -739,21 +740,8 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 )
             )
             evidently_func_summary = evidently_func_summary_list[0]
-
-            evidently_stats = evidently_func_summary.stats
-
-            assert evidently_stats["potential_detection"] == 1
-            assert evidently_stats["detected"] == 0
-
-            # check the stream stats if stream is v3io
-            if isinstance(self.mm_stream_profile, DatastoreProfileV3io):
-                assert evidently_stats["stream_stats"]
-                assert evidently_stats["stream_stats"]["committed"] == 1
-                assert evidently_stats["stream_stats"]["lag"] == 0
-
-            assert evidently_stats["stream_stats"]
-            assert evidently_stats["stream_stats"]["committed"] == 1
-            assert evidently_stats["stream_stats"]["lag"] == 0
+            assert evidently_func_summary.stats["potential_detection"] == 1
+            assert evidently_func_summary.stats["detected"] == 0
         except mlrun.errors.MLRunNotFoundError:
             # Evidently app was not deployed
             pass
@@ -806,6 +794,31 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 hist_function_summary.stats["stream_stats"][hist_shard_number]["lag"]
                 == 0
             )
+
+    def _test_drift_over_time(self) -> None:
+        self._logger.debug("Checking drift over time")
+        end = datetime.now().astimezone() + timedelta(
+            hours=1
+        )  # add 1 hour because end is rounded to the start of the hour
+        drift_over_time: ModelEndpointDriftValues = self.project.get_drift_over_time(
+            end=end
+        )
+        assert drift_over_time is not None
+        assert len(drift_over_time.values) == 1, "Drift over time should have one value"
+        assert (
+            drift_over_time.values[0].count_detected == 1
+        ), "Drift over time should have one detected drift"
+        assert (
+            drift_over_time.values[0].count_suspected == 0
+        ), "Drift over time should not have potential drift"
+        end = datetime.now().astimezone() - timedelta(hours=1)
+        drift_over_time: ModelEndpointDriftValues = self.project.get_drift_over_time(
+            end=end
+        )
+        assert drift_over_time is not None
+        assert (
+            len(drift_over_time.values) == 0
+        ), "No drift over time should be detected in the past"
 
     @pytest.mark.parametrize("with_training_set", [True, False])
     @pytest.mark.parametrize("with_model_runner", [True, False])
@@ -869,6 +882,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             self._test_model_endpoint_stats(mep=mep)
         self._test_error_alert()
         self._test_function_summaries()
+        self._test_drift_over_time()
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured

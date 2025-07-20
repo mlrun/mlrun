@@ -48,6 +48,7 @@ import mlrun.model_monitoring.writer
 import mlrun.serving.states
 import mlrun.utils.v3io_clients
 from mlrun import feature_store as fstore
+from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
 from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFileChief
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
@@ -59,7 +60,6 @@ import framework.db.session
 import framework.utils.background_tasks
 import framework.utils.clients.async_nuclio
 import framework.utils.singletons.k8s
-import services.api.api.endpoints.nuclio
 import services.api.crud.model_monitoring.helpers
 import services.api.utils.functions
 from framework.db.sqldb.models import ModelEndpoint
@@ -197,7 +197,9 @@ class MonitoringDeployment:
                 stream_image=stream_image, parquet_target=parquet_target
             )
             fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=fn
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                function=fn,
             )
             logger.debug(
                 "Submitted the stream deployment",
@@ -252,7 +254,9 @@ class MonitoringDeployment:
                 ),
             )
             fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=fn
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                function=fn,
             )
             logger.debug(
                 "Submitted the controller deployment",
@@ -284,7 +288,9 @@ class MonitoringDeployment:
                 writer_image=writer_image
             )
             fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=fn
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                function=fn,
             )
             logger.debug(
                 "Submitted the writer deployment",
@@ -414,6 +420,46 @@ class MonitoringDeployment:
         function.spec.min_replicas = stream_args.kafka.min_replicas
         function.spec.max_replicas = stream_args.kafka.max_replicas
 
+    @staticmethod
+    def create_model_monitoring_stream(
+        project: str,
+        stream_path: str,
+        shard_count: int,
+        retention_period_hours: int,
+        access_key: typing.Optional[str] = None,
+    ):
+        if stream_path.startswith("v3io://"):
+            import v3io.dataplane
+
+            _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
+
+            logger.info(
+                "Creating stream",
+                project=project,
+                stream_path=stream_path,
+                shard_count=shard_count,
+                container=container,
+                endpoint=mlrun.mlconf.v3io_api,
+            )
+
+            v3io_client = v3io.dataplane.Client(
+                endpoint=mlrun.mlconf.v3io_api, access_key=access_key
+            )
+
+            response = v3io_client.stream.create(
+                container=container,
+                stream_path=stream_path,
+                shard_count=shard_count,
+                retention_period_hours=retention_period_hours,
+                raise_for_status=v3io.dataplane.RaiseForStatus.never,
+                access_key=access_key,
+            )
+
+            if not (
+                response.status_code == 400 and "ResourceInUse" in str(response.body)
+            ):
+                response.raise_for_status([409, 204])
+
     def _apply_and_create_v3io_source(
         self,
         *,
@@ -440,7 +486,7 @@ class MonitoringDeployment:
             "worker_allocation_mode": "static",
             "max_workers": stream_args.v3io.num_workers,
         }
-        services.api.api.endpoints.nuclio.create_model_monitoring_stream(
+        self.create_model_monitoring_stream(
             project=self.project,
             stream_path=stream_path,
             shard_count=stream_args.v3io.shard_count,
@@ -741,7 +787,9 @@ class MonitoringDeployment:
             )
 
             fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=func
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                function=func,
             )
 
             logger.debug(
@@ -1799,6 +1847,7 @@ class MonitoringDeployment:
         function: dict,
         function_name: str,
         project: str,
+        is_batch: bool,
     ) -> tuple[
         list[
             tuple[
@@ -1853,6 +1902,7 @@ class MonitoringDeployment:
                 ),
                 model_endpoints_dict=model_endpoints_dict,
                 project=project,
+                override_type=mm_constants.EndpointType.BATCH_EP if is_batch else None,
             )
         )  # model endpoint, creation strategy, model path
         function.spec.graph = graph
@@ -1869,6 +1919,7 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
     ) -> tuple[
         list[
             tuple[
@@ -1903,6 +1954,7 @@ class MonitoringDeployment:
                     sampling_percentage=sampling_percentage,
                     model_endpoints_dict=model_endpoints_dict,
                     project=project,
+                    override_type=override_type,
                 )
             )
         return model_endpoints_instructions, graph
@@ -1916,6 +1968,7 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -1945,7 +1998,9 @@ class MonitoringDeployment:
                     (
                         self._model_endpoint_draft(
                             name=route.name,
-                            endpoint_type=route.endpoint_type,
+                            endpoint_type=override_type
+                            if override_type
+                            else route.endpoint_type,
                             model_class=route.class_name,
                             function_name=function_name,
                             function_tag=function_tag,
@@ -1983,7 +2038,9 @@ class MonitoringDeployment:
                 (
                     self._model_endpoint_draft(
                         name=router_step.name,
-                        endpoint_type=router_step.endpoint_type,
+                        endpoint_type=override_type
+                        if override_type
+                        else router_step.endpoint_type,
                         model_class=router_step.class_name,
                         function_name=function_name,
                         function_tag=function_tag,
@@ -2008,6 +2065,7 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2026,6 +2084,7 @@ class MonitoringDeployment:
                         sampling_percentage=sampling_percentage,
                         model_endpoints_dict=model_endpoints_dict,
                         project=project,
+                        override_type=override_type,
                     )
                 )
             elif isinstance(step, mlrun.serving.states.ModelRunnerStep):
@@ -2038,6 +2097,7 @@ class MonitoringDeployment:
                         sampling_percentage=sampling_percentage,
                         model_endpoints_dict=model_endpoints_dict,
                         project=project,
+                        override_type=override_type,
                     )
                 )
             else:
@@ -2060,7 +2120,9 @@ class MonitoringDeployment:
                         (
                             self._model_endpoint_draft(
                                 name=step.name,
-                                endpoint_type=step.endpoint_type,
+                                endpoint_type=override_type
+                                if override_type
+                                else step.endpoint_type,
                                 model_class=step.class_name,
                                 function_name=function_name,
                                 function_tag=function_tag,
@@ -2185,6 +2247,7 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2225,7 +2288,9 @@ class MonitoringDeployment:
                     (
                         self._model_endpoint_draft(
                             name=endpoint_name,
-                            endpoint_type=model_runner.endpoint_type,
+                            endpoint_type=override_type
+                            if override_type
+                            else model_runner.endpoint_type,
                             model_class=monitoring_data[endpoint_name].get(
                                 mlrun.common.schemas.MonitoringData.MODEL_CLASS
                             ),

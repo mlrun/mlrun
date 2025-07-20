@@ -104,6 +104,9 @@ class KubeResourceSpec(FunctionSpec):
         "security_context",
         "state_thresholds",
         "serving_spec",
+        "track_models",
+        "parameters",
+        "graph",
     ]
     _default_fields_to_strip = FunctionSpec._default_fields_to_strip + [
         "volumes",
@@ -180,6 +183,9 @@ class KubeResourceSpec(FunctionSpec):
         security_context=None,
         state_thresholds=None,
         serving_spec=None,
+        track_models=None,
+        parameters=None,
+        graph=None,
     ):
         super().__init__(
             command=command,
@@ -226,6 +232,10 @@ class KubeResourceSpec(FunctionSpec):
             or mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
         )
         self.serving_spec = serving_spec
+        self.track_models = track_models
+        self.parameters = parameters
+        self._graph = None
+        self.graph = graph
         # Termination grace period is internal for runtimes that have a pod termination hook hence it is not in the
         # _dict_fields and doesn't have a setter.
         self._termination_grace_period_seconds = None
@@ -302,6 +312,17 @@ class KubeResourceSpec(FunctionSpec):
     @property
     def termination_grace_period_seconds(self) -> typing.Optional[int]:
         return self._termination_grace_period_seconds
+
+    @property
+    def graph(self):
+        """states graph, holding the serving workflow/DAG topology"""
+        return self._graph
+
+    @graph.setter
+    def graph(self, graph):
+        from ..serving.states import graph_root_setter
+
+        graph_root_setter(self, graph)
 
     def _serialize_field(
         self, struct: dict, field_name: typing.Optional[str] = None, strip: bool = False

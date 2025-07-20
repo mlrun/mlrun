@@ -1212,7 +1212,7 @@ class ModelEndpoints:
             )
             if set(df["endpoint_id"].unique().tolist()) != endpoint_id_set:
                 logger.info(
-                    "some endpoints does not have metrics, intersection is empty"
+                    f"some endpoints does not have {type}s, intersection is empty"
                 )
                 return {
                     mlrun.common.schemas.model_monitoring.INTERSECT_DICT_KEYS[type]: []

@@ -26,6 +26,7 @@ import fsspec
 import numpy as np
 import pandas as pd
 import pytest
+import v3io
 import v3iofs
 from sklearn.datasets import load_diabetes, load_iris, make_classification
 from sklearn.linear_model import LinearRegression
@@ -42,6 +43,7 @@ import mlrun.runtimes.mounts
 import mlrun.runtimes.utils
 import mlrun.serving.routers
 import mlrun.utils
+from mlrun.common.schemas import EndpointType
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpoint,
     ModelEndpointList,
@@ -49,6 +51,7 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
 from mlrun.model import BaseMetadata
 from mlrun.model_monitoring.helpers import get_output_stream, get_result_instance_fqn
 from mlrun.runtimes import BaseRuntime
+from mlrun.serving import ModelRunnerStep
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
 
@@ -1950,6 +1953,74 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
             )
         )
         assert intersection_results_for_non_exist[results_key] == []
+
+
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestModelMonitoringOverJob(TestMLRunSystemModelMonitoring):
+    """Test get_model_endpoint_monitoring_metrics functionality."""
+
+    project_name = "model-monitoring-over-job"
+    image = "mlrun/mlrun"
+
+    def test_job_from_serving_runtime_with_model_tracking(self):
+        function = self.project.set_function(
+            func=str(self.assets_path / "function_with_model.py"),
+            name="test",
+            kind="serving",
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async")
+
+        model_runner_step = ModelRunnerStep(name="my_model_runner")
+        model_runner_step.add_model(
+            endpoint_name="my_model",
+            model_class="DummyModel",
+            execution_mechanism="naive",
+        )
+
+        graph.to(model_runner_step).to(
+            name="parquet",
+            class_name="storey.ParquetTarget",
+            path=f"v3io:///projects/{self.project_name}/out.parquet",
+        )
+
+        function.set_tracking()
+
+        self.set_mm_credentials()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
+        job = function.to_job()
+
+        with open(str(self.assets_path / "test_data.csv")) as f:
+            csv_content = f.read()
+
+        v3io_client = v3io.Client()
+        try:
+            v3io_client.object.put(
+                "projects", f"{self.project_name}/in.csv", body=csv_content
+            )
+            inputs = {"data": f"v3io:///projects/{self.project_name}/in.csv"}
+            self.project.run_function(job, inputs=inputs, local=False)
+            read_back_df = pd.read_parquet(
+                f"v3io:///projects/{self.project_name}/out.parquet"
+            )
+            assert (
+                "extra" in read_back_df.columns
+            ), "Extra column was not added by model"
+        finally:
+            v3io_client.close()
+
+        model_endpoints = (
+            mlrun.get_run_db().list_model_endpoints(self.project_name).endpoints
+        )
+
+        assert len(model_endpoints) == 1
+        assert model_endpoints[0].metadata.name == "my_model"
+        assert model_endpoints[0].metadata.endpoint_type == EndpointType.BATCH_EP
 
 
 def _validate_model_uri(model_obj, model_endpoint):

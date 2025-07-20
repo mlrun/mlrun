@@ -757,7 +757,7 @@ class HTTPRunDB(RunDBInterface):
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            return self._wait_for_background_task_to_reach_terminal_state(
+            return self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
         return None
@@ -784,7 +784,7 @@ class HTTPRunDB(RunDBInterface):
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
             if (
@@ -839,7 +839,7 @@ class HTTPRunDB(RunDBInterface):
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
             if (
@@ -1485,7 +1485,7 @@ class HTTPRunDB(RunDBInterface):
                 "Function is being deleted", project_name=project, function_name=name
             )
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
             if (
@@ -3274,7 +3274,7 @@ class HTTPRunDB(RunDBInterface):
         if response.status_code == http.HTTPStatus.ACCEPTED:
             logger.info("Waiting for project to be deleted", project_name=name)
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name
             )
             if (
@@ -3387,7 +3387,7 @@ class HTTPRunDB(RunDBInterface):
             _verify_project_in_terminal_state,
         )
 
-    def _wait_for_background_task_to_reach_terminal_state(
+    def wait_for_background_task_to_reach_terminal_state(
         self, name: str, project: str = ""
     ) -> mlrun.common.schemas.BackgroundTask:
         def _verify_background_task_in_terminal_state():
@@ -3408,6 +3408,7 @@ class HTTPRunDB(RunDBInterface):
             logger,
             False,
             _verify_background_task_in_terminal_state,
+            fatal_exceptions=(mlrun.errors.MLRunAccessDeniedError,),
         )
 
     def create_project_secrets(
@@ -4082,7 +4083,7 @@ class HTTPRunDB(RunDBInterface):
                 **response.json()
             ).background_tasks
             for task in background_tasks:
-                task = self._wait_for_background_task_to_reach_terminal_state(
+                task = self.wait_for_background_task_to_reach_terminal_state(
                     task.metadata.name, project=project
                 )
                 if (
@@ -4119,7 +4120,7 @@ class HTTPRunDB(RunDBInterface):
                 **response.json()
             ).background_tasks
             for task in background_tasks:
-                task = self._wait_for_background_task_to_reach_terminal_state(
+                task = self.wait_for_background_task_to_reach_terminal_state(
                     task.metadata.name, project=project
                 )
                 if (
@@ -5158,6 +5159,20 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", endpoint_path, error_message)
         return mlrun.common.schemas.ProjectSummary(**response.json())
 
+    def get_drift_over_time(
+        self,
+        project: str,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
+        endpoint_path = f"projects/{project}/model-endpoints/drift-over-time"
+        response = self.api_call(
+            method="GET", path=endpoint_path, params={"start": start, "end": end}
+        )
+        return mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues(
+            **response.json()
+        )
+
     @staticmethod
     def _parse_labels(
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]],
@@ -5478,7 +5493,7 @@ class HTTPRunDB(RunDBInterface):
     def _wait_for_background_task_from_response(self, response):
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            return self._wait_for_background_task_to_reach_terminal_state(
+            return self.wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name
             )
         return None

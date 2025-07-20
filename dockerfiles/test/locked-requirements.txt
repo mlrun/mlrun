@@ -984,9 +984,9 @@ dynaconf==3.2.11 \
     --hash=sha256:4cfc6a730c533bf1a1d0bf266ae202133a22236bb3227d23eff4b8542d4034a5 \
     --hash=sha256:660de90879d4da236f79195692a7d197957224d7acf922bcc6899187dc7b4a27
     # via evidently
-evidently==0.7.10 \
-    --hash=sha256:f7b924a44894249f10c0bd34c312e5827df83b9596a28a5888e3bf7a462579ed \
-    --hash=sha256:f975123d39a86d8962478583edec5e09f7a5412ef4e8ab342d6cb470ad90df77
+evidently==0.7.11 \
+    --hash=sha256:80bad07774fd4c7f53cf26515ae9e8076502977510a296e2ec9fdad5a9b3ffdd \
+    --hash=sha256:d49cb381b0be651307dee0a9a00b5e4980e52e42932b6dcaf5adba487fa3852e
     # via -r dev-requirements.txt
 exceptiongroup==1.3.0 ; python_full_version < '3.11' \
     --hash=sha256:4d111e6e0c13d0644cad6ddaa7ed0261a0b36971f6d23e7ec9b4b9097da78a10 \
@@ -1827,9 +1827,9 @@ humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
     # via -r dockerfiles/mlrun-api/requirements.txt
-hypothesis==6.135.32 \
-    --hash=sha256:b74019dc58065d806abea6292008a392bc9326b88d6a46c8cce51c9cd485af42 \
-    --hash=sha256:d0f2bf93863f19a7af2510685dde2b89efb94eaebd3ca0b86c548cd8daa33ab0
+hypothesis==6.136.0 \
+    --hash=sha256:1d7f0b61195369c043b90484cb2948a369ff83b3584970586d5c9a6f60641625 \
+    --hash=sha256:a288672440d94f9cd307e3889c4087d1f8c8b114285fcf07ae415b3c7d4a26ab
     # via -r dev-requirements.txt
 idna==3.10 \
     --hash=sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9 \
@@ -2028,9 +2028,9 @@ jsonpointer==3.0.0 \
     --hash=sha256:13e088adc14fca8b6aa8177c044e12701e6ad4b28ff10e65f2267a90109c9942 \
     --hash=sha256:2b2d729f2091522d61c3b31f82e11870f60b68f43fbc705cb76bf4b832af59ef
     # via jsonschema
-jsonschema==4.24.1 \
-    --hash=sha256:6b916866aa0b61437785f1277aa2cbd63512e8d4b47151072ef13292049b4627 \
-    --hash=sha256:fe45a130cc7f67cd0d67640b4e7e3e2e666919462ae355eda238296eafeb4b5d
+jsonschema==4.25.0 \
+    --hash=sha256:24c2e8da302de79c8b9382fee3e76b355e44d2a4364bb207159ce10b517bd716 \
+    --hash=sha256:e63acf5c11762c0e6672ffb61482bdf57f0876684d8d249c0fe2d730d48bc55f
     # via
     #   jupyter-events
     #   kfp
@@ -2309,6 +2309,10 @@ kubernetes-asyncio==32.3.2 \
     --hash=sha256:3584e6358571e686ea1396fc310890263c58fa41c084a841a9609a54ad05de62 \
     --hash=sha256:a4b6da1dbfa16e87ab8df6898f54fa03f651591a502bd6480a647d5513a580bf
     # via dask-kubernetes
+lark==1.2.2 \
+    --hash=sha256:c2276486b02f0f1b90be155f2c8ba4a8e194d42775786db622faccd652d8e80c \
+    --hash=sha256:ca807d0162cd16cef15a8feecb862d7319e7a09bdb13aef927968e45040fed80
+    # via rfc3987-syntax
 libclang==18.1.1 \
     --hash=sha256:0b2e143f0fac830156feb56f9231ff8338c20aecfe72b4ffe96f19e5a1dbb69a \
     --hash=sha256:3f0e1f49f04d3cd198985fea0511576b0aee16f9ff0e0f0cad7f9c57ec3c20e8 \
@@ -4394,6 +4398,10 @@ rfc3986-validator==0.1.1 \
     # via
     #   jsonschema
     #   jupyter-events
+rfc3987-syntax==1.1.0 \
+    --hash=sha256:6c3d97604e4c5ce9f714898e05401a0445a641cfa276432b0a648c80856f6a3f \
+    --hash=sha256:717a62cbf33cffdd16dfa3a497d81ce48a660ea691b1ddd7be710c22f00b4a0d
+    # via jsonschema
 rich==14.0.0 \
     --hash=sha256:1c9491e1951aac09caffd42f448ee3d04e58923ffe14993f6e83068dc395d7e0 \
     --hash=sha256:82f1bc23a6a21ebca4ae0c45af9bdbc492ed20231dcb63f297d6d1021a9d5725

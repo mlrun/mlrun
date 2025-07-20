@@ -16,6 +16,6 @@ from mlrun.serving import Model
 
 
 class DummyModel(Model):
-    def predict(self, body):
+    def predict(self, body, **kwargs):
         body["extra"] = 123
         return body

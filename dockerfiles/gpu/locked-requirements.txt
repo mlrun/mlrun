@@ -1474,9 +1474,9 @@ jsonpointer==3.0.0 \
     --hash=sha256:13e088adc14fca8b6aa8177c044e12701e6ad4b28ff10e65f2267a90109c9942 \
     --hash=sha256:2b2d729f2091522d61c3b31f82e11870f60b68f43fbc705cb76bf4b832af59ef
     # via jsonschema
-jsonschema==4.24.1 \
-    --hash=sha256:6b916866aa0b61437785f1277aa2cbd63512e8d4b47151072ef13292049b4627 \
-    --hash=sha256:fe45a130cc7f67cd0d67640b4e7e3e2e666919462ae355eda238296eafeb4b5d
+jsonschema==4.25.0 \
+    --hash=sha256:24c2e8da302de79c8b9382fee3e76b355e44d2a4364bb207159ce10b517bd716 \
+    --hash=sha256:e63acf5c11762c0e6672ffb61482bdf57f0876684d8d249c0fe2d730d48bc55f
     # via
     #   jupyter-events
     #   nbformat
@@ -1734,6 +1734,10 @@ kubernetes-asyncio==32.3.2 \
     --hash=sha256:3584e6358571e686ea1396fc310890263c58fa41c084a841a9609a54ad05de62 \
     --hash=sha256:a4b6da1dbfa16e87ab8df6898f54fa03f651591a502bd6480a647d5513a580bf
     # via dask-kubernetes
+lark==1.2.2 \
+    --hash=sha256:c2276486b02f0f1b90be155f2c8ba4a8e194d42775786db622faccd652d8e80c \
+    --hash=sha256:ca807d0162cd16cef15a8feecb862d7319e7a09bdb13aef927968e45040fed80
+    # via rfc3987-syntax
 llvmlite==0.43.0 ; python_full_version < '3.10' \
     --hash=sha256:14f0e4bf2fd2d9a75a3534111e8ebeb08eda2f33e9bdd6dfa13282afacdde0ed \
     --hash=sha256:18e9953c748b105668487b7c81a3e97b046d8abf95c4ddc0cd3c94f4e4651ae8 \
@@ -2239,9 +2243,9 @@ multipledispatch==1.0.0 \
     # via
     #   dask-glm
     #   dask-ml
-narwhals==1.47.0 ; python_full_version >= '3.11' \
-    --hash=sha256:38238882f3ab2bbc8e7121bc9be951a8a58f1a810bdb14aa2b18792bafac01f8 \
-    --hash=sha256:8b4ead8866046829de24058d1079e776806bd4aab7d38f55f17c58ce4c0994d2
+narwhals==1.47.1 ; python_full_version >= '3.11' \
+    --hash=sha256:3e477a54984a141b500ebd65d0b946b7a991080939b4a3321a6b01ea97258c9a \
+    --hash=sha256:b9f2b2557aba054231361a00f6fcabc5017e338575e810e82155eb34e38ace93
     # via bokeh
 nbclient==0.10.2 \
     --hash=sha256:4ffee11e788b4a27fabeb7955547e4318a5298f34342a4bfd01f2e1faaeadc3d \
@@ -3375,6 +3379,10 @@ rfc3986-validator==0.1.1 \
     # via
     #   jsonschema
     #   jupyter-events
+rfc3987-syntax==1.1.0 \
+    --hash=sha256:6c3d97604e4c5ce9f714898e05401a0445a641cfa276432b0a648c80856f6a3f \
+    --hash=sha256:717a62cbf33cffdd16dfa3a497d81ce48a660ea691b1ddd7be710c22f00b4a0d
+    # via jsonschema
 rpds-py==0.26.0 \
     --hash=sha256:0919f38f5542c0a87e7b4afcafab6fd2c15386632d249e9a087498571250abe3 \
     --hash=sha256:093d63b4b0f52d98ebae33b8c50900d3d67e0666094b1be7a12fffd7f65de74b \

@@ -351,6 +351,8 @@ class SQLDB(DBInterface):
 
         if retrying:
             if mlrun_constants.MLRunInternalLabels.retrying in labels:
+                # flush and commit so the lock is released immediately
+                session.commit()
                 raise mlrun.errors.MLRunConflictError
             else:
                 labels[mlrun_constants.MLRunInternalLabels.retrying] = "true"

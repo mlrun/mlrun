@@ -1431,9 +1431,9 @@ class ModelRunnerStep(MonitoredStep):
                                     in path.
         :param override:            bool allow override existing model on the current ModelRunnerStep.
         """
-        model_class = mlrun.serving.Model(
-            name=endpoint_name,
-            shared_runnable_name=shared_model_name,
+        model_class, model_params = (
+            "mlrun.serving.Model",
+            {"name": endpoint_name, "shared_runnable_name": shared_model_name},
         )
         if isinstance(model_artifact, str):
             model_artifact_uri = model_artifact
@@ -1486,6 +1486,7 @@ class ModelRunnerStep(MonitoredStep):
             outputs=outputs,
             input_path=input_path,
             result_path=result_path,
+            **model_params,
         )
 
     def add_model(

@@ -469,6 +469,7 @@ class TDEngineConnector(TSDBConnector):
         preform_agg_columns: Optional[list] = None,
         order_by: Optional[str] = None,
         desc: Optional[bool] = None,
+        partition_by: Optional[str] = None,
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
@@ -496,6 +497,8 @@ class TDEngineConnector(TSDBConnector):
                                       if an empty list was provided The aggregation won't be performed.
         :param order_by:              The column or alias to preform ordering on the query.
         :param desc:                  Whether or not to sort the results in descending order.
+        :param partition_by:          The column to partition the results by. Note that if interval is provided,
+                                      `agg_funcs` must bg provided as well.
 
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunInvalidArgumentError if query the provided table failed.
@@ -517,6 +520,7 @@ class TDEngineConnector(TSDBConnector):
             preform_agg_funcs_columns=preform_agg_columns,
             order_by=order_by,
             desc=desc,
+            partition_by=partition_by,
         )
         logger.debug("Querying TDEngine", query=full_query)
         try:
@@ -1204,6 +1208,39 @@ class TDEngineConnector(TSDBConnector):
                 model_endpoint_objects,
             )
         )
+
+    def get_drift_data(
+        self,
+        start: datetime,
+        end: datetime,
+    ) -> mm_schemas.ModelEndpointDriftValues:
+        filter_query = self._generate_filter_query(
+            filter_column=mm_schemas.ResultData.RESULT_STATUS,
+            filter_values=[
+                mm_schemas.ResultStatusApp.potential_detection.value,
+                mm_schemas.ResultStatusApp.detected.value,
+            ],
+        )
+        table = self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS].super_table
+        start, end, interval = self._prepare_aligned_start_end(start, end)
+
+        # get per time-interval x endpoint_id combination the max result status
+        df = self._get_records(
+            table=table,
+            start=start,
+            end=end,
+            interval=interval,
+            columns=[mm_schemas.ResultData.RESULT_STATUS],
+            filter_query=filter_query,
+            timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+            agg_funcs=["max"],
+            partition_by=mm_schemas.WriterEvent.ENDPOINT_ID,
+        )
+        if df.empty:
+            return mm_schemas.ModelEndpointDriftValues(values=[])
+
+        df["_wstart"] = pd.to_datetime(df["_wstart"])
+        return self._df_to_drift_data(df)
 
     # Note: this function serves as a reference for checking the TSDB for the existence of a metric.
     #

@@ -35,6 +35,9 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.model import RunObject
 from mlrun.utils import logger
+from server.py.framework.api.utils import (
+    _generate_function_and_task_from_submit_run_body,
+)
 
 import framework.api.utils
 import framework.utils.helpers
@@ -1111,8 +1114,11 @@ class Scheduler:
                     schedule_name,
                 )
 
+            fn, task = _generate_function_and_task_from_submit_run_body(
+                db_session, scheduled_object
+            )
             _, _, _, response = framework.api.utils.submit_run_sync(
-                db_session, auth_info, scheduled_object
+                db_session, auth_info, fn, task, scheduled_object
             )
 
             run_metadata = response["data"]["metadata"]

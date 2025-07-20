@@ -185,7 +185,6 @@ def iguazio_client(
     # force running init again so the configured api url will be used
     client.__init__()
     client._wait_for_job_completion_retry_interval = 0
-    client._wait_for_project_terminal_state_retry_interval = 0
 
     # inject the request param into client, so we can use it in tests
     setattr(client, "mode", request.param)

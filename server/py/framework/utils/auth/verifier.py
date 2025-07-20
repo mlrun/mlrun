@@ -26,6 +26,7 @@ from mlrun.common.types import StrEnum
 import framework.utils.auth.providers.nop
 import framework.utils.auth.providers.opa
 import framework.utils.clients.iguazio
+import framework.utils.clients.iguaziov4
 
 
 class AuthenticationMode(StrEnum):

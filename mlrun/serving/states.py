@@ -1148,11 +1148,11 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
     def init(self):
         self.load()
 
-    def predict(self, body: Any) -> Any:
+    def predict(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead."""
         return body
 
-    async def predict_async(self, body: Any) -> Any:
+    async def predict_async(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic if the logic requires asyncio."""
         return body
 
@@ -1200,15 +1200,15 @@ class LLModel(Model):
     def __init__(self, name: str, **kwargs):
         super().__init__(name, **kwargs)
 
-    def predict(
-        self, body: Any, messages: list[dict], model_configuration: dict
-    ) -> Any:
-        return body
+    def predict(self, body: Any, **kwargs) -> Any:
+        messages: list[dict] = kwargs.get("messages", [])
+        model_configuration: dict = kwargs.get("model_configuration", {})
+        return body, messages, model_configuration
 
-    async def predict_async(
-        self, body: Any, messages: list[dict], model_configuration: dict
-    ) -> Any:
-        return body
+    async def predict_async(self, body: Any, **kwargs) -> Any:
+        messages: list[dict] = kwargs.get("messages", [])
+        model_configuration: dict = kwargs.get("model_configuration", {})
+        return body, messages, model_configuration
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         messages, model_configuration = self.enrich_prompt(body, origin_name)

@@ -2385,7 +2385,12 @@ class FlowStep(BaseStep):
         if not step.before and not any(
             [step.name in other_step.after for other_step in self._steps.values()]
         ):
-            if any([step_in_graph.responder for step_in_graph in self._steps.values()]):
+            if any(
+                [
+                    getattr(step_in_graph, "responder", False)
+                    for step_in_graph in self._steps.values()
+                ]
+            ):
                 step.responder = True
             return
 

@@ -5182,7 +5182,10 @@ class HTTPRunDB(RunDBInterface):
         endpoint_path = f"projects/{project}/model-endpoints/drift-over-time"
         error_message = f"Failed retrieving drift data for {project}"
         response = self.api_call(
-            method="GET", path=endpoint_path, error=error_message, params={"start": start, "end": end}
+            method="GET",
+            path=endpoint_path,
+            error=error_message,
+            params={"start": start, "end": end},
         )
         return mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues(
             **response.json()

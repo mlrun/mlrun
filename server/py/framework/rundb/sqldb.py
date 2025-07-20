@@ -98,12 +98,14 @@ class SQLRunDB(RunDBInterface):
             updates,
         )
 
-    def toggle_run_retrying_state(self, project: str, uid: str, retrying: bool):
+    def toggle_run_retrying_state(
+        self, project: str, name: str, run_id: str, retrying: bool
+    ):
         return self._transform_db_error(
-            services.api.crud.Runs().toggle_run_retrying_state,
+            services.api.crud.RerunRunner().toggle_run_retrying_state,
             self.session,
             project,
-            uid,
+            run_id,
             retrying,
         )
 

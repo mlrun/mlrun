@@ -493,38 +493,6 @@ async def abort_run(
 
 
 @router.post(
-    "/projects/{project}/runs/{uid}/retrying",
-    status_code=HTTPStatus.NO_CONTENT.value,
-)
-async def toggle_run_retrying_flag(
-    project: str,
-    uid: str,
-    retrying: bool,
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-    db_session: Session = Depends(deps.get_db_session),
-):
-    # check update permission on runs
-    await (
-        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.run,
-            project,
-            resource_name=uid,
-            action=mlrun.common.schemas.AuthorizationAction.update,
-            auth_info=auth_info,
-        )
-    )
-    # call into your CRUD
-    await run_in_threadpool(
-        services.api.crud.Runs().toggle_run_retrying_state,
-        db_session,
-        project,
-        uid,
-        retrying,
-    )
-    return {}
-
-
-@router.post(
     "/projects/{project}/runs/{uid}/push-notifications",
     response_model=mlrun.common.schemas.BackgroundTask,
 )

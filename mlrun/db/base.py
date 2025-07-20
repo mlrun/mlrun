@@ -56,7 +56,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def toggle_run_retrying_state(self, project: str, uid: str, retrying: bool):
+    def toggle_run_retrying_state(
+        self, project: str, name: str, run_id: str, retrying: bool
+    ):
         pass
 
     @abstractmethod

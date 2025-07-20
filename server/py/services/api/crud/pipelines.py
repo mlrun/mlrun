@@ -43,6 +43,7 @@ from mlrun.common.schemas import WorkflowResponse
 from mlrun.k8s_utils import sanitize_label_value
 
 import framework.api.utils
+import framework.utils.singletons.db
 import services.api.crud
 from services.api.crud.workflows import RerunRunner
 from services.api.utils.helpers import resolve_client_default_kfp_image
@@ -455,6 +456,7 @@ class Pipelines(
             notifications=original_runner_notifications,
             workflow_runner_node_selector=original_runner.spec.node_selector,
             original_workflow_runner_uid=original_runner.metadata.uid,
+            original_workflow_name=original_runner.spec.parameters["workflow_name"],
         )
 
         run = RerunRunner().run(
@@ -482,8 +484,11 @@ class Pipelines(
         retrying: bool = True,
     ):
         """Atomically acquire a FOR UPDATE lock on the run row, then flip its `retrying` flag."""
-        services.api.crud.Runs().toggle_run_retrying_state(
-            db_session=db_session, project=project, run_id=run_id, retrying=retrying
+        services.api.crud.RerunRunner().toggle_run_retrying_state(
+            db_session=db_session,
+            project=project,
+            run_id=run_id,
+            retrying=retrying,
         )
 
     def get_running_rerun_runner(

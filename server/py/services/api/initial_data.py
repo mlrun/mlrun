@@ -85,6 +85,8 @@ def init_data(
             engine,
             perform_migrations_if_needed,
         )
+    # initialize system id
+    framework.db.session.run_function_with_new_db_session(func=_init_system_id)
 
     mlrun.utils.logger.info("Initial data created")
 
@@ -179,9 +181,6 @@ def _migrate_existing_data(
                 )
                 mlrun.mlconf.httpdb.state = state
                 raise
-
-        # initialize system id
-        _init_system_id(db_session)
     finally:
         framework.db.session.close_session(db_session)
 

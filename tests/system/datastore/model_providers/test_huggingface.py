@@ -54,13 +54,14 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
     def test_basic_huggingface_model_runner(self):
         self.setup_datastore_profile()
         mlrun_model_name = "sync_invoke_model"
+        requirements_path = os.path.join(os.path.dirname(__file__), "hf_requirements.txt")
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             self.project,
             self.model_url,
             mlrun_model_name=mlrun_model_name,
             image=self.image,
-            requirements=["transformers==4.53.2", "torch==2.7.1"],
-            default_config={"max_new_tokens": 100},
+            requirements_file=requirements_path,
+            default_config={"max_new_tokens": 20},
         )
         function.spec.max_replicas = 1
         # Running models requires higher CPU for this pod.
@@ -77,4 +78,4 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
         token_count = len(tokenizer.encode(result))
         # Extra token is due to the EOS token, which signals end of generation.
-        assert token_count == 101
+        assert token_count == 21

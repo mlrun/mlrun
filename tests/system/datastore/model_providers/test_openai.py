@@ -13,17 +13,20 @@
 # limitations under the License.
 import json
 import os
+import time
 
 import pytest
 import tiktoken
 
-import mlrun
-import mlrun.artifacts
-import mlrun.serving.states
 from mlrun.datastore.datastore_profile import (
     OpenAIProfile,
 )
-from mlrun.serving import ModelRunnerStep
+from tests.datastore.remote_model.remote_model_utils import (
+    EXPECTED_RESULTS,
+    INPUT_DATA,
+    assert_async_invocations,
+    setup_remote_model_test,
+)
 from tests.system.base import TestMLRunSystem
 
 
@@ -51,7 +54,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             pytest.skip(
                 f"The following snowflake keys are missing: {missing_env_variables}"
             )
-        cls.basic_llm_model = "gpt-4o"
+        cls.basic_llm_model = "gpt-4o-mini"
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self):
@@ -68,63 +71,51 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         self.url_prefix = f"ds://{self.profile_name}/"
         self.model_url = self.url_prefix + self.basic_llm_model
 
-    def test_basic_openai_model_runner(self):
-        mlrun_model_name = "my_model"
-        model_artifact = self.project.log_model(
-            mlrun_model_name,
-            model_url=self.model_url,
-            default_config={"max_tokens": 100},
-        )
-        prompt_template = [
-            {
-                "role": "user",
-                "content": "{question}. Explain {depth_level} as a {persona} in {tone} style.",
-            }
-        ]
-        llm_prompt_artifact = self.project.log_llm_prompt(
-            "my_llm_prompt",
-            prompt_template=prompt_template,
-            model_artifact=model_artifact,
-            prompt_legend={
-                "question": {"field": None, "description": None},
-                "depth_level": {"field": None, "description": None},
-                "persona": {"field": None, "description": None},
-                "tone": {"field": None, "description": None},
-            },
-        )
-        function = mlrun.code_to_function(
-            name="tests",
-            kind="serving",
-            tag="latest",
-            project=self.project_name,
-            filename=os.path.relpath(str(self.assets_path / "models.py")),
+    @pytest.mark.parametrize("execution_mechanism", ["naive", "asyncio"])
+    def test_basic_openai_model_runner(self, execution_mechanism):
+        model_url = self.url_prefix + self.basic_llm_model
+        mlrun_model_name = "sync_invoke_model"
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            self.project,
+            model_url,
+            mlrun_model_name=mlrun_model_name,
             image=self.image,
             requirements=["openai==1.77.0"],
+            execution_mechanism=execution_mechanism,
         )
-        graph = function.set_topology("flow", engine="async")
-        model_runner_step = ModelRunnerStep(name="my_model_runner")
-        model_runner_step.add_model(
-            model_class="MyOpenAILLM",
-            execution_mechanism="naive",
-            endpoint_name="my_endpoint",
-            model_artifact=llm_prompt_artifact,
-        )
-        graph.to(model_runner_step).respond()
-
         function.deploy()
-
-        body = {
-            "question": "What is the capital of France, and give a brief historical overview.",
-            "depth_level": "detailed",
-            "persona": "teacher",
-            "tone": "casual",
-        }
         response = function.invoke(
             f"v2/models/{mlrun_model_name}/infer",
-            json.dumps(body),
+            json.dumps(INPUT_DATA[0]),
         )
         result = response["result"]
-        assert "paris" in result.lower()
+        assert EXPECTED_RESULTS[0] in result.lower()
         encoding = tiktoken.encoding_for_model(self.basic_llm_model)
         token_count = len(encoding.encode(result))
         assert token_count == 100
+
+    def test_model_runner_with_openai_async(self):
+        model_url = self.url_prefix + self.basic_llm_model
+        mlrun_model_name = "async_invoke_model"
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            self.project,
+            model_url,
+            mlrun_model_name=mlrun_model_name,
+            execution_mechanism="asyncio",
+            image=self.image,
+            requirements=["openai==1.77.0"],
+            model_class="MyOpenAIAsyncEvents",
+        )
+        function.deploy()
+
+        start = time.perf_counter()
+        results_with_times = function.invoke(
+            f"v2/models/{mlrun_model_name}/infer",
+            json.dumps({"input": INPUT_DATA}),
+        )
+        total_duration = time.perf_counter() - start
+        assert_async_invocations(
+            results_with_times=results_with_times,
+            model_name=self.basic_llm_model,
+            total_duration=total_duration,
+        )

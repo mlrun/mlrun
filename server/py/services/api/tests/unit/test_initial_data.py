@@ -68,29 +68,13 @@ def test_add_data_version_non_empty_db():
     services.api.initial_data.latest_data_version = original_latest_data_version
 
 
-def test_perform_data_migrations_from_first_version():
+def test_perform_data_migrations_from_initial_supported_version():
     db, db_session = _initialize_db_without_migrations()
 
-    # set version to 1
-    db.create_data_version(db_session, "1")
+    # set version to 5 as the minimum supported version from 1.10
+    db.create_data_version(db_session, "5")
 
     # keep a reference to the original functions, so we can restore them later
-    original_perform_version_2_data_migrations = (
-        services.api.initial_data._perform_version_2_data_migrations
-    )
-    services.api.initial_data._perform_version_2_data_migrations = unittest.mock.Mock()
-    original_perform_version_3_data_migrations = (
-        services.api.initial_data._perform_version_3_data_migrations
-    )
-    services.api.initial_data._perform_version_3_data_migrations = unittest.mock.Mock()
-    original_perform_version_4_data_migrations = (
-        services.api.initial_data._perform_version_4_data_migrations
-    )
-    services.api.initial_data._perform_version_4_data_migrations = unittest.mock.Mock()
-    original_perform_version_5_data_migrations = (
-        services.api.initial_data._perform_version_5_data_migrations
-    )
-    services.api.initial_data._perform_version_5_data_migrations = unittest.mock.Mock()
     original_perform_version_6_data_migrations = (
         services.api.initial_data._perform_version_6_data_migrations
     )
@@ -116,10 +100,6 @@ def test_perform_data_migrations_from_first_version():
     # calling again should not trigger migrations again, since we're already at the latest version
     services.api.initial_data._perform_data_migrations(db_session)
 
-    services.api.initial_data._perform_version_2_data_migrations.assert_called_once()
-    services.api.initial_data._perform_version_3_data_migrations.assert_called_once()
-    services.api.initial_data._perform_version_4_data_migrations.assert_called_once()
-    services.api.initial_data._perform_version_5_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_6_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_7_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_8_data_migrations.assert_called_once()
@@ -130,18 +110,6 @@ def test_perform_data_migrations_from_first_version():
     )
 
     # restore original functions
-    services.api.initial_data._perform_version_2_data_migrations = (
-        original_perform_version_2_data_migrations
-    )
-    services.api.initial_data._perform_version_3_data_migrations = (
-        original_perform_version_3_data_migrations
-    )
-    services.api.initial_data._perform_version_4_data_migrations = (
-        original_perform_version_4_data_migrations
-    )
-    services.api.initial_data._perform_version_5_data_migrations = (
-        original_perform_version_5_data_migrations
-    )
     services.api.initial_data._perform_version_6_data_migrations = (
         original_perform_version_6_data_migrations
     )

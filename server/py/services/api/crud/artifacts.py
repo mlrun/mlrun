@@ -60,12 +60,6 @@ class Artifacts(
         # calculate the size of the artifact
         self._resolve_artifact_size(artifact, auth_info)
 
-        # TODO: Remove once data migration v5 is obsolete
-        if mlrun.utils.helpers.is_legacy_artifact(artifact):
-            artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
-                artifact
-            ).to_dict()
-
         return framework.utils.singletons.db.get_db().store_artifact(
             session=db_session,
             key=key,
@@ -282,7 +276,7 @@ class Artifacts(
         # TODO : If, in the future, this API is extended to delete the artifact data as well,
         #  we should include the validation we added in validate_artifact_removal_preconditions
         #  before attempting the data deletion. Currently, deleting artifacts linked to model
-        #  endpoints will fail with IntegrityError.
+        #  endpoints or deleting a parent artifact will fail with IntegrityError.
         framework.utils.singletons.db.get_db().del_artifacts(
             db_session,
             name=name,

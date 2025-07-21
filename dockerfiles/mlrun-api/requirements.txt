@@ -24,4 +24,4 @@ grpcio~=1.70.0
 --extra-index-url https://pypi.org/simple
 
 # Package from Test PyPI
-iguazio~=0.0.1a3
+iguazio~=0.0.1a5

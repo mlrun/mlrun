@@ -1232,9 +1232,9 @@ idna==3.10 \
     #   requests
     #   snowflake-connector-python
     #   yarl
-iguazio==0.0.1a3 \
-    --hash=sha256:9fe1e97719aa3d3fa0a933026cd5a5c94fa4ea0bcd507f6c949986dd65bc45cc \
-    --hash=sha256:c6ecca05149651908f5a180d9c766ee528118c69a88ba275a194fa25128d1973
+iguazio==0.0.1a5 \
+    --hash=sha256:1f4a2594c35f5c2eef8b387d31b66611ba750115942f4fdce9b974b4644ca339 \
+    --hash=sha256:770b3088943980ee79f1d9283aeecb255483d9873f7a511061555d9a24dfd3aa
     # via -r dockerfiles/mlrun-api/requirements.txt
 igz-mgmt==0.4.2 \
     --hash=sha256:582ccc38135a2e79f12db0e53f4028c105371601949a2ed7c57c32fdd015d1fa \
@@ -2705,6 +2705,7 @@ pyyaml==6.0.2 \
     #   -r requirements.txt
     #   dask
     #   distributed
+    #   iguazio
     #   jupyter-events
     #   kubernetes
     #   kubernetes-asyncio

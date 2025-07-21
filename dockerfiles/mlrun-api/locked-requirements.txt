@@ -1215,7 +1215,9 @@ httpcore==1.0.9 \
 httpx==0.28.1 \
     --hash=sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc \
     --hash=sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
-    # via igz-mgmt
+    # via
+    #   iguazio
+    #   igz-mgmt
 humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
@@ -1230,6 +1232,10 @@ idna==3.10 \
     #   requests
     #   snowflake-connector-python
     #   yarl
+iguazio==0.0.1a3 \
+    --hash=sha256:9fe1e97719aa3d3fa0a933026cd5a5c94fa4ea0bcd507f6c949986dd65bc45cc \
+    --hash=sha256:c6ecca05149651908f5a180d9c766ee528118c69a88ba275a194fa25128d1973
+    # via -r dockerfiles/mlrun-api/requirements.txt
 igz-mgmt==0.4.2 \
     --hash=sha256:582ccc38135a2e79f12db0e53f4028c105371601949a2ed7c57c32fdd015d1fa \
     --hash=sha256:abbf665a82b48606c953b44e22b6c825ddbef973cd448be846f592126ba14f7c

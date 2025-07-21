@@ -930,7 +930,7 @@ with warnings.catch_warnings():
 
         __table_args__ = (
             PrimaryKeyConstraint(
-                "id", "activation_time", "partition_key", name="_alert_activation_uc"
+                "id", "activation_time", name="_alert_activation_uc"
             ),
             Index("ix_alert_activation_project_name", "project", "name"),
             Index(

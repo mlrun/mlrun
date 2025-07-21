@@ -1217,32 +1217,32 @@ def create_postgres_partition_trigger(target: Table, connection, **_):
 
 @event_listen_for_dialects(
     target=AlertActivation.__table__,
-    identifier="after_create",  # CRT first, then add trigger
+    identifier="after_create",
     relevant_dialects=[mlrun.common.db.dialects.Dialects.MYSQL],
 )
-def create_mysql_partition_trigger(table: Table, connection: Connection, **_):
+def create_mysql_partition_trigger(table: Table, connection: Connection, **___):
     _mysql_partition_expr = AlertActivation._interval.get_partition_expression(
-        column_name="NEW.activation_time",  # let helper build the proper SQL
+        column_name="NEW.activation_time",
         dialect=mlrun.common.db.dialects.Dialects.MYSQL,
     )
     preparer = sqlalchemy.sql.compiler.IdentifierPreparer(connection.dialect)
-    q_table = preparer.format_table(table)
-    trg_name = f"{table.name}_set_partition_key"
+    quoted_table = preparer.format_table(table)
+    trigger_name = f"{table.name}_set_partition_key"
 
     connection.exec_driver_sql(
         f"""
-        DROP TRIGGER IF EXISTS {trg_name}_bi;
-        DROP TRIGGER IF EXISTS {trg_name}_bu;
+        DROP TRIGGER IF EXISTS {trigger_name}_bi;
+        DROP TRIGGER IF EXISTS {trigger_name}_bu;
 
         -- fill on INSERT
-        CREATE TRIGGER {trg_name}_bi
-        BEFORE INSERT ON {q_table}
+        CREATE TRIGGER {trigger_name}_bi
+        BEFORE INSERT ON {quoted_table}
         FOR EACH ROW
         SET NEW.partition_key = {_mysql_partition_expr};
 
         -- keep in sync on UPDATE (if activation_time can change)
-        CREATE TRIGGER {trg_name}_bu
-        BEFORE UPDATE ON {q_table}
+        CREATE TRIGGER {trigger_name}_bu
+        BEFORE UPDATE ON {quoted_table}
         FOR EACH ROW
         SET NEW.partition_key = {_mysql_partition_expr};
         """
@@ -1273,7 +1273,6 @@ def bootstrap_partitions(
 
     partition_expression = interval.get_partition_expression("activation_time", dialect)
     partition_name, partition_value = interval.get_partition_info(datetime.utcnow())[0]
-
     with Session(bind=connection) as session:
         framework.db.sqldb.partititioner.RangePartitioner(dialect).bootstrap(
             session=session,

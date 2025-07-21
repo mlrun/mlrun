@@ -15,7 +15,7 @@
 """Add partition key column for alerts activations partitioning in postgres
 
 Revision ID: c25e56faecce
-Revises: a6f358254cbd
+Revises: 6e8e4df16a4e
 Create Date: 2025-07-22 00:32:52.344545
 
 """
@@ -24,7 +24,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "c25e56faecce"
+revision = "6e8e4df16a4e"
 down_revision = "a6f358254cbd"
 branch_labels = None
 depends_on = None

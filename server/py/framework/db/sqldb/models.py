@@ -399,7 +399,10 @@ with warnings.catch_warnings():
         uid = Column(framework.db.sqldb.sql_types.Utf8BinText)
         parent_id = Column(
             Integer,
-            ForeignKey("artifacts_v2.id", ondelete="SET NULL"),
+            ForeignKey(
+                "artifacts_v2.id",
+                ondelete="SET NULL",
+            ),
             nullable=True,
             index=True,
         )

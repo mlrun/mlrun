@@ -721,8 +721,10 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                     include_infra=False, names=[DemoEvidentlyMonitoringApp.NAME]
                 )
             )
+
             assert len(evidently_func_summary_list) == 1
             evidently_func_summary = evidently_func_summary_list[0]
+
             assert evidently_func_summary.name == DemoEvidentlyMonitoringApp.NAME
             assert (
                 evidently_func_summary.status
@@ -740,8 +742,16 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 )
             )
             evidently_func_summary = evidently_func_summary_list[0]
-            assert evidently_func_summary.stats["potential_detection"] == 1
-            assert evidently_func_summary.stats["detected"] == 0
+
+            evidently_stats = evidently_func_summary.stats
+
+            assert evidently_stats["potential_detection"] == 1
+            assert evidently_stats["detected"] == 0
+
+            assert evidently_stats["stream_stats"]
+            assert evidently_stats["stream_stats"]["committed"] == 1
+            assert evidently_stats["stream_stats"]["lag"] == 0
+
         except mlrun.errors.MLRunNotFoundError:
             # Evidently app was not deployed
             pass
@@ -780,20 +790,20 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             }, "The metric keys are not as expected"
 
             assert hist_function_summary.stats["stream_stats"]
-            assert len(hist_function_summary.stats["stream_stats"]) == 1
-            hist_shard_number = list(
-                hist_function_summary.stats["stream_stats"].keys()
-            )[0]
-            assert (
-                hist_function_summary.stats["stream_stats"][hist_shard_number][
+
+            # verify the stream stats
+            shards = hist_function_summary.stats["stream_stats"].keys()
+            expected_committed = 1
+            actual_committed = 0
+            for shard in shards:
+                actual_committed += hist_function_summary.stats["stream_stats"][shard][
                     "committed"
                 ]
-                == 1
-            )
+                # Verify that the lag is 0
+                assert hist_function_summary.stats["stream_stats"][shard]["lag"] == 0
             assert (
-                hist_function_summary.stats["stream_stats"][hist_shard_number]["lag"]
-                == 0
-            )
+                actual_committed == expected_committed
+            ), f"Expected {expected_committed} committed events, but got {actual_committed}"
 
     def _test_drift_over_time(self) -> None:
         self._logger.debug("Checking drift over time")

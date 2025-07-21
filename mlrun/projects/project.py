@@ -5565,8 +5565,8 @@ class MlrunProject(ModelObj):
         """
         Get drift counts over time for the project.
 
-        This method returns a list of tuples, each representing a time-interval in a granularity set by the
-        duration of the given time range and the number of suspected drifts and detected drifts in that interval.
+        This method returns a list of tuples, each representing a time-interval (in a granularity set by the
+        duration of the given time range) and the number of suspected drifts and detected drifts in that interval.
         For a range of 6 hours or less, the granularity is 10 minute, for a range of 2 hours to 72 hours, the
         granularity is 1 hour, and for a range of more than 72 hours, the granularity is 24 hours.
 

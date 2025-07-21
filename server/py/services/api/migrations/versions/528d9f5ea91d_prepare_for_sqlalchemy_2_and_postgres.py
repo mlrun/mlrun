@@ -30,16 +30,16 @@ depends_on = None
 
 
 def upgrade():
+    op.drop_constraint(
+        "alert_configs_notifications_ibfk_1",
+        "alert_configs_notifications",
+        type_="foreignkey",
+    )
     op.alter_column(
         "alert_configs_notifications",
         "parent_id",
         existing_type=mysql.INTEGER(),
         nullable=False,
-    )
-    op.drop_constraint(
-        "alert_configs_notifications_ibfk_1",
-        "alert_configs_notifications",
-        type_="foreignkey",
     )
     op.create_foreign_key(
         "alert_configs_notifications_parent_fk",
@@ -64,16 +64,16 @@ def upgrade():
         ondelete="CASCADE",
     )
 
+    op.drop_constraint(
+        "runs_notifications_ibfk_1",
+        "runs_notifications",
+        type_="foreignkey",
+    )
     op.alter_column(
         "runs_notifications",
         "parent_id",
         existing_type=mysql.INTEGER(),
         nullable=False,
-    )
-    op.drop_constraint(
-        "runs_notifications_ibfk_1",
-        "runs_notifications",
-        type_="foreignkey",
     )
     op.create_foreign_key(
         "runs_notifications_parent_fk",
@@ -105,18 +105,18 @@ def downgrade():
         "alert_configs_notifications",
         type_="foreignkey",
     )
+    op.alter_column(
+        "alert_configs_notifications",
+        "parent_id",
+        existing_type=mysql.INTEGER(),
+        nullable=True,
+    )
     op.create_foreign_key(
         "alert_configs_notifications_ibfk_1",
         "alert_configs_notifications",
         "alert_configs",
         ["parent_id"],
         ["id"],
-    )
-    op.alter_column(
-        "alert_configs_notifications",
-        "parent_id",
-        existing_type=mysql.INTEGER(),
-        nullable=True,
     )
 
     op.drop_constraint(
@@ -137,18 +137,18 @@ def downgrade():
         "runs_notifications",
         type_="foreignkey",
     )
+    op.alter_column(
+        "runs_notifications",
+        "parent_id",
+        existing_type=mysql.INTEGER(),
+        nullable=True,
+    )
     op.create_foreign_key(
         "runs_notifications_ibfk_1",
         "runs_notifications",
         "runs",
         ["parent_id"],
         ["id"],
-    )
-    op.alter_column(
-        "runs_notifications",
-        "parent_id",
-        existing_type=mysql.INTEGER(),
-        nullable=True,
     )
 
     op.drop_constraint(

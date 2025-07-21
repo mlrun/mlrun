@@ -48,6 +48,7 @@ from sqlalchemy.inspection import inspect as sqlalchemy_inspect
 from sqlalchemy.orm import Query, Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.sql.compiler import IdentifierPreparer
+from sqlalchemy.sql.elements import BinaryExpression
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -1133,19 +1134,14 @@ class SQLDB(DBInterface):
                     producer_id=producer_id,
                 )
             except IntegrityError as exc:
-                # Check if the error is related to ModelEndpoint table
-                if "model_endpoints" in str(exc).lower():
-                    logger.error(
-                        "Failed to delete model artifact due to existing model endpoints that reference it",
-                        project=project,
-                        key=key,
-                        uid=uid,
-                        err=err_to_str(exc),
-                    )
-                    failed_deletions_count_integrity += 1
-                else:
-                    # Re-raise the exception if it's not related to ModelEndpoint
-                    raise
+                logger.error(
+                    "Failed to delete model artifact due to db integrity",
+                    project=project,
+                    key=key,
+                    uid=uid,
+                    err=err_to_str(exc),
+                )
+                failed_deletions_count_integrity += 1
             except Exception as exc:
                 logger.error(
                     "Failed to delete artifact",
@@ -1159,10 +1155,9 @@ class SQLDB(DBInterface):
 
         if failed_deletions_count or failed_deletions_count_integrity:
             if failed_deletions_count_integrity:
-                raise mlrun.errors.MLRunInternalServerError(
+                raise mlrun.errors.MLRunConflictError(
                     f"Failed to delete {failed_deletions_count + failed_deletions_count_integrity} artifacts, "
-                    f"while {failed_deletions_count_integrity} of them failed due to existing model endpoints that "
-                    f"reference them."
+                    f"while {failed_deletions_count_integrity} of them failed due to integrity constraints "
                 )
             raise mlrun.errors.MLRunInternalServerError(
                 f"Failed to delete {failed_deletions_count} artifacts."
@@ -1266,6 +1261,12 @@ class SQLDB(DBInterface):
                 f"Failed deleting artifact {db_artifact.key} in project {db_artifact.project}, iteration "
                 f"{db_artifact.iteration}, producer_id {db_artifact.producer_id} and {db_artifact.uid} uid. "
                 f"The artifact is used by {dependent_endpoints_count} endpoints"
+            )
+        if db_artifact.child_artifacts:
+            raise mlrun.errors.MLRunConflictError(
+                f"Failed deleting artifact {db_artifact.key} in project {db_artifact.project}, iteration "
+                f"{db_artifact.iteration}, producer_id {db_artifact.producer_id} and {db_artifact.uid} uid. "
+                f"The artifact has {len(db_artifact.child_artifacts)} child artifacts. Delete them before proceeding."
             )
         return mlrun.common.formatters.ArtifactFormat.format_obj(
             db_artifact.full_object, mlrun.common.formatters.ArtifactFormat.minimal
@@ -3259,6 +3260,7 @@ class SQLDB(DBInterface):
         main_table_identifier_values: typing.Optional[
             typing.Union[str, list[str]]
         ] = None,
+        additional_filter: typing.Optional[BinaryExpression] = None,
     ) -> int:
         """
         Delete multiple objects from the DB, including related tables.
@@ -3298,7 +3300,8 @@ class SQLDB(DBInterface):
             if not main_table_identifier_values or not main_table_identifier:
                 return skip_deletion()
             where_clause = main_table_identifier.in_(main_table_identifier_values)
-
+        if additional_filter is not None:
+            where_clause = and_(where_clause, additional_filter)
         for cls in related_tables:
             logger.debug(
                 "Removing objects",
@@ -5520,8 +5523,13 @@ class SQLDB(DBInterface):
 
             # get the object id from the object record
             object_id = object_record.id
-
             if cls == ArtifactV2:
+                if object_record.child_artifacts:
+                    # todo : If, in the future, this delete_artifacts API is extended to delete the artifact
+                    #  data as well, we should delete this check.
+                    raise IntegrityError(
+                        "artifact has child artifacts", params=None, orig=Exception()
+                    )
                 self._update_artifact_latest_tag_on_deletion(session, object_record)
 
         if object_id:

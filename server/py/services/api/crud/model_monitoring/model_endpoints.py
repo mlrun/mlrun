@@ -1178,7 +1178,8 @@ class ModelEndpoints:
         :param project:         The name of the project.
         :param endpoint_id:     The unique id of the model endpoint, Can be a single id or a list of ids.
         :param type:            metric or result.
-        :param metrics_format:  Determines the format of the result. Can be either 'list' or 'dict'.
+        :param metrics_format:  Determines the format of the result, which can be `single`, `separation`, or
+                                `intersection`.
         :return: metrics in the chosen format.
         """
         try:
@@ -1211,6 +1212,16 @@ class ModelEndpoints:
                 df=df, type=type, project=project
             )
         elif metrics_format == mm_constants.GetEventsFormat.INTERSECTION:
+            endpoint_id_set = (
+                set(endpoint_id) if isinstance(endpoint_id, list) else {endpoint_id}
+            )
+            if set(df["endpoint_id"].unique().tolist()) != endpoint_id_set:
+                logger.info(
+                    f"some endpoints does not have {type}s, intersection is empty"
+                )
+                return {
+                    mlrun.common.schemas.model_monitoring.INTERSECT_DICT_KEYS[type]: []
+                }
             return tsdb_connector.df_to_events_intersection_dict(
                 df=df, type=type, project=project
             )

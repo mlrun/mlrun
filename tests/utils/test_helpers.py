@@ -1228,7 +1228,8 @@ def test_create_step_backoff():
                 assert step_value, next(backoff)
 
 
-def test_retry_until_successful():
+@pytest.mark.parametrize("fatal_exception", (False, True))
+def test_retry_until_successful(fatal_exception):
     def test_run(backoff):
         call_count = {"count": 0}
         unsuccessful_mock = unittest.mock.Mock()
@@ -1248,20 +1249,23 @@ def test_retry_until_successful():
             successful_mock()
             return "Finished"
 
-        result = mlrun.utils.retry_until_successful(
-            backoff,
-            120,
-            logger,
-            True,
-            some_func,
-            call_count,
-            5,
-            [1, 8],
-            some_other_thing="Just",
-        )
-        assert result, "Finished"
-        assert unsuccessful_mock.call_count, 3
-        assert successful_mock.call_count, 1
+        with pytest.raises(Exception) if fatal_exception else does_not_raise():
+            result = mlrun.utils.retry_until_successful(
+                backoff,
+                120,
+                logger,
+                True,
+                some_func,
+                call_count,
+                5,
+                [1, 8],
+                fatal_exceptions=(Exception,) if fatal_exception else (),
+                some_other_thing="Just",
+            )
+        if not fatal_exception:
+            assert result, "Finished"
+            assert unsuccessful_mock.call_count, 3
+            assert successful_mock.call_count, 1
 
     test_run(0.02)
 

@@ -339,8 +339,21 @@ class SQLDB(DBInterface):
         retrying: bool,
     ) -> dict:
         """
-        Atomically LOCK the run row FOR UPDATE, then either add or remove the
-        `retrying` label according to the `retrying` argument.
+        Atomically acquire a FOR UPDATE lock on the specified run row, then add or remove
+        the `retrying` label and update the `rerun_counter`.
+
+        :param session:  SQLAlchemy session to use for the transaction.
+        :param project:     Name of the project containing the run.
+        :param uid:      UID of the workflow‐runner run to lock and update.
+        :param retrying:    Whether to mark the run as retrying (True) or clear that flag (False).
+                            - When setting to True, this will:
+                              1. lock the row
+                              2. verify no existing `retrying` label (else MLRunConflictError)
+                              3. add `retrying="true"` and bump `rerun_counter`
+                            - When setting to False, it will remove the `retrying` label.
+        :returns:           The updated struct of the run.
+        :raises MLRunNotFoundError:   If the run does not exist.
+        :raises MLRunConflictError:   If attempting to set `retrying=True` when already marked.
         """
         run = self._get_run(session, uid, project, iteration=0, with_for_update=True)
         if not run:
@@ -356,8 +369,9 @@ class SQLDB(DBInterface):
                 raise mlrun.errors.MLRunConflictError
             else:
                 labels[mlrun_constants.MLRunInternalLabels.retrying] = "true"
-                # optionally bump counter here in follow-up
-                # labels["rerun_counter"] = str(int(labels.get("rerun_counter","0")) + 1)
+                labels[mlrun_constants.MLRunInternalLabels.rerun_counter] = (
+                    labels.get(mlrun_constants.MLRunInternalLabels.rerun_counter, 0) + 1
+                )
         else:
             labels.pop("retrying", None)
 

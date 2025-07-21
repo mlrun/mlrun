@@ -98,7 +98,7 @@ class SQLRunDB(RunDBInterface):
             updates,
         )
 
-    def set_run_retrying_state(
+    def set_run_retrying_status(
         self, project: str, name: str, run_id: str, retrying: bool
     ):
         return self._transform_db_error(

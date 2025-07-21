@@ -72,7 +72,7 @@ class NopDB(RunDBInterface):
     def update_run(self, updates: dict, uid, project="", iter=0):
         pass
 
-    def set_run_retrying_state(
+    def set_run_retrying_status(
         self, project: str, name: str, run_id: str, retrying: bool
     ):
         pass

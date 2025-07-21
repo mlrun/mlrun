@@ -220,7 +220,7 @@ async def retry_pipeline(
             project=project.metadata.name,
             run_id=original_runner.metadata.uid,
         )
-    except mlrun.errors.MLRunConflictError:
+    except mlrun.errors.MLRunConflictError as exc:
         workflow_response = await fastapi.concurrency.run_in_threadpool(
             services.api.crud.Pipelines().get_running_rerun_runner,
             db_session=db_session,
@@ -231,7 +231,7 @@ async def retry_pipeline(
             return workflow_response
         raise mlrun.errors.MLRunConflictError(
             "A retry is already in progress, but no existing rerun was found."
-        )
+        ) from exc
 
     try:
         workflow_response: mlrun.common.schemas.WorkflowResponse = (

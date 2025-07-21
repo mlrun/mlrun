@@ -80,7 +80,7 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def set_run_retrying_state(
+    def set_run_retrying_status(
         self,
         session: Session,
         project: str,

@@ -310,13 +310,19 @@ class Pipelines(
             runs = _list_runs(labels)
             return runs.to_objects()[0] if runs else None
 
+        def _get_original_workflow(
+            workflow_id: str,
+        ) -> typing.Optional[mlrun.model.RunObject]:
+            """Find a workflow‐runner run by its workflow_id."""
+            labels = [
+                f"{workflow_id_label}={workflow_id}",
+                f"{job_type_label}={mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER}",
+            ]
+            return _first_or_none(labels)
+
         # direct workflow-runner
-        workflow_labels = [
-            f"{workflow_id_label}={run_id}",
-            f"{job_type_label}={mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER}",
-        ]
-        if original := _first_or_none(workflow_labels):
-            return original, original.metadata.labels[workflow_id_label]
+        if original := _get_original_workflow(run_id):
+            return original, run_id
 
         # rerun-runner → original_workflow_id → workflow-runner
         rerun_labels = [
@@ -327,11 +333,7 @@ class Pipelines(
             original_workflow_id = rerun.metadata.labels[
                 mlrun_constants.MLRunInternalLabels.original_workflow_id
             ]
-            original_runner_lookup_labels = [
-                f"{workflow_id_label}={original_workflow_id}",
-                f"{job_type_label}={mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER}",
-            ]
-            if original := _first_or_none(labels=original_runner_lookup_labels):
+            if original := _get_original_workflow(original_workflow_id):
                 return original, original_workflow_id
 
         raise mlrun.errors.MLRunNotFoundError(
@@ -484,7 +486,7 @@ class Pipelines(
         retrying: bool = True,
     ):
         """Atomically acquire a FOR UPDATE lock on the run row, then flip its `retrying` flag."""
-        services.api.crud.RerunRunner().set_run_retrying_state(
+        services.api.crud.RerunRunner().set_run_retrying_status(
             db_session=db_session,
             project=project,
             run_id=run_id,

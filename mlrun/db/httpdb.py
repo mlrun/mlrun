@@ -4740,7 +4740,7 @@ class HTTPRunDB(RunDBInterface):
         )
         return mlrun.common.schemas.GetWorkflowResponse(**response.json())
 
-    def set_run_retrying_state(
+    def set_run_retrying_status(
         self, project: str, name: str, run_id: str, retrying: bool = False
     ):
         """

@@ -86,6 +86,7 @@ WORKDIR /mlrun
 COPY Makefile .
 COPY automation automation
 COPY tests tests
+COPY docs docs
 ENV PYTHONPATH="/mlrun/tests:/mlrun/automation${PYTHONPATH:+:${PYTHONPATH}}"
 
 RUN rm -rf /tmp/mlrun

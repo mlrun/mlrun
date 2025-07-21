@@ -102,7 +102,7 @@ class SQLRunDB(RunDBInterface):
         self, project: str, name: str, run_id: str, retrying: bool
     ):
         return self._transform_db_error(
-            services.api.crud.RerunRunner().set_run_retrying_state,
+            services.api.crud.RerunRunner().set_run_retrying_status,
             self.session,
             project,
             run_id,

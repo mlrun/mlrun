@@ -922,11 +922,16 @@ with warnings.catch_warnings():
                 f"{mlrun.common.schemas.partition.PartitionInterval.valid_intervals()}"
             )
         _interval = mlrun.common.schemas.partition.PartitionInterval(_interval_name)
-        _expr = _interval.get_partition_expression(column_name="activation_time")
+        _postgres_partition_expr = _interval.get_partition_expression(
+            column_name="activation_time",
+            dialect=mlrun.common.db.dialects.Dialects.POSTGRESQL,
+        )
         _pname, _pval = _interval.get_partition_info(datetime.utcnow())[0]
 
         __table_args__ = (
-            PrimaryKeyConstraint("id", "activation_time", name="_alert_activation_uc"),
+            PrimaryKeyConstraint(
+                "id", "activation_time", "partition_key", name="_alert_activation_uc"
+            ),
             Index("ix_alert_activation_project_name", "project", "name"),
             Index(
                 "ix_alert_activation_project_activation_time",
@@ -936,6 +941,7 @@ with warnings.catch_warnings():
             {
                 "mysql_engine": "InnoDB",
                 "mysql_charset": "utf8mb4",
+                "postgresql_partition_by": "RANGE (partition_key)",
             },
         )
 
@@ -947,6 +953,8 @@ with warnings.catch_warnings():
         activation_time = Column(
             framework.db.sqldb.sql_types.DateTime(timezone=True), nullable=False
         )
+        partition_key = Column(Integer, nullable=False)
+
         name = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
         project = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
         data = Column(JSON)
@@ -1136,6 +1144,78 @@ def _sqlite_autoincrement(
 
 @event_listen_for_dialects(
     target=AlertActivation.__table__,
+    identifier="before_create",
+    relevant_dialects=[
+        mlrun.common.db.dialects.Dialects.POSTGRESQL,
+    ],
+)
+def create_postgres_partitioning_functions(
+    _: Table,
+    connection: Connection,
+    **__,
+) -> None:
+    connection.exec_driver_sql(
+        """
+        -- ISO‑year‑week → int (e.g. 202530)
+        CREATE OR REPLACE FUNCTION iso_yearweek_int(ts timestamptz)
+        RETURNS integer
+        IMMUTABLE LANGUAGE sql AS $$
+          SELECT (EXTRACT(isoyear FROM ts AT TIME ZONE 'UTC')::int * 100 +
+                  EXTRACT(week    FROM ts AT TIME ZONE 'UTC')::int);
+        $$;
+
+        -- yyyyMMdd → int (e.g. 20250721)
+        CREATE OR REPLACE FUNCTION date_yyyymmdd_int(ts timestamptz)
+        RETURNS integer
+        IMMUTABLE LANGUAGE sql AS $$
+          SELECT (EXTRACT(year  FROM ts AT TIME ZONE 'UTC')::int * 10000 +
+                  EXTRACT(month FROM ts AT TIME ZONE 'UTC')::int * 100 +
+                  EXTRACT(day   FROM ts AT TIME ZONE 'UTC')::int);
+        $$;
+
+        -- yyyyMM → int (e.g. 202507)
+        CREATE OR REPLACE FUNCTION date_yyyymm_int(ts timestamptz)
+        RETURNS integer
+        IMMUTABLE LANGUAGE sql AS $$
+          SELECT (EXTRACT(year  FROM ts AT TIME ZONE 'UTC')::int * 100 +
+                  EXTRACT(month FROM ts AT TIME ZONE 'UTC')::int);
+        $$;
+        """
+    )
+
+
+@event_listen_for_dialects(
+    target=AlertActivation.__table__,
+    identifier="after_create",
+    relevant_dialects=[
+        mlrun.common.db.dialects.Dialects.POSTGRESQL,
+    ],
+)
+def create_partition_trigger(target: Table, connection, **_):
+    connection.exec_driver_sql(
+        f"""
+        CREATE OR REPLACE FUNCTION {target.name}_set_partition_key()
+        RETURNS trigger AS $$
+        BEGIN
+          NEW.partition_key := {AlertActivation._postgres_partition_expr}(NEW.activation_time);
+          RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+        """
+    )
+
+    connection.exec_driver_sql(
+        f"""
+        DROP TRIGGER IF EXISTS {target.name}_set_partition_key_tg ON {target.name};
+        CREATE TRIGGER {target.name}_set_partition_key_tg
+        BEFORE INSERT OR UPDATE ON {target.name}
+        FOR EACH ROW EXECUTE FUNCTION {target.name}_set_partition_key();
+        """
+    )
+
+
+@event_listen_for_dialects(
+    target=AlertActivation.__table__,
     identifier="after_create",
     relevant_dialects=[
         mlrun.common.db.dialects.Dialects.MYSQL,
@@ -1154,20 +1234,33 @@ def bootstrap_partitions(
             f"{mlrun.common.schemas.partition.PartitionInterval.valid_intervals()}"
         )
     interval = mlrun.common.schemas.PartitionInterval(interval_name)
+    dialect = connection.dialect.name
 
-    partition_expression = interval.get_partition_expression("activation_time")
+    partition_expression = interval.get_partition_expression("activation_time", dialect)
     partition_name, partition_value = interval.get_partition_info(datetime.utcnow())[0]
 
-    dialect = connection.dialect.name
     with Session(bind=connection) as session:
-        # Ensure the partitioner is initialized for the dialect
         framework.db.sqldb.partititioner.RangePartitioner(dialect).bootstrap(
             session=session,
             table_name=table.name,
-            partition_expression=partition_expression,
             first_partition_name=partition_name,
             first_partition_upper_bound=partition_value,
+            partition_expression=partition_expression,
         )
+
+
+@event_listen_for_dialects(
+    target=Base.metadata,  # run before tables are created
+    identifier="before_create",
+    relevant_dialects=[mlrun.common.db.dialects.Dialects.POSTGRESQL],
+)
+def _pg_create_utf8_bin(_, connection, **kw):
+    connection.execute(
+        text(
+            "CREATE COLLATION IF NOT EXISTS utf8_bin "
+            "(provider = 'libc', locale = 'C', deterministic = true)"
+        )
+    )
 
 
 def get_partitioned_table_names():

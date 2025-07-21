@@ -44,10 +44,12 @@ from sqlalchemy import (
     types,
 )
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
 from sqlalchemy.orm import Query, Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.sql.compiler import IdentifierPreparer
+from sqlalchemy.sql.functions import GenericFunction
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -135,6 +137,17 @@ from framework.db.sqldb.models import (
     _tagged,
     _with_notifications,
 )
+
+
+class now(GenericFunction): # noqa: N801
+    type = sqlalchemy.types.DateTime()
+    name = "now"
+
+
+@compiles(now, Dialects.POSTGRESQL)
+def _pg_now(element, compiler, **kw):
+    return "now()"
+
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 unversioned_tagged_object_uid_prefix = "unversioned-"
@@ -653,7 +666,7 @@ class SQLDB(DBInterface):
         if run.state in endable_states and not run.end_time:
             if end_time is None:
                 # Ensures fsp 6 for MySQL NOW() to includes microseconds
-                end_time = func.now(6)
+                end_time = now(6)
             run.end_time = end_time
         elif run.state not in endable_states:
             # Ensure end time is not set if the run is not in a terminal state

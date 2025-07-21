@@ -20,8 +20,4 @@ pydantic>=1,<2
 mlrun-pipelines-kfp-v1-8~=0.5.7
 grpcio~=1.70.0
 
---index-url https://test.pypi.org/simple/
---extra-index-url https://pypi.org/simple
-
-# Package from Test PyPI
-iguazio~=0.0.1a5
+--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple iguazio~=0.0.1a5

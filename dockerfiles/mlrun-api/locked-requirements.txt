@@ -1232,8 +1232,7 @@ idna==3.10 \
     #   requests
     #   snowflake-connector-python
     #   yarl
-iguazio==0.0.1a5 \
-    --hash=sha256:1f4a2594c35f5c2eef8b387d31b66611ba750115942f4fdce9b974b4644ca339 \
+iguazio @ https://test-files.pythonhosted.org/packages/14/db/0f4aaa2df08db33fdf87ca3166eee073db780abd04cadc3d2b50391e2822/iguazio-0.0.1a5-py3-none-any.whl \
     --hash=sha256:770b3088943980ee79f1d9283aeecb255483d9873f7a511061555d9a24dfd3aa
     # via -r dockerfiles/mlrun-api/requirements.txt
 igz-mgmt==0.4.2 \

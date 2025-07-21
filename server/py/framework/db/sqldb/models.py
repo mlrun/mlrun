@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 import orjson
+import sqlalchemy
 from sqlalchemy import (
     BOOLEAN,
     JSON,
@@ -930,7 +931,7 @@ with warnings.catch_warnings():
 
         __table_args__ = (
             PrimaryKeyConstraint(
-                "id", "activation_time", name="_alert_activation_uc"
+                "id", "activation_time", "partition_key", name="_alert_activation_uc"
             ),
             Index("ix_alert_activation_project_name", "project", "name"),
             Index(
@@ -1191,7 +1192,7 @@ def create_postgres_partitioning_functions(
         mlrun.common.db.dialects.Dialects.POSTGRESQL,
     ],
 )
-def create_partition_trigger(target: Table, connection, **_):
+def create_postgres_partition_trigger(target: Table, connection, **_):
     connection.exec_driver_sql(
         f"""
         CREATE OR REPLACE FUNCTION {target.name}_set_partition_key()
@@ -1210,6 +1211,40 @@ def create_partition_trigger(target: Table, connection, **_):
         CREATE TRIGGER {target.name}_set_partition_key_tg
         BEFORE INSERT OR UPDATE ON {target.name}
         FOR EACH ROW EXECUTE FUNCTION {target.name}_set_partition_key();
+        """
+    )
+
+
+@event_listen_for_dialects(
+    target=AlertActivation.__table__,
+    identifier="after_create",  # CRT first, then add trigger
+    relevant_dialects=[mlrun.common.db.dialects.Dialects.MYSQL],
+)
+def create_mysql_partition_trigger(table: Table, connection: Connection, **_):
+    _mysql_partition_expr = AlertActivation._interval.get_partition_expression(
+        column_name="NEW.activation_time",  # let helper build the proper SQL
+        dialect=mlrun.common.db.dialects.Dialects.MYSQL,
+    )
+    preparer = sqlalchemy.sql.compiler.IdentifierPreparer(connection.dialect)
+    q_table = preparer.format_table(table)
+    trg_name = f"{table.name}_set_partition_key"
+
+    connection.exec_driver_sql(
+        f"""
+        DROP TRIGGER IF EXISTS {trg_name}_bi;
+        DROP TRIGGER IF EXISTS {trg_name}_bu;
+
+        -- fill on INSERT
+        CREATE TRIGGER {trg_name}_bi
+        BEFORE INSERT ON {q_table}
+        FOR EACH ROW
+        SET NEW.partition_key = {_mysql_partition_expr};
+
+        -- keep in sync on UPDATE (if activation_time can change)
+        CREATE TRIGGER {trg_name}_bu
+        BEFORE UPDATE ON {q_table}
+        FOR EACH ROW
+        SET NEW.partition_key = {_mysql_partition_expr};
         """
     )
 

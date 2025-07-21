@@ -139,7 +139,7 @@ from framework.db.sqldb.models import (
 )
 
 
-class now(GenericFunction): # noqa: N801
+class now(GenericFunction):  # noqa: N801
     type = sqlalchemy.types.DateTime()
     name = "now"
 

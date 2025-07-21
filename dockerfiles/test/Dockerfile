@@ -79,6 +79,11 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[complete,dev-postgres] --python-version ${MLRUN_PYTHON_VERSION}
 
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --no-deps torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html \
+    --python-version ${MLRUN_PYTHON_VERSION}
+
 COPY . .
 
 RUN rm -rf ./server/go

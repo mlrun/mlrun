@@ -47,4 +47,9 @@ openai~=1.88
 transformers~=4.53
 # for hugging face image classifier test:
 tf-keras~=2.18
-# torch==2.3.1
+
+
+mpmath<1.4,>=1.1.0 # as described in dependencies
+sympy~=1.14 # manual
+networkx
+#torch==2.3.1

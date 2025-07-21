@@ -282,7 +282,7 @@ class Artifacts(
         # TODO : If, in the future, this API is extended to delete the artifact data as well,
         #  we should include the validation we added in validate_artifact_removal_preconditions
         #  before attempting the data deletion. Currently, deleting artifacts linked to model
-        #  endpoints will fail with IntegrityError.
+        #  endpoints or deleting a parent artifact will fail with IntegrityError.
         framework.utils.singletons.db.get_db().del_artifacts(
             db_session,
             name=name,

@@ -1266,7 +1266,7 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunConflictError(
                 f"Failed deleting artifact {db_artifact.key} in project {db_artifact.project}, iteration "
                 f"{db_artifact.iteration}, producer_id {db_artifact.producer_id} and {db_artifact.uid} uid. "
-                f"The artifact has {len(db_artifact.child_artifacts)} child artifacts, please delete them first"
+                f"The artifact has {len(db_artifact.child_artifacts)} child artifacts. Delete them before proceeding."
             )
         return mlrun.common.formatters.ArtifactFormat.format_obj(
             db_artifact.full_object, mlrun.common.formatters.ArtifactFormat.minimal
@@ -5524,11 +5524,13 @@ class SQLDB(DBInterface):
             # get the object id from the object record
             object_id = object_record.id
             if cls == ArtifactV2:
-                self._update_artifact_latest_tag_on_deletion(session, object_record)
                 if object_record.child_artifacts:
+                    # todo : If, in the future, this delete_artifacts API is extended to delete the artifact
+                    #  data as well, we should delete this check.
                     raise IntegrityError(
                         "artifact has child artifacts", params=None, orig=Exception()
                     )
+                self._update_artifact_latest_tag_on_deletion(session, object_record)
 
         if object_id:
             self._delete(session, cls, id=object_id)

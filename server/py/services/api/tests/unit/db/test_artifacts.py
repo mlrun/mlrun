@@ -3038,6 +3038,59 @@ class TestArtifacts(TestDatabaseBase):
             with_tag=False
         )
 
+    def test_delete_parent_artifacts(self):
+        # Create referenced artifact
+        parent_artifact_name = "parent-artifact"
+        child_artifact_name = "child-artifact"
+        project = "test-project"
+        parent_artifact = self._generate_artifact(parent_artifact_name)
+        self._db.store_artifact(
+            self._db_session,
+            parent_artifact_name,
+            parent_artifact,
+            project,
+            tag="ref-tag",
+        )
+        parent_artifact_db = Artifact.from_dict(
+            self._db.read_artifact(
+                self._db_session,
+                key=parent_artifact_name,
+                tag="ref-tag",
+                project=project,
+            )
+        )
+
+        # Create artifact that references the above (manually inject the reference UID)
+        child_artifact = self._generate_artifact(child_artifact_name)
+        child_artifact["spec"]["parent_uri"] = parent_artifact_db.uri
+
+        self._db.store_artifact(
+            self._db_session,
+            child_artifact_name,
+            child_artifact,
+            project,
+        )
+        with pytest.raises(mlrun.errors.MLRunConflictError):
+            # delete the parent artifacts
+            self._db.del_artifacts(
+                self._db_session,
+                name=parent_artifact_name,
+                project=project,
+            )
+        self._db.del_artifact(
+            self._db_session,
+            key=child_artifact_name,
+            project=project,
+        )
+        self._db.del_artifacts(
+            self._db_session,
+            name=parent_artifact_name,
+            project=project,
+        )
+
+        artifacts = self._db.list_artifacts(session=self._db_session, project=project)
+        assert artifacts == []
+
     def _generate_artifact_with_iterations(
         self, key, tree, num_iters, best_iter, kind, project=""
     ):

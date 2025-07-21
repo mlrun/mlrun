@@ -19,3 +19,9 @@ pydantic>=1,<2
 # ensure kfp is installed
 mlrun-pipelines-kfp-v1-8~=0.4.3
 grpcio~=1.70.0
+
+--index-url https://test.pypi.org/simple/
+--extra-index-url https://pypi.org/simple
+
+# Package from Test PyPI
+iguazio~=0.0.1a3

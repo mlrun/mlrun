@@ -484,7 +484,7 @@ class Pipelines(
         retrying: bool = True,
     ):
         """Atomically acquire a FOR UPDATE lock on the run row, then flip its `retrying` flag."""
-        services.api.crud.RerunRunner().toggle_run_retrying_state(
+        services.api.crud.RerunRunner().set_run_retrying_state(
             db_session=db_session,
             project=project,
             run_id=run_id,

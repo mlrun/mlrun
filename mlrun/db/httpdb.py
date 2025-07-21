@@ -4740,7 +4740,7 @@ class HTTPRunDB(RunDBInterface):
         )
         return mlrun.common.schemas.GetWorkflowResponse(**response.json())
 
-    def toggle_run_retrying_state(
+    def set_run_retrying_state(
         self, project: str, name: str, run_id: str, retrying: bool = False
     ):
         """
@@ -4756,7 +4756,7 @@ class HTTPRunDB(RunDBInterface):
 
         :raises MLRunHTTPError: If the HTTP request fails or returns an error status.
         """
-        path = f"projects/{project}/workflows/{name}/runs/{run_id}/retrying"
+        path = f"projects/{project}/workflows/{name}/runs/{run_id}/set-retry-status"
         params = {"retrying": retrying}
         self.api_call(
             "POST", path, f"set retrying on {project}/{run_id}", params=params

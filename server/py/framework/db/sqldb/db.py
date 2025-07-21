@@ -331,7 +331,7 @@ class SQLDB(DBInterface):
         self._delete_empty_labels(session, Run.Label)
         return run.struct
 
-    def toggle_run_retrying_state(
+    def set_run_retrying_state(
         self,
         session: Session,
         project: str,

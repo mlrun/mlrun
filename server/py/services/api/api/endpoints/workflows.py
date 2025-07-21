@@ -428,7 +428,7 @@ async def get_workflow_id(
 
 
 @router.post(
-    "/projects/{project}/workflows/{name}/runs/{uid}/retrying",
+    "/projects/{project}/workflows/{name}/runs/{uid}/set-retry-status",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
 async def toggle_run_retrying_flag(
@@ -463,9 +463,20 @@ async def toggle_run_retrying_flag(
         )
     )
 
+    # Check permission UPDATE workflow:
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.workflow,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
+    )
+
     # call into your CRUD
     await fastapi.concurrency.run_in_threadpool(
-        services.api.crud.RerunRunner().toggle_run_retrying_state,
+        services.api.crud.RerunRunner().set_run_retrying_state,
         db_session,
         project,
         uid,

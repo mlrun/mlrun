@@ -60,12 +60,6 @@ class Artifacts(
         # calculate the size of the artifact
         self._resolve_artifact_size(artifact, auth_info)
 
-        # TODO: Remove once data migration v5 is obsolete
-        if mlrun.utils.helpers.is_legacy_artifact(artifact):
-            artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
-                artifact
-            ).to_dict()
-
         return framework.utils.singletons.db.get_db().store_artifact(
             session=db_session,
             key=key,

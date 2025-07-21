@@ -1042,12 +1042,7 @@ class ProjectSpec(ModelObj):
                 artifact = artifact.to_dict()
             else:  # artifact is a dict
                 # imported/legacy artifacts don't have metadata,spec,status fields
-                key_field = (
-                    "key"
-                    if _is_imported_artifact(artifact)
-                    or mlrun.utils.is_legacy_artifact(artifact)
-                    else "metadata.key"
-                )
+                key_field = "key" if _is_imported_artifact(artifact) else "metadata.key"
                 key = mlrun.utils.get_in(artifact, key_field, "")
                 if not key:
                     raise ValueError(f'artifacts "{key_field}" must be specified')

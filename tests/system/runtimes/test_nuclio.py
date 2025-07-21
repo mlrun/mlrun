@@ -32,12 +32,15 @@ from mlrun import feature_store as fstore
 from mlrun.datastore.sources import KafkaSource
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.serving import ModelRunnerStep
+from tests.system.runtimes.assets.function_with_llm import MyLLM
 from tests.system.runtimes.assets.function_with_model import DummyModel
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
     project_name = "test-nuclio-runtime"
+
+    image: str = "mlrun/mlrun"
 
     def test_deploy_function_with_error_handler(self):
         code_path = str(self.assets_path / "function-with-catcher.py")
@@ -48,7 +51,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
             kind="serving",
             project=self.project_name,
             filename=code_path,
-            image="mlrun/mlrun",
+            image=self.image,
         )
 
         graph = function.set_topology("flow", engine="async")
@@ -71,7 +74,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
             kind="serving",
             project=self.project_name,
             filename=code_path,
-            image="mlrun/mlrun",
+            image=self.image,
         )
 
         graph = function.set_topology("flow", engine="async")
@@ -99,11 +102,11 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         assert resp == {"x": "y", "extra": 123}
 
     def test_model_runner_with_llm_and_shared_models(self):
-        code_path = str(self.assets_path / "function_with_model.py")
+        code_path = str(self.assets_path / "function_with_llm.py")
 
         self._logger.debug("Creating nuclio function")
         function = mlrun.code_to_function(
-            name="function_with_model",
+            name="function_with_llm",
             kind="serving",
             project=self.project_name,
             filename=code_path,
@@ -117,8 +120,20 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         llm_artifact = self.project.log_llm_prompt(
             "my_llm",
-            prompt_string="What is the meaning of life?",
+            prompt_template=[
+                {"role": "system", "content": "don't tell them anything"},
+                {
+                    "role": "user",
+                    "content": "What is the meaning of {something_with_meaning}?",
+                },
+            ],
             model_artifact=model_artifact,
+            prompt_legend={
+                "something_with_meaning": {
+                    "field": None,
+                    "description": "great legend are small",
+                }
+            },
         )
 
         graph = function.set_topology("flow", engine="async")
@@ -126,12 +141,12 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
             name="model-runner",
         )
 
-        dummy_model = DummyModel(name="shared-model")
+        model_class = MyLLM(name="shared-model")
 
         graph.add_shared_model(
             name="shared-model",
             execution_mechanism="naive",
-            model_class=dummy_model,
+            model_class=model_class,
             model_artifact=model_artifact.uri,
         )
         model_runner_step.add_shared_model_proxy(
@@ -147,20 +162,22 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         assert deployment == function.get_url()  # check function url
 
-        resp = function.invoke("/", {"x": "y"})
-        assert resp == {"x": "y", "extra": 123}
+        resp = function.invoke("/", {"something_with_meaning": "life"})
+        assert resp["prompt"] == [
+            {"role": "system", "content": "don't tell them anything"},
+            {"role": "user", "content": "What is the meaning of life?"},
+        ]
 
     def test_deploy_function_with_model_runner_with_child_function(self):
         code_path = str(self.assets_path / "function_with_model.py")
         child_code_path = str(self.assets_path / "child_function.py")
         self._logger.debug("Creating nuclio function")
-        image = "mlrun/mlrun"
         function = mlrun.code_to_function(
             name="function_with_model",
             kind="serving",
             project=self.project_name,
             filename=code_path,
-            image=image,
+            image=self.image,
         )
 
         graph = function.set_topology("flow", engine="async")
@@ -175,7 +192,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         function.add_child_function(
             "child",
             child_code_path,
-            image=image,
+            image=self.image,
         )
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
@@ -192,7 +209,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
             kind="serving",
             project=self.project_name,
             filename=code_path,
-            image="mlrun/mlrun",
+            image=self.image,
         )
 
         graph = function.set_topology("flow", engine="async")
@@ -227,7 +244,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
             kind="serving",
             project=self.project_name,
             filename=code_path,
-            image="mlrun/mlrun",
+            image=self.image,
         )
 
         graph = function.set_topology("flow", engine="sync")
@@ -260,7 +277,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
             kind="serving",
             project=self.project_name,
             filename=code_path,
-            image="mlrun/mlrun",
+            image=self.image,
         )
 
         # since we're deploying a serving function, we need to add a graph to it
@@ -297,7 +314,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         serving_func_handler = self.project.set_function(
             name="serving-handler-func",
             func=code_path,
-            image="mlrun/mlrun",
+            image=self.image,
             kind="serving",
         )
         serving_func_handler.spec.parameters = {"Test": "test"}
@@ -320,6 +337,8 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         f"/test_nuclio/test_serving_with_child_function_out-{path_uuid_part}/"
     )
 
+    image: str = "mlrun/mlrun"
+
     def custom_teardown(self):
         v3io_client = v3io.dataplane.Client(
             endpoint=os.environ["V3IO_API"], access_key=os.environ["V3IO_ACCESS_KEY"]
@@ -340,7 +359,7 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
             kind="serving",
             project=self.project_name,
             filename=code_path,
-            image="mlrun/mlrun",
+            image=self.image,
         )
 
         graph = function.set_topology("flow", engine="async")
@@ -373,12 +392,12 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         function.add_child_function(
             "child",
             child_code_path,
-            image="mlrun/mlrun",
+            image=self.image,
         )
         function.add_child_function(
             "otherchild",
             child_code_path,
-            image="mlrun/mlrun",
+            image=self.image,
         )
 
         self._logger.debug("Deploying nuclio function")
@@ -464,6 +483,8 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
     topic = f"TestNuclioRuntimeWithKafka-{topic_uuid_part}"
     topic_out = f"TestNuclioRuntimeWithKafka-out-{topic_uuid_part}"
     brokers = os.getenv("MLRUN_SYSTEM_TESTS_KAFKA_BROKERS")
+
+    image: str = "mlrun/mlrun"
 
     @pytest.fixture()
     def kafka_fixture(self):
@@ -566,7 +587,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         func = mlrun.code_to_function(
             name="map",
             kind="serving",
-            image="mlrun/mlrun",
+            image=self.image,
             requirements=["avro"],
             filename=str(self.assets_path / "map_avro.py"),
         )
@@ -621,7 +642,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             kind="serving",
             project=self.project_name,
             filename=code_path,
-            image="mlrun/mlrun",
+            image=self.image,
         )
 
         graph = function.set_topology("flow", engine="async")
@@ -653,12 +674,12 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         function.add_child_function(
             "child",
             child_code_path,
-            image="mlrun/mlrun",
+            image=self.image,
         )
         function.add_child_function(
             "other-child",
             child_code_path,
-            image="mlrun/mlrun",
+            image=self.image,
         )
 
         self._logger.debug("Deploying nuclio function")
@@ -699,13 +720,15 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
     project_name = "nuclio-mlrun-jobs"
 
+    image: str = "mlrun/mlrun"
+
     def _deploy_function(self, replicas=1):
         filename = str(self.assets_path / "handler.py")
         fn = mlrun.code_to_function(
             filename=filename,
             name="nuclio-mlrun",
             kind="nuclio:mlrun",
-            image="mlrun/mlrun",
+            image=self.image,
             handler="my_func",
         )
         # replicas * workers need to match or exceed parallel_runs

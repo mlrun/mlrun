@@ -913,7 +913,7 @@ class TestProject(TestMLRunSystem):
         )
         runner_run_result = project.list_runs(
             labels=[
-                f"{mlrun_constants.MLRunInternalLabels.rerun_of}={run_id.run_id}",
+                f"{mlrun_constants.MLRunInternalLabels.original_workflow_id}={run_id.run_id}",
                 f"{mlrun_constants.MLRunInternalLabels.workflow_id}={rerun_id}",
                 f"{mlrun_constants.MLRunInternalLabels.job_type}={mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER}",
             ]

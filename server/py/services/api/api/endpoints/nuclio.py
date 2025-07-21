@@ -27,7 +27,6 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
-from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.common.schemas.serving import DeployResponse
 from mlrun.config import config
 from mlrun.utils import logger
@@ -45,6 +44,7 @@ import services.api.launcher
 from framework.api import deps
 from framework.constants import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.crud.secrets import Secrets, SecretsClientType
+from services.api.utils.endpoints import start_model_endpoint_creation_background_task
 
 router = APIRouter()
 
@@ -267,40 +267,17 @@ async def deploy_function(
             auth_info,
         )
     )
-    returned_background_tasks = mlrun.common.schemas.BackgroundTaskList(
-        background_tasks=[]
-    )
-    if function.get("kind") == mlrun.runtimes.RuntimeKinds.serving:
-        monitoring_deployment = mm_deployment.MonitoringDeployment(project=project)
-        (
-            model_endpoints_instructions,
-            function,
-        ) = await monitoring_deployment._create_model_endpoints_instructions(
-            db_session=db_session,
-            function=function,
-            function_name=name,
-            project=project,
-        )
-        logger.info(
-            "Creating Background Task for model endpoints creation",
-            project=project,
-            function=name,
-        )
-        returned_background_task = await run_in_threadpool(
-            monitoring_deployment._create_model_endpoint_background_task,
-            db_session=db_session,
-            background_tasks=background_tasks,
-            project_name=project,
-            function_name=name,
-            function_tag=function.get("metadata", {}).get("tag") or "latest",
-            model_endpoints_instructions=model_endpoints_instructions,
-        )
-        returned_background_tasks.background_tasks.append(returned_background_task)
-
-    model_endpoint_creation_task_name = (
-        returned_background_tasks.background_tasks[0].metadata.name
-        if returned_background_tasks.background_tasks
-        else None
+    (
+        function,
+        model_endpoint_creation_task_name,
+        returned_background_tasks,
+    ) = await start_model_endpoint_creation_background_task(
+        project=project,
+        name=name,
+        function=function,
+        db_session=db_session,
+        background_tasks=background_tasks,
+        is_batch=False,
     )
     fn = await run_in_threadpool(
         _deploy_function,
@@ -441,44 +418,6 @@ def process_model_monitoring_secret(
             Secrets().delete_project_secret(project_name, provider, secret_key)
 
     return secret_value
-
-
-def create_model_monitoring_stream(
-    project: str,
-    stream_path: str,
-    shard_count: int,
-    retention_period_hours: int,
-    access_key: typing.Optional[str] = None,
-):
-    if stream_path.startswith("v3io://"):
-        import v3io.dataplane
-
-        _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
-
-        logger.info(
-            "Creating stream",
-            project=project,
-            stream_path=stream_path,
-            shard_count=shard_count,
-            container=container,
-            endpoint=mlrun.mlconf.v3io_api,
-        )
-
-        v3io_client = v3io.dataplane.Client(
-            endpoint=mlrun.mlconf.v3io_api, access_key=access_key
-        )
-
-        response = v3io_client.stream.create(
-            container=container,
-            stream_path=stream_path,
-            shard_count=shard_count,
-            retention_period_hours=retention_period_hours,
-            raise_for_status=v3io.dataplane.RaiseForStatus.never,
-            access_key=access_key,
-        )
-
-        if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
-            response.raise_for_status([409, 204])
 
 
 def _deploy_function(

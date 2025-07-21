@@ -1375,6 +1375,7 @@ class RunStatus(ModelObj):
         notifications: Optional[dict[str, Notification]] = None,
         artifact_uris: Optional[dict[str, str]] = None,
         retry_count: Optional[int] = None,
+        retries: Optional[list[dict]] = None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -1393,6 +1394,7 @@ class RunStatus(ModelObj):
         # Artifact key -> URI mapping, since the full artifacts are not stored in the runs DB table
         self._artifact_uris = artifact_uris or {}
         self._retry_count = retry_count or None
+        self._retries = retries or []
 
     @classmethod
     def from_dict(
@@ -1460,6 +1462,19 @@ class RunStatus(ModelObj):
         :param retry_count: The number of retries.
         """
         self._retry_count = retry_count
+
+    @property
+    def retries(self) -> list[dict]:
+        """List of metadata for each retry attempt."""
+        return self._retries
+
+    @retries.setter
+    def retries(self, retries: list[dict]):
+        """
+        Set the list of retry attempt metadata.
+        :param retries: A list of dictionaries, each representing a retry attempt.
+        """
+        self._retries = retries
 
     def is_failed(self) -> Optional[bool]:
         """

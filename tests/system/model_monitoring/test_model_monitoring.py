@@ -16,11 +16,11 @@ import json
 import os
 import pickle
 import string
-import typing
 from datetime import datetime, timedelta, timezone
 from random import choice, randint, uniform
 from time import monotonic, sleep
 from typing import Optional, Union
+from uuid import uuid4
 
 import fsspec
 import numpy as np
@@ -1781,7 +1781,7 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
     """Test get_model_endpoint_monitoring_metrics functionality."""
 
     project_name = "model-endpoint-get-metrics"
-    image: typing.Optional[str] = None
+    image: Optional[str] = None
 
     @staticmethod
     def _generate_event(
@@ -1830,8 +1830,12 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
         model_endpoint2 = mock_random_endpoint(self.project_name, "testing2")
         model_endpoint2 = db.create_model_endpoint(model_endpoint2)
 
+        model_endpoint3 = mock_random_endpoint(self.project_name, "testing3")
+        model_endpoint3 = db.create_model_endpoint(model_endpoint3)
+
         mep_uid = model_endpoint.metadata.uid
         mep2_uid = model_endpoint2.metadata.uid
+        mep3_uid = model_endpoint3.metadata.uid
         mep_name = model_endpoint.metadata.name
         mep2_name = model_endpoint2.metadata.name
 
@@ -1933,26 +1937,37 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
             [result.name for result in intersection_events_by_type[results_key]]
         )
 
+        # test that intersection with mep with no metrics returns only invocations metric and nor results
+        intersection_events_empty = self._run_db.get_metrics_by_multiple_endpoints(
+            project=self.project.name,
+            endpoint_ids=[mep_uid, mep3_uid],
+            events_format=mm_constants.GetEventsFormat.INTERSECTION,
+        )
+        assert ["invocations"] == [
+            metric.name for metric in intersection_events_empty[metrics_key]
+        ]
+        assert [] == [metric.name for metric in intersection_events_empty[results_key]]
+
         # get nonexistent MEP IDs:
         result_for_non_exist = self._run_db.get_model_endpoint_monitoring_metrics(
             project=self.project.name, endpoint_id="not_exist", type="results"
         )
         assert result_for_non_exist == []
 
-        result_for_non_exist = self._run_db.get_metrics_by_multiple_endpoints(
-            project=self.project.name, endpoint_ids=["not_exist"], type="results"
-        )
-        assert result_for_non_exist == {"not_exist": []}
+        with pytest.raises(mlrun.errors.MLRunNotFoundError) as err:
+            self._run_db.get_metrics_by_multiple_endpoints(
+                project=self.project.name, endpoint_ids=[uuid4().hex], type="results"
+            )
+        assert "were not found in project" in str(err.value)
 
-        intersection_results_for_non_exist = (
+        with pytest.raises(mlrun.errors.MLRunNotFoundError) as err:
             self._run_db.get_metrics_by_multiple_endpoints(
                 project=self.project.name,
-                endpoint_ids=["not_exist", "not_exist2"],
+                endpoint_ids=[uuid4().hex, uuid4().hex],
                 events_format=mm_constants.GetEventsFormat.INTERSECTION,
                 type="results",
             )
-        )
-        assert intersection_results_for_non_exist[results_key] == []
+        assert "were not found in project" in str(err.value)
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured

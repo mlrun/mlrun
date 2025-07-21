@@ -40,6 +40,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun_pipelines.common.models
+from mlrun.artifacts import Artifact
 from mlrun.common.schemas.background_task import BackGroundTaskLabel
 from mlrun.common.schemas.model_monitoring import EndpointType, ModelMonitoringAppLabel
 
@@ -1403,6 +1404,33 @@ def _create_resources_of_all_kinds(
                         )
                     )
 
+    # Create child artifacts
+    parent_artifact_db = Artifact.from_dict(
+        db.read_artifact(
+            db_session,
+            key=artifact_keys[0],
+            tag=artifact_tags[0],
+            iter=0,
+            project=project,
+        )
+    )
+    artifact = copy.deepcopy(artifact_template)
+    artifact["metadata"]["iter"] = 0
+    artifact["metadata"]["tag"] = "child"
+    artifact["metadata"]["tree"] = "some_tree_child"
+    artifact["spec"]["parent_uri"] = parent_artifact_db.uri
+
+    artifact_uids.append(
+        db.store_artifact(
+            db_session,
+            key="child_artifact_key",
+            artifact=artifact,
+            iter=0,
+            tag="some_tree_child",
+            project=project,
+            producer_id="some_tree_child",
+        )
+    )
     # Create several runs
     run = {
         "bla": "blabla",

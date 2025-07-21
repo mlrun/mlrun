@@ -72,7 +72,6 @@ COPY dependencies.py .
 COPY pyproject.toml .
 COPY mlrun mlrun
 COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
-COPY Makefile .
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
@@ -84,6 +83,7 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
 
 WORKDIR /mlrun
+COPY Makefile .
 COPY tests tests
 
 RUN rm -rf /tmp/mlrun

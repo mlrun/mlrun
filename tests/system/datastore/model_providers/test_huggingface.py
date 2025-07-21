@@ -61,7 +61,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             mlrun_model_name=mlrun_model_name,
             image=self.image,
             requirements_file=requirements_path,
-            default_config={"max_new_tokens": 20},
+            default_config={"max_new_tokens": 50},
         )
         function.spec.max_replicas = 1
         # Running models requires higher CPU for this pod.
@@ -78,4 +78,4 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
         token_count = len(tokenizer.encode(result))
         # Extra token is due to the EOS token, which signals end of generation.
-        assert token_count == 21
+        assert token_count == 51

@@ -287,6 +287,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
                 "Retry is not supported for local runs, ignoring retry settings",
                 retry=run.spec.retry.to_dict(),
             )
+            run.spec.retry.count = 0
 
     def _push_notifications(
         self, runobj: "mlrun.run.RunObject", runtime: "mlrun.runtimes.BaseRuntime"

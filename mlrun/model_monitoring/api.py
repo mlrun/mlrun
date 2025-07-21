@@ -538,7 +538,7 @@ def _create_model_monitoring_function_base(
     This function does not set the labels or mounts v3io.
     """
     if name in mm_constants._RESERVED_FUNCTION_NAMES:
-        raise mlrun.errors.MLRunInvalidArgumentError(
+        raise mlrun.errors.MLRunValueError(
             "An application cannot have the following names: "
             f"{mm_constants._RESERVED_FUNCTION_NAMES}"
         )

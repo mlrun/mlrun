@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import asyncio
-import contextlib
 import copy
 import datetime
 import enum
@@ -23,8 +22,6 @@ import threading
 import typing
 import urllib.parse
 
-import aiohttp
-import fastapi
 import httpx
 import humanfriendly
 import igz_mgmt.schemas.manual_events
@@ -167,6 +164,10 @@ class Client(
         self._job_cache = _JobCache(
             ttl=mlrun.mlconf.httpdb.projects.iguazio_client_job_cache_ttl,
         )
+
+    @property
+    def _verify_session_http_method(self) -> str:
+        return "post"
 
     def get_user_unix_id(self, session: str) -> str:
         response = self._send_request_to_api(
@@ -634,33 +635,6 @@ class Client(
         )
         return response.json()
 
-    def _send_request_to_api(
-        self,
-        method,
-        path,
-        error_message: str,
-        session=None,
-        retry_on_post=False,
-        **kwargs,
-    ):
-        url = f"{self._api_url}/api/{path}"
-        self._prepare_request_kwargs(session, path, kwargs=kwargs)
-        http_session = self._session
-        if retry_on_post and self._retry_on_post_session:
-            http_session = self._retry_on_post_session
-        response = http_session.request(
-            method, url, verify=mlrun.mlconf.httpdb.http.verify, **kwargs
-        )
-        if not response.ok:
-            try:
-                response_body = response.json()
-            except Exception:
-                response_body = {}
-            self._handle_error_response(
-                method, path, response, response_body, error_message, kwargs
-            )
-        return response
-
     def _generate_auth_info_from_session_verification_response(
         self,
         response_headers: typing.Mapping[str, typing.Any],
@@ -882,7 +856,9 @@ class Client(
             )
         return mlrun_project
 
-    def _prepare_request_kwargs(self, session, path, *, kwargs):
+    def _prepare_request_kwargs(
+        self, session: typing.Optional[str], path: str, *, kwargs: dict
+    ):
         # support session being already a cookie
         session_cookie = session
         if (
@@ -920,8 +896,14 @@ class Client(
                     dict_[key] = dict_[key].value
 
     def _handle_error_response(
-        self, method, path, response, response_body, error_message, kwargs
-    ):
+        self,
+        method: str,
+        path: str,
+        response: typing.Any,  # or aiohttp.ClientResponse
+        response_body: dict,
+        error_message: str,
+        kwargs: dict,
+    ) -> None:
         log_kwargs = copy.deepcopy(kwargs)
 
         # this can be big and spammy
@@ -971,95 +953,4 @@ class Client(
 
 
 class AsyncClient(BaseAsyncClient, Client):
-    @property
-    def _verify_session_http_method(self) -> str:
-        return "post"
-
-    @property
-    def _session_verification_endpoint(self) -> str:
-        return mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint
-
-    async def verify_request_session(
-        self, request: fastapi.Request
-    ) -> mlrun.common.schemas.AuthInfo:
-        """
-        Proxy the request to one of the session verification endpoints (which will verify the session of the request)
-        """
-        headers = {
-            "authorization": request.headers.get("authorization"),
-            "cookie": request.headers.get("cookie"),
-            "x-request-id": request.state.request_id,
-        }
-        async with (
-            self._send_request_to_api_async(
-                self._verify_session_http_method,
-                self._session_verification_endpoint,
-                "Failed verifying iguazio session",
-                retry_options_override=mlrun.utils.async_http.ExponentialRetryOverride(
-                    blacklisted_methods=[],  # iguazio session verification endpoint is idempotent
-                    # 1, 2, 4, 8, ...
-                    start_timeout=1,
-                    max_timeout=30.0,
-                    factor=2.0,
-                ),
-                headers=headers,
-            ) as response
-        ):
-            return self._generate_auth_info_from_session_verification_response(
-                response.headers, await response.json()
-            )
-
-    @contextlib.asynccontextmanager
-    async def _send_request_to_api_async(
-        self,
-        method,
-        path: str,
-        error_message: str,
-        session: typing.Optional[str] = None,
-        retry_options_override: typing.Optional[
-            mlrun.utils.async_http.ExponentialRetryOverride
-        ] = None,
-        **kwargs,
-    ) -> typing.AsyncGenerator[aiohttp.ClientResponse, None]:
-        url = f"{self._api_url}/api/{path}"
-        self._prepare_request_kwargs(session, path, kwargs=kwargs)
-        await self._ensure_async_session()
-
-        # take the session default
-        retry_options = copy.deepcopy(self._async_session.retry_options)
-
-        # override with cherry-picked options
-        if retry_options_override:
-            if retry_options_override.blacklisted_methods is not None:
-                retry_options.blacklisted_methods = (
-                    retry_options_override.blacklisted_methods
-                )
-            retry_options._start_timeout = retry_options_override._start_timeout
-            retry_options._max_timeout = retry_options_override._max_timeout
-            retry_options._factor = retry_options_override._factor
-
-        response = None
-        try:
-            response = await self._async_session.request(
-                method, url, verify_ssl=False, retry_options=retry_options, **kwargs
-            )
-            if not response.ok:
-                try:
-                    response_body = await response.json()
-                except Exception:
-                    response_body = {}
-                self._handle_error_response(
-                    method, path, response, response_body, error_message, kwargs
-                )
-            yield response
-        finally:
-            if response:
-                response.release()
-
-    async def _ensure_async_session(self):
-        if not self._async_session:
-            self._async_session = mlrun.utils.AsyncClientWithRetry(
-                retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
-                == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
-                logger=logger,
-            )
+    pass

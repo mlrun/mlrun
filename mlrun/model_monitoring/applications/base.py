@@ -458,7 +458,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             )
             if last_analyzed:
                 if start_dt < last_analyzed:
-                    if fail_on_overlap:
+                    if not fail_on_overlap:
                         if last_analyzed < end_dt and base_period is None:
                             logger.warn(
                                 "Setting the start time to last_analyzed since the original start time precedes "

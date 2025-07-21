@@ -341,25 +341,6 @@ class LabelMixin:
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
-    # deprecated, use ArtifactV2 instead
-    # TODO: Remove once data migration v5 is obsolete and add schema migration to remove this table
-    class Artifact(Base, LabelMixin, TagMixin, framework.db.sqldb.base.HasStruct):
-        __tablename__ = "artifacts"
-        __table_args__ = (
-            UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),
-        )
-
-        id = Column(Integer, primary_key=True)
-        key = Column(framework.db.sqldb.sql_types.Utf8BinText)
-        project = Column(framework.db.sqldb.sql_types.Utf8BinText)
-        uid = Column(framework.db.sqldb.sql_types.Utf8BinText)
-        updated = Column(framework.db.sqldb.sql_types.DateTime)
-        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        body = Column(framework.db.sqldb.sql_types.Blob)
-
-        def get_identifier_string(self) -> str:
-            return f"{self.project}/{self.key}/{self.uid}"
-
     class ArtifactV2(
         Base, LabelMixin, ArtifactTagMixin, framework.db.sqldb.base.BaseModel
     ):

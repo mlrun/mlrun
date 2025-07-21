@@ -1650,19 +1650,6 @@ class SQLDB(DBInterface):
         else:
             artifact_spec["parent_uri"] = None
 
-    def _get_link_artifacts_by_keys_and_uids(self, session, project, identifiers):
-        # identifiers are tuples of (key, uid)
-        if not identifiers:
-            return []
-        predicates = [
-            and_(Artifact.key == key, Artifact.uid == uid) for (key, uid) in identifiers
-        ]
-        return (
-            self._query(session, Artifact, project=project)
-            .filter(or_(*predicates))
-            .all()
-        )
-
     def _delete_artifacts_tags(
         self,
         session,

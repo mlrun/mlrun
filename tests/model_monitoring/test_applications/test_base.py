@@ -303,7 +303,7 @@ def test_window_generator_validation(
                 application_schedules=None,
                 endpoint_id="",
                 application_name="",
-                allow_unordered_data=False,
+                fail_on_overlap=True,
             )
         )
 
@@ -377,7 +377,7 @@ def test_windows(
                 application_schedules=None,
                 endpoint_id="",
                 application_name="",
-                allow_unordered_data=False,
+                fail_on_overlap=True,
             )
         )
         == expected_windows

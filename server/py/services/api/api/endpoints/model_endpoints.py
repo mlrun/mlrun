@@ -402,6 +402,7 @@ async def get_metrics_by_multiple_endpoints(
     type: Literal["results", "metrics", "all"] = "all",
     endpoint_ids: list[EndpointIDAnnotation] = Query([], alias="endpoint-id"),
     events_format: mm_constants.GetEventsFormat = Query(None, alias="events-format"),
+    db_session: Session = Depends(deps.get_db_session),
 ) -> dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]:
     """
     :param project:       The name of the project.
@@ -410,6 +411,7 @@ async def get_metrics_by_multiple_endpoints(
                           and "metrics".
     :param endpoint_ids:  The unique id of the model endpoint. Can be a single id or a list of ids.
     :param events_format: response format:
+    :param db_session:    A session that manages the current dialog with the database.
 
                           separation: {"mep_id1":[...], "mep_id2":[...]}
                           intersection {"intersect_metrics":[], "intersect_results":[]}
@@ -431,6 +433,19 @@ async def get_metrics_by_multiple_endpoints(
         )
 
     await asyncio.gather(*permissions_tasks)
+
+    # verify all endpoints exist in the project
+    endpoints_data = await services.api.crud.ModelEndpoints().list_model_endpoints(
+        project=project,
+        uids=endpoint_ids,
+        db_session=db_session,
+    )
+    returned_uids = [endpoint.metadata.uid for endpoint in endpoints_data.endpoints]
+    if len(returned_uids) < len(endpoint_ids):
+        missing_endpoints = set(endpoint_ids) - set(returned_uids)
+        raise mlrun.errors.MLRunNotFoundError(
+            f"Model endpoints with ids {missing_endpoints} were not found in project {project}."
+        )
 
     task_results = await _collect_get_metrics_tasks_results(
         endpoint_ids=endpoint_ids,
@@ -464,6 +479,50 @@ async def get_metrics_by_multiple_endpoints(
             "get_metrics_by_multiple_endpoints"
         )
     return events
+
+
+@router.get(
+    "/drift-over-time",
+    status_code=HTTPStatus.OK.value,
+    response_model=schemas.ModelEndpointDriftValues,
+)
+async def get_model_endpoint_drift_over_time(
+    project: ProjectAnnotation,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
+) -> schemas.ModelEndpointDriftValues:
+    """
+    Get drift counts over time for the project.
+
+    :param project:     The name of the project.
+    :param start:       Start time of the range to retrieve drift counts from.
+    :param end:         End time of the range to retrieve drift counts from.
+    :param auth_info:   The auth info of the request.
+
+    :return: A ModelEndpointDriftValues object containing the drift counts over time.
+    """
+    start, end = _validate_time_range(start, end)
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project_name=project,
+        action=schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+    try:
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=project,
+            secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                project=project
+            ),
+        )
+    except mlrun.errors.MLRunNotFoundError as e:
+        logger.debug(
+            "Failed to retrieve model endpoint metrics-values because the TSDB datastore profile was not found. "
+            "Returning an empty list of metric-values",
+            error=mlrun.errors.err_to_str(e),
+        )
+        return schemas.ModelEndpointDriftValues(values=[])
+    return await run_in_threadpool(tsdb_connector.get_drift_data, start, end)
 
 
 @router.get(
@@ -546,6 +605,29 @@ class _MetricsValuesParams:
     end: datetime
 
 
+def _validate_time_range(
+    start: Optional[datetime] = None, end: Optional[datetime] = None
+) -> tuple[datetime, datetime]:
+    """
+    validate start and end parameters and set default values if needed.
+    :param start:       Either None or datetime, None is handled as datetime.now(tz=timezone.utc) - timedelta(days=1)
+    :param end:         Either None or datetime, None is handled as datetime.now(tz=timezone.utc)
+    :return:            start datetime, end datetime
+    """
+    end = end or mlrun.utils.helpers.datetime_now()
+    start = start or (end - timedelta(days=1))
+    if start.tzinfo is None or end.tzinfo is None:
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            "Custom start and end times must contain the timezone."
+        )
+    if start > end:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "The start time must be before the end time. Note that if end time is not provided, "
+            "the current time is used by default."
+        )
+    return start, end
+
+
 async def _get_metrics_values_params(
     project: ProjectAnnotation,
     endpoint_id: EndpointIDAnnotation,
@@ -572,17 +654,7 @@ async def _get_metrics_values_params(
     await _verify_model_endpoint_read_permission(
         project=project, name_or_uid=endpoint_id, auth_info=auth_info
     )
-    end = end or mlrun.utils.helpers.datetime_now()
-    start = start or (end - timedelta(days=1))
-    if start.tzinfo is None or end.tzinfo is None:
-        raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            "Custom start and end times must contain the timezone."
-        )
-    if start > end:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "The start time must be before the end time. Note that if end time is not provided, "
-            "the current time is used by default."
-        )
+    start, end = _validate_time_range(start, end)
 
     metrics = []
     results = []

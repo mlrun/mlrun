@@ -162,14 +162,6 @@ def get_artifact_target(item: dict, project=None):
     return item["spec"].get("target_path")
 
 
-# TODO: Remove once data migration v5 is obsolete
-def is_legacy_artifact(artifact):
-    if isinstance(artifact, dict):
-        return "metadata" not in artifact
-    else:
-        return not hasattr(artifact, "metadata")
-
-
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
 missing = object()
 
@@ -1050,7 +1042,14 @@ def fill_function_hash(function_dict, tag=""):
 
 
 def retry_until_successful(
-    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+    backoff: int,
+    timeout: int,
+    logger,
+    verbose: bool,
+    _function,
+    *args,
+    fatal_exceptions=(),
+    **kwargs,
 ):
     """
     Runs function with given *args and **kwargs.
@@ -1063,14 +1062,31 @@ def retry_until_successful(
     :param verbose: whether to log the failure on each retry
     :param _function: function to run
     :param args: functions args
+    :param fatal_exceptions: exception types that should not be retried
     :param kwargs: functions kwargs
     :return: function result
     """
-    return Retryer(backoff, timeout, logger, verbose, _function, *args, **kwargs).run()
+    return Retryer(
+        backoff,
+        timeout,
+        logger,
+        verbose,
+        _function,
+        *args,
+        fatal_exceptions=fatal_exceptions,
+        **kwargs,
+    ).run()
 
 
 async def retry_until_successful_async(
-    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+    backoff: int,
+    timeout: int,
+    logger,
+    verbose: bool,
+    _function,
+    *args,
+    fatal_exceptions=(),
+    **kwargs,
 ):
     """
     Runs function with given *args and **kwargs.
@@ -1082,12 +1098,20 @@ async def retry_until_successful_async(
     :param logger: a logger so we can log the failures
     :param verbose: whether to log the failure on each retry
     :param _function: function to run
+    :param fatal_exceptions: exception types that should not be retried
     :param args: functions args
     :param kwargs: functions kwargs
     :return: function result
     """
     return await AsyncRetryer(
-        backoff, timeout, logger, verbose, _function, *args, **kwargs
+        backoff,
+        timeout,
+        logger,
+        verbose,
+        _function,
+        *args,
+        fatal_exceptions=fatal_exceptions,
+        **kwargs,
     ).run()
 
 

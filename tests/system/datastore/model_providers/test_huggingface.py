@@ -63,11 +63,12 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             requirements_file=requirements_path,
             default_config={"max_new_tokens": 50},
         )
-        function.spec.max_replicas = 1
+
         # Running models requires higher CPU for this pod.
         # The default Nuclio resource configuration is:
         # {"requests": {"cpu": "25m", "memory": "1Mi"}, "limits": {"cpu": "2", "memory": "20Gi"}}
         function.spec.resources = {'limits': {'cpu': '5', 'memory': '30Gi'}, 'requests': {'cpu': '3', 'memory': '1Mi'}}
+        function.spec.max_replicas = 1   # to avoid allocating extended resources to multiple pods
         function.deploy()
         response = function.invoke(
             f"v2/models/{mlrun_model_name}/infer",

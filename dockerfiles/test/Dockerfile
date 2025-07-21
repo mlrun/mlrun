@@ -72,6 +72,7 @@ COPY dependencies.py .
 COPY pyproject.toml .
 COPY mlrun mlrun
 COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
+COPY Makefile .
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \

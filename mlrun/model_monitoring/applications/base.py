@@ -252,6 +252,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         write_output: bool = False,
         fail_on_overlap: bool = True,
         stream_profile: Optional[ds_profile.DatastoreProfile] = None,
+        application_name: Optional[str] = None,
     ):
         """
         A custom handler that wraps the application's logic implemented in
@@ -271,7 +272,12 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 "working with endpoints, without any custom data-frame input"
             )
 
-        application_name = self.__class__.__name__
+        if not application_name:
+            application_name = self.__class__.__name__
+        if not application_name.endswith(
+            mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
+        ):
+            application_name += mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
 
         feature_stats = (
             mm_api.get_sample_set_statistics(reference_data)
@@ -629,6 +635,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         * ``base_period``, ``int``
         * ``write_output``, ``bool``
         * ``fail_on_overlap``, ``bool``
+        * ``application_name``, ``str``
 
         For Git sources, add the source archive to the returned job and change the handler:
 
@@ -714,6 +721,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         write_output: bool = False,
         fail_on_overlap: bool = True,
         stream_profile: Optional[ds_profile.DatastoreProfile] = None,
+        application_name: Optional[str] = None,
     ) -> "mlrun.RunObject":
         """
         Call this function to run the application's
@@ -787,6 +795,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   ``write_output`` are set to ``True``).
                                   For more details on configuring the stream profile, see
                                   :py:meth:`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
+        :param application_name:  The application name to use for the results. If not set, the class name is used.
+                                  A ``"-batch"`` suffix is guaranteed to be added if not already there.
 
         :returns: The output of the
                   :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`

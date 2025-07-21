@@ -303,6 +303,7 @@ class Pipelines(
                 db_session=db_session,
                 project=project,
                 labels=labels,
+                sort=True,
                 with_notifications=True,
             )
 

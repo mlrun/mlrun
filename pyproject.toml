@@ -47,6 +47,17 @@ python-version = "3.9"  # TODO: change to 3.11 when 3.9 is no longer supported
 generate-hashes = true
 universal = true
 
+[[tool.uv.index]]
+name = "pytorch_cpu" # Optional name for the index
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+# Now, map specific packages to this explicit index
+[tool.uv.sources]
+torch = { index = "pytorch_cpu" }
+torchvision = { index = "pytorch_cpu" }
+torchaudio = { index = "pytorch_cpu" }
+
 [tool.pytest.ini_options]
 addopts = "-v -rf --disable-warnings"
 pythonpath = "./server/py" # This allows running server side tests from the project root directory

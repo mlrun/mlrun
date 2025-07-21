@@ -528,6 +528,24 @@ def test_init_system_id(
     assert system_id_after_second_init == system_id
 
 
+def test_system_id_initialized(monkeypatch: pytest.MonkeyPatch):
+    # This test ensures that calling init_data correctly initializes the system ID
+    monkeypatch.setattr(mlrun.mlconf, "system_id", None)
+
+    db, db_session = _initialize_db_without_migrations()
+
+    # Run the init_data flow
+    services.api.initial_data.init_data()
+
+    # After init, system ID must be defined in config
+    config_system_id = mlrun.mlconf.system_id
+    assert config_system_id is not None
+
+    # Ensure it's persisted in the DB too
+    db_system_id = db.get_system_id(db_session)
+    assert db_system_id == config_system_id
+
+
 def test_ensure_latest_tag_for_artifacts():
     # This test verifies that the migration to ensure the "latest" tag is assigned correctly to artifacts works as
     # expected. The test creates a set of artifacts with different iteration numbers and tags:

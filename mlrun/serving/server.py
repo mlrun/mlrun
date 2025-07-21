@@ -15,6 +15,7 @@
 __all__ = ["GraphServer", "create_graph_server", "GraphContext", "MockEvent"]
 
 import asyncio
+import base64
 import copy
 import json
 import os
@@ -384,6 +385,7 @@ def add_monitoring_general_steps(
     graph: RootFlowStep,
     context,
     serving_spec,
+    pause_until_background_task_completion: bool,
 ) -> tuple[RootFlowStep, FlowStep]:
     """
     Adding the monitoring flow connection steps, this steps allow the graph to reconstruct the serving event enrich it
@@ -392,18 +394,22 @@ def add_monitoring_general_steps(
         "background_task_status_step" --> "filter_none" --> "monitoring_pre_processor_step" --> "flatten_events"
         --> "sampling_step" --> "filter_none_sampling" --> "model_monitoring_stream"
     """
+    background_task_status_step = None
+    if pause_until_background_task_completion:
+        background_task_status_step = graph.add_step(
+            "mlrun.serving.system_steps.BackgroundTaskStatus",
+            "background_task_status_step",
+            model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
+        )
     monitor_flow_step = graph.add_step(
-        "mlrun.serving.system_steps.BackgroundTaskStatus",
-        "background_task_status_step",
-        model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
-    )
-    graph.add_step(
         "storey.Filter",
         "filter_none",
         _fn="(event is not None)",
-        after="background_task_status_step",
+        after="background_task_status_step" if background_task_status_step else None,
         model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
     )
+    if background_task_status_step:
+        monitor_flow_step = background_task_status_step
     graph.add_step(
         "mlrun.serving.system_steps.MonitoringPreProcessor",
         "monitoring_pre_processor_step",
@@ -466,14 +472,28 @@ def add_monitoring_general_steps(
 
 
 def add_system_steps_to_graph(
-    project: str, graph: RootFlowStep, track_models: bool, context, serving_spec
+    project: str,
+    graph: RootFlowStep,
+    track_models: bool,
+    context,
+    serving_spec,
+    pause_until_background_task_completion: bool = True,
 ) -> RootFlowStep:
+    if not (isinstance(graph, RootFlowStep) and graph.include_monitored_step()):
+        return graph
     monitored_steps = graph.get_monitored_steps()
     graph = add_error_raiser_step(graph, monitored_steps)
     if track_models:
+        background_task_status_step = None
         graph, monitor_flow_step = add_monitoring_general_steps(
-            project, graph, context, serving_spec
+            project,
+            graph,
+            context,
+            serving_spec,
+            pause_until_background_task_completion,
         )
+        if background_task_status_step:
+            monitor_flow_step = background_task_status_step
         # Connect each model runner to the monitoring step:
         for step_name, step in monitored_steps.items():
             if monitor_flow_step.after:
@@ -485,6 +505,10 @@ def add_system_steps_to_graph(
                 monitor_flow_step.after = [
                     step_name,
                 ]
+    context.logger.info_with(
+        "Server graph after adding system steps",
+        graph=str(graph.steps),
+    )
     return graph
 
 
@@ -494,18 +518,13 @@ def v2_serving_init(context, namespace=None):
     context.logger.info("Initializing server from spec")
     spec = mlrun.utils.get_serving_spec()
     server = GraphServer.from_dict(spec)
-    if isinstance(server.graph, RootFlowStep) and server.graph.include_monitored_step():
-        server.graph = add_system_steps_to_graph(
-            server.project,
-            copy.deepcopy(server.graph),
-            spec.get("track_models"),
-            context,
-            spec,
-        )
-        context.logger.info_with(
-            "Server graph after adding system steps",
-            graph=str(server.graph.steps),
-        )
+    server.graph = add_system_steps_to_graph(
+        server.project,
+        copy.deepcopy(server.graph),
+        spec.get("track_models"),
+        context,
+        spec,
+    )
 
     if config.log_level.lower() == "debug":
         server.verbose = True
@@ -544,16 +563,56 @@ async def async_execute_graph(
     data: DataItem,
     batching: bool,
     batch_size: Optional[int],
+    read_as_lists: bool,
+    nest_under_inputs: bool,
 ) -> list[Any]:
     spec = mlrun.utils.get_serving_spec()
 
-    source_filename = spec.get("filename", None)
     namespace = {}
-    if source_filename:
-        with open(source_filename) as f:
-            exec(f.read(), namespace)
+    code = os.getenv("MLRUN_EXEC_CODE")
+    if code:
+        code = base64.b64decode(code).decode("utf-8")
+        exec(code, namespace)
+    else:
+        # TODO: find another way to get the local file path, or ensure that MLRUN_EXEC_CODE
+        #  gets set in local flow and not just in the remote pod
+        source_filename = spec.get("filename", None)
+        if source_filename:
+            with open(source_filename) as f:
+                exec(f.read(), namespace)
 
     server = GraphServer.from_dict(spec)
+
+    if server.model_endpoint_creation_task_name:
+        context.logger.info(
+            f"Waiting for model endpoint creation task '{server.model_endpoint_creation_task_name}'..."
+        )
+        background_task = (
+            mlrun.get_run_db().wait_for_background_task_to_reach_terminal_state(
+                project=server.project,
+                name=server.model_endpoint_creation_task_name,
+            )
+        )
+        task_state = background_task.status.state
+        if task_state == mlrun.common.schemas.BackgroundTaskState.failed:
+            raise mlrun.errors.MLRunRuntimeError(
+                "Aborting job due to model endpoint creation background task failure"
+            )
+        elif task_state != mlrun.common.schemas.BackgroundTaskState.succeeded:
+            # this shouldn't happen, but we need to know if it does
+            raise mlrun.errors.MLRunRuntimeError(
+                "Aborting job because the model endpoint creation background task did not succeed "
+                f"(status='{task_state}')"
+            )
+
+    server.graph = add_system_steps_to_graph(
+        server.project,
+        copy.deepcopy(server.graph),
+        spec.get("track_models"),
+        context,
+        spec,
+        pause_until_background_task_completion=False,  # we've already awaited it
+    )
 
     if config.log_level.lower() == "debug":
         server.verbose = True
@@ -588,7 +647,9 @@ async def async_execute_graph(
 
     batch = []
     for index, row in df.iterrows():
-        data = row.to_dict()
+        data = row.to_list() if read_as_lists else row.to_dict()
+        if nest_under_inputs:
+            data = {"inputs": data}
         if batching:
             batch.append(data)
             if len(batch) == batch_size:
@@ -612,6 +673,8 @@ def execute_graph(
     data: DataItem,
     batching: bool = False,
     batch_size: Optional[int] = None,
+    read_as_lists: bool = False,
+    nest_under_inputs: bool = False,
 ) -> (list[Any], Any):
     """
     Execute graph as a job, from start to finish.
@@ -621,10 +684,16 @@ def execute_graph(
     :param batching: Whether to push one or more batches into the graph rather than row by row.
     :param batch_size: The number of rows to push per batch. If not set, and batching=True, the entire dataset will
         be pushed into the graph in one batch.
+    :param read_as_lists: Whether to read each row as a list instead of a dictionary.
+    :param nest_under_inputs: Whether to wrap each row with {"inputs": ...}.
 
     :return: A list of responses.
     """
-    return asyncio.run(async_execute_graph(context, data, batching, batch_size))
+    return asyncio.run(
+        async_execute_graph(
+            context, data, batching, batch_size, read_as_lists, nest_under_inputs
+        )
+    )
 
 
 def _set_callbacks(server, context):

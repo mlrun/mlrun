@@ -968,6 +968,11 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def wait_for_background_task_to_reach_terminal_state(
+        self, name: str, project: str = ""
+    ) -> mlrun.common.schemas.BackgroundTask:
+        raise NotImplementedError()
+
     def store_api_gateway(
         self,
         api_gateway: Union[
@@ -1385,6 +1390,14 @@ class SQLRunDB(RunDBInterface):
         raise NotImplementedError
 
     def get_project_summary(self, project: str):
+        raise NotImplementedError
+
+    def get_drift_over_time(
+        self,
+        project: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
         raise NotImplementedError
 
 

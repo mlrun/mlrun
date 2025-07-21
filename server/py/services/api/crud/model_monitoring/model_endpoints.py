@@ -39,6 +39,7 @@ from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFileChief,
     ModelMonitoringSchedulesFileEndpoint,
     delete_model_monitoring_schedules_folder,
+    delete_model_monitoring_schedules_user_folder,
 )
 from mlrun.model_monitoring.db._stats import (
     ModelMonitoringCurrentStatsFile,
@@ -1152,6 +1153,9 @@ class ModelEndpoints:
 
         # Delete model monitoring schedules folder
         delete_model_monitoring_schedules_folder(project_name)
+
+        # Delete batch runs schedules folder
+        delete_model_monitoring_schedules_user_folder(project_name)
 
         logger.debug(
             "Successfully deleted model monitoring endpoints resources",

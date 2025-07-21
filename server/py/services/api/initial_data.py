@@ -23,7 +23,6 @@ import typing
 import alembic
 import alembic.command
 import alembic.config
-import dateutil.parser
 import pymysql.err
 import sqlalchemy.exc
 import sqlalchemy.orm
@@ -284,14 +283,11 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                     "Data migration from data version 0 is not supported. "
                     "Upgrade to MLRun <= 1.5.0 before performing this migration"
                 )
-            if current_data_version < 2:
-                _perform_version_2_data_migrations(db, db_session)
-            if current_data_version < 3:
-                _perform_version_3_data_migrations(db, db_session)
-            if current_data_version < 4:
-                _perform_version_4_data_migrations(db, db_session)
             if current_data_version < 5:
-                _perform_version_5_data_migrations(db, db_session)
+                raise mlrun.errors.MLRunPreconditionFailedError(
+                    "Data migration from data version less than 5 is not supported. "
+                    "Upgrade to MLRun < 1.10.0 before performing this migration"
+                )
             if current_data_version < 6:
                 _perform_version_6_data_migrations(db, db_session)
             if current_data_version < 7:
@@ -307,83 +303,6 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
 def _add_initial_data(db_session: sqlalchemy.orm.Session):
     db = framework.db.sqldb.db.SQLDB()
     _add_data_version(db, db_session)
-
-
-def _perform_version_2_data_migrations(
-    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    _align_runs_table(db, db_session)
-
-
-def _align_runs_table(
-    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    mlrun.utils.logger.info("Aligning runs")
-    runs = db._find_runs(db_session, None, "*", None).all()
-    for run in runs:
-        run_dict = run.struct
-
-        # Align run start_time column to the start time from the body
-        run.start_time = (
-            framework.db.sqldb.helpers.run_start_time(run_dict) or run.start_time
-        )
-        # in case no start time was in the body, we took the time from the column, let's make sure the body will have
-        # it as well
-        run_dict.setdefault("status", {})["start_time"] = (
-            db._add_utc_timezone(run.start_time).isoformat() if run.start_time else None
-        )
-
-        # New name column added, fill it up from the body
-        run.name = run_dict.get("metadata", {}).get("name", "no-name")
-        # in case no name was in the body, we defaulted to "no-name", let's make sure the body will have it as well
-        run_dict.setdefault("metadata", {})["name"] = run.name
-
-        # State field used to have a bug causing only the body to be updated, align the column
-        run.state = run_dict.get("status", {}).get(
-            "state", mlrun.common.runtimes.constants.RunStates.created
-        )
-        # in case no name was in the body, we defaulted to created, let's make sure the body will have it as well
-        run_dict.setdefault("status", {})["state"] = run.state
-
-        # New updated column added, fill it up from the body
-        updated = datetime.datetime.now(tz=datetime.timezone.utc)
-        if run_dict.get("status", {}).get("last_update"):
-            updated = dateutil.parser.parse(
-                run_dict.get("status", {}).get("last_update")
-            )
-        db._update_run_updated_time(run, run_dict, updated)
-        run.struct = run_dict
-        db._upsert(db_session, [run], ignore=True)
-
-
-def _perform_version_3_data_migrations(
-    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    _rename_marketplace_kind_to_hub(db, db_session)
-
-
-def _rename_marketplace_kind_to_hub(
-    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    mlrun.utils.logger.info("Renaming 'Marketplace' kinds to 'Hub'")
-
-    hubs = db._list_hub_sources_without_transform(db_session)
-    for hub in hubs:
-        hub_dict = hub.full_object
-
-        # rename kind from "MarketplaceSource" to "HubSource"
-        if "Marketplace" in hub_dict.get("kind", ""):
-            hub_dict["kind"] = hub_dict["kind"].replace("Marketplace", "Hub")
-
-        # save the object back to the db
-        hub.full_object = hub_dict
-        db._upsert(db_session, [hub], ignore=True)
-
-
-def _perform_version_4_data_migrations(
-    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    _update_default_hub_source(db, db_session)
 
 
 def _add_default_hub_source_if_needed(

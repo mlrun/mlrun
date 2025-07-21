@@ -14,7 +14,6 @@
 
 import copy
 import datetime
-import tempfile
 import unittest.mock
 
 import deepdiff
@@ -35,7 +34,6 @@ from mlrun.artifacts.plots import PlotArtifact, PlotlyArtifact
 from mlrun.common.schemas.artifact import ArtifactCategories
 
 import framework.db.sqldb.models
-import services.api.initial_data
 from framework.db.sqldb.db import SQLDB
 from framework.db.sqldb.models import ArtifactV2
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
@@ -2760,15 +2758,3 @@ class TestArtifacts(TestDatabaseBase):
             kind=mlrun.common.schemas.ObjectKind.project,
         )
         self._db.create_project(self._db_session, project)
-
-    def _run_artifacts_v2_migration(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # change the state file path to the temp directory for the test only
-            mlrun.mlconf.artifacts.artifact_migration_state_file_path = (
-                temp_dir + "/_artifact_migration_state.json"
-            )
-
-            # perform the migration
-            services.api.initial_data._migrate_artifacts_table_v2(
-                self._db, self._db_session
-            )

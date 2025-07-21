@@ -63,3 +63,14 @@ def test_transform_list_filters_to_tuple(additional_filters, message):
         transform_list_filters_to_tuple(additional_filters)
         result = transform_list_filters_to_tuple(back_from_json_serialization)
         assert result == additional_filters
+
+
+# TODO delete
+def test_torch_import():
+    import torch  # noqa
+
+    x = torch.tensor([1.0, 2.0])
+    y = torch.tensor([3.0, 4.0])
+    result = x + y
+    expected = torch.tensor([4.0, 6.0])
+    assert torch.allclose(result, expected), f"Expected {expected}, but got {result}"

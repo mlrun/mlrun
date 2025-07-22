@@ -15,18 +15,17 @@ ARG MLRUN_PYTHON_VERSION=3.9
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
-FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
 
 ENV NO_COLOR=1
 
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
+FROM mlrun_common_image
+
+# Update OS packages:
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update -q && \
-    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
-    apt-get install -y --no-install-recommends \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         curl \
         apt-transport-https \
         ca-certificates \
@@ -41,7 +40,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         python3-dev && \
     curl -fsSL https://get.docker.com -o get-docker.sh && \
     sh ./get-docker.sh && \
-    rm -rf get-docker.sh
+    rm -rf get-docker.sh /var/lib/apt/lists/*
 
 
 # set initial git config
@@ -101,4 +100,4 @@ COPY automation automation
 COPY dockerfiles dockerfiles
 COPY examples examples
 
-ENV PYTHONPATH="/mlrun/tests:/mlrun/automation:/mlrun/schemas/proto:${PYTHONPATH}"
+ENV PYTHONPATH="/mlrun/tests:/mlrun/automation:/mlrun/server/py/schemas/proto"

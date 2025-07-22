@@ -1567,13 +1567,18 @@ class ModelRunnerStep(MonitoredStep):
           :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
                                       that been configured in the model artifact, please note that those outputs need to
                                       be equal to the model_class predict method outputs (length, and order)
-          :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
-                                      (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
+          :param input_path:          Path inside the user request specify the monitored output. by default will
+                                      monitor the all request. expect scopes to be defined by dot notation
+                                      (e.g "inputs.my_model_inputs").
+                                      Inside the path expected type are list, list of lists, or dictionary-type object.
                                       If a ``dict`` is provided, each key will represent a feature.
                                       If a ``list`` or ``list of lists`` is provided, it must follow the order and
                                       size defined by the input schema.
+                                      Example: If ``input_path = "my inputs"`` and  ``input_schema = ["f0", "f1"]`` and
+                                      ``input request = {"my inputs": [[1, 2], [3, 4]]}``,
+                                      the two monitored inputs will be: ``f1 = [1, 3]``, ``f2 = [2, 4]``.
           :param result_path:         Path inside the predict response specify the monitored output. by default will
-                                      monitor the all response.  Expects dot notation
+                                      monitor the all response.  expect scopes to be defined by dot notation
                                       (e.g., ``"outputs.my_model_outputs"``)
                                       Inside the path expected type are list, list of lists, or dictionary-type object.
                                       If a ``dict`` is provided, each key will represent a label.

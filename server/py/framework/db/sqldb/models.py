@@ -1153,5 +1153,6 @@ def bootstrap_partitions(
             first_partition_upper_bound=partition_value,
         )
 
+
 # Must be after all table definitions
 post_table_definitions(base_cls=Base)

@@ -96,6 +96,7 @@ COPY mlrun mlrun
 COPY docs docs
 COPY server server
 COPY tests tests
+COPY automation automation
 COPY pipeline-adapters pipeline-adapters
 COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
 

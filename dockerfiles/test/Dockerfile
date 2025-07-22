@@ -98,6 +98,6 @@ COPY server server
 COPY tests tests
 COPY automation automation
 COPY pipeline-adapters pipeline-adapters
-COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
+COPY dockerfiles dockerfiles
 
 ENV PYTHONPATH="/mlrun/tests:/mlrun/automation${PYTHONPATH:+:${PYTHONPATH}}"

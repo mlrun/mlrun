@@ -19,7 +19,6 @@ MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKE
 GO_VERSION=$(shell grep -m1 'go ' ../go/go.mod | awk '{split($$2,a,"."); print a[1] "." a[2]}')
 
 
-# ---------- Go schema generation --------------------------------------
 PROTO_DIR := proto
 
 GO_OUT_DIR  := proto/build/go
@@ -54,9 +53,11 @@ schemas-compiler:
 		--build-arg GO_VERSION=$(GO_VERSION) \
 		--tag $(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
 		.
+
 #
 # Protobuf
 #
+
 .PHONY: compile-schemas
 compile-schemas: compile-schemas-dockerized
 	@echo Done

@@ -478,6 +478,7 @@ common-image:
 	$(MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/common/Dockerfile \
+		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag mlrun_common_image .
 

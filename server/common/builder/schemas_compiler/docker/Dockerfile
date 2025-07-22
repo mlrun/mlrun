@@ -26,7 +26,7 @@ ARG GRPCIO_TOOLS_VERSION="~=1.59.0"
 WORKDIR /app
 
 RUN --mount=type=cache,target=/var/cache/apk \
-    apk upgrade && apk add protoc build-base linux-headers jq
+    apk upgrade && apk add protoc build-base jq
 
 COPY --from=golang /usr/local/go/ /usr/local/go/
 
@@ -35,9 +35,9 @@ ENV PATH="/usr/local/go/bin:/root/go/bin:${PATH}"
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28 && \
-    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
+    go install google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION} && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --upgrade setuptools grpcio-tools~=1.59.0
+    python -m pip install --upgrade setuptools grpcio-tools${GRPCIO_TOOLS_VERSION}
 

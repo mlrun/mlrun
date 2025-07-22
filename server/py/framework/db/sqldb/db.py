@@ -3860,7 +3860,7 @@ class SQLDB(DBInterface):
     ]:
         if mlrun.mlconf.httpdb.dsn.startswith(Dialects.SQLITE):
             logger.debug("Partition management not supported for SQLite")
-            return ({}, {}, {})
+            return {}, {}, {}
 
         project_to_endpoint_alerts_count = collections.defaultdict(int)
         project_to_job_alerts_count = collections.defaultdict(int)

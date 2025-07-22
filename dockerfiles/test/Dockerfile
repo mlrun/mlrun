@@ -15,18 +15,22 @@ ARG MLRUN_PYTHON_VERSION=3.9
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
+FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
 
 ENV NO_COLOR=1
 
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
-FROM mlrun_common_image
+# Install docker
+RUN apt-get update -qq >/dev/null \
+    && apt-get install --no-install-recommends -y curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL https://get.docker.com -o get-docker.sh \
+    && sh ./get-docker.sh
 
-# Update OS packages:
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        curl \
+# Install other dependencies
+RUN apt-get update && apt-get install --no-install-recommends -y \
         apt-transport-https \
         ca-certificates \
         g++ \
@@ -36,12 +40,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         graphviz \
         make \
         software-properties-common \
-        python3-zmq \
-        libpq-dev && \
-    curl -fsSL https://get.docker.com -o get-docker.sh && \
-    sh ./get-docker.sh && \
-    rm -rf get-docker.sh /var/lib/apt/lists/*
-
+        libpq-dev \
+        python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # set initial git config
 RUN git config --global user.email "test@mlrun.org" \
@@ -49,9 +50,9 @@ RUN git config --global user.email "test@mlrun.org" \
      && git config --global init.defaultBranch "main"
 
 ARG MLRUN_PIP_VERSION=25.0
-RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
+RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
+WORKDIR /mlrun
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 ARG MLRUN_PYTHON_VERSION=3.9
@@ -62,42 +63,22 @@ ARG MLRUN_PYTHON_VERSION=3.9
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/test/locked-requirements.txt,target=locked-requirements.txt \
-    uv pip sync  --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
-WORKDIR /mlrun
+    uv pip sync --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
+
+COPY pipeline-adapters pipeline-adapters
+# Install the pipeline adapters development versions since we release them only after merging
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common --python-version ${MLRUN_PYTHON_VERSION} && \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
+
 COPY *requirements.txt .
-COPY setup.py .
-COPY packages.py .
-COPY README.md .
 COPY dependencies.py .
 COPY pyproject.toml .
-COPY mlrun mlrun
-COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[complete,dev-postgres] --python-version ${MLRUN_PYTHON_VERSION}
 
-COPY pipeline-adapters pipeline-adapters
-# Install the pipeline adapters development versions since we release them only after merging
-RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
+COPY . .
 
-RUN find /mlrun \
-     \( -type f -name '*.pyc' \
-        -o -type d -name '__pycache__' \
-        -o -path '*/tests' \
-        -o -path '*/build' \
-        -o -path '*/dist' \) \
-     -exec rm -rf {} + \
- && rm -rf /tmp/*
-
-COPY Makefile .
-COPY docs docs
-COPY server server
-COPY tests tests
-COPY automation automation
-COPY dockerfiles dockerfiles
-COPY examples examples
-
-ENV PYTHONPATH="/mlrun/tests:/mlrun/automation:/mlrun/server/py/schemas/proto"
+RUN rm -rf ./server/go

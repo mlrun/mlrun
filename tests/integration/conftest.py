@@ -49,23 +49,7 @@ def pmr_mysql_config() -> pytest_mock_resources.MysqlConfig:
     )
 
 
-@pytest.fixture(scope="session")
-def pmr_postgres_config() -> pytest_mock_resources.PostgresConfig:
-    return pytest_mock_resources.PostgresConfig(
-        image="postgres:17",
-        port=5432,
-        username="root",
-        password="pass",
-        root_database="mlrun",
-        drivername="postgresql+psycopg2",
-    )
-
-
 _mysql_engine = pmr.create_mysql_fixture(
-    scope="session",
-)
-
-_postgres_engine = pmr.create_postgres_fixture(
     scope="session",
 )
 
@@ -74,15 +58,7 @@ def _wipe_database(engine):
     """Truncate all user tables & reset sequences."""
     insp = inspect(engine)
     with engine.begin() as conn:
-        if engine.dialect.name.startswith(Dialects.POSTGRESQL):
-            tables = insp.get_table_names(schema="public")
-            if tables:
-                conn.execute(
-                    sqlalchemy.text(
-                        "DROP TABLE " + ", ".join(f'"{t}"' for t in tables) + " CASCADE"
-                    )
-                )
-        elif engine.dialect.name.startswith(Dialects.MYSQL):
+        if engine.dialect.name.startswith(Dialects.MYSQL):
             conn.execute(sqlalchemy.text("SET FOREIGN_KEY_CHECKS = 0"))
             for t in insp.get_table_names():
                 conn.execute(sqlalchemy.text(f"DROP TABLE `{t}`"))
@@ -92,14 +68,13 @@ def _wipe_database(engine):
 
 
 @pytest.fixture
-def db_engine(request: pytest.FixtureRequest) -> sqlalchemy.engine.Engine:
+def db_engine(
+    request: pytest.FixtureRequest, _mysql_engine
+) -> sqlalchemy.engine.Engine:
     db_type = os.getenv("MLRUN_TEST_DB", "mysql").lower()
     logger.info("Starting database engine", db_type=db_type)
-    engine = request.getfixturevalue(
-        "_postgres_engine" if db_type == "postgres" else "_mysql_engine"
-    )
     logger.info("Started database engine", db_type=db_type)
 
-    yield engine
+    yield _mysql_engine
     logger.info("Wiping database", db_type=db_type)
-    _wipe_database(engine)
+    _wipe_database(_mysql_engine)

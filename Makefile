@@ -472,7 +472,8 @@ endif
 
 BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/base
 
-common-image: update-version-file
+.PHONY: common-image
+common-image:
 	$(MAKE) generate-dockerignore DEST=test
 	$(MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND)
 	docker build \

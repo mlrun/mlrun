@@ -13,7 +13,7 @@
 # limitations under the License.
 import os
 import unittest.mock
-from typing import cast
+from typing import Optional, cast
 
 import pytest
 import yaml
@@ -97,7 +97,11 @@ class TestBasicHuggingFaceProvider:
 class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
     @classmethod
     def check_basic_invoke(
-        cls, model_url: str, secrets: dict, model_name: str, check_torch_dtype=False
+        cls,
+        model_url: str,
+        secrets: dict,
+        model_name: str,
+        expected_torch_dtype: Optional[str],
     ):
         messages = [formatted_messages[0]]
         model_provider = mlrun.get_model_provider(
@@ -110,9 +114,8 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         result = model_provider.invoke(messages=messages, as_str=True)
         assert isinstance(result, str)
         assert EXPECTED_RESULTS[0] in result.lower()
-        if check_torch_dtype:
-            #  checking model_kwargs usage.
-            assert model_provider.client.model.dtype == float16
+        if expected_torch_dtype:
+            assert model_provider.client.model.dtype == expected_torch_dtype
 
         token_count = len(model_provider.client.tokenizer.encode(result))
         # Extra token is due to the EOS token, which signals end of generation.
@@ -131,27 +134,26 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         assert assistant_response["role"] == "assistant"
         assert token_count in (50, 51)
 
-    @pytest.mark.parametrize("use_datastore_profile", [True, False])
-    def test_basic_invoke(self, use_datastore_profile):
-        check_torch_dtype = None
-        if use_datastore_profile:
+    @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
+    def test_basic_invoke(self, cred_mode):
+        secrets = {}
+        if cred_mode == "profile":
             self.setup_datastore_profile(model_kwargs={"torch_dtype": float16})
-            check_torch_dtype = True
+            expected_torch_dtype = float16
+        elif cred_mode == "secrets":
+            self.reset_env()
+            secrets = self.env_secrets.copy()
+            secrets["HF_MODEL_KWARGS"] = {"torch_dtype": float16}
+            expected_torch_dtype = float16
+        else:
+            expected_torch_dtype = None
+
         model_url = self.url_prefix + self.basic_llm_model
-        #  env check
         self.check_basic_invoke(
             model_url=model_url,
-            secrets={},
+            secrets=secrets,
             model_name=self.basic_llm_model,
-            check_torch_dtype=check_torch_dtype,
-        )
-        # secrets check
-        self.reset_env()
-        self.check_basic_invoke(
-            model_url=model_url,
-            secrets=self.env_secrets,
-            model_name=self.basic_llm_model,
-            check_torch_dtype=check_torch_dtype,
+            expected_torch_dtype=expected_torch_dtype,
         )
 
     def test_configurable_model(self):

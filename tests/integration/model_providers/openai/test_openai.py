@@ -138,21 +138,18 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         assert isinstance(response, openai.types.chat.ChatCompletion)
         assert token_count == 50
 
-    @pytest.mark.parametrize("use_datastore_profile", [True, False])
-    def test_basic_invoke(self, use_datastore_profile):
-        if use_datastore_profile:
+    @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
+    def test_basic_invoke(self, cred_mode):
+        secrets = {}
+        if cred_mode == "profile":
             self.setup_datastore_profile()
+        elif cred_mode == "secrets":
+            self.reset_env()
+            secrets = self.env_secrets
+
         model_url = self.url_prefix + self.basic_llm_model
-        #  env check
         self.check_basic_invoke(
-            model_url=model_url, secrets={}, model_name=self.basic_llm_model
-        )
-        # secrets check
-        self.reset_env()
-        self.check_basic_invoke(
-            model_url=model_url,
-            secrets=self.env_secrets,
-            model_name=self.basic_llm_model,
+            model_url=model_url, secrets=secrets, model_name=self.basic_llm_model
         )
 
     def test_configurable_model(self):

@@ -1197,8 +1197,11 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
 
 class LLModel(Model):
-    def __init__(self, name: str, **kwargs):
+    def __init__(
+        self, name: str, input_path: Optional[Union[str, list[str]]], **kwargs
+    ):
         super().__init__(name, **kwargs)
+        self._input_path = _split_path(input_path)
 
     def predict(
         self,
@@ -1270,21 +1273,28 @@ class LLModel(Model):
             return None, None
         prompt_legend = llm_prompt_artifact.spec.prompt_legend
         prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
-        if prompt_legend:
+        input_data = copy(_get_data_from_path(self._input_path, body))
+        if isinstance(input_data, dict):
             kwargs = {
-                place_holder: body.get(body_map["field"])
+                place_holder: input_data.get(body_map["field"])
                 for place_holder, body_map in prompt_legend.items()
-            }
-            default_kwargs = PlaceholderDefaultDict(lambda: None, kwargs)
-            for d in prompt_template:
+            } if prompt_legend else {}
+            input_data.update(kwargs)
+            default_place_holders = PlaceholderDefaultDict(lambda: None, input_data)
+            for message in prompt_template:
                 try:
-                    d["content"] = d["content"].format(**kwargs)
+                    message["content"] = message["content"].format(**input_data)
                 except KeyError as e:
                     logger.warning(
-                        "Legend provided was missing a key keeping place holder as is.",
+                        "Input data was missing a placeholder, placeholder stay unformatted",
                         key_error=e,
                     )
-                    d["content"] = d["content"].format_map(default_kwargs)
+                    message["content"] = message["content"].format_map(default_place_holders)
+        else:
+            logger.warning(
+                f"Expected input data to be a dict, but received input data from type {type(input_data)} prompt template"
+                f" stay unformatted",
+            )
         return prompt_template, llm_prompt_artifact.spec.model_configuration
 
 
@@ -1710,15 +1720,6 @@ class ModelRunnerStep(MonitoredStep):
             )
         return output_schema
 
-    @staticmethod
-    def _split_path(path: str) -> Union[str, list[str], None]:
-        if path is not None:
-            parsed_path = path.split(".")
-            if len(parsed_path) == 1:
-                parsed_path = parsed_path[0]
-            return parsed_path
-        return path
-
     def _calculate_monitoring_data(self) -> dict[str, dict[str, str]]:
         monitoring_data = deepcopy(
             self.class_args.get(
@@ -1743,13 +1744,11 @@ class ModelRunnerStep(MonitoredStep):
                 ][model][schemas.MonitoringData.OUTPUTS] = monitoring_data[model][
                     schemas.MonitoringData.OUTPUTS
                 ]
-                monitoring_data[model][schemas.MonitoringData.INPUT_PATH] = (
-                    self._split_path(
-                        monitoring_data[model][schemas.MonitoringData.INPUT_PATH]
-                    )
+                monitoring_data[model][schemas.MonitoringData.INPUT_PATH] = _split_path(
+                    monitoring_data[model][schemas.MonitoringData.INPUT_PATH]
                 )
                 monitoring_data[model][schemas.MonitoringData.RESULT_PATH] = (
-                    self._split_path(
+                    _split_path(
                         monitoring_data[model][schemas.MonitoringData.RESULT_PATH]
                     )
                 )
@@ -1769,6 +1768,13 @@ class ModelRunnerStep(MonitoredStep):
             model_selector = get_class(model_selector, namespace)()
         model_objects = []
         for model, model_params in models.values():
+            model_params[schemas.MonitoringData.INPUT_PATH] = (
+                self.class_args.get(
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
+                )
+                .get(model_params.get("name"), {})
+                .get(schemas.MonitoringData.INPUT_PATH)
+            )
             model = get_class(model, namespace).from_dict(
                 model_params, init_with_params=True
             )
@@ -3109,3 +3115,32 @@ def _init_async_objects(context, steps):
         **source_args,
     )
     return default_source, wait_for_result
+
+
+def _split_path(path: str) -> Union[str, list[str], None]:
+    if path is not None:
+        parsed_path = path.split(".")
+        if len(parsed_path) == 1:
+            parsed_path = parsed_path[0]
+        return parsed_path
+    return path
+
+
+def _get_data_from_path(
+    path: Union[str, list[str], None], data: dict
+) -> dict[str, Any]:
+    if isinstance(path, str):
+        output_data = data.get(path)
+    elif isinstance(path, list):
+        output_data = deepcopy(data)
+        for key in path:
+            output_data = output_data.get(key, {})
+    elif path is None:
+        output_data = data
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Expected path be of type str or list of str or None"
+        )
+    if isinstance(output_data, (int, float)):
+        output_data = [output_data]
+    return output_data

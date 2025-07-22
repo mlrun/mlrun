@@ -1032,49 +1032,127 @@ class MonitoringDeployment:
         if isinstance(
             self._stream_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
         ):
-            async with framework.utils.clients.async_nuclio.Client(
-                self.auth_info
-            ) as client:
-                for function in function_summaries:
-                    stream_path = mlrun.model_monitoring.get_stream_path(
-                        project=self.project,
-                        function_name=function.name,
-                        secret_provider=self._secret_provider,
-                        profile=self.__stream_profile,
-                    )
+            # V3IO stream stats
+            await self._enrich_v3io_stream_stats(
+                function_summaries=function_summaries, agg_stats=agg_stats
+            )
+        else:
+            # Kafka topic stats
+            self._enrich_kafka_topic_stats(
+                function_summaries=function_summaries,
+                agg_stats=agg_stats,
+            )
 
-                    _, container, stream_path = (
-                        mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-                            stream_path
-                        )
-                    )
+    async def _enrich_v3io_stream_stats(
+        self,
+        function_summaries: list[mlrun.common.schemas.model_monitoring.FunctionSummary],
+        agg_stats: bool = True,
+    ) -> None:
+        async with framework.utils.clients.async_nuclio.Client(
+            self.auth_info
+        ) as client:
+            for function in function_summaries:
+                stream_path = mlrun.model_monitoring.get_stream_path(
+                    project=self.project,
+                    function_name=function.name,
+                    secret_provider=self._secret_provider,
+                    profile=self.__stream_profile,
+                )
 
-                    stream_stats = await client.get_v3io_shard_lags(
-                        project_name=self.project,
-                        function_name=function.name,
-                        stream_path=stream_path,
-                        container_name=container,
+                _, container, stream_path = (
+                    mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                        stream_path
                     )
+                )
 
-                    stream_stats = stream_stats.get(
-                        f"{container}/{stream_path}", {}
-                    ).get("serving", {})
-                    if stream_stats and agg_stats:
-                        lag = 0
-                        committed = 0
-                        for _, stats in stream_stats.items():
-                            lag += stats.get("lag", 0)
-                            committed += stats.get("committed", 0)
-                        stream_stats = {
-                            "lag": lag,
+                stream_stats = await client.get_v3io_shard_lags(
+                    project_name=self.project,
+                    function_name=function.name,
+                    stream_path=stream_path,
+                    container_name=container,
+                )
+
+                stream_stats = stream_stats.get(f"{container}/{stream_path}", {}).get(
+                    "serving", {}
+                )
+                if stream_stats and agg_stats:
+                    lag = 0
+                    committed = 0
+                    for _, stats in stream_stats.items():
+                        lag += stats.get("lag", 0)
+                        committed += stats.get("committed", 0)
+                    stream_stats = {
+                        "lag": lag,
+                        "committed": committed,
+                    }
+                else:
+                    # remove "current" key from the stream stats shards
+                    for _, stats in stream_stats.items():
+                        stats.pop("current", None)
+
+                function.stats["stream_stats"] = stream_stats
+
+    def _enrich_kafka_topic_stats(
+        self,
+        function_summaries: list[mlrun.common.schemas.model_monitoring.FunctionSummary],
+        agg_stats: bool = True,
+    ):
+        import kafka
+
+        consumer = kafka.KafkaConsumer(
+            bootstrap_servers=self.__stream_profile.brokers,
+            group_id=self.__stream_profile.group,
+        )
+        # Iterate over each function and get the stream stats
+        for function in function_summaries:
+            topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
+                project=self.project, function_name=function.name
+            )
+            try:
+                partitions = consumer.partitions_for_topic(topic)
+                if not partitions:
+                    logger.warning(
+                        f"No partitions found for topic {topic} in function {function.name}"
+                    )
+                    continue
+
+                if agg_stats:
+                    total_committed = 0
+                    total_lag = 0
+
+                    for partition in partitions:
+                        tp = kafka.TopicPartition(topic, partition)
+                        committed = consumer.committed(tp) or 0
+                        total_committed += committed
+                        lag = consumer.end_offsets([tp])[tp] - committed
+                        total_lag += lag
+
+                    stream_stats = {
+                        "committed": total_committed,
+                        "lag": total_lag,
+                    }
+                else:
+                    stream_stats = {}
+                    # Get the committed offsets and lag for each partition
+                    for partition in partitions:
+                        tp = kafka.TopicPartition(topic, partition)
+                        committed = consumer.committed(tp) or 0
+                        lag = consumer.end_offsets([tp])[tp] - committed
+                        stream_stats[partition] = {
                             "committed": committed,
+                            "lag": lag,
                         }
-                    else:
-                        # remove "current" key from the stream stats shards
-                        for _, stats in stream_stats.items():
-                            stats.pop("current", None)
 
-                    function.stats["stream_stats"] = stream_stats
+                function.stats["stream_stats"] = stream_stats
+
+            except kafka.errors.UnknownTopicOrPartitionError as exc:
+                logger.warning(
+                    "Failed to get topic stats",
+                    project=self.project,
+                    function_name=function.name,
+                    topic=topic,
+                    error_message=mlrun.errors.err_to_str(exc),
+                )
 
     async def _get_function_summary_applications(
         self,

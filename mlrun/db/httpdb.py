@@ -5165,9 +5165,27 @@ class HTTPRunDB(RunDBInterface):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
+        """
+        Get drift counts over time for the project.
+
+        This method returns a list of tuples, each representing a time-interval (in a granularity set by the
+        duration of the given time range) and the number of suspected drifts and detected drifts in that interval.
+        For a range of 6 hours or less, the granularity is 10 minute, for a range of 2 hours to 72 hours, the
+        granularity is 1 hour, and for a range of more than 72 hours, the granularity is 24 hours.
+
+        :param project: The name of the project for which to retrieve drift counts.
+        :param start: Start time of the range to retrieve drift counts from.
+        :param end: End time of the range to retrieve drift counts from.
+
+        :return: A ModelEndpointDriftValues object containing the drift counts over time.
+        """
         endpoint_path = f"projects/{project}/model-endpoints/drift-over-time"
+        error_message = f"Failed retrieving drift data for {project}"
         response = self.api_call(
-            method="GET", path=endpoint_path, params={"start": start, "end": end}
+            method="GET",
+            path=endpoint_path,
+            error=error_message,
+            params={"start": start, "end": end},
         )
         return mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues(
             **response.json()

@@ -26,7 +26,7 @@ FROM mlrun_common_image
 # Update OS packages:
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     DEBIAN_FRONTEND=noninteractive  apt-get -y upgrade -o Acquire::Check-Valid-Until=false && \
-    apt-get install -y --no-install-recommends \
+    apt-get install -y --no-install-recommends  -o Acquire::Check-Valid-Until=false  \
         build-essential \
         cmake \
         gcc \
@@ -48,9 +48,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         make \
         software-properties-common \
         libpq-dev && \
-    curl -fsSL https://get.docker.com -o get-docker.sh && \
-    sh ./get-docker.sh && \
-    rm -rf get-docker.sh /var/lib/apt/lists/*
+        curl -fsSL https://get.docker.com -o get-docker.sh && \
+        sh ./get-docker.sh && \
+        rm -rf get-docker.sh /var/lib/apt/lists/*
 
 
 # set initial git config

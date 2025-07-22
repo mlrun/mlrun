@@ -15,10 +15,4 @@
 ARG MLRUN_PYTHON_VERSION=3.11
 
 FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
-
-RUN apt-get update -qq && tar -C /var/lib/apt -cf /tmp/apt-lists.tar lists
-RUN tar -C /var/lib/apt -xf /tmp/apt-lists.tar && rm /tmp/apt-lists.tar
-
-# Update OS packages:
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    apt-get update -q
+RUN apt-get update -q

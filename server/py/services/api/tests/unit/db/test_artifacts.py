@@ -3034,9 +3034,7 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, key=child_artifact_name, project=project
         )
 
-        assert c_artifact["spec"]["parent_uri"] == parent_artifact_db.get_store_url(
-            with_tag=False
-        )
+        assert c_artifact["spec"]["parent_uri"] == parent_artifact_db.get_store_url()
 
     def test_delete_parent_artifacts(self):
         # Create referenced artifact

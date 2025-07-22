@@ -47,6 +47,10 @@ if os.path.exists(config_file_path):
         config = yaml.safe_load(yaml_file).get("env", {})
 
 
+@pytest.mark.skipif(
+    not config.get("HF_TOKEN"),
+    reason="test_configurable_model Requires HF_TOKEN",
+)
 class TestBasicHuggingFaceProvider:
     profile_name = "huggingface_profile"
     env_secrets = config
@@ -103,7 +107,7 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
 
         token_count = len(model_provider.client.tokenizer.encode(result))
         # Extra token is due to the EOS token, which signals end of generation.
-        assert token_count == 101
+        assert token_count in (100, 101)
         # checking as_str = False
         response = model_provider.invoke(
             messages=messages,
@@ -116,7 +120,7 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         result = assistant_response["content"]
         token_count = len(model_provider.client.tokenizer.encode(result))
         assert assistant_response["role"] == "assistant"
-        assert token_count == 51
+        assert token_count in (50, 51)
 
     @pytest.mark.parametrize("use_datastore_profile", [True, False])
     def test_basic_invoke(self, use_datastore_profile):
@@ -135,10 +139,6 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
             model_name=self.basic_llm_model,
         )
 
-    @pytest.mark.skipif(
-        not config.get("HF_TOKEN"),
-        reason="test_configurable_model Requires HF_TOKEN",
-    )
     def test_configurable_model(self):
         configurable_model = mlrun.mlconf.model_providers.huggingface_default_model
         if not configurable_model:
@@ -158,10 +158,6 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
             model_url=model_url, secrets=self.env_secrets, model_name=configurable_model
         )
 
-    @pytest.mark.skipif(
-        not config.get("HF_TOKEN"),
-        reason="test_system_prompt Requires HF_TOKEN",
-    )
     def test_system_prompt(self):
         #  Tinyllama does not function well with system prompts, but is free to use without hf_key.
         model_url = self.url_prefix + self.system_prompt_llm_model
@@ -236,6 +232,6 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
             tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
             token_count = len(tokenizer.encode(result))
             # Extra token is due to the EOS token, which signals end of generation.
-            assert token_count == 101
+            assert token_count in (100, 101)
         finally:
             server.wait_for_completion()

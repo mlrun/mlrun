@@ -72,15 +72,15 @@ formatted_messages = [
 
 
 def setup_remote_model_test(
-        project,
-        model_url,
-        mlrun_model_name="mymodel",
-        execution_mechanism="naive",
-        image=None,
-        requirements=None,
-        requirements_file=None,
-        model_class: str = "LLModel",
-        default_config: Optional[dict] = None,
+    project,
+    model_url,
+    mlrun_model_name="mymodel",
+    execution_mechanism="naive",
+    image=None,
+    requirements=None,
+    requirements_file=None,
+    model_class: str = "LLModel",
+    default_config: Optional[dict] = None,
 ):
     model_artifact = project.log_model(
         mlrun_model_name,
@@ -129,7 +129,7 @@ async def timed(coro):
 
 class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
     async def run_async(
-            self, body: Any, path: str, origin_name: Optional[str] = None
+        self, body: Any, path: str, origin_name: Optional[str] = None
     ) -> Any:
         # Temporary workaround for testing purposes only, until events execution will be able to run in parallel
         model_configuration = {}
@@ -142,10 +142,10 @@ class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
         )
 
     async def predict_async(
-            self, body, messages: list[dict], model_configuration: dict
+        self, body, messages: list[dict], model_configuration: dict
     ):
         if isinstance(
-                self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
+            self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
             coros = [
                 timed(

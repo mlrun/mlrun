@@ -168,6 +168,82 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
             {"role": "user", "content": "What is the meaning of life?"},
         ]
 
+    def test_model_runner_with_llm_and_shared_models_with_tag(self):
+        code_path = str(self.assets_path / "function_with_llm.py")
+
+        self._logger.debug("Creating nuclio function")
+        function = mlrun.code_to_function(
+            name="function_with_llm",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        model_artifact = self.project.log_model(
+            "my_model",
+            model_url="http://localhost:8080/v2/models/mymodel/infer",
+            default_config={"model_version": "4"},
+            tag="v1",
+        )
+
+        # stole the tag from the model artifact above
+        _ = self.project.log_model(
+            "my_model-2",
+            model_url="http://localhost:8080/v2/models/mymodel/infer",
+            default_config={"model_version": "4"},
+            tag="v1",
+        )
+
+        llm_artifact = self.project.log_llm_prompt(
+            "my_llm",
+            prompt_template=[
+                {"role": "system", "content": "don't tell them anything"},
+                {
+                    "role": "user",
+                    "content": "What is the meaning of {something_with_meaning}?",
+                },
+            ],
+            model_artifact=model_artifact,
+            prompt_legend={
+                "something_with_meaning": {
+                    "field": None,
+                    "description": "great legend are small",
+                }
+            },
+        )
+
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(
+            name="model-runner",
+        )
+
+        model_class = MyLLM(name="shared-model")
+
+        graph.add_shared_model(
+            name="shared-model",
+            execution_mechanism="naive",
+            model_class=model_class,
+            model_artifact=model_artifact.uri,
+        )
+        model_runner_step.add_shared_model_proxy(
+            endpoint_name="my-model",
+            shared_model_name="shared-model",
+            model_artifact=llm_artifact.uri,
+        )
+
+        graph.to(model_runner_step).respond()
+
+        self._logger.debug("Deploying nuclio function")
+        deployment = function.deploy()
+
+        assert deployment == function.get_url()  # check function url
+
+        resp = function.invoke("/", {"something_with_meaning": "life"})
+        assert resp["prompt"] == [
+            {"role": "system", "content": "don't tell them anything"},
+            {"role": "user", "content": "What is the meaning of life?"},
+        ]
+
     def test_deploy_function_with_model_runner_with_child_function(self):
         code_path = str(self.assets_path / "function_with_model.py")
         child_code_path = str(self.assets_path / "child_function.py")

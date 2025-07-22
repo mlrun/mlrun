@@ -569,7 +569,9 @@ class BaseStep(ModelObj):
                 llm_artifact, _ = mlrun.store_manager.get_store_artifact(
                     model_artifact_uri
                 )
-                model_artifact_uri = llm_artifact.spec.parent_uri
+                model_artifact_uri = mlrun.utils.remove_tag_from_artifact_uri(
+                    llm_artifact.spec.parent_uri
+                )
             actual_shared_name = root.get_shared_model_name_by_artifact_uri(
                 model_artifact_uri
             )
@@ -1590,7 +1592,7 @@ class ModelRunnerStep(MonitoredStep):
         ):
             try:
                 model_artifact, _ = mlrun.store_manager.get_store_artifact(
-                    model_artifact
+                    mlrun.utils.remove_tag_from_artifact_uri(model_artifact)
                 )
             except mlrun.errors.MLRunNotFoundError:
                 raise mlrun.errors.MLRunInvalidArgumentError("Artifact not found.")
@@ -1601,6 +1603,11 @@ class ModelRunnerStep(MonitoredStep):
             model_artifact.uri
             if isinstance(model_artifact, mlrun.artifacts.Artifact)
             else model_artifact
+        )
+        model_artifact = (
+            mlrun.utils.remove_tag_from_artifact_uri(model_artifact)
+            if model_artifact
+            else None
         )
         model_parameters["artifact_uri"] = model_parameters.get(
             "artifact_uri", model_artifact
@@ -2484,7 +2491,7 @@ class RootFlowStep(FlowStep):
         name: str,
         model_class: Union[str, Model],
         execution_mechanism: Union[str, ParallelExecutionMechanisms],
-        model_artifact: Optional[Union[str, ModelArtifact]],
+        model_artifact: Union[str, ModelArtifact],
         override: bool = False,
         **model_parameters,
     ) -> None:
@@ -2536,6 +2543,7 @@ class RootFlowStep(FlowStep):
             if isinstance(model_artifact, mlrun.artifacts.Artifact)
             else model_artifact
         )
+        model_artifact = mlrun.utils.remove_tag_from_artifact_uri(model_artifact)
         model_parameters["artifact_uri"] = model_parameters.get(
             "artifact_uri", model_artifact
         )

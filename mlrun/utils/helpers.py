@@ -794,6 +794,22 @@ def generate_artifact_uri(
     return artifact_uri
 
 
+def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
+    """
+    Remove the `:<tag>` part from a URI with pattern:
+    [store://][<project>/]<key>[#<iter>][:<tag>][@<tree>][^<uid>]
+
+    Returns the URI without the tag section.
+
+    Examples:
+        "store://proj/key:latest" => "store://proj/key"
+        "key#1:dev@tree^uid" => "key#1@tree^uid"
+        "store://key:tag" => "store://key"
+        "store://models/remote-model-project/my_model#0@tree" => unchanged (no tag)
+    """
+    return re.sub(r"(?<=/[^/:]\+):[^@^:\s]+(?=(@|\^|$))", "", uri)
+
+
 def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
     """
     Retrieve the full uri of the item's yaml in the hub.

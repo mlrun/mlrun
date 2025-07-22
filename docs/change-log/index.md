@@ -18,7 +18,7 @@ The change log lists updates per version, open issues, limitations, and deprecat
 
 ## Upgrading KFP, Python, and Pydantic
 Upgrading these three MLRun dependencies spans several releases.  The upgrades are comprised of:
-- KFP: from 1.8 to 2.x. KFP has 2 components: the KFP service, and the KFP client package (which is used in both the MLRun service and some MLRun clients) and pipeline code (which is provided by the user).
+- KFP: from 1.8 to 2.x. KFP has 2 components: the KFP service, and the KFP client package (which is used in both the MLRun service and some MLRun clients) and pipeline code (which is provided by the user). The client is not yet upgraded.
 - Pydantic: from version 1 to 2.
 - Python: from 3.9 to 3.11.
 
@@ -68,7 +68,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Breaking change
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-10186|By default, the remote workflow runs with the mlrun/mlrun-kfp image that includes the KFP Python package. If you want to use a different image to compile your workflow, you must install kfp=~1.18 , use Python 3,9, and you can change the image by using `set_workflow(image=<image-name>)`.|
+|ML-10186|By default, the remote workflow runs with the mlrun/mlrun-kfp image that includes the KFP Python package. If you want to use a different image to compile your workflow, you must install kfp~=1.8, use Python 3,9, and you can change the image by using `set_workflow(image=<image-name>)`.|
 
 ### Closed issues
 | ID    |Description                                                                 |

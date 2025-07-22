@@ -1200,9 +1200,13 @@ class LLModel(Model):
     def __init__(self, name: str, **kwargs):
         super().__init__(name, **kwargs)
 
-    def predict(self, body: Any, **kwargs) -> Any:
-        messages: list[dict] = kwargs.get("messages", [])
-        model_configuration: dict = kwargs.get("model_configuration", {})
+    def predict(
+        self,
+        body: Any,
+        messages: Optional[list[dict]] = None,
+        model_configuration: Optional[dict] = None,
+        **kwargs,
+    ) -> Any:
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):
@@ -1213,9 +1217,13 @@ class LLModel(Model):
             )
         return body
 
-    async def predict_async(self, body: Any, **kwargs) -> Any:
-        messages: list[dict] = kwargs.get("messages", [])
-        model_configuration: dict = kwargs.get("model_configuration", {})
+    async def predict_async(
+        self,
+        body: Any,
+        messages: Optional[list[dict]] = None,
+        model_configuration: Optional[dict] = None,
+        **kwargs,
+    ) -> Any:
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
         ) and isinstance(self.model_provider, ModelProvider):

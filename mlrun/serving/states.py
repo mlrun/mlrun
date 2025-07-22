@@ -1572,14 +1572,16 @@ class ModelRunnerStep(MonitoredStep):
                                       If a ``dict`` is provided, each key will represent a feature.
                                       If a ``list`` or ``list of lists`` is provided, it must follow the order and
                                       size defined by the input schema.
-          :param result_path:         Path inside the user output event. Expects dot notation
-                                      (e.g., ``"outputs.my_model_outputs"``) and a list, list of lists, or
-                                      dictionary-type object at the specified path.
+          :param result_path:         Path inside the predict response specify the monitored output. by default will
+                                      monitor the all response.  Expects dot notation
+                                      (e.g., ``"outputs.my_model_outputs"``)
+                                      Inside the path expected type are list, list of lists, or dictionary-type object.
                                       If a ``dict`` is provided, each key will represent a label.
                                       If a ``list`` or ``list of lists`` is provided, it must follow the order and
                                       size defined by the output schema.
-                                      Example: If ``output_schema = ["a", "b"]`` and ``output = [[1, 2], [3, 4]]``,
-                                      the two results will be: ``a = [1, 3]``, ``b = [2, 4]``.
+                                      Example: If ``result_path = "my outputs"`` and  ``output_schema = ["a", "b"]`` and
+                                      ``output response = {"my outputs": [[1, 2], [3, 4]]}``,
+                                      the two monitored outputs will be: ``a = [1, 3]``, ``b = [2, 4]``.
 
           :param override:            bool allow override existing model on the current ModelRunnerStep.
           :param model_parameters:    Parameters for model instantiation

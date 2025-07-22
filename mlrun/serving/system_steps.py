@@ -289,7 +289,6 @@ class BackgroundTaskStatus(storey.MapClass):
         if (
             self._background_task_state
             == mlrun.common.schemas.BackgroundTaskState.succeeded
-            and self.context.stream.enabled
         ):
             return event
         else:

@@ -23,15 +23,14 @@ ChatType = list[dict[str, str]]  # according to transformers.pipelines.text_gene
 
 class HuggingFaceProvider(ModelProvider):
     """
-    HuggingFaceProvider is a wrapper around the OpenAI SDK that provides an interface
-    for interacting with OpenAI's generative AI services.
+    HuggingFaceProvider is a wrapper around the Hugging Face Transformers pipeline
+    that provides an interface for interacting with a wide range of Hugging Face models.
 
-    It supports both synchronous and asynchronous operations, allowing flexible
-    integration into various workflows.
+    It supports synchronous operations, enabling flexible integration into various workflows.
 
-    This class extends the ModelProvider base class and implements OpenAI-specific
-    functionality, including client initialization, model invocation, and custom
-    operations tailored to the OpenAI API.
+    This class extends the ModelProvider base class and implements Hugging Face-specific
+    functionality, including pipeline initialization, default text generation operations,
+    and custom operations tailored to the Hugging Face Transformers pipeline API.
     """
 
     def __init__(
@@ -79,6 +78,18 @@ class HuggingFaceProvider(ModelProvider):
         return endpoint, subpath
 
     def load_client(self) -> None:
+        """
+        Initializes the Hugging Face pipeline using the provided options.
+
+        This method imports the `pipeline` function from the `transformers` package,
+        creates a pipeline instance with the specified task and model (from `self.options`),
+        and assigns it to `self._client`.
+
+        Note: Hugging Face pipelines are synchronous and do not support async invocation.
+
+        Raises:
+            ImportError: If the `transformers` package is not installed.
+        """
         try:
             from transformers import pipeline, AutoModelForCausalLM  # noqa
             from transformers import AutoTokenizer  # noqa
@@ -103,21 +114,22 @@ class HuggingFaceProvider(ModelProvider):
     ) -> Optional[T]:
         """
         HuggingFace implementation of `ModelProvider.custom_invoke`.
-
         Use the default config in provider client/ user defined client:
 
         Example:
-            ```python
-            result = hf_provider.invoke(
-                pipe,
-                prompt="A futuristic cityscape at sunset",
-                n=1,
-                size="1024x1024",
+        ```python
+            image = Image.open(image_path)
+            pipeline_object =  pipeline("image-classification", model="microsoft/resnet-50")
+            result = hf_provider.custom_invoke(
+                pipeline_object,
+                inputs=image,
             )
-            ```
-        :param operation: A pipeline object
-        :param invoke_kwargs: Keyword arguments to pass to the operation.
-        :return: The full response returned by the operation.
+        ```
+
+
+        :param operation:               A pipeline object
+        :param invoke_kwargs:           Keyword arguments to pass to the operation.
+        :return:                        The full response returned by the operation.
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
@@ -133,20 +145,21 @@ class HuggingFaceProvider(ModelProvider):
         **invoke_kwargs,
     ) -> Optional[Union[str, list, T]]:
         """
-        Huggingface-specific implementation of `ModelProvider.invoke`.
-        Invokes an HuggingFace model operation using the sync client.
-        For full details, see `ModelProvider.invoke`.
+        HuggingFace-specific implementation of `ModelProvider.invoke`.
+        Invokes a HuggingFace model operation using the synchronous client.
+        For complete usage details, refer to `ModelProvider.invoke`.
+        :param messages:
+                            Same as ModelProvider.invoke.
 
-        :param messages:    Same as ModelProvider.invoke.
+        :param as_str:
+                            If `True`, returns only the main content from a single response
+                            (intended for single-response use cases).
+                            If `False`, returns the full response object, whose type depends on
+                            the client (e.g., `pipeline`).
 
-        :param as_str: bool
-                            If `True`, returns only the main content of one of the responses
-                            (designed for single response invokes).
-                            If `False`, returns the full response object, whose type depends on the client (=pipeline).
         :param invoke_kwargs:
                             Same as ModelProvider.invoke.
         :return:            Same as ModelProvider.invoke.
-
         """
         if self.client.task != "text-generation":
             raise mlrun.errors.MLRunInvalidArgumentError(

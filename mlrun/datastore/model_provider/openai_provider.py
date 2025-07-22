@@ -141,14 +141,15 @@ class OpenAIProvider(ModelProvider):
         `ModelProvider.async_custom_invoke`.
 
         Example:
-            ```python
+        ```python
             result = openai_model_provider.invoke(
                 openai_model_provider.async_client.images.generate,
                 prompt="A futuristic cityscape at sunset",
                 n=1,
                 size="1024x1024",
             )
-            ```
+        ```
+
         :param operation:       Same as ModelProvider.async_custom_invoke.
         :param invoke_kwargs:   Same as ModelProvider.async_custom_invoke.
         :return:                Same as ModelProvider.async_custom_invoke.

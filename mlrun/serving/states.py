@@ -1276,7 +1276,7 @@ class LLModel(Model):
                         "Legend provided was missing a key keeping place holder as is.",
                         key_error=e,
                     )
-                    d["content"] = d["content"].format_map(**default_kwargs)
+                    d["content"] = d["content"].format_map(default_kwargs)
         return prompt_template, llm_prompt_artifact.spec.model_configuration
 
 

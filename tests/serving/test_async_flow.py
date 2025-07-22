@@ -713,6 +713,58 @@ def test_model_runner_with_remote_shared_model():
         server.wait_for_completion()
 
 
+def test_add_model_after_adding_the_mrs_to_the_graph():
+    project = mlrun.new_project("remote-model-project", save=False)
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    graph.add_shared_model(
+        name="my_model",
+        model_class="MyRemoteModel",
+        model_artifact=model_artifact,
+        execution_mechanism="naive",
+    )
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_shared_model_proxy(
+        endpoint_name="my_endpoint",
+        model_artifact=model_artifact,
+        shared_model_name="my_model",
+    )
+    model_runner_step_2 = graph.to(model_runner_step).respond()
+    model_runner_step.add_model(
+        endpoint_name="my_endpoint-2",
+        model_class="MyRemoteModel",
+        model_artifact=model_artifact,
+        execution_mechanism="naive",
+    )
+    assert (
+        "my_endpoint" in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+
+    assert (
+        "my_endpoint-2" not in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+
+    model_runner_step_2.add_model(
+        endpoint_name="my_endpoint-2",
+        model_class="MyRemoteModel",
+        model_artifact=model_artifact,
+        execution_mechanism="naive",
+    )
+
+    assert (
+        "my_endpoint" in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+
+    assert (
+        "my_endpoint-2" in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+
+
 def test_get_local_model_path():
     project = mlrun.new_project("get-model-path-project", save=False)
     model_dir = str(pathlib.Path(__file__).parent / "assets")

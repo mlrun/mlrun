@@ -93,6 +93,8 @@ class HuggingFaceProvider(ModelProvider):
             token=self._get_secret_or_env("HF_TOKEN"),
             device=self._get_secret_or_env("HF_DEVICE"),
             device_map=self._get_secret_or_env("HF_DEVICE_MAP"),
+            trust_remote_code=self._get_secret_or_env("HF_TRUST_REMOTE_CODE"),
+            model_kwargs=self._get_secret_or_env("HF_MODEL_KWARGS"),
         )
         return self._sanitize_options(res)
 

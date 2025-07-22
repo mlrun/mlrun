@@ -247,7 +247,7 @@ class StoreManager:
 
         if schema == "ds":
             datastore_profile = datastore_profile_read(url, project_name, secrets)
-            secrets = merge(secrets or {}, datastore_profile.secrets() or {})
+            secrets = merge({}, secrets or {}, datastore_profile.secrets() or {})
             url = datastore_profile.url(subpath)
             schema, endpoint, parsed_url = parse_url(url)
             subpath = parsed_url.path

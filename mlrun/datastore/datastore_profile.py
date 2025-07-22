@@ -488,11 +488,13 @@ class OpenAIProfile(DatastoreProfile):
 
 class HuggingFaceProfile(DatastoreProfile):
     type: str = pydantic.v1.Field("huggingface")
-    _private_attributes = "token"
+    _private_attributes = ("token", "model_kwargs")
     task: typing.Optional[str] = None
     token: typing.Optional[str] = None
     device: typing.Optional[typing.Union[int, str]] = None
     device_map: typing.Union[str, dict[str, typing.Union[int, str]], None] = None
+    trust_remote_code: bool = None
+    model_kwargs: typing.Optional[dict[str, typing.Any]] = (None,)
 
     def secrets(self) -> dict:
         res = {}
@@ -504,6 +506,10 @@ class HuggingFaceProfile(DatastoreProfile):
             res["HF_DEVICE"] = self.device
         if self.device_map:
             res["HF_DEVICE_MAP"] = self.device_map
+        if self.trust_remote_code:
+            res["HF_TRUST_REMOTE_CODE"] = self.trust_remote_code
+        if self.model_kwargs:
+            res["HF_MODEL_KWARGS"] = self.model_kwargs
         return res
 
     def url(self, subpath):

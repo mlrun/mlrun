@@ -18,6 +18,7 @@ from typing import cast
 import pytest
 import yaml
 from PIL import Image
+from torch import float16
 from transformers import AutoTokenizer
 
 import mlrun
@@ -76,7 +77,7 @@ class TestBasicHuggingFaceProvider:
         # noinspection PyAttributeOutsideInit
         self.url_prefix = "huggingface://"
 
-    def setup_datastore_profile(self, task=None):
+    def setup_datastore_profile(self, task=None, model_kwargs=None):
         # noinspection PyAttributeOutsideInit
         self.profile = HuggingFaceProfile(
             name=self.profile_name,
@@ -84,6 +85,8 @@ class TestBasicHuggingFaceProvider:
             token=self.env_secrets.get("HF_TOKEN"),
             device=self.env_secrets.get("HF_DEVICE"),
             device_map=self.env_secrets.get("HF_DEVICE_MAP"),
+            trust_remote_code=self.env_secrets.get("HF_TRUST_REMOTE_CODE"),
+            model_kwargs=model_kwargs,
         )
         register_temporary_client_datastore_profile(self.profile)
         # noinspection PyAttributeOutsideInit
@@ -93,7 +96,9 @@ class TestBasicHuggingFaceProvider:
 
 class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
     @classmethod
-    def check_basic_invoke(cls, model_url: str, secrets: dict, model_name: str):
+    def check_basic_invoke(
+        cls, model_url: str, secrets: dict, model_name: str, check_torch_dtype=False
+    ):
         messages = [formatted_messages[0]]
         model_provider = mlrun.get_model_provider(
             url=model_url,
@@ -104,6 +109,9 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         assert model_provider.model == model_name
         result = model_provider.invoke(messages=messages, as_str=True)
         assert EXPECTED_RESULTS[0] in result.lower()
+        if check_torch_dtype:
+            #  checking model_kwargs usage.
+            assert model_provider.client.model.dtype == float16
 
         token_count = len(model_provider.client.tokenizer.encode(result))
         # Extra token is due to the EOS token, which signals end of generation.
@@ -124,12 +132,17 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
 
     @pytest.mark.parametrize("use_datastore_profile", [True, False])
     def test_basic_invoke(self, use_datastore_profile):
+        check_torch_dtype = None
         if use_datastore_profile:
-            self.setup_datastore_profile()
+            self.setup_datastore_profile(model_kwargs={"torch_dtype": float16})
+            check_torch_dtype = True
         model_url = self.url_prefix + self.basic_llm_model
         #  env check
         self.check_basic_invoke(
-            model_url=model_url, secrets={}, model_name=self.basic_llm_model
+            model_url=model_url,
+            secrets={},
+            model_name=self.basic_llm_model,
+            check_torch_dtype=check_torch_dtype,
         )
         # secrets check
         self.reset_env()
@@ -137,7 +150,9 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
             model_url=model_url,
             secrets=self.env_secrets,
             model_name=self.basic_llm_model,
+            check_torch_dtype=check_torch_dtype,
         )
+        print()
 
     def test_configurable_model(self):
         configurable_model = mlrun.mlconf.model_providers.huggingface_default_model

@@ -45,14 +45,13 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     uv pip sync --require-hashes locked-requirements.txt
 
 WORKDIR /tmp/mlrun
-COPY *requirements.txt .
-COPY setup.py .
-COPY packages.py .
-COPY README.md .
-COPY dependencies.py .
-COPY pyproject.toml .
+COPY *.txt .
+COPY *.md .
+COPY *.py .
+COPY *.toml .
 COPY mlrun mlrun
-COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
+COPY dockerfiles/mlrun-api dockerfiles/mlrun-api
+
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .  && rm -rf /tmp/mlrun

@@ -53,14 +53,12 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     uv pip sync  --require-hashes locked-requirements.txt
 
 WORKDIR /tmp/mlrun
-COPY *requirements.txt .
-COPY setup.py .
-COPY packages.py .
-COPY README.md .
-COPY dependencies.py .
-COPY pyproject.toml .
+COPY *.txt .
+COPY *.md .
+COPY *.py .
+COPY *.toml .
 COPY mlrun mlrun
-COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
+COPY dockerfiles/mlrun-api dockerfiles/mlrun-api
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[complete,dev-postgres] && rm -rf /tmp/mlrun
@@ -73,7 +71,7 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION} && rm -rf /tmp/mlrun
 
 WORKDIR /mlrun
-COPY tests /tests
-COPY Makefile /Makefile
+COPY Makefile .
+COPY tests tests
 
 CMD ["make",  "test-system"]

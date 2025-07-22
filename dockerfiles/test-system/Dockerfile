@@ -15,20 +15,24 @@ ARG MLRUN_PYTHON_VERSION=3.9
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
-FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
+FROM mlrun_common_image
 
-RUN apt-get update && apt-get install --no-install-recommends -y \
-  gcc \
-  git-core \
-  graphviz \
-  make \
-  curl \
-  libpq-dev \
-  python3-dev \
- && rm -rf /var/lib/apt/lists/*
+# Update OS packages:
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        gcc \
+        git-core \
+        graphviz \
+        make \
+        curl \
+        libpq-dev \
+        python3-dev && \
+    rm -rf /var/lib/apt/lists/*
+
 
 ARG MLRUN_PIP_VERSION=25.0
-RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 # install kubectl
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
@@ -46,21 +50,30 @@ ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/test-system/locked-requirements.txt,target=locked-requirements.txt \
-    uv pip sync --require-hashes locked-requirements.txt
+    uv pip sync  --require-hashes locked-requirements.txt
 
-COPY . .
-
-RUN rm -rf ./server/go
-
+WORKDIR /tmp/mlrun
+COPY *requirements.txt .
+COPY setup.py .
+COPY packages.py .
+COPY README.md .
+COPY dependencies.py .
+COPY pyproject.toml .
+COPY mlrun mlrun
+COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete,dev-postgres]
+    uv pip install .[complete,dev-postgres] && rm -rf /tmp/mlrun
 
-RUN mv tests /tests && mv Makefile /Makefile
+COPY pipeline-adapters pipeline-adapters
+ARG MLRUN_PYTHON_VERSION
+# Install the pipeline adapters development versions since we release them only after merging
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION} && rm -rf /tmp/mlrun
 
-COPY . /tmp/mlrun
-
-# Clean up all code used for building to simulate user env
-RUN rm -rf /tmp/mlrun
+WORKDIR /mlrun
+COPY tests /tests
+COPY Makefile /Makefile
 
 CMD ["make",  "test-system"]

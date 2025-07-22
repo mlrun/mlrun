@@ -17,21 +17,18 @@ ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
 
-FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
+FROM mlrun_common_image
 
 # Update OS packages:
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN apt-get update && apt-get install --no-install-recommends -y \
-  build-essential \
-  cmake \
-  gcc \
-  wget \
-  git-core \
-  unzip \
- && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        gcc \
+        wget \
+        git \
+        unzip \
+     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /mlrun
 
@@ -58,8 +55,11 @@ RUN conda tos accept --override-channels \
 
 # Install Open-MPI:
 ARG OMPI_VERSION=4.1.5
-RUN conda install -y -c conda-forge openmpi-mpicc=${OMPI_VERSION} && \
-    conda clean -aqy
+RUN --mount=type=cache,target=/opt/conda/pkgs,sharing=locked \
+    conda install -y -c conda-forge "openmpi-mpicc=${OMPI_VERSION}"
+
+RUN conda clean -ay
+
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
@@ -69,7 +69,8 @@ ARG MLRUN_PIP_VERSION=25.0
 
 # Install Python
 # use /usr/local/bin/python to ensure system pip is also upgraded
-RUN /usr/local/bin/python -m pip install --upgrade setuptools pip~=${MLRUN_PIP_VERSION} && \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    /usr/local/bin/python -m pip install --upgrade setuptools pip~=${MLRUN_PIP_VERSION} && \
     conda config --add channels conda-forge && \
     conda install -y python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
     conda clean -aqy
@@ -86,14 +87,22 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=bind,source=dockerfiles/mlrun/locked-requirements.txt,target=locked-requirements.txt \
     uv pip install --no-deps --require-hashes -r locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
 
-COPY . .
+WORKDIR /tmp/mlrun
+COPY *requirements.txt .
+COPY setup.py .
+COPY packages.py .
+COPY README.md .
+COPY dependencies.py .
+COPY pyproject.toml .
+COPY dockerfiles/mlrun-api ./dockerfiles/mlrun-api
+COPY mlrun mlrun
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION}
+    uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION}  && rm -rf /tmp/mlrun
+
 
 # Remove server related files that are not needed
 # Remove ensurepip folders from both conda and system python
-RUN rm -rf ./server/go \
-    && rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
-    && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
+RUN rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
+    /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \

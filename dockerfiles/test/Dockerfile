@@ -36,8 +36,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         graphviz \
         make \
         software-properties-common \
-        libpq-dev \
-        python3-dev && \
+        libpq-dev && \
     curl -fsSL https://get.docker.com -o get-docker.sh && \
     sh ./get-docker.sh && \
     rm -rf get-docker.sh /var/lib/apt/lists/*

@@ -1569,17 +1569,21 @@ class ModelRunnerStep(MonitoredStep):
                                       be equal to the model_class predict method outputs (length, and order)
           :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
                                       (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
-                                      - If a `dict` is provided, each key will represent a Feature.
-                                      - If a `list` or `list of lists` is provided, it must follow the order and size
+                                      - If a ``dict`` is provided, each key will represent a feature.
+                                      - If a ``list`` or ``list of lists`` is provided, it must follow the order and
+                                      size defined by the input schema.
                                        defined by the input schema.
           :param result_path:         Path inside the user output event. Expects dot notation
-                                      (e.g., `"outputs.my_model_outputs"`) and a list or list of list or dictionary-type
-                                       object in the specified path.
-                                       - If a `dict` is provided, each key will represent a label.
-                                       - If a `list` or `list of lists` is provided, it must follow the order and size
-                                       defined by the output schema.
-                                       example: output_schema = ["a", "b"] -> output = [[1, 2], [3, 4]]
-                                       -> two results a = [1,3] , b = [3, 4]
+                                      (e.g., ``"outputs.my_model_outputs"``) and a list, list of lists, or
+                                      dictionary-type object at the specified path.
+
+                                      - If a ``dict`` is provided, each key will represent a label.
+                                      - If a ``list`` or ``list of lists`` is provided, it must follow the order and
+                                      size defined by the output schema.
+
+                                      Example:
+                                          If ``output_schema = ["a", "b"]`` and ``output = [[1, 2], [3, 4]]``,
+                                          the two results will be: ``a = [1, 3]``, ``b = [2, 4]``.
 
           :param override:            bool allow override existing model on the current ModelRunnerStep.
           :param model_parameters:    Parameters for model instantiation

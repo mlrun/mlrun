@@ -95,6 +95,7 @@ COPY pyproject.toml .
 COPY mlrun mlrun
 COPY docs docs
 COPY server server
+COPY pipeline-adapters pipeline-adapters
 COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
 
 ENV PYTHONPATH="/mlrun/tests:/mlrun/automation${PYTHONPATH:+:${PYTHONPATH}}"

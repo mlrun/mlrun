@@ -38,24 +38,15 @@ WORKDIR /mlrun
 RUN chmod 777 /mlrun
 
 # Install MiniConda:
-ARG MC_PY=-py311
-ARG MC_VER=25.1.1-2
-ARG OMPI_VERSION=4.1.5
-
-RUN --mount=type=cache,id=miniconda-installer,target=/tmp,sharing=locked \
-    --mount=type=cache,target=/opt/conda/pkgs,sharing=locked \
-    INSTALLER=/tmp/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_${MC_VER}-Linux-x86_64.sh && \
-    { [ -f "$INSTALLER" ] || \
-      wget -q https://repo.anaconda.com/miniconda/$(basename "$INSTALLER") -O "$INSTALLER"; } && \
-    /bin/bash "$INSTALLER" -b -p /opt/conda && \
+ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py311"
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_25.1.1-2-Linux-x86_64.sh -O ~/installconda.sh && \
+    /bin/bash ~/installconda.sh -b -p /opt/conda && \
+    rm ~/installconda.sh && \
+    /opt/conda/bin/conda update --all --use-local --yes && \
+    /opt/conda/bin/conda clean --all --quiet --yes && \
     ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
-    conda update -y -n base conda && \
-    conda install -y -c conda-forge "openmpi-mpicc=${OMPI_VERSION}" && \
-    conda clean -ay
-
-ENV PATH=/opt/conda/bin:$PATH \
-    OMPI_ALLOW_RUN_AS_ROOT=1 \
-    OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
+    echo "conda activate base" >> ~/.bashrc
 
 ENV PATH=/opt/conda/bin:$PATH
 

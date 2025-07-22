@@ -21,16 +21,4 @@ RUN tar -C /var/lib/apt -xf /tmp/apt-lists.tar && rm /tmp/apt-lists.tar
 
 # Update OS packages:
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    apt-get update -q && \
-    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade -o Acquire::Check-Valid-Until=false && \
-    apt-get install -y --no-install-recommends \
-        build-essential \
-        cmake \
-        gcc \
-        wget \
-        git \
-        unzip \
-        libzmq3-dev \
-        libffi-dev \
-        python3-dev\
-        python3-zmq
+    apt-get update -q

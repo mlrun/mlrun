@@ -25,7 +25,18 @@ FROM mlrun_common_image
 
 # Update OS packages:
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    DEBIAN_FRONTEND=noninteractive  apt-get -y upgrade -o Acquire::Check-Valid-Until=false && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        gcc \
+        wget \
+        git \
+        unzip \
+        libzmq3-dev \
+        libffi-dev \
+        python3-dev\
+        python3-zmq \
         curl \
         apt-transport-https \
         ca-certificates \
@@ -36,7 +47,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         graphviz \
         make \
         software-properties-common \
-        python3-zmq \
         libpq-dev && \
     curl -fsSL https://get.docker.com -o get-docker.sh && \
     sh ./get-docker.sh && \

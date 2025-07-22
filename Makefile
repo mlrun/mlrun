@@ -292,7 +292,7 @@ MLRUN_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(ML
 DEFAULT_IMAGES += $(MLRUN_IMAGE_NAME_TAGGED)
 
 .PHONY: mlrun
-mlrun: common-image update-version-file ## Build mlrun docker image
+mlrun: update-version-file ## Build mlrun docker image
 	$(MLRUN_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/mlrun/Dockerfile \
@@ -325,7 +325,7 @@ MLRUN_KFP_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),
 DEFAULT_IMAGES += $(MLRUN_KFP_IMAGE_NAME_TAGGED)
 
 .PHONY: mlrun-kfp
-mlrun-kfp: common-image update-version-file ## Build mlrun docker image with KFP
+mlrun-kfp: update-version-file ## Build mlrun docker image with KFP
 	$(MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/mlrun-kfp/Dockerfile \
@@ -470,16 +470,6 @@ else
 	$(MAKE) -C server/go compile-schemas
 endif
 
-BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/base
-
-common-image: update-version-file
-	$(MAKE) generate-dockerignore DEST=test
-	$(MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND)
-	docker build \
-		--file dockerfiles/common/Dockerfile \
-		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
-		--tag mlrun_common_image .
-
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_IMAGE_NAME_TAGGED := $(MLRUN_API_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
@@ -490,7 +480,7 @@ MLRUN_API_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),
 DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: api
-api: common-image compile-schemas update-version-file ## Build mlrun-api docker image
+api: compile-schemas update-version-file ## Build mlrun-api docker image
 	$(MLRUN_API_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/mlrun-api/Dockerfile \
@@ -518,7 +508,7 @@ MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG)
 MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED),)
 
 .PHONY: build-test
-build-test: common-image compile-schemas update-version-file ## Build test docker image
+build-test: compile-schemas update-version-file ## Build test docker image
 	$(MAKE) generate-dockerignore DEST=test
 	$(MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
@@ -539,7 +529,7 @@ push-test: build-test ## Push test docker image
 MLRUN_SYSTEM_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test-system:$(MLRUN_DOCKER_TAG)
 
 .PHONY: build-test-system
-build-test-system: common-image compile-schemas update-version-file ## Build system tests docker image
+build-test-system: compile-schemas update-version-file ## Build system tests docker image
 	$(MAKE) generate-dockerignore DEST=test-system
 	docker build \
 		--file dockerfiles/test-system/Dockerfile \
@@ -762,6 +752,22 @@ run-api: api ## Run mlrun api (dockerized)
 		--env MLRUN_HTTPDB__REAL_PATH=$(MLRUN_HTTPDB__REAL_PATH) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
 
+.PHONY: run-test-db
+run-test-db:
+	# clean up any previous test db container. Don't remove it after run to be able to debug failures
+	docker rm test-db --force || true
+	docker run \
+		--name=test-db \
+		--volume $(shell pwd):/mlrun \
+		--publish 3306:3306 \
+		--env MYSQL_ROOT_PASSWORD="" \
+		--env MYSQL_ALLOW_EMPTY_PASSWORD="true" \
+		--env MYSQL_ROOT_HOST=% \
+		--env MYSQL_DATABASE="mlrun" \
+		--detach \
+		gcr.io/iguazio/mlrun-mysql:8.0 \
+		--character-set-server=utf8 \
+		--collation-server=utf8_bin
 
 .PHONY: clean-html-docs
 clean-html-docs: ## Clean html docs

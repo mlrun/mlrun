@@ -173,11 +173,7 @@ class TestMLRunIntegration:
 
         client = docker.from_env()
 
-        # Clean up any stale api container
-        try:
-            client.containers.get(container_name).remove(force=True)
-        except docker.errors.NotFound:
-            pass
+        cls._stop_api()
         cls._logger.debug("Running API")
 
         container = client.containers.run(
@@ -207,12 +203,12 @@ class TestMLRunIntegration:
             f"mlrun‑api failed to become ready within {wait_timeout}s.\nLast logs:\n{logs}"
         )
 
-    def _stop_api(self):
-        client = self._docker_client()
+    @classmethod
+    def _stop_api(cls):
+        client = cls._docker_client()
+        cls._logger.debug("Stopping API container")
         try:
-            container = client.containers.get(self.api_container_name)
-            if container.status == "running":
-                container.kill()
+            client.containers.get(cls.api_container_name).remove(force=True)
         except docker.errors.NotFound:
             pass
 

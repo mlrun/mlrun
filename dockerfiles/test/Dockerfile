@@ -90,5 +90,6 @@ COPY server server
 COPY tests tests
 COPY automation automation
 COPY dockerfiles dockerfiles
+COPY examples examples
 
 ENV PYTHONPATH="/mlrun/tests:/mlrun/automation${PYTHONPATH:+:${PYTHONPATH}}"

@@ -96,21 +96,7 @@ def _create_schema(
     if engine is None:
         engine = framework.db.sqldb.sql_session.get_engine()
 
-    # SQLite doesn’t support table partitioning → skip those tables
-    if engine.name == mlrun.common.db.dialects.Dialects.SQLITE:
-        partitioned_table_names = (
-            framework.db.sqldb.models.get_partitioned_table_names()
-        )
-        tables_to_create = [
-            table
-            for table in framework.db.sqldb.models.Base.metadata.tables.values()
-            if table.name not in partitioned_table_names
-        ]
-        framework.db.sqldb.models.Base.metadata.create_all(
-            bind=engine, tables=tables_to_create
-        )
-    else:
-        framework.db.sqldb.models.Base.metadata.create_all(bind=engine)
+    framework.db.sqldb.models.Base.metadata.create_all(bind=engine)
 
 
 def _initialize_db_from_scratch(

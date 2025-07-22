@@ -22,15 +22,12 @@ ENV NO_COLOR=1
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
-# Install docker
-RUN apt-get update -qq >/dev/null \
-    && apt-get install --no-install-recommends -y curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -fsSL https://get.docker.com -o get-docker.sh \
-    && sh ./get-docker.sh
-
-# Install other dependencies
-RUN apt-get update && apt-get install --no-install-recommends -y \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update -q && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
+    apt-get install -y --no-install-recommends \
+        curl \
         apt-transport-https \
         ca-certificates \
         g++ \
@@ -41,8 +38,11 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
         make \
         software-properties-common \
         libpq-dev \
-        python3-dev \
-    && rm -rf /var/lib/apt/lists/*
+        python3-dev && \
+    curl -fsSL https://get.docker.com -o get-docker.sh && \
+    sh ./get-docker.sh && \
+    rm -rf get-docker.sh
+
 
 # set initial git config
 RUN git config --global user.email "test@mlrun.org" \
@@ -50,7 +50,8 @@ RUN git config --global user.email "test@mlrun.org" \
      && git config --global init.defaultBranch "main"
 
 ARG MLRUN_PIP_VERSION=25.0
-RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
@@ -75,12 +76,13 @@ COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.t
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete,dev-postgres] --python-version ${MLRUN_PYTHON_VERSION}
+    uv pip install .[complete,dev-postgres] --python-version ${MLRUN_PYTHON_VERSION}  && rm -rf /tmp/mlrun
 
 COPY pipeline-adapters pipeline-adapters
 # Install the pipeline adapters development versions since we release them only after merging
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
+    --mount=type=cache,target=/root/.cache/uv \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}  && rm -rf /tmp/mlrun
 
 WORKDIR /mlrun
 COPY Makefile .
@@ -91,8 +93,7 @@ COPY README.md .
 COPY dependencies.py .
 COPY pyproject.toml .
 COPY mlrun mlrun
+COPY docs docs
 COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
 
 ENV PYTHONPATH="/mlrun/tests:/mlrun/automation${PYTHONPATH:+:${PYTHONPATH}}"
-
-RUN rm -rf /tmp/mlrun

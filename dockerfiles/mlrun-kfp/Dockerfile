@@ -19,19 +19,22 @@ FROM ${MLRUN_UV_IMAGE} AS uv-image
 FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
 
 # Update OS packages:
-RUN apt-get update && \
-    apt-get install --no-install-recommends -y \
-      build-essential \
-      cmake \
-      gcc \
-      wget \
-      git-core \
-      unzip \
-    && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade \
-    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update -q && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        gcc \
+        wget \
+        git-core \
+        unzip
+
 
 ARG MLRUN_PIP_VERSION=25.0
-RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
+RUN --mount=type=cache,target=/root/.cache/pip \
+  python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 ARG MLRUN_PYTHON_VERSION=3.9
 
 WORKDIR /mlrun
@@ -54,11 +57,12 @@ COPY mlrun mlrun
 COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .
+    uv pip install .  && rm -rf /tmp/mlrun
 
 COPY pipeline-adapters pipeline-adapters
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8[kfp]
+    --mount=type=cache,target=/root/.cache/uv \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8[kfp]  && rm -rf /tmp/mlrun
 
 # Remove server related files that are not needed
 # Remove ensurepip folders from both conda and system python

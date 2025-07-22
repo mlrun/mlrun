@@ -502,11 +502,13 @@ class BaseStep(ModelObj):
         self,
         step: "ModelRunnerStep",
         step_model_endpoints_names: Optional[list[str]] = None,
+        verify_shared_models: bool = True,
     ):
         """
         Verify ModelRunnerStep, can be part of Flow graph and models can not repeat in graph.
-        :param step_model_endpoints_names:
-        :param step: ModelRunnerStep to verify
+        :param step:                        ModelRunnerStep to verify
+        :param step_model_endpoints_names:  List of model endpoints names that are in the step.
+        :param verify_shared_models:        If True, verify that shared models are defined in the graph.
         """
 
         if not isinstance(step, ModelRunnerStep):
@@ -532,8 +534,9 @@ class BaseStep(ModelObj):
                 f"The graph already contains the model endpoints named - {common_endpoints_names}."
             )
 
-        # Check if shared models are defined in the graph
-        self._verify_shared_models(root, step, step_model_endpoints_names)
+        if verify_shared_models:
+            # Check if shared models are defined in the graph
+            self._verify_shared_models(root, step, step_model_endpoints_names)
         # Update model endpoints names in the root step
         root.update_model_endpoints_names(step_model_endpoints_names)
 
@@ -1465,21 +1468,21 @@ class ModelRunnerStep(MonitoredStep):
             raise MLRunInvalidArgumentError(
                 "model_artifact must be a string, ModelArtifact or LLMPromptArtifact"
             )
-        # root = self._extract_root_step()
-        # if isinstance(root, RootFlowStep):
-        #     shared_model_name = (
-        #         shared_model_name
-        #         or root.get_shared_model_name_by_artifact_uri(model_artifact_uri)
-        #     )
-        #     if not root.shared_models or (
-        #         root.shared_models
-        #         and shared_model_name
-        #         and shared_model_name not in root.shared_models.keys()
-        #     ):
-        #         raise GraphError(
-        #             f"ModelRunnerStep can only add proxy models that were added to the root flow step, "
-        #             f"model {shared_model_name} is not in the shared models."
-        #         )
+        root = self._extract_root_step()
+        if isinstance(root, RootFlowStep):
+            shared_model_name = (
+                shared_model_name
+                or root.get_shared_model_name_by_artifact_uri(model_artifact_uri)
+            )
+            if not root.shared_models or (
+                root.shared_models
+                and shared_model_name
+                and shared_model_name not in root.shared_models.keys()
+            ):
+                raise GraphError(
+                    f"ModelRunnerStep can only add proxy models that were added to the root flow step, "
+                    f"model {shared_model_name} is not in the shared models."
+                )
         if shared_model_name not in self._shared_proxy_mapping:
             self._shared_proxy_mapping[shared_model_name] = {
                 endpoint_name: model_artifact.uri

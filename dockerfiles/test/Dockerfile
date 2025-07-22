@@ -87,6 +87,10 @@ COPY Makefile .
 COPY automation automation
 COPY tests tests
 COPY docs docs
+COPY mlrun mlrun
+COPY *requirements.txt .
+COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
+
 ENV PYTHONPATH="/mlrun/tests:/mlrun/automation${PYTHONPATH:+:${PYTHONPATH}}"
 
 RUN rm -rf /tmp/mlrun

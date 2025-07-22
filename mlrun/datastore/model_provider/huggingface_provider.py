@@ -102,21 +102,20 @@ class HuggingFaceProvider(ModelProvider):
         self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs
     ) -> Optional[T]:
         """
-        OpenAI-specific implementation of `ModelProvider.custom_invoke`.
+        HuggingFace implementation of `ModelProvider.custom_invoke`.
 
-        Invokes an OpenAI model operation using the sync client. For full details, see
-        `ModelProvider.custom_invoke`.
+        Use the default config in provider client/ user defined client:
 
         Example:
             ```python
-            result = openai_model_provider.invoke(
-                openai_model_provider.client.images.generate,
+            result = hf_provider.invoke(
+                pipe,
                 prompt="A futuristic cityscape at sunset",
                 n=1,
                 size="1024x1024",
             )
             ```
-        :param operation: A callable representing the model operation (e.g., a client method).
+        :param operation: A pipeline object
         :param invoke_kwargs: Keyword arguments to pass to the operation.
         :return: The full response returned by the operation.
 
@@ -133,6 +132,22 @@ class HuggingFaceProvider(ModelProvider):
         as_str: bool = False,
         **invoke_kwargs,
     ) -> Optional[Union[str, list, T]]:
+        """
+        Huggingface-specific implementation of `ModelProvider.invoke`.
+        Invokes an HuggingFace model operation using the sync client.
+        For full details, see `ModelProvider.invoke`.
+
+        :param messages:    Same as ModelProvider.invoke.
+
+        :param as_str: bool
+                            If `True`, returns only the main content of one of the responses
+                            (designed for single response invokes).
+                            If `False`, returns the full response object, whose type depends on the client (=pipeline).
+        :param invoke_kwargs:
+                            Same as ModelProvider.invoke.
+        :return:            Same as ModelProvider.invoke.
+
+        """
         if self.client.task != "text-generation":
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "HuggingFaceProvider.invoke supports text-generation task only"

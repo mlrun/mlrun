@@ -147,6 +147,10 @@ class BaseAsyncClient(BaseClient):
         """
         Proxy the request to one of the session verification endpoints (which will verify the session of the request)
         """
+        # TODO: Instead of calling the session verification endpoint for IG4, we can use the Iguazio SDK's "self"
+        #  method to retrieve user info and generate the AuthInfo from it. When calling it, we need to wrap it in an
+        #  async client and call the method as async. As a result, this method will not be part of the base client
+        #  and should be implemented separately in the Iguaziov4 client.
         headers = {
             "authorization": request.headers.get("authorization"),
             "cookie": request.headers.get("cookie", ""),

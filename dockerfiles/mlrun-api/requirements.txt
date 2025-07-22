@@ -19,6 +19,3 @@ pydantic>=1,<2
 # ensure kfp is installed
 mlrun-pipelines-kfp-v1-8~=0.4.3
 grpcio~=1.70.0
-
-# Install iguazio directly from Test PyPI wheel URL
-iguazio @ https://test-files.pythonhosted.org/packages/14/db/0f4aaa2df08db33fdf87ca3166eee073db780abd04cadc3d2b50391e2822/iguazio-0.0.1a5-py3-none-any.whl

@@ -108,6 +108,7 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         model_provider = cast(HuggingFaceProvider, model_provider)
         assert model_provider.model == model_name
         result = model_provider.invoke(messages=messages, as_str=True)
+        assert isinstance(result, str)
         assert EXPECTED_RESULTS[0] in result.lower()
         if check_torch_dtype:
             #  checking model_kwargs usage.
@@ -184,7 +185,9 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         model_provider = mlrun.get_model_provider(
             url=model_url, default_invoke_kwargs={"max_new_tokens": 200}
         )
-        result = model_provider.invoke(messages=messages, as_str=True).strip()
+        result = model_provider.invoke(messages=messages, as_str=True)
+        assert isinstance(result, str)
+        result = result.strip()
         assert result
         assert " " not in result.strip()  # checking one-word answer
 

@@ -108,3 +108,4 @@ server/py/schemas/proto/*pb2*.py
 server/api
 tests/coverage_reports/*.xml
 tests/coverage_reports/*.html
+**/test-openai.yml

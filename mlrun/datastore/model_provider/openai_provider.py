@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar, Union
 
 import mlrun
@@ -32,6 +32,8 @@ class OpenAIProvider(ModelProvider):
     functionality, including client initialization, model invocation, and custom
     operations tailored to the OpenAI API.
     """
+
+    support_async = True
 
     def __init__(
         self,
@@ -67,7 +69,7 @@ class OpenAIProvider(ModelProvider):
         return endpoint, subpath
 
     @property
-    def model(self):
+    def model(self) -> Optional[str]:
         return self.endpoint
 
     def load_client(self) -> None:
@@ -76,23 +78,20 @@ class OpenAIProvider(ModelProvider):
 
         This method imports the `OpenAI` class from the `openai` package, instantiates
         a client with the given keyword arguments (`self.options`), and assigns it to
-        `self._client`.
-
-        It also sets the default operation to `self.client.chat.completions.create`, which is
-        typically used for invoking chat-based model completions.
+        `self._client` and `self._async_client`.
 
         Raises:
             ImportError: If the `openai` package is not installed.
         """
         try:
-            from openai import OpenAI  # noqa
+            from openai import OpenAI, AsyncOpenAI  # noqa
 
             self._client = OpenAI(**self.options)
-            self._default_operation = self.client.chat.completions.create
+            self._async_client = AsyncOpenAI(**self.options)
         except ImportError as exc:
             raise ImportError("openai package is not installed") from exc
 
-    def get_client_options(self):
+    def get_client_options(self) -> dict:
         res = dict(
             api_key=self._get_secret_or_env("OPENAI_API_KEY"),
             organization=self._get_secret_or_env("OPENAI_ORG_ID"),
@@ -103,14 +102,69 @@ class OpenAIProvider(ModelProvider):
         )
         return self._sanitize_options(res)
 
-    def customized_invoke(
+    def custom_invoke(
         self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs
     ) -> Optional[T]:
+        """
+        OpenAI-specific implementation of `ModelProvider.custom_invoke`.
+
+        Invokes an OpenAI model operation using the sync client. For full details, see
+        `ModelProvider.custom_invoke`.
+
+        Example:
+            ```python
+            result = openai_model_provider.invoke(
+                openai_model_provider.client.images.generate,
+                prompt="A futuristic cityscape at sunset",
+                n=1,
+                size="1024x1024",
+            )
+            ```
+        :param      operation:      Same as ModelProvider.custom_invoke.
+        :param      invoke_kwargs:  Same as ModelProvider.custom_invoke.
+        :return:                    Same as ModelProvider.custom_invoke.
+
+        """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         if operation:
             return operation(**invoke_kwargs, model=self.model)
         else:
-            return self._default_operation(**invoke_kwargs, model=self.model)
+            return self.client.chat.completions.create(
+                **invoke_kwargs, model=self.model
+            )
+
+    async def async_custom_invoke(
+        self,
+        operation: Optional[Callable[..., Awaitable[T]]] = None,
+        **invoke_kwargs,
+    ) -> Optional[T]:
+        """
+        OpenAI-specific implementation of `ModelProvider.async_custom_invoke`.
+
+        Invokes an OpenAI model operation using the async client. For full details, see
+        `ModelProvider.async_custom_invoke`.
+
+        Example:
+            ```python
+            result = openai_model_provider.invoke(
+                openai_model_provider.async_client.images.generate,
+                prompt="A futuristic cityscape at sunset",
+                n=1,
+                size="1024x1024",
+            )
+            ```
+        :param operation:       Same as ModelProvider.async_custom_invoke.
+        :param invoke_kwargs:   Same as ModelProvider.async_custom_invoke.
+        :return:                Same as ModelProvider.async_custom_invoke.
+
+        """
+        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
+        if operation:
+            return await operation(**invoke_kwargs, model=self.model)
+        else:
+            return await self.async_client.chat.completions.create(
+                **invoke_kwargs, model=self.model
+            )
 
     def invoke(
         self,
@@ -133,12 +187,39 @@ class OpenAIProvider(ModelProvider):
 
         :param invoke_kwargs:
                             Same as ModelProvider.invoke.
+        :return:            Same as ModelProvider.invoke.
 
         """
-        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
-        response = self._default_operation(
-            model=self.endpoint, messages=messages, **invoke_kwargs
-        )
+        response = self.custom_invoke(messages=messages, **invoke_kwargs)
+        if as_str:
+            return response.choices[0].message.content
+        return response
+
+    async def async_invoke(
+        self,
+        messages: Optional[list[dict]] = None,
+        as_str: bool = False,
+        **invoke_kwargs,
+    ) -> str:
+        """
+        OpenAI-specific implementation of `ModelProvider.async_invoke`.
+        Invokes an OpenAI model operation using the async client.
+        For full details, see `ModelProvider.async_invoke`.
+
+        :param messages:    Same as ModelProvider.async_invoke.
+
+        :param as_str: bool
+                            If `True`, returns only the main content of the first response
+                            (`response.choices[0].message.content`).
+                            If `False`, returns the full awaited response object, whose type depends on
+                            the specific OpenAI SDK operation used (e.g., chat completion, completion, etc.).
+
+        :param invoke_kwargs:
+                            Same as ModelProvider.async_invoke.
+        :returns            Same as ModelProvider.async_invoke.
+
+        """
+        response = await self.async_custom_invoke(messages=messages, **invoke_kwargs)
         if as_str:
             return response.choices[0].message.content
         return response

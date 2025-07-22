@@ -142,7 +142,6 @@ async def create_pipeline(
     return response
 
 
-# noinspection PyTypeChecker
 @router.post("/{run_id}/retry")
 async def retry_pipeline(
     run_id: str,
@@ -221,18 +220,18 @@ async def retry_pipeline(
             project=project.metadata.name,
             run_id=original_runner.metadata.uid,
         )
-    except mlrun.errors.MLRunConflictError:
-        workflow_response = await fastapi.concurrency.run_in_threadpool(
-            services.api.crud.Pipelines().get_running_rerun_runner,
-            db_session=db_session,
-            project=project.metadata.name,
-            original_workflow_id=original_workflow_id,
-        )
-        if workflow_response:
-            return workflow_response
-        raise mlrun.errors.MLRunConflictError(
-            "A retry is already in progress, but no existing rerun was found."
-        )
+    except mlrun.errors.MLRunConflictError as exc:
+        try:
+            return await fastapi.concurrency.run_in_threadpool(
+                services.api.crud.Pipelines().get_running_rerun_runner,
+                db_session=db_session,
+                project=project.metadata.name,
+                original_workflow_id=original_workflow_id,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            raise mlrun.errors.MLRunConflictError(
+                "A retry is already in progress, but no existing rerun was found."
+            ) from exc
 
     try:
         workflow_response: mlrun.common.schemas.WorkflowResponse = (

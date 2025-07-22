@@ -1140,7 +1140,7 @@ def rerun_workflow(
     finally:
         # Once the rerun has finished, clear the “retrying” label on the original runner
         # so that subsequent retry requests can acquire the lock again.
-        db.set_run_retrying_state(
+        db.set_run_retrying_status(
             project=project_name,
             name=original_workflow_name,
             run_id=original_runner_uid,

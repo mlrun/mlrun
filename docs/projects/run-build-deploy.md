@@ -296,4 +296,8 @@ project.set_function(
     "sentiment.py", name="scores", kind="job", handler="handler", image=image_name
 )
 ```
-   
+
+To build a new image that is based on mlrun/mlrun and add packages to the build, use a build image that looks something like this:
+```
+project.build_image(image=".my-new-image", base_image="mlrun/mlrun", requirements=["tensorflow"])
+```

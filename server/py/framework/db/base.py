@@ -80,7 +80,7 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def set_run_retrying_state(
+    def set_run_retrying_status(
         self,
         session: Session,
         project: str,
@@ -335,51 +335,6 @@ class DBInterface(ABC):
 
         :return: An artifact dictionary.
         :raises MLRunConflictError: If the artifact is in use and cannot be deleted.
-        """
-        pass
-
-    # TODO: Remove once data migration v5 is obsolete
-    @deprecated(
-        version="1.7.0",
-        reason="'store_artifact_v1' will be removed from this file in 1.10.0, use "
-        "'store_artifact' instead",
-        category=FutureWarning,
-    )
-    def store_artifact_v1(
-        self,
-        session,
-        key,
-        artifact,
-        uid,
-        project,
-        iter=None,
-        tag="",
-        tag_artifact=True,
-    ):
-        """
-        Store artifact v1 in the DB, this is the deprecated legacy artifact format
-        and is only left for testing purposes
-        """
-        pass
-
-    # TODO: Remove once data migration v5 is obsolete
-    @deprecated(
-        version="1.7.0",
-        reason="'read_artifact_v1' will be removed from this file in 1.10.0, use "
-        "'read_artifact' instead",
-        category=FutureWarning,
-    )
-    def read_artifact_v1(
-        self,
-        session,
-        key,
-        project,
-        tag="",
-        iter=None,
-    ):
-        """
-        Read artifact v1 from the DB, this is the deprecated legacy artifact format
-        and is only left for testing purposes
         """
         pass
 

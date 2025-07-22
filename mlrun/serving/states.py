@@ -1148,11 +1148,11 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
     def init(self):
         self.load()
 
-    def predict(self, body: Any) -> Any:
+    def predict(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead."""
         return body
 
-    async def predict_async(self, body: Any) -> Any:
+    async def predict_async(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic if the logic requires asyncio."""
         return body
 
@@ -1201,13 +1201,37 @@ class LLModel(Model):
         super().__init__(name, **kwargs)
 
     def predict(
-        self, body: Any, messages: list[dict], model_configuration: dict
+        self,
+        body: Any,
+        messages: Optional[list[dict]] = None,
+        model_configuration: Optional[dict] = None,
+        **kwargs,
     ) -> Any:
+        if isinstance(
+            self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
+        ) and isinstance(self.model_provider, ModelProvider):
+            body["result"] = self.model_provider.invoke(
+                messages=messages,
+                as_str=True,
+                **(model_configuration or {}),
+            )
         return body
 
     async def predict_async(
-        self, body: Any, messages: list[dict], model_configuration: dict
+        self,
+        body: Any,
+        messages: Optional[list[dict]] = None,
+        model_configuration: Optional[dict] = None,
+        **kwargs,
     ) -> Any:
+        if isinstance(
+            self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
+        ) and isinstance(self.model_provider, ModelProvider):
+            body["result"] = await self.model_provider.async_invoke(
+                messages=messages,
+                as_str=True,
+                **(model_configuration or {}),
+            )
         return body
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:

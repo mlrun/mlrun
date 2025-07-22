@@ -72,7 +72,7 @@ class NopDB(RunDBInterface):
     def update_run(self, updates: dict, uid, project="", iter=0):
         pass
 
-    def set_run_retrying_state(
+    def set_run_retrying_status(
         self, project: str, name: str, run_id: str, retrying: bool
     ):
         pass
@@ -984,4 +984,12 @@ class NopDB(RunDBInterface):
         pass
 
     def get_project_summary(self, project: str):
+        pass
+
+    def get_drift_over_time(
+        self,
+        project: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
         pass

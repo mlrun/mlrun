@@ -42,10 +42,12 @@ STORE_API_ARTIFACTS_PATH = API_ARTIFACTS_PATH + "/{uid}/{key}?tag={tag}"
 GET_API_ARTIFACT_PATH = API_ARTIFACTS_PATH + "/{key}?tag={tag}"
 LIST_API_ARTIFACTS_PATH_WITH_TAG = API_ARTIFACTS_PATH + "?tag={tag}"
 DELETE_API_ARTIFACTS_PATH = API_ARTIFACTS_PATH + "/{key}"
+DELETE_API_MULTI_ARTIFACTS_PATH = API_ARTIFACTS_PATH
 
 # V2 endpoints
 V2_PREFIX = "v2/"
 DELETE_API_ARTIFACTS_V2_PATH = V2_PREFIX + DELETE_API_ARTIFACTS_PATH
+DELETE_API_MULTI_ARTIFACTS_V2_PATH = V2_PREFIX + DELETE_API_MULTI_ARTIFACTS_PATH
 STORE_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH
 LIST_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH
 GET_API_ARTIFACT_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH + "/{key}"
@@ -1328,6 +1330,84 @@ def test_failed_to_delete_artifact_with_referenced_model_endpoint(
         "The artifact is used by" in response.text
     ), f"Expected conflict explanation in response, got: {response.text}"
 
+    # Attempt to delete the model artifact that is still referenced by the model endpoint
+    response = unversioned_client.delete(
+        DELETE_API_MULTI_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    )
+    # Assert that the deletion fails with a conflict because of the reference
+    assert (
+        response.status_code == HTTPStatus.CONFLICT.value
+    ), f"Expected 409 CONFLICT when deleting an artifact in use, got {response.status_code}: {response.text}"
+    assert (
+        "due to integrity" in response.text
+    ), f"Expected conflict explanation in response, got: {response.text}"
+
+
+def test_failed_to_delete_artifact_with_parent(
+    db: Session, unversioned_client: TestClient
+):
+    # Create a new project
+    _create_project(unversioned_client, project_name=PROJECT)
+
+    # Create and store a model artifact
+    # Generate artifact
+    artifact_data = _generate_artifact_body()
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_response = resp.json()
+    artifact_uid = artifact_response["metadata"]["uid"]
+
+    # Check if the artifact is created successfully
+    artifact_url = _get_artifact_url(uid=artifact_uid)
+    resp = unversioned_client.get(artifact_url)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # Create and store a model artifact
+    # Generate artifact
+    artifact_data = _generate_artifact_body(
+        key="some-key-2", parent_uri=f"store://models/{PROJECT}/{KEY}"
+    )
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_response = resp.json()
+    artifact_uid = artifact_response["metadata"]["uid"]
+
+    # Check if the artifact is created successfully
+    artifact_url = _get_artifact_url(uid=artifact_uid, key="some-key-2")
+    resp = unversioned_client.get(artifact_url)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # Attempt to delete the model artifact that is still referenced by the model endpoint
+    response = unversioned_client.delete(
+        DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+    )
+    # Assert that the deletion fails with a conflict because of the reference
+    assert (
+        response.status_code == HTTPStatus.CONFLICT.value
+    ), f"Expected 409 CONFLICT when deleting an artifact in use, got {response.status_code}: {response.text}"
+    assert (
+        "The artifact has" in response.text
+    ), f"Expected conflict explanation in response, got: {response.text}"
+
+    # Attempt to delete the model artifact that is still referenced by the model endpoint
+    response = unversioned_client.delete(
+        DELETE_API_MULTI_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        params={"name": [KEY]},
+    )
+    # Assert that the deletion fails with a conflict because of the reference
+    assert (
+        response.status_code == HTTPStatus.CONFLICT.value
+    ), f"Expected 409 CONFLICT when deleting an artifact in use, got {response.status_code}: {response.text}"
+    assert (
+        "due to integrity" in response.text
+    ), f"Expected conflict explanation in response, got: {response.text}"
+
 
 def _create_project(
     client: TestClient, project_name: str = PROJECT, prefix: Optional[str] = None
@@ -1352,6 +1432,7 @@ def _generate_artifact_body(
     body=None,
     producer=None,
     iteration=None,
+    parent_uri=None,
 ):
     tree = tree or str(uuid.uuid4())
     producer = producer or {"kind": "api", "uri": "my-uri:3000"}
@@ -1368,6 +1449,7 @@ def _generate_artifact_body(
             "db_key": key,
             "producer": producer,
             "target_path": "memory://aaa/aaa",
+            "parent_uri": parent_uri,
         },
         "status": {},
     }
@@ -1382,9 +1464,12 @@ def _generate_artifact_body(
 
 
 def _get_artifact_url(
-    uid: Optional[str] = None, tag: Optional[str] = None, tree: Optional[str] = None
+    uid: Optional[str] = None,
+    tag: Optional[str] = None,
+    tree: Optional[str] = None,
+    key: str = KEY,
 ) -> str:
-    url = GET_API_ARTIFACT_V2_PATH.format(project=PROJECT, key=KEY)
+    url = GET_API_ARTIFACT_V2_PATH.format(project=PROJECT, key=key)
     params = []
 
     if uid:

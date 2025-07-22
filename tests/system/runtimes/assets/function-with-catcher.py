@@ -16,7 +16,7 @@ from mlrun.serving import Model
 
 
 class ErrorModel(Model):
-    def predict(self, body):
+    def predict(self, body, **kwargs):
         raise RuntimeError
 
 

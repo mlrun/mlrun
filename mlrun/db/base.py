@@ -56,7 +56,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def set_run_retrying_state(
+    def set_run_retrying_status(
         self, project: str, name: str, run_id: str, retrying: bool
     ):
         pass
@@ -644,6 +644,11 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    def wait_for_background_task_to_reach_terminal_state(
+        self, name: str, project: str = ""
+    ) -> mlrun.common.schemas.BackgroundTask:
+        pass
+
     @abstractmethod
     def retry_pipeline(
         self,
@@ -1150,4 +1155,13 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def get_project_summary(self, project: str) -> mlrun.common.schemas.ProjectSummary:
+        pass
+
+    @abstractmethod
+    def get_drift_over_time(
+        self,
+        project: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
         pass

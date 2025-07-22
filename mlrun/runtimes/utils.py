@@ -445,8 +445,6 @@ def enrich_run_labels(
     labels_enrichment = {
         mlrun_constants.MLRunInternalLabels.owner: os.environ.get("V3IO_USERNAME")
         or getpass.getuser(),
-        # TODO: remove this in 1.10.0
-        mlrun_constants.MLRunInternalLabels.v3io_user: os.environ.get("V3IO_USERNAME"),
     }
 
     # Resolve which label keys to enrich

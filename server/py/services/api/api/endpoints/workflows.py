@@ -431,7 +431,7 @@ async def get_workflow_id(
     "/projects/{project}/workflows/{name}/runs/{uid}/set-retry-status",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
-async def toggle_run_retrying_flag(
+async def set_run_retrying_status(
     project: str,
     uid: str,
     name: str,
@@ -476,7 +476,7 @@ async def toggle_run_retrying_flag(
 
     # call into your CRUD
     await fastapi.concurrency.run_in_threadpool(
-        services.api.crud.RerunRunner().set_run_retrying_state,
+        services.api.crud.RerunRunner().set_run_retrying_status,
         db_session,
         project,
         uid,

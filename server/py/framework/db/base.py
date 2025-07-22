@@ -80,6 +80,16 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def set_run_retrying_status(
+        self,
+        session: Session,
+        project: str,
+        uid: str,
+        retrying: bool,
+    ) -> dict:
+        pass
+
+    @abstractmethod
     def list_distinct_runs_uids(
         self,
         session,

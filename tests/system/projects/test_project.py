@@ -940,6 +940,28 @@ class TestProject(TestMLRunSystem):
             == mlrun.common.runtimes.constants.RunStates.completed
         )
 
+        second_rerun_id = mlrun.retry_pipeline(
+            run_id=run_id.run_id, project=project_name
+        )
+        parallel_rerun_id = mlrun.retry_pipeline(
+            run_id=run_id.run_id, project=project_name
+        )
+
+        assert (
+            second_rerun_id == parallel_rerun_id
+        ), "retry_pipeline must return the same rerun ID when called twice"
+
+        rerunners = project.list_runs(
+            labels=[
+                f"{mlrun_constants.MLRunInternalLabels.original_workflow_id}={run_id.run_id}",
+                f"{mlrun_constants.MLRunInternalLabels.workflow_id}={rerun_id}",
+                f"{mlrun_constants.MLRunInternalLabels.job_type}={mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER}",
+            ]
+        )
+        assert (
+            len(rerunners) == 1
+        ), f"Idempotent retry created extra runner – found {len(rerunners)}"
+
     def test_build_and_run(self):
         # test that build creates a proper image and run will use the updated function (with the built image)
         name = "buildandrun"

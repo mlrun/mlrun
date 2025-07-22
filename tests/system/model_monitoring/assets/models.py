@@ -71,7 +71,7 @@ class IncModel(mlrun.serving.states.Model):
         self.inc = inc
         self.gpu_number = gpu_number
 
-    def predict(self, body):
+    def predict(self, body, **kwargs):
         body["n"] += self.inc
         body.pop("models", None)
         if self.gpu_number is not None:
@@ -83,7 +83,7 @@ class IncModel(mlrun.serving.states.Model):
 
 
 class MyRemoteModel(mlrun.serving.states.Model):
-    def predict(self, body):
+    def predict(self, body, **kwargs):
         body["url"] = self.model_artifact.model_url
         body["default_config"] = self.model_artifact.default_config
         return body
@@ -160,7 +160,7 @@ class MyModel(mlrun.serving.Model):
         model_file, extra_data = self.get_model(".pkl")
         self.model = load(open(model_file, "rb"))
 
-    def predict(self, body: dict) -> dict:
+    def predict(self, body: dict, **kwargs) -> dict:
         """Generate model predictions from sample."""
         feats = np.asarray(body["inputs"])
         start = mlrun.utils.now_date().isoformat(sep=" ", timespec="microseconds")

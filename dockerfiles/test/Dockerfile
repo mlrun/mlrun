@@ -94,6 +94,7 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 
 
 COPY Makefile .
+COPY .dockerignore .
 COPY docs docs
 COPY server server
 COPY tests tests

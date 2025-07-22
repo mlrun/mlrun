@@ -101,4 +101,4 @@ COPY automation automation
 COPY dockerfiles dockerfiles
 COPY examples examples
 
-ENV PYTHONPATH="/mlrun/tests:/mlrun/automation:/mlrun/server/api/proto"
+ENV PYTHONPATH="/mlrun/tests:/mlrun/automation:/mlrun/schemas/proto:${PYTHONPATH}"

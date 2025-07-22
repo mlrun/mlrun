@@ -93,22 +93,6 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
 
-RUN find /mlrun \
-     \( -type f -name '*.pyc' \
-        -o -type d -name '__pycache__' \
-        -o -path '*/tests' \
-        -o -path '*/build' \
-        -o -path '*/dist' \) \
-     -exec ls {} + \
-
-RUN find /mlrun \
-     \( -type f -name '*.pyc' \
-        -o -type d -name '__pycache__' \
-        -o -path '*/tests' \
-        -o -path '*/build' \
-        -o -path '*/dist' \) \
-     -exec rm -rf {} + \
- && rm -rf /tmp/*
 
 COPY Makefile .
 COPY docs docs

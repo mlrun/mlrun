@@ -355,28 +355,34 @@ class SQLDB(DBInterface):
         :raises MLRunNotFoundError:   If the run does not exist.
         :raises MLRunConflictError:   If attempting to set `retrying=True` when already marked.
         """
-        run = self._get_run(session, uid, project, iteration=0, with_for_update=True)
-        if not run:
-            raise mlrun.errors.MLRunNotFoundError(f"Run {project}/{uid} not found")
+        try:
+            run = self._get_run(
+                session, uid, project, iteration=0, with_for_update=True
+            )
+            if not run:
+                raise mlrun.errors.MLRunNotFoundError(f"Run {project}/{uid} not found")
 
-        struct = run.struct
-        labels = run_labels(struct)
+            struct = run.struct
+            labels = run_labels(struct)
 
-        if not retrying:
-            labels.pop("retrying", None)
-        elif mlrun_constants.MLRunInternalLabels.retrying in labels:
-            # flush and commit so the lock is released immediately
+            if not retrying:
+                labels.pop("retrying", None)
+            elif mlrun_constants.MLRunInternalLabels.retrying in labels:
+                # flush and commit so the lock is released immediately
+                session.commit()
+                raise mlrun.errors.MLRunConflictError
+            else:
+                # TODO: bump counter label here in follow-up
+                labels[mlrun_constants.MLRunInternalLabels.retrying] = "true"
+
+            update_labels(run, labels)
+            run.struct = struct
+            self._upsert(session, [run])
+
+            return struct
+        finally:
+            # ALWAYS commit so the FOR UPDATE lock is released
             session.commit()
-            raise mlrun.errors.MLRunConflictError
-        else:
-            # TODO: bump counter label here in follow-up
-            labels[mlrun_constants.MLRunInternalLabels.retrying] = "true"
-
-        update_labels(run, labels)
-        run.struct = struct
-        self._upsert(session, [run])
-
-        return struct
 
     def list_distinct_runs_uids(
         self,

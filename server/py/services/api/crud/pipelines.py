@@ -517,6 +517,7 @@ class Pipelines(
                 run_id=run.metadata.uid,
                 status=str(run.status),
             )
+        raise mlrun.errors.MLRunNotFoundError
 
     def terminate_pipeline(
         self,

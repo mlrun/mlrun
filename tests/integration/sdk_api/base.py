@@ -41,7 +41,6 @@ class TestMLRunIntegration:
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent.parent
     results_path = root_path / "tests" / "test_results" / "integration"
     api_container_name = "mlrun-api"
-    built_api_image = False
     api_url = None
     _test_env = {}
     _old_env = {}
@@ -155,17 +154,6 @@ class TestMLRunIntegration:
         }
         if real_path := os.getenv("MLRUN_HTTPDB__REAL_PATH"):
             env_vars["MLRUN_HTTPDB__REAL_PATH"] = real_path
-
-        if not cls.built_api_image:
-            cls._logger.debug("Building API image")
-            cls._run_command(
-                "make",
-                args=["api"],
-                env=cls._extend_current_env(env_vars),
-                cwd=TestMLRunIntegration.root_path,
-            )
-            cls.built_api_image = True
-            cls._logger.debug("Built API image")
 
         image = image or os.getenv(
             "MLRUN_API_IMAGE_NAME_TAGGED", "mlrun/mlrun-api:unstable"

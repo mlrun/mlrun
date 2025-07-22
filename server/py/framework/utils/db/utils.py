@@ -143,6 +143,7 @@ class DBUtil:
     _DSN_ENV = "MLRUN_HTTPDB__DSN"
     _DRIVER_CACHE: dict[str, Any] = {}
     _DEFAULT_DB_CONFIGURATIONS = None
+    _EMPTY_DB_CONFIGURATIONS: set[str] = {"nil", "none"}
 
     def wait_for_db_liveness(
         self,
@@ -171,13 +172,16 @@ class DBUtil:
         self,
         config_items: Optional[Union[list[str], dict[str, Any]]] = None,
     ) -> None:
-        config_items = config_items or self._DEFAULT_DB_CONFIGURATIONS
-        if not config_items:
+        items = config_items or self._DEFAULT_DB_CONFIGURATIONS
+        keys = _to_keyset(items)
+
+        if not keys or keys.intersection(self._EMPTY_DB_CONFIGURATIONS):
             mlrun.utils.logger.debug(
                 "No configurations specified – skipping",
                 configs=config_items,
             )
             return
+
         connection = self._get_connection()
         try:
             self._apply_configurations(connection, config_items)
@@ -250,7 +254,7 @@ class DBUtil:
         connection: Any,
         config_items: Union[list[str], dict[str, str]],
     ) -> None:
-        mlrun.utils.logger.debug("Applying configurations", configs=config_items)
+        raise NotImplementedError()
 
 
 class UtilMySQL(DBUtil):
@@ -422,3 +426,14 @@ class UtilSQLite(DBUtil):
                     raise ValueError(f"Invalid PRAGMA '{item}', expected key=value")
                 cursor.execute(f"PRAGMA {name} = {value};")
         connection.commit()
+
+
+def _to_keyset(
+    items: Optional[Union[list[str], dict[str, Any]]],
+) -> Optional[set[str]]:
+    if items is None:
+        return None
+    if isinstance(items, dict):
+        return set(items.keys())
+    else:
+        return set(items)

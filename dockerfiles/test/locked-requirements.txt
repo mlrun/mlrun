@@ -970,9 +970,9 @@ docker==7.1.0 \
     # via
     #   mlflow
     #   testcontainers
-docstring-parser==0.16 \
-    --hash=sha256:538beabd0af1e2db0146b6bd3caa526c35a34d61af9fd2887f3a8a27a739aa6e \
-    --hash=sha256:bf0a1387354d3691d102edef7ec124f219ef639982d096e26e3b60aeffa90637
+docstring-parser==0.17.0 \
+    --hash=sha256:583de4a309722b3315439bb31d64ba3eebada841f2e2cee23b99df001434c912 \
+    --hash=sha256:cf2569abd23dce8099b300f9b4fa8191e9582dda731fd533daf54c4551658708
     # via
     #   -r requirements.txt
     #   kfp
@@ -1023,7 +1023,6 @@ filelock==3.18.0 \
     #   iterative-telemetry
     #   pytest-mock-resources
     #   snowflake-connector-python
-    #   torch
     #   transformers
 fire==0.7.0 ; python_full_version < '3.11' \
     --hash=sha256:961550f07936eaf65ad1dc8360f2b2bf8408fad46abbfa4d2a3794f8d2a95cdf
@@ -1827,9 +1826,9 @@ humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
     # via -r dockerfiles/mlrun-api/requirements.txt
-hypothesis==6.136.0 \
-    --hash=sha256:1d7f0b61195369c043b90484cb2948a369ff83b3584970586d5c9a6f60641625 \
-    --hash=sha256:a288672440d94f9cd307e3889c4087d1f8c8b114285fcf07ae415b3c7d4a26ab
+hypothesis==6.136.1 \
+    --hash=sha256:2585c89cf69a14a4b67dbc4e68a0bc3c321d34b12ced612aec383ad0112de44e \
+    --hash=sha256:ddceffdf0f489439d47ec032b23bf696c1c82600b9e675e60260ab23b55aa958
     # via -r dev-requirements.txt
 idna==3.10 \
     --hash=sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9 \
@@ -5272,14 +5271,6 @@ transformers==4.53.2 \
     --hash=sha256:6c3ed95edfb1cba71c4245758f1b4878c93bf8cde77d076307dacb2cbbd72be2 \
     --hash=sha256:db8f4819bb34f000029c73c3c557e7d06fc1b8e612ec142eecdae3947a9c78bf
     # via -r dev-requirements.txt
-triton==3.3.1 ; platform_machine == 'x86_64' and sys_platform == 'linux' \
-    --hash=sha256:9999e83aba21e1a78c1f36f21bce621b77bcaa530277a50484a7cb4a822f6e43 \
-    --hash=sha256:a3198adb9d78b77818a5388bff89fa72ff36f9da0bc689db2f0a651a67ce6a42 \
-    --hash=sha256:b31e3aa26f8cb3cc5bf4e187bf737cbacf17311e1112b781d4a059353dfd731b \
-    --hash=sha256:b74db445b1c562844d3cfad6e9679c72e93fdfb1a90a24052b03bb5c49d1242e \
-    --hash=sha256:b89d846b5a4198317fec27a5d3a609ea96b6d557ff44b56c23176546023c4240 \
-    --hash=sha256:f6139aeb04a146b0b8e0fbbd89ad1e65861c57cfed881f21d62d3cb94a36bab7
-    # via torch
 typer==0.16.0 \
     --hash=sha256:1f79bed11d4d02d4310e3c1b7ba594183bcedb0ac73b27a9e5f28f6fb5b98855 \
     --hash=sha256:af377ffaee1dbe37ae9440cb4e8f11686ea5ce4e9bae01b84ae7c63b87f1dd3b

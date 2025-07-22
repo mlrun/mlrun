@@ -99,6 +99,14 @@ RUN find /mlrun \
         -o -path '*/tests' \
         -o -path '*/build' \
         -o -path '*/dist' \) \
+     -exec ls {} + \
+
+RUN find /mlrun \
+     \( -type f -name '*.pyc' \
+        -o -type d -name '__pycache__' \
+        -o -path '*/tests' \
+        -o -path '*/build' \
+        -o -path '*/dist' \) \
      -exec rm -rf {} + \
  && rm -rf /tmp/*
 

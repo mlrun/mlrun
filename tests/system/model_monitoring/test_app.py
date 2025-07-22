@@ -1708,6 +1708,12 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
             executor.submit(self._set_infra)
             executor.submit(self._deploy_model_serving)
 
+    def custom_teardown(self) -> None:
+        mlrun.model_monitoring.delete_model_monitoring_schedules_user_folder(
+            self.project_name
+        )
+        return super().custom_teardown()
+
     @pytest.mark.parametrize("run_local", [False, True])
     @pytest.mark.parametrize("write_output", [True])
     def test_count_app(self, run_local: bool, write_output: bool) -> None:

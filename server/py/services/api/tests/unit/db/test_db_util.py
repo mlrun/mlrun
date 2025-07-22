@@ -11,24 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import unittest.mock
 
 import pytest
 
 import framework.utils.db.utils
 
 
-@pytest.mark.integration
-def test_mysql_apply_strict_all_tables_live(
+@pytest.mark.parametrize("empty_key", ["nil", "none"])
+def test_set_configurations_skips_when_nil_or_none(
     db_util: framework.utils.db.utils.DBUtil,
+    monkeypatch,
+    empty_key: str,
 ):
-    original = list(db_util.get_current_configurations())
-    if "PIPES_AS_CONCAT" in original:
-        raise AssertionError(
-            "The test is not applicable, 'PIPES_AS_CONCAT' is already set."
-        )
+    mocked_apply = unittest.mock.MagicMock()
+    monkeypatch.setattr(db_util, "_apply_configurations", mocked_apply)
 
-    db_util.set_configurations(["PIPES_AS_CONCAT"])
-    assert db_util.get_current_configurations()
+    db_util.set_configurations([empty_key])
 
-    db_util.set_configurations(original)
-    assert list(db_util.get_current_configurations()) == original
+    mocked_apply.assert_not_called()

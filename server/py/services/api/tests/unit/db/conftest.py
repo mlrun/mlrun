@@ -15,20 +15,10 @@
 import pytest
 
 import framework.utils.db.utils
+import framework.utils.singletons.db
 
 
-@pytest.mark.integration
-def test_mysql_apply_strict_all_tables_live(
-    db_util: framework.utils.db.utils.DBUtil,
-):
-    original = list(db_util.get_current_configurations())
-    if "PIPES_AS_CONCAT" in original:
-        raise AssertionError(
-            "The test is not applicable, 'PIPES_AS_CONCAT' is already set."
-        )
-
-    db_util.set_configurations(["PIPES_AS_CONCAT"])
-    assert db_util.get_current_configurations()
-
-    db_util.set_configurations(original)
-    assert list(db_util.get_current_configurations()) == original
+@pytest.fixture
+def db_util() -> framework.utils.db.utils.DBUtil:
+    util = framework.utils.db.utils.DBUtil()
+    return util

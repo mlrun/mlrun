@@ -22,8 +22,10 @@ import os
 import socket
 import traceback
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Optional, Union
 
+import pandas as pd
 import storey
 from nuclio import Context as NuclioContext
 from nuclio.request import Logger as NuclioLogger
@@ -561,6 +563,7 @@ def v2_serving_init(context, namespace=None):
 async def async_execute_graph(
     context: MLClientCtx,
     data: DataItem,
+    timestamp_column: Optional[str],
     batching: bool,
     batch_size: Optional[int],
     read_as_lists: bool,
@@ -605,14 +608,45 @@ async def async_execute_graph(
                 f"(status='{task_state}')"
             )
 
-    server.graph = add_system_steps_to_graph(
-        server.project,
-        copy.deepcopy(server.graph),
-        spec.get("track_models"),
-        context,
-        spec,
-        pause_until_background_task_completion=False,  # we've already awaited it
-    )
+    mm_enabled = True
+    df = data.as_df()
+
+    if df.empty:
+        context.logger.warn("Job terminated due to empty inputs (0 rows)")
+        return []
+
+    if timestamp_column:
+        context.logger.info(f"Sorting dataframe by {timestamp_column}")
+        df[timestamp_column] = pd.to_datetime(  # in case it's a string
+            df[timestamp_column]
+        )
+        df.sort_values(by=timestamp_column, inplace=True)
+        if len(df) >= 2:
+            start_time = df[timestamp_column].iloc[0]
+            end_time = df[timestamp_column].iloc[-1]
+            time_range = end_time - start_time
+            start_time = start_time.isoformat()
+            end_time = end_time.isoformat()
+            # TODO: tie this to the controller's base period
+            if time_range > pd.Timedelta("10000h"):
+                context.logger.warn(
+                    f"Dataframe time range is too long: {time_range}. Job will not be tracked!"
+                )
+                mm_enabled = False
+        else:
+            start_time = end_time = df["timestamp"].iloc[0].isoformat()
+    else:
+        start_time = datetime.now(tz=timezone.utc).isoformat()
+
+    if mm_enabled:
+        server.graph = add_system_steps_to_graph(
+            server.project,
+            copy.deepcopy(server.graph),
+            spec.get("track_models"),
+            context,
+            spec,
+            pause_until_background_task_completion=False,  # we've already awaited it
+        )
 
     if config.log_level.lower() == "debug":
         server.verbose = True
@@ -633,12 +667,21 @@ async def async_execute_graph(
     if server.verbose:
         context.logger.info(server.to_yaml())
 
-    df = data.as_df()
-
     responses = []
 
     async def run(body):
         event = storey.Event(id=index, body=body)
+        if timestamp_column:
+            body = event.body
+            if not isinstance(body, dict):
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"When timestamp_column=True, event body must be a dict – got {type(body).__name__} instead"
+                )
+            if timestamp_column not in body:
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Event body '{body}' did not contain timestamp column '{timestamp_column}'"
+                )
+            event._original_timestamp = body[timestamp_column]
         response = await server.run(event, context)
         responses.append(response)
 
@@ -665,12 +708,42 @@ async def async_execute_graph(
     if asyncio.iscoroutine(termination_result):
         await termination_result
 
+    model_endpoint_uids = spec.get("model_endpoint_uids", [])
+
+    # needed for output_stream to be created
+    server = GraphServer.from_dict(spec)
+    server.init_states(None, namespace)
+
+    batch_completion_time = datetime.now(tz=timezone.utc).isoformat()
+
+    if not timestamp_column:
+        end_time = batch_completion_time
+
+    mm_stream_record = dict(
+        kind="batch_complete",
+        project=context.project,
+        first_timestamp=start_time,
+        last_timestamp=end_time,
+        batch_completion_time=batch_completion_time,
+    )
+    output_stream = server.context.stream.output_stream
+    for mep_uid in spec.get("model_endpoint_uids", []):
+        mm_stream_record["endpoint_id"] = mep_uid
+        output_stream.push(mm_stream_record, partition_key=mep_uid)
+
+    context.logger.info(
+        f"Job completed processing {len(df)} rows",
+        timestamp_column=timestamp_column,
+        model_endpoint_uids=model_endpoint_uids,
+    )
+
     return responses
 
 
 def execute_graph(
     context: MLClientCtx,
     data: DataItem,
+    timestamp_column: Optional[str] = None,
     batching: bool = False,
     batch_size: Optional[int] = None,
     read_as_lists: bool = False,
@@ -681,6 +754,7 @@ def execute_graph(
 
     :param context: The job's execution client context.
     :param data: The input data to the job, to be pushed into the graph row by row, or in batches.
+    :param timestamp_column: The name of the column that will be used as the timestamp for model monitoring purposes.
     :param batching: Whether to push one or more batches into the graph rather than row by row.
     :param batch_size: The number of rows to push per batch. If not set, and batching=True, the entire dataset will
         be pushed into the graph in one batch.
@@ -691,7 +765,13 @@ def execute_graph(
     """
     return asyncio.run(
         async_execute_graph(
-            context, data, batching, batch_size, read_as_lists, nest_under_inputs
+            context,
+            data,
+            timestamp_column,
+            batching,
+            batch_size,
+            read_as_lists,
+            nest_under_inputs,
         )
     )
 

@@ -1200,9 +1200,7 @@ class LLModel(Model):
     def __init__(self, name: str, **kwargs):
         super().__init__(name, **kwargs)
 
-    def predict(
-        self, body: Any, **kwargs
-    ) -> Any:
+    def predict(self, body: Any, **kwargs) -> Any:
         messages: list[dict] = kwargs.get("messages", [])
         model_configuration: dict = kwargs.get("model_configuration", {})
         if isinstance(
@@ -1215,9 +1213,7 @@ class LLModel(Model):
             )
         return body
 
-    async def predict_async(
-        self, body: Any, **kwargs
-    ) -> Any:
+    async def predict_async(self, body: Any, **kwargs) -> Any:
         messages: list[dict] = kwargs.get("messages", [])
         model_configuration: dict = kwargs.get("model_configuration", {})
         if isinstance(

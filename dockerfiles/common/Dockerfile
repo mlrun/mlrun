@@ -32,4 +32,5 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         unzip \
         libzmq3-dev \
         libffi-dev \
-        python3-dev
+        python3-dev\
+        python3-zmq

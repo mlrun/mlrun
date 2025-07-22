@@ -1573,35 +1573,40 @@ class ModelRunnerStep(MonitoredStep):
                                       (e.g., `"outputs.my_model_outputs"`) and a list or dictionary-type object in the
                                        specified path.
 
-                    Example mappings::
+                    Example for dict outputs and it translation to list or to list of lists::
 
-                        body:
+                    result_path = "path"
+
+                        predict output:
                         {
                             "path": {"a": 1}
                         }
-                        # → [1]
+                        # monitored as → [1]
 
-                        body:
+                        predict output:
                         {
                             "path": {"a": [1, 2]}
                         }
-                        # → [1, 2]
+                        # monitored as → [1, 2]
 
-                        body:
+                        predict output:
                         {
                             "path": {"a": [1, 2], "b": [3, 4]}
                         }
-                        # → [[1, 3], [2, 4]]
+                        # monitored as → [[1, 3], [2, 4]]
 
                     If `outputs` is provided, the schema order will be respected. Example::
 
                         outputs = ["a", "b"]
 
-                        body:
+                        predict output:
                         {
                             "path": {"b": [1, 2], "a": [3, 4]}
                         }
-                        # → [[3, 1], [4, 2]]
+                        # monitored as → [[3, 1], [4, 2]]
+
+                    Note: The output list per label should be equal in length, if label is not part of monitored output
+                    it can be omitted from the outputs provided
 
           :param override:            bool allow override existing model on the current ModelRunnerStep.
           :param model_parameters:    Parameters for model instantiation

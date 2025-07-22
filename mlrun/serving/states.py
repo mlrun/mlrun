@@ -1262,12 +1262,16 @@ class LLModel(Model):
             return None, None
         prompt_legend = llm_prompt_artifact.spec.prompt_legend
         prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
-        kwargs = {
-            place_holder: body.get(body_map["field"])
-            for place_holder, body_map in prompt_legend.items()
-        }
-        for d in prompt_template:
-            d["content"] = d["content"].format(**kwargs)
+        if prompt_legend:
+            kwargs = {
+                place_holder: body.get(body_map["field"])
+                for place_holder, body_map in prompt_legend.items()
+            }
+            for d in prompt_template:
+                try:
+                    d["content"] = d["content"].format(**kwargs)
+                except KeyError:
+                    logger.warning("Legend provided was missing key keeping legend as is.")
         return prompt_template, llm_prompt_artifact.spec.model_configuration
 
 

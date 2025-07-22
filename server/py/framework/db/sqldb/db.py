@@ -364,21 +364,16 @@ class SQLDB(DBInterface):
             struct = run.struct
             labels = run_labels(struct)
 
-            if retrying:
-                if mlrun_constants.MLRunInternalLabels.retrying in labels:
-                    # flush and commit so the lock is released immediately
-                    session.commit()
-                    raise mlrun.errors.MLRunConflictError
-                else:
-                    labels[mlrun_constants.MLRunInternalLabels.retrying] = "true"
-                    labels[mlrun_constants.MLRunInternalLabels.rerun_counter] = (
-                        labels.get(mlrun_constants.MLRunInternalLabels.rerun_counter, 0)
-                        + 1
-                    )
-            else:
+            if not retrying:
                 labels.pop("retrying", None)
-
-            update_in(struct, "metadata.labels", labels)
+            elif mlrun_constants.MLRunInternalLabels.retrying in labels:
+                raise mlrun.errors.MLRunConflictError
+            else:
+                labels[mlrun_constants.MLRunInternalLabels.retrying] = "true"
+                labels[mlrun_constants.MLRunInternalLabels.rerun_counter] = (
+                    labels.get(mlrun_constants.MLRunInternalLabels.rerun_counter, 0) + 1
+                )
+            update_labels(run, labels)
             run.struct = struct
             self._upsert(session, [run])
 

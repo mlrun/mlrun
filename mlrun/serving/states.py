@@ -1569,44 +1569,17 @@ class ModelRunnerStep(MonitoredStep):
                                       be equal to the model_class predict method outputs (length, and order)
           :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
                                       (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
+                                      - If a `dict` is provided, each key will represent a Feature.
+                                      - If a `list` or `list of lists` is provided, it must follow the order and size
+                                       defined by the input schema.
           :param result_path:         Path inside the user output event. Expects dot notation
-                                      (e.g., `"outputs.my_model_outputs"`) and a list or dictionary-type object in the
-                                       specified path.
-
-                    Example for dict outputs and it translation to list or to list of lists::
-
-                    result_path = "path"
-
-                        predict output:
-                        {
-                            "path": {"a": 1}
-                        }
-                        # monitored as → [1]
-
-                        predict output:
-                        {
-                            "path": {"a": [1, 2]}
-                        }
-                        # monitored as → [1, 2]
-
-                        predict output:
-                        {
-                            "path": {"a": [1, 2], "b": [3, 4]}
-                        }
-                        # monitored as → [[1, 3], [2, 4]]
-
-                    If `outputs` is provided, the schema order will be respected. Example::
-
-                        outputs = ["a", "b"]
-
-                        predict output:
-                        {
-                            "path": {"b": [1, 2], "a": [3, 4]}
-                        }
-                        # monitored as → [[3, 1], [4, 2]]
-
-                    Note: The output list per label should be equal in length, if label is not part of monitored output
-                    it can be omitted from the outputs provided
+                                      (e.g., `"outputs.my_model_outputs"`) and a list or list of list or dictionary-type
+                                       object in the specified path.
+                                       - If a `dict` is provided, each key will represent a label.
+                                       - If a `list` or `list of lists` is provided, it must follow the order and size
+                                       defined by the output schema.
+                                       example: output_schema = ["a", "b"] -> output = [[1, 2], [3, 4]]
+                                       -> two results a = [1,3] , b = [3, 4]
 
           :param override:            bool allow override existing model on the current ModelRunnerStep.
           :param model_parameters:    Parameters for model instantiation

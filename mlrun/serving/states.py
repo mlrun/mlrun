@@ -1578,9 +1578,8 @@ class ModelRunnerStep(MonitoredStep):
                                       If a ``dict`` is provided, each key will represent a label.
                                       If a ``list`` or ``list of lists`` is provided, it must follow the order and
                                       size defined by the output schema.
-                                      Example:
-                                          If ``output_schema = ["a", "b"]`` and ``output = [[1, 2], [3, 4]]``,
-                                          the two results will be: ``a = [1, 3]``, ``b = [2, 4]``.
+                                      Example: If ``output_schema = ["a", "b"]`` and ``output = [[1, 2], [3, 4]]``,
+                                      the two results will be: ``a = [1, 3]``, ``b = [2, 4]``.
 
           :param override:            bool allow override existing model on the current ModelRunnerStep.
           :param model_parameters:    Parameters for model instantiation

@@ -220,8 +220,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Create tutorials tar
         run: |
-          wget -c https://github.com/v3io/tutorials/blob/mlrun-release-stable/welcome.ipynb -P docs
-          wget -c https://github.com/v3io/tutorials/blob/mlrun-release-stable/README.md -P docs
+          wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/welcome.ipynb -P docs
+          wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/README.md -P docs
           tar -cvf mlrun-tutorials.tar docs/tutorials docs/README.md docs/welcome.ipynb
           rm -rf docs/welcome.ipynb docs/README.md
       - name: Add tutorials tar to release

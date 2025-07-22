@@ -84,11 +84,13 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 
 WORKDIR /mlrun
 COPY Makefile .
-COPY automation automation
-COPY tests tests
-COPY docs docs
-COPY mlrun mlrun
 COPY *requirements.txt .
+COPY setup.py .
+COPY packages.py .
+COPY README.md .
+COPY dependencies.py .
+COPY pyproject.toml .
+COPY mlrun mlrun
 COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
 
 ENV PYTHONPATH="/mlrun/tests:/mlrun/automation${PYTHONPATH:+:${PYTHONPATH}}"

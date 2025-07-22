@@ -1042,12 +1042,7 @@ class ProjectSpec(ModelObj):
                 artifact = artifact.to_dict()
             else:  # artifact is a dict
                 # imported/legacy artifacts don't have metadata,spec,status fields
-                key_field = (
-                    "key"
-                    if _is_imported_artifact(artifact)
-                    or mlrun.utils.is_legacy_artifact(artifact)
-                    else "metadata.key"
-                )
+                key_field = "key" if _is_imported_artifact(artifact) else "metadata.key"
                 key = mlrun.utils.get_in(artifact, key_field, "")
                 if not key:
                     raise ValueError(f'artifacts "{key_field}" must be specified')
@@ -5078,7 +5073,6 @@ class MlrunProject(ModelObj):
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
-        :param last: Deprecated - currently not used (will be removed in 1.10.0).
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
@@ -5565,8 +5559,8 @@ class MlrunProject(ModelObj):
         """
         Get drift counts over time for the project.
 
-        This method returns a list of tuples, each representing a time-interval in a granularity set by the
-        duration of the given time range and the number of suspected drifts and detected drifts in that interval.
+        This method returns a list of tuples, each representing a time-interval (in a granularity set by the
+        duration of the given time range) and the number of suspected drifts and detected drifts in that interval.
         For a range of 6 hours or less, the granularity is 10 minute, for a range of 2 hours to 72 hours, the
         granularity is 1 hour, and for a range of more than 72 hours, the granularity is 24 hours.
 

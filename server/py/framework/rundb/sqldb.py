@@ -968,6 +968,11 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def wait_for_background_task_to_reach_terminal_state(
+        self, name: str, project: str = ""
+    ) -> mlrun.common.schemas.BackgroundTask:
+        raise NotImplementedError()
+
     def store_api_gateway(
         self,
         api_gateway: Union[

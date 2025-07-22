@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections.abc import Awaitable
-from typing import Callable, Optional, TypeVar, Union
+from typing import Any, Callable, Optional, TypeVar, Union
 
 import mlrun.errors
 from mlrun.datastore.remote_client import (
@@ -56,9 +56,16 @@ class ModelProvider(BaseRemoteClient):
         )
         self.default_invoke_kwargs = default_invoke_kwargs or {}
         self._client = None
-        self._default_operation = None
         self._async_client = None
-        self._default_async_operation = None
+
+    def get_client_options(self) -> dict:
+        """
+        Returns a dictionary containing credentials and configuration
+        options required for client creation.
+
+        :return:           A dictionary with client-specific settings.
+        """
+        return {}
 
     def load_client(self) -> None:
         """
@@ -68,8 +75,6 @@ class ModelProvider(BaseRemoteClient):
         Subclasses should override this method to:
         - Create and configure the provider-specific client instance.
         - Assign the client instance to self._client.
-        - Define a default operation callable (e.g., a method to invoke model completions)
-        and assign it to self._default_operation.
         """
 
         raise NotImplementedError("load_client method is not implemented")
@@ -122,39 +127,62 @@ class ModelProvider(BaseRemoteClient):
         """
         raise NotImplementedError("invoke method is not implemented")
 
-    def customized_invoke(
+    def custom_invoke(
         self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs
     ) -> Optional[T]:
-        raise NotImplementedError("customized_invoke method is not implemented")
+        """
+        Invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.) with the given keyword arguments.
+
+        Useful for dynamically calling model methods like text generation, chat completions, or image generation.
+        The operation must be a callable that accepts keyword arguments.
+
+        :param operation:       A callable representing the model operation (e.g., a client method).
+        :param invoke_kwargs:   Keyword arguments to pass to the operation.
+        :return:                The full response returned by the operation.
+        """
+        raise NotImplementedError("custom_invoke method is not implemented")
 
     @property
-    def client(self):
+    def client(self) -> Any:
         return self._client
 
     @property
-    def model(self):
+    def model(self) -> Optional[str]:
         return None
 
-    def get_invoke_kwargs(self, invoke_kwargs):
+    def get_invoke_kwargs(self, invoke_kwargs) -> dict:
         kwargs = self.default_invoke_kwargs.copy()
         kwargs.update(invoke_kwargs)
         return kwargs
 
     @property
-    def async_client(self):
+    def async_client(self) -> Any:
         if not self.support_async:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"{self.__class__.__name__} does not support async operations"
             )
         return self._async_client
 
-    async def async_customized_invoke(self, **kwargs):
-        raise NotImplementedError("async_customized_invoke is not implemented")
+    async def async_custom_invoke(
+        self, operation: Optional[Callable[..., Awaitable[T]]], **invoke_kwargs
+    ) -> Optional[T]:
+        """
+        Asynchronously invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.)
+        with the given keyword arguments.
+
+        The operation must be an async callable (e.g., a method from an async client) that accepts keyword arguments.
+
+        :param operation:       An async callable representing the model operation (e.g., an async_client method).
+        :param invoke_kwargs:   Keyword arguments to pass to the operation.
+        :return:                The full response returned by the awaited operation.
+        """
+        raise NotImplementedError("async_custom_invoke is not implemented")
 
     async def async_invoke(
         self,
         messages: Optional[list[dict]] = None,
         as_str: bool = False,
         **invoke_kwargs,
-    ) -> Awaitable[str]:
+    ) -> Optional[str]:
+        """Async version of `invoke`. See `invoke` for full documentation."""
         raise NotImplementedError("async_invoke is not implemented")

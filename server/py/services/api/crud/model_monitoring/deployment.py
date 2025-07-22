@@ -48,6 +48,7 @@ import mlrun.model_monitoring.writer
 import mlrun.serving.states
 import mlrun.utils.v3io_clients
 from mlrun import feature_store as fstore
+from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
 from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFileChief
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
@@ -59,7 +60,6 @@ import framework.db.session
 import framework.utils.background_tasks
 import framework.utils.clients.async_nuclio
 import framework.utils.singletons.k8s
-import services.api.api.endpoints.nuclio
 import services.api.crud.model_monitoring.helpers
 import services.api.utils.functions
 from framework.db.sqldb.models import ModelEndpoint
@@ -197,7 +197,9 @@ class MonitoringDeployment:
                 stream_image=stream_image, parquet_target=parquet_target
             )
             fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=fn
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                function=fn,
             )
             logger.debug(
                 "Submitted the stream deployment",
@@ -252,7 +254,9 @@ class MonitoringDeployment:
                 ),
             )
             fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=fn
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                function=fn,
             )
             logger.debug(
                 "Submitted the controller deployment",
@@ -284,7 +288,9 @@ class MonitoringDeployment:
                 writer_image=writer_image
             )
             fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=fn
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                function=fn,
             )
             logger.debug(
                 "Submitted the writer deployment",
@@ -414,6 +420,46 @@ class MonitoringDeployment:
         function.spec.min_replicas = stream_args.kafka.min_replicas
         function.spec.max_replicas = stream_args.kafka.max_replicas
 
+    @staticmethod
+    def create_model_monitoring_stream(
+        project: str,
+        stream_path: str,
+        shard_count: int,
+        retention_period_hours: int,
+        access_key: typing.Optional[str] = None,
+    ):
+        if stream_path.startswith("v3io://"):
+            import v3io.dataplane
+
+            _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
+
+            logger.info(
+                "Creating stream",
+                project=project,
+                stream_path=stream_path,
+                shard_count=shard_count,
+                container=container,
+                endpoint=mlrun.mlconf.v3io_api,
+            )
+
+            v3io_client = v3io.dataplane.Client(
+                endpoint=mlrun.mlconf.v3io_api, access_key=access_key
+            )
+
+            response = v3io_client.stream.create(
+                container=container,
+                stream_path=stream_path,
+                shard_count=shard_count,
+                retention_period_hours=retention_period_hours,
+                raise_for_status=v3io.dataplane.RaiseForStatus.never,
+                access_key=access_key,
+            )
+
+            if not (
+                response.status_code == 400 and "ResourceInUse" in str(response.body)
+            ):
+                response.raise_for_status([409, 204])
+
     def _apply_and_create_v3io_source(
         self,
         *,
@@ -440,7 +486,7 @@ class MonitoringDeployment:
             "worker_allocation_mode": "static",
             "max_workers": stream_args.v3io.num_workers,
         }
-        services.api.api.endpoints.nuclio.create_model_monitoring_stream(
+        self.create_model_monitoring_stream(
             project=self.project,
             stream_path=stream_path,
             shard_count=stream_args.v3io.shard_count,
@@ -741,7 +787,9 @@ class MonitoringDeployment:
             )
 
             fn, ready = services.api.utils.functions.build_function(
-                db_session=self.db_session, auth_info=self.auth_info, function=func
+                db_session=self.db_session,
+                auth_info=self.auth_info,
+                function=func,
             )
 
             logger.debug(
@@ -984,49 +1032,127 @@ class MonitoringDeployment:
         if isinstance(
             self._stream_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
         ):
-            async with framework.utils.clients.async_nuclio.Client(
-                self.auth_info
-            ) as client:
-                for function in function_summaries:
-                    stream_path = mlrun.model_monitoring.get_stream_path(
-                        project=self.project,
-                        function_name=function.name,
-                        secret_provider=self._secret_provider,
-                        profile=self.__stream_profile,
-                    )
+            # V3IO stream stats
+            await self._enrich_v3io_stream_stats(
+                function_summaries=function_summaries, agg_stats=agg_stats
+            )
+        else:
+            # Kafka topic stats
+            self._enrich_kafka_topic_stats(
+                function_summaries=function_summaries,
+                agg_stats=agg_stats,
+            )
 
-                    _, container, stream_path = (
-                        mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-                            stream_path
-                        )
-                    )
+    async def _enrich_v3io_stream_stats(
+        self,
+        function_summaries: list[mlrun.common.schemas.model_monitoring.FunctionSummary],
+        agg_stats: bool = True,
+    ) -> None:
+        async with framework.utils.clients.async_nuclio.Client(
+            self.auth_info
+        ) as client:
+            for function in function_summaries:
+                stream_path = mlrun.model_monitoring.get_stream_path(
+                    project=self.project,
+                    function_name=function.name,
+                    secret_provider=self._secret_provider,
+                    profile=self.__stream_profile,
+                )
 
-                    stream_stats = await client.get_v3io_shard_lags(
-                        project_name=self.project,
-                        function_name=function.name,
-                        stream_path=stream_path,
-                        container_name=container,
+                _, container, stream_path = (
+                    mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                        stream_path
                     )
+                )
 
-                    stream_stats = stream_stats.get(
-                        f"{container}/{stream_path}", {}
-                    ).get("serving", {})
-                    if stream_stats and agg_stats:
-                        lag = 0
-                        committed = 0
-                        for _, stats in stream_stats.items():
-                            lag += stats.get("lag", 0)
-                            committed += stats.get("committed", 0)
-                        stream_stats = {
-                            "lag": lag,
+                stream_stats = await client.get_v3io_shard_lags(
+                    project_name=self.project,
+                    function_name=function.name,
+                    stream_path=stream_path,
+                    container_name=container,
+                )
+
+                stream_stats = stream_stats.get(f"{container}/{stream_path}", {}).get(
+                    "serving", {}
+                )
+                if stream_stats and agg_stats:
+                    lag = 0
+                    committed = 0
+                    for _, stats in stream_stats.items():
+                        lag += stats.get("lag", 0)
+                        committed += stats.get("committed", 0)
+                    stream_stats = {
+                        "lag": lag,
+                        "committed": committed,
+                    }
+                else:
+                    # remove "current" key from the stream stats shards
+                    for _, stats in stream_stats.items():
+                        stats.pop("current", None)
+
+                function.stats["stream_stats"] = stream_stats
+
+    def _enrich_kafka_topic_stats(
+        self,
+        function_summaries: list[mlrun.common.schemas.model_monitoring.FunctionSummary],
+        agg_stats: bool = True,
+    ):
+        import kafka
+
+        consumer = kafka.KafkaConsumer(
+            bootstrap_servers=self.__stream_profile.brokers,
+            group_id=self.__stream_profile.group,
+        )
+        # Iterate over each function and get the stream stats
+        for function in function_summaries:
+            topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
+                project=self.project, function_name=function.name
+            )
+            try:
+                partitions = consumer.partitions_for_topic(topic)
+                if not partitions:
+                    logger.warning(
+                        f"No partitions found for topic {topic} in function {function.name}"
+                    )
+                    continue
+
+                if agg_stats:
+                    total_committed = 0
+                    total_lag = 0
+
+                    for partition in partitions:
+                        tp = kafka.TopicPartition(topic, partition)
+                        committed = consumer.committed(tp) or 0
+                        total_committed += committed
+                        lag = consumer.end_offsets([tp])[tp] - committed
+                        total_lag += lag
+
+                    stream_stats = {
+                        "committed": total_committed,
+                        "lag": total_lag,
+                    }
+                else:
+                    stream_stats = {}
+                    # Get the committed offsets and lag for each partition
+                    for partition in partitions:
+                        tp = kafka.TopicPartition(topic, partition)
+                        committed = consumer.committed(tp) or 0
+                        lag = consumer.end_offsets([tp])[tp] - committed
+                        stream_stats[partition] = {
                             "committed": committed,
+                            "lag": lag,
                         }
-                    else:
-                        # remove "current" key from the stream stats shards
-                        for _, stats in stream_stats.items():
-                            stats.pop("current", None)
 
-                    function.stats["stream_stats"] = stream_stats
+                function.stats["stream_stats"] = stream_stats
+
+            except kafka.errors.UnknownTopicOrPartitionError as exc:
+                logger.warning(
+                    "Failed to get topic stats",
+                    project=self.project,
+                    function_name=function.name,
+                    topic=topic,
+                    error_message=mlrun.errors.err_to_str(exc),
+                )
 
     async def _get_function_summary_applications(
         self,
@@ -1799,6 +1925,7 @@ class MonitoringDeployment:
         function: dict,
         function_name: str,
         project: str,
+        is_batch: bool,
     ) -> tuple[
         list[
             tuple[
@@ -1853,6 +1980,7 @@ class MonitoringDeployment:
                 ),
                 model_endpoints_dict=model_endpoints_dict,
                 project=project,
+                override_type=mm_constants.EndpointType.BATCH_EP if is_batch else None,
             )
         )  # model endpoint, creation strategy, model path
         function.spec.graph = graph
@@ -1869,6 +1997,7 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
     ) -> tuple[
         list[
             tuple[
@@ -1903,6 +2032,7 @@ class MonitoringDeployment:
                     sampling_percentage=sampling_percentage,
                     model_endpoints_dict=model_endpoints_dict,
                     project=project,
+                    override_type=override_type,
                 )
             )
         return model_endpoints_instructions, graph
@@ -1916,6 +2046,7 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -1945,7 +2076,9 @@ class MonitoringDeployment:
                     (
                         self._model_endpoint_draft(
                             name=route.name,
-                            endpoint_type=route.endpoint_type,
+                            endpoint_type=override_type
+                            if override_type
+                            else route.endpoint_type,
                             model_class=route.class_name,
                             function_name=function_name,
                             function_tag=function_tag,
@@ -1983,7 +2116,9 @@ class MonitoringDeployment:
                 (
                     self._model_endpoint_draft(
                         name=router_step.name,
-                        endpoint_type=router_step.endpoint_type,
+                        endpoint_type=override_type
+                        if override_type
+                        else router_step.endpoint_type,
                         model_class=router_step.class_name,
                         function_name=function_name,
                         function_tag=function_tag,
@@ -2008,6 +2143,7 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2026,6 +2162,7 @@ class MonitoringDeployment:
                         sampling_percentage=sampling_percentage,
                         model_endpoints_dict=model_endpoints_dict,
                         project=project,
+                        override_type=override_type,
                     )
                 )
             elif isinstance(step, mlrun.serving.states.ModelRunnerStep):
@@ -2038,6 +2175,7 @@ class MonitoringDeployment:
                         sampling_percentage=sampling_percentage,
                         model_endpoints_dict=model_endpoints_dict,
                         project=project,
+                        override_type=override_type,
                     )
                 )
             else:
@@ -2060,7 +2198,9 @@ class MonitoringDeployment:
                         (
                             self._model_endpoint_draft(
                                 name=step.name,
-                                endpoint_type=step.endpoint_type,
+                                endpoint_type=override_type
+                                if override_type
+                                else step.endpoint_type,
                                 model_class=step.class_name,
                                 function_name=function_name,
                                 function_tag=function_tag,
@@ -2185,6 +2325,7 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, ModelEndpoint],
         project: str,
+        override_type: typing.Optional[mm_constants.EndpointType] = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2225,7 +2366,9 @@ class MonitoringDeployment:
                     (
                         self._model_endpoint_draft(
                             name=endpoint_name,
-                            endpoint_type=model_runner.endpoint_type,
+                            endpoint_type=override_type
+                            if override_type
+                            else model_runner.endpoint_type,
                             model_class=monitoring_data[endpoint_name].get(
                                 mlrun.common.schemas.MonitoringData.MODEL_CLASS
                             ),

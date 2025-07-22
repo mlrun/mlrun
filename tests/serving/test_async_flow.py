@@ -195,6 +195,10 @@ class MyRemoteModel(Model):
         body["default_config"] = self.model_artifact.default_config
         return body
 
+    async def predict_async(self, body):
+        body["async_triggered"] = "Async predict was triggered."
+        return body
+
 
 class MyLLM(LLModel):
     def predict(self, body, messages, model_configuration):
@@ -634,10 +638,21 @@ def test_model_runner_with_remote_model():
         endpoint_name="my_endpoint",
         model_artifact=model_artifact,
     )
-    graph.to(model_runner_step).respond()
+    async_model_runner_step = ModelRunnerStep(name="my_async_model_runner")
+    async_model_runner_step.add_model(
+        model_class="MyRemoteModel",
+        execution_mechanism="asyncio",
+        endpoint_name="my_async_endpoint",
+        model_artifact=model_artifact,
+    )
+
+    graph.to(model_runner_step).to(async_model_runner_step).respond()
     assert (
         "my_endpoint" in graph.model_endpoints_names
     ), "model endpoint name not in graph"
+    assert (
+        "my_async_endpoint" in graph.model_endpoints_names
+    ), "async model endpoint name not in graph"
     # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
     # Mocked function used to verify artifact URI is passed correctly.
 
@@ -651,6 +666,7 @@ def test_model_runner_with_remote_model():
         assert resp["default_config"] == {"model_version": "4"}
         assert resp["url"] == "http://localhost:8080/v2/models/mymodel/infer"
         assert resp["prompt"] == "What is the capital of france?"
+        assert resp["async_triggered"] == "Async predict was triggered."
     finally:
         server.wait_for_completion()
 

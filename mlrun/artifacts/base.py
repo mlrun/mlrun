@@ -16,7 +16,6 @@ import os
 import pathlib
 import tempfile
 import typing
-import warnings
 import zipfile
 
 import yaml
@@ -874,36 +873,6 @@ def generate_target_path(item: Artifact, artifact_path, producer):
             suffix = f".{item.format}"
 
     return f"{artifact_path}{item.key}{suffix}"
-
-
-# TODO: Remove once data migration v5 is obsolete
-def convert_legacy_artifact_to_new_format(
-    legacy_artifact: dict,
-) -> Artifact:
-    """Converts a legacy artifact to a new format.
-    :param legacy_artifact: The legacy artifact to convert.
-    :return: The converted artifact.
-    """
-    artifact_key = legacy_artifact.get("key", "")
-    artifact_tag = legacy_artifact.get("tag", "")
-    if artifact_tag:
-        artifact_key = f"{artifact_key}:{artifact_tag}"
-    # TODO: Remove once data migration v5 is obsolete
-    warnings.warn(
-        f"Converting legacy artifact '{artifact_key}' to new format. This will not be supported in MLRun 1.10.0. "
-        f"Make sure to save the artifact/project in the new format.",
-        FutureWarning,
-    )
-
-    artifact = mlrun.artifacts.artifact_types.get(
-        legacy_artifact.get("kind", "artifact"), mlrun.artifacts.Artifact
-    )()
-
-    artifact.metadata = artifact.metadata.from_dict(legacy_artifact)
-    artifact.spec = artifact.spec.from_dict(legacy_artifact)
-    artifact.status = artifact.status.from_dict(legacy_artifact)
-
-    return artifact
 
 
 def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):

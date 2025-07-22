@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.common.schemas import ModelEndpoint, ModelEndpointList
+from mlrun.serving import Model
 
-from .db import get_tsdb_connector
-from .db._schedules import delete_model_monitoring_schedules_user_folder
-from .helpers import get_stream_path
+
+class DummyModel(Model):
+    def predict(self, body):
+        body["extra"] = 123
+        return body

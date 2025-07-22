@@ -64,7 +64,7 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/test/locked-requirements.txt,target=locked-requirements.txt \
     uv pip sync  --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
-WORKDIR /tmp/mlrun
+WORKDIR /mlrun
 COPY *requirements.txt .
 COPY setup.py .
 COPY packages.py .
@@ -84,20 +84,11 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}  && rm -rf /tmp/mlrun
 
-WORKDIR /mlrun
 COPY Makefile .
-COPY *requirements.txt .
-COPY setup.py .
-COPY packages.py .
-COPY README.md .
-COPY dependencies.py .
-COPY pyproject.toml .
-COPY mlrun mlrun
 COPY docs docs
 COPY server server
 COPY tests tests
 COPY automation automation
-COPY pipeline-adapters pipeline-adapters
 COPY dockerfiles dockerfiles
 
 ENV PYTHONPATH="/mlrun/tests:/mlrun/automation${PYTHONPATH:+:${PYTHONPATH}}"

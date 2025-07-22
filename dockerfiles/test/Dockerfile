@@ -76,13 +76,22 @@ COPY dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.t
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete,dev-postgres] --python-version ${MLRUN_PYTHON_VERSION}  && rm -rf /tmp/mlrun
+    uv pip install .[complete,dev-postgres] --python-version ${MLRUN_PYTHON_VERSION}
 
 COPY pipeline-adapters pipeline-adapters
 # Install the pipeline adapters development versions since we release them only after merging
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}  && rm -rf /tmp/mlrun
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
+
+RUN find /mlrun \
+     \( -type f -name '*.pyc' \
+        -o -type d -name '__pycache__' \
+        -o -path '*/tests' \
+        -o -path '*/build' \
+        -o -path '*/dist' \) \
+     -exec rm -rf {} + \
+ && rm -rf /tmp/*
 
 COPY Makefile .
 COPY docs docs

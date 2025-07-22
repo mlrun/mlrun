@@ -1156,7 +1156,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         """Override to implement prediction logic if the logic requires asyncio."""
         return body
 
-    def run(self, body: dict, path: str, origin_name: Optional[str] = None) -> Any:
+    def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         return self.predict(body)
 
     async def run_async(

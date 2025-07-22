@@ -172,7 +172,7 @@ class DBUtil:
         self,
         config_items: Optional[Union[list[str], dict[str, Any]]] = None,
     ) -> None:
-        items = config_items or self._DEFAULT_DB_CONFIGURATIONS
+        items = config_items or self._EMPTY_DB_CONFIGURATIONS
         keys = _to_keyset(items)
 
         if not keys or keys.intersection(self._EMPTY_DB_CONFIGURATIONS):
@@ -184,7 +184,7 @@ class DBUtil:
 
         connection = self._get_connection()
         try:
-            self._apply_configurations(connection, config_items)
+            self._apply_configurations(connection, items)
         finally:
             connection.close()
 

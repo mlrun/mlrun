@@ -355,7 +355,9 @@ class SQLDB(DBInterface):
         :raises MLRunConflictError:   If attempting to set `retrying=True` when already marked.
         """
         try:
-            run = self._get_run(session, uid, project, iteration=0, with_for_update=True)
+            run = self._get_run(
+                session, uid, project, iteration=0, with_for_update=True
+            )
             if not run:
                 raise mlrun.errors.MLRunNotFoundError(f"Run {project}/{uid} not found")
 
@@ -370,7 +372,8 @@ class SQLDB(DBInterface):
                 else:
                     labels[mlrun_constants.MLRunInternalLabels.retrying] = "true"
                     labels[mlrun_constants.MLRunInternalLabels.rerun_counter] = (
-                        labels.get(mlrun_constants.MLRunInternalLabels.rerun_counter, 0) + 1
+                        labels.get(mlrun_constants.MLRunInternalLabels.rerun_counter, 0)
+                        + 1
                     )
             else:
                 labels.pop("retrying", None)

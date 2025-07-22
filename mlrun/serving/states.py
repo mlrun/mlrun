@@ -35,7 +35,7 @@ from storey import ParallelExecutionMechanisms
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas as schemas
-from mlrun.artifacts.llm_prompt import LLMPromptArtifact
+from mlrun.artifacts.llm_prompt import LLMPromptArtifact, PlaceholderDefaultDict
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaSource,
@@ -1267,11 +1267,16 @@ class LLModel(Model):
                 place_holder: body.get(body_map["field"])
                 for place_holder, body_map in prompt_legend.items()
             }
+            default_kwargs = PlaceholderDefaultDict(lambda: None, kwargs)
             for d in prompt_template:
                 try:
                     d["content"] = d["content"].format(**kwargs)
-                except KeyError:
-                    logger.warning("Legend provided was missing key keeping legend as is.")
+                except KeyError as e:
+                    logger.warning(
+                        "Legend provided was missing a key keeping place holder as is.",
+                        key_error=e,
+                    )
+                    d["content"] = d["content"].format_map(**default_kwargs)
         return prompt_template, llm_prompt_artifact.spec.model_configuration
 
 

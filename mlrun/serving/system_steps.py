@@ -14,7 +14,7 @@
 
 import random
 from datetime import timedelta
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import numpy as np
 import storey

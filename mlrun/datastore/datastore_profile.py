@@ -494,7 +494,7 @@ class HuggingFaceProfile(DatastoreProfile):
     device: typing.Optional[typing.Union[int, str]] = None
     device_map: typing.Union[str, dict[str, typing.Union[int, str]], None] = None
     trust_remote_code: bool = None
-    model_kwargs: typing.Optional[dict[str, typing.Any]] = (None,)
+    model_kwargs: typing.Optional[dict[str, typing.Any]] = None
 
     def secrets(self) -> dict:
         res = {}

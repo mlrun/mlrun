@@ -21,7 +21,7 @@ FROM mlrun_common_image:${MLRUN_PYTHON_VERSION}
 ARG MLRUN_PYTHON_VERSION
 ARG MLRUN_PIP_VERSION
 
-RUN --mount=type=cacheid=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/pip \
+RUN --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/pip \
   python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /mlrun

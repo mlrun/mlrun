@@ -331,6 +331,7 @@ mlrun-kfp: common-image update-version-file ## Build mlrun docker image with KFP
 		--file dockerfiles/mlrun-kfp/Dockerfile \
 		--build-arg MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		--build-arg MLRUN_VERSION=$(MLRUN_VERSION) \
+		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		$(MLRUN_KFP_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
@@ -502,7 +503,6 @@ endif
 clean-common-image:
 	-docker rmi $(COMMON_IMAGE_TAG) || true
 	rm -f $(COMMON_STAMP)
-
 
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api

@@ -12,21 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+ARG MLRUN_PIP_VERSION=25.0
 ARG MLRUN_PYTHON_VERSION=3.11
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
-
-FROM mambaorg/micromamba:2.3.0 AS conda-build
-ARG MLRUN_PYTHON_VERSION=3.11
-ARG MLRUN_PIP_VERSION=25.0
 ARG OMPI_VERSION=4.1.5
+ARG MICROMAMBA_VERSION=2.3.0
+
+FROM mambaorg/micromamba:${MICROMAMBA_VERSION} AS conda-build
+ARG MLRUN_PYTHON_VERSION
+ARG MLRUN_PIP_VERSION
+ARG OMPI_VERSION
+
 ENV MAMBA_DOWNLOAD_THREADS=16
 ENV MAMBA_EXTRACT_THREADS=8
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+
 RUN micromamba install -y -n base -c conda-forge \
         python=$MLRUN_PYTHON_VERSION openmpi-mpicc=$OMPI_VERSION && \
     micromamba clean -afy
-
 RUN --mount=type=cache,target=/opt/conda/pkgs \
     micromamba config set channel_priority strict && \
     micromamba config set download_threads ${MAMBA_DOWNLOAD_THREADS} && \
@@ -36,14 +40,19 @@ RUN --mount=type=cache,target=/opt/conda/pkgs \
         pip=${MLRUN_PIP_VERSION} \
         openmpi-mpicc=${OMPI_VERSION} && \
     micromamba clean -afy
-FROM ${MLRUN_UV_IMAGE} AS uv-image
 
+FROM ${MLRUN_UV_IMAGE} AS uv-image
 FROM mlrun_common_image:${MLRUN_PYTHON_VERSION}
-ARG MLRUN_PYTHON_VERSION=3.11
-ARG MLRUN_PIP_VERSION=25.0
-RUN rm -rf /var/lib/apt/lists/*
+ARG MLRUN_PYTHON_VERSION
+ARG MLRUN_PIP_VERSION
+
 COPY --from=conda-build /opt/conda /opt/conda
 ENV PATH="/opt/conda/bin:${PATH}"
+# Install Python
+# use /usr/local/bin/python to ensure system pip is also upgraded
+RUN --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/pip \
+    /opt/conda/bin/python -m pip install --upgrade setuptools pip~=${MLRUN_PIP_VERSION}
+
 WORKDIR /mlrun
 # non-recursive chmod for the run to be able to create the handler file with any security context
 RUN chmod 777 /mlrun
@@ -53,24 +62,14 @@ RUN chmod 777 /mlrun
 # mainly because of how the image is built with conda.
 # see https://iguazio.atlassian.net/browse/ML-8712 for example
 # where 'tqdm' is given by conda env but will get remove if we omit the `--no-deps`.
-# TODO: move tqdm to image requirements
+
+ARG MLRUN_PYTHON_VERSION
+
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/mlrun/locked-requirements.txt,target=locked-requirements.txt \
     uv pip install --no-deps --require-hashes -r locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
-
-
-ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
-
-# need to be redeclared since used in the from
-ARG MLRUN_PYTHON_VERSION=3.11
-ARG MLRUN_PIP_VERSION=25.0
-
-# Install Python
-# use /usr/local/bin/python to ensure system pip is also upgraded
-RUN --mount=type=cache,target=/root/.cache/pip \
-    /opt/conda/bin/python -m pip install --upgrade setuptools pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /tmp/mlrun
 COPY *.txt .
@@ -82,11 +81,12 @@ COPY dockerfiles/mlrun-api dockerfiles/mlrun-api
 COPY mlrun mlrun
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
     uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION}  && rm -rf /tmp/mlrun
 
-
-# Remove server related files that are not needed
-# Remove ensurepip folders from both conda and system python
-RUN rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
+# Clean up the image:
+RUN rm -rf \
+    /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
     /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
+    /var/lib/apt/lists/*
+

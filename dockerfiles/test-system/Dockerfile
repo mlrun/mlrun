@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ARG MLRUN_PYTHON_VERSION=3.9
+ARG MLRUN_PIP_VERSION=25.0
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
@@ -24,8 +25,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         libpq-dev && \
     rm -rf /var/lib/apt/lists/*
 
-
-ARG MLRUN_PIP_VERSION=25.0
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
@@ -43,7 +42,7 @@ WORKDIR /tmp/mlrun
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/test-system/locked-requirements.txt,target=locked-requirements.txt \
     uv pip sync  --require-hashes locked-requirements.txt
 
@@ -55,14 +54,13 @@ COPY *.toml .
 COPY mlrun mlrun
 COPY dockerfiles/mlrun-api dockerfiles/mlrun-api
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
     uv pip install .[complete,dev-postgres] && rm -rf /tmp/mlrun
 
 COPY pipeline-adapters pipeline-adapters
-ARG MLRUN_PYTHON_VERSION
 # Install the pipeline adapters development versions since we release them only after merging
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION} && rm -rf /tmp/mlrun
 
 WORKDIR /mlrun

@@ -14,25 +14,22 @@
 
 ARG MLRUN_PYTHON_VERSION=3.9
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
+ARG MLRUN_PIP_VERSION=25.0
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
-FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
-
 FROM mlrun_common_image:${MLRUN_PYTHON_VERSION}
-RUN rm -rf /var/lib/apt/lists/*
+ARG MLRUN_PYTHON_VERSION
+ARG MLRUN_PIP_VERSION
 
-
-ARG MLRUN_PIP_VERSION=25.0
-RUN --mount=type=cache,target=/root/.cache/pip \
+RUN --mount=type=cacheid=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/pip \
   python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
-ARG MLRUN_PYTHON_VERSION=3.9
 
 WORKDIR /mlrun
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/mlrun-kfp/locked-requirements.txt,target=locked-requirements.txt \
     uv pip sync --require-hashes locked-requirements.txt
 
@@ -45,12 +42,12 @@ COPY mlrun mlrun
 COPY dockerfiles/mlrun-api dockerfiles/mlrun-api
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
     uv pip install .  && rm -rf /tmp/mlrun
 
 COPY pipeline-adapters pipeline-adapters
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8[kfp]  && rm -rf /tmp/mlrun
 
 # Remove server related files that are not needed

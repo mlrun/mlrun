@@ -276,6 +276,19 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
                     args = sp[1:]
         return command, args
 
+    def _validate_run(
+        self,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        run: "mlrun.run.RunObject",
+    ):
+        super()._validate_run(runtime, run)
+        if self._is_run_local and run.spec.retry.count:
+            logger.warning(
+                "Retry is not supported for local runs, ignoring retry settings",
+                retry=run.spec.retry.to_dict(),
+            )
+            run.spec.retry.count = 0
+
     def _push_notifications(
         self, runobj: "mlrun.run.RunObject", runtime: "mlrun.runtimes.BaseRuntime"
     ):

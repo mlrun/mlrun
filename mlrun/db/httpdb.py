@@ -4741,6 +4741,28 @@ class HTTPRunDB(RunDBInterface):
         )
         return mlrun.common.schemas.GetWorkflowResponse(**response.json())
 
+    def set_run_retrying_status(
+        self, project: str, name: str, run_id: str, retrying: bool = False
+    ):
+        """
+        Toggle the “retrying” label on a workflow-runner run.
+
+        This will POST to the workflows endpoint to either add or remove the
+        `retrying` flag on a specific run, which prevents parallel retries.
+
+        :param project:   The project name under which the workflow is defined.
+        :param name:      The workflow name (as in the URL path).
+        :param run_id:    The UID of the workflow-runner run to update.
+        :param retrying:  True to add the `retrying` label, False to remove it.
+
+        :raises MLRunHTTPError: If the HTTP request fails or returns an error status.
+        """
+        path = f"projects/{project}/workflows/{name}/runs/{run_id}/set-retry-status"
+        params = {"retrying": retrying}
+        self.api_call(
+            "POST", path, f"set retrying on {project}/{run_id}", params=params
+        )
+
     def load_project(
         self,
         name: str,

@@ -130,7 +130,7 @@ def test_on_error():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     chain = graph.to("Chain", name="s1")
-    chain.to("Raiser").error_handler(
+    chain.to("Raiser").respond().error_handler(
         name="catch", class_name="EchoError", full_event=True
     ).to("Chain", name="s3")
 
@@ -190,7 +190,7 @@ class MyModel(Model):
 
 
 class MyRemoteModel(Model):
-    def predict(self, body):
+    def predict(self, body, **kwargs):
         body["url"] = self.model_artifact.model_url
         body["default_config"] = self.model_artifact.default_config
         return body
@@ -201,10 +201,11 @@ class MyRemoteModel(Model):
 
 
 class MyLLM(LLModel):
-    def predict(self, body, messages, model_configuration):
+    def predict(self, body, **kwargs):
         body["url"] = self.model_artifact.model_url
         body["default_config"] = self.model_artifact.default_config
-        body["prompt"] = messages
+        body["model_configuration"] = kwargs.get("model_configuration")
+        body["prompt"] = kwargs.get("messages")
         return body
 
 
@@ -713,6 +714,58 @@ def test_model_runner_with_remote_shared_model():
         server.wait_for_completion()
 
 
+def test_add_model_after_adding_the_mrs_to_the_graph():
+    project = mlrun.new_project("remote-model-project", save=False)
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    graph.add_shared_model(
+        name="my_model",
+        model_class="MyRemoteModel",
+        model_artifact=model_artifact,
+        execution_mechanism="naive",
+    )
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_shared_model_proxy(
+        endpoint_name="my_endpoint",
+        model_artifact=model_artifact,
+        shared_model_name="my_model",
+    )
+    model_runner_step_2 = graph.to(model_runner_step).respond()
+    model_runner_step.add_model(
+        endpoint_name="my_endpoint-2",
+        model_class="MyRemoteModel",
+        model_artifact=model_artifact,
+        execution_mechanism="naive",
+    )
+    assert (
+        "my_endpoint" in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+
+    assert (
+        "my_endpoint-2" not in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+
+    model_runner_step_2.add_model(
+        endpoint_name="my_endpoint-2",
+        model_class="MyRemoteModel",
+        model_artifact=model_artifact,
+        execution_mechanism="naive",
+    )
+
+    assert (
+        "my_endpoint" in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+
+    assert (
+        "my_endpoint-2" in graph.model_endpoints_names
+    ), "model endpoint name not in graph"
+
+
 def test_get_local_model_path():
     project = mlrun.new_project("get-model-path-project", save=False)
     model_dir = str(pathlib.Path(__file__).parent / "assets")
@@ -818,3 +871,70 @@ def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
             server.test(body={"country": "france"})
         finally:
             server.wait_for_completion()
+
+
+@pytest.mark.parametrize(
+    "legend",
+    (
+        None,
+        {"country": {"field": None, "description": "Great"}},
+        {
+            "country": {"field": None, "description": "Great"},
+            "Not exists": {"field": "country", "description": "Great"},
+        },
+        {
+            "country": {"field": "country", "description": "Great"},
+            "profession": {"field": "profession", "description": "Great"},
+            "some_other_ph": {"field": "some_other_ph", "description": "Great"},
+        },
+    ),
+)
+def test_llm_with_missing_legends(legend: dict):
+    project = mlrun.new_project("get-model-path-project", save=False)
+    function = mlrun.new_function("tests", kind="serving")
+    model_artifact = project.log_model(
+        "my_model",
+        model_url="http://localhost:8080/v2/models/mymodel/infer",
+        default_config={"model_version": "4"},
+    )
+    llm_artifact = project.log_llm_prompt(
+        "my_llm",
+        prompt_template=[
+            {
+                "role": "user",
+                "content": "What is the capital city of {country} ?{some_other_ph}",
+            },
+            {"role": "system", "content": "you are answer as {profession}"},
+        ],
+        model_artifact=model_artifact.uri,
+        prompt_legend=legend,
+    )
+    with unittest.mock.patch(
+        "mlrun.store_manager.get_store_artifact",
+        side_effect=create_mocked_get_store_artifact(
+            model_artifact=llm_artifact, origin_model=model_artifact
+        ),
+    ):
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="model-runner", raise_exception=True)
+
+        model_runner_step.add_model(
+            model_class="MyLLM",
+            execution_mechanism="naive",
+            endpoint_name="my-model",
+            model_artifact=llm_artifact,
+        )
+        graph.to(model_runner_step).respond()
+        server = function.to_mock_server()
+        resp = server.test(
+            body={
+                "country": "France",
+                "some_other_ph": "!",
+                "profession": "Data scientist",
+            }
+        )
+        server.wait_for_completion()
+        assert resp["prompt"] == [
+            {"role": "user", "content": "What is the capital city of France ?!"},
+            {"role": "system", "content": "you are answer as Data scientist"},
+        ]

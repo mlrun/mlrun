@@ -893,6 +893,8 @@ def submit_run_from_body(
     data,
 ):
     fn, task = _generate_function_and_task_from_submit_run_body(db_session, data)
+    run_db = get_run_db_instance(db_session)
+    fn.set_db_connection(run_db)
     return submit_run_sync(db_session, auth_info, fn, task, data)
 
 

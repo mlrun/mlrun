@@ -1298,8 +1298,8 @@ class LLModel(Model):
                     )
         else:
             logger.warning(
-                f"Expected input data to be a dict, but received input data from type {type(input_data)} prompt template"
-                f" stay unformatted",
+                f"Expected input data to be a dict, but received input data from type {type(input_data)} prompt "
+                f"template stay unformatted",
             )
         return prompt_template, llm_prompt_artifact.spec.model_configuration
 

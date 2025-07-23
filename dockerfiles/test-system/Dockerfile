@@ -17,6 +17,8 @@ ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
 FROM mlrun_common_image:${MLRUN_PYTHON_VERSION}
+ARG MLRUN_PYTHON_VERSION
+ARG MLRUN_PIP_VERSION
 
 # Update OS packages:
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \

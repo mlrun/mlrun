@@ -508,6 +508,7 @@ class BaseStep(ModelObj):
         Verify ModelRunnerStep, can be part of Flow graph and models can not repeat in graph.
         :param step:                        ModelRunnerStep to verify
         :param step_model_endpoints_names:  List of model endpoints names that are in the step.
+                                            if provided will ignore step models and verify only the models on list.
         :param verify_shared_models:        If True, verify that shared models are defined in the graph.
         """
 

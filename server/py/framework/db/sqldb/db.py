@@ -6286,7 +6286,8 @@ class SQLDB(DBInterface):
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_URI] = None
         return model_endpoint_full_dict
 
-    def _get_obj_tag_prioritizing_user_tag(self, function_tag_list):
+    @staticmethod
+    def _get_obj_tag_prioritizing_user_tag(function_tag_list):
         """
         Used by model endpoints, this extracts the function/model tag from the list,
         prioritizing the user tag over the system's latest tag if available.

@@ -94,7 +94,8 @@ class _BatchWindow:
         logger.info(
             "No last analyzed time was found for this endpoint and application, as this is "
             "probably the first time this application is running. Initializing last analyzed "
-            "to the latest between first request the latest between first request time or last update time minus one day",
+            "to the latest between first request the latest between first request time or last "
+            "update time minus one day",
             application=self._application,
             first_request=self._first_request,
             last_updated=self._stop,

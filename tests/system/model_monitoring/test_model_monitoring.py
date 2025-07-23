@@ -2016,7 +2016,7 @@ class TestModelMonitoringOverJob(TestMLRunSystemModelMonitoring):
         with open(str(self.assets_path / "test_data.csv")) as f:
             csv_content = f.read()
 
-        v3io_client = v3io.Client()
+        v3io_client = v3io.Client(endpoint=mlrun.mlconf.v3io_api)
         try:
             v3io_client.object.put(
                 "projects", f"{self.project_name}/in.csv", body=csv_content
@@ -2043,17 +2043,19 @@ class TestModelMonitoringOverJob(TestMLRunSystemModelMonitoring):
             assert model_endpoints[0].metadata.name == "my_model"
             assert model_endpoints[0].metadata.endpoint_type == EndpointType.BATCH_EP
 
-            stream_uri = f"{self.project_name}/model-endpoints/stream-v1"
+            container, stream_path = self.get_stream_path(
+                mm_constants.MonitoringFunctionNames.STREAM
+            )
             describe_output = v3io_client.stream.describe(
-                "projects",
-                stream_uri,
+                container,
+                stream_path,
             ).output
             shard_count = describe_output.shard_count
             read_back_records = []
             for shard in range(shard_count):
                 try:
                     location = v3io_client.stream.seek(
-                        "projects", stream_uri, shard, "EARLIEST"
+                        container, stream_path, shard, "EARLIEST"
                     ).output.location
                 except V3ioHttpResponseError as response_error:
                     if response_error.status_code == 404:
@@ -2061,7 +2063,7 @@ class TestModelMonitoringOverJob(TestMLRunSystemModelMonitoring):
                     raise response_error
                 while True:
                     get_records_result = v3io_client.stream.get_records(
-                        "projects", stream_uri, shard, location
+                        container, stream_path, shard, location
                     ).output
                     location = get_records_result.next_location
                     for record in get_records_result.records:

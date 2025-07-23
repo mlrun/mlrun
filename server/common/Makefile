@@ -23,10 +23,10 @@ PROTO_DIR := proto
 
 GO_OUT_DIR  := proto/build/go
 GO_PKG_DIR  := $(GO_OUT_DIR)/$(PROTO_DIR)
-GO_TARGETS  := $(patsubst $(PROTO_DIR)/%.proto,\
-                         $(GO_PKG_DIR)/%.pb.go,\
-                         $(PROTO_SRCS))
 PROTO_SRCS  := $(wildcard $(PROTO_DIR)/*.proto)
+GO_TARGETS  := $(patsubst $(PROTO_DIR)/%.proto,\
+                       $(GO_PKG_DIR)/%.pb.go,\
+                       $(PROTO_SRCS))
 
 PY_OUT_DIR   := proto/build/py
 PROTO_PY_SRCS := $(wildcard $(PROTO_DIR)/*.proto)

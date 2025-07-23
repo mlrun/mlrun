@@ -469,19 +469,25 @@ ifdef MLRUN_SKIP_COMPILE_SCHEMAS
 else
 	$(MAKE) -C server/go compile-schemas
 endif
+COMMON_IMAGE_TAG      := mlrun_common_image
+COMMON_STAMP          := .build/common-image.done
+COMMON_DOCKERFILE     := dockerfiles/common/Dockerfile
 
-COMMON_IMAGE_TAG := mlrun_common_image
-COMMON_STAMP     := .build/common-image.done
-COMMON_DOCKERFILE       := dockerfiles/common/Dockerfile
-
+# Rebuild when MLRUN_NO_CACHE is set
+ifeq ($(strip $(MLRUN_NO_CACHE)),)
 common-image: $(COMMON_STAMP)
 
 $(COMMON_STAMP):
 	@if ! docker image inspect $(COMMON_IMAGE_TAG) >/dev/null 2>&1; then \
-	    docker pull $(COMMON_IMAGE_TAG) || \
-	    docker build -f $(COMMON_DOCKERFILE) -t $(COMMON_IMAGE_TAG) . ; \
+		docker pull $(COMMON_IMAGE_TAG) || \
+		docker build -f $(COMMON_DOCKERFILE) -t $(COMMON_IMAGE_TAG) . ; \
 	fi
 	@mkdir -p $(dir $@) && touch $@
+else
+.PHONY: common-image
+common-image:
+	docker build $(MLRUN_DOCKER_NO_CACHE_FLAG) -f $(COMMON_DOCKERFILE) -t $(COMMON_IMAGE_TAG) .
+endif
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-api

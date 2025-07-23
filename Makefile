@@ -567,7 +567,6 @@ build-test-system: common-image compile-schemas update-version-file ## Build sys
 	$(MAKE) generate-dockerignore DEST=test-system
 	docker build \
 		--file dockerfiles/test-system/Dockerfile \
-		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \

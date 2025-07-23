@@ -1567,26 +1567,29 @@ class ModelRunnerStep(MonitoredStep):
           :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
                                       that been configured in the model artifact, please note that those outputs need to
                                       be equal to the model_class predict method outputs (length, and order)
-          :param input_path:          Path inside the user request specify the monitored output. by default will
-                                      monitor the all request. expect scopes to be defined by dot notation
-                                      (e.g "inputs.my_model_inputs").
-                                      Inside the path expected type are list, list of lists, or dictionary-type object.
-                                      If a ``dict`` is provided, each key will represent a feature.
+          :param input_path:          when specified selects the key/path in the event to use as model monitoring inputs
+                                      this require that the event body will behave like a dict, expects scopes to be
+                                      defined by dot notation (e.g "data.d").
+                                      examples: input_path="data.b"
+                                      event: {"data":{"a": 5, "b": 7}},means request body will be 7.
+                                      event: {"data":{"a": [5, 9], "b": [7, 8]}} means request body will be [7,8]
+                                      event: {"data":{"a": "extra_data", "b": {"f0": [1, 2]}}} means request body will
+                                      be {"f0": [1, 2]}
                                       If a ``list`` or ``list of lists`` is provided, it must follow the order and
                                       size defined by the input schema.
-                                      Example: If ``input_path = "my inputs"`` and  ``input_schema = ["f0", "f1"]`` and
-                                      ``input request = {"my inputs": [[1, 2], [3, 4]]}``,
-                                      the two monitored inputs will be: ``f1 = [1, 3]``, ``f2 = [2, 4]``.
-          :param result_path:         Path inside the predict response specify the monitored output. by default will
-                                      monitor the all response.  expect scopes to be defined by dot notation
-                                      (e.g., ``"outputs.my_model_outputs"``)
-                                      Inside the path expected type are list, list of lists, or dictionary-type object.
-                                      If a ``dict`` is provided, each key will represent a label.
+          :param result_path:         when specified selects the key/path in the output event to use as model monitoring
+                                      outputs this require that the event body will behave like a dict, expects scopes
+                                      to be defined by dot notation (e.g "data.d").
+                                      examples: result_path="out.b"
+                                      event: {"out":{"a": 5, "b": 7}}, means monitored body will be 7.
+                                      event: {"out":{"a": [5, 9], "b": [7, 8]}} means monitored body will be [7,8]
+                                      event: {"out":{"a": "extra_data", "b": {"f0": [1, 2]}}} means monitored body will
+                                      be {"f0": [1, 2]}
                                       If a ``list`` or ``list of lists`` is provided, it must follow the order and
                                       size defined by the output schema.
-                                      Example: If ``result_path = "my outputs"`` and  ``output_schema = ["a", "b"]`` and
-                                      ``output response = {"my outputs": [[1, 2], [3, 4]]}``,
-                                      the two monitored outputs will be: ``a = [1, 3]``, ``b = [2, 4]``.
+                                      Note: Both result_path and input_path allows the model monitoring to handle the
+                                      model data correctly if not provided first layer of the output/input event body
+                                      will be monitored.
 
           :param override:            bool allow override existing model on the current ModelRunnerStep.
           :param model_parameters:    Parameters for model instantiation

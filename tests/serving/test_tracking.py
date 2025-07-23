@@ -778,7 +778,11 @@ def test_tracked_model_runner_background_task(rundb_mock):
 @pytest.mark.parametrize("as_responder", [True, False])
 @pytest.mark.parametrize("all_graph_handler", [True, False])
 def test_tracked_model_runner_with_error_handler(
-    rundb_mock, enable_tracking: bool, raise_exception: bool, as_responder: bool, all_graph_handler: bool
+    rundb_mock,
+    enable_tracking: bool,
+    raise_exception: bool,
+    as_responder: bool,
+    all_graph_handler: bool,
 ):
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
@@ -799,13 +803,9 @@ def test_tracked_model_runner_with_error_handler(
     else:
         step = graph.to(model_runner_step)
     if all_graph_handler:
-        graph.error_handler(
-            "echo_error", handler="handle_error"
-        )
+        graph.error_handler("echo_error", handler="handle_error")
     else:
-        step.error_handler(
-            "echo_error", handler="handle_error"
-        )
+        step.error_handler("echo_error", handler="handle_error")
     function.set_tracking(
         "dummy://", enable_tracking=enable_tracking, stream_args={"mock": True}
     )

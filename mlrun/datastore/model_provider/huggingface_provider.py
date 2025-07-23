@@ -73,7 +73,7 @@ class HuggingFaceProvider(ModelProvider):
     def parse_endpoint_and_path(cls, endpoint, subpath) -> (str, str):
         if endpoint and subpath:
             endpoint = endpoint + subpath
-            #  in hf there is no usage of subpath variable. if the model contains "/", it is part of the model name.
+            # In HuggingFace, "/" in a model name is part of the name — `subpath` is not used.
             subpath = ""
         return endpoint, subpath
 

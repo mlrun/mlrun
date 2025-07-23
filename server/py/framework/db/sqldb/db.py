@@ -330,6 +330,59 @@ class SQLDB(DBInterface):
         self._delete_empty_labels(session, Run.Label)
         return run.struct
 
+    def set_run_retrying_status(
+        self,
+        session: Session,
+        project: str,
+        uid: str,
+        retrying: bool,
+    ) -> dict:
+        """
+        Atomically acquire a FOR UPDATE lock on the specified run row, then add or remove
+        the `retrying` label.
+
+        :param session:  SQLAlchemy session to use for the transaction.
+        :param project:     Name of the project containing the run.
+        :param uid:      UID of the workflow‐runner run to lock and update.
+        :param retrying:    Whether to mark the run as retrying (True) or clear that flag (False).
+                            - When setting to True, this will:
+                              1. lock the row
+                              2. verify no existing `retrying` label (else MLRunConflictError)
+                              3. add `retrying="true"`
+                            - When setting to False, it will remove the `retrying` label.
+        :returns:           The updated struct of the run.
+        :raises MLRunNotFoundError:   If the run does not exist.
+        :raises MLRunConflictError:   If attempting to set `retrying=True` when already marked.
+        """
+        try:
+            run = self._get_run(
+                session, uid, project, iteration=0, with_for_update=True
+            )
+            if not run:
+                raise mlrun.errors.MLRunNotFoundError(f"Run {project}/{uid} not found")
+
+            struct = run.struct
+            labels = run_labels(struct)
+
+            if not retrying:
+                labels.pop("retrying", None)
+            elif mlrun_constants.MLRunInternalLabels.retrying in labels:
+                # flush and commit so the lock is released immediately
+                session.commit()
+                raise mlrun.errors.MLRunConflictError
+            else:
+                # TODO: bump counter label here in follow-up
+                labels[mlrun_constants.MLRunInternalLabels.retrying] = "true"
+
+            update_labels(run, labels)
+            run.struct = struct
+            self._upsert(session, [run])
+
+            return struct
+        finally:
+            # ALWAYS commit so the FOR UPDATE lock is released
+            session.commit()
+
     def list_distinct_runs_uids(
         self,
         session,

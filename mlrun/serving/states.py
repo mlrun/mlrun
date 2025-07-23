@@ -1148,11 +1148,11 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
     def init(self):
         self.load()
 
-    def predict(self, body: Any) -> Any:
+    def predict(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead."""
         return body
 
-    async def predict_async(self, body: Any) -> Any:
+    async def predict_async(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic if the logic requires asyncio."""
         return body
 
@@ -1201,7 +1201,11 @@ class LLModel(Model):
         super().__init__(name, **kwargs)
 
     def predict(
-        self, body: Any, messages: list[dict], model_configuration: dict
+        self,
+        body: Any,
+        messages: Optional[list[dict]] = None,
+        model_configuration: Optional[dict] = None,
+        **kwargs,
     ) -> Any:
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
@@ -1214,7 +1218,11 @@ class LLModel(Model):
         return body
 
     async def predict_async(
-        self, body: Any, messages: list[dict], model_configuration: dict
+        self,
+        body: Any,
+        messages: Optional[list[dict]] = None,
+        model_configuration: Optional[dict] = None,
+        **kwargs,
     ) -> Any:
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact

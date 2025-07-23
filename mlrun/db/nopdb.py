@@ -72,6 +72,11 @@ class NopDB(RunDBInterface):
     def update_run(self, updates: dict, uid, project="", iter=0):
         pass
 
+    def set_run_retrying_status(
+        self, project: str, name: str, run_id: str, retrying: bool
+    ):
+        pass
+
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         pass
 

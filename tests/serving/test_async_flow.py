@@ -190,7 +190,7 @@ class MyModel(Model):
 
 
 class MyRemoteModel(Model):
-    def predict(self, body):
+    def predict(self, body, **kwargs):
         body["url"] = self.model_artifact.model_url
         body["default_config"] = self.model_artifact.default_config
         return body
@@ -201,10 +201,11 @@ class MyRemoteModel(Model):
 
 
 class MyLLM(LLModel):
-    def predict(self, body, messages, model_configuration):
+    def predict(self, body, **kwargs):
         body["url"] = self.model_artifact.model_url
         body["default_config"] = self.model_artifact.default_config
-        body["prompt"] = messages
+        body["model_configuration"] = kwargs.get("model_configuration")
+        body["prompt"] = kwargs.get("messages")
         return body
 
 

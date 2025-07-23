@@ -1575,7 +1575,7 @@ class ModelRunnerStep(MonitoredStep):
                                       event: {"data":{"a": [5, 9], "b": [7, 8]}} means request body will be [7,8]
                                       event: {"data":{"a": "extra_data", "b": {"f0": [1, 2]}}} means request body will
                                       be {"f0": [1, 2]}
-                                      If a ``list`` or ``list of lists`` is provided, it must follow the order and
+                                      if a ``list`` or ``list of lists`` is provided, it must follow the order and
                                       size defined by the input schema.
           :param result_path:         when specified selects the key/path in the output event to use as model monitoring
                                       outputs this require that the event body will behave like a dict, expects scopes
@@ -1585,11 +1585,8 @@ class ModelRunnerStep(MonitoredStep):
                                       event: {"out":{"a": [5, 9], "b": [7, 8]}} means monitored body will be [7,8]
                                       event: {"out":{"a": "extra_data", "b": {"f0": [1, 2]}}} means monitored body will
                                       be {"f0": [1, 2]}
-                                      If a ``list`` or ``list of lists`` is provided, it must follow the order and
+                                      if a ``list`` or ``list of lists`` is provided, it must follow the order and
                                       size defined by the output schema.
-                                      Note: Both result_path and input_path allows the model monitoring to handle the
-                                      model data correctly if not provided first layer of the output/input event body
-                                      will be monitored.
 
           :param override:            bool allow override existing model on the current ModelRunnerStep.
           :param model_parameters:    Parameters for model instantiation

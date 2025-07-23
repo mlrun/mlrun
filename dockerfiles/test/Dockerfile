@@ -22,6 +22,8 @@ LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
 FROM mlrun_common_image
+ARG MLRUN_PYTHON_VERSION=3.9
+ARG MLRUN_PIP_VERSION=25.0
 
 # Update OS packages:
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -44,13 +46,11 @@ RUN git config --global user.email "test@mlrun.org" \
      && git config --global user.name "MLRun Test" \
      && git config --global init.defaultBranch "main"
 
-ARG MLRUN_PIP_VERSION=25.0
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
-ARG MLRUN_PYTHON_VERSION=3.9
 # explicitly set the python version to ensure uv installs the correct version
 # as per the python version or we will handle situtations where python 3.11 tries to install
 # kfp 1.8 *even though it is explicitly set on locked file that kfp 1.8 is for python < 3.11*

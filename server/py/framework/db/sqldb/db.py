@@ -994,7 +994,7 @@ class SQLDB(DBInterface):
         for artifact, artifact_tag in artifact_records:
             artifact_struct = artifact.full_object
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
-            self._set_parent_uri(artifact_struct, artifact.parent)
+            self._set_parent_uri(artifact_struct, artifact.parent, parent_uri)
             artifact_struct["spec"]["has_children"] = bool(artifact.child_artifacts)
             artifacts.append(
                 mlrun.common.formatters.ArtifactFormat.format_obj(
@@ -1685,8 +1685,18 @@ class SQLDB(DBInterface):
     def _set_tag_in_artifact_struct(artifact, tag):
         artifact["metadata"]["tag"] = tag
 
-    @staticmethod
-    def _set_parent_uri(artifact: dict, parent: ArtifactV2):
+    def _set_parent_uri(
+        self, artifact: dict, parent: ArtifactV2, parent_uri: Optional[str] = None
+    ):
+        _, uri = mlrun.datastore.parse_store_uri(parent_uri)
+        (
+            _,
+            _,
+            _,
+            parent_tag,
+            _,
+            _,
+        ) = parse_artifact_uri(uri)
         artifact_spec = artifact.setdefault("spec", {})
         if parent:
             artifact_spec["parent_uri"] = mlrun.datastore.get_store_uri(
@@ -1697,6 +1707,8 @@ class SQLDB(DBInterface):
                     iter=parent.iteration,
                     tree=parent.producer_id,
                     uid=parent.uid,
+                    tag=parent_tag
+                    or self._get_obj_tag_prioritizing_user_tag(parent.tags or []),
                 ),
             )
         else:
@@ -6092,7 +6104,7 @@ class SQLDB(DBInterface):
             )
             function_tag_list = model_endpoint_record.function.tags
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG] = (
-                self._get_function_tag(function_tag_list)
+                self._get_obj_tag_prioritizing_user_tag(function_tag_list)
             )
             model_endpoint_full_dict[ModelEndpointSchema.STATE] = (
                 model_endpoint_record.function.state
@@ -6111,9 +6123,10 @@ class SQLDB(DBInterface):
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_URI] = None
         return model_endpoint_full_dict
 
-    def _get_function_tag(self, function_tag_list):
+    @staticmethod
+    def _get_obj_tag_prioritizing_user_tag(function_tag_list):
         """
-        Used by model endpoints, this extracts the function tag from the list,
+        Used by model endpoints, this extracts the function/model tag from the list,
         prioritizing the user tag over the system's latest tag if available.
         If neither exists, it returns an empty string.
         """

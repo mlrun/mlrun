@@ -41,7 +41,6 @@ from framework.utils.asyncio import maybe_coroutine
 
 
 def patch_restful_request(
-    is_client_sync: bool,
     requests_mock: requests_mock_package.Mocker,
     aioresponses_mock: aioresponses_mock,
     method: str,
@@ -53,34 +52,21 @@ def patch_restful_request(
     Consolidating the requests_mock / aioresponses library to mock a RESTful request.
     """
     kwargs = {}
-    if is_client_sync:
-        if callback:
-            kwargs["json"] = callback
-        if status_code:
-            kwargs["status_code"] = status_code
-        requests_mock.request(
-            method,
-            url,
-            **kwargs,
-        )
-    else:
-        if callback:
-            kwargs["callback"] = callback
-        if status_code:
-            kwargs["status"] = status_code
-        aioresponses_mock.add(
-            url,
-            method,
-            **kwargs,
-        )
+    if callback:
+        kwargs["callback"] = callback
+    if status_code:
+        kwargs["status"] = status_code
+    aioresponses_mock.add(
+        url,
+        method,
+        **kwargs,
+    )
 
 
-@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
 @pytest.mark.asyncio
 async def test_verify_request_session_success(
     api_url: str,
     iguazio_client: framework.utils.clients.iguazio.Client,
-    requests_mock: requests_mock_package.Mocker,
     aioresponses_mock: aioresponses_mock,
 ):
     mock_request_headers = starlette.datastructures.Headers(
@@ -92,19 +78,10 @@ async def test_verify_request_session_success(
     mock_request.state.request_id = "test-request-id"
 
     def _verify_session_mock(*args, **kwargs):
-        response = {}
-        if iguazio_client.is_sync:
-            request, context = args
-            request_headers = request.headers
-            context.headers = mock_response_headers
-        else:
-            request_headers = kwargs["headers"]
+        request_headers = kwargs["headers"]
         for header_key, header_value in mock_request_headers.items():
             assert request_headers[header_key] == header_value
-        if iguazio_client.is_sync:
-            return response
-        else:
-            return CallbackResult(headers=mock_response_headers)
+        return CallbackResult(headers=mock_response_headers)
 
     def _verify_session_with_body_mock(*args, **kwargs):
         response = {
@@ -124,19 +101,11 @@ async def test_verify_request_session_success(
                 },
             },
         }
-        if iguazio_client.is_sync:
-            request, context = args
-            request_headers = request.headers
-            context.headers = mock_response_headers
-        else:
-            request_headers = kwargs["headers"]
+        request_headers = kwargs["headers"]
         for header_key, header_value in mock_request_headers.items():
             assert request_headers[header_key] == header_value
 
-        if iguazio_client.is_sync:
-            return response
-        else:
-            return CallbackResult(payload=response, headers=mock_response_headers)
+        return CallbackResult(payload=response, headers=mock_response_headers)
 
     url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
     for test_case in [
@@ -148,8 +117,6 @@ async def test_verify_request_session_success(
         },
     ]:
         patch_restful_request(
-            iguazio_client.is_sync,
-            requests_mock,
             aioresponses_mock,
             method="POST",
             url=url,

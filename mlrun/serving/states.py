@@ -1275,10 +1275,14 @@ class LLModel(Model):
         prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
         input_data = copy(_get_data_from_path(self._input_path, body))
         if isinstance(input_data, dict):
-            kwargs = {
-                place_holder: input_data.get(body_map["field"])
-                for place_holder, body_map in prompt_legend.items()
-            } if prompt_legend else {}
+            kwargs = (
+                {
+                    place_holder: input_data.get(body_map["field"])
+                    for place_holder, body_map in prompt_legend.items()
+                }
+                if prompt_legend
+                else {}
+            )
             input_data.update(kwargs)
             default_place_holders = PlaceholderDefaultDict(lambda: None, input_data)
             for message in prompt_template:
@@ -1289,7 +1293,9 @@ class LLModel(Model):
                         "Input data was missing a placeholder, placeholder stay unformatted",
                         key_error=e,
                     )
-                    message["content"] = message["content"].format_map(default_place_holders)
+                    message["content"] = message["content"].format_map(
+                        default_place_holders
+                    )
         else:
             logger.warning(
                 f"Expected input data to be a dict, but received input data from type {type(input_data)} prompt template"

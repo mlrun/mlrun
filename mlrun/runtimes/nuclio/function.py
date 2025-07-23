@@ -292,6 +292,14 @@ class RemoteRuntime(KubeResource):
     def pre_deploy_validation(self):
         if self.metadata.tag:
             mlrun.utils.validate_tag_name(self.metadata.tag, "function.metadata.tag")
+        # prevent using both code and source archive together
+        code = (
+            self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
+        )
+        if code and self.spec.build.source:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot specify both code and source archive"
+            )
 
     def mask_sensitive_data_in_config(self):
         if not self.spec.config:

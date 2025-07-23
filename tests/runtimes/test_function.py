@@ -266,3 +266,29 @@ def test_with_sidecar(command: str, args: list, expected_sidecars: list):
     )
 
     assert function.spec.config["spec.sidecars"] == expected_sidecars
+
+
+@pytest.mark.parametrize(
+    "with_repo, should_raise",
+    [
+        # conflict between code and archive should raise an error
+        (False, True),
+        # correct config: should not raise
+        (True, False),
+    ],
+)
+def test_pre_deploy_validation_source_repo_alignment(with_repo, should_raise):
+    function = mlrun.new_function("test", kind="nuclio")
+    function.spec.build.source = "v3io:///some/path/src.zip"
+    function.spec.build.load_source_on_run = True
+    function.spec.build.with_repo = with_repo
+    if not with_repo:
+        function.spec.build.functionSourceCode = "some-code"
+
+    if should_raise:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
+            function.pre_deploy_validation()
+        assert "cannot specify both code and source archive" in str(exc_info.value)
+    else:
+        # should not raise
+        function.pre_deploy_validation()

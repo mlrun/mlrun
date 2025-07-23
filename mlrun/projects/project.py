@@ -3901,6 +3901,7 @@ class MlrunProject(ModelObj):
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         top_level: bool = False,
+        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
         tsdb_metrics: bool = False,
@@ -3916,8 +3917,9 @@ class MlrunProject(ModelObj):
         5) function_tag
         6) labels
         7) top level
-        8) uids
-        9) start and end time, corresponding to the `created` field.
+        8) mode
+        9) uids
+        10) start and end time, corresponding to the `created` field.
         By default, when no filters are applied, all available endpoints for the given project will be listed.
 
         In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based
@@ -3937,6 +3939,8 @@ class MlrunProject(ModelObj):
         :param start:           The start time to filter by.Corresponding to the `created` field.
         :param end:             The end time to filter by. Corresponding to the `created` field.
         :param top_level:       If true will return only routers and endpoint that are NOT children of any router.
+        :param mode:            Specifies the mode of the model endpoint. Can be "real-time", "batch", or both if set
+                                to None.
         :param uids:            If passed will return a list `ModelEndpoint` object with uid in uids.
         :param tsdb_metrics:    When True, the time series metrics will be added to the output
                                 of the resulting.
@@ -3958,6 +3962,7 @@ class MlrunProject(ModelObj):
             start=start,
             end=end,
             top_level=top_level,
+            mode=mode,
             uids=uids,
             latest_only=latest_only,
             tsdb_metrics=tsdb_metrics,

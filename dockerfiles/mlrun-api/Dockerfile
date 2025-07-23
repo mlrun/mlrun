@@ -32,8 +32,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         libpq-dev \
         mariadb-client \
         sqlite3 \
-        tini \
-    && rm -rf /var/lib/apt/lists/*
+        tini
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \

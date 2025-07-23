@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import collections.abc
 import os
 
 import pytest
@@ -22,10 +23,10 @@ import mlrun
 import framework.utils.db.utils
 import framework.utils.singletons.db
 
-mysql_engine = pytest_mock_resources.create_mysql_fixture()
+mysql_engine = pytest_mock_resources.create_mysql_fixture(scope="session")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def alembic_engine(
     mysql_engine: sqlalchemy.engine.Engine,
 ) -> sqlalchemy.engine.Engine:
@@ -37,7 +38,7 @@ def alembic_engine(
     return mysql_engine.execution_options(isolation_level="AUTOCOMMIT")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def pmr_mysql_container(pytestconfig, pmr_mysql_config):
     yield from pytest_mock_resources.get_container(
         pytestconfig=pytestconfig,
@@ -47,7 +48,7 @@ def pmr_mysql_container(pytestconfig, pmr_mysql_config):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def pmr_mysql_config():
     return pytest_mock_resources.MysqlConfig(
         image="mysql:8.0",
@@ -58,10 +59,21 @@ def pmr_mysql_config():
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def db_util(
-    alembic_engine: sqlalchemy.engine.Engine,
-) -> framework.utils.db.utils.DBUtil:
+    alembic_engine: sqlalchemy.Engine,
+) -> collections.abc.Generator[framework.utils.db.utils.DBUtil, None, None]:
     util = framework.utils.db.utils.DBUtil()
     util.wait_for_db_liveness()
-    return util
+    yield util
+
+    db_url = alembic_engine.url
+    db_name = db_url.database
+    admin_url = db_url.set(database=None)
+
+    admin_engine = sqlalchemy.create_engine(admin_url)
+
+    with admin_engine.connect() as conn:
+        conn.execute(sqlalchemy.text(f"DROP DATABASE IF EXISTS `{db_name}`"))
+        conn.execute(sqlalchemy.text(f"CREATE DATABASE `{db_name}`"))
+    admin_engine.dispose()

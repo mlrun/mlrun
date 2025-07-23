@@ -18,7 +18,7 @@ import framework.utils.db.utils
 
 
 @pytest.mark.integration
-def test_mysql_apply_strict_all_tables_live(
+def test_mysql_apply_pipes_as_concat_live(
     db_util: framework.utils.db.utils.DBUtil,
 ):
     original = list(db_util.get_current_configurations())
@@ -32,3 +32,19 @@ def test_mysql_apply_strict_all_tables_live(
 
     db_util.set_configurations(original)
     assert list(db_util.get_current_configurations()) == original
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("noop_key", ["nil", "none"])
+def test_set_configurations_noop_values_are_ignored(
+    db_util: framework.utils.db.utils.DBUtil,
+    noop_key: str,
+):
+    original = list(db_util.get_current_configurations())
+
+    db_util.set_configurations([noop_key])
+    after = list(db_util.get_current_configurations())
+
+    assert (
+        after == original
+    ), f"Configuration changed after setting noop value '{noop_key}'"

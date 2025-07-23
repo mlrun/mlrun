@@ -40,7 +40,6 @@ def test_set_configurations_skips_when_none(
     monkeypatch.setattr(db_util, "_apply_configurations", mocked_apply)
 
     db_util.set_configurations(None)
-
     mocked_apply.assert_not_called()
 
 
@@ -56,5 +55,4 @@ def test_set_configurations_called_with_modes(
     monkeypatch.setattr(db_util, "_get_connection", connection_mock)
 
     db_util.set_configurations([item])
-
     mocked_apply.assert_called_with(unittest.mock.ANY, [item])

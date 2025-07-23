@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import collections.abc
 import os
 
 import pytest
@@ -26,10 +27,10 @@ pytest.importorskip(
     "psycopg2",
     reason="psycopg2 not installed",
 )
-postgres_engine = pytest_mock_resources.create_postgres_fixture()
+postgres_engine = pytest_mock_resources.create_postgres_fixture(scope="session")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def alembic_engine(
     postgres_engine: sqlalchemy.engine.Engine,
 ) -> sqlalchemy.engine.Engine:
@@ -41,7 +42,7 @@ def alembic_engine(
     return postgres_engine.execution_options(isolation_level="AUTOCOMMIT")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def pmr_postgres_config():
     return pytest_mock_resources.PostgresConfig(
         image="postgres:17",
@@ -53,7 +54,7 @@ def pmr_postgres_config():
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def pmr_postgres_container(pytestconfig, pmr_postgres_config):
     yield from pytest_mock_resources.get_container(
         pytestconfig=pytestconfig,
@@ -63,10 +64,37 @@ def pmr_postgres_container(pytestconfig, pmr_postgres_config):
     )
 
 
-@pytest.fixture
+import sqlalchemy
+from sqlalchemy.engine import Engine
+
+
+@pytest.fixture(scope="session")
 def db_util(
-    alembic_engine: sqlalchemy.engine.Engine,
-) -> framework.utils.db.utils.DBUtil:
+    alembic_engine: Engine,
+) -> collections.abc.Generator[framework.utils.db.utils.DBUtil]:
     util = framework.utils.db.utils.DBUtil()
     util.wait_for_db_liveness()
-    return util
+    yield util
+
+    db_url = alembic_engine.url
+    db_name = db_url.database
+    admin_url = db_url.set(database="postgres")
+    admin_engine = sqlalchemy.create_engine(admin_url)
+
+    raw_conn = admin_engine.raw_connection()
+    try:
+        raw_conn.connection.set_session(autocommit=True)
+        with raw_conn.cursor() as cur:
+            cur.execute(
+                """
+                        SELECT pg_terminate_backend(pid)
+                        FROM pg_stat_activity
+                        WHERE datname = %s
+                          AND pid <> pg_backend_pid()
+                        """,
+                (db_name,),
+            )
+            cur.execute(f'DROP DATABASE IF EXISTS "{db_name}"')
+            cur.execute(f'CREATE DATABASE "{db_name}"')
+    finally:
+        raw_conn.close()

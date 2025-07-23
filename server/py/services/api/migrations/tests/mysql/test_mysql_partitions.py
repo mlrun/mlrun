@@ -14,8 +14,8 @@
 from datetime import datetime
 
 import pytest
-from sqlalchemy import text
-from sqlalchemy.orm import sessionmaker
+import sqlalchemy
+import sqlalchemy.orm
 
 import mlrun.common.schemas as schemas
 
@@ -28,11 +28,11 @@ import services.api.utils.db.partitioner
 @pytest.mark.usefixtures("pmr_mysql_container")
 @services.api.migrations.tests.base.conftest.freeze_datetime(datetime(2025, 1, 1))
 def test_create_partitions_mysql(alembic_engine):
-    session = sessionmaker(bind=alembic_engine)()
+    session = sqlalchemy.orm.sessionmaker(bind=alembic_engine)()
     table = "dyn_table"
 
     session.execute(
-        text(
+        sqlalchemy.text(
             f"""
             CREATE TABLE `{table}` (
                 id   INT NOT NULL,
@@ -71,11 +71,11 @@ def test_create_partitions_mysql(alembic_engine):
 @pytest.mark.usefixtures("pmr_mysql_container")
 @services.api.migrations.tests.base.conftest.freeze_datetime(datetime(2025, 1, 6))
 def test_drop_partitions_mysql(alembic_engine):
-    session = sessionmaker(bind=alembic_engine)()
+    session = sqlalchemy.orm.sessionmaker(bind=alembic_engine)()
     table = "dyn_table_drop"
 
     session.execute(
-        text(
+        sqlalchemy.text(
             f"""
             CREATE TABLE `{table}` (
                 id   INT NOT NULL,

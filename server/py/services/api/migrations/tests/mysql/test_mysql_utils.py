@@ -29,7 +29,7 @@ def test_set_mysql_modes(
         )
     raw_configs = mlrun.mlconf.httpdb.db.mysql.modes.split(",") + [
         "PIPES_AS_CONCAT",
-        "ONLY_FULL_GROUP_BY", # This is a default setting.
+        "ONLY_FULL_GROUP_BY",  # This is a default setting.
     ]
     try:
         db_util.set_configurations(raw_configs)

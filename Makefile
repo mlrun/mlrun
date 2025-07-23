@@ -475,34 +475,30 @@ endif
 ###############################################################################
 
 # --- Vars --------------------------------------------------------------------
-COMMON_IMAGE_TAG      := mlrun_common_image            # local/tagged image name
-COMMON_STAMP          := .build/common-image.done      # stamp file to skip rebuild
+COMMON_IMAGE_TAG     ?= mlrun_common_image:$(MLRUN_PYTHON_VERSION)
+COMMON_STAMP         ?= build/common-image.$(MLRUN_PYTHON_VERSION).stamp
+COMMON_DOCKER_ARGS   := --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION)
 COMMON_DOCKERFILE     := dockerfiles/common/Dockerfile # Dockerfile path
 
 # --- Build (cached) ----------------------------------------------------------
-ifeq ($(strip $(MLRUN_NO_CACHE)),)                     # normal build (use cache)
-
-# High‑level target most other rules depend on
+ifeq ($(strip $(MLRUN_NO_CACHE)),)
 common-image: $(COMMON_STAMP)
 
-# Stamp recipe – builds or pulls the image only when it’s missing
-# Add every file that should bust the cache as a prerequisite here ↓
 $(COMMON_STAMP): $(COMMON_DOCKERFILE)
 	@if ! docker image inspect $(COMMON_IMAGE_TAG) >/dev/null 2>&1; then \
-		echo "Building/pulling $(COMMON_IMAGE_TAG)…";                  \
-		docker pull $(COMMON_IMAGE_TAG) ||                            \
-		docker build -f $(COMMON_DOCKERFILE) -t $(COMMON_IMAGE_TAG) . ;\
+	    echo "Building $(COMMON_IMAGE_TAG)…";                   \
+	    docker build $(COMMON_DOCKER_ARGS) -f $(COMMON_DOCKERFILE)     \
+	                -t $(COMMON_IMAGE_TAG) . ;                         \
 	fi
 	@mkdir -p $(dir $@) && touch $@
 
-# --- Build (forced no‑cache) -------------------------------------------------
-else                                            # when MLRUN_NO_CACHE is set
+else  # when MLRUN_NO_CACHE is set
 .PHONY: common-image
 common-image:
-	docker build --no-cache -f $(COMMON_DOCKERFILE) -t $(COMMON_IMAGE_TAG) .
+	docker build --no-cache $(COMMON_DOCKER_ARGS) -f $(COMMON_DOCKERFILE) \
+	            -t $(COMMON_IMAGE_TAG) .
 endif
 
-# --- Utilities ---------------------------------------------------------------
 .PHONY: clean-common-image
 clean-common-image:                            # remove image + stamp
 	-docker rmi $(COMMON_IMAGE_TAG) || true

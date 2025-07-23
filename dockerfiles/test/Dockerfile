@@ -15,7 +15,7 @@ ARG MLRUN_PYTHON_VERSION=3.9
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
-ARG MLRUN_PYTHON_VERSION
+ARG MLRUN_PYTHON_VERSION=3.9
 
 ENV NO_COLOR=1
 
@@ -23,7 +23,7 @@ LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
 FROM mlrun_common_image
-ARG MLRUN_PYTHON_VERSION§
+ARG MLRUN_PYTHON_VERSION=3.9
 ARG MLRUN_PIP_VERSION=25.0
 
 # Update OS packages:

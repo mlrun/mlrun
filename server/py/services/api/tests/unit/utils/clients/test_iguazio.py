@@ -41,7 +41,6 @@ from framework.utils.asyncio import maybe_coroutine
 
 
 def patch_restful_request(
-    requests_mock: requests_mock_package.Mocker,
     aioresponses_mock: aioresponses_mock,
     method: str,
     url: str,
@@ -63,10 +62,11 @@ def patch_restful_request(
     )
 
 
+@pytest.mark.parametrize("iguazio_client", ["async"], indirect=True)
 @pytest.mark.asyncio
 async def test_verify_request_session_success(
     api_url: str,
-    iguazio_client: framework.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.AsyncClient,
     aioresponses_mock: aioresponses_mock,
 ):
     mock_request_headers = starlette.datastructures.Headers(
@@ -131,12 +131,11 @@ async def test_verify_request_session_success(
         )
 
 
-@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.parametrize("iguazio_client", ["async"], indirect=True)
 @pytest.mark.asyncio
 async def test_verify_request_session_failure(
     api_url: str,
-    iguazio_client: framework.utils.clients.iguazio.Client,
-    requests_mock: requests_mock_package.Mocker,
+    iguazio_client: framework.utils.clients.iguazio.AsyncClient,
     aioresponses_mock: aioresponses_mock,
 ):
     mock_request = fastapi.Request({"type": "http"})
@@ -144,8 +143,6 @@ async def test_verify_request_session_failure(
     mock_request.state.request_id = "test-request-id"
     url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
     patch_restful_request(
-        iguazio_client.is_sync,
-        requests_mock,
         aioresponses_mock,
         method="POST",
         url=url,

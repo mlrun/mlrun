@@ -1631,7 +1631,9 @@ class ModelRunnerStep(MonitoredStep):
             )
         root = self._extract_root_step()
         if isinstance(root, RootFlowStep):
-            self.verify_model_runner_step(self, [endpoint_name])
+            self.verify_model_runner_step(
+                self, [endpoint_name], verify_shared_models=False
+            )
         ParallelExecutionMechanisms.validate(execution_mechanism)
         self.class_args[schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM] = (
             self.class_args.get(

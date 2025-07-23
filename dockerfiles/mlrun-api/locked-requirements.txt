@@ -1249,9 +1249,9 @@ inflection==0.5.1 \
     #   -r requirements.txt
     #   igz-mgmt
     #   mlrun-pipelines-kfp-v1-8
-ipykernel==6.30.0 \
-    --hash=sha256:b7b808ddb2d261aae2df3a26ff3ff810046e6de3dfbc6f7de8c98ea0a6cb632c \
-    --hash=sha256:fd2936e55c4a1c2ee8b1e5fa6a372b8eecc0ab1338750dee76f48fa5cca1301e
+ipykernel==6.29.5 \
+    --hash=sha256:afdb66ba5aa354b09b91379bac28ae4afebbb30e8b39510c9690afb7a10421b5 \
+    --hash=sha256:f093a22c4a40f8828f8e330a9c297cb93dcab13bd9678ded6de8e5cf81c56215
     # via nuclio-jupyter
 ipython==8.37.0 \
     --hash=sha256:ca815841e1a41a1e6b73a0b08f3038af9b2252564d01fc405356d34033012216 \

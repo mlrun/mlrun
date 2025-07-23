@@ -145,6 +145,13 @@ class EventStreamProcessor:
             fn.set_topology(mlrun.serving.states.StepKinds.flow, engine="async"),
         )
 
+        # forward back complete events to controller
+        graph.add_step(
+            "storey.Filter",
+            "FilterBatchComplete",
+            _fn="(event.get('kind') == 'batch_complete')",
+        )
+
         # split the graph between event with error vs valid event
         graph.add_step(
             "storey.Filter",
@@ -261,7 +268,7 @@ class EventStreamProcessor:
                 "controller_stream",
                 path=stream_uri,
                 sharding_func=ControllerEvent.ENDPOINT_ID,
-                after="ForwardNOP",
+                after=["ForwardNOP", "FilterBatchComplete"],
                 # Force using the pipeline key instead of the one in the profile in case of v3io profile.
                 # In case of Kafka, this parameter will be ignored.
                 alternative_v3io_access_key="V3IO_ACCESS_KEY",

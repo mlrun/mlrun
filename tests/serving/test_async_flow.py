@@ -824,7 +824,7 @@ def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
 @pytest.mark.parametrize(
     "legend_type", ["None", "missing_values", "extended", "as_expected"]
 )
-def test_llm_with_missing_templates(legend_type: str):
+def test_llm_with_missing_legends(legend_type: str):
     project = mlrun.new_project("get-model-path-project", save=False)
     function = mlrun.new_function("tests", kind="serving")
     model_artifact = project.log_model(

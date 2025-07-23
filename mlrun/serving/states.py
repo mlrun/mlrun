@@ -1612,15 +1612,15 @@ class ModelRunnerStep(MonitoredStep):
                                       this require that the event body will behave like a dict, expects scopes to be
                                       defined by dot notation (e.g "data.d").
                                       examples: input_path="data.b"
-                                      event: {"data":{"a": 5, "b": 7}},means request body will be 7.
-                                      event: {"data":{"a": [5, 9], "b": [7, 8]}} means request body will be [7,8]
-                                      event: {"data":{"a": "extra_data", "b": {"f0": [1, 2]}}} means request body will
-                                      be {"f0": [1, 2]}
+                                      event: {"data":{"a": 5, "b": 7}}, means monitored body will be 7.
+                                      event: {"data":{"a": [5, 9], "b": [7, 8]}} means monitored body will be [7,8].
+                                      event: {"data":{"a": "extra_data", "b": {"f0": [1, 2]}}} means monitored body will
+                                      be {"f0": [1, 2]}.
                                       if a ``list`` or ``list of lists`` is provided, it must follow the order and
                                       size defined by the input schema.
           :param result_path:         when specified selects the key/path in the output event to use as model monitoring
-                                      outputs this require that the event body will behave like a dict, expects scopes
-                                      to be defined by dot notation (e.g "data.d").
+                                      outputs this require that the output event body will behave like a dict,
+                                      expects scopes to be defined by dot notation (e.g "data.d").
                                       examples: result_path="out.b"
                                       event: {"out":{"a": 5, "b": 7}}, means monitored body will be 7.
                                       event: {"out":{"a": [5, 9], "b": [7, 8]}} means monitored body will be [7,8]

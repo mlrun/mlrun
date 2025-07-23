@@ -17,6 +17,7 @@ import os
 import pytest
 import pytest_mock_resources
 import sqlalchemy
+import sqlalchemy.engine
 
 import mlrun
 
@@ -64,13 +65,9 @@ def pmr_postgres_container(pytestconfig, pmr_postgres_config):
     )
 
 
-import sqlalchemy
-from sqlalchemy.engine import Engine
-
-
 @pytest.fixture(scope="session")
 def db_util(
-    alembic_engine: Engine,
+    alembic_engine: sqlalchemy.engine.Engine,
 ) -> collections.abc.Generator[framework.utils.db.utils.DBUtil]:
     util = framework.utils.db.utils.DBUtil()
     util.wait_for_db_liveness()

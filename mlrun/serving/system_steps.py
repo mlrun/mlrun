@@ -13,9 +13,8 @@
 # limitations under the License.
 
 import random
-from copy import deepcopy
 from datetime import timedelta
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import numpy as np
 import storey
@@ -25,7 +24,7 @@ import mlrun.artifacts
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.serving
 from mlrun.common.schemas import MonitoringData
-from mlrun.utils import logger
+from mlrun.utils import get_data_from_path, logger
 
 
 class MonitoringPreProcessor(storey.MapClass):
@@ -46,9 +45,7 @@ class MonitoringPreProcessor(storey.MapClass):
         result_path = model_monitoring_data.get(MonitoringData.RESULT_PATH)
         input_path = model_monitoring_data.get(MonitoringData.INPUT_PATH)
 
-        result = self._get_data_from_path(
-            result_path, event.body.get(model, event.body)
-        )
+        result = get_data_from_path(result_path, event.body.get(model, event.body))
         output_schema = model_monitoring_data.get(MonitoringData.OUTPUTS)
         input_schema = model_monitoring_data.get(MonitoringData.INPUTS)
         logger.debug("output schema retrieved", output_schema=output_schema)
@@ -64,7 +61,7 @@ class MonitoringPreProcessor(storey.MapClass):
             outputs = result
 
         event_inputs = event._metadata.get("inputs", {})
-        event_inputs = self._get_data_from_path(input_path, event_inputs)
+        event_inputs = get_data_from_path(input_path, event_inputs)
         if isinstance(event_inputs, dict):
             # transpose by key the inputs:
             inputs = self.transpose_by_key(event_inputs, input_schema)
@@ -173,26 +170,6 @@ class MonitoringPreProcessor(storey.MapClass):
             # Transform [[0]] -> [0]:
             return transposed[:, 0].tolist()
         return transposed.tolist()
-
-    @staticmethod
-    def _get_data_from_path(
-        path: Union[str, list[str], None], data: dict
-    ) -> dict[str, Any]:
-        if isinstance(path, str):
-            output_data = data.get(path)
-        elif isinstance(path, list):
-            output_data = deepcopy(data)
-            for key in path:
-                output_data = output_data.get(key, {})
-        elif path is None:
-            output_data = data
-        else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Expected path be of type str or list of str or None"
-            )
-        if isinstance(output_data, (int, float)):
-            output_data = [output_data]
-        return output_data
 
     def do(self, event):
         monitoring_event_list = []
@@ -384,7 +361,9 @@ class SamplingStep(storey.MapClass):
             event=event,
             sampling_percentage=self.sampling_percentage,
         )
-        if self.sampling_percentage != 100:
+        if self.sampling_percentage != 100 and not event.get(
+            mm_schemas.StreamProcessingEvent.ERROR
+        ):
             request = event[mm_schemas.StreamProcessingEvent.REQUEST]
             num_of_inputs = len(request["inputs"])
             sampled_requests_indices = self._pick_random_requests(

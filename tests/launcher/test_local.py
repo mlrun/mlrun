@@ -282,3 +282,21 @@ def test_to_job_on_function_with_children():
         match="Cannot convert function 'test' to a job because it has child functions",
     ):
         function.to_job()
+
+
+def test_validate_run_retries_warning(logs_stream):
+    launcher = mlrun.launcher.local.ClientLocalLauncher(local=True)
+    runtime = mlrun.code_to_function(
+        name="test", kind="local", filename=str(func_path), handler=handler
+    )
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(retry={"count": 5}, output_path="/tmp")
+    )
+
+    launcher._validate_run(runtime, run)
+
+    assert (
+        "Retry is not supported for local runs, ignoring retry settings"
+        in logs_stream.getvalue()
+    )
+    assert run.spec.retry.count == 0

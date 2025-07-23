@@ -101,7 +101,7 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         model_url: str,
         secrets: dict,
         model_name: str,
-        expected_torch_dtype: Optional[str],
+        expected_torch_dtype: Optional[str] = None,
     ):
         messages = [formatted_messages[0]]
         model_provider = mlrun.get_model_provider(

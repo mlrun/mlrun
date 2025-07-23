@@ -343,6 +343,59 @@ class SQLDB(DBInterface):
         self._delete_empty_labels(session, Run.Label)
         return run.struct
 
+    def set_run_retrying_status(
+        self,
+        session: Session,
+        project: str,
+        uid: str,
+        retrying: bool,
+    ) -> dict:
+        """
+        Atomically acquire a FOR UPDATE lock on the specified run row, then add or remove
+        the `retrying` label.
+
+        :param session:  SQLAlchemy session to use for the transaction.
+        :param project:     Name of the project containing the run.
+        :param uid:      UID of the workflow‐runner run to lock and update.
+        :param retrying:    Whether to mark the run as retrying (True) or clear that flag (False).
+                            - When setting to True, this will:
+                              1. lock the row
+                              2. verify no existing `retrying` label (else MLRunConflictError)
+                              3. add `retrying="true"`
+                            - When setting to False, it will remove the `retrying` label.
+        :returns:           The updated struct of the run.
+        :raises MLRunNotFoundError:   If the run does not exist.
+        :raises MLRunConflictError:   If attempting to set `retrying=True` when already marked.
+        """
+        try:
+            run = self._get_run(
+                session, uid, project, iteration=0, with_for_update=True
+            )
+            if not run:
+                raise mlrun.errors.MLRunNotFoundError(f"Run {project}/{uid} not found")
+
+            struct = run.struct
+            labels = run_labels(struct)
+
+            if not retrying:
+                labels.pop("retrying", None)
+            elif mlrun_constants.MLRunInternalLabels.retrying in labels:
+                # flush and commit so the lock is released immediately
+                session.commit()
+                raise mlrun.errors.MLRunConflictError
+            else:
+                # TODO: bump counter label here in follow-up
+                labels[mlrun_constants.MLRunInternalLabels.retrying] = "true"
+
+            update_labels(run, labels)
+            run.struct = struct
+            self._upsert(session, [run])
+
+            return struct
+        finally:
+            # ALWAYS commit so the FOR UPDATE lock is released
+            session.commit()
+
     def list_distinct_runs_uids(
         self,
         session,
@@ -954,7 +1007,7 @@ class SQLDB(DBInterface):
         for artifact, artifact_tag in artifact_records:
             artifact_struct = artifact.full_object
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
-            self._set_parent_uri(artifact_struct, artifact.parent)
+            self._set_parent_uri(artifact_struct, artifact.parent, parent_uri)
             artifact_struct["spec"]["has_children"] = bool(artifact.child_artifacts)
             artifacts.append(
                 mlrun.common.formatters.ArtifactFormat.format_obj(
@@ -1645,8 +1698,18 @@ class SQLDB(DBInterface):
     def _set_tag_in_artifact_struct(artifact, tag):
         artifact["metadata"]["tag"] = tag
 
-    @staticmethod
-    def _set_parent_uri(artifact: dict, parent: ArtifactV2):
+    def _set_parent_uri(
+        self, artifact: dict, parent: ArtifactV2, parent_uri: Optional[str] = None
+    ):
+        _, uri = mlrun.datastore.parse_store_uri(parent_uri)
+        (
+            _,
+            _,
+            _,
+            parent_tag,
+            _,
+            _,
+        ) = parse_artifact_uri(uri)
         artifact_spec = artifact.setdefault("spec", {})
         if parent:
             artifact_spec["parent_uri"] = mlrun.datastore.get_store_uri(
@@ -1657,6 +1720,8 @@ class SQLDB(DBInterface):
                     iter=parent.iteration,
                     tree=parent.producer_id,
                     uid=parent.uid,
+                    tag=parent_tag
+                    or self._get_obj_tag_prioritizing_user_tag(parent.tags or []),
                 ),
             )
         else:
@@ -6052,7 +6117,7 @@ class SQLDB(DBInterface):
             )
             function_tag_list = model_endpoint_record.function.tags
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG] = (
-                self._get_function_tag(function_tag_list)
+                self._get_obj_tag_prioritizing_user_tag(function_tag_list)
             )
             model_endpoint_full_dict[ModelEndpointSchema.STATE] = (
                 model_endpoint_record.function.state
@@ -6071,9 +6136,10 @@ class SQLDB(DBInterface):
             model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_URI] = None
         return model_endpoint_full_dict
 
-    def _get_function_tag(self, function_tag_list):
+    @staticmethod
+    def _get_obj_tag_prioritizing_user_tag(function_tag_list):
         """
-        Used by model endpoints, this extracts the function tag from the list,
+        Used by model endpoints, this extracts the function/model tag from the list,
         prioritizing the user tag over the system's latest tag if available.
         If neither exists, it returns an empty string.
         """
@@ -7824,14 +7890,11 @@ class SQLDB(DBInterface):
         Extract the unversioned function record that matches the given name and tag,
         and return the function record.
         """
-        normalized_function_name = (
-            mlrun.utils.normalize_name(function_name) if function_name else None
-        )
         function_tag = function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         try:
             function_record, _ = self._get_function_db_object(
                 session,
-                name=normalized_function_name,
+                name=function_name,
                 project=project,
                 tag=function_tag,
             )
@@ -7840,7 +7903,7 @@ class SQLDB(DBInterface):
             try:
                 function_record, _ = self._get_function_db_object(
                     session,
-                    name=normalized_function_name,
+                    name=function_name,
                     project=project,
                     tag=function_tag,
                     hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
@@ -7888,11 +7951,8 @@ class SQLDB(DBInterface):
         function_tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
-        normalized_function_name = (
-            mlrun.utils.normalize_name(function_name) if function_name else None
-        )
         mep_record = self._get_model_endpoint(
-            session, project, name, normalized_function_name, function_tag, uid
+            session, project, name, function_name, function_tag, uid
         )
         if not mep_record:
             raise mlrun.errors.MLRunNotFoundError(
@@ -7931,11 +7991,8 @@ class SQLDB(DBInterface):
         function_tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
     ) -> str:
-        normalized_function_name = (
-            mlrun.utils.normalize_name(function_name) if function_name else None
-        )
         mep_record = self._get_model_endpoint(
-            session, project, name, normalized_function_name, function_tag, uid
+            session, project, name, function_name, function_tag, uid
         )
         if mep_record:
             updated = datetime.now(timezone.utc)
@@ -8015,9 +8072,7 @@ class SQLDB(DBInterface):
             names=names,
             project=project,
             labels=labels,
-            function_name=mlrun.utils.normalize_name(function_name)
-            if function_name
-            else None,
+            function_name=function_name,
             function_tag=function_tag,
             model_name=model_name,
             model_tag=model_tag,

@@ -39,7 +39,7 @@ RUN --mount=type=cache,target=/opt/conda/pkgs \
     micromamba clean -afy
 FROM ${MLRUN_UV_IMAGE} AS uv-image
 
-FROM mlrun_common_image
+FROM mlrun_common_image:${MLRUN_PYTHON_VERSION}
 ARG MLRUN_PYTHON_VERSION=3.11
 ARG MLRUN_PIP_VERSION=25.0
 RUN rm -rf /var/lib/apt/lists/*

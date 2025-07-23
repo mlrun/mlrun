@@ -17,7 +17,7 @@ ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
 
-FROM mlrun_common_image
+FROM mlrun_common_image:${MLRUN_PYTHON_VERSION}
 
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"

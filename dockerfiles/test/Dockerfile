@@ -22,7 +22,7 @@ ENV NO_COLOR=1
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
-FROM mlrun_common_image
+FROM mlrun_common_image:${MLRUN_PYTHON_VERSION}
 ARG MLRUN_PYTHON_VERSION=3.9
 ARG MLRUN_PIP_VERSION=25.0
 

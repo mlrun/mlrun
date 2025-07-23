@@ -142,8 +142,8 @@ class DBUtil:
     _DIALECT = None
     _DSN_ENV = "MLRUN_HTTPDB__DSN"
     _DRIVER_CACHE: dict[str, Any] = {}
+    _EMPTY_DB_CONFIGURATIONS = {"nil", "none"}
     _DEFAULT_DB_CONFIGURATIONS = None
-    _EMPTY_DB_CONFIGURATIONS: set[str] = {"nil", "none"}
 
     def wait_for_db_liveness(
         self,
@@ -172,10 +172,10 @@ class DBUtil:
         self,
         config_items: Optional[Union[list[str], dict[str, Any]]] = None,
     ) -> None:
-        items = config_items or self._EMPTY_DB_CONFIGURATIONS
+        items = config_items or self._DEFAULT_DB_CONFIGURATIONS
         keys = _to_keyset(items)
 
-        if not keys or keys.intersection(self._EMPTY_DB_CONFIGURATIONS):
+        if not keys or keys.issubset(self._EMPTY_DB_CONFIGURATIONS):
             mlrun.utils.logger.debug(
                 "No configurations specified – skipping",
                 configs=config_items,
@@ -254,7 +254,7 @@ class DBUtil:
         connection: Any,
         config_items: Union[list[str], dict[str, str]],
     ) -> None:
-        raise NotImplementedError()
+        mlrun.utils.logger.debug("Applying configurations", configs=config_items)
 
 
 class UtilMySQL(DBUtil):
@@ -267,16 +267,19 @@ class UtilMySQL(DBUtil):
             with connection.cursor() as cursor:
                 cursor.execute("SELECT @@GLOBAL.sql_mode;")
                 raw = cursor.fetchone()[0] or ""
-                modes = [m.strip() for m in raw.split(",") if m.strip()]
-                return {mode: True for mode in modes}
         except Exception as exc:
             mlrun.utils.logger.exception(
                 "Failed to fetch current MySQL configurations",
                 error=mlrun.errors.err_to_str(exc),
             )
             raise
+        else:
+            modes = {
+                mode: True for mode in [m.strip() for m in raw.split(",") if m.strip()]
+            }
         finally:
             connection.close()
+        return modes
 
     def _apply_configurations(
         self,
@@ -308,13 +311,15 @@ class UtilPostgres(DBUtil):
                     FROM pg_settings
                         """
                 )
-                return {name: value for name, value in cursor.fetchall()}
+                modes = {name: value for name, value in cursor.fetchall()}
         except Exception as exc:
             mlrun.utils.logger.exception(
                 "Failed to fetch current PostgreSQL configurations",
                 error=mlrun.errors.err_to_str(exc),
             )
             raise exc
+        else:
+            return modes
         finally:
             connection.close()
 

@@ -18,16 +18,8 @@ ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 FROM ${MLRUN_UV_IMAGE} AS uv-image
 FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
 
-# Update OS packages:
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    DEBIAN_FRONTEND=noninteractive apt-get update -q &&  apt-get install -y --no-install-recommends \
-        build-essential \
-        cmake \
-        gcc \
-        git-core \
-        unzip \
-        wget \
-    && rm -rf /var/lib/apt/lists/*
+FROM mlrun_common_image:${MLRUN_PYTHON_VERSION}
+RUN rm -rf /var/lib/apt/lists/*
 
 
 ARG MLRUN_PIP_VERSION=25.0

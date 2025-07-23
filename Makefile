@@ -474,11 +474,10 @@ endif
 # Common base image
 ###############################################################################
 
-# --- Vars --------------------------------------------------------------------
 COMMON_IMAGE_TAG     ?= mlrun_common_image:$(MLRUN_PYTHON_VERSION)
 COMMON_STAMP         ?= build/common-image.$(MLRUN_PYTHON_VERSION).stamp
 COMMON_DOCKER_ARGS   := --build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION)
-COMMON_DOCKERFILE     := dockerfiles/common/Dockerfile # Dockerfile path
+COMMON_DOCKERFILE     := dockerfiles/common/Dockerfile
 
 # --- Build (cached) ----------------------------------------------------------
 ifeq ($(strip $(MLRUN_NO_CACHE)),)
@@ -500,7 +499,7 @@ common-image:
 endif
 
 .PHONY: clean-common-image
-clean-common-image:                            # remove image + stamp
+clean-common-image:
 	-docker rmi $(COMMON_IMAGE_TAG) || true
 	rm -f $(COMMON_STAMP)
 

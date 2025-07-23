@@ -18,7 +18,6 @@ from typing import Optional, cast
 import pytest
 import yaml
 from PIL import Image
-from torch import float16
 from transformers import AutoTokenizer
 
 import mlrun
@@ -136,6 +135,9 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
     def test_basic_invoke(self, cred_mode):
+        # torch cannot be included in the dev image
+        from torch import float16  # noqa
+
         secrets = {}
         if cred_mode == "profile":
             self.setup_datastore_profile(model_kwargs={"torch_dtype": float16})

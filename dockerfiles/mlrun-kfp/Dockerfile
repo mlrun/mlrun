@@ -16,11 +16,11 @@ ARG MLRUN_PYTHON_VERSION=3.9
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
-FROM mlrun_common_image
+FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
 
 # Update OS packages:
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    DEBIAN_FRONTEND=noninteractive apt-get update -q &&  apt-get install -y --no-install-recommends \
         build-essential \
         cmake \
         gcc \

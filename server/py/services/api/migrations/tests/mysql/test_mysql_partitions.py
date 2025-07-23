@@ -25,7 +25,6 @@ import services.api.utils.db.partitioner
 
 
 @pytest.mark.integration
-@pytest.mark.usefixtures("pmr_mysql_container")
 @services.api.migrations.tests.base.conftest.freeze_datetime(datetime(2025, 1, 1))
 def test_create_partitions_mysql(alembic_engine):
     session = sqlalchemy.orm.sessionmaker(bind=alembic_engine)()
@@ -38,7 +37,7 @@ def test_create_partitions_mysql(alembic_engine):
                 id   INT NOT NULL,
                 data TEXT
             ) PARTITION BY RANGE (id) (
-                PARTITION p0 VALUES LESS THAN (1)
+                PARTITION {table}_p0 VALUES LESS THAN (1)
             );
             """
         )
@@ -59,7 +58,7 @@ def test_create_partitions_mysql(alembic_engine):
             partition_number=2,
         )
     }
-    expected_names.add("p0")
+    expected_names.add(f"{table}_p0")
 
     actual_names = set(
         framework.db.sqldb.db.MySQLDB._get_partition_metadata(session, table).keys()
@@ -68,7 +67,6 @@ def test_create_partitions_mysql(alembic_engine):
     session.close()
 
 
-@pytest.mark.usefixtures("pmr_mysql_container")
 @services.api.migrations.tests.base.conftest.freeze_datetime(datetime(2025, 1, 6))
 def test_drop_partitions_mysql(alembic_engine):
     session = sqlalchemy.orm.sessionmaker(bind=alembic_engine)()
@@ -81,7 +79,7 @@ def test_drop_partitions_mysql(alembic_engine):
                 id   INT NOT NULL,
                 data TEXT
             ) PARTITION BY RANGE (id) (
-                PARTITION p0 VALUES LESS THAN (1)
+                PARTITION {table}_p0 VALUES LESS THAN (1)
             );
             """
         )

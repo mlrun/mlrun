@@ -37,7 +37,6 @@ def test_postgres_apply_work_mem_live(
         assert updated.get("work_mem") == "65536", "'work_mem' was not updated"
     finally:
         db_util.set_configurations({"work_mem": old_value})
-
     restored = db_util.get_current_configurations()
     assert restored.get("work_mem") == old_value, "'work_mem' was not restored"
 

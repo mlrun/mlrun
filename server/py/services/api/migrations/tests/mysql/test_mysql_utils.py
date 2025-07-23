@@ -21,17 +21,21 @@ import framework.utils.db.utils
 def test_mysql_apply_pipes_as_concat_live(
     db_util: framework.utils.db.utils.DBUtil,
 ):
-    original = list(db_util.get_current_configurations())
+    original = db_util.get_current_configurations()
     if "PIPES_AS_CONCAT" in original:
         raise AssertionError(
             "The test is not applicable, 'PIPES_AS_CONCAT' is already set."
         )
 
-    db_util.set_configurations(["PIPES_AS_CONCAT"])
-    assert db_util.get_current_configurations()
+    try:
+        db_util.set_configurations(["PIPES_AS_CONCAT"])
+        updated = db_util.get_current_configurations()
+        assert "PIPES_AS_CONCAT" in updated
+    finally:
+        db_util.set_configurations(original)
 
-    db_util.set_configurations(original)
-    assert list(db_util.get_current_configurations()) == original
+    restored = db_util.get_current_configurations()
+    assert restored == original
 
 
 @pytest.mark.integration

@@ -20,7 +20,7 @@ import mlrun.errors
 from framework.utils.clients.base_client import BaseAsyncClient, BaseClient
 
 
-class ClientV4(BaseClient):
+class Client(BaseClient):
     def _generate_auth_info_from_session_verification_response(
         self,
         response_headers: typing.Mapping[str, typing.Any],
@@ -41,7 +41,7 @@ class ClientV4(BaseClient):
         self,
         method: str,
         path: str,
-        response: typing.Any,  # or aiohttp.ClientResponse
+        response: typing.Any,
         response_body: dict,
         error_message: str,
         kwargs: dict,
@@ -49,5 +49,5 @@ class ClientV4(BaseClient):
         raise NotImplementedError()
 
 
-class AsyncClient(BaseAsyncClient, ClientV4):
+class AsyncClient(BaseAsyncClient, Client):
     pass

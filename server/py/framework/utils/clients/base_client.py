@@ -92,7 +92,7 @@ class BaseClient(ABC, metaclass=mlrun.utils.singleton.AbstractSingleton):
         self,
         method: str,
         path: str,
-        response: typing.Any,  # or aiohttp.ClientResponse
+        response: typing.Any,
         response_body: dict,
         error_message: str,
         kwargs: dict,

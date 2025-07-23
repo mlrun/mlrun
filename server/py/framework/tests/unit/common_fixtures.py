@@ -275,8 +275,10 @@ class TestServiceBase:
             mlconf.runtimes_cleanup_interval = 0
             mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
 
+            transport = httpx.ASGITransport(app=app)
+
             async with httpx.AsyncClient(
-                app=app, base_url="http://test"
+                transport=transport, base_url="http://test"
             ) as async_client:
                 self.set_base_url_for_test_client(async_client, prefix)
                 yield async_client

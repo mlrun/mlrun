@@ -3608,40 +3608,6 @@ class HTTPRunDB(RunDBInterface):
             )
         return parsed_metrics_by_endpoint
 
-    def create_user_secrets(
-        self,
-        user: str,
-        provider: Union[
-            str, mlrun.common.schemas.SecretProviderName
-        ] = mlrun.common.schemas.SecretProviderName.vault,
-        secrets: Optional[dict] = None,
-    ):
-        """Create user-context secret in Vault. Please refer to :py:func:`create_project_secrets` for more details
-        and status of this functionality.
-
-        Note:
-                This method is currently in technical preview, and requires a HashiCorp Vault infrastructure
-                properly set up and connected to the MLRun API server.
-
-        :param user: The user context for which to generate the infra and store secrets.
-        :param provider: The name of the secrets-provider to work with. Currently only ``vault`` is supported.
-        :param secrets: A set of secret values to store within the Vault.
-        """
-        path = "user-secrets"
-        secrets_creation_request = mlrun.common.schemas.UserSecretCreationRequest(
-            user=user,
-            provider=provider,
-            secrets=secrets,
-        )
-        body = secrets_creation_request.dict()
-        error_message = f"Failed creating user secrets - {user}"
-        self.api_call(
-            "POST",
-            path,
-            error_message,
-            body=dict_to_json(body),
-        )
-
     @staticmethod
     def _validate_version_compatibility(server_version, client_version) -> bool:
         try:

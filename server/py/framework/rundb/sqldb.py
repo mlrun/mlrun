@@ -1026,16 +1026,6 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def create_user_secrets(
-        self,
-        user: str,
-        provider: Union[
-            str, mlrun.common.schemas.SecretProviderName
-        ] = mlrun.common.schemas.SecretProviderName.vault,
-        secrets: Optional[dict] = None,
-    ):
-        raise NotImplementedError()
-
     def create_model_endpoint(
         self,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,

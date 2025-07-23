@@ -23,7 +23,7 @@ LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
 FROM mlrun_common_image
-ARG MLRUN_PYTHON_VERSION
+ARG MLRUN_PYTHON_VERSION§
 ARG MLRUN_PIP_VERSION=25.0
 
 # Update OS packages:
@@ -76,7 +76,7 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 COPY pipeline-adapters pipeline-adapters
 # Install the pipeline adapters development versions since we release them only after merging
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=t ype=cache,target=/root/.cache/uv \
+    --mount=type=cache,target=/root/.cache/uv \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION} && find ./pipeline-adapters -type d \( -name build -o -name dist \) -exec rm -rf {} +
 
 

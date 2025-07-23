@@ -469,25 +469,46 @@ ifdef MLRUN_SKIP_COMPILE_SCHEMAS
 else
 	$(MAKE) -C server/go compile-schemas
 endif
-COMMON_IMAGE_TAG      := mlrun_common_image
-COMMON_STAMP          := .build/common-image.done
-COMMON_DOCKERFILE     := dockerfiles/common/Dockerfile
 
-# Rebuild when MLRUN_NO_CACHE is set
-ifeq ($(strip $(MLRUN_NO_CACHE)),)
+###############################################################################
+# Common base image
+###############################################################################
+
+# --- Vars --------------------------------------------------------------------
+COMMON_IMAGE_TAG      := mlrun_common_image            # local/tagged image name
+COMMON_STAMP          := .build/common-image.done      # stamp file to skip rebuild
+COMMON_DOCKERFILE     := dockerfiles/common/Dockerfile # Dockerfile path
+
+# --- Build (cached) ----------------------------------------------------------
+ifeq ($(strip $(MLRUN_NO_CACHE)),)                     # normal build (use cache)
+
+# High‑level target most other rules depend on
 common-image: $(COMMON_STAMP)
 
-$(COMMON_STAMP):
+# Stamp recipe – builds or pulls the image only when it’s missing
+# Add every file that should bust the cache as a prerequisite here ↓
+$(COMMON_STAMP): $(COMMON_DOCKERFILE)
 	@if ! docker image inspect $(COMMON_IMAGE_TAG) >/dev/null 2>&1; then \
-		docker pull $(COMMON_IMAGE_TAG) || \
-		docker build -f $(COMMON_DOCKERFILE) -t $(COMMON_IMAGE_TAG) . ; \
+		echo "Building/pulling $(COMMON_IMAGE_TAG)…";                  \
+		docker pull $(COMMON_IMAGE_TAG) ||                            \
+		docker build -f $(COMMON_DOCKERFILE) -t $(COMMON_IMAGE_TAG) . ;\
 	fi
 	@mkdir -p $(dir $@) && touch $@
-else
+
+# --- Build (forced no‑cache) -------------------------------------------------
+else                                            # when MLRUN_NO_CACHE is set
 .PHONY: common-image
 common-image:
-	docker build $(MLRUN_DOCKER_NO_CACHE_FLAG) -f $(COMMON_DOCKERFILE) -t $(COMMON_IMAGE_TAG) .
+	docker build --no-cache -f $(COMMON_DOCKERFILE) -t $(COMMON_IMAGE_TAG) .
 endif
+
+# --- Utilities ---------------------------------------------------------------
+.PHONY: clean-common-image
+clean-common-image:                            # remove image + stamp
+	-docker rmi $(COMMON_IMAGE_TAG) || true
+	rm -f $(COMMON_STAMP)
+
+
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-api

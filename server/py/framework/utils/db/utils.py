@@ -102,7 +102,7 @@ class ParsedDsn:
             return False
         if not self.host or not self._HOST_REGEX.fullmatch(self.host):
             return False
-        if self.port is not None or not 1 <= self.port <= 65535:
+        if self.port is not None and not 1 <= self.port <= 65535:
             return False
 
         return True
@@ -175,7 +175,7 @@ class DBUtil:
         items = config_items or self._DEFAULT_DB_CONFIGURATIONS
         keys = _to_keyset(items)
 
-        if not keys or keys.issubset(self._EMPTY_DB_CONFIGURATIONS):
+        if not keys or keys.intersection(self._EMPTY_DB_CONFIGURATIONS):
             mlrun.utils.logger.debug(
                 "No configurations specified – skipping",
                 configs=config_items,
@@ -437,7 +437,7 @@ def _to_keyset(
     items: Optional[Union[list[str], dict[str, Any]]],
 ) -> Optional[set[str]]:
     if items is None:
-        return None
+        return set()
     if isinstance(items, dict):
         return set(items.keys())
     else:

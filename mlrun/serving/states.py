@@ -45,7 +45,7 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
-from mlrun.utils import logger
+from mlrun.utils import get_data_from_path, logger, split_path
 
 from ..config import config
 from ..datastore import get_stream_pusher
@@ -1201,7 +1201,7 @@ class LLModel(Model):
         self, name: str, input_path: Optional[Union[str, list[str]]], **kwargs
     ):
         super().__init__(name, **kwargs)
-        self._input_path = _split_path(input_path)
+        self._input_path = split_path(input_path)
 
     def predict(
         self,
@@ -1273,7 +1273,7 @@ class LLModel(Model):
             return None, None
         prompt_legend = llm_prompt_artifact.spec.prompt_legend
         prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
-        input_data = copy(_get_data_from_path(self._input_path, body))
+        input_data = copy(get_data_from_path(self._input_path, body))
         if isinstance(input_data, dict):
             kwargs = (
                 {
@@ -3121,32 +3121,3 @@ def _init_async_objects(context, steps):
         **source_args,
     )
     return default_source, wait_for_result
-
-
-def _split_path(path: str) -> Union[str, list[str], None]:
-    if path is not None:
-        parsed_path = path.split(".")
-        if len(parsed_path) == 1:
-            parsed_path = parsed_path[0]
-        return parsed_path
-    return path
-
-
-def _get_data_from_path(
-    path: Union[str, list[str], None], data: dict
-) -> dict[str, Any]:
-    if isinstance(path, str):
-        output_data = data.get(path)
-    elif isinstance(path, list):
-        output_data = deepcopy(data)
-        for key in path:
-            output_data = output_data.get(key, {})
-    elif path is None:
-        output_data = data
-    else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Expected path be of type str or list of str or None"
-        )
-    if isinstance(output_data, (int, float)):
-        output_data = [output_data]
-    return output_data

@@ -822,9 +822,22 @@ def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
 
 
 @pytest.mark.parametrize(
-    "legend_type", ["None", "missing_values", "extended", "as_expected"]
+    "legend",
+    (
+        None,
+        {"country": {"field": None, "description": "Great"}},
+        {
+            "country": {"field": None, "description": "Great"},
+            "Not exists": {"field": "country", "description": "Great"},
+        },
+        {
+            "country": {"field": "country", "description": "Great"},
+            "profession": {"field": "profession", "description": "Great"},
+            "some_other_ph": {"field": "some_other_ph", "description": "Great"},
+        },
+    ),
 )
-def test_llm_with_missing_legends(legend_type: str):
+def test_llm_with_missing_legends(legend: dict):
     project = mlrun.new_project("get-model-path-project", save=False)
     function = mlrun.new_function("tests", kind="serving")
     model_artifact = project.log_model(
@@ -832,19 +845,6 @@ def test_llm_with_missing_legends(legend_type: str):
         model_url="http://localhost:8080/v2/models/mymodel/infer",
         default_config={"model_version": "4"},
     )
-    legends = {
-        "None": None,
-        "missing_values": {"country": {"field": None, "description": "Great"}},
-        "extended": {
-            "country": {"field": None, "description": "Great"},
-            "Not exists": {"field": "country", "description": "Great"},
-        },
-        "as_expected": {
-            "country": {"field": "country", "description": "Great"},
-            "profession": {"field": "profession", "description": "Great"},
-            "some_other_ph": {"field": "some_other_ph", "description": "Great"},
-        },
-    }
     llm_artifact = project.log_llm_prompt(
         "my_llm",
         prompt_template=[
@@ -855,7 +855,7 @@ def test_llm_with_missing_legends(legend_type: str):
             {"role": "system", "content": "you are answer as {profession}"},
         ],
         model_artifact=model_artifact.uri,
-        prompt_legend=legends[legend_type],
+        prompt_legend=legend,
     )
     with unittest.mock.patch(
         "mlrun.store_manager.get_store_artifact",
@@ -881,6 +881,7 @@ def test_llm_with_missing_legends(legend_type: str):
                 "profession": "Data scientist",
             }
         )
+        server.wait_for_completion()
         assert resp["prompt"] == [
             {"role": "user", "content": "What is the capital city of France ?!"},
             {"role": "system", "content": "you are answer as Data scientist"},

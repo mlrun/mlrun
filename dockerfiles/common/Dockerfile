@@ -15,4 +15,14 @@
 ARG MLRUN_PYTHON_VERSION=3.11
 
 FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
-RUN apt-get update -q
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    DEBIAN_FRONTEND=noninteractive apt-get update -q && \
+    apt-get -y upgrade -o Acquire::Check-Valid-Until=false && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        curl \
+        git \
+        libffi-dev \
+        python3-dev \
+        unzip

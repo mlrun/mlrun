@@ -26,17 +26,11 @@ ARG UID=1000
 RUN useradd -u $UID mlrun
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        tini \
-        gcc \
-        git-core \
-        procps \
-        sqlite3 \
-        vim \
-        mariadb-client \
-        curl \
-        ca-certificates \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends -o Acquire::Check-Valid-Until=false \
         libpq-dev \
+        mariadb-client \
+        sqlite3 \
+        tini \
     && rm -rf /var/lib/apt/lists/*
 
 

@@ -12,6 +12,7 @@
 .ruff_cache
 
 # Build
+.build/
 build/
 mlrun.egg-info
 

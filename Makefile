@@ -470,17 +470,18 @@ else
 	$(MAKE) -C server/go compile-schemas
 endif
 
-BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/base
+COMMON_IMAGE_TAG := mlrun_common_image
+COMMON_STAMP     := .build/common-image.done
+COMMON_DOCKERFILE       := dockerfiles/common/Dockerfile
 
-.PHONY: common-image
-common-image:
-	$(MAKE) generate-dockerignore DEST=test
-	$(MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND)
-	docker build \
-		--file dockerfiles/common/Dockerfile \
-		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
-		--tag mlrun_common_image .
+common-image: $(COMMON_STAMP)
+
+$(COMMON_STAMP):
+	@if ! docker image inspect $(COMMON_IMAGE_TAG) >/dev/null 2>&1; then \
+	    docker pull $(COMMON_IMAGE_TAG) || \
+	    docker build -f $(COMMON_DOCKERFILE) -t $(COMMON_IMAGE_TAG) . ; \
+	fi
+	@mkdir -p $(dir $@) && touch $@
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-api

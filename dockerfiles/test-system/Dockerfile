@@ -20,13 +20,8 @@ FROM mlrun_common_image
 # Update OS packages:
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        gcc \
-        git-core \
         graphviz \
-        make \
-        curl \
-        libpq-dev \
-        python3-dev && \
+        libpq-dev && \
     rm -rf /var/lib/apt/lists/*
 
 

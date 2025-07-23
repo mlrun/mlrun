@@ -15,65 +15,39 @@
 ARG MLRUN_PYTHON_VERSION=3.11
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
+FROM mambaorg/micromamba:2.3.0 AS conda-build
+ARG MLRUN_PYTHON_VERSION=3.11
+ARG MLRUN_PIP_VERSION=25.0
+ARG OMPI_VERSION=4.1.5
+ENV c=16
+ENV MAMBA_DOWNLOAD_THREADS=16
+ENV MAMBA_EXTRACT_THREADS=8
+ENV OMPI_ALLOW_RUN_AS_ROOT=1
+ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+RUN micromamba install -y -n base -c conda-forge \
+        python=$MLRUN_PYTHON_VERSION openmpi-mpicc=$OMPI_VERSION && \
+    micromamba clean -afy
+
+RUN --mount=type=cache,target=/opt/conda/pkgs \
+    micromamba config set channel_priority strict && \
+    micromamba config set download_threads ${MAMBA_DOWNLOAD_THREADS} && \
+    micromamba config set extract_threads ${MAMBA_EXTRACT_THREADS} && \
+    micromamba install -y -n base -c conda-forge \
+        python=${MLRUN_PYTHON_VERSION} \
+        pip=${MLRUN_PIP_VERSION} \
+        openmpi-mpicc=${OMPI_VERSION} && \
+    micromamba clean -afy
 FROM ${MLRUN_UV_IMAGE} AS uv-image
 
 FROM mlrun_common_image
-
-# Update OS packages:
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        build-essential \
-        cmake \
-        gcc \
-        wget \
-        git \
-        unzip \
-     && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /mlrun
-
-# non-recursive chmod for the run to be able to create the handler file with any security context
-RUN chmod 777 /mlrun
-
-# Install MiniConda:
-ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py311"
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_25.1.1-2-Linux-x86_64.sh -O ~/installconda.sh && \
-    /bin/bash ~/installconda.sh -b -p /opt/conda && \
-    rm ~/installconda.sh && \
-    /opt/conda/bin/conda update --all --use-local --yes && \
-    /opt/conda/bin/conda clean --all --quiet --yes && \
-    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
-    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
-    echo "conda activate base" >> ~/.bashrc
-
-ENV PATH=/opt/conda/bin:$PATH
-
-# Accept terms of service for the conda channel
-RUN conda tos accept --override-channels \
-    --channel https://repo.anaconda.com/pkgs/main \
-    --channel https://repo.anaconda.com/pkgs/r
-
-# Install Open-MPI:
-ARG OMPI_VERSION=4.1.5
-RUN --mount=type=cache,target=/opt/conda/pkgs,sharing=locked \
-    conda install -y -c conda-forge "openmpi-mpicc=${OMPI_VERSION}"
-
-RUN conda clean -ay
-
-ENV OMPI_ALLOW_RUN_AS_ROOT=1
-ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
-
-# need to be redeclared since used in the from
 ARG MLRUN_PYTHON_VERSION=3.11
 ARG MLRUN_PIP_VERSION=25.0
-
-# Install Python
-# use /usr/local/bin/python to ensure system pip is also upgraded
-RUN --mount=type=cache,target=/root/.cache/pip \
-    /usr/local/bin/python -m pip install --upgrade setuptools pip~=${MLRUN_PIP_VERSION} && \
-    conda config --add channels conda-forge && \
-    conda install -y python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
-    conda clean -aqy
+RUN rm -rf /var/lib/apt/lists/*
+COPY --from=conda-build /opt/conda /opt/conda
+ENV PATH="/opt/conda/bin:${PATH}"
+WORKDIR /mlrun
+# non-recursive chmod for the run to be able to create the handler file with any security context
+RUN chmod 777 /mlrun
 
 # Install MLRun:
 # no-deps to ignore existing dependencies, just add the locked requirements
@@ -86,6 +60,18 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/mlrun/locked-requirements.txt,target=locked-requirements.txt \
     uv pip install --no-deps --require-hashes -r locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
+
+
+ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
+
+# need to be redeclared since used in the from
+ARG MLRUN_PYTHON_VERSION=3.11
+ARG MLRUN_PIP_VERSION=25.0
+
+# Install Python
+# use /usr/local/bin/python to ensure system pip is also upgraded
+RUN --mount=type=cache,target=/root/.cache/pip \
+    /opt/conda/bin/python -m pip install --upgrade setuptools pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /tmp/mlrun
 COPY *.txt .

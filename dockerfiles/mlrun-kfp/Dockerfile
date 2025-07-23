@@ -24,9 +24,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         build-essential \
         cmake \
         gcc \
-        wget \
         git-core \
         unzip \
+        wget \
     && rm -rf /var/lib/apt/lists/*
 
 

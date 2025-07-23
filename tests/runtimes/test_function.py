@@ -280,7 +280,6 @@ def test_with_sidecar(command: str, args: list, expected_sidecars: list):
 def test_pre_deploy_validation_source_repo_alignment(with_repo, should_raise):
     function = mlrun.new_function("test", kind="nuclio")
     function.spec.build.source = "v3io:///some/path/src.zip"
-    function.spec.build.load_source_on_run = True
     function.spec.build.with_repo = with_repo
     if not with_repo:
         function.spec.build.functionSourceCode = "some-code"

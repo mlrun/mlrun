@@ -1750,13 +1750,11 @@ class ModelRunnerStep(MonitoredStep):
                 ][model][schemas.MonitoringData.OUTPUTS] = monitoring_data[model][
                     schemas.MonitoringData.OUTPUTS
                 ]
-                monitoring_data[model][schemas.MonitoringData.INPUT_PATH] = _split_path(
+                monitoring_data[model][schemas.MonitoringData.INPUT_PATH] = split_path(
                     monitoring_data[model][schemas.MonitoringData.INPUT_PATH]
                 )
-                monitoring_data[model][schemas.MonitoringData.RESULT_PATH] = (
-                    _split_path(
-                        monitoring_data[model][schemas.MonitoringData.RESULT_PATH]
-                    )
+                monitoring_data[model][schemas.MonitoringData.RESULT_PATH] = split_path(
+                    monitoring_data[model][schemas.MonitoringData.RESULT_PATH]
                 )
             return monitoring_data
 

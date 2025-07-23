@@ -35,7 +35,7 @@ from storey import ParallelExecutionMechanisms
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas as schemas
-from mlrun.artifacts.llm_prompt import LLMPromptArtifact
+from mlrun.artifacts.llm_prompt import LLMPromptArtifact, PlaceholderDefaultDict
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaSource,
@@ -45,7 +45,7 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.datastore.storeytargets import KafkaStoreyTarget, StreamStoreyTarget
-from mlrun.utils import logger
+from mlrun.utils import get_data_from_path, logger, split_path
 
 from ..config import config
 from ..datastore import get_stream_pusher
@@ -501,10 +501,15 @@ class BaseStep(ModelObj):
     def verify_model_runner_step(
         self,
         step: "ModelRunnerStep",
+        step_model_endpoints_names: Optional[list[str]] = None,
+        verify_shared_models: bool = True,
     ):
         """
         Verify ModelRunnerStep, can be part of Flow graph and models can not repeat in graph.
-        :param step: ModelRunnerStep to verify
+        :param step:                        ModelRunnerStep to verify
+        :param step_model_endpoints_names:  List of model endpoints names that are in the step.
+                                            if provided will ignore step models and verify only the models on list.
+        :param verify_shared_models:        If True, verify that shared models are defined in the graph.
         """
 
         if not isinstance(step, ModelRunnerStep):
@@ -516,7 +521,7 @@ class BaseStep(ModelObj):
             raise GraphError(
                 "ModelRunnerStep can be added to 'Flow' topology graph only"
             )
-        step_model_endpoints_names = list(
+        step_model_endpoints_names = step_model_endpoints_names or list(
             step.class_args.get(schemas.ModelRunnerStepData.MODELS, {}).keys()
         )
         # Get all model_endpoints names that are in both lists
@@ -530,8 +535,9 @@ class BaseStep(ModelObj):
                 f"The graph already contains the model endpoints named - {common_endpoints_names}."
             )
 
-        # Check if shared models are defined in the graph
-        self._verify_shared_models(root, step, step_model_endpoints_names)
+        if verify_shared_models:
+            # Check if shared models are defined in the graph
+            self._verify_shared_models(root, step, step_model_endpoints_names)
         # Update model endpoints names in the root step
         root.update_model_endpoints_names(step_model_endpoints_names)
 
@@ -569,7 +575,9 @@ class BaseStep(ModelObj):
                 llm_artifact, _ = mlrun.store_manager.get_store_artifact(
                     model_artifact_uri
                 )
-                model_artifact_uri = llm_artifact.spec.parent_uri
+                model_artifact_uri = mlrun.utils.remove_tag_from_artifact_uri(
+                    llm_artifact.spec.parent_uri
+                )
             actual_shared_name = root.get_shared_model_name_by_artifact_uri(
                 model_artifact_uri
             )
@@ -1148,11 +1156,11 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
     def init(self):
         self.load()
 
-    def predict(self, body: Any) -> Any:
+    def predict(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead."""
         return body
 
-    async def predict_async(self, body: Any) -> Any:
+    async def predict_async(self, body: Any, **kwargs) -> Any:
         """Override to implement prediction logic if the logic requires asyncio."""
         return body
 
@@ -1197,11 +1205,18 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
 
 class LLModel(Model):
-    def __init__(self, name: str, **kwargs):
+    def __init__(
+        self, name: str, input_path: Optional[Union[str, list[str]]], **kwargs
+    ):
         super().__init__(name, **kwargs)
+        self._input_path = split_path(input_path)
 
     def predict(
-        self, body: Any, messages: list[dict], model_configuration: dict
+        self,
+        body: Any,
+        messages: Optional[list[dict]] = None,
+        model_configuration: Optional[dict] = None,
+        **kwargs,
     ) -> Any:
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
@@ -1214,7 +1229,11 @@ class LLModel(Model):
         return body
 
     async def predict_async(
-        self, body: Any, messages: list[dict], model_configuration: dict
+        self,
+        body: Any,
+        messages: Optional[list[dict]] = None,
+        model_configuration: Optional[dict] = None,
+        **kwargs,
     ) -> Any:
         if isinstance(
             self.invocation_artifact, mlrun.artifacts.LLMPromptArtifact
@@ -1262,12 +1281,34 @@ class LLModel(Model):
             return None, None
         prompt_legend = llm_prompt_artifact.spec.prompt_legend
         prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
-        kwargs = {
-            place_holder: body.get(body_map["field"])
-            for place_holder, body_map in prompt_legend.items()
-        }
-        for d in prompt_template:
-            d["content"] = d["content"].format(**kwargs)
+        input_data = copy(get_data_from_path(self._input_path, body))
+        if isinstance(input_data, dict):
+            kwargs = (
+                {
+                    place_holder: input_data.get(body_map["field"])
+                    for place_holder, body_map in prompt_legend.items()
+                }
+                if prompt_legend
+                else {}
+            )
+            input_data.update(kwargs)
+            default_place_holders = PlaceholderDefaultDict(lambda: None, input_data)
+            for message in prompt_template:
+                try:
+                    message["content"] = message["content"].format(**input_data)
+                except KeyError as e:
+                    logger.warning(
+                        "Input data was missing a placeholder, placeholder stay unformatted",
+                        key_error=e,
+                    )
+                    message["content"] = message["content"].format_map(
+                        default_place_holders
+                    )
+        else:
+            logger.warning(
+                f"Expected input data to be a dict, but received input data from type {type(input_data)} prompt "
+                f"template stay unformatted",
+            )
         return prompt_template, llm_prompt_artifact.spec.model_configuration
 
 
@@ -1590,7 +1631,7 @@ class ModelRunnerStep(MonitoredStep):
         ):
             try:
                 model_artifact, _ = mlrun.store_manager.get_store_artifact(
-                    model_artifact
+                    mlrun.utils.remove_tag_from_artifact_uri(model_artifact)
                 )
             except mlrun.errors.MLRunNotFoundError:
                 raise mlrun.errors.MLRunInvalidArgumentError("Artifact not found.")
@@ -1601,6 +1642,11 @@ class ModelRunnerStep(MonitoredStep):
             model_artifact.uri
             if isinstance(model_artifact, mlrun.artifacts.Artifact)
             else model_artifact
+        )
+        model_artifact = (
+            mlrun.utils.remove_tag_from_artifact_uri(model_artifact)
+            if model_artifact
+            else None
         )
         model_parameters["artifact_uri"] = model_parameters.get(
             "artifact_uri", model_artifact
@@ -1616,6 +1662,11 @@ class ModelRunnerStep(MonitoredStep):
         if endpoint_name in models and not override:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Model with name {endpoint_name} already exists in this ModelRunnerStep."
+            )
+        root = self._extract_root_step()
+        if isinstance(root, RootFlowStep):
+            self.verify_model_runner_step(
+                self, [endpoint_name], verify_shared_models=False
             )
         ParallelExecutionMechanisms.validate(execution_mechanism)
         self.class_args[schemas.ModelRunnerStepData.MODEL_TO_EXECUTION_MECHANISM] = (
@@ -1693,15 +1744,6 @@ class ModelRunnerStep(MonitoredStep):
             )
         return output_schema
 
-    @staticmethod
-    def _split_path(path: str) -> Union[str, list[str], None]:
-        if path is not None:
-            parsed_path = path.split(".")
-            if len(parsed_path) == 1:
-                parsed_path = parsed_path[0]
-            return parsed_path
-        return path
-
     def _calculate_monitoring_data(self) -> dict[str, dict[str, str]]:
         monitoring_data = deepcopy(
             self.class_args.get(
@@ -1726,15 +1768,11 @@ class ModelRunnerStep(MonitoredStep):
                 ][model][schemas.MonitoringData.OUTPUTS] = monitoring_data[model][
                     schemas.MonitoringData.OUTPUTS
                 ]
-                monitoring_data[model][schemas.MonitoringData.INPUT_PATH] = (
-                    self._split_path(
-                        monitoring_data[model][schemas.MonitoringData.INPUT_PATH]
-                    )
+                monitoring_data[model][schemas.MonitoringData.INPUT_PATH] = split_path(
+                    monitoring_data[model][schemas.MonitoringData.INPUT_PATH]
                 )
-                monitoring_data[model][schemas.MonitoringData.RESULT_PATH] = (
-                    self._split_path(
-                        monitoring_data[model][schemas.MonitoringData.RESULT_PATH]
-                    )
+                monitoring_data[model][schemas.MonitoringData.RESULT_PATH] = split_path(
+                    monitoring_data[model][schemas.MonitoringData.RESULT_PATH]
                 )
             return monitoring_data
 
@@ -1752,6 +1790,13 @@ class ModelRunnerStep(MonitoredStep):
             model_selector = get_class(model_selector, namespace)()
         model_objects = []
         for model, model_params in models.values():
+            model_params[schemas.MonitoringData.INPUT_PATH] = (
+                self.class_args.get(
+                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA, {}
+                )
+                .get(model_params.get("name"), {})
+                .get(schemas.MonitoringData.INPUT_PATH)
+            )
             model = get_class(model, namespace).from_dict(
                 model_params, init_with_params=True
             )
@@ -2401,7 +2446,13 @@ class FlowStep(BaseStep):
         if not step.before and not any(
             [step.name in other_step.after for other_step in self._steps.values()]
         ):
-            step.responder = True
+            if any(
+                [
+                    getattr(step_in_graph, "responder", False)
+                    for step_in_graph in self._steps.values()
+                ]
+            ):
+                step.responder = True
             return
 
         for step_name in step.before:
@@ -2484,7 +2535,7 @@ class RootFlowStep(FlowStep):
         name: str,
         model_class: Union[str, Model],
         execution_mechanism: Union[str, ParallelExecutionMechanisms],
-        model_artifact: Optional[Union[str, ModelArtifact]],
+        model_artifact: Union[str, ModelArtifact],
         override: bool = False,
         **model_parameters,
     ) -> None:
@@ -2536,6 +2587,7 @@ class RootFlowStep(FlowStep):
             if isinstance(model_artifact, mlrun.artifacts.Artifact)
             else model_artifact
         )
+        model_artifact = mlrun.utils.remove_tag_from_artifact_uri(model_artifact)
         model_parameters["artifact_uri"] = model_parameters.get(
             "artifact_uri", model_artifact
         )
@@ -2923,7 +2975,7 @@ def params_to_step(
         step = QueueStep(name, **class_args)
 
     elif class_name and hasattr(class_name, "to_dict"):
-        struct = class_name.to_dict()
+        struct = deepcopy(class_name.to_dict())
         kind = struct.get("kind", StepKinds.task)
         name = (
             name

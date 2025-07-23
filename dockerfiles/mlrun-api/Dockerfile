@@ -50,12 +50,12 @@ COPY mlrun mlrun
 COPY dockerfiles/mlrun-api dockerfiles/mlrun-api
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
-    uv pip install .[complete-api] --python-version ${MLRUN_PYTHON_VERSION}  && rm -rf /tmp/mlrun
+    uv pip install .[complete-api] --python-version ${MLRUN_PYTHON_VERSION}
 
 COPY pipeline-adapters pipeline-adapters
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}  && rm -rf /tmp/mlrun
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION}
 WORKDIR /mlrun
 COPY dockerfiles/mlrun-api/start_api.sh /mlrun/start_api.sh
 COPY server/py ./server/py
@@ -65,7 +65,9 @@ RUN chmod -R a+rX /mlrun/server/py/schemas/proto
 # Remove ensurepip folders from both conda and system python
 # Remove pip is not needed anymore
 RUN python -m pip uninstall pip -y \
-    && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
+    && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
+    /tmp/mlrun
+
 
 VOLUME /mlrun/db
 ENV PYTHONPATH=/mlrun/server/py
@@ -86,3 +88,4 @@ ENV MLRUN_SERVICES__SERVICE_NAME=api
 # and avoid zombie processes
 ENTRYPOINT ["tini", "--"]
 CMD ["bash", "/mlrun/start_api.sh"]
+RUN rm -rf /var/lib/apt/lists/*

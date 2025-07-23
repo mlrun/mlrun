@@ -61,11 +61,12 @@ COPY mlrun mlrun
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
-    uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION}  && rm -rf /tmp/mlrun
+    uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION}
 
 # Clean up the image:
 RUN rm -rf \
     /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
     /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
-    /var/lib/apt/lists/*
+    /var/lib/apt/lists/* \
+    /tmp/mlrun
 

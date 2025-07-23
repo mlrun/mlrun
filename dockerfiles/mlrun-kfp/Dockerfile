@@ -43,12 +43,12 @@ COPY dockerfiles/mlrun-api dockerfiles/mlrun-api
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
-    uv pip install .  && rm -rf /tmp/mlrun
+    uv pip install .
 
 COPY pipeline-adapters pipeline-adapters
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8[kfp]  && rm -rf /tmp/mlrun
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8[kfp]
 
 # Remove server related files that are not needed
 # Remove ensurepip folders from both conda and system python

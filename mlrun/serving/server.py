@@ -608,14 +608,15 @@ async def async_execute_graph(
                 f"(status='{task_state}')"
             )
 
-    mm_enabled = True
     df = data.as_df()
 
     if df.empty:
         context.logger.warn("Job terminated due to empty inputs (0 rows)")
         return []
 
-    if timestamp_column:
+    track_models = spec.get("track_models")
+
+    if track_models and timestamp_column:
         context.logger.info(f"Sorting dataframe by {timestamp_column}")
         df[timestamp_column] = pd.to_datetime(  # in case it's a string
             df[timestamp_column]
@@ -628,25 +629,24 @@ async def async_execute_graph(
             start_time = start_time.isoformat()
             end_time = end_time.isoformat()
             # TODO: tie this to the controller's base period
-            if time_range > pd.Timedelta("10000h"):
-                context.logger.warn(
-                    f"Dataframe time range is too long: {time_range}. Job will not be tracked!"
+            if time_range > pd.Timedelta("1w"):
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Dataframe time range is too long: {time_range}. "
+                    "Please disable tracking or reduce the input dataset's time range to under one week."
                 )
-                mm_enabled = False
         else:
             start_time = end_time = df["timestamp"].iloc[0].isoformat()
     else:
         start_time = datetime.now(tz=timezone.utc).isoformat()
 
-    if mm_enabled:
-        server.graph = add_system_steps_to_graph(
-            server.project,
-            copy.deepcopy(server.graph),
-            spec.get("track_models"),
-            context,
-            spec,
-            pause_until_background_task_completion=False,  # we've already awaited it
-        )
+    server.graph = add_system_steps_to_graph(
+        server.project,
+        copy.deepcopy(server.graph),
+        track_models,
+        context,
+        spec,
+        pause_until_background_task_completion=False,  # we've already awaited it
+    )
 
     if config.log_level.lower() == "debug":
         server.verbose = True
@@ -667,8 +667,6 @@ async def async_execute_graph(
     if server.verbose:
         context.logger.info(server.to_yaml())
 
-    responses = []
-
     async def run(body):
         event = storey.Event(id=index, body=body)
         if timestamp_column:
@@ -682,13 +680,13 @@ async def async_execute_graph(
                     f"Event body '{body}' did not contain timestamp column '{timestamp_column}'"
                 )
             event._original_timestamp = body[timestamp_column]
-        response = await server.run(event, context)
-        responses.append(response)
+        return await server.run(event, context)
 
     if batching and not batch_size:
         batch_size = len(df)
 
     batch = []
+    tasks = []
     for index, row in df.iterrows():
         data = row.to_list() if read_as_lists else row.to_dict()
         if nest_under_inputs:
@@ -696,13 +694,15 @@ async def async_execute_graph(
         if batching:
             batch.append(data)
             if len(batch) == batch_size:
-                await run(batch)
+                tasks.append(asyncio.create_task(run(batch)))
                 batch = []
         else:
-            await run(data)
+            tasks.append(asyncio.create_task(run(data)))
 
     if batch:
-        await run(batch)
+        tasks.append(asyncio.create_task(run(batch)))
+
+    responses = await asyncio.gather(*tasks)
 
     termination_result = server.wait_for_completion()
     if asyncio.iscoroutine(termination_result):

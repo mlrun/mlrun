@@ -1094,8 +1094,6 @@ class ModelEndpoints:
             "Deleting model monitoring endpoints resources",
             project_name=project_name,
             stream_path=stream_path,
-            igz_version=mlrun.mlconf.igz_version,
-            v3io_api=mlrun.mlconf.v3io_api,
         )
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,

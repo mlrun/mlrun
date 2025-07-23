@@ -11,14 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import pytest
+
+import mlrun
 
 import framework.utils.db.utils
 
 
 @pytest.mark.integration
-def test_mysql_apply_pipes_as_concat_live(
+def test_set_mysql_modes(
     db_util: framework.utils.db.utils.DBUtil,
 ):
     original = db_util.get_current_configurations()
@@ -26,11 +27,15 @@ def test_mysql_apply_pipes_as_concat_live(
         raise AssertionError(
             "The test is not applicable, 'PIPES_AS_CONCAT' is already set."
         )
-
+    raw_configs = mlrun.mlconf.httpdb.db.mysql.modes.split(",") + [
+        "PIPES_AS_CONCAT",
+        "ONLY_FULL_GROUP_BY",
+    ]
     try:
-        db_util.set_configurations(["PIPES_AS_CONCAT"])
-        updated = db_util.get_current_configurations()
-        assert "PIPES_AS_CONCAT" in updated
+        db_util.set_configurations(raw_configs)
+        updated = set(db_util.get_current_configurations())
+        original["PIPES_AS_CONCAT"] = True
+        assert set(original) == set(updated)
     finally:
         db_util.set_configurations(original)
 

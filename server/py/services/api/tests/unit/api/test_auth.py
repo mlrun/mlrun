@@ -63,7 +63,8 @@ def test_authenticate_request_auth_info_basic(
         )
     )
     request_headers = {
-        mlrun.common.schemas.HeaderNames.authorization: "Basic YnVnczpidW5ueQ==",
+        mlrun.common.schemas.HeaderNames.authorization: mlrun.common.schemas.HeaderPrefixes.basic
+        + "YnVnczpidW5ueQ==",
         "cookie": "123",
     }
 
@@ -102,7 +103,7 @@ def test_authenticate_request_auth_info_bearer(
         )
     )
     request_headers = {
-        mlrun.common.schemas.HeaderNames.authorization: "Bearer 123",
+        mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.HeaderPrefixes.bearer}123",
     }
 
     async def _mock_successful_query_permissions(

@@ -117,6 +117,11 @@ class HeaderNames:
     ui_clear_cache = f"{headers_prefix}ui-clear-cache"
 
 
+class HeaderPrefixes:
+    basic = "Basic "
+    bearer = "Bearer "
+
+
 class FeatureStorePartitionByField(mlrun.common.types.StrEnum):
     name = "name"  # Supported for feature-store objects
 

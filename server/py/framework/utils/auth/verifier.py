@@ -38,9 +38,6 @@ class AuthenticationMode(StrEnum):
 
 
 class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
-    _basic_prefix = "Basic "
-    _bearer_prefix = "Bearer "
-
     def __init__(self) -> None:
         super().__init__()
         if mlrun.mlconf.httpdb.authorization.mode == "none":
@@ -332,7 +329,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         parse_basic_auth('Basic YnVnczpidW5ueQ==')
         ['bugs', 'bunny']
         """
-        b64value = header[len(AuthVerifier._basic_prefix) :]
+        b64value = header[len(mlrun.common.schemas.HeaderPrefixes.basic) :]
         value = base64.b64decode(b64value).decode()
         return value.split(":", 1)
 
@@ -340,7 +337,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         self, headers: typing.Mapping[str, str]
     ) -> mlrun.common.schemas.AuthInfo:
         header = headers.get(mlrun.common.schemas.HeaderNames.authorization, "")
-        if not header.startswith(self._basic_prefix):
+        if not header.startswith(mlrun.common.schemas.HeaderPrefixes.basic):
             raise mlrun.errors.MLRunUnauthorizedError("Missing basic auth header")
 
         username, password = self._parse_basic_auth(header)
@@ -358,10 +355,10 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         self, headers: typing.Mapping[str, str]
     ) -> mlrun.common.schemas.AuthInfo:
         header = headers.get(mlrun.common.schemas.HeaderNames.authorization, "")
-        if not header.startswith(self._bearer_prefix):
+        if not header.startswith(mlrun.common.schemas.HeaderPrefixes.bearer):
             raise mlrun.errors.MLRunUnauthorizedError("Missing bearer auth header")
 
-        token = header[len(self._bearer_prefix) :]
+        token = header[len(mlrun.common.schemas.HeaderPrefixes.bearer) :]
         if token != mlrun.mlconf.httpdb.authentication.bearer.token:
             raise mlrun.errors.MLRunUnauthorizedError("Token did not match")
 

@@ -169,14 +169,3 @@ async def list_project_secrets(
         secrets,
         token,
     )
-
-
-@router.post("/user-secrets", status_code=HTTPStatus.CREATED.value)
-def add_user_secrets(
-    secrets: mlrun.common.schemas.UserSecretCreationRequest,
-):
-    # vault is not used
-    return fastapi.Response(
-        status_code=HTTPStatus.BAD_REQUEST.value,
-        content=f"Invalid secrets provider {secrets.provider}",
-    )

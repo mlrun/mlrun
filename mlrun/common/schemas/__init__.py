@@ -212,7 +212,6 @@ from .secret import (
     SecretKeysData,
     SecretProviderName,
     SecretsData,
-    UserSecretCreationRequest,
 )
 from .tag import Tag, TagObjects
 from .workflow import (

@@ -61,8 +61,8 @@ compile-schemas: compile-schemas-dockerized
 reset-schemas: cleanup
 
 compile-schemas-local: compile-schemas-go compile-schemas-python
-.PHONY: compile-schemas-dockerized
 
+.PHONY: compile-schemas-dockerized
 compile-schemas-dockerized: schemas-compiler
 	@echo Compiling schemas in docker container
 	docker run \

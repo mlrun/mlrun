@@ -124,6 +124,10 @@ class AuthorizationHeaderPrefixes:
     bearer = "Bearer "
 
 
+class CookieNames:
+    oauth2_proxy = "_oauth2_proxy"
+
+
 class FeatureStorePartitionByField(mlrun.common.types.StrEnum):
     name = "name"  # Supported for feature-store objects
 

@@ -21,6 +21,9 @@ from mlrun.utils import get_in
 
 from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
 
+_GROUP_TYPE_KEY = "@type"
+_GROUP_TYPE_VALUE = "type.googleapis.com/group.Group"
+
 
 class Client(BaseClient):
     def _generate_auth_info_from_session_verification_response(
@@ -28,12 +31,11 @@ class Client(BaseClient):
         response_headers: typing.Mapping[str, typing.Any],
         response_body: typing.Mapping[typing.Any, typing.Any],
     ) -> mlrun.common.schemas.AuthInfo:
-        username, group_ids = self._resolve_params_from_response_body(response_body)
-        auth_info = mlrun.common.schemas.AuthInfo(
+        username, group_ids = self._parse_auth_response_data(response_body)
+        return mlrun.common.schemas.AuthInfo(
             username=username,
             user_group_ids=group_ids,
         )
-        return auth_info
 
     @property
     def _verify_session_http_method(self) -> str:
@@ -45,20 +47,20 @@ class Client(BaseClient):
         headers = kwargs.setdefault("headers", {})
 
         # Accept an Authorization header or a session cookie named "_oauth2_proxy"
-        authorization = headers.get("authorization") or headers.get("Authorization")
+        authorization = headers.get(mlrun.common.schemas.HeaderNames.authorization, "")
         cookie = headers.get("cookie", "")
 
-        has_auth = bool(authorization) or "_oauth2_proxy=" in cookie
+        has_auth = (
+            bool(authorization)
+            or mlrun.common.schemas.CookieNames.oauth2_proxy in cookie
+        )
 
         if not has_auth:
             raise mlrun.errors.MLRunUnauthorizedError(
                 "Request must include either an Authorization header or _oauth2_proxy cookie"
             )
 
-        # Ensure headers are lowercase consistent
-        if authorization:
-            headers["authorization"] = authorization
-
+    # TODO: implement this method
     def _handle_error_response(
         self,
         method: str,
@@ -71,22 +73,34 @@ class Client(BaseClient):
         raise NotImplementedError()
 
     @staticmethod
-    def _resolve_params_from_response_body(
+    def _parse_auth_response_data(
         response_body: typing.Mapping[typing.Any, typing.Any],
-    ) -> tuple[typing.Optional[str], typing.Optional[list[str]]]:
+    ) -> tuple[str, list[str]]:
+        if not isinstance(response_body, dict):
+            raise mlrun.errors.MLRunBadRequestError("Expected dict in response body")
+
         username = get_in(response_body, "metadata.username", "")
+        if not username:
+            raise mlrun.errors.MLRunUnauthorizedError(
+                "Missing or empty username in authentication response"
+            )
 
         group_ids = []
         for relationship in response_body.get("relationships", []):
-            if relationship.get(
-                "@type"
-            ) == "type.googleapis.com/group.Group" and get_in(
+            if relationship.get(_GROUP_TYPE_KEY) == _GROUP_TYPE_VALUE and get_in(
                 relationship, "metadata.id"
             ):
                 group_ids.append(relationship["metadata"]["id"])
+
+        if not group_ids:
+            raise mlrun.errors.MLRunUnauthorizedError(
+                "Missing or empty group IDs in authentication response"
+            )
 
         return username, group_ids
 
 
 class AsyncClient(BaseAsyncClient, Client):
+    """Asynchronous implementation of the Iguazio V4 client. Inherits logic from Client and BaseAsyncClient."""
+
     pass

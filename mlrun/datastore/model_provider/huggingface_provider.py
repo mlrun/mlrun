@@ -113,7 +113,7 @@ class HuggingFaceProvider(ModelProvider):
 
     def custom_invoke(
         self, operation: Optional["pipeline"] = None, **invoke_kwargs
-    ) -> Optional[list, Any]:
+    ) -> Union[list, Any]:
         """
         HuggingFace implementation of `ModelProvider.custom_invoke`.
         Use the default config in provider client/ user defined client:
@@ -145,7 +145,7 @@ class HuggingFaceProvider(ModelProvider):
         messages: Union[str, list[str], ChatType, list[ChatType]] = None,
         as_str: bool = False,
         **invoke_kwargs,
-    ) -> Optional[Union[str, list]]:
+    ) -> Union[str, list]:
         """
         HuggingFace-specific implementation of `ModelProvider.invoke`.
         Invokes a HuggingFace model operation using the synchronous client.

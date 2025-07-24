@@ -102,7 +102,7 @@ class OpenAIProvider(ModelProvider):
 
     def custom_invoke(
         self, operation: Optional[Callable] = None, **invoke_kwargs
-    ) -> Optional[Union["ChatCompletion", "BaseModel"]]:
+    ) -> Union["ChatCompletion", "BaseModel"]:
         """
         OpenAI-specific implementation of `ModelProvider.custom_invoke`.
 
@@ -137,7 +137,7 @@ class OpenAIProvider(ModelProvider):
         self,
         operation: Optional[Callable[..., Awaitable[Any]]] = None,
         **invoke_kwargs,
-    ) -> Optional[Union["ChatCompletion", "BaseModel"]]:
+    ) -> Union["ChatCompletion", "BaseModel"]:
         """
         OpenAI-specific implementation of `ModelProvider.async_custom_invoke`.
 
@@ -174,7 +174,7 @@ class OpenAIProvider(ModelProvider):
         messages: Optional[list[dict]] = None,
         as_str: bool = False,
         **invoke_kwargs,
-    ) -> Optional[Union[str, "ChatCompletion"]]:
+    ) -> Union[str, "ChatCompletion"]:
         """
         OpenAI-specific implementation of `ModelProvider.invoke`.
         Invokes an OpenAI model operation using the sync client.
@@ -203,7 +203,7 @@ class OpenAIProvider(ModelProvider):
         messages: Optional[list[dict]] = None,
         as_str: bool = False,
         **invoke_kwargs,
-    ) -> Optional[Union[str, "ChatCompletion"]]:
+    ) -> Union[str, "ChatCompletion"]:
         """
         OpenAI-specific implementation of `ModelProvider.async_invoke`.
         Invokes an OpenAI model operation using the async client.

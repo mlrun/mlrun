@@ -82,7 +82,7 @@ class ModelProvider(BaseRemoteClient):
         messages: Optional[list[dict]] = None,
         as_str: bool = False,
         **invoke_kwargs,
-    ) -> Optional[Union[str, Any]]:
+    ) -> Union[str, Any]:
         """
         Invokes a generative AI model with the provided messages and additional parameters.
         This method is designed to be a flexible interface for interacting with various
@@ -125,9 +125,7 @@ class ModelProvider(BaseRemoteClient):
         """
         raise NotImplementedError("invoke method is not implemented")
 
-    def custom_invoke(
-        self, operation: Optional[Callable], **invoke_kwargs
-    ) -> Optional[Any]:
+    def custom_invoke(self, operation: Optional[Callable], **invoke_kwargs) -> Any:
         """
         Invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.) with the given keyword arguments.
 
@@ -163,7 +161,7 @@ class ModelProvider(BaseRemoteClient):
 
     async def async_custom_invoke(
         self, operation: Optional[Callable[..., Awaitable[Any]]], **invoke_kwargs
-    ) -> Optional[Any]:
+    ) -> Any:
         """
         Asynchronously invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.)
         with the given keyword arguments.
@@ -181,6 +179,6 @@ class ModelProvider(BaseRemoteClient):
         messages: Optional[list[dict]] = None,
         as_str: bool = False,
         **invoke_kwargs,
-    ) -> Optional[str]:
+    ) -> str:
         """Async version of `invoke`. See `invoke` for full documentation."""
         raise NotImplementedError("async_invoke is not implemented")

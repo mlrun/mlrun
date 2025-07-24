@@ -123,7 +123,9 @@ class OpenAIProvider(ModelProvider):
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         if operation:
-            return operation(**invoke_kwargs, model=self.model)
+            return operation(
+                **invoke_kwargs, model=invoke_kwargs.get("model") or self.model
+            )
         else:
             return self.client.chat.completions.create(
                 **invoke_kwargs, model=self.model
@@ -157,7 +159,9 @@ class OpenAIProvider(ModelProvider):
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         if operation:
-            return await operation(**invoke_kwargs, model=self.model)
+            return await operation(
+                **invoke_kwargs, model=invoke_kwargs.get("model") or self.model
+            )
         else:
             return await self.async_client.chat.completions.create(
                 **invoke_kwargs, model=self.model

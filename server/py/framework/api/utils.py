@@ -887,6 +887,17 @@ def submit_run_sync(
     return project, fn.kind, run_uid, {"data": response}
 
 
+def submit_run_from_body(
+    db_session: Session,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    data,
+):
+    fn, task = _generate_function_and_task_from_submit_run_body(db_session, data)
+    run_db = get_run_db_instance(db_session)
+    fn.set_db_connection(run_db)
+    return submit_run_sync(db_session, auth_info, fn, task, data)
+
+
 # uid is hexdigest of sha1 value, which is double the digest size due to hex encoding
 hash_len = sha1().digest_size * 2
 uid_regex = re.compile(f"^[0-9a-f]{{{hash_len}}}$", re.IGNORECASE)

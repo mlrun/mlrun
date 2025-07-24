@@ -45,7 +45,7 @@ class Client(base_events.BaseEventClient):
     def emit(self, event: igz_mgmt.Event):
         try:
             logger.debug("Emitting event", event=event)
-            framework.utils.clients.iguazio.Client().emit_manual_event(
+            framework.utils.clients.iguazio.iguazio.Client().emit_manual_event(
                 self.access_key, event
             )
         except Exception as exc:

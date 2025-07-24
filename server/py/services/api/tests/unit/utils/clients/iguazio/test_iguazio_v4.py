@@ -13,16 +13,20 @@
 # limitations under the License.
 #
 
-import pytest
-import fastapi
-import starlette.datastructures
 import http
-import mlrun.errors
-import framework.utils.clients.iguaziov4
-from tests.common_fixtures import aioresponses_mock
-from framework.utils.asyncio import maybe_coroutine
 import typing
+
+import fastapi
+import pytest
+import starlette.datastructures
 from aioresponses import CallbackResult
+
+import mlrun.errors
+from tests.common_fixtures import aioresponses_mock
+
+import framework.utils.clients.iguazio.v4
+from framework.utils.asyncio import maybe_coroutine
+
 
 def patch_restful_request(
     aioresponses_mock: aioresponses_mock,
@@ -45,7 +49,8 @@ def patch_restful_request(
         **kwargs,
     )
 
-@pytest.mark.parametrize("iguazio_clientv4", ["async"], indirect=True)
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "async")], indirect=True)
 @pytest.mark.parametrize(
     "headers",
     [
@@ -57,7 +62,7 @@ def patch_restful_request(
 @pytest.mark.asyncio
 async def test_verify_request_session_failure(
     api_url: str,
-    iguazio_clientv4: framework.utils.clients.iguaziov4.AsyncClient,
+    iguazio_client,
     aioresponses_mock: aioresponses_mock,
     headers: dict,
 ):
@@ -71,12 +76,12 @@ async def test_verify_request_session_failure(
         status_code=http.HTTPStatus.UNAUTHORIZED.value,
     )
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
-        await maybe_coroutine(iguazio_clientv4.verify_request_session(mock_request))
+        await maybe_coroutine(iguazio_client.verify_request_session(mock_request))
 
     assert exc.value.error_status_code == http.HTTPStatus.UNAUTHORIZED.value
 
 
-@pytest.mark.parametrize("iguazio_clientv4", ["async"], indirect=True)
+@pytest.mark.parametrize("iguazio_client", ["async"], indirect=True)
 @pytest.mark.parametrize(
     "headers",
     [
@@ -91,7 +96,7 @@ async def test_verify_request_session_failure(
 @pytest.mark.asyncio
 async def test_verify_request_session_success_ig4(
     api_url: str,
-    iguazio_clientv4: framework.utils.clients.iguaziov4.AsyncClient,
+    iguazio_client,
     aioresponses_mock: aioresponses_mock,
     headers: dict,
 ):
@@ -102,9 +107,7 @@ async def test_verify_request_session_success_ig4(
         # request_headers = kwargs["headers"]
         # for header_key, header_value in mock_request_headers.items():
         #     assert request_headers[header_key] == header_value
-        return CallbackResult(
-            payload=sample_user_info()
-        )
+        return CallbackResult(payload=sample_user_info())
 
     patch_restful_request(
         aioresponses_mock,
@@ -113,33 +116,30 @@ async def test_verify_request_session_success_ig4(
         callback=_verify_session_with_body_mock,
     )
 
-    auth_info = await maybe_coroutine(iguazio_clientv4.verify_request_session(mock_request))
+    auth_info = await maybe_coroutine(
+        iguazio_client.verify_request_session(mock_request)
+    )
 
     assert auth_info.username == "dummy-user"
     assert auth_info.user_group_ids == ["dummy-group-id-g1", "dummy-group-id-g2"]
 
+
 def sample_user_info():
     return {
-    "metadata": {
-        "resourceType": "user",
-        "username": "dummy-user"
-    },
-    "relationships": [
-        {
-            "@type": "type.googleapis.com/group.Group",
-            "metadata": {
-                "id": "dummy-group-id-g1",
+        "metadata": {"resourceType": "user", "username": "dummy-user"},
+        "relationships": [
+            {
+                "@type": "type.googleapis.com/group.Group",
+                "metadata": {
+                    "id": "dummy-group-id-g1",
+                },
             },
-        },
-        {
-            "@type": "type.googleapis.com/group.Group",
-            "metadata": {
-                "id": "dummy-group-id-g2",
+            {
+                "@type": "type.googleapis.com/group.Group",
+                "metadata": {
+                    "id": "dummy-group-id-g2",
+                },
             },
-        }
-    ],
-    "status": {
-        "ctx": "dummy-ctx",
-        "statusCode": http.HTTPStatus.OK.value
+        ],
+        "status": {"ctx": "dummy-ctx", "statusCode": http.HTTPStatus.OK.value},
     }
-}

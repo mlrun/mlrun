@@ -38,8 +38,8 @@ import mlrun.utils.singleton
 import mlrun_pipelines.client
 import mlrun_pipelines.utils
 
-import framework.utils.clients.iguazio
-import framework.utils.clients.iguaziov4
+import framework.utils.clients.iguazio.v3
+import framework.utils.clients.iguazio.v4
 import framework.utils.projects.remotes.leader
 import framework.utils.runtimes.nuclio
 import framework.utils.singletons.db
@@ -177,29 +177,33 @@ def api_url() -> str:
 @pytest.fixture()
 def iguazio_client(
     request: pytest.FixtureRequest,
-) -> framework.utils.clients.iguazio.Client:
-    if request.param == "async":
-        client = framework.utils.clients.iguazio.AsyncClient()
+):
+    """
+    A parameterized fixture to return either an IG3 or IG4 client (sync or async)
+    based on request parameters.
+
+    Usage:
+        @pytest.mark.parametrize(
+            "iguazio_client",
+            [("v3", "async"), ("v4", "sync")],
+            indirect=True
+        )
+    """
+    version, mode = request.param
+
+    if version == "v3":
+        module = framework.utils.clients.iguazio.v3
+    elif version == "v4":
+        module = framework.utils.clients.iguazio.v4
     else:
-        client = framework.utils.clients.iguazio.Client()
+        raise ValueError(f"Unsupported client version: {version}")
 
-    # force running init again so the configured api url will be used
-    client.__init__()
-    client._wait_for_job_completion_retry_interval = 0
-
-    # inject the request param into client, so we can use it in tests
-    setattr(client, "mode", request.param)
-    return client
-
-
-@pytest.fixture()
-def iguazio_clientv4(
-    request: pytest.FixtureRequest,
-) -> framework.utils.clients.iguaziov4.Client:
-    if request.param == "async":
-        client = framework.utils.clients.iguaziov4.AsyncClient()
+    if mode == "async":
+        client = module.AsyncClient()
+    elif mode == "sync":
+        client = module.Client()
     else:
-        client = framework.utils.clients.iguaziov4.Client()
+        raise ValueError(f"Unsupported client mode: {mode}")
 
     # force running init again so the configured api url will be used
     client.__init__()
@@ -383,8 +387,8 @@ def mock_project_follower_iguazio_client(
     """
     mlrun.mlconf.httpdb.projects.leader = "iguazio"
     mlrun.mlconf.httpdb.projects.iguazio_access_key = "access_key"
-    old_iguazio_client = framework.utils.clients.iguazio.Client
-    framework.utils.clients.iguazio.Client = MockedProjectFollowerIguazioClient
+    old_iguazio_client = framework.utils.clients.iguazio.v3.Client
+    framework.utils.clients.iguazio.v3.Client = MockedProjectFollowerIguazioClient
     framework.utils.singletons.project_member.initialize_project_member()
     iguazio_client = MockedProjectFollowerIguazioClient()
     iguazio_client._db_session = db
@@ -392,4 +396,4 @@ def mock_project_follower_iguazio_client(
 
     yield iguazio_client
 
-    framework.utils.clients.iguazio.Client = old_iguazio_client
+    framework.utils.clients.iguazio.v3.Client = old_iguazio_client

@@ -403,9 +403,12 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker, monkeypatch
     requests_mock.post(f"{db_url}/api/v1/operations/migrations", status_code=200)
     db.trigger_migrations()
 
-    expected_auth = f"Bearer {expected_token}"
+    expected_auth = f"{mlrun.common.schemas.HeaderPrefixes.bearer}{expected_token}"
     last_request = requests_mock.last_request
-    assert last_request.headers["Authorization"] == expected_auth
+    assert (
+        last_request.headers[mlrun.common.schemas.HeaderNames.authorization]
+        == expected_auth
+    )
 
     # Check flow where we fail token retrieval while token is still active (not expired).
     requests_mock.reset_mock()
@@ -418,7 +421,10 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker, monkeypatch
     # We expect 2 calls - one for the token (which failed but didn't fail the flow) and one for the actual api call.
     assert len(request_history) == 2
     # The token should still be the previous token, since it was not refreshed but it's not expired yet.
-    assert request_history[-1].headers["Authorization"] == expected_auth
+    assert (
+        request_history[-1].headers[mlrun.common.schemas.HeaderNames.authorization]
+        == expected_auth
+    )
 
     # Now let the token expire, and verify commands still go out, only without auth
     time.sleep(2)
@@ -426,7 +432,10 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker, monkeypatch
 
     db.trigger_migrations()
     assert len(requests_mock.request_history) == 2
-    assert "Authorization" not in requests_mock.last_request.headers
+    assert (
+        mlrun.common.schemas.HeaderNames.authorization
+        not in requests_mock.last_request.headers
+    )
     assert db.token_provider.token is None
 
 

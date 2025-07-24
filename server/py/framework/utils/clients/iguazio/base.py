@@ -42,6 +42,10 @@ class BaseClient(ABC, metaclass=mlrun.utils.singleton.AbstractSingleton):
         return mlrun.mlconf.iguazio_api_url
 
     @property
+    def _session_verification_endpoint(self) -> str:
+        return mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint
+
+    @property
     @abstractmethod
     def _verify_session_http_method(self) -> str:
         pass
@@ -113,10 +117,6 @@ class BaseAsyncClient(BaseClient):
         """
         return False
 
-    @property
-    def _session_verification_endpoint(self) -> str:
-        return mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint
-
     def __getattribute__(self, name):
         """
         This method is called when trying to access an attribute of the class.
@@ -152,7 +152,9 @@ class BaseAsyncClient(BaseClient):
         #  async client and call the method as async. As a result, this method will not be part of the base client
         #  and should be implemented separately in the Iguaziov4 client.
         headers = {
-            "authorization": request.headers.get("authorization"),
+            "authorization": request.headers.get(
+                mlrun.common.schemas.HeaderNames.authorization
+            ),
             "cookie": request.headers.get("cookie", ""),
             "x-request-id": getattr(request.state, "request_id", ""),
         }

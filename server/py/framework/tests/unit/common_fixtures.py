@@ -39,7 +39,7 @@ from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
 
 import framework
-import framework.utils.clients.iguazio
+import framework.utils.clients.iguazio.v3
 import framework.utils.projects.remotes.leader
 import framework.utils.runtimes.nuclio
 import framework.utils.singletons.db

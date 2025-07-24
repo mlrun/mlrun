@@ -63,7 +63,8 @@ def test_authenticate_request_auth_info_basic(
         )
     )
     request_headers = {
-        "authorization": "Basic YnVnczpidW5ueQ==",
+        mlrun.common.schemas.HeaderNames.authorization: mlrun.common.schemas.HeaderPrefixes.basic
+        + "YnVnczpidW5ueQ==",
         "cookie": "123",
     }
 
@@ -102,7 +103,7 @@ def test_authenticate_request_auth_info_bearer(
         )
     )
     request_headers = {
-        "authorization": "Bearer 123",
+        mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.HeaderPrefixes.bearer}123",
     }
 
     async def _mock_successful_query_permissions(
@@ -139,11 +140,11 @@ def test_authenticate_request_auth_info_iguazio(
     mock_request = fastapi.Request({"type": "http"})
     mock_request._headers = mock_request_headers
     mock_response_headers = {
-        "X-Remote-User": "username",
-        "X-V3io-Session-Key": "session",
-        "x-user-id": "123",
-        "x-user-group-ids": "456",
-        "x-v3io-session-planes": "control,data",
+        mlrun.common.schemas.HeaderNames.remote_user: "username",
+        mlrun.common.schemas.HeaderNames.v3io_session_key: "session",
+        mlrun.common.schemas.HeaderNames.user_id: "123",
+        mlrun.common.schemas.HeaderNames.user_group_ids: "456",
+        mlrun.common.schemas.HeaderNames.v3io_session_planes: "control,data",
     }
     mock_request.state.request_id = "test-request-id"
     url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
@@ -174,14 +175,26 @@ def test_authenticate_request_auth_info_iguazio(
         auth_info: mlrun.common.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ):
-        assert auth_info.username == mock_response_headers["X-Remote-User"]
-        assert auth_info.session == mock_response_headers["X-V3io-Session-Key"]
-        assert auth_info.user_id == mock_response_headers["x-user-id"]
+        assert (
+            auth_info.username
+            == mock_response_headers[mlrun.common.schemas.HeaderNames.remote_user]
+        )
+        assert (
+            auth_info.session
+            == mock_response_headers[mlrun.common.schemas.HeaderNames.v3io_session_key]
+        )
+        assert (
+            auth_info.user_id
+            == mock_response_headers[mlrun.common.schemas.HeaderNames.user_id]
+        )
         assert auth_info.user_group_ids == mock_response_headers[
-            "x-user-group-ids"
+            mlrun.common.schemas.HeaderNames.user_group_ids
         ].split(",")
         # we returned data in planes so a data session as well
-        assert auth_info.data_session == mock_response_headers["X-V3io-Session-Key"]
+        assert (
+            auth_info.data_session
+            == mock_response_headers[mlrun.common.schemas.HeaderNames.v3io_session_key]
+        )
         for key, value in mock_request_headers.items():
             assert auth_info.request_headers[key] == value
 
@@ -194,6 +207,7 @@ def test_authenticate_request_auth_info_iguazio(
         headers=mock_request_headers,
     )
     assert response.status_code == http.HTTPStatus.OK.value
+
 
 def test_authenticate_request_auth_info_iguaziov4(
     api_url,

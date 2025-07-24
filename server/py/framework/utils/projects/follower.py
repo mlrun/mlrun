@@ -35,7 +35,7 @@ from mlrun.utils import logger
 import framework.db.session
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
-import framework.utils.clients.iguazio
+import framework.utils.clients.iguazio.v3
 import framework.utils.helpers
 import framework.utils.periodic
 import framework.utils.projects.member as project_member
@@ -60,7 +60,7 @@ class Member(
         self._sync_session = None
         self._leader_client: framework.utils.projects.remotes.leader.Member
         if self._leader_name == "iguazio":
-            self._leader_client = framework.utils.clients.iguazio.Client()
+            self._leader_client = framework.utils.clients.iguazio.v3.Client()
             if not mlrun.mlconf.httpdb.projects.iguazio_access_key:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Iguazio access key must be configured when the leader is Iguazio"

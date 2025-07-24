@@ -57,7 +57,7 @@ class V3ioStore(DataStore):
         self.auth = None
         self.token = token
         if token:
-            self.headers = {"X-v3io-session-key": token}
+            self.headers = {mlrun.common.schemas.HeaderNames.v3io_session_key: token}
         elif username and password:
             self.headers = basic_auth_header(username, password)
 

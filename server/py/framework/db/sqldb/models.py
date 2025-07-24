@@ -1121,7 +1121,7 @@ def _sqlite_autoincrement(
 
 
 @event_listen_for_dialects(
-    target=AlertActivation.__table__,
+    target=AlertActivation,
     identifier="before_insert",
     relevant_dialects=mlrun.common.db.dialects.Dialects.all(),
 )

@@ -214,7 +214,6 @@ from .secret import (
     SecretKeysData,
     SecretProviderName,
     SecretsData,
-    UserSecretCreationRequest,
 )
 from .serving import ModelRunnerStepData, ModelsData, MonitoringData
 from .tag import Tag, TagObjects

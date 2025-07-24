@@ -150,14 +150,16 @@ class HuggingFaceProvider(ModelProvider):
         HuggingFace-specific implementation of `ModelProvider.invoke`.
         Invokes a HuggingFace model operation using the synchronous client.
         For complete usage details, refer to `ModelProvider.invoke`.
+
         :param messages:
                             Same as ModelProvider.invoke.
 
         :param as_str:
-                            If `True`, returns only the main content from a single response
-                            (intended for single-response use cases).
-                            If `False`, returns the full response object, whose type depends on
-                            the client (e.g., `pipeline`).
+                            If `True`, return only the main content (e.g., generated text) from a
+                            **single-response output** — intended for use cases where you expect exactly one result.
+
+                            If `False`, return the **full raw response object**, which may be a list or dict depending
+                            on the underlying client (e.g., Hugging Face `pipeline`).
 
         :param invoke_kwargs:
                             Same as ModelProvider.invoke.

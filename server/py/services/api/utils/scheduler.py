@@ -510,8 +510,8 @@ class Scheduler:
                 )
                 # created an access key with control and data session plane, so enriching auth_info with those planes
                 auth_info.planes = [
-                    framework.utils.clients.iguazio.SessionPlanes.control,
-                    framework.utils.clients.iguazio.SessionPlanes.data,
+                    framework.utils.clients.iguazio.v3.SessionPlanes.control,
+                    framework.utils.clients.iguazio.v3.SessionPlanes.data,
                 ]
             # Support receiving access-key reference ($ref:...), for example when updating existing schedule
             if auth_info.access_key.startswith(
@@ -800,7 +800,7 @@ class Scheduler:
                     username=username,
                     access_key=access_key,
                     # enriching with control plane tag because scheduling a function requires control plane
-                    planes=[framework.utils.clients.iguazio.SessionPlanes.control],
+                    planes=[framework.utils.clients.iguazio.v3.SessionPlanes.control],
                 )
 
                 self._create_schedule_in_scheduler(
@@ -1104,7 +1104,7 @@ class Scheduler:
                         access_key=project_owner.access_key,
                         # enriching with control plane tag because scheduling a function requires control plane
                         planes=[
-                            framework.utils.clients.iguazio.SessionPlanes.control,
+                            framework.utils.clients.iguazio.v3.SessionPlanes.control,
                         ],
                     ),
                     project_name,

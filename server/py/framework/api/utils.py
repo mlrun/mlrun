@@ -688,7 +688,7 @@ def ensure_function_security_context(
                     # if we were able to get the user unix id it means we have a control session plane so adding that
                     # to the auth info
                     auth_info.planes.append(
-                        framework.utils.clients.iguazio.iguazio.SessionPlanes.control
+                        framework.utils.clients.iguazio.v3.SessionPlanes.control
                     )
                 except Exception as exc:
                     raise mlrun.errors.MLRunUnauthorizedError(

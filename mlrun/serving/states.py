@@ -1608,11 +1608,27 @@ class ModelRunnerStep(MonitoredStep):
           :param outputs:             list of the model outputs (e.g. labels) ,if provided will override the outputs
                                       that been configured in the model artifact, please note that those outputs need to
                                       be equal to the model_class predict method outputs (length, and order)
-          :param input_path:          input path inside the user event, expect scopes to be defined by dot notation
-                                      (e.g "inputs.my_model_inputs"). expects list or dictionary type object in path.
-          :param result_path:         result path inside the user output event, expect scopes to be defined by dot
-                                      notation (e.g "outputs.my_model_outputs") expects list or dictionary type object
-                                      in path.
+          :param input_path:          when specified selects the key/path in the event to use as model monitoring inputs
+                                      this require that the event body will behave like a dict, expects scopes to be
+                                      defined by dot notation (e.g "data.d").
+                                      examples: input_path="data.b"
+                                      event: {"data":{"a": 5, "b": 7}}, means monitored body will be 7.
+                                      event: {"data":{"a": [5, 9], "b": [7, 8]}} means monitored body will be [7,8].
+                                      event: {"data":{"a": "extra_data", "b": {"f0": [1, 2]}}} means monitored body will
+                                      be {"f0": [1, 2]}.
+                                      if a ``list`` or ``list of lists`` is provided, it must follow the order and
+                                      size defined by the input schema.
+          :param result_path:         when specified selects the key/path in the output event to use as model monitoring
+                                      outputs this require that the output event body will behave like a dict,
+                                      expects scopes to be defined by dot notation (e.g "data.d").
+                                      examples: result_path="out.b"
+                                      event: {"out":{"a": 5, "b": 7}}, means monitored body will be 7.
+                                      event: {"out":{"a": [5, 9], "b": [7, 8]}} means monitored body will be [7,8]
+                                      event: {"out":{"a": "extra_data", "b": {"f0": [1, 2]}}} means monitored body will
+                                      be {"f0": [1, 2]}
+                                      if a ``list`` or ``list of lists`` is provided, it must follow the order and
+                                      size defined by the output schema.
+
           :param override:            bool allow override existing model on the current ModelRunnerStep.
           :param model_parameters:    Parameters for model instantiation
         """

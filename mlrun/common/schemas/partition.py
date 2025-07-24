@@ -152,12 +152,9 @@ class PartitionInterval(mlrun.common.types.StrEnum):
                 return f"YEAR({column_name}) * 100 + MONTH({column_name})"
 
             raise ValueError(f"Unsupported PartitionInterval: {self}")
-        elif dialect.startswith(mlrun.common.db.dialects.Dialects.POSTGRESQL):
-            return _postgres_interval_to_partitioning_func[self]
         else:
             raise ValueError(
                 f"Unsupported dialect: {dialect}. Supported dialects are: "
-                f"{mlrun.common.db.dialects.Dialects.POSTGRESQL}, "
                 f"{mlrun.common.db.dialects.Dialects.MYSQL}"
             )
 
@@ -172,10 +169,3 @@ class PartitionInterval(mlrun.common.types.StrEnum):
             return int(days / 7)
         else:
             raise ValueError(f"Unsupported PartitionInterval: {self}")
-
-
-_postgres_interval_to_partitioning_func = {
-    PartitionInterval.YEARWEEK: "iso_yearweek_int",
-    PartitionInterval.DAY: "date_yyyymmdd_int",
-    PartitionInterval.MONTH: "date_yyyymm_int",
-}

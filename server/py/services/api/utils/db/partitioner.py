@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from datetime import UTC, datetime, timedelta
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -31,7 +32,7 @@ class DBPartitioner:
 
     def __init__(
         self,
-        buffer_multiplier_override: float = None,
+        buffer_multiplier_override: Optional[float] = None,
     ):
         self._buffer_multiplier = (
             buffer_multiplier_override or mlrun.mlconf.partitions_buffer_multiplier

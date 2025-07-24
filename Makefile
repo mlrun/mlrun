@@ -235,11 +235,20 @@ update-version-file: ## Update the version file
 	python ./automation/version/version_file.py ensure --mlrun-version $(MLRUN_VERSION)
 
 .PHONY: generate-dockerignore
-generate-dockerignore: ## Copies the root .dockerignore and removes the tests pattern from it
+generate-dockerignore: ## Copies the root .dockerignore and removes test exclusions for test-system
 	$(eval TARGET := dockerfiles/${DEST}/Dockerfile.dockerignore)
-	@if [ -f "$(TARGET)" ]; then \
-		temp_file=$$(mktemp) && \
-		sed '/\*\*\/tests/d' .dockerignore > $$temp_file && \
+	@if [ -z "${DEST}" ]; then \
+		echo "Error: DEST variable must be set"; \
+		exit 1; \
+	fi; \
+	echo "Generating $(TARGET)..."; \
+	temp_file=$$(mktemp); \
+	if [ "$(DEST)" = "test-system" ]; then \
+		grep -vE '(\*\*/tests|\*\*/env\.yml|\*\*/test-[^/]*\.yml|\*\*/model_monitoring/assets)' .dockerignore > $$temp_file; \
+	else \
+		sed '/\*\*\/tests/d' .dockerignore > $$temp_file; \
+	fi; \
+	if [ -f "$(TARGET)" ]; then \
 		if cmp -s $$temp_file "$(TARGET)"; then \
 			echo "File $(TARGET) already exists and content is identical"; \
 			rm $$temp_file; \
@@ -249,7 +258,7 @@ generate-dockerignore: ## Copies the root .dockerignore and removes the tests pa
 			mv $$temp_file "$(TARGET)"; \
 		fi; \
 	else \
-		sed '/\*\*\/tests/d' .dockerignore > "$(TARGET)"; \
+		mv $$temp_file "$(TARGET)"; \
 	fi
 
 

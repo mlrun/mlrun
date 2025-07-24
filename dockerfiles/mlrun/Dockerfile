@@ -78,7 +78,6 @@ COPY *.py .
 COPY *.toml .
 COPY mlrun mlrun
 COPY dockerfiles/mlrun-api dockerfiles/mlrun-api
-COPY mlrun mlrun
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \

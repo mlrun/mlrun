@@ -71,11 +71,14 @@ compile-schemas-dockerized: schemas-compiler
 		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
 		make compile-schemas-local
 
-
-
 compile-schemas-go: $(GO_TARGETS)
 	@mkdir -p ../go/proto/build
 	@cp -RL $(GO_PKG_DIR)/* ../go/proto/build/
+
+compile-schemas-python: $(PY_TARGETS)
+	@echo "Syncing → $(PY_TARGET_DIR)"
+	@mkdir -p $(PY_TARGET_DIR)
+	cp -RL $(PY_OUT_DIR)/* $(PY_TARGET_DIR)/
 
 $(GO_PKG_DIR)/%.pb.go: $(PROTO_DIR)/%.proto
 	@mkdir -p $(@D)
@@ -95,11 +98,6 @@ $(PY_OUT_DIR)/%_pb2.py $(PY_OUT_DIR)/%_pb2_grpc.py: $(PROTO_DIR)/%.proto
 .PHONY: clean
 clean:
 	rm -rf $(GO_OUT_DIR) ../go/proto/build
-
-compile-schemas-python: $(PY_TARGETS)
-	@echo "Syncing → $(PY_TARGET_DIR)"
-	@mkdir -p $(PY_TARGET_DIR)
-	cp -RL $(PY_OUT_DIR)/* $(PY_TARGET_DIR)/
 
 .PHONY: cleanup
 cleanup:

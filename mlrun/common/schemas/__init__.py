@@ -64,11 +64,11 @@ from .common import ImageBuilder
 from .constants import (
     APIStates,
     ArtifactPartitionByField,
+    AuthorizationHeaderPrefixes,
     ClusterizationRole,
     DeletionStrategy,
     FeatureStorePartitionByField,
     HeaderNames,
-    HeaderPrefixes,
     LogsCollectorMode,
     OrderType,
     PatchMode,

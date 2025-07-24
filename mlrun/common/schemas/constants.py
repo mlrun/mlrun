@@ -117,7 +117,7 @@ class HeaderNames:
     ui_clear_cache = f"{headers_prefix}ui-clear-cache"
 
 
-class HeaderPrefixes:
+class AuthorizationHeaderPrefixes:
     basic = "Basic "
     bearer = "Bearer "
 

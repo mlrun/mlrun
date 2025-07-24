@@ -257,7 +257,8 @@ class HTTPRunDB(RunDBInterface):
                         kw["headers"].update(
                             {
                                 mlrun.common.schemas.HeaderNames.authorization: (
-                                    mlrun.common.schemas.HeaderPrefixes.bearer + token
+                                    mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer
+                                    + token
                                 )
                             }
                         )

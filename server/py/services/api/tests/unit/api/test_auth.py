@@ -20,6 +20,7 @@ import sqlalchemy.orm
 import starlette.datastructures
 
 import mlrun.common.schemas
+import mlrun.common.types
 from tests.common_fixtures import aioresponses_mock
 
 import framework.utils.auth.verifier
@@ -63,7 +64,7 @@ def test_authenticate_request_auth_info_basic(
         )
     )
     request_headers = {
-        mlrun.common.schemas.HeaderNames.authorization: mlrun.common.schemas.HeaderPrefixes.basic
+        mlrun.common.schemas.HeaderNames.authorization: mlrun.common.schemas.AuthorizationHeaderPrefixes.basic
         + "YnVnczpidW5ueQ==",
         "cookie": "123",
     }
@@ -103,7 +104,7 @@ def test_authenticate_request_auth_info_bearer(
         )
     )
     request_headers = {
-        mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.HeaderPrefixes.bearer}123",
+        mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
     }
 
     async def _mock_successful_query_permissions(
@@ -158,7 +159,7 @@ def test_authenticate_request_auth_info_iguazio(
 
     aioresponses_mock.add(
         url,
-        method="POST",
+        method=mlrun.common.types.HTTPMethod.POST,
         callback=_verify_session_mock,
     )
 

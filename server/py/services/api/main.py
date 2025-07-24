@@ -31,6 +31,7 @@ import mlrun.utils
 import mlrun.utils.notifications
 import mlrun.utils.version
 from mlrun import mlconf
+from mlrun.common.db.dialects import Dialects
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 
@@ -586,6 +587,10 @@ class Service(framework.service.Service):
             )
 
     def _start_periodic_partition_management(self):
+        if mlrun.mlconf.httpdb.dsn.startswith(Dialects.SQLITE):
+            self._logger.debug("Partition management not supported for SQLite")
+            return
+
         for table_name, retention_days in mlconf.object_retentions.items():
             self._logger.info(
                 f"Starting periodic partition management for table {table_name}",

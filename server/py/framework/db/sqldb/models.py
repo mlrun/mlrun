@@ -42,7 +42,6 @@ from sqlalchemy.orm import Mapper, Session, declared_attr, relationship
 
 import mlrun.common.db.dialects
 import mlrun.common.schemas
-from mlrun.common.schemas import PartitionInterval
 
 import framework.db.sqldb.base
 import framework.db.sqldb.partititioner
@@ -922,7 +921,7 @@ with warnings.catch_warnings():
             framework.db.sqldb.sql_types.DateTime(timezone=True), nullable=False
         )
         _interval_name = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
-        _interval = PartitionInterval(_interval_name)
+        _interval = mlrun.common.schemas.PartitionInterval(_interval_name)
         partition_key = Column(Integer, nullable=False)
 
         name = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
@@ -1182,12 +1181,6 @@ def _pg_create_utf8_bin(_, connection, **kw):
             "(provider = 'libc', locale = 'C', deterministic = true)"
         )
     )
-
-
-def get_partitioned_table_names():
-    return [
-        AlertActivation.__tablename__,
-    ]
 
 
 # Must be after all table definitions

@@ -25,8 +25,8 @@ from mlrun.common.types import StrEnum
 
 import framework.utils.auth.providers.nop
 import framework.utils.auth.providers.opa
-import framework.utils.clients.iguazio
-import framework.utils.clients.iguaziov4
+import framework.utils.clients.iguazio.v3
+import framework.utils.clients.iguazio.v4
 
 
 class AuthenticationMode(StrEnum):
@@ -219,8 +219,11 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             auth_info = await self._authenticate_iguazio_v4(request)
 
         # Fallback in case auth method didn't fill in the username already, and it is provided by the caller
-        if not auth_info.username and "x-remote-user" in headers:
-            auth_info.username = headers["x-remote-user"]
+        if (
+            not auth_info.username
+            and mlrun.common.schemas.HeaderNames.remote_user in headers
+        ):
+            auth_info.username = headers[mlrun.common.schemas.HeaderNames.remote_user]
 
         projects_role_header = headers.get(
             mlrun.common.schemas.HeaderNames.projects_role
@@ -232,13 +235,23 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         )
         # In Iguazio 3.0 we're running with auth mode none cause auth is done by the ingress, in that auth mode sessions
         # needed for data operations were passed through this header, keep reading it to be backwards compatible
-        if not auth_info.data_session and "X-V3io-Session-Key" in headers:
-            auth_info.data_session = headers["X-V3io-Session-Key"]
+        if (
+            not auth_info.data_session
+            and mlrun.common.schemas.HeaderNames.v3io_session_key in headers
+        ):
+            auth_info.data_session = headers[
+                mlrun.common.schemas.HeaderNames.v3io_session_key
+            ]
         # In Iguazio 3.0 the ingress auth verification overrides the X-V3io-Session-Key from the auth response
         # therefore the above won't work for requests coming from outside the cluster so allowing another header that
         # won't be overridden
-        if not auth_info.data_session and "X-V3io-Access-Key" in headers:
-            auth_info.data_session = headers["X-V3io-Access-Key"]
+        if (
+            not auth_info.data_session
+            and mlrun.common.schemas.HeaderNames.v3io_access_key in headers
+        ):
+            auth_info.data_session = headers[
+                mlrun.common.schemas.HeaderNames.v3io_access_key
+            ]
 
         # Maintain authentication headers for inter-services communication
         auth_info.request_headers = dict(headers)
@@ -252,7 +265,9 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         origin_host = auth_info.request_headers.pop("host", None)
         if origin_host:
             # original host requested by client
-            auth_info.request_headers["x-forwarded-host"] = origin_host
+            auth_info.request_headers[
+                mlrun.common.schemas.HeaderNames.forwarded_host
+            ] = origin_host
         return auth_info
 
     def get_or_create_access_key(
@@ -262,7 +277,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             raise NotImplementedError(
                 "Access key is currently supported only for Iguazio authentication mode"
             )
-        return framework.utils.clients.iguazio.Client().get_or_create_access_key(
+        return framework.utils.clients.iguazio.v3.Client().get_or_create_access_key(
             session, planes
         )
 
@@ -324,7 +339,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     def _authenticate_basic(
         self, headers: typing.Mapping[str, str]
     ) -> mlrun.common.schemas.AuthInfo:
-        header = headers.get("Authorization", "")
+        header = headers.get(mlrun.common.schemas.HeaderNames.authorization, "")
         if not header.startswith(self._basic_prefix):
             raise mlrun.errors.MLRunUnauthorizedError("Missing basic auth header")
 
@@ -342,7 +357,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     def _authenticate_bearer(
         self, headers: typing.Mapping[str, str]
     ) -> mlrun.common.schemas.AuthInfo:
-        header = headers.get("Authorization", "")
+        header = headers.get(mlrun.common.schemas.HeaderNames.authorization, "")
         if not header.startswith(self._bearer_prefix):
             raise mlrun.errors.MLRunUnauthorizedError("Missing bearer auth header")
 
@@ -356,15 +371,17 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     async def _authenticate_iguazio(
         request: fastapi.Request,
     ) -> mlrun.common.schemas.AuthInfo:
-        iguazio_client = framework.utils.clients.iguazio.AsyncClient()
+        iguazio_client = framework.utils.clients.iguazio.v3.AsyncClient()
         auth_info = await iguazio_client.verify_request_session(request)
-        if "x-data-session-override" in request.headers:
-            auth_info.data_session = request.headers["x-data-session-override"]
+        if mlrun.common.schemas.HeaderNames.data_session_override in request.headers:
+            auth_info.data_session = request.headers[
+                mlrun.common.schemas.HeaderNames.data_session_override
+            ]
         return auth_info
 
     @staticmethod
     async def _authenticate_iguazio_v4(
         request: fastapi.Request,
     ) -> mlrun.common.schemas.AuthInfo:
-        iguazio_client = framework.utils.clients.iguaziov4.AsyncClient()
+        iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
         return await iguazio_client.verify_request_session(request)

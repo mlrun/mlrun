@@ -34,7 +34,7 @@ from mlrun.utils import get_in, logger
 
 import framework.utils.helpers
 import framework.utils.projects.remotes.leader as project_leader
-from framework.utils.clients.base_client import BaseAsyncClient, BaseClient
+from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
 
 
 class JobStates:
@@ -167,11 +167,11 @@ class Client(
 
     @property
     def _verify_session_http_method(self) -> str:
-        return "post"
+        return http.HTTPMethod.POST
 
     def get_user_unix_id(self, session: str) -> str:
         response = self._send_request_to_api(
-            "GET",
+            http.HTTPMethod.GET,
             "self",
             "Failed get iguazio user",
             session,
@@ -356,7 +356,7 @@ class Client(
         """
         self._logger.debug("Getting grafana service url from Iguazio")
         response = self._send_request_to_api(
-            "GET",
+            http.HTTPMethod.GET,
             "app_services_manifests",
             "Failed getting app services manifests from Iguazio",
             session,
@@ -417,7 +417,7 @@ class Client(
         params["filter[operational_status]"] = "[$ne]deleting"
 
         response = self._send_request_to_api(
-            "GET",
+            http.HTTPMethod.GET,
             "projects",
             "Failed listing projects from Iguazio",
             session,
@@ -499,7 +499,7 @@ class Client(
         }
         try:
             response = self._send_request_to_api(
-                "DELETE",
+                http.HTTPMethod.DELETE,
                 "projects",
                 "Failed deleting project in Iguazio",
                 session,
@@ -527,7 +527,7 @@ class Client(
         **kwargs,
     ) -> tuple[mlrun.common.schemas.Project, str]:
         response = self._send_request_to_api(
-            "POST",
+            http.HTTPMethod.POST,
             "projects",
             "Failed creating project in Iguazio",
             session,
@@ -548,7 +548,7 @@ class Client(
         **kwargs,
     ) -> mlrun.common.schemas.Project:
         response = self._send_request_to_api(
-            "PUT",
+            http.HTTPMethod.PUT,
             f"projects/__name__/{name}",
             "Failed updating project in Iguazio",
             session,
@@ -565,7 +565,7 @@ class Client(
             params["enrich_owner_access_key"] = "true"
         try:
             return self._send_request_to_api(
-                "GET",
+                http.HTTPMethod.GET,
                 f"projects/__name__/{name}",
                 "Failed getting project from Iguazio",
                 session,
@@ -675,21 +675,25 @@ class Client(
     def _resolve_params_from_response_headers(
         response_headers: typing.Mapping[str, typing.Any],
     ):
-        username = response_headers.get("x-remote-user")
-        session = response_headers.get("x-v3io-session-key")
-        user_id = response_headers.get("x-user-id")
+        username = response_headers.get(mlrun.common.schemas.HeaderNames.remote_user)
+        session = response_headers.get(
+            mlrun.common.schemas.HeaderNames.v3io_session_key
+        )
+        user_id = response_headers.get(mlrun.common.schemas.HeaderNames.user_id)
 
-        gids = response_headers.get("x-user-group-ids", [])
+        gids = response_headers.get(mlrun.common.schemas.HeaderNames.user_group_ids, [])
         # "x-user-group-ids" header is a comma separated list of group ids
         if gids and not isinstance(gids, list):
             gids = gids.split(",")
 
-        planes = response_headers.get("x-v3io-session-planes")
+        planes = response_headers.get(
+            mlrun.common.schemas.HeaderNames.v3io_session_planes
+        )
         if planes:
             planes = planes.split(",")
         planes = planes or []
         user_unix_id = None
-        x_unix_uid = response_headers.get("x-unix-uid")
+        x_unix_uid = response_headers.get(mlrun.common.schemas.HeaderNames.unix_uid)
         # x-unix-uid may be 'Unknown' in case it is missing or in case of enrichment failures
         if x_unix_uid and x_unix_uid.lower() != "unknown":
             user_unix_id = int(x_unix_uid)

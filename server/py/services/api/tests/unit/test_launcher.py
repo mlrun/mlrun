@@ -25,7 +25,7 @@ import mlrun.launcher.base
 import mlrun.launcher.factory
 from mlrun.config import Config
 
-import framework.utils.clients.iguazio
+import framework.utils.clients.iguazio.v3
 import services.api.launcher
 import services.api.tests.unit.api.utils
 from framework.utils.auth.verifier import AuthenticationMode
@@ -56,7 +56,7 @@ def test_enrich_runtime_with_auth_info(
 ):
     mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     monkeypatch.setattr(
-        framework.utils.clients.iguazio,
+        framework.utils.clients.iguazio.v3,
         "AsyncClient",
         lambda *args, **kwargs: unittest.mock.AsyncMock(),
     )

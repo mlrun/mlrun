@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import http
 import typing
 
 import mlrun.common.schemas
 import mlrun.errors
 
-from framework.utils.clients.base_client import BaseAsyncClient, BaseClient
+from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
 
 
 class Client(BaseClient):
@@ -30,7 +31,7 @@ class Client(BaseClient):
 
     @property
     def _verify_session_http_method(self) -> str:
-        return "get"
+        return http.HTTPMethod.GET
 
     def _prepare_request_kwargs(
         self, session: typing.Optional[str], path: str, *, kwargs: dict

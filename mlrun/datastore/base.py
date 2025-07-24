@@ -26,6 +26,7 @@ import pyarrow
 import pytz
 import requests
 
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 from mlrun.errors import err_to_str
@@ -672,7 +673,7 @@ def basic_auth_header(user, password):
     password = password.encode("latin1")
     base = b64encode(b":".join((username, password))).strip()
     authstr = "Basic " + base.decode("ascii")
-    return {"Authorization": authstr}
+    return {mlrun.common.schemas.HeaderNames.authorization: authstr}
 
 
 class HttpStore(DataStore):
@@ -719,7 +720,9 @@ class HttpStore(DataStore):
         token = self._get_secret_or_env("HTTPS_AUTH_TOKEN")
         if token:
             self._https_auth_token = token
-            self._headers.setdefault("Authorization", f"Bearer {token}")
+            self._headers.setdefault(
+                mlrun.common.schemas.HeaderNames.authorization, f"Bearer {token}"
+            )
 
     def _validate_https_token(self):
         if self._https_auth_token and self._schema in ["http"]:

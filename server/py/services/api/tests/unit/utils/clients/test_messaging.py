@@ -78,12 +78,14 @@ def test_sync_delete_request(
     api_url = "http://test/success-service/v1"
     requests_mock.delete(f"{api_url}/resource", status_code=http.HTTPStatus.NO_CONTENT)
     response = messaging_client.delete(
-        path="/resource", headers={"authorization": "Bearer test"}
+        path="/resource",
+        headers={mlrun.common.schemas.HeaderNames.authorization: "Bearer test"},
     )
     assert response.status_code == http.HTTPStatus.NO_CONTENT
 
     response = messaging_client.delete(
-        path="resource", headers={"authorization": "Bearer test"}
+        path="resource",
+        headers={mlrun.common.schemas.HeaderNames.authorization: "Bearer test"},
     )
     assert response.status_code == http.HTTPStatus.NO_CONTENT
 
@@ -118,7 +120,10 @@ async def test_messaging_client_forward_request_with_body(
     )
 
     def _f(*args, **kwargs):
-        assert kwargs["headers"].get("authorization") == "Bearer test"
+        assert (
+            kwargs["headers"].get(mlrun.common.schemas.HeaderNames.authorization)
+            == "Bearer test"
+        )
         return aioresponses.CallbackResult(
             status=http.HTTPStatus.CREATED.value,
             payload={"body": "success"},

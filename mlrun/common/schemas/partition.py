@@ -14,6 +14,7 @@
 
 from datetime import datetime, timedelta
 
+import mlrun.common.db.dialects
 import mlrun.common.types
 
 
@@ -125,19 +126,37 @@ class PartitionInterval(mlrun.common.types.StrEnum):
         else:
             raise ValueError(f"Unsupported PartitionInterval: {self}")
 
-    def get_partition_expression(self, column_name: str):
-        if self == PartitionInterval.YEARWEEK:
-            return f"YEARWEEK({column_name}, 1)"
-        elif self == PartitionInterval.DAY:
-            # generates value in format %Y%m%d in mysql
-            # mysql query example: `select YEAR(NOW())*10000 + MONTH(NOW())*100 + DAY(NOW());`
-            return f"YEAR({column_name}) * 10000 + MONTH({column_name}) * 100 + DAY({column_name})"
-        elif self == PartitionInterval.MONTH:
-            # generates value in format %Y%m in mysql
-            # mysql query example: `select YEAR(NOW())*100 + MONTH(NOW());`
-            return f"YEAR({column_name}) * 100 + MONTH({column_name})"
-        else:
+    def get_partition_expression(
+        self,
+        column_name: str,
+        dialect: str = mlrun.common.db.dialects.Dialects.MYSQL,
+    ) -> str:
+        """
+        Convert *column_name* to an integer key that works for RANGE partitioning.
+
+        Supported dialects: "postgresql", "mysql".
+        """
+
+        if dialect.startswith(mlrun.common.db.dialects.Dialects.MYSQL):
+            if self == PartitionInterval.YEARWEEK:
+                return f"YEARWEEK({column_name}, 1)"
+
+            if self == PartitionInterval.DAY:
+                return (
+                    f"YEAR({column_name}) * 10000 + "
+                    f"MONTH({column_name}) * 100 + "
+                    f"DAY({column_name})"
+                )
+
+            if self == PartitionInterval.MONTH:
+                return f"YEAR({column_name}) * 100 + MONTH({column_name})"
+
             raise ValueError(f"Unsupported PartitionInterval: {self}")
+        else:
+            raise ValueError(
+                f"Unsupported dialect: {dialect}. Supported dialects are: "
+                f"{mlrun.common.db.dialects.Dialects.MYSQL}"
+            )
 
     def get_number_of_partitions(self, days: int) -> int:
         # Calculate the number partitions based on given number of days

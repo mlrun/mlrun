@@ -14,6 +14,7 @@
 
 import unittest.mock
 from datetime import datetime
+from types import SimpleNamespace
 
 import pytest
 import sqlalchemy.orm
@@ -23,6 +24,23 @@ import mlrun.common.schemas.partition
 
 import framework.utils.singletons.db
 import services.api.utils.db.partitioner
+
+
+@pytest.fixture(autouse=True)
+def patch_range_partitioner(monkeypatch):
+    """
+    Replace RangePartitioner with a dummy whose apply_partitions does nothing,
+    so we don’t hit the sqlite “unsupported dialect” error.
+    """
+
+    def fake_rp_ctor(dialect):
+        # we only care about create_partitions tests, so no state needed
+        return SimpleNamespace(apply_partitions=lambda session, table, cnt: None)
+
+    monkeypatch.setattr(
+        "services.api.utils.db.partitioner.RangePartitioner",
+        fake_rp_ctor,
+    )
 
 
 @pytest.mark.parametrize(
@@ -126,10 +144,12 @@ def test_drop_old_partitions(
         mocked_db_drop_partitions.return_value = None
 
         services.api.utils.db.partitioner.DBPartitioner().drop_partitions(
-            db,
-            "alert_activations",
-            retention_days,
-            mlrun.common.schemas.partition.PartitionInterval(partition_interval),
+            session=db,
+            table_name="alert_activations",
+            retention_days=retention_days,
+            partition_interval=mlrun.common.schemas.partition.PartitionInterval(
+                partition_interval
+            ),
         )
 
         mocked_db_drop_partitions.assert_called_once_with(
@@ -189,7 +209,7 @@ def test_create_partitions(
             "services.api.utils.db.partitioner.datetime"
         ) as mock_datetime,
         unittest.mock.patch.object(
-            framework.utils.singletons.db.get_db(),
+            services.api.utils.db.partitioner.framework.utils.singletons.db.get_db(),
             "create_partitions",
         ) as mocked_db_create_partitions,
     ):

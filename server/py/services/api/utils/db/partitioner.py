@@ -12,18 +12,52 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-import mlrun.common.schemas.partition
-import mlrun.config
+import mlrun
+from mlrun.common.schemas import PartitionInterval
 
 import framework.db.sqldb.db
 import framework.utils.singletons.db
+from framework.db.sqldb.partititioner import RangePartitioner
 
 
 class DBPartitioner:
+    """
+    Manages creation and dropping of range partitions based on retention policy.
+    """
+
+    def __init__(
+        self,
+        buffer_multiplier_override: float = None,
+    ):
+        self._buffer_multiplier = (
+            buffer_multiplier_override or mlrun.mlconf.partitions_buffer_multiplier
+        )
+
+    def create_partitions(
+        self,
+        session: Session,
+        table_name: str,
+        retention_days: int,
+        partition_interval: PartitionInterval,
+    ) -> None:
+        # compute total partitions needed (retention + buffer)
+        total_days = (
+            retention_days
+            + self._buffer_multiplier * partition_interval.as_duration().days
+        )
+        partition_count = partition_interval.get_number_of_partitions(
+            days=int(total_days)
+        )
+
+        # create or extend partitions
+        partitioner = RangePartitioner(session.get_bind().dialect.name)
+        partitioner.apply_partitions(session, table_name, partition_count)
+        session.flush()
+
     def create_and_drop_partitions(
         self,
         session: Session,
@@ -31,115 +65,62 @@ class DBPartitioner:
         retention_days: int,
     ) -> None:
         """
-        Creates partitions for the future based on the specified retention days
-        and drops old partitions that are older than the retention period.
+        Ensure future partitions for retention + buffer, and drop expired ones.
 
         :param session: SQLAlchemy session for database operations.
-        :param table_name: Name of the table to create/drop partitions.
-        :param retention_days: The number of days to retain partitions.
-
+        :param table_name: Name of the table to manage partitions for.
+        :param retention_days: Number of days to retain partitions.
         """
+        # determine the existing partition interval
+        partition_interval = self.get_partition_interval(session, table_name)
 
-        # Retrieve the partition interval from the database
-        partition_interval = self.get_partition_interval(
-            session,
-            table_name,
-        )
-
-        # Ensure partitions for the retention time plus a buffer
-        partition_number = partition_interval.get_number_of_partitions(
-            days=retention_days
-            + mlrun.mlconf.partitions_buffer_multiplier
-            * partition_interval.as_duration().days
-        )
-
-        # Create the calculated number of partitions.
         self.create_partitions(
-            session, table_name, partition_number, partition_interval
-        )
-
-        # Drop old partitions that exceed the retention period.
-        self.drop_partitions(session, table_name, retention_days, partition_interval)
-
-    @staticmethod
-    def create_partitions(
-        session: Session,
-        table_name: str,
-        partition_number: int,
-        partition_interval: mlrun.common.schemas.partition.PartitionInterval,
-    ):
-        partitioning_information_list = partition_interval.get_partition_info(
-            start_datetime=datetime.now(),
-            partition_number=partition_number,
-        )
-
-        framework.utils.singletons.db.get_db().create_partitions(
             session=session,
             table_name=table_name,
-            partitioning_information_list=partitioning_information_list,
+            partition_interval=partition_interval,
         )
 
-    @staticmethod
-    def drop_partitions(
-        session: Session,
-        table_name: str,
-        retention_days: int,
-        partition_interval: mlrun.common.schemas.partition.PartitionInterval,
-    ):
-        """
-        Drop partitions older than the specified retention period.
-
-        :param session: SQLAlchemy session.
-        :param table_name: Name of the table to drop partitions from.
-        :param retention_days: Retention period in days.
-        :param partition_interval: Partition interval
-        """
-        # Calculate the cutoff date for partition retention
-        cutoff_date = datetime.now() - timedelta(days=retention_days)
-
-        # Generate cutoff partition name based on the interval
-        cutoff_partition_name = partition_interval.get_partition_name(cutoff_date)
-
-        # Drop partitions that are older than the cutoff
-        framework.utils.singletons.db.get_db().drop_partitions(
+        # drop partitions older than retention
+        self.drop_partitions(
             session=session,
             table_name=table_name,
-            cutoff_partition_name=f"p{cutoff_partition_name}",
+            partition_interval=partition_interval,
+            retention_days=retention_days,
         )
+        session.flush()
 
-    @staticmethod
     def get_partition_interval(
+        self,
         session: Session,
         table_name: str,
-    ) -> mlrun.common.schemas.partition.PartitionInterval:
-        # Retrieve the partition function from the database
-        partition_expression = (
-            framework.utils.singletons.db.get_db().get_partition_expression_for_table(
-                session,
-                table_name=table_name,
-            )
+    ) -> PartitionInterval:
+        db_client = framework.utils.singletons.db.get_db()
+        partition_expr = db_client.get_partition_expression_for_table(
+            session=session,
+            table_name=table_name,
         )
-
-        if not partition_expression:
-            # if partition expression is not found, there are two possible reasons:
-            # 1. the table is not partitioned
-            # 2. the table doesn't exist
-            # to identify the reason, we need to check if the table exists
-            if framework.utils.singletons.db.get_db().table_exists(
-                session=session, table_name=table_name
-            ):
+        if not partition_expr:
+            if db_client.table_exists(session=session, table_name=table_name):
                 reason = "Table is not partitioned"
             else:
                 reason = "Table does not exist"
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Cannot find partition expression for table",
-                table_name=table_name,
-                reason=reason,
+            raise ValueError(
+                f"Cannot determine partition interval for '{table_name}': {reason}"
             )
+        return PartitionInterval.from_expression(partition_expr)
 
-        partition_interval = (
-            mlrun.common.schemas.partition.PartitionInterval.from_expression(
-                partition_expression
-            )
+    def drop_partitions(
+        self,
+        session: Session,
+        table_name: str,
+        partition_interval: PartitionInterval,
+        retention_days: int,
+    ) -> None:
+        db_client = framework.utils.singletons.db.get_db()
+        cutoff_date = datetime.now(UTC) - timedelta(days=retention_days)
+        cutoff_partition_name = f"p{partition_interval.get_partition_name(cutoff_date)}"
+        db_client.drop_partitions(
+            session=session,
+            table_name=table_name,
+            cutoff_partition_name=cutoff_partition_name,
         )
-        return partition_interval

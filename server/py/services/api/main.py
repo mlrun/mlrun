@@ -587,7 +587,8 @@ class Service(framework.service.Service):
             )
 
     def _start_periodic_partition_management(self):
-        if mlrun.mlconf.httpdb.dsn.startswith(Dialects.SQLITE):
+        # skip on SQLite
+        if mlconf.httpdb.dsn.startswith(Dialects.SQLITE.value):
             self._logger.debug("Partition management not supported for SQLite")
             return
 
@@ -596,18 +597,20 @@ class Service(framework.service.Service):
                 f"Starting periodic partition management for table {table_name}",
                 retention_days=retention_days,
             )
+            # fetch the existing interval
             partition_interval = framework.db.session.run_function_with_new_db_session(
                 services.api.utils.db.partitioner.DBPartitioner().get_partition_interval,
                 table_name=table_name,
             )
+            # run twice per interval
             interval_in_seconds = int(
                 partition_interval.as_duration().total_seconds() / 2
             )
             run_function_periodically(
                 interval_in_seconds,
                 f"{self._manage_partitions.__name__}_{table_name}",
-                False,
-                self._manage_partitions,
+                replace=False,
+                function=self._manage_partitions,
                 table_name=table_name,
                 retention_days=retention_days,
             )

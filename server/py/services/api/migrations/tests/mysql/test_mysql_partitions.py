@@ -18,6 +18,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
 import mlrun.common.schemas as schemas
+from tests.common_fixtures import FrozenDatetime, freeze_datetime
 
 import framework.db.sqldb.db
 import services.api.migrations.tests.base.conftest
@@ -26,7 +27,7 @@ import services.api.utils.db.partitioner
 
 @pytest.mark.integration
 @pytest.mark.usefixtures("pmr_mysql_container")
-@services.api.migrations.tests.base.conftest.freeze_datetime(datetime(2025, 1, 1))
+@freeze_datetime(datetime(2025, 1, 1))
 def test_create_partitions_mysql(alembic_engine):
     session = sessionmaker(bind=alembic_engine)()
     table = "dyn_table"
@@ -69,7 +70,7 @@ def test_create_partitions_mysql(alembic_engine):
 
 
 @pytest.mark.usefixtures("pmr_mysql_container")
-@services.api.migrations.tests.base.conftest.freeze_datetime(datetime(2025, 1, 6))
+@freeze_datetime(datetime(2025, 1, 6))
 def test_drop_partitions_mysql(alembic_engine):
     session = sessionmaker(bind=alembic_engine)()
     table = "dyn_table_drop"
@@ -101,9 +102,7 @@ def test_drop_partitions_mysql(alembic_engine):
     )
 
     # advance time two weeks before dropping
-    services.api.migrations.tests.base.conftest.FrozenDatetime._frozen_now = datetime(
-        2025, 1, 20
-    )
+    FrozenDatetime._frozen_now = datetime(2025, 1, 20)
 
     partitioner.drop_partitions(
         session=session,

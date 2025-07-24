@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import abc
 import asyncio
 import collections
 import functools
@@ -44,14 +44,18 @@ from sqlalchemy import (
     types,
 )
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.inspection import inspect as sqlalchemy_inspect
 from sqlalchemy.orm import Query, Session, aliased, load_only, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.sql.compiler import IdentifierPreparer
 from sqlalchemy.sql.elements import BinaryExpression
+from sqlalchemy.sql.functions import GenericFunction
 
 import mlrun
+import mlrun.artifacts.base
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.db.dialects
 import mlrun.common.formatters
 import mlrun.common.model_monitoring
 import mlrun.common.runtimes.constants
@@ -60,8 +64,6 @@ import mlrun.common.types
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.model
-from mlrun.artifacts.base import fill_artifact_object_hash
-from mlrun.common.db.dialects import Dialects
 from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
     FeatureSetDigestSpecV2,
@@ -135,6 +137,17 @@ from framework.db.sqldb.models import (
     _with_notifications,
 )
 
+
+class now(GenericFunction):  # noqa: N801
+    type = sqlalchemy.types.DateTime()
+    name = "now"
+
+
+@compiles(now, mlrun.common.db.dialects.Dialects.POSTGRESQL)
+def _pg_now(element, compiler, **kw):
+    return "now()"
+
+
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
@@ -196,15 +209,19 @@ def retry_on_conflict(function):
 
 
 class SQLDB(DBInterface):
-    def __new__(cls, dsn: str = ""):
+    def __new__(cls, dsn: Optional[str] = None):
+        if dsn is None:
+            dsn = mlrun.config.config.httpdb.dsn
         if cls is SQLDB and dsn:
             scheme = urllib.parse.urlparse(dsn).scheme.lower()
-            if scheme.startswith(Dialects.MYSQL):
+            if scheme.startswith(mlrun.common.db.dialects.Dialects.MYSQL):
                 return super().__new__(MySQLDB)
-            elif scheme.startswith(Dialects.POSTGRESQL):
+            elif scheme.startswith(mlrun.common.db.dialects.Dialects.POSTGRESQL):
                 return super().__new__(PostgreSQLDB)
+            elif scheme.startswith(mlrun.common.db.dialects.Dialects.SQLITE):
+                return super().__new__(SQLiteDB)
             else:
-                return super().__new__(cls)
+                raise ValueError("Unsupported database dialect: " + scheme)
         return super().__new__(cls)
 
     def __init__(self, dsn=""):
@@ -705,7 +722,7 @@ class SQLDB(DBInterface):
         if run.state in endable_states and not run.end_time:
             if end_time is None:
                 # Ensures fsp 6 for MySQL NOW() to includes microseconds
-                end_time = func.now(6)
+                end_time = now(6)
             run.end_time = end_time
         elif run.state not in endable_states:
             # Ensure end time is not set if the run is not in a terminal state
@@ -773,7 +790,9 @@ class SQLDB(DBInterface):
             artifact_dict.setdefault("metadata", {})["project"] = project
 
         # calculate uid
-        uid = fill_artifact_object_hash(artifact_dict, iter, producer_id)
+        uid = mlrun.artifacts.base.fill_artifact_object_hash(
+            artifact_dict, iter, producer_id
+        )
 
         # If object was referenced by UID, the request cannot modify it
         if original_uid and uid != original_uid:
@@ -853,7 +872,9 @@ class SQLDB(DBInterface):
         if not project:
             raise mlrun.errors.MLRunMissingProjectError()
         if not uid:
-            uid = fill_artifact_object_hash(artifact, iteration, producer_id)
+            uid = mlrun.artifacts.base.fill_artifact_object_hash(
+                artifact, iteration, producer_id
+            )
 
         # check if the object already exists
         query = self._query(session, ArtifactV2, key=key, project=project, uid=uid)
@@ -6745,6 +6766,7 @@ class SQLDB(DBInterface):
         ]
 
     @staticmethod
+    @abc.abstractmethod
     def create_partitions(
         session: Session,
         table_name: str,
@@ -6764,6 +6786,7 @@ class SQLDB(DBInterface):
         pass
 
     @staticmethod
+    @abc.abstractmethod
     def drop_partitions(
         session: Session,
         table_name: str,
@@ -6779,6 +6802,7 @@ class SQLDB(DBInterface):
         pass
 
     @staticmethod
+    @abc.abstractmethod
     def get_partition_expression_for_table(
         session: Session,
         table_name: str,
@@ -6796,6 +6820,7 @@ class SQLDB(DBInterface):
         pass
 
     @staticmethod
+    @abc.abstractmethod
     def table_exists(
         session: Session,
         table_name: str,
@@ -8339,6 +8364,45 @@ class SQLDB(DBInterface):
                 f"Invalid date type: {type(date)}. Expected str or datetime."
             )
         return date
+
+
+class SQLiteDB(SQLDB):
+    @staticmethod
+    def create_partitions(
+        session: Session,
+        table_name: str,
+        partitioning_information_list: list[tuple[str, str]],
+    ):
+        logger.debug(
+            "SQLite does not support partitioning natively, skipping partition creation",
+        )
+        return []
+
+    @staticmethod
+    def drop_partitions(session: Session, table_name: str, cutoff_partition_name: str):
+        logger.debug(
+            "SQLite does not support partitioning natively, skipping partition drop",
+        )
+
+    @staticmethod
+    def get_partition_expression_for_table(
+        session: Session,
+        table_name: str,
+    ) -> str:
+        logger.debug(
+            "SQLite does not support partitioning natively, skipping partition expression",
+        )
+        return ""
+
+    @staticmethod
+    def table_exists(
+        session: Session,
+        table_name: str,
+    ) -> bool:
+        logger.debug(
+            "SQLite does not support table exists, skipping table creation",
+        )
+        return False
 
 
 class MySQLDB(SQLDB):

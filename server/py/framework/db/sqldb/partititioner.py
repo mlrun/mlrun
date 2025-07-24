@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+from datetime import UTC, datetime
+
 import sqlalchemy
 import sqlalchemy.orm
 import sqlalchemy.sql.compiler
 
 import mlrun.common.db.dialects
+import mlrun.common.schemas.partition
 
 
 class RangePartitioner:
@@ -25,13 +29,12 @@ class RangePartitioner:
             return super().__new__(RangePartitionerMySQL)
         if dialect.startswith(mlrun.common.db.dialects.Dialects.POSTGRESQL):
             return super().__new__(RangePartitionerPostgres)
-        raise ValueError(dialect)
+        raise ValueError(f"Unsupported dialect: {dialect}")
 
     def bootstrap(
         self,
         session: sqlalchemy.orm.Session,
         table_name: str,
-        partition_expression: str,
         first_partition_name: str,
         first_partition_upper_bound: str,
     ):
@@ -39,16 +42,39 @@ class RangePartitioner:
 
     def get_quoted_partitioned_table_params(
         self,
-        first_partition_name: str,
+        partition_name: str,
         session: sqlalchemy.orm.Session,
         table_name: str,
     ) -> tuple[str, str]:
         preparer = sqlalchemy.sql.compiler.IdentifierPreparer(
             session.get_bind().dialect
         )
-        quoted_table_name = preparer.quote(table_name)
-        quoted_partition_name = preparer.quote(first_partition_name)
-        return quoted_partition_name, quoted_table_name
+        quoted_table = preparer.quote(table_name)
+        quoted_partition = preparer.quote(partition_name)
+        return quoted_partition, quoted_table
+
+    def _compute_partitions(self, num_partitions: int = 2) -> list[tuple[str, str]]:
+        interval_key = os.getenv(
+            "PARTITION_INTERVAL",
+            mlrun.common.schemas.partition.PartitionInterval.YEARWEEK.value,
+        ).upper()
+        interval = mlrun.common.schemas.partition.PartitionInterval(interval_key)
+        return interval.get_partition_info(
+            datetime.now(UTC), partition_number=num_partitions
+        )
+
+    def _quote_table_name(
+        self,
+        session: sqlalchemy.orm.Session,
+        table_name: str,
+        sample_partition: str,
+    ) -> str:
+        _, quoted_table = self.get_quoted_partitioned_table_params(
+            partition_name=sample_partition,
+            session=session,
+            table_name=table_name,
+        )
+        return quoted_table
 
 
 class RangePartitionerMySQL(RangePartitioner):
@@ -56,24 +82,31 @@ class RangePartitionerMySQL(RangePartitioner):
         self,
         session: sqlalchemy.orm.Session,
         table_name: str,
-        partition_expression: str,
         first_partition_name: str,
         first_partition_upper_bound: str,
     ):
-        quoted_partition_name, quoted_table_name = (
-            self.get_quoted_partitioned_table_params(
-                first_partition_name=first_partition_name,
+        # prepare current and next partition definitions
+        partition_list = self._compute_partitions(num_partitions=2)
+        quoted_table = self._quote_table_name(session, table_name, partition_list[0][0])
+
+        partition_clauses = []
+        for partition_name, boundary_value in partition_list:
+            quoted_partition, _ = self.get_quoted_partitioned_table_params(
+                partition_name=partition_name,
                 session=session,
                 table_name=table_name,
             )
-        )
-        session.execute(
-            sqlalchemy.text(
-                f"""ALTER TABLE {quoted_table_name}
-                    PARTITION BY RANGE ({partition_expression})
-                    (PARTITION {quoted_partition_name} VALUES LESS THAN ({int(first_partition_upper_bound)}))"""
+            partition_clauses.append(
+                f"PARTITION {quoted_partition} VALUES LESS THAN ({int(boundary_value)})"
             )
-        )
+        join_str = ",\n"
+        ddl = f"""
+            ALTER TABLE {quoted_table}
+            PARTITION BY RANGE (partition_key) (
+                {join_str.join(partition_clauses)}
+            )
+            """
+        session.execute(sqlalchemy.text(ddl))
         session.commit()
 
 
@@ -82,27 +115,27 @@ class RangePartitionerPostgres(RangePartitioner):
         self,
         session: sqlalchemy.orm.Session,
         table_name: str,
-        partition_expression: str,
         first_partition_name: str,
         first_partition_upper_bound: str,
     ):
-        quoted_partition_name, quoted_table_name = (
-            self.get_quoted_partitioned_table_params(
-                first_partition_name=first_partition_name,
+        # prepare current and next partition definitions
+        partition_list = self._compute_partitions(num_partitions=2)
+        quoted_table = self._quote_table_name(session, table_name, partition_list[0][0])
+
+        for index, (partition_name, boundary_value) in enumerate(partition_list):
+            quoted_partition, _ = self.get_quoted_partitioned_table_params(
+                partition_name=partition_name,
                 session=session,
                 table_name=table_name,
             )
-        )
-        session.execute(
-            sqlalchemy.text(
-                f"ALTER TABLE {quoted_table_name} PARTITION BY RANGE ({partition_expression})"
+            lower_bound = (
+                "MINVALUE" if index == 0 else str(int(partition_list[index - 1][1]))
             )
-        )
-        session.execute(
-            sqlalchemy.text(
-                f"""CREATE TABLE {quoted_partition_name}
-                     PARTITION OF {quoted_table_name}
-                     FOR VALUES FROM (MINVALUE) TO ({int(first_partition_upper_bound)})"""
-            )
-        )
+            upper_bound = str(int(boundary_value))
+            ddl = f"""
+                CREATE TABLE {quoted_partition}
+                PARTITION OF {quoted_table}
+                FOR VALUES FROM ({lower_bound}) TO ({upper_bound})
+            """
+            session.execute(sqlalchemy.text(ddl))
         session.commit()

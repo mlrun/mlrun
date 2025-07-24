@@ -17,7 +17,7 @@ import os
 import pickle
 import uuid
 import warnings
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import Any, Callable
 
 import orjson
@@ -42,6 +42,7 @@ from sqlalchemy.orm import Mapper, Session, declared_attr, relationship
 
 import mlrun.common.db.dialects
 import mlrun.common.schemas
+from mlrun.common.schemas import PartitionInterval
 
 import framework.db.sqldb.base
 import framework.db.sqldb.partititioner
@@ -895,22 +896,10 @@ with warnings.catch_warnings():
 
     class AlertActivation(Base):
         __tablename__ = "alert_activations"
-
-        # partition setup at import
-        _interval_name = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
-        if not mlrun.common.schemas.partition.PartitionInterval.is_valid(
-            _interval_name
-        ):
-            raise ValueError(
-                f"Partition interval must be one of: "
-                f"{mlrun.common.schemas.partition.PartitionInterval.valid_intervals()}"
-            )
-        _interval = mlrun.common.schemas.partition.PartitionInterval(_interval_name)
-        _expr = _interval.get_partition_expression(column_name="activation_time")
-        _pname, _pval = _interval.get_partition_info(datetime.utcnow())[0]
-
         __table_args__ = (
-            PrimaryKeyConstraint("id", "activation_time", name="_alert_activation_uc"),
+            PrimaryKeyConstraint(
+                "id", "activation_time", "partition_key", name="_alert_activation_uc"
+            ),
             Index("ix_alert_activation_project_name", "project", "name"),
             Index(
                 "ix_alert_activation_project_activation_time",
@@ -920,6 +909,7 @@ with warnings.catch_warnings():
             {
                 "mysql_engine": "InnoDB",
                 "mysql_charset": "utf8mb4",
+                "postgresql_partition_by": "RANGE (partition_key)",
             },
         )
 
@@ -931,6 +921,8 @@ with warnings.catch_warnings():
         activation_time = Column(
             framework.db.sqldb.sql_types.DateTime(timezone=True), nullable=False
         )
+        partition_key = Column(Integer, nullable=False)
+
         name = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
         project = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
         data = Column(JSON)
@@ -945,6 +937,15 @@ with warnings.catch_warnings():
         reset_time = Column(
             framework.db.sqldb.sql_types.DateTime(timezone=True), nullable=True
         )
+
+        def compute_partition_key(self) -> int:
+            """
+            Re‑compute the integer partition_key based on self.activation_time
+            """
+            _, partition_value = self._interval.get_partition_info(
+                self.activation_time
+            )[0]
+            return int(partition_value)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.id}"
@@ -1119,6 +1120,30 @@ def _sqlite_autoincrement(
 
 
 @event_listen_for_dialects(
+    target=AlertActivation,
+    identifier="before_insert",
+    relevant_dialects=mlrun.common.db.dialects.Dialects.all(),
+)
+def _set_activation_partition_key(
+    _: Mapper,
+    __: Connection,
+    target: AlertActivation,
+):
+    """
+    Populate partition_key from PARTITION_INTERVAL env var at insert time.
+    """
+    interval_name = os.getenv(
+        "PARTITION_INTERVAL", PartitionInterval.YEARWEEK.value
+    ).upper()
+    if not PartitionInterval.is_valid(interval_name):
+        raise ValueError(f"Unsupported PARTITION_INTERVAL: {interval_name}")
+    interval = PartitionInterval(interval_name)
+    boundary_dt = interval.get_next_partition_time(target.activation_time)
+    key_str = interval.get_partition_name(boundary_dt)
+    target.partition_key = int(key_str)
+
+
+@event_listen_for_dialects(
     target=AlertActivation.__table__,
     identifier="after_create",
     relevant_dialects=[
@@ -1135,23 +1160,35 @@ def bootstrap_partitions(
     if not mlrun.common.schemas.partition.PartitionInterval.is_valid(interval_name):
         raise ValueError(
             f"Partition interval must be one of: "
-            f"{mlrun.common.schemas.partition.PartitionInterval.valid_intervals()}"
+            f"{mlrun.common.schemas.partition.PartitionInterval.valid_intervals()}, currently: {interval_name}"
         )
     interval = mlrun.common.schemas.PartitionInterval(interval_name)
-
-    partition_expression = interval.get_partition_expression("activation_time")
-    partition_name, partition_value = interval.get_partition_info(datetime.utcnow())[0]
-
     dialect = connection.dialect.name
+
+    partition_name, partition_value = interval.get_partition_info(datetime.now(UTC))[0]
     with Session(bind=connection) as session:
-        # Ensure the partitioner is initialized for the dialect
         framework.db.sqldb.partititioner.RangePartitioner(dialect).bootstrap(
             session=session,
             table_name=table.name,
-            partition_expression=partition_expression,
             first_partition_name=partition_name,
             first_partition_upper_bound=partition_value,
         )
+
+
+# This function creates a UTF-8 binary collation named utf8_bin, which is equivalent
+# to the collation with the same name in MySQL.
+@event_listen_for_dialects(
+    target=Base.metadata,  # run before tables are created
+    identifier="before_create",
+    relevant_dialects=[mlrun.common.db.dialects.Dialects.POSTGRESQL],
+)
+def _pg_create_utf8_bin(_, connection, **kw):
+    connection.execute(
+        text(
+            "CREATE COLLATION IF NOT EXISTS utf8_bin "
+            "(provider = 'libc', locale = 'C', deterministic = true)"
+        )
+    )
 
 
 # Must be after all table definitions

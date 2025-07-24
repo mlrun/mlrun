@@ -922,7 +922,9 @@ class TestProject(TestMLRunSystem):
             len(runner_run_result) == 1
         ), f"Expected exactly one rerun runner, but found {len(runner_run_result)}."
 
-        assert runner_run_result.to_objects()[0].metadata.labels[mlrun_constants.MLRunInternalLabels.rerun_index] == str(1)
+        assert runner_run_result.to_objects()[0].metadata.labels[
+            mlrun_constants.MLRunInternalLabels.rerun_index
+        ] == str(1)
         # in order to trigger the periodic monitor runs function
         time.sleep(35)
 
@@ -962,7 +964,9 @@ class TestProject(TestMLRunSystem):
             len(rerunners) == 2
         ), f"Idempotent retry created extra runner – found {len(rerunners)}"
 
-        assert rerunners.to_objects()[0].metadata.labels[mlrun_constants.MLRunInternalLabels.rerun_index] == str(2)
+        assert rerunners.to_objects()[0].metadata.labels[
+            mlrun_constants.MLRunInternalLabels.rerun_index
+        ] == str(2)
 
         original_workflow_runner = project.list_runs(
             labels=[
@@ -972,9 +976,9 @@ class TestProject(TestMLRunSystem):
         )
 
         assert len(original_workflow_runner) == 1
-        assert original_workflow_runner.to_objects()[0].metadata.labels[mlrun_constants.MLRunInternalLabels.rerun_counter] == 2
-
-
+        assert original_workflow_runner.to_objects()[0].metadata.labels[
+            mlrun_constants.MLRunInternalLabels.rerun_counter
+        ] == str(2)
 
     def test_build_and_run(self):
         # test that build creates a proper image and run will use the updated function (with the built image)

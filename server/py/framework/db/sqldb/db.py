@@ -370,8 +370,11 @@ class SQLDB(DBInterface):
                 raise mlrun.errors.MLRunConflictError
             else:
                 labels[mlrun_constants.MLRunInternalLabels.retrying] = "true"
-                labels[mlrun_constants.MLRunInternalLabels.rerun_counter] = (
-                    labels.get(mlrun_constants.MLRunInternalLabels.rerun_counter, 0) + 1
+                labels[mlrun_constants.MLRunInternalLabels.rerun_counter] = str(
+                    int(
+                        labels.get(mlrun_constants.MLRunInternalLabels.rerun_counter, 0)
+                    )
+                    + 1
                 )
             update_labels(run, labels)
             run.struct = struct

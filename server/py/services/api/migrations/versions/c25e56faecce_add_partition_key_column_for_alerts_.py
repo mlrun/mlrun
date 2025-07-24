@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Add partition key column for alerts activations partitioning in postgres
+"""Add partition key column for alerts activations partitioning in postgres"""
 
 import logging
 import os

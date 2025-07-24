@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import abc
 import asyncio
 import collections
 import functools
@@ -209,15 +209,19 @@ def retry_on_conflict(function):
 
 
 class SQLDB(DBInterface):
-    def __new__(cls, dsn: str = ""):
+    def __new__(cls, dsn: Optional[str] = None):
+        if dsn is None:
+            dsn = config.httpdb.db.dsn
         if cls is SQLDB and dsn:
             scheme = urllib.parse.urlparse(dsn).scheme.lower()
             if scheme.startswith(Dialects.MYSQL):
                 return super().__new__(MySQLDB)
             elif scheme.startswith(Dialects.POSTGRESQL):
                 return super().__new__(PostgreSQLDB)
+            elif scheme.startswith(Dialects.SQLITE):
+                return super().__new__(SQLiteDB)
             else:
-                return super().__new__(cls)
+                raise ValueError("Unsupported database dialect: " + scheme)
         return super().__new__(cls)
 
     def __init__(self, dsn=""):
@@ -6758,6 +6762,7 @@ class SQLDB(DBInterface):
         ]
 
     @staticmethod
+    @abc.abstractmethod
     def create_partitions(
         session: Session,
         table_name: str,
@@ -6777,6 +6782,7 @@ class SQLDB(DBInterface):
         raise NotImplementedError()
 
     @staticmethod
+    @abc.abstractmethod
     def drop_partitions(
         session: Session,
         table_name: str,
@@ -6792,6 +6798,7 @@ class SQLDB(DBInterface):
         raise NotImplementedError()
 
     @staticmethod
+    @abc.abstractmethod
     def get_partition_expression_for_table(
         session: Session,
         table_name: str,
@@ -6809,6 +6816,7 @@ class SQLDB(DBInterface):
         raise NotImplementedError()
 
     @staticmethod
+    @abc.abstractmethod
     def table_exists(
         session: Session,
         table_name: str,
@@ -8352,6 +8360,45 @@ class SQLDB(DBInterface):
                 f"Invalid date type: {type(date)}. Expected str or datetime."
             )
         return date
+
+
+class SQLiteDB(SQLDB):
+    @staticmethod
+    def create_partitions(
+        session: Session,
+        table_name: str,
+        partitioning_information_list: list[tuple[str, str]],
+    ):
+        logger.debug(
+            "SQLite does not support partitioning natively, skipping partition creation",
+        )
+        return []
+
+    @staticmethod
+    def drop_partitions(session: Session, table_name: str, cutoff_partition_name: str):
+        logger.debug(
+            "SQLite does not support partitioning natively, skipping partition drop",
+        )
+
+    @staticmethod
+    def get_partition_expression_for_table(
+        session: Session,
+        table_name: str,
+    ) -> str:
+        logger.debug(
+            "SQLite does not support partitioning natively, skipping partition expression",
+        )
+        return ""
+
+    @staticmethod
+    def table_exists(
+        session: Session,
+        table_name: str,
+    ) -> bool:
+        logger.debug(
+            "SQLite does not support table exists, skipping table creation",
+        )
+        return False
 
 
 class MySQLDB(SQLDB):

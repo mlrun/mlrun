@@ -146,13 +146,10 @@ class MonitoringPreProcessor(storey.MapClass):
         else:
             keys = schema
 
-        values = [data.get(key) for key in keys]
-        if None in values:
-            logger.warning(
-                "Some keys in the schema were not found in the data, "
-                "the output may not be as expected",
-                keys=keys,
-                data_keys=list(data.keys()),
+        values = [data[key] for key in keys if key in data]
+        if len(values) != len(keys):
+            raise mlrun.MLRunInvalidArgumentError(
+                f"Schema keys {keys} do not match the data keys {list(data.keys())}."
             )
 
         # Detect if all are scalars ie: int,float,str

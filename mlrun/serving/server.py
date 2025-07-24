@@ -350,33 +350,33 @@ def add_error_raiser_step(
     monitored_steps_raisers = {}
     user_steps = list(graph.steps.values())
     for monitored_step in monitored_steps.values():
-        if monitored_step.raise_exception:
-            error_step = graph.add_step(
-                class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
-                name=f"{monitored_step.name}_error_raise",
-                after=monitored_step.name,
-                full_event=True,
-                raise_exception=monitored_step.raise_exception,
-                models_names=list(monitored_step.class_args["models"].keys()),
-                model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
-            )
-            if monitored_step.responder:
-                monitored_step.responder = False
-                error_step.respond()
-            monitored_steps_raisers[monitored_step.name] = error_step.name
-            error_step.on_error = monitored_step.on_error
-    for step in user_steps:
-        if step.after:
-            if isinstance(step.after, list):
-                for i in range(len(step.after)):
-                    if step.after[i] in monitored_steps_raisers:
-                        step.after[i] = monitored_steps_raisers[step.after[i]]
-            else:
-                if (
-                    isinstance(step.after, str)
-                    and step.after in monitored_steps_raisers
-                ):
-                    step.after = monitored_steps_raisers[step.after]
+        error_step = graph.add_step(
+            class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
+            name=f"{monitored_step.name}_error_raise",
+            after=monitored_step.name,
+            full_event=True,
+            raise_exception=monitored_step.raise_exception,
+            models_names=list(monitored_step.class_args["models"].keys()),
+            model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
+        )
+        if monitored_step.responder:
+            monitored_step.responder = False
+            error_step.respond()
+        monitored_steps_raisers[monitored_step.name] = error_step.name
+        error_step.on_error = monitored_step.on_error
+    if monitored_steps_raisers:
+        for step in user_steps:
+            if step.after:
+                if isinstance(step.after, list):
+                    for i in range(len(step.after)):
+                        if step.after[i] in monitored_steps_raisers:
+                            step.after[i] = monitored_steps_raisers[step.after[i]]
+                else:
+                    if (
+                        isinstance(step.after, str)
+                        and step.after in monitored_steps_raisers
+                    ):
+                        step.after = monitored_steps_raisers[step.after]
     return graph
 
 

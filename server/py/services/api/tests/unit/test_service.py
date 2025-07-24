@@ -38,12 +38,13 @@ class TestService(TestAPIBase):
         run = self._generate_retry_job(uid=run_uid)
         run_db = mlrun.db.get_run_db()
         with unittest.mock.patch(
-            "framework.api.utils.submit_run_sync", return_value=unittest.mock.Mock()
-        ) as mock_submit_run_sync:
+            "framework.api.utils.submit_run_from_body",
+            return_value=unittest.mock.Mock(),
+        ) as mock_submit_run_from_body:
             run_db.store_run(struct=run, uid=run_uid, project=self._project)
             await self._service._retry_jobs()
             await asyncio.sleep(1)
-            mock_submit_run_sync.assert_called_once()
+            mock_submit_run_from_body.assert_called_once()
 
     async def test_retry_job_retry_exhausted(self, db: Session):
         run_uid = "test-job-uid"
@@ -54,11 +55,12 @@ class TestService(TestAPIBase):
         )
         run_db = mlrun.db.get_run_db()
         with unittest.mock.patch(
-            "framework.api.utils.submit_run_sync", return_value=unittest.mock.Mock()
-        ) as mock_submit_run_sync:
+            "framework.api.utils.submit_run_from_body",
+            return_value=unittest.mock.Mock(),
+        ) as mock_submit_run_from_body:
             run_db.store_run(struct=run, uid=run_uid, project=self._project)
             await self._service._retry_jobs()
-            mock_submit_run_sync.assert_not_called()
+            mock_submit_run_from_body.assert_not_called()
 
         run = run_db.read_run(uid=run_uid, project=self._project)
         assert run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.error
@@ -71,15 +73,16 @@ class TestService(TestAPIBase):
         run = self._generate_retry_job(uid=run_uid)
         run_db = mlrun.db.get_run_db()
         with unittest.mock.patch(
-            "framework.api.utils.submit_run_sync", return_value=unittest.mock.Mock()
-        ) as mock_submit_run_sync:
+            "framework.api.utils.submit_run_from_body",
+            return_value=unittest.mock.Mock(),
+        ) as mock_submit_run_from_body:
             run_db.store_run(struct=run, uid=run_uid, project=self._project)
             await self._service._retry_jobs()
             assert run_uid in self._service._retry_in_progress_run_uids
             # Next retry should not submit the job again
             await self._service._retry_jobs()
             await asyncio.sleep(1)
-            mock_submit_run_sync.assert_called_once()
+            mock_submit_run_from_body.assert_called_once()
             assert not self._service._retry_in_progress_run_uids
 
     async def test_retry_job_paginated_list_runs(self, db: Session):
@@ -105,10 +108,11 @@ class TestService(TestAPIBase):
         # Also, waiting less than a second does not work.
         await asyncio.sleep(1)
         with unittest.mock.patch(
-            "framework.api.utils.submit_run_sync", return_value=unittest.mock.Mock()
-        ) as mock_submit_run_sync:
+            "framework.api.utils.submit_run_from_body",
+            return_value=unittest.mock.Mock(),
+        ) as mock_submit_run_from_body:
             await self._service._retry_jobs()
-            assert mock_submit_run_sync.call_count == 10
+            assert mock_submit_run_from_body.call_count == 10
 
     async def test_retry_stale_job(self, db: Session):
         staleness_threshold = 60 * 24 * 1

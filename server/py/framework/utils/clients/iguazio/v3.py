@@ -873,7 +873,7 @@ class Client(
         ):
             session_cookie = f'j:{{"sid": "{session_cookie}"}}'
         if session_cookie:
-            cookies = kwargs.get("cookies", {})
+            cookies = kwargs.get(mlrun.common.schemas.HeaderNames.cookies, {})
             # in case some dev using this function for some reason setting cookies manually through kwargs + have a
             # cookie with "session" key there + filling the session cookie - explode
             if "session" in cookies and cookies["session"] != session_cookie:
@@ -881,7 +881,7 @@ class Client(
                     "Session cookie already set"
                 )
             cookies["session"] = session_cookie
-            kwargs["cookies"] = cookies
+            kwargs[mlrun.common.schemas.HeaderNames.cookies] = cookies
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
         if "projects" in path:

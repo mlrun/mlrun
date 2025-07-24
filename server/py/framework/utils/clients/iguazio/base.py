@@ -152,11 +152,15 @@ class BaseAsyncClient(BaseClient):
         #  async client and call the method as async. As a result, this method will not be part of the base client
         #  and should be implemented separately in the Iguaziov4 client.
         headers = {
-            "authorization": request.headers.get(
+            mlrun.common.schemas.HeaderNames.authorization: request.headers.get(
                 mlrun.common.schemas.HeaderNames.authorization
             ),
-            "cookie": request.headers.get("cookie", ""),
-            "x-request-id": getattr(request.state, "request_id", ""),
+            mlrun.common.schemas.HeaderNames.cookies: request.headers.get(
+                mlrun.common.schemas.HeaderNames.cookies, ""
+            ),
+            mlrun.common.schemas.HeaderNames.x_request_id: getattr(
+                request.state, "request_id", ""
+            ),
         }
         async with (
             self._send_request_to_api_async(

@@ -296,7 +296,8 @@ class RemoteRuntime(KubeResource):
         code = (
             self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
         )
-        if code and self.spec.build.source:
+        load_archive = self.spec.build.load_source_on_run and self.spec.build.source
+        if code and load_archive:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify both code and source archive"
             )

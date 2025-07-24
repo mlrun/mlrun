@@ -269,18 +269,23 @@ def test_with_sidecar(command: str, args: list, expected_sidecars: list):
 
 
 @pytest.mark.parametrize(
-    "with_repo, should_raise",
+    "with_repo,load_source_on_run, should_raise",
     [
         # conflict between code and archive should raise an error
-        (False, True),
+        (False, True, True),
         # correct config: should not raise
-        (True, False),
+        (True, True, False),
     ],
 )
-def test_pre_deploy_validation_source_repo_alignment(with_repo, should_raise):
+def test_pre_deploy_validation_source_repo_alignment(
+    with_repo, load_source_on_run, should_raise
+):
     function = mlrun.new_function("test", kind="nuclio")
     function.spec.build.source = "v3io:///some/path/src.zip"
     function.spec.build.with_repo = with_repo
+    function.spec.build.load_source_on_run = load_source_on_run
+
+    # only add code if not using repo
     if not with_repo:
         function.spec.build.functionSourceCode = "some-code"
 

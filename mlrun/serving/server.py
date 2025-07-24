@@ -42,6 +42,7 @@ from mlrun.secrets import SecretsStore
 
 from ..common.helpers import parse_versioned_object_uri
 from ..common.schemas.model_monitoring.constants import FileTargetKind
+from ..common.schemas.serving import MAX_BATCH_JOB_DURATION
 from ..datastore import DataItem, get_stream_pusher
 from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
@@ -629,7 +630,7 @@ async def async_execute_graph(
             start_time = start_time.isoformat()
             end_time = end_time.isoformat()
             # TODO: tie this to the controller's base period
-            if time_range > pd.Timedelta("1w"):
+            if time_range > pd.Timedelta(MAX_BATCH_JOB_DURATION):
                 raise mlrun.errors.MLRunRuntimeError(
                     f"Dataframe time range is too long: {time_range}. "
                     "Please disable tracking or reduce the input dataset's time range to under one week."

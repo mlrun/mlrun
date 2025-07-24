@@ -15,9 +15,9 @@ absl-py==2.3.1 ; python_full_version >= '3.11' \
     #   keras
     #   tensorboard
     #   tensorflow
-adlfs==2023.9.0 \
-    --hash=sha256:1ce70ffa39f7cffc3efbbd9f79b444958eb5d9de9981442b06e47472d2089d4b \
-    --hash=sha256:e2cff62b8128578c6d1b9da1660ad4c8a5a8cb0d491bba416b529563c65dc5d2
+adlfs==2024.7.0 \
+    --hash=sha256:106995b91f0eb5e775bcd5957d180d9a14faef3271a063b1f65c66fd5ab05ddf \
+    --hash=sha256:2005c8e124fda3948f2a6abb2dbebb2c936d2d821acaca6afd61932edfa9bc07
     # via
     #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
@@ -138,9 +138,9 @@ aioitertools==0.12.0 \
     --hash=sha256:c2a9055b4fbb7705f561b9d86053e8af5d10cc845d22c32008c43490b2d8dd6b \
     --hash=sha256:fc1f5fac3d737354de8831cbba3eb04f79dd649d8f3afb4c5b114925e662a796
     # via aiobotocore
-aiooss2==0.2.10 \
-    --hash=sha256:65698a287386464e4a08fb862be85668df4d1e1acfe0620404617d88869630eb \
-    --hash=sha256:78a39a839752ef506d32dcfb83db718d9503fa69f7f9a80a1e2554d8e013daa9
+aiooss2==0.2.11 \
+    --hash=sha256:6409e0f7ab66bed364a1c9639b657437175534de160f330d0103a445a2e89a59 \
+    --hash=sha256:d24a00f38ef819cb4de89a2a22875ed15286982c80488d81ce113bbb12956ba0
     # via ossfs
 aioresponses==0.7.8 \
     --hash=sha256:b73bd4400d978855e55004b23a3a84cb0f018183bcf066a85ad392800b5b9a94 \
@@ -1205,9 +1205,9 @@ frozenlist==1.7.0 \
     # via
     #   aiohttp
     #   aiosignal
-fsspec==2024.6.1 \
-    --hash=sha256:3cb443f8bcd2efb31295a5b9fdb02aee81d8452c80d28f97a6d0959e6cee101e \
-    --hash=sha256:fad7d7e209dd4c1208e3bbfda706620e0da5142bebbd9c384afb95b07e798e49
+fsspec==2025.7.0 \
+    --hash=sha256:786120687ffa54b8283d942929540d8bc5ccfa820deb555a2b5d0ed2b737bf58 \
+    --hash=sha256:8b012e39f63c7d5f10474de957f3ab793b47b45ae7d39f2fb735f8bbe25c0e21
     # via
     #   -r requirements.txt
     #   adlfs
@@ -1227,9 +1227,9 @@ gast==0.6.0 \
     --hash=sha256:52b182313f7330389f72b069ba00f174cfe2a06411099547288839c6cbafbd54 \
     --hash=sha256:88fc5300d32c7ac6ca7b515310862f71e6fdf2c029bbec7c66c0f5dd47b6b1fb
     # via tensorflow
-gcsfs==2024.6.1 \
-    --hash=sha256:13fd18095425e54e248870594fd155812723966b1bda3b102b3a5c44ec436a03 \
-    --hash=sha256:e8858c7a893b2265e9bfce2fe270a024a2e348c74c23528801db388fc0224ed7
+gcsfs==2025.7.0 \
+    --hash=sha256:653503331d58cb02bb34e725d4595d166e93f7f2f3ff88e4c66ef535ae66eae5 \
+    --hash=sha256:ad3ff66cf189ae8fc375ac8a2af409003dbca02357621cb94a66e457e02ba420
     # via
     #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
@@ -1237,9 +1237,9 @@ gitdb==4.0.12 \
     --hash=sha256:5ef71f855d191a3326fcfbc0d5da835f26b13fbcba60c32c21091c349ffdb571 \
     --hash=sha256:67073e15955400952c6565cc3e707c554a4eea2e428946f7a4c162fab9bd9bcf
     # via gitpython
-gitpython==3.1.44 \
-    --hash=sha256:9e0e10cda9bed1ee64bc9a6de50e7e38a9c9943241cd7f585f6df3ed28011110 \
-    --hash=sha256:c87e30b26253bf5418b01b0660f818967f3c503193838337fe5e573331249269
+gitpython==3.1.45 \
+    --hash=sha256:85b0ee964ceddf211c41b9f27a49086010a190fd8132a24e21f362a4b36a791c \
+    --hash=sha256:8908cb2e02fb3b93b7eb0f2827125cb699869470432cc885f019b8fd0fccff77
     # via
     #   -r requirements.txt
     #   mlflow-skinny
@@ -1838,9 +1838,9 @@ httpx==0.27.2 \
     #   igz-mgmt
     #   litestar
     #   openai
-huggingface-hub==0.33.4 \
-    --hash=sha256:09f9f4e7ca62547c70f8b82767eefadd2667f4e116acba2e3e62a5a81815a7bb \
-    --hash=sha256:6af13478deae120e765bfd92adad0ae1aec1ad8c439b46f23058ad5956cbca0a
+huggingface-hub==0.33.5 \
+    --hash=sha256:29b4e64982c2064006021af297e1b17d44c85a8aaf90a0d7efeff7e7d2426296 \
+    --hash=sha256:814097e475646d170c44be4c38f7d381ccc4539156a5ac62a54f53aaf1602ed8
     # via
     #   tokenizers
     #   transformers
@@ -1848,9 +1848,9 @@ humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
     # via -r dockerfiles/mlrun-api/requirements.txt
-hypothesis==6.136.1 \
-    --hash=sha256:2585c89cf69a14a4b67dbc4e68a0bc3c321d34b12ced612aec383ad0112de44e \
-    --hash=sha256:ddceffdf0f489439d47ec032b23bf696c1c82600b9e675e60260ab23b55aa958
+hypothesis==6.136.3 \
+    --hash=sha256:88163307c625688317bc5f3c7bd88f18b4d5c7cd773c784e3c4182eed2ae1b3d \
+    --hash=sha256:89baa2bfc5af38f939e83b62f9f0e7e6407e81cade29cfcb3eafbc661177c2bd
     # via -r dev-requirements.txt
 idna==3.10 \
     --hash=sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9 \
@@ -1898,9 +1898,9 @@ iniconfig==2.1.0 \
     --hash=sha256:3abbd2e30b36733fee78f9c7f7308f2d0050e88f0087fd25c2645f63c773e1c7 \
     --hash=sha256:9deba5723312380e77435581c6bf4935c94cbfab9b1ed33ef8d238ea168eb760
     # via pytest
-ipykernel==6.29.5 \
-    --hash=sha256:afdb66ba5aa354b09b91379bac28ae4afebbb30e8b39510c9690afb7a10421b5 \
-    --hash=sha256:f093a22c4a40f8828f8e330a9c297cb93dcab13bd9678ded6de8e5cf81c56215
+ipykernel==6.30.0 \
+    --hash=sha256:b7b808ddb2d261aae2df3a26ff3ff810046e6de3dfbc6f7de8c98ea0a6cb632c \
+    --hash=sha256:fd2936e55c4a1c2ee8b1e5fa6a372b8eecc0ab1338750dee76f48fa5cca1301e
     # via nuclio-jupyter
 ipython==8.18.1 ; python_full_version < '3.10' \
     --hash=sha256:ca6f079bb33457c66e233e4580ebfc4128855b4cf6370dddd73842a9563e8a27 \
@@ -2650,9 +2650,9 @@ mlrun-pipelines-kfp-v1-8==0.5.7 \
     #   -r dockerfiles/mlrun-api/requirements.txt
     #   -r dockerfiles/mlrun-kfp/requirements.txt
     #   -r requirements.txt
-msal==1.32.3 \
-    --hash=sha256:5eea038689c78a5a70ca8ecbe1245458b55a857bd096efb6989c69ba15985d35 \
-    --hash=sha256:b2798db57760b1961b142f027ffb7c8169536bf77316e99a0df5c4aaebb11569
+msal==1.33.0 \
+    --hash=sha256:836ad80faa3e25a7d71015c990ce61f704a87328b1e73bcbb0623a18cbf17510 \
+    --hash=sha256:c0cd41cecf8eaed733ee7e3be9e040291eba53b0f262d3ae9c58f38b04244273
     # via
     #   azure-datalake-store
     #   azure-identity
@@ -3002,9 +3002,9 @@ objgraph==3.6.2 \
     --hash=sha256:00b9f2f40f7422e3c7f45a61c4dafdaf81f03ff0649d6eaec866f01030e51ad8 \
     --hash=sha256:8114c97712291c3ba30d882406a384d0a7651b307ea9a06e0d83836ccde85e15
     # via -r dockerfiles/mlrun-api/requirements.txt
-openai==1.97.0 \
-    --hash=sha256:0be349569ccaa4fb54f97bb808423fd29ccaeb1246ee1be762e0c81a47bae0aa \
-    --hash=sha256:a1c24d96f4609f3f7f51c9e1c2606d97cc6e334833438659cfd687e9c972c610
+openai==1.97.1 \
+    --hash=sha256:4e96bbdf672ec3d44968c9ea39d2c375891db1acc1794668d8149d5fa6000606 \
+    --hash=sha256:a744b27ae624e3d4135225da9b1c89c107a2a7e5bc4c93e5b7b5214772ce7a4e
     # via -r dev-requirements.txt
 opentelemetry-api==1.35.0 \
     --hash=sha256:a111b959bcfa5b4d7dffc2fbd6a241aa72dd78dd8e79b5b1662bda896c5d2ffe \
@@ -3180,16 +3180,16 @@ orjson==3.11.0 \
     # via
     #   -r requirements.txt
     #   v3io
-oss2==2.18.1 \
-    --hash=sha256:5a901f6c0f3ac42f792e16a1e1c04e60f34e6cc9eb2bc4c0c3ce6e7bda2da4cc
+oss2==2.18.4 \
+    --hash=sha256:be1e7a871a8cc267726367333017d78333ee8fae88c727ad61396f59c1c0e4d0
     # via
     #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
     #   aiooss2
     #   ossfs
-ossfs==2023.12.0 \
-    --hash=sha256:d1c5bbd24e7c0b3badd47d9c659bfdfac96d148b7e5d1f88ccdaf26403e893ab \
-    --hash=sha256:f99eb2d74717d22551b1f32ec9434587962627a816a64536dc47d68470536110
+ossfs==2025.5.0 \
+    --hash=sha256:17b92e5cfd636690665969687806ddba0155ab71245a731eb86b17f4c2648dc2 \
+    --hash=sha256:722e7044fbcd84cc992e5cd6821d5f19bed334216c140d6e46ffb21979d49ce0
     # via
     #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
@@ -4515,9 +4515,9 @@ ruff==0.8.0 \
     --hash=sha256:facebdfe5a5af6b1588a1d26d170635ead6892d0e314477e80256ef4a8470cf3 \
     --hash=sha256:fcb1bf2cc6706adae9d79c8d86478677e3bbd4ced796ccad106fd4776d395fea
     # via -r dev-requirements.txt
-s3fs==2024.6.1 \
-    --hash=sha256:6c2106d6c34fbfbb88e3d20c6f3572896d5ee3d3512896696301c21a3c541bea \
-    --hash=sha256:ecd20863437409eec1cbfff0b7df5e9772cf7c1926008efab2e17e46f6d52c63
+s3fs==2025.7.0 \
+    --hash=sha256:5e7f9ec0cad7745155e3eb86fae15b1481fa29946bf5b3a4ce3a60701ce6022d \
+    --hash=sha256:b6b2d3f84b6aa1c2ba5e62e39dd9410cf54f10a2cce1ea6db1ba0d1a6bcce685
     # via
     #   -r dockerfiles/mlrun-kfp/../../extras-requirements.txt
     #   -r extras-requirements.txt
@@ -5003,9 +5003,9 @@ terminado==0.18.1 \
     # via
     #   jupyter-server
     #   jupyter-server-terminals
-testcontainers==4.10.0 \
-    --hash=sha256:03f85c3e505d8b4edeb192c72a961cebbcba0dd94344ae778b4a159cb6dcf8d3 \
-    --hash=sha256:31ed1a81238c7e131a2a29df6db8f23717d892b592fa5a1977fd0dcd0c23fc23
+testcontainers==4.12.0 \
+    --hash=sha256:13ee89cae995e643f225665aad8b200b25c4f219944a6f9c0b03249ec3f31b8d \
+    --hash=sha256:26caef57e642d5e8c5fcc593881cf7df3ab0f0dc9170fad22765b184e226ab15
     # via -r dev-requirements.txt
 textual==4.0.0 ; sys_platform != 'win32' \
     --hash=sha256:1cab4ea3cfc0e47ae773405cdd6bc2a17ed76ff7b648379ac8017ea89c5ad28c \
@@ -5169,9 +5169,9 @@ traitlets==5.14.3 \
     #   nbclient
     #   nbconvert
     #   nbformat
-transformers==4.53.2 \
-    --hash=sha256:6c3ed95edfb1cba71c4245758f1b4878c93bf8cde77d076307dacb2cbbd72be2 \
-    --hash=sha256:db8f4819bb34f000029c73c3c557e7d06fc1b8e612ec142eecdae3947a9c78bf
+transformers==4.53.3 \
+    --hash=sha256:5aba81c92095806b6baf12df35d756cf23b66c356975fb2a7fa9e536138d7c75 \
+    --hash=sha256:b2eda1a261de79b78b97f7888fe2005fc0c3fabf5dad33d52cc02983f9f675d8
     # via -r dev-requirements.txt
 typer==0.16.0 \
     --hash=sha256:1f79bed11d4d02d4310e3c1b7ba594183bcedb0ac73b27a9e5f28f6fb5b98855 \
@@ -5201,6 +5201,7 @@ typing-extensions==4.14.1 \
     #   dependency-injector
     #   exceptiongroup
     #   fastapi
+    #   gitpython
     #   graphene
     #   graphql-core
     #   grimp

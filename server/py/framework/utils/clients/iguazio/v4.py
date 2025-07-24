@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import http
 import typing
 
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 from mlrun.utils import get_in
 
@@ -37,7 +37,7 @@ class Client(BaseClient):
 
     @property
     def _verify_session_http_method(self) -> str:
-        return http.HTTPMethod.GET
+        return mlrun.common.types.HTTPMethod.GET
 
     def _prepare_request_kwargs(
         self, session: typing.Optional[str], path: str, *, kwargs: dict

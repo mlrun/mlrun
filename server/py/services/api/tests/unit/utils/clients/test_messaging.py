@@ -80,7 +80,9 @@ def test_sync_delete_request(
     response = messaging_client.delete(
         path="/resource",
         headers={
-            mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.HeaderPrefixes.bearer}test"
+            mlrun.common.schemas.HeaderNames.authorization: (
+                f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}test"
+            )
         },
     )
     assert response.status_code == http.HTTPStatus.NO_CONTENT
@@ -88,7 +90,9 @@ def test_sync_delete_request(
     response = messaging_client.delete(
         path="resource",
         headers={
-            mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.HeaderPrefixes.bearer}test"
+            mlrun.common.schemas.HeaderNames.authorization: (
+                f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}test"
+            )
         },
     )
     assert response.status_code == http.HTTPStatus.NO_CONTENT
@@ -126,7 +130,7 @@ async def test_messaging_client_forward_request_with_body(
     def _f(*args, **kwargs):
         assert (
             kwargs["headers"].get(mlrun.common.schemas.HeaderNames.authorization)
-            == f"{mlrun.common.schemas.HeaderPrefixes.bearer}test"
+            == f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}test"
         )
         return aioresponses.CallbackResult(
             status=http.HTTPStatus.CREATED.value,

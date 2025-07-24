@@ -672,7 +672,9 @@ def basic_auth_header(user, password):
     username = user.encode("latin1")
     password = password.encode("latin1")
     base = b64encode(b":".join((username, password))).strip()
-    authstr = mlrun.common.schemas.HeaderPrefixes.basic + base.decode("ascii")
+    authstr = mlrun.common.schemas.AuthorizationHeaderPrefixes.basic + base.decode(
+        "ascii"
+    )
     return {mlrun.common.schemas.HeaderNames.authorization: authstr}
 
 
@@ -722,7 +724,7 @@ class HttpStore(DataStore):
             self._https_auth_token = token
             self._headers.setdefault(
                 mlrun.common.schemas.HeaderNames.authorization,
-                f"{mlrun.common.schemas.HeaderPrefixes.bearer}{token}",
+                f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}{token}",
             )
 
     def _validate_https_token(self):

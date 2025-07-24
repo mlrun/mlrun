@@ -28,6 +28,7 @@ import igz_mgmt.schemas.manual_events
 import requests
 
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 import mlrun.utils.helpers
 from mlrun.utils import get_in, logger
@@ -167,11 +168,11 @@ class Client(
 
     @property
     def _verify_session_http_method(self) -> str:
-        return http.HTTPMethod.POST
+        return mlrun.common.types.HTTPMethod.POST
 
     def get_user_unix_id(self, session: str) -> str:
         response = self._send_request_to_api(
-            http.HTTPMethod.GET,
+            mlrun.common.types.HTTPMethod.GET,
             "self",
             "Failed get iguazio user",
             session,
@@ -356,7 +357,7 @@ class Client(
         """
         self._logger.debug("Getting grafana service url from Iguazio")
         response = self._send_request_to_api(
-            http.HTTPMethod.GET,
+            mlrun.common.types.HTTPMethod.GET,
             "app_services_manifests",
             "Failed getting app services manifests from Iguazio",
             session,
@@ -417,7 +418,7 @@ class Client(
         params["filter[operational_status]"] = "[$ne]deleting"
 
         response = self._send_request_to_api(
-            http.HTTPMethod.GET,
+            mlrun.common.types.HTTPMethod.GET,
             "projects",
             "Failed listing projects from Iguazio",
             session,
@@ -499,7 +500,7 @@ class Client(
         }
         try:
             response = self._send_request_to_api(
-                http.HTTPMethod.DELETE,
+                mlrun.common.types.HTTPMethod.DELETE,
                 "projects",
                 "Failed deleting project in Iguazio",
                 session,
@@ -527,7 +528,7 @@ class Client(
         **kwargs,
     ) -> tuple[mlrun.common.schemas.Project, str]:
         response = self._send_request_to_api(
-            http.HTTPMethod.POST,
+            mlrun.common.types.HTTPMethod.POST,
             "projects",
             "Failed creating project in Iguazio",
             session,
@@ -548,7 +549,7 @@ class Client(
         **kwargs,
     ) -> mlrun.common.schemas.Project:
         response = self._send_request_to_api(
-            http.HTTPMethod.PUT,
+            mlrun.common.types.HTTPMethod.PUT,
             f"projects/__name__/{name}",
             "Failed updating project in Iguazio",
             session,
@@ -565,7 +566,7 @@ class Client(
             params["enrich_owner_access_key"] = "true"
         try:
             return self._send_request_to_api(
-                http.HTTPMethod.GET,
+                mlrun.common.types.HTTPMethod.GET,
                 f"projects/__name__/{name}",
                 "Failed getting project from Iguazio",
                 session,
@@ -872,7 +873,7 @@ class Client(
         ):
             session_cookie = f'j:{{"sid": "{session_cookie}"}}'
         if session_cookie:
-            cookies = kwargs.get("cookies", {})
+            cookies = kwargs.get(mlrun.common.schemas.HeaderNames.cookies, {})
             # in case some dev using this function for some reason setting cookies manually through kwargs + have a
             # cookie with "session" key there + filling the session cookie - explode
             if "session" in cookies and cookies["session"] != session_cookie:
@@ -880,7 +881,7 @@ class Client(
                     "Session cookie already set"
                 )
             cookies["session"] = session_cookie
-            kwargs["cookies"] = cookies
+            kwargs[mlrun.common.schemas.HeaderNames.cookies] = cookies
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
         if "projects" in path:

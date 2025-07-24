@@ -64,11 +64,11 @@ from .common import ImageBuilder
 from .constants import (
     APIStates,
     ArtifactPartitionByField,
+    AuthorizationHeaderPrefixes,
     ClusterizationRole,
     DeletionStrategy,
     FeatureStorePartitionByField,
     HeaderNames,
-    HeaderPrefixes,
     LogsCollectorMode,
     OrderType,
     PatchMode,
@@ -212,7 +212,6 @@ from .secret import (
     SecretKeysData,
     SecretProviderName,
     SecretsData,
-    UserSecretCreationRequest,
 )
 from .tag import Tag, TagObjects
 from .workflow import (

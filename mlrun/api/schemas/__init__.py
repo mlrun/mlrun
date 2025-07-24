@@ -253,8 +253,5 @@ AuthSecretData = DeprecationHelper(mlrun.common.schemas.AuthSecretData)
 SecretKeysData = DeprecationHelper(mlrun.common.schemas.SecretKeysData)
 SecretProviderName = DeprecationHelper(mlrun.common.schemas.SecretProviderName)
 SecretsData = DeprecationHelper(mlrun.common.schemas.SecretsData)
-UserSecretCreationRequest = DeprecationHelper(
-    mlrun.common.schemas.UserSecretCreationRequest
-)
 Tag = DeprecationHelper(mlrun.common.schemas.Tag)
 TagObjects = DeprecationHelper(mlrun.common.schemas.TagObjects)

@@ -329,7 +329,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         parse_basic_auth('Basic YnVnczpidW5ueQ==')
         ['bugs', 'bunny']
         """
-        b64value = header[len(mlrun.common.schemas.HeaderPrefixes.basic) :]
+        b64value = header[len(mlrun.common.schemas.AuthorizationHeaderPrefixes.basic) :]
         value = base64.b64decode(b64value).decode()
         return value.split(":", 1)
 
@@ -337,7 +337,9 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         self, headers: typing.Mapping[str, str]
     ) -> mlrun.common.schemas.AuthInfo:
         header = headers.get(mlrun.common.schemas.HeaderNames.authorization, "")
-        if not header.startswith(mlrun.common.schemas.HeaderPrefixes.basic):
+        if not header.startswith(
+            mlrun.common.schemas.AuthorizationHeaderPrefixes.basic
+        ):
             raise mlrun.errors.MLRunUnauthorizedError("Missing basic auth header")
 
         username, password = self._parse_basic_auth(header)
@@ -355,10 +357,12 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         self, headers: typing.Mapping[str, str]
     ) -> mlrun.common.schemas.AuthInfo:
         header = headers.get(mlrun.common.schemas.HeaderNames.authorization, "")
-        if not header.startswith(mlrun.common.schemas.HeaderPrefixes.bearer):
+        if not header.startswith(
+            mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer
+        ):
             raise mlrun.errors.MLRunUnauthorizedError("Missing bearer auth header")
 
-        token = header[len(mlrun.common.schemas.HeaderPrefixes.bearer) :]
+        token = header[len(mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer) :]
         if token != mlrun.mlconf.httpdb.authentication.bearer.token:
             raise mlrun.errors.MLRunUnauthorizedError("Token did not match")
 

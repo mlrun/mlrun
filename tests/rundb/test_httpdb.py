@@ -403,7 +403,9 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker, monkeypatch
     requests_mock.post(f"{db_url}/api/v1/operations/migrations", status_code=200)
     db.trigger_migrations()
 
-    expected_auth = f"{mlrun.common.schemas.HeaderPrefixes.bearer}{expected_token}"
+    expected_auth = (
+        f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}{expected_token}"
+    )
     last_request = requests_mock.last_request
     assert (
         last_request.headers[mlrun.common.schemas.HeaderNames.authorization]

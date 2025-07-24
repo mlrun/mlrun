@@ -1734,32 +1734,6 @@ class ModelRunnerStep(MonitoredStep):
             _model_artifact = model_artifact.model_artifact
             return [feature.name for feature in _model_artifact.spec.outputs]
 
-    @staticmethod
-    def _get_model_endpoint_output_schema(
-        name: str,
-        project: str,
-        uid: str,
-    ) -> list[str]:
-        output_schema = None
-        try:
-            model_endpoint: mlrun.common.schemas.model_monitoring.ModelEndpoint = (
-                mlrun.db.get_run_db().get_model_endpoint(
-                    name=name,
-                    project=project,
-                    endpoint_id=uid,
-                    tsdb_metrics=False,
-                )
-            )
-            output_schema = model_endpoint.spec.label_names
-        except (
-            mlrun.errors.MLRunNotFoundError,
-            mlrun.errors.MLRunInvalidArgumentError,
-        ):
-            logger.warning(
-                f"Model endpoint not found, using default output schema for model {name}"
-            )
-        return output_schema
-
     def _calculate_monitoring_data(self) -> dict[str, dict[str, str]]:
         monitoring_data = deepcopy(
             self.class_args.get(
@@ -1768,22 +1742,6 @@ class ModelRunnerStep(MonitoredStep):
         )
         if isinstance(monitoring_data, dict):
             for model in monitoring_data:
-                monitoring_data[model][schemas.MonitoringData.OUTPUTS] = (
-                    monitoring_data.get(model, {}).get(schemas.MonitoringData.OUTPUTS)
-                    or self._get_model_endpoint_output_schema(
-                        name=model,
-                        project=self.context.project if self.context else None,
-                        uid=monitoring_data.get(model, {}).get(
-                            mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID
-                        ),
-                    )
-                )
-                # Prevent calling _get_model_output_schema for same model more than once
-                self.class_args[
-                    mlrun.common.schemas.ModelRunnerStepData.MONITORING_DATA
-                ][model][schemas.MonitoringData.OUTPUTS] = monitoring_data[model][
-                    schemas.MonitoringData.OUTPUTS
-                ]
                 monitoring_data[model][schemas.MonitoringData.INPUT_PATH] = split_path(
                     monitoring_data[model][schemas.MonitoringData.INPUT_PATH]
                 )
@@ -1791,6 +1749,10 @@ class ModelRunnerStep(MonitoredStep):
                     monitoring_data[model][schemas.MonitoringData.RESULT_PATH]
                 )
             return monitoring_data
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Monitoring data must be a dictionary."
+            )
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context

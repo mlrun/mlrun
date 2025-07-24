@@ -146,7 +146,14 @@ class MonitoringPreProcessor(storey.MapClass):
         else:
             keys = schema
 
-        values = [data[key] for key in keys]
+        values = [data.get(key) for key in keys]
+        if None in values:
+            logger.warning(
+                "Some keys in the schema were not found in the data, "
+                "the output may not be as expected",
+                keys=keys,
+                data_keys=list(data.keys()),
+            )
 
         # Detect if all are scalars ie: int,float,str
         all_scalars = all(not isinstance(v, (list, tuple, np.ndarray)) for v in values)

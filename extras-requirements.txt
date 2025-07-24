@@ -21,7 +21,7 @@ msrest~=0.6.21
 azure-core~=1.24
 # This version is required in order to support the self._strip_protocol
 # function in Azure Blob File System functions (such as _ls and more).
-adlfs==2024.7.0
+adlfs~=2024.7.0
 azure-identity~=1.5
 azure-keyvault-secrets~=4.2
 # cryptography>=39, which is required by azure, needs this, or else we get

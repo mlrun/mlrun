@@ -1155,7 +1155,6 @@ def bootstrap_partitions(
     interval = mlrun.common.schemas.PartitionInterval(interval_name)
     dialect = connection.dialect.name
 
-    partition_expression = interval.get_partition_expression("activation_time", dialect)
     partition_name, partition_value = interval.get_partition_info(datetime.utcnow())[0]
     with Session(bind=connection) as session:
         framework.db.sqldb.partititioner.RangePartitioner(dialect).bootstrap(
@@ -1163,7 +1162,6 @@ def bootstrap_partitions(
             table_name=table.name,
             first_partition_name=partition_name,
             first_partition_upper_bound=partition_value,
-            partition_expression=partition_expression,
         )
 
 

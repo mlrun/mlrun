@@ -31,7 +31,6 @@ class RangePartitioner:
         self,
         session: sqlalchemy.orm.Session,
         table_name: str,
-        partition_expression: str,
         first_partition_name: str,
         first_partition_upper_bound: str,
     ):
@@ -56,7 +55,6 @@ class RangePartitionerMySQL(RangePartitioner):
         self,
         session: sqlalchemy.orm.Session,
         table_name: str,
-        partition_expression: str,
         first_partition_name: str,
         first_partition_upper_bound: str,
     ):
@@ -70,7 +68,7 @@ class RangePartitionerMySQL(RangePartitioner):
         session.execute(
             sqlalchemy.text(
                 f"""ALTER TABLE {quoted_table_name}
-                    PARTITION BY RANGE ({partition_expression})
+                    PARTITION BY RANGE (partition_key)
                     (PARTITION {quoted_partition_name} VALUES LESS THAN ({int(first_partition_upper_bound)}))"""
             )
         )
@@ -82,7 +80,6 @@ class RangePartitionerPostgres(RangePartitioner):
         self,
         session: sqlalchemy.orm.Session,
         table_name: str,
-        partition_expression: str,
         first_partition_name: str,
         first_partition_upper_bound: str,
     ):

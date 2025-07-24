@@ -1072,7 +1072,11 @@ def github_webhook(request):
 
 
 def rerun_workflow(
-    context: mlrun.execution.MLClientCtx, run_uid: str, project_name: str
+    context: mlrun.execution.MLClientCtx,
+    run_uid: str,
+    project_name: str,
+    original_runner_uid: str,
+    original_workflow_name: str,
 ):
     """
     Re-run a workflow by retrying a previously failed KFP pipeline.
@@ -1080,8 +1084,11 @@ def rerun_workflow(
     :param context:      MLRun context.
     :param run_uid:      The run UID of the original workflow to retry.
     :param project_name: The project name.
+    :param original_runner_uid: The original workflow runner UID.
+    :param original_workflow_name: The original workflow name.
     """
     db = mlrun.get_run_db()
+    new_pipeline_id = None
 
     try:
         # Invoke the KFP retry endpoint (direct-submit mode)
@@ -1096,6 +1103,24 @@ def rerun_workflow(
             rerun_of_workflow=run_uid,
         )
 
+        # Enqueue "running" notifications server-side for this RerunRunner run
+        db.push_run_notifications(context.uid, project_name)
+
+        context.set_label(
+            mlrun_constants.MLRunInternalLabels.workflow_id, new_pipeline_id
+        )
+        context.update_run()
+
+        context.log_result("workflow_id", new_pipeline_id)
+
+        pipeline = wait_for_pipeline_completion(
+            new_pipeline_id,
+            project=project_name,
+        )
+
+        final_state = pipeline["run"]["status"]
+        context.log_result("workflow_state", final_state, commit=True)
+
     except mlrun.errors.MLRunHTTPError as http_exc:
         logger.error(
             "Failed calling KFP retry API",
@@ -1104,33 +1129,28 @@ def rerun_workflow(
         )
         raise
 
-    # Enqueue "running" notifications server-side for this RerunRunner run
-    db.push_run_notifications(context.uid, project_name)
-
-    context.set_label(mlrun_constants.MLRunInternalLabels.workflow_id, new_pipeline_id)
-    context.update_run()
-
-    context.log_result("workflow_id", new_pipeline_id)
-
-    try:
-        pipeline = wait_for_pipeline_completion(
-            new_pipeline_id,
-            project=project_name,
-        )
     except Exception as exc:
-        mlrun.utils.logger.error(
-            "Failed waiting for workflow completion",
+        logger.error(
+            "Error during rerun_workflow execution",
+            error=err_to_str(exc),
             rerun_pipeline_id=new_pipeline_id,
-            exc=err_to_str(exc),
         )
-    else:
-        final_state = pipeline["run"]["status"]
-        context.log_result("workflow_state", final_state, commit=True)
+        raise
 
-        if final_state != mlrun_pipelines.common.models.RunStatuses.succeeded:
-            raise mlrun.errors.MLRunRuntimeError(
-                f"Pipeline retry of {run_uid} finished in state={final_state}"
-            )
+    finally:
+        # Once the rerun has finished, clear the “retrying” label on the original runner
+        # so that subsequent retry requests can acquire the lock again.
+        db.set_run_retrying_status(
+            project=project_name,
+            name=original_workflow_name,
+            run_id=original_runner_uid,
+            retrying=False,
+        )
+
+    if final_state != mlrun_pipelines.common.models.RunStatuses.succeeded:
+        raise mlrun.errors.MLRunRuntimeError(
+            f"Pipeline retry of {run_uid} finished in state={final_state}"
+        )
 
 
 def load_and_run(context, *args, **kwargs):

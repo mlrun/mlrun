@@ -1105,7 +1105,7 @@ class Service(framework.service.Service):
                 "task": run.to_dict(),
             }
             framework.db.session.run_function_with_new_db_session(
-                framework.api.utils.submit_run_sync,
+                framework.api.utils.submit_run_from_body,
                 # auth is already masked on the function
                 mlrun.common.schemas.AuthInfo(),
                 # TODO: pass values for param_file_secrets ?

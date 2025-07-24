@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import inspect
+import io
 import os
 import shutil
+import sys
 import unittest
 from datetime import datetime
 from http import HTTPStatus
@@ -911,3 +913,12 @@ def remote_builder_mock(monkeypatch):
         mlrun, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
     )
     return builder_mock
+
+
+@pytest.fixture
+def logs_stream():
+    """Fixture to capture logs for verifying console output in tests."""
+    stream = io.StringIO()
+    mlrun.utils.logger.replace_handler_stream("default", stream)
+    yield stream
+    mlrun.utils.logger.replace_handler_stream("default", sys.stdout)

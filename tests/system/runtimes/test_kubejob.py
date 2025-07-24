@@ -736,6 +736,7 @@ def print_df(df):
             name="raise-func",
             kind="job",
             handler="handler",
+            image=self.image,
         )
 
         retry_count = 3

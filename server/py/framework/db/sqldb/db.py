@@ -7877,14 +7877,11 @@ class SQLDB(DBInterface):
         Extract the unversioned function record that matches the given name and tag,
         and return the function record.
         """
-        normalized_function_name = (
-            mlrun.utils.normalize_name(function_name) if function_name else None
-        )
         function_tag = function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         try:
             function_record, _ = self._get_function_db_object(
                 session,
-                name=normalized_function_name,
+                name=function_name,
                 project=project,
                 tag=function_tag,
             )
@@ -7893,7 +7890,7 @@ class SQLDB(DBInterface):
             try:
                 function_record, _ = self._get_function_db_object(
                     session,
-                    name=normalized_function_name,
+                    name=function_name,
                     project=project,
                     tag=function_tag,
                     hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
@@ -7941,11 +7938,8 @@ class SQLDB(DBInterface):
         function_tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
-        normalized_function_name = (
-            mlrun.utils.normalize_name(function_name) if function_name else None
-        )
         mep_record = self._get_model_endpoint(
-            session, project, name, normalized_function_name, function_tag, uid
+            session, project, name, function_name, function_tag, uid
         )
         if not mep_record:
             raise mlrun.errors.MLRunNotFoundError(
@@ -7984,11 +7978,8 @@ class SQLDB(DBInterface):
         function_tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
     ) -> str:
-        normalized_function_name = (
-            mlrun.utils.normalize_name(function_name) if function_name else None
-        )
         mep_record = self._get_model_endpoint(
-            session, project, name, normalized_function_name, function_tag, uid
+            session, project, name, function_name, function_tag, uid
         )
         if mep_record:
             updated = datetime.now(timezone.utc)
@@ -8068,9 +8059,7 @@ class SQLDB(DBInterface):
             names=names,
             project=project,
             labels=labels,
-            function_name=mlrun.utils.normalize_name(function_name)
-            if function_name
-            else None,
+            function_name=function_name,
             function_tag=function_tag,
             model_name=model_name,
             model_tag=model_tag,

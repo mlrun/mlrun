@@ -800,6 +800,11 @@ class ModelEndpoints:
         else:
             uids = [endpoint_id]
 
+        if not uids:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Model endpoint '{name}' with function '{function_name}' and tag '{function_tag}' not found"
+            )
+
         await run_in_threadpool(
             framework.utils.singletons.db.get_db().delete_model_endpoint,
             session=db_session,

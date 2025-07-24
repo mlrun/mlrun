@@ -77,6 +77,55 @@ class ModelProvider(BaseRemoteClient):
 
         raise NotImplementedError("load_client method is not implemented")
 
+    @property
+    def client(self) -> Any:
+        return self._client
+
+    @property
+    def model(self) -> Optional[str]:
+        return self.endpoint
+
+    def get_invoke_kwargs(self, invoke_kwargs) -> dict:
+        kwargs = self.default_invoke_kwargs.copy()
+        kwargs.update(invoke_kwargs)
+        return kwargs
+
+    @property
+    def async_client(self) -> Any:
+        if not self.support_async:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{self.__class__.__name__} does not support async operations"
+            )
+        return self._async_client
+
+    def custom_invoke(self, operation: Optional[Callable], **invoke_kwargs) -> Any:
+        """
+        Invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.) with the given keyword arguments.
+
+        Useful for dynamically calling model methods like text generation, chat completions, or image generation.
+        The operation must be a callable that accepts keyword arguments.
+
+        :param operation:       A callable representing the model operation (e.g., a client method).
+        :param invoke_kwargs:   Keyword arguments to pass to the operation.
+        :return:                The full response returned by the operation.
+        """
+        raise NotImplementedError("custom_invoke method is not implemented")
+
+    async def async_custom_invoke(
+        self, operation: Optional[Callable[..., Awaitable[Any]]], **invoke_kwargs
+    ) -> Any:
+        """
+        Asynchronously invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.)
+        with the given keyword arguments.
+
+        The operation must be an async callable (e.g., a method from an async client) that accepts keyword arguments.
+
+        :param operation:       An async callable representing the model operation (e.g., an async_client method).
+        :param invoke_kwargs:   Keyword arguments to pass to the operation.
+        :return:                The full response returned by the awaited operation.
+        """
+        raise NotImplementedError("async_custom_invoke is not implemented")
+
     def invoke(
         self,
         messages: Optional[list[dict]] = None,
@@ -124,55 +173,6 @@ class ModelProvider(BaseRemoteClient):
 
         """
         raise NotImplementedError("invoke method is not implemented")
-
-    def custom_invoke(self, operation: Optional[Callable], **invoke_kwargs) -> Any:
-        """
-        Invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.) with the given keyword arguments.
-
-        Useful for dynamically calling model methods like text generation, chat completions, or image generation.
-        The operation must be a callable that accepts keyword arguments.
-
-        :param operation:       A callable representing the model operation (e.g., a client method).
-        :param invoke_kwargs:   Keyword arguments to pass to the operation.
-        :return:                The full response returned by the operation.
-        """
-        raise NotImplementedError("custom_invoke method is not implemented")
-
-    @property
-    def client(self) -> Any:
-        return self._client
-
-    @property
-    def model(self) -> Optional[str]:
-        return self.endpoint
-
-    def get_invoke_kwargs(self, invoke_kwargs) -> dict:
-        kwargs = self.default_invoke_kwargs.copy()
-        kwargs.update(invoke_kwargs)
-        return kwargs
-
-    @property
-    def async_client(self) -> Any:
-        if not self.support_async:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"{self.__class__.__name__} does not support async operations"
-            )
-        return self._async_client
-
-    async def async_custom_invoke(
-        self, operation: Optional[Callable[..., Awaitable[Any]]], **invoke_kwargs
-    ) -> Any:
-        """
-        Asynchronously invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.)
-        with the given keyword arguments.
-
-        The operation must be an async callable (e.g., a method from an async client) that accepts keyword arguments.
-
-        :param operation:       An async callable representing the model operation (e.g., an async_client method).
-        :param invoke_kwargs:   Keyword arguments to pass to the operation.
-        :return:                The full response returned by the awaited operation.
-        """
-        raise NotImplementedError("async_custom_invoke is not implemented")
 
     async def async_invoke(
         self,

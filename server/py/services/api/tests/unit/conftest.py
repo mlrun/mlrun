@@ -39,6 +39,7 @@ import mlrun_pipelines.client
 import mlrun_pipelines.utils
 
 import framework.utils.clients.iguazio
+import framework.utils.clients.iguaziov4
 import framework.utils.projects.remotes.leader
 import framework.utils.runtimes.nuclio
 import framework.utils.singletons.db
@@ -181,6 +182,24 @@ def iguazio_client(
         client = framework.utils.clients.iguazio.AsyncClient()
     else:
         client = framework.utils.clients.iguazio.Client()
+
+    # force running init again so the configured api url will be used
+    client.__init__()
+    client._wait_for_job_completion_retry_interval = 0
+
+    # inject the request param into client, so we can use it in tests
+    setattr(client, "mode", request.param)
+    return client
+
+
+@pytest.fixture()
+def iguazio_clientv4(
+    request: pytest.FixtureRequest,
+) -> framework.utils.clients.iguaziov4.Client:
+    if request.param == "async":
+        client = framework.utils.clients.iguaziov4.AsyncClient()
+    else:
+        client = framework.utils.clients.iguaziov4.Client()
 
     # force running init again so the configured api url will be used
     client.__init__()

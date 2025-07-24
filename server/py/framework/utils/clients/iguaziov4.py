@@ -16,6 +16,7 @@ import typing
 
 import mlrun.common.schemas
 import mlrun.errors
+from mlrun.utils import get_in
 
 from framework.utils.clients.base_client import BaseAsyncClient, BaseClient
 
@@ -26,7 +27,12 @@ class Client(BaseClient):
         response_headers: typing.Mapping[str, typing.Any],
         response_body: typing.Mapping[typing.Any, typing.Any],
     ) -> mlrun.common.schemas.AuthInfo:
-        raise NotImplementedError()
+        username, group_ids = self._resolve_params_from_response_body(response_body)
+        auth_info = mlrun.common.schemas.AuthInfo(
+            username=username,
+            user_group_ids=group_ids,
+        )
+        return auth_info
 
     @property
     def _verify_session_http_method(self) -> str:
@@ -35,7 +41,22 @@ class Client(BaseClient):
     def _prepare_request_kwargs(
         self, session: typing.Optional[str], path: str, *, kwargs: dict
     ):
-        raise NotImplementedError()
+        headers = kwargs.setdefault("headers", {})
+
+        # Accept an Authorization header or a session cookie named "_oauth2_proxy"
+        authorization = headers.get("authorization") or headers.get("Authorization")
+        cookie = headers.get("cookie", "")
+
+        has_auth = bool(authorization) or "_oauth2_proxy=" in cookie
+
+        if not has_auth:
+            raise mlrun.errors.MLRunUnauthorizedError(
+                "Request must include either an Authorization header or _oauth2_proxy cookie"
+            )
+
+        # Ensure headers are lowercase consistent
+        if authorization:
+            headers["authorization"] = authorization
 
     def _handle_error_response(
         self,
@@ -47,6 +68,23 @@ class Client(BaseClient):
         kwargs: dict,
     ) -> None:
         raise NotImplementedError()
+
+    @staticmethod
+    def _resolve_params_from_response_body(
+        response_body: typing.Mapping[typing.Any, typing.Any],
+    ) -> tuple[typing.Optional[str], typing.Optional[list[str]]]:
+        username = get_in(response_body, "metadata.username", "")
+
+        group_ids = []
+        for relationship in response_body.get("relationships", []):
+            if relationship.get(
+                "@type"
+            ) == "type.googleapis.com/group.Group" and get_in(
+                relationship, "metadata.id"
+            ):
+                group_ids.append(relationship["metadata"]["id"])
+
+        return username, group_ids
 
 
 class AsyncClient(BaseAsyncClient, Client):

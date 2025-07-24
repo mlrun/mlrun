@@ -150,7 +150,7 @@ async def test_verify_request_session_failure(
     )
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
         await maybe_coroutine(iguazio_client.verify_request_session(mock_request))
-        assert exc.value.status_code == http.HTTPStatus.UNAUTHORIZED.value
+        assert exc.value.error_status_code == http.HTTPStatus.UNAUTHORIZED.value
 
 
 @pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)

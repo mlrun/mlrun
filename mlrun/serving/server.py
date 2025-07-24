@@ -670,7 +670,9 @@ async def async_execute_graph(
     async def run(body):
         event = storey.Event(id=index, body=body)
         if timestamp_column:
-            body = event.body
+            if batching:
+                # we use the first row in the batch to determine the timestamp for the whole batch
+                body = body[0]
             if not isinstance(body, dict):
                 raise mlrun.errors.MLRunRuntimeError(
                     f"When timestamp_column=True, event body must be a dict – got {type(body).__name__} instead"

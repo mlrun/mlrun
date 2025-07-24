@@ -373,4 +373,4 @@ def mock_project_follower_iguazio_client(
 
     yield iguazio_client
 
-    framework.utils.clients.iguazio.iguazio.Client = old_iguazio_client
+    framework.utils.clients.iguazio.v3.Client = old_iguazio_client

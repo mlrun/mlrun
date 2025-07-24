@@ -1200,8 +1200,8 @@ def test_ensure_function_security_context_missing_control_plane_session_tag(
         kind=mlrun.runtimes.RuntimeKinds.job
     )
 
-    framework.utils.clients.iguazio.iguazio.Client.get_user_unix_id = (
-        unittest.mock.Mock(side_effect=mlrun.errors.MLRunHTTPError())
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id = unittest.mock.Mock(
+        side_effect=mlrun.errors.MLRunHTTPError()
     )
     logger.info(
         "Session missing control plane, and it is actually only a data plane session, expected to fail"
@@ -1210,11 +1210,11 @@ def test_ensure_function_security_context_missing_control_plane_session_tag(
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
         ensure_function_security_context(function, auth_info)
     assert "Were unable to enrich user unix id" in str(exc.value)
-    framework.utils.clients.iguazio.iguazio.Client.get_user_unix_id.assert_called_once()
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id.assert_called_once()
 
     user_unix_id = 1000
-    framework.utils.clients.iguazio.iguazio.Client.get_user_unix_id = (
-        unittest.mock.Mock(return_value=user_unix_id)
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id = unittest.mock.Mock(
+        return_value=user_unix_id
     )
     auth_info = mlrun.common.schemas.AuthInfo(planes=[])
     logger.info(
@@ -1222,9 +1222,9 @@ def test_ensure_function_security_context_missing_control_plane_session_tag(
     )
     function = mlrun.new_function(runtime=original_function_dict)
     ensure_function_security_context(function, auth_info)
-    framework.utils.clients.iguazio.iguazio.Client.get_user_unix_id.assert_called_once()
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id.assert_called_once()
     assert auth_info.planes == [
-        framework.utils.clients.iguazio.iguazio.SessionPlanes.control
+        framework.utils.clients.iguazio.v3.SessionPlanes.control
     ]
 
 
@@ -1240,10 +1240,10 @@ def test_ensure_function_security_context_get_user_unix_id(
 
     # set auth info with control plane and without user unix id so that it will be fetched
     auth_info = mlrun.common.schemas.AuthInfo(
-        planes=[framework.utils.clients.iguazio.iguazio.SessionPlanes.control]
+        planes=[framework.utils.clients.iguazio.v3.SessionPlanes.control]
     )
-    framework.utils.clients.iguazio.iguazio.Client.get_user_unix_id = (
-        unittest.mock.Mock(return_value=user_unix_id)
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id = unittest.mock.Mock(
+        return_value=user_unix_id
     )
 
     logger.info("No user unix id in headers, should fetch from iguazio")
@@ -1258,7 +1258,7 @@ def test_ensure_function_security_context_get_user_unix_id(
 
     function = mlrun.new_function(runtime=original_function_dict)
     ensure_function_security_context(function, auth_info)
-    framework.utils.clients.iguazio.iguazio.Client.get_user_unix_id.assert_called_once()
+    framework.utils.clients.iguazio.v3.Client.get_user_unix_id.assert_called_once()
     assert (
         DeepDiff(
             original_function.to_dict(),

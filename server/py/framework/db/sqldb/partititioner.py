@@ -31,9 +31,9 @@ class RangePartitioner:
         self,
         session: sqlalchemy.orm.Session,
         table_name: str,
+        partition_expression: str,
         first_partition_name: str,
         first_partition_upper_bound: str,
-        partition_expression: str,
     ):
         raise NotImplementedError
 
@@ -56,9 +56,9 @@ class RangePartitionerMySQL(RangePartitioner):
         self,
         session: sqlalchemy.orm.Session,
         table_name: str,
+        partition_expression: str,
         first_partition_name: str,
         first_partition_upper_bound: str,
-        partition_expression: str,
     ):
         quoted_partition_name, quoted_table_name = (
             self.get_quoted_partitioned_table_params(
@@ -82,9 +82,9 @@ class RangePartitionerPostgres(RangePartitioner):
         self,
         session: sqlalchemy.orm.Session,
         table_name: str,
+        partition_expression: str,
         first_partition_name: str,
         first_partition_upper_bound: str,
-        partition_expression: str,
     ):
         quoted_partition_name, quoted_table_name = (
             self.get_quoted_partitioned_table_params(

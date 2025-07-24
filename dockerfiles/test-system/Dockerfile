@@ -67,7 +67,7 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 
 WORKDIR /mlrun
 COPY Makefile .
-COPY .dockerignore .
 COPY tests tests
-
-CMD ["make",  "test-system"]
+COPY docs docs
+ENV PYTHONPATH="/mlrun"
+CMD ["make", "test-system"]

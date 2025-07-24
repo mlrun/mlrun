@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import asyncio
 import datetime
 import typing
 
@@ -152,6 +152,13 @@ class EventStreamProcessor:
             _fn="(event.get('kind') == 'batch_complete')",
         )
 
+        graph.add_step(
+            "Delay",
+            name="Delay",
+            after="FilterBatchComplete",
+            delay=self.parquet_batching_timeout_secs + 5,  # add margin
+        )
+
         # split the graph between event with error vs valid event
         graph.add_step(
             "storey.Filter",
@@ -268,7 +275,7 @@ class EventStreamProcessor:
                 "controller_stream",
                 path=stream_uri,
                 sharding_func=ControllerEvent.ENDPOINT_ID,
-                after=["ForwardNOP", "FilterBatchComplete"],
+                after=["ForwardNOP", "Delay"],
                 # Force using the pipeline key instead of the one in the profile in case of v3io profile.
                 # In case of Kafka, this parameter will be ignored.
                 alternative_v3io_access_key="V3IO_ACCESS_KEY",
@@ -313,6 +320,16 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
             if not event.get(key):
                 event[key] = None
         logger.info("ProcessBeforeParquet2", event=event)
+        return event
+
+
+class Delay(mlrun.feature_store.steps.MapClass):
+    def __init__(self, delay: int, **kwargs):
+        super().__init__(**kwargs)
+        self._delay = delay
+
+    async def do(self, event):
+        await asyncio.sleep(self._delay)
         return event
 
 

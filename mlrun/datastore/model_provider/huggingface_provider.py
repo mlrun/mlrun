@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import ModelProvider
 
-T = TypeVar("T")
+if TYPE_CHECKING:
+    from transformers.pipelines import pipeline
+
 ChatType = list[dict[str, str]]  # according to transformers.pipelines.text_generation
 
 
@@ -110,8 +112,8 @@ class HuggingFaceProvider(ModelProvider):
         return self._sanitize_options(res)
 
     def custom_invoke(
-        self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs
-    ) -> Optional[T]:
+        self, operation: Optional["pipeline"] = None, **invoke_kwargs
+    ) -> Optional[list, Any]:
         """
         HuggingFace implementation of `ModelProvider.custom_invoke`.
         Use the default config in provider client/ user defined client:
@@ -143,7 +145,7 @@ class HuggingFaceProvider(ModelProvider):
         messages: Union[str, list[str], ChatType, list[ChatType]] = None,
         as_str: bool = False,
         **invoke_kwargs,
-    ) -> Optional[Union[str, list, T]]:
+    ) -> Optional[Union[str, list]]:
         """
         HuggingFace-specific implementation of `ModelProvider.invoke`.
         Invokes a HuggingFace model operation using the synchronous client.

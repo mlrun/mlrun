@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections.abc import Awaitable
-from typing import Any, Callable, Optional, TypeVar, Union
+from typing import Any, Callable, Optional, Union
 
 import mlrun.errors
 from mlrun.datastore.remote_client import (
     BaseRemoteClient,
 )
-
-T = TypeVar("T")
 
 
 class ModelProvider(BaseRemoteClient):
@@ -84,7 +82,7 @@ class ModelProvider(BaseRemoteClient):
         messages: Optional[list[dict]] = None,
         as_str: bool = False,
         **invoke_kwargs,
-    ) -> Optional[Union[str, T]]:
+    ) -> Optional[Union[str, Any]]:
         """
         Invokes a generative AI model with the provided messages and additional parameters.
         This method is designed to be a flexible interface for interacting with various
@@ -128,8 +126,8 @@ class ModelProvider(BaseRemoteClient):
         raise NotImplementedError("invoke method is not implemented")
 
     def custom_invoke(
-        self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs
-    ) -> Optional[T]:
+        self, operation: Optional[Callable], **invoke_kwargs
+    ) -> Optional[Any]:
         """
         Invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.) with the given keyword arguments.
 
@@ -164,8 +162,8 @@ class ModelProvider(BaseRemoteClient):
         return self._async_client
 
     async def async_custom_invoke(
-        self, operation: Optional[Callable[..., Awaitable[T]]], **invoke_kwargs
-    ) -> Optional[T]:
+        self, operation: Optional[Callable[..., Awaitable[Any]]], **invoke_kwargs
+    ) -> Optional[Any]:
         """
         Asynchronously invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.)
         with the given keyword arguments.

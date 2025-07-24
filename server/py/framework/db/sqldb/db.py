@@ -211,7 +211,7 @@ def retry_on_conflict(function):
 class SQLDB(DBInterface):
     def __new__(cls, dsn: Optional[str] = None):
         if dsn is None:
-            dsn = config.httpdb.db.dsn
+            dsn = mlrun.config.config.httpdb.dsn
         if cls is SQLDB and dsn:
             scheme = urllib.parse.urlparse(dsn).scheme.lower()
             if scheme.startswith(Dialects.MYSQL):

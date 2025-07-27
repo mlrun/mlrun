@@ -509,7 +509,7 @@ endif
 
 .PHONY: clean-common-image
 clean-common-image:
-	-docker rmi $(COMMON_IMAGE_TAG) || true
+	docker rmi $(COMMON_IMAGE_TAG) || true
 	rm -f $(COMMON_STAMP)
 
 

@@ -65,7 +65,7 @@ RUN chmod -R a+rX /mlrun/server/py/schemas/proto
 # Remove pip is not needed anymore
 RUN python -m pip uninstall pip -y \
     && rm -rf /usr/local/lib/python${MLRUN_PYTHON_VERSION}/ensurepip \
-    /tmp/mlrun
+    /tmp/mlrun /var/lib/apt/lists/*
 
 
 VOLUME /mlrun/db
@@ -87,4 +87,3 @@ ENV MLRUN_SERVICES__SERVICE_NAME=api
 # and avoid zombie processes
 ENTRYPOINT ["tini", "--"]
 CMD ["bash", "/mlrun/start_api.sh"]
-RUN rm -rf /var/lib/apt/lists/*

@@ -83,7 +83,8 @@ COPY --chown=$NB_UID:$NB_GID . /tmp/mlrun
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
-    cd /tmp/mlrun && CONDA_PREFIX=/opt/conda/envs/mlrun uv pip install '.[complete]' --python-version ${MLRUN_PYTHON_VERSION}
+    cd /tmp/mlrun && CONDA_PREFIX=/opt/conda/envs/mlrun uv pip install '.[complete]' --python-version ${MLRUN_PYTHON_VERSION} && uv cache clean
+
 
 # Switch to root to clean up files that may have been written with root permissions
 USER root

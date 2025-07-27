@@ -43,7 +43,7 @@ COPY dockerfiles/mlrun-api dockerfiles/mlrun-api
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
-    uv pip install .
+    uv pip install .[kfp18] --python-version ${MLRUN_PYTHON_VERSION}
 
 COPY pipeline-adapters pipeline-adapters
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \

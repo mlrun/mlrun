@@ -15,10 +15,11 @@ import math
 
 try:
     from datetime import UTC, datetime, timedelta  # UTC is only defined in Python 3.11+
-except AttributeError:
+except ImportError:
     from datetime import datetime, timedelta, timezone
 
     UTC = timezone.utc
+
 from typing import Optional
 
 from sqlalchemy.orm import Session

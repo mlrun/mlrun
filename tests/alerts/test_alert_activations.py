@@ -16,7 +16,7 @@ import datetime
 
 try:
     from datetime import UTC  # UTC is only defined in Python 3.11+
-except AttributeError:
+except ImportError:
     from datetime import timezone
 
     UTC = timezone.utc

@@ -13,7 +13,13 @@
 # limitations under the License.
 
 import datetime
-from datetime import UTC
+
+try:
+    from datetime import UTC  # UTC is only defined in Python 3.11+
+except AttributeError:
+    from datetime import timezone
+
+    UTC = timezone.utc
 
 import pytest
 

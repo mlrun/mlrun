@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from datetime import UTC, datetime
+
+try:
+    from datetime import UTC, datetime  # UTC is only defined in Python 3.11+
+except AttributeError:
+    from datetime import datetime, timezone
+
+    UTC = timezone.utc
 
 import sqlalchemy
 import sqlalchemy.orm

@@ -104,7 +104,7 @@ class MonitoringPreProcessor(storey.MapClass):
     @staticmethod
     def transpose_by_key(
         data: dict, schema: Optional[Union[str, list[str]]] = None
-    ) -> Union[list[float], list[list[float]]]:
+    ) -> Union[list[Any], list[list[Any]]]:
         """
         Transpose values from a dictionary by keys.
 
@@ -162,9 +162,9 @@ class MonitoringPreProcessor(storey.MapClass):
             )
 
         if all_scalars:
-            transposed = np.array([values])
+            transposed = np.array([values], dtype=object)
         elif all_lists and len(keys) > 1:
-            arrays = [np.array(v) for v in values]
+            arrays = [np.array(v, dtype=object) for v in values]
             mat = np.stack(arrays, axis=0)
             transposed = mat.T
         else:

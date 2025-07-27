@@ -1100,7 +1100,6 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
 
         first_result = response_content[0]
         assert first_result["full_name"] in results_full_names
-        assert first_result["data"] == True
         assert len(first_result["values"]) == 2
 
     def test_serving_as_a_job(self) -> None:

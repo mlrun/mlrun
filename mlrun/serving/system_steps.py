@@ -146,7 +146,11 @@ class MonitoringPreProcessor(storey.MapClass):
         else:
             keys = schema
 
-        values = [data[key] for key in keys]
+        values = [data[key] for key in keys if key in data]
+        if len(values) != len(keys):
+            raise mlrun.MLRunInvalidArgumentError(
+                f"Schema keys {keys} do not match the data keys {list(data.keys())}."
+            )
 
         # Detect if all are scalars ie: int,float,str
         all_scalars = all(not isinstance(v, (list, tuple, np.ndarray)) for v in values)

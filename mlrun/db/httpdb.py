@@ -254,8 +254,18 @@ class HTTPRunDB(RunDBInterface):
                     }
                     kw["cookies"] = cookies
                 else:
-                    if "Authorization" not in kw.setdefault("headers", {}):
-                        kw["headers"].update({"Authorization": "Bearer " + token})
+                    if (
+                        mlrun.common.schemas.HeaderNames.authorization
+                        not in kw.setdefault("headers", {})
+                    ):
+                        kw["headers"].update(
+                            {
+                                mlrun.common.schemas.HeaderNames.authorization: (
+                                    mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer
+                                    + token
+                                )
+                            }
+                        )
 
         if mlrun.common.schemas.HeaderNames.client_version not in kw.setdefault(
             "headers", {}

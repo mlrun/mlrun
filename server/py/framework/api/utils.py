@@ -52,7 +52,7 @@ import framework.db.sqldb.db
 import framework.rundb.sqldb
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
-import framework.utils.clients.iguazio
+import framework.utils.clients.iguazio.v3
 import framework.utils.helpers
 import framework.utils.notifications
 import framework.utils.singletons.db
@@ -683,8 +683,8 @@ def ensure_function_has_auth_set(
                 )
                 # created an access key with control and data session plane, so enriching auth_info with those planes
                 auth_info.planes = [
-                    framework.utils.clients.iguazio.SessionPlanes.control,
-                    framework.utils.clients.iguazio.SessionPlanes.data,
+                    framework.utils.clients.iguazio.v3.SessionPlanes.control,
+                    framework.utils.clients.iguazio.v3.SessionPlanes.data,
                 ]
 
             function.metadata.credentials.access_key = auth_info.access_key
@@ -860,9 +860,9 @@ def ensure_function_security_context(
         # before iguazio 3.6 the user unix id is not passed in the session verification response headers
         # so we need to request it explicitly
         if auth_info.user_unix_id is None:
-            iguazio_client = framework.utils.clients.iguazio.Client()
+            iguazio_client = framework.utils.clients.iguazio.v3.Client()
             if (
-                framework.utils.clients.iguazio.SessionPlanes.control
+                framework.utils.clients.iguazio.v3.SessionPlanes.control
                 not in auth_info.planes
             ):
                 logger.warning(
@@ -876,7 +876,7 @@ def ensure_function_security_context(
                     # if we were able to get the user unix id it means we have a control session plane so adding that
                     # to the auth info
                     auth_info.planes.append(
-                        framework.utils.clients.iguazio.SessionPlanes.control
+                        framework.utils.clients.iguazio.v3.SessionPlanes.control
                     )
                 except Exception as exc:
                     raise mlrun.errors.MLRunUnauthorizedError(

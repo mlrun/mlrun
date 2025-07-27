@@ -36,7 +36,7 @@ import mlrun.utils.singleton
 import mlrun_pipelines.client
 import mlrun_pipelines.utils
 
-import framework.utils.clients.iguazio
+import framework.utils.clients.iguazio.v3
 import framework.utils.projects.remotes.leader
 import framework.utils.singletons.k8s
 import services.api.crud
@@ -184,16 +184,15 @@ def api_url() -> str:
 @pytest.fixture()
 def iguazio_client(
     request: pytest.FixtureRequest,
-) -> framework.utils.clients.iguazio.Client:
+) -> framework.utils.clients.iguazio.v3.Client:
     if request.param == "async":
-        client = framework.utils.clients.iguazio.AsyncClient()
+        client = framework.utils.clients.iguazio.v3.AsyncClient()
     else:
-        client = framework.utils.clients.iguazio.Client()
+        client = framework.utils.clients.iguazio.v3.Client()
 
     # force running init again so the configured api url will be used
     client.__init__()
     client._wait_for_job_completion_retry_interval = 0
-    client._wait_for_project_terminal_state_retry_interval = 0
 
     # inject the request param into client, so we can use it in tests
     setattr(client, "mode", request.param)
@@ -373,8 +372,8 @@ def mock_project_follower_iguazio_client(
     """
     mlrun.mlconf.httpdb.projects.leader = "iguazio"
     mlrun.mlconf.httpdb.projects.iguazio_access_key = "access_key"
-    old_iguazio_client = framework.utils.clients.iguazio.Client
-    framework.utils.clients.iguazio.Client = MockedProjectFollowerIguazioClient
+    old_iguazio_client = framework.utils.clients.iguazio.v3.Client
+    framework.utils.clients.iguazio.v3.Client = MockedProjectFollowerIguazioClient
     framework.utils.singletons.project_member.initialize_project_member()
     iguazio_client = MockedProjectFollowerIguazioClient()
     iguazio_client._db_session = db
@@ -382,4 +381,4 @@ def mock_project_follower_iguazio_client(
 
     yield iguazio_client
 
-    framework.utils.clients.iguazio.Client = old_iguazio_client
+    framework.utils.clients.iguazio.v3.Client = old_iguazio_client

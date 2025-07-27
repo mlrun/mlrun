@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
@@ -24,6 +25,7 @@ import pandas as pd
 import pytest
 
 import mlrun
+import mlrun.utils
 from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
 from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
 from mlrun.model_monitoring.applications import (
@@ -549,3 +551,43 @@ def test_handle_endpoints_type_evaluate_error(
         ModelMonitoringApplicationBase._handle_endpoints_type_evaluate(
             project, endpoints
         )
+
+
+@pytest.mark.parametrize(
+    ("application_name", "write_output", "expectation", "expected_log"),
+    [
+        (None, False, does_not_raise("InProgressApp0-batch"), False),
+        (None, True, does_not_raise("InProgressApp0-batch"), True),
+        (" app with space", False, does_not_raise(" app with space-batch"), False),
+        (
+            " app with space",
+            True,
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="application name does not comply with the required pattern",
+            ),
+            False,
+        ),
+    ],
+)
+def test_get_application_name(
+    application_name: Optional[str],
+    write_output: bool,
+    expectation: AbstractContextManager,
+    expected_log: bool,
+) -> None:
+    logger = mlrun.utils.Logger(level=logging.DEBUG)
+    logger.info = Mock()
+    with expectation as expected_result:
+        assert (
+            InProgressApp0._get_application_name(
+                application_name=application_name,
+                write_output=write_output,
+                logger=logger,
+            )
+            == expected_result
+        )
+    if expected_log:
+        logger.info.assert_called_once()
+    else:
+        logger.info.assert_not_called()

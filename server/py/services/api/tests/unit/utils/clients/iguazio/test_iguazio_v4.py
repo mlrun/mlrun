@@ -88,13 +88,13 @@ async def test_verify_request_session_failure(
         },  # cookie only
         {
             mlrun.common.schemas.HeaderNames.authorization: (
-                f"{mlrun.common.schemas.HeaderPrefixes.bearer}some-jwt-token"
+                f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}some-jwt-token"
             )
         },  # header only
         {
             "cookie": f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=some-session-cookie",
             mlrun.common.schemas.HeaderNames.authorization: (
-                f"{mlrun.common.schemas.HeaderPrefixes.bearer}some-jwt-token"
+                f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}some-jwt-token"
             ),
         },  # both present
     ],

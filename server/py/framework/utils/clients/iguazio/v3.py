@@ -958,4 +958,6 @@ class Client(
 
 
 class AsyncClient(BaseAsyncClient, Client):
+    """Asynchronous implementation of the Iguazio V3 client. Inherits logic from Client and BaseAsyncClient."""
+
     pass

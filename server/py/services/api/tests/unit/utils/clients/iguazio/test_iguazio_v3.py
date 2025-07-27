@@ -856,8 +856,8 @@ async def test_delete_project_job_is_done(
     def _mock_get_job(state, result, session, request, context):
         context.status_code = http.HTTPStatus.OK.value
         assert (
-            request.headers[mlrun.common.schemas.HeaderNames.cookie]
-            == f'session=j:{{"sid": "{session}"}}'
+            request.headers[mlrun.common.schemas.HeaderNames.cookie] == f""
+            f'{mlrun.common.schemas.CookieNames.iguazio}{{"sid": "{session}"}}'
         )
         return {"data": {"attributes": {"state": state, "result": result}}}
 
@@ -1077,7 +1077,9 @@ def _verify_creation(iguazio_client, project, session, job_id, request, context)
 
 
 def _verify_request_cookie(headers: dict, session: str):
-    expected_session_value = f'session=j:{{"sid": "{session}"}}'
+    expected_session_value = (
+        f'{mlrun.common.schemas.CookieNames.iguazio}{{"sid": "{session}"}}'
+    )
     if cookie_header := set(headers.keys()).intersection({"Cookie", "cookie"}):
         assert (
             headers.get(list(cookie_header)[0]) == expected_session_value
@@ -1117,7 +1119,7 @@ def _mock_job_progress(
         context.status_code = http.HTTPStatus.OK.value
         assert (
             request.headers[mlrun.common.schemas.HeaderNames.cookies]
-            == f'session=j:{{"sid": "{session}"}}'
+            == f'{mlrun.common.schemas.CookieNames.iguazio}{{"sid": "{session}"}}'
         )
         return {"data": {"attributes": {"state": state, "result": result}}}
 

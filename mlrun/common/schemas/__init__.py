@@ -133,6 +133,7 @@ from .k8s import NodeSelectorOperator, Resources, ResourceSpec
 from .memory_reports import MostCommonObjectTypesReport, ObjectTypeReport
 from .model_monitoring import (
     DriftStatus,
+    EndpointMode,
     EndpointType,
     EndpointUID,
     EventFieldType,

@@ -1076,7 +1076,7 @@ def _mock_job_progress(
     def _mock_get_job(state, result, session, request, context):
         context.status_code = http.HTTPStatus.OK.value
         assert (
-            request.headers[mlrun.common.schemas.HeaderNames.cookies]
+            request.headers[mlrun.common.schemas.HeaderNames.cookie]
             == f'session=j:{{"sid": "{session}"}}'
         )
         return {"data": {"attributes": {"state": state, "result": result}}}

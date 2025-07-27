@@ -34,32 +34,13 @@ from requests.cookies import cookiejar_from_dict
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
+from server.py.services.api.tests.unit.utils.clients.iguazio.conftest import (
+    patch_restful_request,
+)
 from tests.common_fixtures import aioresponses_mock
 
 import framework.utils.clients.iguazio.v3
 from framework.utils.asyncio import maybe_coroutine
-
-
-def patch_restful_request(
-    aioresponses_mock: aioresponses_mock,
-    method: str,
-    url: str,
-    callback: typing.Optional[typing.Callable] = None,
-    status_code: typing.Optional[int] = None,
-):
-    """
-    Consolidating the requests_mock / aioresponses library to mock a RESTful request.
-    """
-    kwargs = {}
-    if callback:
-        kwargs["callback"] = callback
-    if status_code:
-        kwargs["status"] = status_code
-    aioresponses_mock.add(
-        url,
-        method,
-        **kwargs,
-    )
 
 
 @pytest.mark.parametrize("iguazio_client", [("v3", "async")], indirect=True)

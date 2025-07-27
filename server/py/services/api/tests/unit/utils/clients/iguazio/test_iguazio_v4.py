@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,6 @@
 #
 
 import http
-import typing
 
 import fastapi
 import pytest
@@ -23,36 +22,12 @@ from aioresponses import CallbackResult
 
 import mlrun.common.schemas
 import mlrun.errors
+from server.py.services.api.tests.unit.utils.clients.iguazio.conftest import (
+    patch_restful_request,
+)
 from tests.common_fixtures import aioresponses_mock
 
 from framework.utils.asyncio import maybe_coroutine
-
-
-def patch_restful_request(
-    aioresponses_mock: aioresponses_mock,
-    method: str,
-    url: str,
-    callback: typing.Optional[typing.Callable] = None,
-    status_code: typing.Optional[int] = None,
-):
-    """
-    Consolidating the requests_mock / aioresponses library to mock a RESTful request.
-    """
-    kwargs = {}
-    if callback:
-        # The callback should produce CallbackResult with status set explicitly
-        kwargs["callback"] = callback
-    elif status_code:
-        # If no callback, set status and empty body
-        kwargs["status"] = status_code
-    else:
-        # Default 200 OK with empty body
-        kwargs["status"] = 200
-    aioresponses_mock.add(
-        url,
-        method,
-        **kwargs,
-    )
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "async")], indirect=True)
@@ -60,8 +35,8 @@ def patch_restful_request(
     "headers",
     [
         {},  # no cookie, no auth header
-        {"cookie": "some=thing"},  # wrong cookie
-        {"authorization": ""},  # empty header
+        {mlrun.common.schemas.HeaderNames.cookie: "some=thing"},  # wrong cookie
+        {mlrun.common.schemas.HeaderNames.authorization: ""},  # empty header
     ],
 )
 @pytest.mark.asyncio
@@ -76,7 +51,9 @@ async def test_verify_request_session_failure(
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
         await maybe_coroutine(iguazio_client.verify_request_session(mock_request))
 
-    assert exc.value.error_status_code == http.HTTPStatus.UNAUTHORIZED.value
+    assert (
+        exc.value.error_status_code == http.HTTPStatus.UNAUTHORIZED.value
+    ), "Expected 401 Unauthorized"
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "async")], indirect=True)
@@ -84,7 +61,9 @@ async def test_verify_request_session_failure(
     "headers",
     [
         {
-            "cookie": f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=some-session-cookie"
+            mlrun.common.schemas.HeaderNames.cookie: (
+                f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=some-session-cookie"
+            )
         },  # cookie only
         {
             mlrun.common.schemas.HeaderNames.authorization: (
@@ -92,7 +71,9 @@ async def test_verify_request_session_failure(
             )
         },  # header only
         {
-            "cookie": f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=some-session-cookie",
+            mlrun.common.schemas.HeaderNames.cookie: (
+                f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=some-session-cookie"
+            ),
             mlrun.common.schemas.HeaderNames.authorization: (
                 f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}some-jwt-token"
             ),
@@ -131,29 +112,69 @@ async def test_verify_request_session_success(
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "async")], indirect=True)
-@pytest.mark.parametrize("missing_field", ["username", "groups"])
+@pytest.mark.parametrize(
+    "broken_response",
+    [
+        # Missing "username"
+        {
+            "metadata": {},
+            "relationships": [
+                {
+                    "@type": "type.googleapis.com/group.Group",
+                    "metadata": {
+                        "id": "dummy-group-id-g1",
+                    },
+                },
+            ],
+        },
+        # Missing "relationships"
+        {
+            "metadata": {"username": "dummy-user"},
+        },
+        # metadata is not a dict
+        {
+            "metadata": "not-a-dict",
+            "relationships": [
+                {
+                    "@type": "type.googleapis.com/group.Group",
+                    "metadata": {
+                        "id": "dummy-group-id-g1",
+                    },
+                },
+            ],
+        },
+        # relationships are not a list
+        {
+            "metadata": {"username": "dummy-user"},
+            "relationships": "not-a-list",
+        },
+        # {}, # Empty response
+    ],
+)
 @pytest.mark.asyncio
-async def test_verify_request_session_failure_missing_username(
+async def test_verify_request_session_failure_missing_required_fields(
     api_url: str,
     iguazio_client,
     aioresponses_mock: aioresponses_mock,
-    missing_field: str,
+    broken_response: dict,
 ):
     """
-    Test case where the response is missing the 'username' field — should raise error.
+    Covers both missing and malformed required fields in the session verification response.
+    Fields:
+    - 'metadata.username' must be a non-empty string
+    - 'relationships' must be a list of objects containing group IDs
     """
     mock_request = fastapi.Request({"type": "http"})
     mock_request._headers = starlette.datastructures.Headers(
-        {"cookie": f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=dummy-cookie"}
+        {
+            mlrun.common.schemas.HeaderNames.cookie: (
+                f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=dummy-cookie"
+            )
+        }
     )
 
-    def _verify_session_mock_missing_user_info(*args, **kwargs):
-        response = sample_user_info()
-        if missing_field == "username":
-            del response["metadata"]["username"]
-        elif missing_field == "groups":
-            del response["relationships"]
-        return CallbackResult(payload=response)
+    def _mock_response(*args, **kwargs):
+        return CallbackResult(payload=broken_response)
 
     url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
 
@@ -161,13 +182,15 @@ async def test_verify_request_session_failure_missing_username(
         aioresponses_mock,
         method=http.HTTPMethod.GET,
         url=url,
-        callback=_verify_session_mock_missing_user_info,
+        callback=_mock_response,
     )
 
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
         await maybe_coroutine(iguazio_client.verify_request_session(mock_request))
 
-    assert exc.value.error_status_code == http.HTTPStatus.UNAUTHORIZED.value
+    assert (
+        exc.value.error_status_code == http.HTTPStatus.UNAUTHORIZED.value
+    ), "Expected 401 Unauthorized"
 
 
 # @pytest.mark.parametrize("iguazio_client", [("v4", "async")], indirect=True)
@@ -179,7 +202,9 @@ async def test_verify_request_session_failure_missing_username(
 # ):
 #     mock_request = fastapi.Request({"type": "http"})
 #     mock_request._headers = starlette.datastructures.Headers(
-#         {"cookie": f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=dummy-cookie"}
+#         {
+#             mlrun.common.schemas.HeaderNames.cookie: f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=dummy-cookie"
+#         }
 #     )
 #
 #     def _verify_session_mock(*args, **kwargs):
@@ -201,9 +226,9 @@ async def test_verify_request_session_failure_missing_username(
 #     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
 #         await maybe_coroutine(iguazio_client.verify_request_session(mock_request))
 #
-#     assert exc.value.error_status_code == http.HTTPStatus.UNAUTHORIZED.value
-#
-#
+#     assert exc.value.error_status_code == http.HTTPStatus.UNAUTHORIZED.value, "Expected 401 Unauthorized"
+
+
 def sample_user_info():
     return {
         "metadata": {"resourceType": "user", "username": "dummy-user"},

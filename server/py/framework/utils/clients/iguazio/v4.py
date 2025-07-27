@@ -48,7 +48,7 @@ class Client(BaseClient):
 
         # Accept an Authorization header or a session cookie named "_oauth2_proxy"
         authorization = headers.get(mlrun.common.schemas.HeaderNames.authorization, "")
-        cookie = headers.get(mlrun.common.schemas.HeaderNames.cookies, "")
+        cookie = headers.get(mlrun.common.schemas.HeaderNames.cookie, "")
 
         has_auth = (
             bool(authorization)
@@ -85,8 +85,14 @@ class Client(BaseClient):
                 "Missing or empty username in authentication response"
             )
 
+        relationships = response_body.get("relationships", [])
+        if not isinstance(relationships, list):
+            raise mlrun.errors.MLRunUnauthorizedError(
+                "Invalid format for relationships in authentication response"
+            )
+
         group_ids = []
-        for relationship in response_body.get("relationships", []):
+        for relationship in relationships:
             if relationship.get(_GROUP_TYPE_KEY) == _GROUP_TYPE_VALUE and get_in(
                 relationship, "metadata.id"
             ):

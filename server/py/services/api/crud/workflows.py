@@ -664,6 +664,7 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             mlrun_constants.MLRunInternalLabels.job_type: mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: runner.metadata.name,
             mlrun_constants.MLRunInternalLabels.original_workflow_id: run_uid,
+            mlrun_constants.MLRunInternalLabels.rerun_index: rerun_request.rerun_index,
         }
 
         self._enrich_runner_node_selector(runner, rerun_request)

@@ -800,6 +800,11 @@ class ModelEndpoints:
         else:
             uids = [endpoint_id]
 
+        if not uids:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Model endpoint '{name}' with function '{function_name}' and tag '{function_tag}' not found"
+            )
+
         await run_in_threadpool(
             framework.utils.singletons.db.get_db().delete_model_endpoint,
             session=db_session,
@@ -1092,11 +1097,13 @@ class ModelEndpoints:
         :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
                                               V3IO resources.
         """
-        logger.debug(
-            "Deleting model monitoring endpoints resources", project_name=project_name
-        )
         stream_path = mlrun.model_monitoring.get_stream_path(
             project=project_name, profile=stream_profile
+        )
+        logger.debug(
+            "Deleting model monitoring endpoints resources",
+            project_name=project_name,
+            stream_path=stream_path,
         )
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,

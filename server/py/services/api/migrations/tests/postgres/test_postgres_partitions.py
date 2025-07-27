@@ -28,7 +28,6 @@ pytest.importorskip(
 
 
 @pytest.mark.integration
-@pytest.mark.usefixtures("pmr_postgres_container")
 def test_create_partitions_postgres(alembic_engine):
     session = sessionmaker(bind=alembic_engine)()
     table = "dyn_table"
@@ -40,7 +39,7 @@ def test_create_partitions_postgres(alembic_engine):
             data TEXT
         ) PARTITION BY RANGE (id);
 
-        CREATE TABLE p0 PARTITION OF {table}
+        CREATE TABLE {table}_p0 PARTITION OF {table}
         FOR VALUES FROM (MINVALUE) TO (1);
         """)
     )
@@ -56,13 +55,12 @@ def test_create_partitions_postgres(alembic_engine):
             session, table
         ).keys()
     )
-    expected = {name for name, _ in parts}.union({"p0"})
+    expected = {name for name, _ in parts}.union({f"{table}_p0"})
     assert attached == expected
     session.close()
 
 
 @pytest.mark.integration
-@pytest.mark.usefixtures("pmr_postgres_container")
 def test_drop_partitions_postgres(alembic_engine):
     session = sessionmaker(bind=alembic_engine)()
     table = "dyn_table_drop"
@@ -75,7 +73,7 @@ def test_drop_partitions_postgres(alembic_engine):
             data TEXT
         ) PARTITION BY RANGE (id);
 
-        CREATE TABLE p0 PARTITION OF {table}
+        CREATE TABLE {table}_p0 PARTITION OF {table}
         FOR VALUES FROM (MINVALUE) TO (1);
         """)
     )

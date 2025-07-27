@@ -84,6 +84,8 @@ class MLRunInternalLabels:
     original_workflow_id = "original-workflow-id"
     workflow_id = "workflow-id"
     retrying = "retrying"
+    rerun_counter = "rerun-counter"
+    rerun_index = "rerun-index"
 
     owner = "owner"
     v3io_user = "v3io_user"

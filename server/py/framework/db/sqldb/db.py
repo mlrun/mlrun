@@ -340,7 +340,7 @@ class SQLDB(DBInterface):
     ) -> dict:
         """
         Atomically acquire a FOR UPDATE lock on the specified run row, then add or remove
-        the `retrying` label.
+        the `retrying` label and update the `rerun_counter`.
 
         :param session:  SQLAlchemy session to use for the transaction.
         :param project:     Name of the project containing the run.
@@ -349,7 +349,7 @@ class SQLDB(DBInterface):
                             - When setting to True, this will:
                               1. lock the row
                               2. verify no existing `retrying` label (else MLRunConflictError)
-                              3. add `retrying="true"`
+                              3. add `retrying="true"` and bump `rerun_counter`
                             - When setting to False, it will remove the `retrying` label.
         :returns:           The updated struct of the run.
         :raises MLRunNotFoundError:   If the run does not exist.
@@ -368,13 +368,15 @@ class SQLDB(DBInterface):
             if not retrying:
                 labels.pop("retrying", None)
             elif mlrun_constants.MLRunInternalLabels.retrying in labels:
-                # flush and commit so the lock is released immediately
-                session.commit()
                 raise mlrun.errors.MLRunConflictError
             else:
-                # TODO: bump counter label here in follow-up
                 labels[mlrun_constants.MLRunInternalLabels.retrying] = "true"
-
+                labels[mlrun_constants.MLRunInternalLabels.rerun_counter] = str(
+                    int(
+                        labels.get(mlrun_constants.MLRunInternalLabels.rerun_counter, 0)
+                    )
+                    + 1
+                )
             update_labels(run, labels)
             run.struct = struct
             self._upsert(session, [run])
@@ -7891,14 +7893,11 @@ class SQLDB(DBInterface):
         Extract the unversioned function record that matches the given name and tag,
         and return the function record.
         """
-        normalized_function_name = (
-            mlrun.utils.normalize_name(function_name) if function_name else None
-        )
         function_tag = function_tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         try:
             function_record, _ = self._get_function_db_object(
                 session,
-                name=normalized_function_name,
+                name=function_name,
                 project=project,
                 tag=function_tag,
             )
@@ -7907,7 +7906,7 @@ class SQLDB(DBInterface):
             try:
                 function_record, _ = self._get_function_db_object(
                     session,
-                    name=normalized_function_name,
+                    name=function_name,
                     project=project,
                     tag=function_tag,
                     hash_key=f"{unversioned_tagged_object_uid_prefix}{function_tag}",
@@ -7955,11 +7954,8 @@ class SQLDB(DBInterface):
         function_tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
-        normalized_function_name = (
-            mlrun.utils.normalize_name(function_name) if function_name else None
-        )
         mep_record = self._get_model_endpoint(
-            session, project, name, normalized_function_name, function_tag, uid
+            session, project, name, function_name, function_tag, uid
         )
         if not mep_record:
             raise mlrun.errors.MLRunNotFoundError(
@@ -7998,11 +7994,8 @@ class SQLDB(DBInterface):
         function_tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
     ) -> str:
-        normalized_function_name = (
-            mlrun.utils.normalize_name(function_name) if function_name else None
-        )
         mep_record = self._get_model_endpoint(
-            session, project, name, normalized_function_name, function_tag, uid
+            session, project, name, function_name, function_tag, uid
         )
         if mep_record:
             updated = datetime.now(timezone.utc)
@@ -8083,9 +8076,7 @@ class SQLDB(DBInterface):
             names=names,
             project=project,
             labels=labels,
-            function_name=mlrun.utils.normalize_name(function_name)
-            if function_name
-            else None,
+            function_name=function_name,
             function_tag=function_tag,
             model_name=model_name,
             model_tag=model_tag,

@@ -20,6 +20,7 @@ from pydantic.v1 import validator
 from pydantic.v1.dataclasses import dataclass
 
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.errors
 from mlrun.utils import logger
 
 _RESULT_EXTRA_DATA_MAX_SIZE = 998

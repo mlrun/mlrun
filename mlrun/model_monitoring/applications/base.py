@@ -33,9 +33,9 @@ import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.results as mm_results
 import mlrun.model_monitoring.db._schedules as mm_schedules
 import mlrun.model_monitoring.helpers as mm_helpers
+import mlrun.utils
 from mlrun.serving.utils import MonitoringApplicationToDict
 from mlrun.utils import logger
-import mlrun.utils
 
 
 def _serialize_context_and_result(

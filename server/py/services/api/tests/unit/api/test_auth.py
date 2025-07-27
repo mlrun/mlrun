@@ -66,7 +66,7 @@ def test_authenticate_request_auth_info_basic(
     request_headers = {
         mlrun.common.schemas.HeaderNames.authorization: mlrun.common.schemas.AuthorizationHeaderPrefixes.basic
         + "YnVnczpidW5ueQ==",
-        "cookie": "123",
+        mlrun.common.schemas.HeaderNames.cookie: "123",
     }
 
     async def _mock_successful_query_permissions(
@@ -136,7 +136,7 @@ def test_authenticate_request_auth_info_iguazio(
 ) -> None:
     mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     mock_request_headers = starlette.datastructures.Headers(
-        {"cookie": "session=some-session-cookie"}
+        {mlrun.common.schemas.HeaderNames.cookie: "session=some-session-cookie"}
     )
     mock_request = fastapi.Request({"type": "http"})
     mock_request._headers = mock_request_headers

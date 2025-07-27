@@ -35,6 +35,7 @@ import mlrun.model_monitoring.db._schedules as mm_schedules
 import mlrun.model_monitoring.helpers as mm_helpers
 from mlrun.serving.utils import MonitoringApplicationToDict
 from mlrun.utils import logger
+import mlrun.utils
 
 
 def _serialize_context_and_result(
@@ -266,6 +267,35 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 )
                 application_schedules.__exit__(None, None, None)
 
+    @classmethod
+    def _get_application_name(
+        cls,
+        *,
+        application_name: Optional[str],
+        write_output: bool,
+        logger: mlrun.utils.Logger,
+    ) -> str:
+        if not application_name:
+            application_name = cls.__name__
+        if not application_name.endswith(
+            mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
+        ):
+            application_name += mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
+
+        if write_output:
+            if not mm_constants.APP_NAME_REGEX.fullmatch(application_name):
+                raise mlrun.errors.MLRunValueError(
+                    "The application name does not comply with the required pattern "
+                    f"`{mm_constants.APP_NAME_REGEX.pattern}`. "
+                    "Please choose another `application_name`."
+                )
+            else:
+                logger.info(
+                    "The application name is set", application_name=application_name
+                )
+
+        return application_name
+
     def _handler(
         self,
         context: "mlrun.MLClientCtx",
@@ -300,12 +330,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 "working with endpoints, without any custom data-frame input"
             )
 
-        if not application_name:
-            application_name = self.__class__.__name__
-        if not application_name.endswith(
-            mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
-        ):
-            application_name += mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
+        application_name = self._get_application_name(
+            application_name=application_name,
+            write_output=write_output,
+            logger=context.logger,
+        )
 
         feature_stats = (
             mm_api.get_sample_set_statistics(reference_data)

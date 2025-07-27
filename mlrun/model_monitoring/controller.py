@@ -12,13 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
 import concurrent.futures
 import datetime
 import json
 import os
 import traceback
-from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from types import TracebackType
@@ -29,20 +27,17 @@ import pandas as pd
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
-import mlrun.feature_store as fstore
 import mlrun.model_monitoring
 import mlrun.model_monitoring.db._schedules as schedules
 import mlrun.model_monitoring.helpers
 import mlrun.platforms.iguazio
-from mlrun.common.schemas import EndpointType
 from mlrun.common.schemas.model_monitoring.constants import (
     ControllerEvent,
     ControllerEventEndpointPolicy,
-    ControllerEventKind,
 )
 from mlrun.errors import err_to_str
 from mlrun.model_monitoring.helpers import batch_dict2timedelta
-from mlrun.utils import datetime_now, logger
+from mlrun.utils import logger
 
 _SECONDS_IN_DAY = int(datetime.timedelta(days=1).total_seconds())
 _SECONDS_IN_MINUTE = 60
@@ -62,6 +57,7 @@ class _BatchWindow:
         timedelta_seconds: int,
         last_updated: int,
         first_request: int,
+        endpoint_mode: mm_constants.EndpointMode = mm_constants.EndpointMode.REAL_TIME,
     ) -> None:
         """
         Initialize a batch window object that handles the batch interval time range
@@ -74,6 +70,7 @@ class _BatchWindow:
         self._stop = last_updated
         self._step = timedelta_seconds
         self._db = schedules_file
+        self._endpoint_mode = endpoint_mode
         self._start = self._get_last_analyzed()
 
     def _get_saved_last_analyzed(self) -> Optional[int]:
@@ -85,10 +82,20 @@ class _BatchWindow:
         )
 
     def _get_initial_last_analyzed(self) -> int:
+        if self._endpoint_mode == mm_constants.EndpointMode.BATCH:
+            logger.info(
+                "No last analyzed time was found for this endpoint and application, as this is "
+                "probably the first time this application is running. Initializing last analyzed "
+                "to the start of the batch time",
+                application=self._application,
+                start_batch_time=self._first_request,
+            )
+            return self._first_request
         logger.info(
             "No last analyzed time was found for this endpoint and application, as this is "
             "probably the first time this application is running. Initializing last analyzed "
-            "to the latest between first request time or last update time minus one day",
+            "to the latest between first request the latest between first request time or last "
+            "update time minus one day",
             application=self._application,
             first_request=self._first_request,
             last_updated=self._stop,
@@ -103,6 +110,9 @@ class _BatchWindow:
     def _get_last_analyzed(self) -> int:
         saved_last_analyzed = self._get_saved_last_analyzed()
         if saved_last_analyzed is not None:
+            if self._endpoint_mode == mm_constants.EndpointMode.BATCH:
+                # Use the maximum between the saved last analyzed and the start of the batch
+                return max(saved_last_analyzed, self._first_request)
             return saved_last_analyzed
         else:
             last_analyzed = self._get_initial_last_analyzed()
@@ -113,6 +123,7 @@ class _BatchWindow:
     def get_intervals(self) -> Iterator[_Interval]:
         """Generate the batch interval time ranges."""
         entered = False
+        last_analyzed = None
         # Iterate timestamp from start until timestamp <= stop - step
         # so that the last interval will end at (timestamp + step) <= stop.
         # Add 1 to stop - step to get <= and not <.
@@ -132,6 +143,40 @@ class _BatchWindow:
                 "Updated the last analyzed time for this endpoint and application",
                 application=self._application,
                 last_analyzed=last_analyzed,
+            )
+
+        if self._endpoint_mode == mm_constants.EndpointMode.BATCH:
+            # If the endpoint is a batch endpoint, we need to update the last analyzed time
+            # to the end of the batch time.
+            if last_analyzed:
+                if last_analyzed < self._stop:
+                    # If the last analyzed time is earlier than the stop time,
+                    # yield the final partial interval from last_analyzed to stop
+                    yield _Interval(
+                        datetime.datetime.fromtimestamp(
+                            last_analyzed, tz=datetime.timezone.utc
+                        ),
+                        datetime.datetime.fromtimestamp(
+                            self._stop, tz=datetime.timezone.utc
+                        ),
+                    )
+            else:
+                # The time span between the start and end of the batch is shorter than the step,
+                # so we need to yield a partial interval covering that range.
+                yield _Interval(
+                    datetime.datetime.fromtimestamp(
+                        self._start, tz=datetime.timezone.utc
+                    ),
+                    datetime.datetime.fromtimestamp(
+                        self._stop, tz=datetime.timezone.utc
+                    ),
+                )
+
+            self._update_last_analyzed(last_analyzed=self._stop)
+            logger.debug(
+                "Updated the last analyzed time for this endpoint and application to the end of the batch time",
+                application=self._application,
+                last_analyzed=self._stop,
             )
 
         if not entered:
@@ -183,28 +228,25 @@ class _BatchWindowGenerator(AbstractContextManager):
 
     @classmethod
     def _get_last_updated_time(
-        cls, last_request: datetime.datetime, not_batch_endpoint: bool
+        cls,
+        last_request: datetime.datetime,
+        endpoint_mode: mm_constants.EndpointMode,
     ) -> int:
         """
         Get the last updated time of a model endpoint.
         """
-        last_updated = int(
-            last_request.timestamp()
-            - cast(
-                float,
-                mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,
+
+        if endpoint_mode == mm_constants.EndpointMode.REAL_TIME:
+            last_updated = int(
+                last_request.timestamp()
+                - cast(
+                    float,
+                    mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,
+                )
             )
-        )
-        if not not_batch_endpoint:
-            # If the endpoint does not have a stream, `last_updated` should be
-            # the minimum between the current time and the last updated time.
-            # This compensates for the bumping mechanism - see
-            # `update_model_endpoint_last_request`.
-            last_updated = min(int(datetime_now().timestamp()), last_updated)
-            logger.debug(
-                "The endpoint does not have a stream", last_updated=last_updated
-            )
-        return last_updated
+
+            return last_updated
+        return int(last_request.timestamp())
 
     def get_intervals(
         self,
@@ -212,19 +254,21 @@ class _BatchWindowGenerator(AbstractContextManager):
         application: str,
         first_request: datetime.datetime,
         last_request: datetime.datetime,
-        not_batch_endpoint: bool,
+        endpoint_mode: mm_constants.EndpointMode,
     ) -> Iterator[_Interval]:
         """
         Get the batch window for a specific endpoint and application.
         `first_request` and `last_request` are the timestamps of the first request and last
         request to the endpoint, respectively. They are guaranteed to be nonempty at this point.
         """
+
         self.batch_window = _BatchWindow(
             schedules_file=self._schedules_file,
             application=application,
             timedelta_seconds=self._timedelta,
-            last_updated=self._get_last_updated_time(last_request, not_batch_endpoint),
+            last_updated=self._get_last_updated_time(last_request, endpoint_mode),
             first_request=int(first_request.timestamp()),
+            endpoint_mode=endpoint_mode,
         )
         yield from self.batch_window.get_intervals()
 
@@ -246,8 +290,6 @@ class MonitoringApplicationController:
     to manage the main monitoring drift detection process based on the current batch.
     Note that the MonitoringApplicationController object requires access keys along with valid project configurations.
     """
-
-    _MAX_FEATURE_SET_PER_WORKER = 1000
 
     def __init__(self) -> None:
         """Initialize Monitoring Application Controller"""
@@ -282,9 +324,6 @@ class MonitoringApplicationController:
                 mlrun.platforms.iguazio.KafkaOutputStream,
             ],
         ] = {}
-        self.feature_sets: OrderedDict[str, mlrun.feature_store.FeatureSet] = (
-            collections.OrderedDict()
-        )
         self.tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project
         )
@@ -421,7 +460,6 @@ class MonitoringApplicationController:
                 last_request=endpoint.status.last_request,
                 first_request=endpoint.status.first_request,
                 endpoint_type=endpoint.metadata.endpoint_type,
-                feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
             )
         return False
 
@@ -477,24 +515,67 @@ class MonitoringApplicationController:
         try:
             project_name = event[ControllerEvent.PROJECT]
             endpoint_id = event[ControllerEvent.ENDPOINT_ID]
-            endpoint_name = event[ControllerEvent.ENDPOINT_NAME]
-            applications_names = event[ControllerEvent.ENDPOINT_POLICY][
-                ControllerEventEndpointPolicy.MONITORING_APPLICATIONS
-            ]
 
-            not_batch_endpoint = (
-                event[ControllerEvent.ENDPOINT_TYPE] != EndpointType.BATCH_EP
-            )
+            if (
+                event[ControllerEvent.KIND]
+                == mm_constants.ControllerEventKind.BATCH_COMPLETE
+            ):
+                monitoring_functions = (
+                    self.project_obj.list_model_monitoring_functions()
+                )
+                if monitoring_functions:
+                    applications_names = list(
+                        {app.metadata.name for app in monitoring_functions}
+                    )
+                    last_stream_timestamp = datetime.datetime.fromisoformat(
+                        event[ControllerEvent.LAST_TIMESTAMP]
+                    )
+                    first_request = datetime.datetime.fromisoformat(
+                        event[ControllerEvent.FIRST_TIMESTAMP]
+                    )
+                    endpoint_mode = mm_constants.EndpointMode.BATCH
+                    model_endpoint = self.project_obj.list_model_endpoints(
+                        uids=[endpoint_id],
+                        latest_only=True,
+                    ).endpoints
+
+                    if not model_endpoint:
+                        logger.error(
+                            "Batch model endpoint not found",
+                            endpoint_id=endpoint_id,
+                            project=project_name,
+                        )
+                        return
+
+                    endpoint_name = model_endpoint[0].metadata.name
+                    endpoint_updated = model_endpoint[0].metadata.updated.isoformat()
+
+                else:
+                    logger.info("No monitoring functions found", project=self.project)
+                    return
+
+            else:
+                endpoint_name = event[ControllerEvent.ENDPOINT_NAME]
+                applications_names = event[ControllerEvent.ENDPOINT_POLICY][
+                    ControllerEventEndpointPolicy.MONITORING_APPLICATIONS
+                ]
+                last_stream_timestamp = datetime.datetime.fromisoformat(
+                    event[ControllerEvent.TIMESTAMP]
+                )
+                first_request = datetime.datetime.fromisoformat(
+                    event[ControllerEvent.FIRST_REQUEST]
+                )
+
+                endpoint_updated = event[ControllerEvent.ENDPOINT_POLICY][
+                    ControllerEventEndpointPolicy.ENDPOINT_UPDATED
+                ]
+
+                endpoint_mode = mm_constants.EndpointMode.REAL_TIME
 
             logger.info(
-                "Starting analyzing for", timestamp=event[ControllerEvent.TIMESTAMP]
+                "Starting to analyze", timestamp=last_stream_timestamp.isoformat()
             )
-            last_stream_timestamp = datetime.datetime.fromisoformat(
-                event[ControllerEvent.TIMESTAMP]
-            )
-            first_request = datetime.datetime.fromisoformat(
-                event[ControllerEvent.FIRST_REQUEST]
-            )
+
             with _BatchWindowGenerator(
                 project=project_name,
                 endpoint_id=endpoint_id,
@@ -506,42 +587,20 @@ class MonitoringApplicationController:
                         end_infer_time,
                     ) in batch_window_generator.get_intervals(
                         application=application,
-                        not_batch_endpoint=not_batch_endpoint,
                         first_request=first_request,
                         last_request=last_stream_timestamp,
+                        endpoint_mode=endpoint_mode,
                     ):
                         data_in_window = False
-                        if not_batch_endpoint:
-                            # Serving endpoint - get the relevant window data from the TSDB
-                            prediction_metric = self.tsdb_connector.read_predictions(
-                                start=start_infer_time,
-                                end=end_infer_time,
-                                endpoint_id=endpoint_id,
-                            )
-                            if prediction_metric.data:
-                                data_in_window = True
-                        else:
-                            if endpoint_id not in self.feature_sets:
-                                self.feature_sets[endpoint_id] = fstore.get_feature_set(
-                                    event[ControllerEvent.FEATURE_SET_URI]
-                                )
-                            self.feature_sets.move_to_end(endpoint_id, last=False)
-                            if (
-                                len(self.feature_sets)
-                                > self._MAX_FEATURE_SET_PER_WORKER
-                            ):
-                                self.feature_sets.popitem(last=True)
-                            m_fs = self.feature_sets.get(endpoint_id)
+                        # Serving endpoint - get the relevant window data from the TSDB
+                        prediction_metric = self.tsdb_connector.read_predictions(
+                            start=start_infer_time,
+                            end=end_infer_time,
+                            endpoint_id=endpoint_id,
+                        )
+                        if prediction_metric.data:
+                            data_in_window = True
 
-                            # Batch endpoint - get the relevant window data from the parquet target
-                            df = m_fs.to_dataframe(
-                                start_time=start_infer_time,
-                                end_time=end_infer_time,
-                                time_column=mm_constants.EventFieldType.TIMESTAMP,
-                                storage_options=self.storage_options,
-                            )
-                            if len(df) > 0:
-                                data_in_window = True
                         if not data_in_window:
                             logger.info(
                                 "No data found for the given interval",
@@ -564,49 +623,47 @@ class MonitoringApplicationController:
                                 project=project_name,
                                 applications_names=[application],
                                 model_monitoring_access_key=self.model_monitoring_access_key,
-                                endpoint_updated=event[ControllerEvent.ENDPOINT_POLICY][
-                                    ControllerEventEndpointPolicy.ENDPOINT_UPDATED
-                                ],
+                                endpoint_updated=endpoint_updated,
                             )
-                base_period = event[ControllerEvent.ENDPOINT_POLICY][
-                    ControllerEventEndpointPolicy.BASE_PERIOD
-                ]
-                current_time = mlrun.utils.datetime_now()
+
                 if (
-                    self._should_send_nop_event(
+                    event[ControllerEvent.KIND]
+                    == mm_constants.ControllerEventKind.REGULAR_EVENT
+                ):
+                    base_period = event[ControllerEvent.ENDPOINT_POLICY][
+                        ControllerEventEndpointPolicy.BASE_PERIOD
+                    ]
+                    current_time = mlrun.utils.datetime_now()
+                    if self._should_send_nop_event(
                         base_period,
                         batch_window_generator.get_min_last_analyzed(),
                         current_time,
-                    )
-                    and event[ControllerEvent.KIND] != ControllerEventKind.NOP_EVENT
-                ):
-                    event = {
-                        ControllerEvent.KIND: mm_constants.ControllerEventKind.NOP_EVENT,
-                        ControllerEvent.PROJECT: project_name,
-                        ControllerEvent.ENDPOINT_ID: endpoint_id,
-                        ControllerEvent.ENDPOINT_NAME: endpoint_name,
-                        ControllerEvent.TIMESTAMP: current_time.isoformat(
-                            timespec="microseconds"
-                        ),
-                        ControllerEvent.ENDPOINT_POLICY: event[
-                            ControllerEvent.ENDPOINT_POLICY
-                        ],
-                        ControllerEvent.ENDPOINT_TYPE: event[
-                            ControllerEvent.ENDPOINT_TYPE
-                        ],
-                        ControllerEvent.FEATURE_SET_URI: event[
-                            ControllerEvent.FEATURE_SET_URI
-                        ],
-                        ControllerEvent.FIRST_REQUEST: event[
-                            ControllerEvent.FIRST_REQUEST
-                        ],
-                    }
-                    self._push_to_main_stream(
-                        event=event,
-                        endpoint_id=endpoint_id,
-                    )
+                    ):
+                        event = {
+                            ControllerEvent.KIND: mm_constants.ControllerEventKind.NOP_EVENT,
+                            ControllerEvent.PROJECT: project_name,
+                            ControllerEvent.ENDPOINT_ID: endpoint_id,
+                            ControllerEvent.ENDPOINT_NAME: endpoint_name,
+                            ControllerEvent.TIMESTAMP: current_time.isoformat(
+                                timespec="microseconds"
+                            ),
+                            ControllerEvent.ENDPOINT_POLICY: event[
+                                ControllerEvent.ENDPOINT_POLICY
+                            ],
+                            ControllerEvent.ENDPOINT_TYPE: event[
+                                ControllerEvent.ENDPOINT_TYPE
+                            ],
+                            ControllerEvent.FIRST_REQUEST: event[
+                                ControllerEvent.FIRST_REQUEST
+                            ],
+                        }
+                        self._push_to_main_stream(
+                            event=event,
+                            endpoint_id=endpoint_id,
+                        )
             logger.info(
-                "Finish analyze for", timestamp=event[ControllerEvent.TIMESTAMP]
+                "Finish analyze for",
+                timestamp=last_stream_timestamp,
             )
 
         except Exception:
@@ -674,7 +731,9 @@ class MonitoringApplicationController:
         """
         logger.info("Starting monitoring controller chief")
         applications_names = []
-        endpoints = self.project_obj.list_model_endpoints(tsdb_metrics=False).endpoints
+        endpoints = self.project_obj.list_model_endpoints(
+            tsdb_metrics=False, mode=mm_constants.EndpointMode.REAL_TIME
+        ).endpoints
         last_request_dict = self.tsdb_connector.get_last_request(
             endpoint_ids=[mep.metadata.uid for mep in endpoints]
         )
@@ -783,7 +842,6 @@ class MonitoringApplicationController:
                     sep=" ", timespec="microseconds"
                 ),
                 endpoint_type=endpoint.metadata.endpoint_type,
-                feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
                 endpoint_policy=json.dumps(policy),
             )
             policy[ControllerEventEndpointPolicy.ENDPOINT_UPDATED] = (
@@ -801,7 +859,6 @@ class MonitoringApplicationController:
                     sep=" ", timespec="microseconds"
                 ),
                 endpoint_type=endpoint.metadata.endpoint_type.value,
-                feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
                 endpoint_policy=policy,
             )
 
@@ -814,7 +871,6 @@ class MonitoringApplicationController:
         timestamp: str,
         first_request: str,
         endpoint_type: int,
-        feature_set_uri: str,
         endpoint_policy: dict[str, Any],
     ) -> None:
         """
@@ -827,7 +883,6 @@ class MonitoringApplicationController:
         :param endpoint_id: endpoint id string
         :param endpoint_name: the endpoint name string
         :param endpoint_type: Enum of the endpoint type
-        :param feature_set_uri: the feature set uri string
         """
         event = {
             ControllerEvent.KIND.value: kind,
@@ -837,7 +892,6 @@ class MonitoringApplicationController:
             ControllerEvent.TIMESTAMP.value: timestamp,
             ControllerEvent.FIRST_REQUEST.value: first_request,
             ControllerEvent.ENDPOINT_TYPE.value: endpoint_type,
-            ControllerEvent.FEATURE_SET_URI.value: feature_set_uri,
             ControllerEvent.ENDPOINT_POLICY.value: endpoint_policy,
         }
         logger.info(

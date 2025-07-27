@@ -19,7 +19,7 @@ import time
 import typing
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import kafka
@@ -897,8 +897,13 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
-    project_name = "test-mm-record-results"
+class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
+    """
+    Demonstrates running a serving job with model monitoring enabled.  In this test, we deploy a simple serving model
+    and then validate the newly created batch model endpoint along with its application results.
+    """
+
+    project_name = "test-mm-serving-job"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
@@ -932,7 +937,7 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
         # model monitoring infra
         cls.app_interval: int = 1  # every 1 minute
         cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
-        cls.apps_data = [_DefaultDataDriftAppData, cls.app_data]
+        cls.apps_data = [cls.app_data]
 
     def custom_setup(self) -> None:
         self.set_mm_credentials()
@@ -952,6 +957,23 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             cls.x_train,
             cls.y_train,  # pyright: ignore[reportGeneralTypeIssues]
         )
+
+    @staticmethod
+    def _generate_input_df() -> pd.DataFrame:
+        d = {
+            "column_0": {0: 0.1, 1: 1.3, 2: 0.7},
+            "column_1": {0: 0.3, 1: -2.2, 2: -2.0},
+            "column_2": {0: 0.01, 1: 2.3, 2: 1.59},
+            "column_3": {0: -0.38, 1: 1.83, 2: 1.86},
+            "column_4": {0: -0.7, 1: 0.8, 2: 1.27},
+        }
+
+        df = pd.DataFrame(d)
+        input_df = df.set_index(
+            pd.date_range("2025-07-24 05:00:10", freq="40s", periods=len(df))
+        )
+        input_df.reset_index(inplace=True)
+        return input_df
 
     def _log_model(self) -> None:
         self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]
@@ -976,27 +998,111 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
         self.project.deploy_function(fn)
         return fn
 
-    def _record_results(self) -> str:
-        model_endpoint = mlrun.model_monitoring.api.record_results(
-            project=self.project_name,
-            model_path=self.project.get_artifact_uri(  # pyright: ignore[reportOptionalMemberAccess]
-                key=self.model_name, category="model", tag="latest"
-            ),
-            model_endpoint_name=f"{self.name_prefix}-test",
-            function_name=self.function_name,
-            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
-            infer_results_df=self.infer_results_df,
-        )
-
-        return model_endpoint.metadata.uid
-
     def _deploy_monitoring_infra(self) -> None:
         self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
             base_period=self.app_interval,
             **({} if self.image is None else {"image": self.image}),
+            deploy_histogram_data_drift_app=False,
+            wait_for_deployment=True,
         )
 
-    def test_inference_feature_set(self) -> None:
+    def _run_serving_job(self, input_df: pd.DataFrame) -> mlrun.runtimes.BaseRuntime:
+        function = self.project.set_function(
+            func=str(self.assets_path / "function_with_model.py"),
+            name="test",
+            kind="serving",
+            image=self.image,
+        )
+        graph = function.set_topology("flow", engine="async")
+
+        model_runner_step = mlrun.serving.ModelRunnerStep(name="my_model_runner")
+
+        model_runner_step.add_model(
+            endpoint_name="my_model",
+            model_class="DummyModel",
+            execution_mechanism="naive",
+            model_endpoint_creation_strategy=mm_constants.ModelEndpointCreationStrategy.OVERWRITE,
+        )
+
+        graph.to(model_runner_step)
+        function.set_tracking()
+        job = function.to_job()
+
+        input_dataset = self.project.log_dataset("input_dataset", input_df)
+        inputs = {"data": input_dataset.uri}
+        params = {"timestamp_column": "index"}
+        self.project.run_function(job, inputs=inputs, params=params)
+        return function
+
+    def _test_batch_ep_results(
+        self, function_name: str, input_df: pd.DataFrame
+    ) -> None:
+        model_endpoint = mlrun.get_run_db().get_model_endpoint(
+            name="my_model",
+            project=self.project_name,
+            function_name=function_name,
+            function_tag="latest",
+        )
+
+        assert model_endpoint is not None, "Model endpoint was not created"
+
+        self._test_predictions_table(model_endpoint.metadata.uid, should_be_empty=False)
+
+        assert model_endpoint.status.first_request == input_df[
+            "index"
+        ].min().to_pydatetime().replace(tzinfo=timezone.utc)
+        assert model_endpoint.status.last_request == input_df[
+            "index"
+        ].max().to_pydatetime().replace(tzinfo=timezone.utc)
+
+        run_db = mlrun.get_run_db()
+
+        monitoring_results = run_db.get_model_endpoint_monitoring_metrics(
+            project=self.project_name,
+            endpoint_id=model_endpoint.metadata.uid,
+            type="results",
+        )
+
+        assert len(monitoring_results) == 2
+        result_names = [result.full_name for result in monitoring_results]
+
+        self._test_result_values(
+            ep_id=model_endpoint.metadata.uid,
+            results_full_names=result_names,
+            run_db=run_db,
+            start=0,
+            end=datetime.now().timestamp() * 1000,
+        )
+
+    def _test_result_values(
+        self,
+        ep_id: str,
+        results_full_names: list[str],
+        run_db: mlrun.db.httpdb.HTTPRunDB,
+        start: typing.Optional[float],
+        end: typing.Optional[float],
+    ) -> None:
+        base_query = f"?name={'&name='.join(results_full_names)}"
+        query = f"{base_query}&start={start}&end={end}"
+
+        response = run_db.api_call(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path=f"projects/{self.project_name}/model-endpoints/{ep_id}/metrics-values{query}",
+        )
+        response_content = json.loads(response.content.decode())
+        for result_values in response_content:
+            assert result_values[
+                "data"
+            ], f"No data for result {result_values['full_name']}"
+            assert result_values[
+                "values"
+            ], f"The values list is empty for result {result_values['full_name']}"
+
+        first_result = response_content[0]
+        assert first_result["full_name"] in results_full_names
+        assert len(first_result["values"]) == 2
+
+    def test_serving_as_a_job(self) -> None:
         self._log_model()
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -1006,25 +1112,15 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
         fn = monitoring_app.result()
         self._assert_replicas(fn)
 
-        endpoint_id = self._record_results()
-
+        input_df = self._generate_input_df()
+        function = self._run_serving_job(input_df=input_df)
         time.sleep(
-            2 * self.app_interval_seconds
-            + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs + 20
         )
 
-        mep = mlrun.db.get_run_db().get_model_endpoint(
-            name=f"{self.name_prefix}-test",
-            project=self.project.name,
-            endpoint_id=endpoint_id,
-            feature_analysis=True,
-            tsdb_metrics=True,
+        self._test_batch_ep_results(
+            function_name=function.metadata.name, input_df=input_df
         )
-        self._test_v3io_records(
-            mep.metadata.uid,
-            apps_data=self.apps_data,
-        )
-        self._test_predictions_table(mep.metadata.uid, should_be_empty=True)
 
     @staticmethod
     def _assert_replicas(fn):

@@ -992,6 +992,7 @@ class ModelEndpoints:
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
         top_level: typing.Optional[bool] = None,
+        mode: typing.Optional[mlrun.common.schemas.EndpointMode] = None,
         tsdb_metrics: typing.Optional[bool] = None,
         metric_list: Optional[list[str]] = None,
         uids: typing.Optional[list[str]] = None,
@@ -1009,6 +1010,8 @@ class ModelEndpoints:
         :param start:               The start time of the model endpoint creation.
         :param end:                 The end time of the model endpoint creation.
         :param top_level:           When True, only top level model endpoints will be returned.
+        :param mode:                Specifies the mode of the model endpoint. Can be "real-time", "batch", or both
+                                    if set to None.
         :param tsdb_metrics:        When True, the time series metrics will be added to the output of the resulting
         :param metric_list:         List of metrics to include from the time series DB. Defaults to all metrics.
                                     If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
@@ -1034,6 +1037,7 @@ class ModelEndpoints:
             start=start,
             end=end,
             top_level=top_level,
+            mode=mode,
             tsdb_metrics=tsdb_metrics,
             metric_list=metric_list,
             uids=uids,
@@ -1054,6 +1058,7 @@ class ModelEndpoints:
             start=start,
             end=end,
             top_level=top_level,
+            mode=mode,
             uids=uids,
             latest_only=latest_only,
         )

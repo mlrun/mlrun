@@ -270,13 +270,13 @@ class MyModel(Model):
         super().__init__(*args, **kwargs)
         self.inc = inc
 
-    def predict(self, body):
+    def predict(self, body, **kwargs):
         body["n"] += self.inc
         body.pop("models", None)
         return body
 
-    async def predict_async(self, body):
-        return self.predict(body)
+    async def predict_async(self, body, **kwargs):
+        return self.predict(body, **kwargs)
 
 
 def handle_error(event):
@@ -294,17 +294,15 @@ class DictOutputModel(Model):
             elif isinstance(value, list):
                 out_value = []
                 for v in value:
-                    print(f"Processing value: {v}")
                     if isinstance(v, int):
                         out_value.append(v + 1)
                     elif isinstance(v, str):
                         out_value.append(v + "_output")
-                print(f"Processed output values: {out_value}")
                 body["outputs"][key.replace("f", "o")] = out_value
         return body
 
     async def predict_async(self, body, **kwargs):
-        return self.predict(body)
+        return self.predict(body, **kwargs)
 
 
 class StrDictOutputModel(Model):
@@ -1070,7 +1068,7 @@ def test_transpose_by_key_with_str():
     result = MonitoringPreProcessor.transpose_by_key(data)
     expected_result = [[30.0, "Keyboard", 100, 123, "2020-01-01T01:00:00Z"]]
 
-    assert expected_result == result, "Expected result to match the transposed data"
+    assert result == expected_result
 
     data = {
         "Price": [30.0, 6.0],
@@ -1085,4 +1083,4 @@ def test_transpose_by_key_with_str():
         [30.0, "Keyboard", 100, 123, "2020-01-01T01:00:00Z"],
         [6.0, "Mouse", 200, 80, "2020-01-01T02:00:00Z"],
     ]
-    assert expected_result == result, "Expected result to match the transposed data"
+    assert result == expected_result

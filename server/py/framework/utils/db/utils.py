@@ -259,7 +259,7 @@ class DBUtil:
 
 class UtilMySQL(DBUtil):
     _DIALECT = mlrun.common.db.dialects.Dialects.MYSQL
-    _DEFAULT_DB_CONFIGURATIONS = mlrun.mlconf.httpdb.db.mysql.modes
+    _DEFAULT_DB_CONFIGURATIONS = mlrun.mlconf.httpdb.db.mysql.modes.split(",")
 
     def get_current_configurations(self) -> dict[str, bool]:
         connection = self._get_connection()

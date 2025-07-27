@@ -11,77 +11,122 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""Add partition key column for alerts activations partitioning in postgres"""
-
-import logging
-import os
-
-import sqlalchemy
 import sqlalchemy as sa
 from alembic import op
 
-import mlrun.common.db.dialects
-import mlrun.common.schemas.partition
+import mlrun.common.schemas.partition_interval
 
-# revision identifiers, used by Alembic.
+import framework.db.sqldb.sql_types
+
 revision = "c25e56faecce"
 down_revision = "6e8e4df16a4e"
-branch_labels = None
-depends_on = None
 
-logger = logging.getLogger("alembic.runtime.migration")
+TABLE_NAME = "alert_activations"
+_PK_RAW = "pk_alert_activations"
 
 
-def upgrade():
-    # 1) add as NULLable so we can back‑fill
-    op.add_column(
-        "alert_activations",
-        sa.Column("partition_key", sa.Integer(), nullable=True),
+def _fill_partition_keys(
+    connection, interval: mlrun.common.schemas.partition_interval.PartitionInterval
+) -> None:
+    """Populate partition_key for all existing rows."""
+    metadata = sa.MetaData()
+    alert_table = sa.Table(
+        TABLE_NAME,
+        metadata,
+        autoload_with=connection,
     )
 
-    # 2) back‑fill on MySQL only
-    bind = op.get_bind()
-    if bind.dialect.name.startswith(mlrun.common.db.dialects.Dialects.MYSQL):
-        interval = mlrun.common.schemas.partition.PartitionInterval(
-            os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
+    select_stmt = sa.select(alert_table.c.id, alert_table.c.activation_time)
+    for row_id, act_time in connection.execute(select_stmt):
+        connection.execute(
+            alert_table.update()
+            .where(
+                (alert_table.c.id == row_id)
+                & (alert_table.c.activation_time == act_time)
+            )
+            .values(partition_key=interval.get_partition_key_value(act_time))
         )
-        expression = interval.get_partition_expression(
-            column_name="activation_time",
-            dialect=mlrun.common.db.dialects.Dialects.MYSQL,
+
+
+def _swap_pk_mysql(connection):
+    connection.execute(
+        sa.text(
+            f"""
+        ALTER TABLE {TABLE_NAME}
+        DROP PRIMARY KEY,
+        ADD PRIMARY KEY (id, activation_time, partition_key)
+        """
         )
-        table = sqlalchemy.table(
-            "alert_activations",
-            sqlalchemy.column("activation_time", sqlalchemy.DateTime(timezone=True)),
-            sqlalchemy.column("partition_key", sqlalchemy.Integer()),
-        )
-        op.execute(sqlalchemy.update(table).values(partition_key=expression))
+    )
+
+
+def upgrade() -> None:
+    op.create_table(
+        "table_partition_interval",
+        sa.Column(
+            "table_name", framework.db.sqldb.sql_types.Utf8BinText(), nullable=False
+        ),
+        sa.Column(
+            "interval",
+            sa.Enum(
+                "DAY",
+                "MONTH",
+                "YEARWEEK",
+                name="partition_interval",
+                native_enum=False,
+                create_constraint=True,
+            ),
+            nullable=False,
+        ),
+        sa.PrimaryKeyConstraint("table_name"),
+    )
+    engine = op.get_bind()
+    interval = mlrun.common.schemas.partition_interval.PartitionInterval.get_partition_interval_from_env()
+
+    op.add_column(TABLE_NAME, sa.Column("partition_key", sa.Integer(), nullable=True))
+    _fill_partition_keys(engine, interval)
+    op.alter_column(
+        TABLE_NAME, "partition_key", existing_type=sa.Integer(), nullable=False
+    )
+
+    pk_name = op.f("pk_alert_activations")
+
+    if engine.dialect.name == "mysql":
+        # MySQL: one‑shot ALTER avoids auto‑increment error
+        _swap_pk_mysql(engine)
     else:
-        logger.info(
-            "Skipping partition_key back‑fill: dialect '%s' is not MySQL",
-            bind.dialect.name,
+        # Postgres etc. can drop + create in two steps
+        op.drop_constraint(pk_name, TABLE_NAME, type_="primary")
+        op.create_primary_key(
+            pk_name, TABLE_NAME, ["id", "activation_time", "partition_key"]
         )
 
-    # 3) drop old PK and create new composite PK including partition_key
-    op.drop_constraint("_alert_activation_uc", "alert_activations", type_="primary")
-    op.create_primary_key(
-        "_alert_activation_uc",
-        "alert_activations",
-        ["id", "activation_time", "partition_key"],
+
+def _swap_pk_mysql_back(connection):
+    connection.execute(
+        sa.text(
+            f"""
+            ALTER TABLE {TABLE_NAME}
+            DROP PRIMARY KEY,
+            ADD PRIMARY KEY (id, activation_time)
+            """
+        )
     )
 
-    # 4) now make partition_key non‑nullable
-    op.alter_column("alert_activations", "partition_key", nullable=False)
 
+def downgrade() -> None:
+    engine = op.get_bind()
+    pk_name = op.f(_PK_RAW)
 
-def downgrade():
-    # 1) drop the composite PK
-    op.drop_constraint("_alert_activation_uc", "alert_activations", type_="primary")
-    # 2) restore original PK on (id, activation_time)
-    op.create_primary_key(
-        "_alert_activation_uc",
-        "alert_activations",
-        ["id", "activation_time"],
-    )
-    # 3) drop the column
-    op.drop_column("alert_activations", "partition_key")
+    if engine.dialect.name == "mysql":
+        # MySQL must keep the AUTO_INCREMENT column keyed at all times
+        _swap_pk_mysql_back(engine)
+    else:
+        op.drop_constraint(pk_name, TABLE_NAME, type_="primary")
+        op.create_primary_key(pk_name, TABLE_NAME, ["id", "activation_time"])
+
+    # column is no longer part of the PK – safe to remove now
+    op.drop_column(TABLE_NAME, "partition_key")
+
+    # clean up the helper table introduced in upgrade()
+    op.drop_table("table_partition_interval")

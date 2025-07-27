@@ -19,6 +19,7 @@ import shutil
 import sys
 import unittest
 from datetime import datetime
+from datetime import datetime as _orig_datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
@@ -56,18 +57,62 @@ from tests.conftest import logs_path, results, root_path, rundb_path
 session_maker: Callable
 
 
-class FrozenDatetime(datetime):
-    """`datetime` subclass whose `now()` returns a configurable constant."""
+class FrozenDatetime(_orig_datetime):
+    """
+    `datetime` subclass whose .now()/ .utcnow() always return `_frozen_now`.
+    Tests may mutate `FrozenDatetime._frozen_now` on-the-fly.
+    """
 
-    _frozen_now = datetime(1970, 1, 1)
+    _frozen_now: _orig_datetime = _orig_datetime(1970, 1, 1)
 
-    @classmethod  # type: ignore[override]
+    @classmethod
     def now(cls, tz=None):
         return cls._frozen_now.replace(tzinfo=tz)
 
+    @classmethod
+    def utcnow(cls):
+        return cls._frozen_now
 
-def freeze_datetime(target_dt: datetime):
-    """Decorator that temporarily freezes `datetime.now()` to *target_dt*."""
+
+def _patch_everywhere(monkey):
+    """
+    Replace *all* references to the original :class:`datetime.datetime`
+    that are already present in imported modules **and** make sure any
+    future import gets :class:`FrozenDatetime`.
+    """
+    import datetime as _dt_module
+
+    old_datetime_cls = _dt_module.datetime  # ← keep pointer
+
+    if old_datetime_cls is FrozenDatetime:
+        return
+
+    # 1. Patch canonical symbol – affects future imports
+    monkey.setattr(_dt_module, "datetime", FrozenDatetime, raising=True)
+
+    # 2. Sweep every module loaded so far and update stale aliases
+    import sys
+
+    for mod in list(sys.modules.values()):
+        if mod is None:
+            continue
+        for name, val in vars(mod).items():
+            if val is old_datetime_cls:
+                # alias still points at the *old* class → replace
+                monkey.setattr(mod, name, FrozenDatetime, raising=False)
+
+
+def freeze_datetime(target_dt: _orig_datetime):
+    """
+    Decorator that freezes *all* `datetime.now()` / `datetime.utcnow()` calls —
+    whether code did `import datetime` *or* `from datetime import datetime`.
+
+    Usage::
+
+        @freeze_datetime(datetime(2025, 1, 1))
+        def test_something(...):
+            ...
+    """
 
     def decorator(test_func):
         @functools.wraps(test_func)
@@ -75,9 +120,7 @@ def freeze_datetime(target_dt: datetime):
             monkey = pytest.MonkeyPatch()
             try:
                 FrozenDatetime._frozen_now = target_dt
-                monkey.setattr(
-                    "services.api.utils.db.partitioner.datetime", FrozenDatetime
-                )
+                _patch_everywhere(monkey)
                 return test_func(*args, **kwargs)
             finally:
                 monkey.undo()

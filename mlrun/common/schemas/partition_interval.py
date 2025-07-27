@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import math
+import os
 from datetime import datetime, timedelta
 
 import mlrun.common.db.dialects
@@ -48,55 +49,43 @@ class PartitionInterval(mlrun.common.types.StrEnum):
         else:
             raise ValueError(f"Unsupported PartitionInterval: {self}")
 
-    @classmethod
-    def from_expression(cls, partition_expression: str):
-        """
-        Returns the corresponding PartitionInterval for a given partition expression,
-        or None if the function is not mapped.
-
-        :param partition_expression: The partition expression to map to an interval.
-        :return: PartitionInterval corresponding to the expression, or `month` if no match is found.
-        """
-
-        # Match the provided function string to the correct interval
-        partition_expression = partition_expression.upper()
-        if "YEARWEEK" in partition_expression:
-            return cls.YEARWEEK
-        elif "DAYOFMONTH" in partition_expression:
-            return cls.DAY
-        else:
-            return cls.MONTH
-
-    def get_partition_info(
+    def get_partition_names_and_boundaries(
         self,
         start_datetime: datetime,
-        partition_number: int = 1,
-    ) -> list[tuple[str, str]]:
+        partitions_count: int = 1,
+    ) -> list[tuple[str, int]]:
         """
-        Generates partition details for a specified number of partitions starting from a given datetime.
+        Returns a list of partition details for a specified number of partitions starting from a given datetime.
 
         :param start_datetime: The starting datetime used for generating partition details.
-        :param partition_number: The number of partitions to generate details for.
+        :param partitions_count: The number of partitions to generate details for.
 
         :return: A list of tuples:
             - partition_name: The name for the partition.
             - partition_value: The "LESS THAN" value for the next partition boundary.
         """
-        partitioning_information_list = []
         current_datetime = start_datetime
-
-        for _ in range(partition_number):
-            partition_name = f"p{self.get_partition_name(current_datetime)}"
-            partition_boundary_date = self.get_next_partition_time(current_datetime)
-            partition_value = self.get_partition_name(partition_boundary_date)
-            partitioning_information_list.append((partition_name, partition_value))
+        partition_names_and_values = []
+        for _ in range(partitions_count):
+            partition_name = self.get_partition_name(
+                current_datetime=current_datetime,
+            )
+            next_partition_boundary_date = self.get_next_partition_time(
+                current_datetime=current_datetime,
+            )
+            next_partition_value = self.get_partition_key_value(
+                current_datetime=next_partition_boundary_date,
+            )
+            partition_names_and_values.append((partition_name, next_partition_value))
 
             # Move to the next interval
-            current_datetime = partition_boundary_date
+            current_datetime = next_partition_boundary_date
+        return partition_names_and_values
 
-        return partitioning_information_list
-
-    def get_next_partition_time(self, current_datetime: datetime) -> datetime:
+    def get_next_partition_time(
+        self,
+        current_datetime: datetime,
+    ) -> datetime:
         """
         Calculates the next partition boundary time based on the specified partition interval.
         :param current_datetime: The current datetime from which the next interval is calculated.
@@ -115,16 +104,25 @@ class PartitionInterval(mlrun.common.types.StrEnum):
         else:
             raise ValueError(f"Unsupported PartitionInterval: {self}")
 
-    def get_partition_name(self, current_datetime: datetime) -> str:
+    def get_partition_key_value(
+        self,
+        current_datetime: datetime,
+    ) -> int:
         if self == PartitionInterval.DAY:
-            return current_datetime.strftime("%Y%m%d")
+            return int(current_datetime.strftime("%Y%m%d"))
         elif self == PartitionInterval.MONTH:
-            return current_datetime.strftime("%Y%m")
+            return int(current_datetime.strftime("%Y%m"))
         elif self == PartitionInterval.YEARWEEK:
             year, week, _ = current_datetime.isocalendar()
-            return f"{year}{week:02d}"
+            return int(f"{year}{week:02d}")
         else:
             raise ValueError(f"Unsupported PartitionInterval: {self}")
+
+    def get_partition_name(
+        self,
+        current_datetime: datetime,
+    ) -> str:
+        return f"p{self.get_partition_key_value(current_datetime)}"
 
     def get_partition_expression(
         self,
@@ -134,7 +132,7 @@ class PartitionInterval(mlrun.common.types.StrEnum):
         """
         Convert *column_name* to an integer key that works for RANGE partitioning.
 
-        Supported dialects: "postgresql", "mysql".
+        Only used for legacy MySQL dialects migrations.
         """
 
         if dialect.startswith(mlrun.common.db.dialects.Dialects.MYSQL):
@@ -164,8 +162,20 @@ class PartitionInterval(mlrun.common.types.StrEnum):
             return days
         elif self == PartitionInterval.MONTH:
             # Average number days in a month is 30.44
-            return int(days / 30.44)
+            return math.ceil(days / 30.44)
         elif self == PartitionInterval.YEARWEEK:
-            return int(days / 7)
+            return math.ceil(days / 7)
         else:
             raise ValueError(f"Unsupported PartitionInterval: {self}")
+
+    @classmethod
+    def get_partition_interval_from_env(cls) -> "PartitionInterval":
+        """
+        Parse PARTITION_INTERVAL once, validate, then cache.
+        """
+        name = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
+        if not PartitionInterval.is_valid(name):
+            raise ValueError(
+                f"PARTITION_INTERVAL must be one of {PartitionInterval.valid_intervals()}, got {name}"
+            )
+        return PartitionInterval(name)

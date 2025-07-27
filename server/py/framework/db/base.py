@@ -17,6 +17,7 @@ import typing
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
+import sqlalchemy
 from deprecated import deprecated
 from sqlalchemy.orm import Session
 
@@ -27,7 +28,8 @@ import mlrun.common.types
 import mlrun.lists
 import mlrun.model
 
-import framework.db.sqldb.models
+if typing.TYPE_CHECKING:
+    import framework.db.sqldb.models
 
 
 class DBError(Exception):
@@ -956,7 +958,7 @@ class DBInterface(ABC):
         self,
         session,
         alert: mlrun.common.schemas.AlertConfig,
-        state: Optional[framework.db.sqldb.models.AlertState] = None,
+        state: Optional["framework.db.sqldb.models.AlertState"] = None,
     ):
         pass
 
@@ -974,13 +976,6 @@ class DBInterface(ABC):
         table_name: str,
         cutoff_partition_name: str,
     ):
-        pass
-
-    @staticmethod
-    def get_partition_expression_for_table(
-        session,
-        table_name: str,
-    ) -> str:
         pass
 
     @staticmethod
@@ -1358,7 +1353,7 @@ class DBInterface(ABC):
         as_dict: bool = False,
     ) -> Union[
         mlrun.common.schemas.ModelEndpointList,
-        dict[str, framework.db.sqldb.models.ModelEndpoint],
+        dict[str, "framework.db.sqldb.models.ModelEndpoint"],
     ]:
         """
         List model endpoints by project and optional filters.
@@ -1438,4 +1433,19 @@ class DBInterface(ABC):
         """
         Cleanup old background tasks that are older than the specified age.
         """
+        pass
+
+    def get_partition_interval_for_table(
+        self,
+        session: sqlalchemy.orm.Session,
+        table_name: str,
+    ) -> Optional[mlrun.common.schemas.partition_interval.PartitionInterval]:
+        pass
+
+    def set_partition_interval_for_table(
+        self,
+        session: sqlalchemy.orm.Session,
+        table_name: str,
+        partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
+    ) -> None:
         pass

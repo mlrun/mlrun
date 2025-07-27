@@ -11,52 +11,50 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import math
 from datetime import UTC, datetime, timedelta
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
 import mlrun
-from mlrun.common.schemas import PartitionInterval
+import mlrun.common.schemas
+import mlrun.common.schemas.partition_interval
 
 import framework.db.sqldb.db
+import framework.db.sqldb.partition_bootstrapper
 import framework.utils.singletons.db
-from framework.db.sqldb.partititioner import RangePartitioner
 
 
 class DBPartitioner:
-    """
-    Manages creation and dropping of range partitions based on retention policy.
-    """
-
-    def __init__(
-        self,
-        buffer_multiplier_override: Optional[float] = None,
-    ):
+    def __init__(self, buffer_multiplier_override: Optional[float] = None):
         self._buffer_multiplier = (
-            buffer_multiplier_override or mlrun.mlconf.partitions_buffer_multiplier
+            mlrun.mlconf.partitions_buffer_multiplier
+            if buffer_multiplier_override is None
+            else float(buffer_multiplier_override)
         )
+        self._db = framework.utils.singletons.db.get_db()
 
-    def create_partitions(
+    def create_new_partitions(
         self,
         session: Session,
         table_name: str,
-        retention_days: int,
-        partition_interval: PartitionInterval,
+        partitions_to_create: int,
+        partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
     ) -> None:
-        # compute total partitions needed (retention + buffer)
-        total_days = (
-            retention_days
-            + self._buffer_multiplier * partition_interval.as_duration().days
-        )
-        partition_count = partition_interval.get_number_of_partitions(
-            days=int(total_days)
+        partitions_count = max(
+            1, math.ceil(partitions_to_create * (1 + self._buffer_multiplier))
         )
 
-        # create or extend partitions
-        partitioner = RangePartitioner(session.get_bind().dialect.name)
-        partitioner.apply_partitions(session, table_name, partition_count)
+        partitioner = framework.db.sqldb.partition_bootstrapper.PartitionBootstrapper(
+            session.get_bind().dialect.name
+        )
+        partitioner.bootstrap(
+            session=session,
+            table_name=table_name,
+            partition_interval=partition_interval,
+            partitions_count=partitions_count,
+        )
         session.flush()
 
     def create_and_drop_partitions(
@@ -64,6 +62,7 @@ class DBPartitioner:
         session: Session,
         table_name: str,
         retention_days: int,
+        partitions_to_create: int = 1,
     ) -> None:
         """
         Ensure future partitions for retention + buffer, and drop expired ones.
@@ -71,18 +70,23 @@ class DBPartitioner:
         :param session: SQLAlchemy session for database operations.
         :param table_name: Name of the table to manage partitions for.
         :param retention_days: Number of days to retain partitions.
+        :param partitions_to_create: Number of partitions to create, defaults to 1.
         """
         # determine the existing partition interval
-        partition_interval = self.get_partition_interval(session, table_name)
+        partition_interval = self.get_partition_interval(
+            session=session,
+            table_name=table_name,
+        )
 
-        self.create_partitions(
+        self.create_new_partitions(
             session=session,
             table_name=table_name,
             partition_interval=partition_interval,
+            partitions_to_create=partitions_to_create,
         )
 
         # drop partitions older than retention
-        self.drop_partitions(
+        self.drop_old_partitions(
             session=session,
             table_name=table_name,
             partition_interval=partition_interval,
@@ -91,37 +95,25 @@ class DBPartitioner:
         session.flush()
 
     def get_partition_interval(
-        self,
-        session: Session,
-        table_name: str,
-    ) -> PartitionInterval:
-        db_client = framework.utils.singletons.db.get_db()
-        partition_expr = db_client.get_partition_expression_for_table(
-            session=session,
-            table_name=table_name,
-        )
-        if not partition_expr:
-            if db_client.table_exists(session=session, table_name=table_name):
-                reason = "Table is not partitioned"
-            else:
-                reason = "Table does not exist"
-            raise ValueError(
-                f"Cannot determine partition interval for '{table_name}': {reason}"
-            )
-        return PartitionInterval.from_expression(partition_expr)
+        self, session: Session, table_name: str
+    ) -> mlrun.common.schemas.partition_interval.PartitionInterval:
+        """
+        Return the interval recorded for *table_name*.
+        Raises MLRunNotFoundError if the record is missing.
+        """
+        return self._db.get_partition_interval_for_table(session, table_name)
 
-    def drop_partitions(
+    def drop_old_partitions(
         self,
         session: Session,
         table_name: str,
-        partition_interval: PartitionInterval,
+        partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
         retention_days: int,
     ) -> None:
         db_client = framework.utils.singletons.db.get_db()
         cutoff_date = datetime.now(UTC) - timedelta(days=retention_days)
-        cutoff_partition_name = f"p{partition_interval.get_partition_name(cutoff_date)}"
         db_client.drop_partitions(
             session=session,
             table_name=table_name,
-            cutoff_partition_name=cutoff_partition_name,
+            cutoff_partition_name=partition_interval.get_partition_name(cutoff_date),
         )

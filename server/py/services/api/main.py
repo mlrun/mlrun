@@ -587,8 +587,7 @@ class Service(framework.service.Service):
             )
 
     def _start_periodic_partition_management(self):
-        # skip on SQLite
-        if mlconf.httpdb.dsn.startswith(Dialects.SQLITE.value):
+        if mlconf.httpdb.dsn.startswith(Dialects.SQLITE):
             self._logger.debug("Partition management not supported for SQLite")
             return
 
@@ -608,9 +607,9 @@ class Service(framework.service.Service):
             )
             run_function_periodically(
                 interval_in_seconds,
-                f"{self._manage_partitions.__name__}_{table_name}",
+                f"{self._create_new_and_drop_expired_partitions.__name__}_{table_name}",
                 replace=False,
-                function=self._manage_partitions,
+                function=self._create_new_and_drop_expired_partitions,
                 table_name=table_name,
                 retention_days=retention_days,
             )
@@ -660,7 +659,10 @@ class Service(framework.service.Service):
             )
 
     @staticmethod
-    async def _manage_partitions(table_name, retention_days):
+    async def _create_new_and_drop_expired_partitions(
+        table_name: str,
+        retention_days: int,
+    ):
         await fastapi.concurrency.run_in_threadpool(
             framework.db.session.run_function_with_new_db_session,
             services.api.utils.db.partitioner.DBPartitioner().create_and_drop_partitions,

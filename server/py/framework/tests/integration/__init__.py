@@ -11,21 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import logging
-
-import pytest
-import sqlalchemy.orm
-
-
-def pytest_configure(config):
-    logging.getLogger("faker.factory").setLevel(logging.WARNING)
-
-
-@pytest.fixture
-def alembic_session(alembic_engine):
-    session_class = sqlalchemy.orm.sessionmaker(bind=alembic_engine)
-    session = session_class()
-    try:
-        yield session
-    finally:
-        session.close()

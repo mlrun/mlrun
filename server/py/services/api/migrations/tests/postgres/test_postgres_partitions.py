@@ -14,91 +14,111 @@
 from datetime import datetime
 
 import pytest
-from sqlalchemy import text
-from sqlalchemy.orm import sessionmaker
+import sqlalchemy
+import sqlalchemy.orm
 
-import mlrun.common.schemas
+import mlrun.common.schemas.partition_interval
+import tests.common_fixtures
 
-import framework.db.sqldb.db
+import framework.db.sqldb.db as sqldb
+import framework.db.sqldb.partition_bootstrapper
+import services.api.utils.db.partitioner
 
-pytest.importorskip(
-    "psycopg2",
-    reason="psycopg2 not installed",
-)
+pytest.importorskip("psycopg2", reason="psycopg2 not installed")
 
 
 @pytest.mark.integration
 @pytest.mark.usefixtures("pmr_postgres_container")
-def test_create_partitions_postgres(alembic_engine):
-    session = sessionmaker(bind=alembic_engine)()
+@tests.common_fixtures.freeze_datetime(datetime(2025, 1, 1))
+def test_create_partitions_postgres(
+    postgres_db_session: sqlalchemy.orm.session.Session,
+):
     table = "dyn_table"
 
-    session.execute(
-        text(f"""
-        CREATE TABLE {table} (
-            id   INTEGER NOT NULL,
-            data TEXT
-        ) PARTITION BY RANGE (id);
-
-        CREATE TABLE p0 PARTITION OF {table}
-        FOR VALUES FROM (MINVALUE) TO (1);
-        """)
+    # base table – no partitions yet
+    postgres_db_session.execute(
+        sqlalchemy.text(
+            f"""
+            CREATE TABLE {table} (
+                id            INTEGER NOT NULL,
+                partition_key INTEGER NOT NULL,
+                data          TEXT,
+                PRIMARY KEY (id, partition_key)
+            ) PARTITION BY RANGE (partition_key);
+            """
+        )
     )
 
-    start = datetime(2025, 1, 1)
-    parts = mlrun.common.schemas.PartitionInterval.DAY.get_partition_info(
-        start, partition_number=2
+    # bootstrap two daily partitions starting at frozen 2025‑01‑01
+    framework.db.sqldb.partition_bootstrapper.PartitionBootstrapper(
+        postgres_db_session.get_bind().dialect.name
+    ).bootstrap(
+        session=postgres_db_session,
+        table_name=table,
+        partition_interval=mlrun.common.schemas.partition_interval.PartitionInterval.DAY,
+        partitions_count=2,
     )
-    framework.db.sqldb.db.PostgreSQLDB.create_partitions(session, table, parts)
 
+    expected = {
+        n
+        for n, _ in mlrun.common.schemas.partition_interval.PartitionInterval.DAY.get_partition_names_and_boundaries(
+            start_datetime=datetime(2025, 1, 1), partitions_count=2
+        )
+    }
     attached = set(
-        framework.db.sqldb.db.PostgreSQLDB._get_partition_metadata(
-            session, table
-        ).keys()
+        sqldb.PostgreSQLDB._get_partition_metadata(postgres_db_session, table).keys()
     )
-    expected = {name for name, _ in parts}.union({"p0"})
     assert attached == expected
-    session.close()
+    postgres_db_session.close()
 
 
 @pytest.mark.integration
 @pytest.mark.usefixtures("pmr_postgres_container")
-def test_drop_partitions_postgres(alembic_engine):
-    session = sessionmaker(bind=alembic_engine)()
+@tests.common_fixtures.freeze_datetime(datetime(2025, 1, 6))
+def test_drop_partitions_postgres(postgres_db_session):
     table = "dyn_table_drop"
 
-    # 1) base table + seed p0
-    session.execute(
-        text(f"""
-        CREATE TABLE {table} (
-            id   INTEGER NOT NULL,
-            data TEXT
-        ) PARTITION BY RANGE (id);
-
-        CREATE TABLE p0 PARTITION OF {table}
-        FOR VALUES FROM (MINVALUE) TO (1);
-        """)
+    # base table – no partitions yet
+    postgres_db_session.execute(
+        sqlalchemy.text(
+            f"""
+            CREATE TABLE {table} (
+                id            INTEGER NOT NULL,
+                partition_key INTEGER NOT NULL,
+                data          TEXT,
+                PRIMARY KEY (id, partition_key)
+            ) PARTITION BY RANGE (partition_key);
+            """
+        )
     )
 
-    start = datetime(2025, 1, 6)
-    parts = mlrun.common.schemas.PartitionInterval.YEARWEEK.get_partition_info(
-        start, partition_number=3
+    # 1. bootstrap two daily partitions for 2025‑01‑06 and 07
+    framework.db.sqldb.partition_bootstrapper.PartitionBootstrapper(
+        postgres_db_session.get_bind().dialect.name
+    ).bootstrap(
+        session=postgres_db_session,
+        table_name=table,
+        partition_interval=mlrun.common.schemas.partition_interval.PartitionInterval.DAY,
+        partitions_count=2,
     )
-    framework.db.sqldb.db.PostgreSQLDB.create_partitions(session, table, parts)
-
-    cutoff = parts[1][0]
-    framework.db.sqldb.db.PostgreSQLDB.drop_partitions(
-        session, table, cutoff_partition_name=cutoff
+    parts = mlrun.common.schemas.partition_interval.PartitionInterval.DAY.get_partition_names_and_boundaries(
+        start_datetime=datetime(2025, 1, 6), partitions_count=2
     )
 
+    # 2. advance clock by two days and drop anything older than 1 day
+    tests.common_fixtures.FrozenDatetime._frozen_now = datetime(2025, 1, 8)
+    services.api.utils.db.partitioner.DBPartitioner().drop_old_partitions(
+        session=postgres_db_session,
+        table_name=table,
+        partition_interval=mlrun.common.schemas.partition_interval.PartitionInterval.DAY,
+        retention_days=1,
+    )
+
+    cutoff_name = parts[1][0]  # should remain
     remaining = set(
-        framework.db.sqldb.db.PostgreSQLDB._get_partition_metadata(
-            session, table
-        ).keys()
+        sqldb.PostgreSQLDB._get_partition_metadata(postgres_db_session, table).keys()
     )
 
-    assert parts[0][0] not in remaining  # oldest gone
-    assert cutoff in remaining  # cutoff kept
-    newer = {name for name, _ in parts[2:]}  # newest kept
-    assert newer <= remaining
-    session.close()
+    assert parts[0][0] not in remaining  # oldest dropped
+    assert cutoff_name in remaining  # cutoff kept
+    postgres_db_session.close()

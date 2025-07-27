@@ -11,34 +11,38 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import os
+import abc
 from datetime import UTC, datetime
 
 import sqlalchemy
 import sqlalchemy.orm
 import sqlalchemy.sql.compiler
 
+import mlrun
 import mlrun.common.db.dialects
-import mlrun.common.schemas.partition
+import mlrun.common.schemas.partition_interval
+import mlrun.utils
 
 
-class RangePartitioner:
+class PartitionBootstrapper:
     def __new__(cls, dialect: str):
         if dialect.startswith(mlrun.common.db.dialects.Dialects.MYSQL):
-            return super().__new__(RangePartitionerMySQL)
-        if dialect.startswith(mlrun.common.db.dialects.Dialects.POSTGRESQL):
-            return super().__new__(RangePartitionerPostgres)
+            return super().__new__(PartitionBootstrapperMySQL)
+        elif dialect.startswith(mlrun.common.db.dialects.Dialects.POSTGRESQL):
+            return super().__new__(PartitionBootstrapperPostgres)
+        elif dialect.startswith(mlrun.common.db.dialects.Dialects.SQLITE):
+            return super().__new__(PartitionBootstrapperSqlite)
         raise ValueError(f"Unsupported dialect: {dialect}")
 
+    @abc.abstractmethod
     def bootstrap(
         self,
         session: sqlalchemy.orm.Session,
         table_name: str,
-        first_partition_name: str,
-        first_partition_upper_bound: str,
+        partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
+        partitions_count: int,
     ):
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def get_quoted_partitioned_table_params(
         self,
@@ -53,14 +57,14 @@ class RangePartitioner:
         quoted_partition = preparer.quote(partition_name)
         return quoted_partition, quoted_table
 
-    def _compute_partitions(self, num_partitions: int = 2) -> list[tuple[str, str]]:
-        interval_key = os.getenv(
-            "PARTITION_INTERVAL",
-            mlrun.common.schemas.partition.PartitionInterval.YEARWEEK.value,
-        ).upper()
-        interval = mlrun.common.schemas.partition.PartitionInterval(interval_key)
-        return interval.get_partition_info(
-            datetime.now(UTC), partition_number=num_partitions
+    def _get_partition_names_and_boundaries(
+        self,
+        partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
+        partitions_count: int,
+    ) -> list[tuple[str, int]]:
+        return partition_interval.get_partition_names_and_boundaries(
+            start_datetime=datetime.now(UTC),
+            partitions_count=partitions_count,
         )
 
     def _quote_table_name(
@@ -77,16 +81,25 @@ class RangePartitioner:
         return quoted_table
 
 
-class RangePartitionerMySQL(RangePartitioner):
+class PartitionBootstrapperMySQL(PartitionBootstrapper):
     def bootstrap(
         self,
         session: sqlalchemy.orm.Session,
         table_name: str,
-        first_partition_name: str,
-        first_partition_upper_bound: str,
+        partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
+        partitions_count: int,
     ):
-        # prepare current and next partition definitions
-        partition_list = self._compute_partitions(num_partitions=2)
+        partition_list = self._get_partition_names_and_boundaries(
+            partitions_count=partitions_count,
+            partition_interval=partition_interval,
+        )
+        if not partition_list:
+            mlrun.utils.logger.warning(
+                "No partitions to create for table",
+                table_name=table_name,
+            )
+            return
+
         quoted_table = self._quote_table_name(session, table_name, partition_list[0][0])
 
         partition_clauses = []
@@ -105,22 +118,46 @@ class RangePartitionerMySQL(RangePartitioner):
             PARTITION BY RANGE (partition_key) (
                 {join_str.join(partition_clauses)}
             )
-            """
+        """
+        mlrun.utils.logger.info(
+            "Creating partitions",
+            partitions_count=len(partition_list),
+            table_name=table_name,
+        )
         session.execute(sqlalchemy.text(ddl))
         session.commit()
 
 
-class RangePartitionerPostgres(RangePartitioner):
+class PartitionBootstrapperPostgres(PartitionBootstrapper):
     def bootstrap(
         self,
         session: sqlalchemy.orm.Session,
         table_name: str,
-        first_partition_name: str,
-        first_partition_upper_bound: str,
+        partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
+        partitions_count: int,
     ):
-        # prepare current and next partition definitions
-        partition_list = self._compute_partitions(num_partitions=2)
-        quoted_table = self._quote_table_name(session, table_name, partition_list[0][0])
+        partition_list = self._get_partition_names_and_boundaries(
+            partition_interval=partition_interval,
+            partitions_count=partitions_count,
+        )
+        if not partition_list:
+            mlrun.utils.logger.warning(
+                "No partitions to create for table",
+                table_name=table_name,
+            )
+            return
+
+        quoted_table = self._quote_table_name(
+            session=session,
+            table_name=table_name,
+            sample_partition=partition_list[0][0],
+        )
+
+        mlrun.utils.logger.info(
+            "Creating partitions",
+            partitions_count=len(partition_list),
+            table_name=table_name,
+        )
 
         for index, (partition_name, boundary_value) in enumerate(partition_list):
             quoted_partition, _ = self.get_quoted_partitioned_table_params(
@@ -139,3 +176,16 @@ class RangePartitionerPostgres(RangePartitioner):
             """
             session.execute(sqlalchemy.text(ddl))
         session.commit()
+
+
+class PartitionBootstrapperSqlite(PartitionBootstrapper):
+    def bootstrap(
+        self,
+        session: sqlalchemy.orm.Session,
+        table_name: str,
+        partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
+        partitions_count: int,
+    ):
+        mlrun.utils.logger.info(
+            "SQLite does not support partitioning natively, skipping bootstrap."
+        )

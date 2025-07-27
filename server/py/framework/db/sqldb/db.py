@@ -60,6 +60,7 @@ import mlrun.common.formatters
 import mlrun.common.model_monitoring
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.schemas.partition_interval
 import mlrun.common.types
 import mlrun.errors
 import mlrun.k8s_utils
@@ -6803,24 +6804,6 @@ class SQLDB(DBInterface):
 
     @staticmethod
     @abc.abstractmethod
-    def get_partition_expression_for_table(
-        session: Session,
-        table_name: str,
-    ) -> str:
-        """
-        Returns partitioning expression for a given table
-        :param session: SQLAlchemy session.
-        :param table_name: Name of the table.
-
-        Output examples:
-        - month(`activation_time`)
-        - dayofmonth(`activation_time`)
-        - yearweek(`activation_time`, 1)
-        """
-        pass
-
-    @staticmethod
-    @abc.abstractmethod
     def table_exists(
         session: Session,
         table_name: str,
@@ -8347,6 +8330,49 @@ class SQLDB(DBInterface):
         self._commit(session, db_object)
         session.flush()
 
+    def get_partition_interval_for_table(
+        self,
+        session: sqlalchemy.orm.Session,
+        table_name: str,
+    ) -> Optional[mlrun.common.schemas.partition_interval.PartitionInterval]:
+        table_partition_interval = (
+            session.query(framework.db.sqldb.models.TablePartitionInterval)
+            .filter(
+                framework.db.sqldb.models.TablePartitionInterval.table_name
+                == table_name,
+            )
+            .one_or_none()
+        )
+        if table_partition_interval is not None:
+            return table_partition_interval.interval
+        return None
+
+    def set_partition_interval_for_table(
+        self,
+        session: sqlalchemy.orm.Session,
+        table_name: str,
+        partition_interval: mlrun.common.schemas.partition_interval.PartitionInterval,
+    ) -> None:
+        existing_table_partition_interval = self.get_partition_interval_for_table(
+            session=session,
+            table_name=table_name,
+        )
+        if (
+            existing_table_partition_interval is not None
+            and existing_table_partition_interval != partition_interval
+        ):
+            raise mlrun.MLRunInvalidArgumentError(
+                f"Mismatch: table {table_name} is partitioned by {partition_interval} "
+                f"but PARTITION_INTERVAL is {partition_interval}"
+            )
+        session.add(
+            framework.db.sqldb.models.TablePartitionInterval(
+                table_name=table_name,
+                interval=partition_interval,
+            ),
+        )
+        session.commit()
+
     def _ensure_datetime_obj(self, date: typing.Union[str, datetime]) -> datetime:
         """
         Ensure the input date is a datetime object. If it's a string, try to parse it as ISO 8601.
@@ -8383,16 +8409,6 @@ class SQLiteDB(SQLDB):
         logger.debug(
             "SQLite does not support partitioning natively, skipping partition drop",
         )
-
-    @staticmethod
-    def get_partition_expression_for_table(
-        session: Session,
-        table_name: str,
-    ) -> str:
-        logger.debug(
-            "SQLite does not support partitioning natively, skipping partition expression",
-        )
-        return ""
 
     @staticmethod
     def table_exists(
@@ -8468,6 +8484,7 @@ class MySQLDB(SQLDB):
         session.execute(
             text(f"ALTER TABLE {quoted_table} ADD PARTITION ({alter_clause})")
         )
+        session.commit()
 
     @staticmethod
     def drop_partitions(
@@ -8501,26 +8518,7 @@ class MySQLDB(SQLDB):
             parts=parts,
         )
         session.execute(text(f"ALTER TABLE {safe_table} DROP PARTITION {parts}"))
-
-    @staticmethod
-    def get_partition_expression_for_table(
-        session: Session,
-        table_name: str,
-    ) -> str:
-        """
-        Returns partitioning expression for a given table.
-
-        :param session: SQLAlchemy session.
-        :param table_name: Name of the table.
-        """
-        return session.execute(
-            text("""
-                SELECT PARTITION_EXPRESSION
-                FROM information_schema.PARTITIONS
-                WHERE TABLE_NAME = :table_name
-            """),
-            {"table_name": table_name},
-        ).scalar()
+        session.commit()
 
     @staticmethod
     def table_exists(
@@ -8538,6 +8536,7 @@ class MySQLDB(SQLDB):
                 SELECT COUNT(*)
                 FROM information_schema.tables
                 WHERE TABLE_NAME = :table_name
+                AND TABLE_SCHEMA = DATABASE()
             """),
             {
                 "table_name": table_name,
@@ -8593,6 +8592,7 @@ class MySQLDB(SQLDB):
                 WHERE TABLE_SCHEMA = DATABASE()
                   AND TABLE_NAME = :table_name
                   AND PARTITION_NAME IS NOT NULL
+                ORDER BY PARTITION_DESCRIPTION
                 """
             ),
             {"table_name": table_name},
@@ -8702,31 +8702,6 @@ class PostgreSQLDB(SQLDB):
             session.execute(text(f"DROP TABLE IF EXISTS {q_part}"))
 
         session.commit()
-
-    @staticmethod
-    def get_partition_expression_for_table(
-        session: Session,
-        table_name: str,
-    ) -> str:
-        """
-        Returns partitioning expression for a given table.
-
-        :param session: SQLAlchemy session.
-        :param table_name: Name of the table.
-        """
-        return session.execute(
-            text("""
-                SELECT pg_get_expr(pt.partbound, pt.partrelid) AS partition_expression
-                FROM pg_partitioned_table AS pt
-                JOIN pg_class      AS pc ON pt.partrelid   = pc.oid
-                JOIN pg_namespace  AS pn ON pc.relnamespace = pn.oid
-                WHERE pn.nspname = current_schema()
-                  AND pc.relname = :table_name
-            """),
-            {
-                "table_name": table_name,
-            },
-        ).scalar()
 
     @staticmethod
     def table_exists(

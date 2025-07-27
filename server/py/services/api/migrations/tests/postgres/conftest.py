@@ -14,58 +14,29 @@
 import os
 
 import pytest
-import pytest_mock_resources
-import sqlalchemy
+import sqlalchemy.orm
 
 import mlrun
 
 import framework.utils.db.utils
 import framework.utils.singletons.db
 
-pytest.importorskip(
-    "psycopg2",
-    reason="psycopg2 not installed",
-)
-postgres_engine = pytest_mock_resources.create_postgres_fixture()
 
-
-@pytest.fixture
-def alembic_engine(
-    postgres_engine: sqlalchemy.engine.Engine,
+@pytest.fixture(scope="session")
+def alembic_session(
+    _postgres_engine: sqlalchemy.engine.Engine,
 ) -> sqlalchemy.engine.Engine:
-    os.environ["MLRUN_HTTPDB__DSN"] = postgres_engine.url.render_as_string(
+    os.environ["MLRUN_HTTPDB__DSN"] = _postgres_engine.url.render_as_string(
         hide_password=False,
     )
     mlrun.mlconf.reload()
     framework.utils.singletons.db.initialize_db()
-    return postgres_engine.execution_options(isolation_level="AUTOCOMMIT")
+    return _postgres_engine.execution_options(isolation_level="AUTOCOMMIT")
 
 
-@pytest.fixture
-def pmr_postgres_config():
-    return pytest_mock_resources.PostgresConfig(
-        image="postgres:17",
-        port=5432,
-        username="root",
-        password="pass",
-        root_database="mlrun",
-        drivername="postgresql+psycopg2",
-    )
-
-
-@pytest.fixture
-def pmr_postgres_container(pytestconfig, pmr_postgres_config):
-    yield from pytest_mock_resources.get_container(
-        pytestconfig=pytestconfig,
-        config=pmr_postgres_config,
-        interval=1,
-        retries=60,
-    )
-
-
-@pytest.fixture
+@pytest.fixture(scope="session")
 def db_util(
-    alembic_engine: sqlalchemy.engine.Engine,
+    mysql_db_session: sqlalchemy.orm.Session,
 ) -> framework.utils.db.utils.DBUtil:
     util = framework.utils.db.utils.DBUtil()
     util.wait_for_db_liveness()

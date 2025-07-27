@@ -12,55 +12,54 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+from collections.abc import Generator
 
 import pytest
-import pytest_mock_resources
-import sqlalchemy
+import sqlalchemy.orm
 
 import mlrun
 
 import framework.utils.db.utils
 import framework.utils.singletons.db
 
-mysql_engine = pytest_mock_resources.create_mysql_fixture()
+# services/api/migrations/tests/mysql/conftest.py
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def alembic_engine(
-    mysql_engine: sqlalchemy.engine.Engine,
+    _mysql_engine: sqlalchemy.engine.Engine,
 ) -> sqlalchemy.engine.Engine:
-    os.environ["MLRUN_HTTPDB__DSN"] = mysql_engine.url.render_as_string(
+    """
+    Engine bound to the MySQL container – used by pytest‑alembic's
+    `alembic_runner` fixture.
+    """
+    os.environ["MLRUN_HTTPDB__DSN"] = _mysql_engine.url.render_as_string(
         hide_password=False,
     )
     mlrun.mlconf.reload()
     framework.utils.singletons.db.initialize_db()
-    return mysql_engine.execution_options(isolation_level="AUTOCOMMIT")
+    return _mysql_engine.execution_options(isolation_level="AUTOCOMMIT")
 
 
-@pytest.fixture
-def pmr_mysql_container(pytestconfig, pmr_mysql_config):
-    yield from pytest_mock_resources.get_container(
-        pytestconfig=pytestconfig,
-        config=pmr_mysql_config,
-        interval=1,
-        retries=60,
-    )
+@pytest.fixture(scope="function")
+def alembic_session(
+    _mysql_engine: sqlalchemy.engine.Engine,
+) -> Generator[sqlalchemy.orm.Session, None, None]:
+    """
+    Real SQLAlchemy *Session* object expected by
+    test_notification_params_to_secret_params & friends.
+    """
+    session_maker = sqlalchemy.orm.sessionmaker(bind=_mysql_engine)
+    session = session_maker()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
-@pytest.fixture
-def pmr_mysql_config():
-    return pytest_mock_resources.MysqlConfig(
-        image="mysql:8.0",
-        port=3306,
-        username="root",
-        password="pass",
-        root_database="mlrun",
-    )
-
-
-@pytest.fixture
+@pytest.fixture(scope="session")
 def db_util(
-    alembic_engine: sqlalchemy.engine.Engine,
+    mysql_db_session: sqlalchemy.orm.Session,
 ) -> framework.utils.db.utils.DBUtil:
     util = framework.utils.db.utils.DBUtil()
     util.wait_for_db_liveness()

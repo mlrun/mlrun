@@ -70,7 +70,7 @@ async def test_verify_request_session_success(
     aioresponses_mock: aioresponses_mock,
 ):
     mock_request_headers = starlette.datastructures.Headers(
-        {"cookie": "session=some-session-cookie"}
+        {mlrun.common.schemas.HeaderNames.cookie: "session=some-session-cookie"}
     )
     mock_request = fastapi.Request({"type": "http"})
     mock_request._headers = mock_request_headers
@@ -855,7 +855,10 @@ async def test_delete_project_job_is_done(
 
     def _mock_get_job(state, result, session, request, context):
         context.status_code = http.HTTPStatus.OK.value
-        assert request.headers["Cookie"] == f'session=j:{{"sid": "{session}"}}'
+        assert (
+            request.headers[mlrun.common.schemas.HeaderNames.cookie]
+            == f'session=j:{{"sid": "{session}"}}'
+        )
         return {"data": {"attributes": {"state": state, "result": result}}}
 
     responses = [
@@ -1079,14 +1082,16 @@ def _verify_request_cookie(headers: dict, session: str):
         assert (
             headers.get(list(cookie_header)[0]) == expected_session_value
         ), cookie_header
-    elif "cookies" in headers:
+    elif mlrun.common.schemas.HeaderNames.cookies in headers:
         # in async client we get the `cookies` key while it contains the cookies in form of a dict
         # use requests to construct it back to a string as expected above
         cookie = "; ".join(
             list(
                 map(
                     lambda x: f"{x[0]}={x[1]}",
-                    cookiejar_from_dict(headers["cookies"]).items(),
+                    cookiejar_from_dict(
+                        headers[mlrun.common.schemas.HeaderNames.cookies]
+                    ).items(),
                 )
             )
         )
@@ -1110,7 +1115,10 @@ def _mock_job_progress(
 ):
     def _mock_get_job(state, result, session, request, context):
         context.status_code = http.HTTPStatus.OK.value
-        assert request.headers["Cookie"] == f'session=j:{{"sid": "{session}"}}'
+        assert (
+            request.headers[mlrun.common.schemas.HeaderNames.cookies]
+            == f'session=j:{{"sid": "{session}"}}'
+        )
         return {"data": {"attributes": {"state": state, "result": result}}}
 
     responses = [

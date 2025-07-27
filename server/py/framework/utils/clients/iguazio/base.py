@@ -155,8 +155,8 @@ class BaseAsyncClient(BaseClient):
             mlrun.common.schemas.HeaderNames.authorization: request.headers.get(
                 mlrun.common.schemas.HeaderNames.authorization
             ),
-            mlrun.common.schemas.HeaderNames.cookies: request.headers.get(
-                mlrun.common.schemas.HeaderNames.cookies, ""
+            mlrun.common.schemas.HeaderNames.cookie: request.headers.get(
+                mlrun.common.schemas.HeaderNames.cookie, ""
             ),
             mlrun.common.schemas.HeaderNames.x_request_id: getattr(
                 request.state, "request_id", ""

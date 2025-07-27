@@ -300,7 +300,8 @@ async def test_do_not_escape_cookie(
 ):
     async def handler(request):
         assert (
-            request.headers["cookie"] == f"session={expected_cookie_header}"
+            request.headers[mlrun.common.schemas.HeaderNames.cookie]
+            == f"session={expected_cookie_header}"
         ), "Cookie header escaping is malfunctioning"
         assert (
             request.cookies["session"] == expected_cookie_header

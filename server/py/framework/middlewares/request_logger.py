@@ -125,7 +125,7 @@ class RequestLoggerMiddleware:
         headers_to_log = headers.mutablecopy()
         headers_to_omit = [
             mlrun.common.schemas.HeaderNames.authorization,
-            "cookie",
+            mlrun.common.schemas.HeaderNames.cookie,
             mlrun.common.schemas.HeaderNames.v3io_session_key,
             mlrun.common.schemas.HeaderNames.v3io_access_key,
         ]

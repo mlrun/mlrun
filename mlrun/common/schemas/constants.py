@@ -107,6 +107,7 @@ class HeaderNames:
     v3io_session_planes = "x-v3io-session-planes"
     authorization = "authorization"
     cookies = "cookies"
+    cookie = "cookie"
     x_request_id = "x-request-id"
     patch_mode = f"{headers_prefix}patch-mode"
     deletion_strategy = f"{headers_prefix}deletion-strategy"

@@ -66,6 +66,7 @@ def mock_random_endpoint(
     function_tag: Optional[str] = "v1",
     model_path: Optional[str] = None,
     add_labels=True,
+    endpoint_type: EndpointType = EndpointType.NODE_EP,
 ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
     def random_labels():
         return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
@@ -75,6 +76,7 @@ def mock_random_endpoint(
             name=name,
             project=project_name,
             labels=random_labels() if add_labels else {},
+            endpoint_type=endpoint_type,
         ),
         spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
             function_name=function_name,
@@ -267,6 +269,39 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
 
         endpoints_intersect = in_endpoint_names.intersection(out_endpoint_names)
         assert len(endpoints_intersect) == number_of_endpoints
+
+    def test_list_endpoints_mode(self):
+        db = mlrun.get_run_db()
+
+        number_of_real_time_eps = 2
+        number_of_batch_eps = 3
+        real_time_eps = [
+            mock_random_endpoint(self.project_name, f"real-time-{i}")
+            for i in range(number_of_real_time_eps)
+        ]
+
+        batch_eps = [
+            mock_random_endpoint(
+                self.project_name, f"batch-{i}", endpoint_type=EndpointType.BATCH_EP
+            )
+            for i in range(number_of_batch_eps)
+        ]
+
+        for endpoint in real_time_eps + batch_eps:
+            db.create_model_endpoint(endpoint)
+
+        eps = self.project.list_model_endpoints().endpoints
+        assert len(eps) == number_of_real_time_eps + number_of_batch_eps
+
+        real_time_eps = self.project.list_model_endpoints(
+            mode=mm_constants.EndpointMode.REAL_TIME
+        ).endpoints
+        assert len(real_time_eps) == number_of_real_time_eps
+
+        batch_eps = self.project.list_model_endpoints(
+            mode=mm_constants.EndpointMode.BATCH
+        ).endpoints
+        assert len(batch_eps) == number_of_batch_eps
 
     def test_labels(self):
         db = mlrun.get_run_db()

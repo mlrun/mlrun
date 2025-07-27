@@ -172,7 +172,7 @@ class _BatchWindow:
                     ),
                 )
 
-            self._update_last_analyzed(self._stop)
+            self._update_last_analyzed(last_analyzed=self._stop)
             logger.debug(
                 "Updated the last analyzed time for this endpoint and application to the end of the batch time",
                 application=self._application,
@@ -572,7 +572,7 @@ class MonitoringApplicationController:
 
                 endpoint_mode = mm_constants.EndpointMode.REAL_TIME
 
-            logger.info("Starting analyzing for", timestamp=last_stream_timestamp)
+            logger.info("Starting to analyze", timestamp=last_stream_timestamp)
 
             with _BatchWindowGenerator(
                 project=project_name,

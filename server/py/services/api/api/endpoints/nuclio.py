@@ -271,6 +271,7 @@ async def deploy_function(
         function,
         model_endpoint_creation_task_name,
         returned_background_tasks,
+        _,
     ) = await start_model_endpoint_creation_background_task(
         project=project,
         name=name,

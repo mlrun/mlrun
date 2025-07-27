@@ -1114,16 +1114,7 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
 
             # controller and writer(with has stream) should be deleted
             for name in mm_constants.MonitoringFunctionNames.list():
-                stream_path = mlrun.model_monitoring.helpers.get_stream_path(
-                    project=self.project.name,
-                    function_name=name,
-                    profile=stream_profile,
-                )
-                _, container, stream_path = (
-                    mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-                        stream_path
-                    )
-                )
+                container, stream_path = self.get_stream_path(name)
                 if name != mm_constants.MonitoringFunctionNames.STREAM:
                     with pytest.raises(mlrun.errors.MLRunNotFoundError):
                         self.project.get_function(
@@ -1142,15 +1133,8 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             self._disable_stream_function()
 
             # check that the stream of the stream resource is not deleted
-            stream_path = mlrun.model_monitoring.helpers.get_stream_path(
-                project=self.project.name,
-                function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
-                profile=stream_profile,
-            )
-            _, container, stream_path = (
-                mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-                    stream_path
-                )
+            container, stream_path = self.get_stream_path(
+                mm_constants.HistogramDataDriftApplicationConstants.NAME
             )
             v3io_client.stream.describe(container, stream_path)
 
@@ -1158,16 +1142,6 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             self._delete_histogram_app()
 
             with pytest.raises(v3io.dataplane.response.HttpResponseError):
-                stream_path = mlrun.model_monitoring.helpers.get_stream_path(
-                    project=self.project.name,
-                    function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
-                    profile=stream_profile,
-                )
-                _, container, stream_path = (
-                    mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-                        stream_path
-                    )
-                )
                 v3io_client.stream.describe(container, stream_path)
 
         elif isinstance(stream_profile, DatastoreProfileKafkaSource):

@@ -8082,7 +8082,7 @@ class SQLDB(DBInterface):
                 model_endpoints[
                     (
                         f"{mep_record.project}-{mep_record.function.name}-"
-                        f"{self._get_function_tag(mep_record.function.tags)}-{mep_record.name}"
+                        f"{self._get_obj_tag_prioritizing_user_tag(mep_record.function.tags)}-{mep_record.name}"
                     )
                 ] = mep_record
         return model_endpoints

@@ -33,6 +33,7 @@ from mlrun.platforms.iguazio import KafkaOutputStream
 from mlrun.runtimes import ServingRuntime
 from mlrun.serving import Model, ModelRunnerStep, ModelSelector
 from mlrun.serving.states import RootFlowStep, RouterStep
+from mlrun.serving.system_steps import MonitoringPreProcessor
 from tests.serving.test_serving import _log_model
 
 assets_path = str(pathlib.Path(__file__).parent / "assets")
@@ -1056,9 +1057,6 @@ def test_tracked_model_runner_with_error_handler(
         }
 
     _test_graph_structure(server.graph, enable_tracking)
-
-
-from mlrun.serving.system_steps import MonitoringPreProcessor
 
 
 def test_transpose_by_key_with_str():

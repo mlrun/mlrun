@@ -572,7 +572,9 @@ class MonitoringApplicationController:
 
                 endpoint_mode = mm_constants.EndpointMode.REAL_TIME
 
-            logger.info("Starting to analyze", timestamp=last_stream_timestamp)
+            logger.info(
+                "Starting to analyze", timestamp=last_stream_timestamp.isoformat()
+            )
 
             with _BatchWindowGenerator(
                 project=project_name,

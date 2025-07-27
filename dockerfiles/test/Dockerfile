@@ -67,16 +67,9 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 
 COPY pipeline-adapters pipeline-adapters
 # Install the pipeline adapters development versions since we release them only after merging
-# Install mlrun‑api plus the two adapter wheels in a single layer
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
-    uv pip install \
-        . \
-        ./pipeline-adapters/mlrun-pipelines-kfp-common \
-        ./pipeline-adapters/mlrun-pipelines-kfp-v1-8[kfp] \
-        --python-version ${MLRUN_PYTHON_VERSION} \
-    && cd pipeline-adapters && make clean && cd -
-
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --python-version ${MLRUN_PYTHON_VERSION} && make -C pipeline-adapters clean
 
 COPY Makefile .
 COPY .dockerignore .

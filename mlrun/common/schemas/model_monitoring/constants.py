@@ -477,18 +477,21 @@ class ModelEndpointMonitoringMetricType(StrEnum):
 
 
 _FQN_PART_PATTERN = r"[a-zA-Z0-9_-]+"
+_RESULT_NAME_PATTERN = r"[a-zA-Z_][a-zA-Z0-9_]*"
+
 FQN_PATTERN = (
     rf"^(?P<project>{_FQN_PART_PATTERN})\."
     rf"(?P<app>{_FQN_PART_PATTERN})\."
     rf"(?P<type>{ModelEndpointMonitoringMetricType.RESULT}|{ModelEndpointMonitoringMetricType.METRIC})\."
-    rf"(?P<name>{_FQN_PART_PATTERN})$"
+    rf"(?P<name>{_RESULT_NAME_PATTERN})$"
 )
 FQN_REGEX = re.compile(FQN_PATTERN)
+APP_NAME_REGEX = re.compile(_FQN_PART_PATTERN)
+RESULT_NAME_REGEX = re.compile(_RESULT_NAME_PATTERN)
 
 # refer to `mlrun.utils.regex.project_name`
 PROJECT_PATTERN = r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
 MODEL_ENDPOINT_ID_PATTERN = r"^[a-zA-Z0-9_-]+$"
-RESULT_NAME_PATTERN = r"[a-zA-Z_][a-zA-Z0-9_]*"
 
 INTERSECT_DICT_KEYS = {
     ModelEndpointMonitoringMetricType.METRIC: "intersect_metrics",

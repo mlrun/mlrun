@@ -134,6 +134,9 @@ class EventStreamProcessor:
            the default parquet path is under mlrun.mlconf.model_endpoint_monitoring.user_space. Note that if you are
            using CE, the parquet target path is based on the defined MLRun artifact path.
 
+        In a separate branch, "batch complete" events are forwarded to the controller stream with an intentional delay,
+        to allow for data to first be written to parquet.
+
         :param fn: A serving function.
         :param tsdb_connector: Time series database connector.
         :param controller_stream_uri: The controller stream URI. Runs on server api pod so needed to be provided as
@@ -154,7 +157,7 @@ class EventStreamProcessor:
 
         graph.add_step(
             "Delay",
-            name="Delay",
+            name="BatchDelay",
             after="FilterBatchComplete",
             delay=self.parquet_batching_timeout_secs + 5,  # add margin
         )
@@ -275,7 +278,7 @@ class EventStreamProcessor:
                 "controller_stream",
                 path=stream_uri,
                 sharding_func=ControllerEvent.ENDPOINT_ID,
-                after=["ForwardNOP", "Delay"],
+                after=["ForwardNOP", "BatchDelay"],
                 # Force using the pipeline key instead of the one in the profile in case of v3io profile.
                 # In case of Kafka, this parameter will be ignored.
                 alternative_v3io_access_key="V3IO_ACCESS_KEY",

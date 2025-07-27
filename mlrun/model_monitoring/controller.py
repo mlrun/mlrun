@@ -883,7 +883,6 @@ class MonitoringApplicationController:
         :param endpoint_id: endpoint id string
         :param endpoint_name: the endpoint name string
         :param endpoint_type: Enum of the endpoint type
-
         """
         event = {
             ControllerEvent.KIND.value: kind,

@@ -623,7 +623,7 @@ async def async_execute_graph(
             df[timestamp_column]
         )
         df.sort_values(by=timestamp_column, inplace=True)
-        if len(df) >= 2:
+        if len(df) > 1:
             start_time = df[timestamp_column].iloc[0]
             end_time = df[timestamp_column].iloc[-1]
             time_range = end_time - start_time
@@ -633,11 +633,13 @@ async def async_execute_graph(
             if time_range > pd.Timedelta(MAX_BATCH_JOB_DURATION):
                 raise mlrun.errors.MLRunRuntimeError(
                     f"Dataframe time range is too long: {time_range}. "
-                    "Please disable tracking or reduce the input dataset's time range to under one week."
+                    "Please disable tracking or reduce the input dataset's time range below the defined limit "
+                    f"of {MAX_BATCH_JOB_DURATION}."
                 )
         else:
             start_time = end_time = df["timestamp"].iloc[0].isoformat()
     else:
+        # end time will be set from clock time when the batch completes
         start_time = datetime.now(tz=timezone.utc).isoformat()
 
     server.graph = add_system_steps_to_graph(

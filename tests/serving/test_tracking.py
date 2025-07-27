@@ -283,20 +283,31 @@ def handle_error(event):
 
 
 class DictOutputModel(Model):
-    def predict(self, body):
+    def predict(self, body, **kwargs):
         body["outputs"] = {}
         for key, value in body["inputs"][self.name].items():
-            body["outputs"][key.replace("f", "o")] = (
-                value + 1 if not isinstance(value, list) else [v + 1 for v in value]
-            )
+            if not isinstance(value, list) and not isinstance(value, str):
+                body["outputs"][key.replace("f", "o")] = value + 1
+            elif not isinstance(value, list) and isinstance(value, str):
+                body["outputs"][key.replace("f", "o")] = value + "_output"
+            elif isinstance(value, list):
+                out_value = []
+                for v in value:
+                    print(f"Processing value: {v}")
+                    if isinstance(v, int):
+                        out_value.append(v + 1)
+                    elif isinstance(v, str):
+                        out_value.append(v + "_output")
+                print(f"Processed output values: {out_value}")
+                body["outputs"][key.replace("f", "o")] = out_value
         return body
 
-    async def predict_async(self, body):
+    async def predict_async(self, body, **kwargs):
         return self.predict(body)
 
 
 class StrDictOutputModel(Model):
-    def predict(self, body):
+    def predict(self, body, **kwargs):
         body["outputs"] = {}
         for key, value in body["inputs"][self.name].items():
             body["outputs"][key.replace("f", "o")] = (
@@ -429,9 +440,9 @@ def test_tracked_model_runner_dict(rundb_mock, with_schema):
     function.set_tracking("dummy://", enable_tracking=True)
     server = function.to_mock_server()
     inputs_model = (
-        {"f1": [1, 2], "f2": [2, 3], "f3": [3, 4], "f4": [4, 5]}
+        {"f1": [1, 2], "f2": ["hi", "bye"], "f3": [3, 4], "f4": [4, 5]}
         if not with_schema
-        else {"f4": [4, 5], "f2": [2, 3], "f1": [1, 2], "f3": [3, 4]}
+        else {"f4": [4, 5], "f2": ["hi", "bye"], "f1": [1, 2], "f3": [3, 4]}
     )
     server.test(
         "/",
@@ -439,10 +450,10 @@ def test_tracked_model_runner_dict(rundb_mock, with_schema):
             "inputs": {
                 "dict_model": inputs_model,
                 "dict_model_2": {"f1": [1, 2]},
-                "dict_model_single_event": {"f1": 1, "f2": 2, "f3": 3, "f4": 4},
+                "dict_model_single_event": {"f1": 1, "f2": "hi", "f3": 3, "f4": 4},
                 "dict_model_single_event_wrapped": {
                     "f1": [1],
-                    "f2": [2],
+                    "f2": ["hi"],
                     "f3": [3],
                     "f4": [4],
                 },
@@ -455,19 +466,27 @@ def test_tracked_model_runner_dict(rundb_mock, with_schema):
     dummy_stream = server.context.stream.output_stream
     assert len(dummy_stream.event_list) == 5, "expected stream to get one message"
     assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [
-        [1, 2, 3, 4],
-        [2, 3, 4, 5],
+        [1, "hi", 3, 4],
+        [2, "bye", 4, 5],
     ]
     assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [
-        [2, 3, 4, 5],
-        [3, 4, 5, 6],
+        [2, "hi_output", 4, 5],
+        [3, "bye_output", 5, 6],
     ]
     assert dummy_stream.event_list[1].get("request", {}).get("inputs") == [1, 2]
     assert dummy_stream.event_list[1].get("resp", {}).get("outputs") == [2, 3]
-    assert dummy_stream.event_list[2].get("request", {}).get("inputs") == [[1, 2, 3, 4]]
-    assert dummy_stream.event_list[2].get("resp", {}).get("outputs") == [[2, 3, 4, 5]]
-    assert dummy_stream.event_list[3].get("request", {}).get("inputs") == [[1, 2, 3, 4]]
-    assert dummy_stream.event_list[3].get("resp", {}).get("outputs") == [[2, 3, 4, 5]]
+    assert dummy_stream.event_list[2].get("request", {}).get("inputs") == [
+        [1, "hi", 3, 4]
+    ]
+    assert dummy_stream.event_list[2].get("resp", {}).get("outputs") == [
+        [2, "hi_output", 4, 5]
+    ]
+    assert dummy_stream.event_list[3].get("request", {}).get("inputs") == [
+        [1, "hi", 3, 4]
+    ]
+    assert dummy_stream.event_list[3].get("resp", {}).get("outputs") == [
+        [2, "hi_output", 4, 5]
+    ]
     assert dummy_stream.event_list[4].get("request", {}).get("inputs") == [1]
     assert dummy_stream.event_list[4].get("resp", {}).get("outputs") == [2]
 
@@ -1037,3 +1056,35 @@ def test_tracked_model_runner_with_error_handler(
         }
 
     _test_graph_structure(server.graph, enable_tracking)
+
+
+from mlrun.serving.system_steps import MonitoringPreProcessor
+
+
+def test_transpose_by_key_with_str():
+    data = {
+        "Price": 30.0,
+        "Product": "Keyboard",
+        "Stock": 100,
+        "extra": 123,
+        "time": "2020-01-01T01:00:00Z",
+    }
+    result = MonitoringPreProcessor.transpose_by_key(data)
+    expected_result = [[30.0, "Keyboard", 100, 123, "2020-01-01T01:00:00Z"]]
+
+    assert expected_result == result, "Expected result to match the transposed data"
+
+    data = {
+        "Price": [30.0, 6.0],
+        "Product": ["Keyboard", "Mouse"],
+        "Stock": [100, 200],
+        "extra": [123, 80],
+        "time": ["2020-01-01T01:00:00Z", "2020-01-01T02:00:00Z"],
+    }
+    result = MonitoringPreProcessor.transpose_by_key(data)
+
+    expected_result = [
+        [30.0, "Keyboard", 100, 123, "2020-01-01T01:00:00Z"],
+        [6.0, "Mouse", 200, 80, "2020-01-01T02:00:00Z"],
+    ]
+    assert expected_result == result, "Expected result to match the transposed data"

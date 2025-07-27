@@ -71,7 +71,7 @@ COPY pipeline-adapters pipeline-adapters
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \
     uv pip install \
-        .[kfp18] \
+        . \
         ./pipeline-adapters/mlrun-pipelines-kfp-common \
         ./pipeline-adapters/mlrun-pipelines-kfp-v1-8[kfp] \
         --python-version ${MLRUN_PYTHON_VERSION} \

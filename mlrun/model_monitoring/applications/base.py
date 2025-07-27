@@ -870,6 +870,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                             "Passing a `stream_profile` is relevant only when writing the outputs"
                         )
                 params["stream_profile"] = stream_profile
+                params["application_name"] = application_name
         elif start or end or base_period:
             raise mlrun.errors.MLRunValueError(
                 "Custom `start` and `end` times or base_period are supported only with endpoints data"

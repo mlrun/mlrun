@@ -51,10 +51,7 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     uv pip install --verify-hashes -r locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
 
 WORKDIR /tmp/mlrun
-COPY *.txt .
-COPY *.md .
-COPY *.py .
-COPY *.toml .
+COPY *.txt *.md *.py *.toml ./
 COPY mlrun mlrun
 COPY dockerfiles/mlrun-api dockerfiles/mlrun-api
 

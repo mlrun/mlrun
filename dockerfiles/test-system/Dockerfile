@@ -49,10 +49,7 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     uv pip sync  --require-hashes locked-requirements.txt
 
 WORKDIR /tmp/mlrun
-COPY *.txt .
-COPY *.md .
-COPY *.py .
-COPY *.toml .
+COPY *.txt *.md *.py *.toml ./
 COPY mlrun mlrun
 COPY dockerfiles/mlrun-api dockerfiles/mlrun-api
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \

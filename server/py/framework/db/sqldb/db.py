@@ -339,7 +339,7 @@ class SQLDB(DBInterface):
     ) -> dict:
         """
         Atomically acquire a FOR UPDATE lock on the specified run row, then add or remove
-        the `retrying` label.
+        the `retrying` label and update the `rerun_counter`.
 
         :param session:  SQLAlchemy session to use for the transaction.
         :param project:     Name of the project containing the run.
@@ -348,7 +348,7 @@ class SQLDB(DBInterface):
                             - When setting to True, this will:
                               1. lock the row
                               2. verify no existing `retrying` label (else MLRunConflictError)
-                              3. add `retrying="true"`
+                              3. add `retrying="true"` and bump `rerun_counter`
                             - When setting to False, it will remove the `retrying` label.
         :returns:           The updated struct of the run.
         :raises MLRunNotFoundError:   If the run does not exist.
@@ -367,13 +367,15 @@ class SQLDB(DBInterface):
             if not retrying:
                 labels.pop("retrying", None)
             elif mlrun_constants.MLRunInternalLabels.retrying in labels:
-                # flush and commit so the lock is released immediately
-                session.commit()
                 raise mlrun.errors.MLRunConflictError
             else:
-                # TODO: bump counter label here in follow-up
                 labels[mlrun_constants.MLRunInternalLabels.retrying] = "true"
-
+                labels[mlrun_constants.MLRunInternalLabels.rerun_counter] = str(
+                    int(
+                        labels.get(mlrun_constants.MLRunInternalLabels.rerun_counter, 0)
+                    )
+                    + 1
+                )
             update_labels(run, labels)
             run.struct = struct
             self._upsert(session, [run])

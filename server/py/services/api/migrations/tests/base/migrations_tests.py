@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import logging
 import pathlib
 
 import alembic.config
@@ -26,9 +25,7 @@ from pytest_alembic.tests import (  # noqa
     test_upgrade,
 )
 
-from framework.db.sqldb.models import Run
-
-log = logging.getLogger(__name__)
+import framework.db.sqldb.models
 
 
 class Constants:
@@ -103,9 +100,12 @@ def test_notification_params_to_secret_params(
     )
 
     for index, item in enumerate(
-        alembic_session.query(Run.Notification.params, Run.Notification.secret_params)
+        alembic_session.query(
+            framework.db.sqldb.models.Run.Notification.params,
+            framework.db.sqldb.models.Run.Notification.secret_params,
+        )
         .filter_by(project=Constants.notifications_params_to_secret_params_project)
-        .order_by(Run.Notification.id)
+        .order_by(framework.db.sqldb.models.Run.Notification.id)
     ):
         assert not item.params
         assert (

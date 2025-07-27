@@ -1092,11 +1092,13 @@ class ModelEndpoints:
         :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
                                               V3IO resources.
         """
-        logger.debug(
-            "Deleting model monitoring endpoints resources", project_name=project_name
-        )
         stream_path = mlrun.model_monitoring.get_stream_path(
             project=project_name, profile=stream_profile
+        )
+        logger.debug(
+            "Deleting model monitoring endpoints resources",
+            project_name=project_name,
+            stream_path=stream_path,
         )
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,

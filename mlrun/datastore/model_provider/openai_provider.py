@@ -128,7 +128,7 @@ class OpenAIProvider(ModelProvider):
             )
         else:
             return self.client.chat.completions.create(
-                **invoke_kwargs, model=self.model
+                **invoke_kwargs, model=invoke_kwargs.get("model") or self.model
             )
 
     async def async_custom_invoke(

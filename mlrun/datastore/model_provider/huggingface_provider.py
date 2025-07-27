@@ -96,7 +96,7 @@ class HuggingFaceProvider(ModelProvider):
 
             self._client = pipeline(model=self.model, **self.options)
         except ImportError as exc:
-            raise ImportError("openai package is not installed") from exc
+            raise ImportError("transformers package is not installed") from exc
 
     def get_client_options(self):
         res = dict(

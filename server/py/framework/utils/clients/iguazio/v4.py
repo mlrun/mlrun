@@ -48,7 +48,7 @@ class Client(BaseClient):
 
         # Accept an Authorization header or a session cookie named "_oauth2_proxy"
         authorization = headers.get(mlrun.common.schemas.HeaderNames.authorization, "")
-        cookie = headers.get("cookie", "")
+        cookie = headers.get(mlrun.common.schemas.HeaderNames.cookies, "")
 
         has_auth = (
             bool(authorization)

@@ -881,7 +881,7 @@ class Client(
                     "Session cookie already set"
                 )
             cookies["session"] = session_cookie
-            kwargs["cookies"] = cookies
+            kwargs[mlrun.common.schemas.HeaderNames.cookies] = cookies
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
         if "projects" in path:

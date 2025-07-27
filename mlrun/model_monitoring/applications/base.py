@@ -194,7 +194,25 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             Optional[mm_schedules.ModelMonitoringSchedulesFileApplication],
         ]
     ]:
-        endpoints_output: dict[str, list[tuple]] = defaultdict(list)
+        endpoints_output: dict[
+            str,
+            list[
+                tuple[
+                    mm_context.MonitoringApplicationContext,
+                    Union[
+                        mm_results.ModelMonitoringApplicationResult,
+                        mm_results.ModelMonitoringApplicationMetric,
+                        list[
+                            Union[
+                                mm_results.ModelMonitoringApplicationResult,
+                                mm_results.ModelMonitoringApplicationMetric,
+                                mm_results._ModelMonitoringApplicationStats,
+                            ]
+                        ],
+                    ],
+                ]
+            ],
+        ] = defaultdict(list)
         application_schedules = nullcontext()
         if write_output:
             cls._check_writer_is_up(project)
@@ -220,11 +238,21 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                     profile=stream_profile,
                 )
                 for endpoint_id, outputs in endpoints_output.items():
+                    writer_events = []
+                    for ctx, res in outputs:
+                        if isinstance(res, list):
+                            writer_events.extend(
+                                _serialize_context_and_result(
+                                    context=ctx, result=sub_res
+                                )
+                                for sub_res in res
+                            )
+                        else:
+                            writer_events.append(
+                                _serialize_context_and_result(context=ctx, result=res)
+                            )
                     writer_stream.push(
-                        [
-                            _serialize_context_and_result(context=ctx, result=res)
-                            for ctx, res in outputs
-                        ],
+                        writer_events,
                         partition_key=endpoint_id,
                     )
                 logger.debug(

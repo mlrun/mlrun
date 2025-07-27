@@ -469,7 +469,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
                         )
                     mlrun.utils.logger.info(
                         "Client version does not support passing serving spec as zip via ConfigMap",
-                        FutureWarning,
                     )
                     encoded_serving_spec = serving_spec
 

@@ -26,13 +26,13 @@ import services.api.utils.db.partitioner as part_mod
 @pytest.mark.parametrize(
     "interval, dt, exp_name, exp_next_val",
     [
-        ("DAY", datetime(2024, 10, 30), "p20241030", "20241031"),
-        ("MONTH", datetime(2024, 10, 30), "p202410", "202411"),
-        ("YEARWEEK", datetime(2024, 10, 30), "p202444", "202445"),
-        ("YEARWEEK", datetime(2023, 1, 1), "p202252", "202301"),
-        ("YEARWEEK", datetime(2024, 12, 31), "p202501", "202502"),
-        ("YEARWEEK", datetime(2024, 1, 1), "p202401", "202402"),
-        ("YEARWEEK", datetime(2024, 6, 15), "p202424", "202425"),
+        ("DAY", datetime(2024, 10, 30), "p20241030", 20241031),
+        ("MONTH", datetime(2024, 10, 30), "p202410", 202411),
+        ("YEARWEEK", datetime(2024, 10, 30), "p202444", 202445),
+        ("YEARWEEK", datetime(2023, 1, 1), "p202252", 202301),
+        ("YEARWEEK", datetime(2024, 12, 31), "p202501", 202502),
+        ("YEARWEEK", datetime(2024, 1, 1), "p202401", 202402),
+        ("YEARWEEK", datetime(2024, 6, 15), "p202424", 202425),
     ],
 )
 def test_get_partition_info_for_datetime(interval, dt, exp_name, exp_next_val):
@@ -121,5 +121,5 @@ def test_create_partitions(db, interval, partitions_to_create, now_dt):
             session=db,
             table_name="alert_activations",
             partition_interval=interval,
-            partition_count=partitions_to_create,
+            partitions_count=partitions_to_create,
         )

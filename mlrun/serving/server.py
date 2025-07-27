@@ -760,6 +760,8 @@ def execute_graph(
     :param context: The job's execution client context.
     :param data: The input data to the job, to be pushed into the graph row by row, or in batches.
     :param timestamp_column: The name of the column that will be used as the timestamp for model monitoring purposes.
+        when timestamp_column is used in conjunction with batching, the first timestamp will be used for the entire
+        batch.
     :param batching: Whether to push one or more batches into the graph rather than row by row.
     :param batch_size: The number of rows to push per batch. If not set, and batching=True, the entire dataset will
         be pushed into the graph in one batch.

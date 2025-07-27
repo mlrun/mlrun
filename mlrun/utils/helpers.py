@@ -29,6 +29,7 @@ import traceback
 import typing
 import uuid
 import warnings
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from importlib import import_module, reload
 from os import path
@@ -784,6 +785,22 @@ def generate_artifact_uri(
     if uid is not None:
         artifact_uri = f"{artifact_uri}^{uid}"
     return artifact_uri
+
+
+def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
+    """
+    Remove the `:<tag>` part from a URI with pattern:
+    [store://][<project>/]<key>[#<iter>][:<tag>][@<tree>][^<uid>]
+
+    Returns the URI without the tag section.
+
+    Examples:
+        "store://proj/key:latest" => "store://proj/key"
+        "key#1:dev@tree^uid" => "key#1@tree^uid"
+        "store://key:tag" => "store://key"
+        "store://models/remote-model-project/my_model#0@tree" => unchanged (no tag)
+    """
+    return re.sub(r"(?<=/[^/:]\+):[^@^:\s]+(?=(@|\^|$))", "", uri)
 
 
 def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
@@ -2376,3 +2393,32 @@ def encode_user_code(
             "Consider using `with_source_archive` to add user code as a remote source to the function."
         )
     return encoded
+
+
+def split_path(path: str) -> typing.Union[str, list[str], None]:
+    if path is not None:
+        parsed_path = path.split(".")
+        if len(parsed_path) == 1:
+            parsed_path = parsed_path[0]
+        return parsed_path
+    return path
+
+
+def get_data_from_path(
+    path: typing.Union[str, list[str], None], data: dict
+) -> dict[str, Any]:
+    if isinstance(path, str):
+        output_data = data.get(path)
+    elif isinstance(path, list):
+        output_data = deepcopy(data)
+        for key in path:
+            output_data = output_data.get(key, {})
+    elif path is None:
+        output_data = data
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Expected path be of type str or list of str or None"
+        )
+    if isinstance(output_data, (int, float)):
+        output_data = [output_data]
+    return output_data

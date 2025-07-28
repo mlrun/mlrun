@@ -214,7 +214,7 @@ async def retry_pipeline(
         # Prevent two simultaneous retries for the same original workflow—
         # we lock the original-runner row, mark it retrying, and block any
         # parallel retry requests until it’s cleared.
-        await fastapi.concurrency.run_in_threadpool(
+        rerun_index = await fastapi.concurrency.run_in_threadpool(
             services.api.crud.Pipelines().lock_run_and_mark_retrying,
             db_session=db_session,
             project=project.metadata.name,
@@ -243,6 +243,7 @@ async def retry_pipeline(
                 original_runner=original_runner,
                 auth_info=auth_info,
                 client_version=client_version,
+                rerun_index=rerun_index,
             )
         )
 

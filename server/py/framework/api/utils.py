@@ -230,6 +230,7 @@ async def submit_run(
                 fn,
                 model_endpoint_creation_task_name,
                 _,
+                model_endpoint_uids,
             ) = await start_model_endpoint_creation_background_task(
                 project=project,
                 name=function_name,
@@ -249,11 +250,15 @@ async def submit_run(
 
             # TODO: there should be a better way to do this
             serving_spec = getattr(fn.spec, "serving_spec")
+            # update the graph from the function, because MEP IDs were added
             if serving_spec:
                 serving_spec = json.loads(serving_spec)
+                new_graph = fn.spec.graph.to_dict(strip=True) if fn.spec.graph else {}
+                serving_spec["graph"] = new_graph
                 serving_spec["model_endpoint_creation_task_name"] = (
                     model_endpoint_creation_task_name
                 )
+                serving_spec["model_endpoint_uids"] = model_endpoint_uids
                 fn.spec.serving_spec = json.dumps(serving_spec)
 
             logger.info(

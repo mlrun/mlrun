@@ -36,8 +36,6 @@ import services.api.tests.unit.api.utils
 from services.api.daemon import daemon
 from services.api.tests.unit.conftest import K8sSecretsMock
 
-pytestmark = pytest.mark.usefixtures("api_config_test")
-
 ORIGINAL_VERSIONED_API_PREFIX = daemon.service.base_versioned_service_prefix
 DEFAULT_FUNCTION_OUTPUT_PATH = "/some/fictive/path/to/make/everybody/happy"
 

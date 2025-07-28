@@ -47,11 +47,7 @@ import services.api.utils.singletons.scheduler
 
 # Want to use k8s_secrets_mock for all tests in this module. It is needed since
 # _generate_function_and_task_from_submit_run_body looks for project secrets for secret-account validation.
-pytestmark = [
-    pytest.mark.usefixtures("k8s_secrets_mock"),
-    pytest.mark.usefixtures("api_config_test"),
-]
-
+pytestmark = pytest.mark.usefixtures("k8s_secrets_mock")
 PROJECT = "some-project"
 
 

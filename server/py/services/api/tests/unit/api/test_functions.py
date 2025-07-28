@@ -47,16 +47,10 @@ import services.api.utils.builder
 import services.api.utils.functions
 from services.api.daemon import daemon
 
-pytest_plugins = [
-    "tests.common_fixtures",
-]
-
 PROJECT = "project-name"
 ORIGINAL_VERSIONED_API_PREFIX = daemon.service.base_versioned_service_prefix
 FUNCTIONS_API = "projects/{project}/functions/{name}"
 BUILD_STATUS_API = "build/status"
-
-pytestmark = pytest.mark.usefixtures("api_config_test")
 
 
 def test_build_status_pod_not_found(

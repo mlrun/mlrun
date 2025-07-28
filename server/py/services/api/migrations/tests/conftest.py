@@ -21,6 +21,12 @@ import sqlalchemy.orm
 import mlrun.utils
 import tests.conftest
 
+pytest_plugins = [
+    "tests.common_fixtures",
+    "tests.conftest",
+]
+
+
 logger = mlrun.utils.create_test_logger()
 mlrun.utils.logger.get_handler("default").setFormatter(
     mlrun.utils.resolve_formatter_by_kind(mlrun.utils.FormatterKinds.HUMAN_EXTENDED)()

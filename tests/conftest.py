@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import os
 import traceback
 import typing
@@ -47,6 +48,7 @@ examples_path = Path(tests_root_directory).parent.joinpath("examples")
 pytest_plugins = ["tests.common_fixtures"]
 
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%f%z"
+logging.getLogger("faker.factory").setLevel(logging.WARNING)
 
 
 def check_docker():
@@ -177,11 +179,11 @@ PG_ONLY_TEST = pytest.mark.skipif(
     reason="Postgres-only test",
 )
 
-mysql_engine = pytest_mock_resources.create_mysql_fixture(
+_mysql_engine = pytest_mock_resources.create_mysql_fixture(
     scope="session",
 )
 
-postgres_engine = pytest_mock_resources.create_postgres_fixture(
+_postgres_engine = pytest_mock_resources.create_postgres_fixture(
     scope="session",
 )
 
@@ -245,10 +247,12 @@ def db_engine(
     logger.info("Starting database engine", db_type=db_type)
 
     engine: sqlalchemy.engine.Engine = request.getfixturevalue(
-        "postgres_engine" if db_type == "postgres" else "mysql_engine"
+        "_postgres_engine" if db_type == "postgres" else "_mysql_engine"
     )
 
     logger.info("Started database engine", db_type=db_type)
+    os.environ["MLRUN_HTTPDB__DSN"] = engine.url.render_as_string(hide_password=False)
+    mlrun.mlconf.reload()
     logger.info("Wiping database", db_type=db_type)
     _wipe_database(engine)
     yield engine

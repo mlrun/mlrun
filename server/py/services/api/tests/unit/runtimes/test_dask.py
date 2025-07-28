@@ -18,7 +18,6 @@ import os
 import unittest
 import unittest.mock
 
-import pytest
 from dask import distributed
 from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
@@ -35,11 +34,6 @@ import services.api.api.endpoints.functions
 import services.api.runtime_handlers.daskjob
 from services.api.tests.unit.conftest import APIK8sSecretsMock
 from services.api.tests.unit.runtimes.base import TestRuntimeBase
-
-pytestmark = [
-    pytest.mark.usefixtures("k8s_secrets_mock"),
-    pytest.mark.usefixtures("api_config_test"),
-]
 
 
 class TestDaskRuntime(TestRuntimeBase):

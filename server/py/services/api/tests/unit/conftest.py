@@ -52,7 +52,7 @@ from framework.tests.unit.common_fixtures import (
     K8sSecretsMock,
     TestServiceBase,
 )
-from services.api import daemon
+from services.api.daemon import daemon
 
 tests_root_directory = pathlib.Path(__file__).absolute().parent
 assets_path = tests_root_directory.joinpath("assets")
@@ -60,15 +60,13 @@ assets_path = tests_root_directory.joinpath("assets")
 
 class TestAPIBase(TestServiceBase):
     @pytest.fixture(scope="module")
-    def app(self) -> Generator[fastapi.FastAPI, None, None]:
+    def app(self) -> fastapi.FastAPI:
         mlrun.mlconf.services.service_name = "api"
         mlrun.mlconf.services.hydra.services = ""
-        yield daemon.app()
+        yield services.api.daemon.app()
 
     @pytest.fixture(scope="module")
     def prefix(self):
-        from services.api.daemon import daemon
-
         yield daemon.service.base_versioned_service_prefix
 
     # TODO: Move this to common fixtures similar to framework.tests.unit.common_fixtures.client
@@ -86,8 +84,6 @@ class TestAPIBase(TestServiceBase):
             mlrun.mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
 
             with TestClient(app) as unversioned_test_client:
-                from services.api.daemon import daemon
-
                 self.set_base_url_for_test_client(
                     unversioned_test_client, daemon.service.service_prefix
                 )
@@ -110,7 +106,7 @@ unversioned_client = test_api_base.unversioned_client
 async_client = test_api_base.async_client
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def api_config_test(service_config_test):
     framework.utils.singletons.project_member.project_member = None
     services.api.utils.singletons.scheduler.scheduler = None

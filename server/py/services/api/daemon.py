@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import fastapi
+
 from dependency_injector import containers, providers
 
 from mlrun import mlconf
@@ -57,7 +57,7 @@ class APIServiceContainer(containers.DeclarativeContainer):
     )
 
 
-def app() -> fastapi.FastAPI:
+def app():
     daemon.initialize()
     daemon.wire()
     return daemon.app

@@ -38,11 +38,6 @@ from .test_nuclio import TestNuclioRuntime
 from framework.rundb.sqldb import SQLRunDB
 from framework.utils.singletons.k8s import get_k8s_helper
 
-pytestmark = [
-    pytest.mark.usefixtures("k8s_secrets_mock"),
-    pytest.mark.usefixtures("api_config_test"),
-]
-
 
 class TestServingRuntime(TestNuclioRuntime):
     @property

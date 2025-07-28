@@ -75,8 +75,6 @@ ORIGINAL_VERSIONED_API_PREFIX = daemon.service.base_versioned_service_prefix
 FUNCTIONS_API = "projects/{project}/functions/{name}"
 LIST_FUNCTION_API = "projects/{project}/functions"
 
-pytestmark = pytest.mark.usefixtures("api_config_test")
-
 
 @pytest.fixture(params=["leader", "follower"])
 def project_member_mode(request, db: Session) -> str:

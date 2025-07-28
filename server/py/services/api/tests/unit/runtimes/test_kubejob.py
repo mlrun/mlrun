@@ -37,11 +37,6 @@ from framework.utils.singletons.db import get_db
 from services.api.tests.unit.conftest import APIK8sSecretsMock
 from services.api.tests.unit.runtimes.base import TestRuntimeBase
 
-pytestmark = [
-    pytest.mark.usefixtures("k8s_secrets_mock"),
-    pytest.mark.usefixtures("api_config_test"),
-]
-
 
 def create_node_affinity_with_terms(
     terms: list[list[k8s_client.V1NodeSelectorRequirement]],

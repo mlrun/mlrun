@@ -16,7 +16,6 @@ import random
 import unittest.mock
 from http import HTTPStatus
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -25,8 +24,6 @@ import mlrun.common.schemas
 
 import services.api.api.endpoints.workflows
 import services.api.crud
-
-pytestmark = pytest.mark.usefixtures("api_config_test")
 
 PROJECT_NAME = "my-proj1"
 WORKFLOW_NAME = "main"

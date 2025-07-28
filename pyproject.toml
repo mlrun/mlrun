@@ -58,7 +58,6 @@ python_files = [
 ]
 plugins = [
     "tests.common_fixtures",
-    "server.py.common_fixtures",
 ]
 timeout = 1800  # 30 minutes per test
 log_cli = true

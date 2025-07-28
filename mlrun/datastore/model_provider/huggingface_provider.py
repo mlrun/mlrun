@@ -59,9 +59,8 @@ class HuggingFaceProvider(ModelProvider):
             default_invoke_kwargs=default_invoke_kwargs,
         )
         self.options = self.get_client_options()
-        self.load_client()
         self._expected_operation_type = None
-        self._expected_async_operation_type = None
+        self.load_client()
 
     @staticmethod
     def _extract_string_output(result) -> str:

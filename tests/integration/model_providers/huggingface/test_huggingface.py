@@ -221,6 +221,14 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         ):
             model_provider.invoke(messages=[formatted_messages[0]])
 
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Huggingface operation must inherit from 'Pipeline' object",
+        ):
+            model_provider.custom_invoke(
+                operation=lambda *args, **kwargs: None, messages=[formatted_messages[0]]
+            )
+
 
 class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
     def test_hf_model_runner(self):

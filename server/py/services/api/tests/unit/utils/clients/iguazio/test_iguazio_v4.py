@@ -290,42 +290,6 @@ async def test_verify_request_session_single_group_untyped(
     assert auth_info.user_group_ids == ["valid-group-id"]
 
 
-# @pytest.mark.parametrize("iguazio_client", [("v4", "async")], indirect=True)
-# @pytest.mark.asyncio
-# async def test_verify_request_session_handle_error_response(
-#     api_url: str,
-#     iguazio_client,
-#     aioresponses_mock: aioresponses_mock,
-# ):
-#     headers = {
-#         mlrun.common.schemas.HeaderNames.cookie: f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=dummy-cookie"
-#     }
-#     mock_request = build_mock_request(headers)
-#
-#     def _verify_session_mock(*args, **kwargs):
-#         response = sample_user_info()
-#         return CallbackResult(
-#             payload=response,
-#             status=http.HTTPStatus.UNAUTHORIZED.value,
-#         )
-#
-#     url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
-#
-#     patch_restful_request(
-#         aioresponses_mock,
-#         method=http.HTTPMethod.GET,
-#         url=url,
-#         callback=_verify_session_mock,
-#     )
-#
-#     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
-#         await maybe_coroutine(iguazio_client.verify_request_session(mock_request))
-#
-#     assert (
-#         exc.value.error_status_code == http.HTTPStatus.UNAUTHORIZED.value
-#     ), "Expected 401 Unauthorized"
-
-
 def sample_user_info(username="dummy-user", group_ids=None):
     group_ids = group_ids or ["dummy-group-id-g1", "dummy-group-id-g2"]
     return {

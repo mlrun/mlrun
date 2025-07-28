@@ -208,37 +208,3 @@ def test_authenticate_request_auth_info_iguazio(
         headers=mock_request_headers,
     )
     assert response.status_code == http.HTTPStatus.OK.value
-
-
-# def test_authenticate_request_auth_info_iguazio_v4(
-#     api_url,
-#     db: sqlalchemy.orm.Session,
-#     client: fastapi.testclient.TestClient,
-#     aioresponses_mock: aioresponses_mock,
-# ) -> None:
-#     mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO_V4
-#     mock_request_headers = starlette.datastructures.Headers(
-#         {"cookie": f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=dummy-cookie"}
-#     )
-#     mock_request = fastapi.Request({"type": "http"})
-#     mock_request._headers = mock_request_headers
-#
-#     url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
-#     aioresponses_mock.add(
-#         url,
-#         method="GET",
-#     )
-#
-#     authorization_verification_input = (
-#         mlrun.common.schemas.AuthorizationVerificationInput(
-#             resource="/some-resource",
-#             action=mlrun.common.schemas.AuthorizationAction.create,
-#         )
-#     )
-#
-#     response = client.post(
-#         "authorization/verifications",
-#         json=authorization_verification_input.dict(),
-#         headers=mock_request_headers,
-#     )
-#     assert response.status_code == http.HTTPStatus.OK.value

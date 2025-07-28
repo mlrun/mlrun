@@ -33,6 +33,7 @@ from mlrun.platforms.iguazio import KafkaOutputStream
 from mlrun.runtimes import ServingRuntime
 from mlrun.serving import Model, ModelRunnerStep, ModelSelector
 from mlrun.serving.states import RootFlowStep, RouterStep
+from mlrun.serving.system_steps import MonitoringPreProcessor
 from tests.serving.test_serving import _log_model
 
 assets_path = str(pathlib.Path(__file__).parent / "assets")
@@ -269,26 +270,51 @@ class MyModel(Model):
         super().__init__(*args, **kwargs)
         self.inc = inc
 
-    def predict(self, body):
+    def predict(self, body, **kwargs):
         body["n"] += self.inc
         body.pop("models", None)
         return body
 
-    async def predict_async(self, body):
-        return self.predict(body)
+    async def predict_async(self, body, **kwargs):
+        return self.predict(body, **kwargs)
+
+
+def handle_error(event):
+    return event
 
 
 class DictOutputModel(Model):
-    def predict(self, body):
+    def predict(self, body, **kwargs):
         body["outputs"] = {}
-        for key, value in body["inputs"].items():
-            body["outputs"][key.replace("f", "o")] = (
-                value + 1 if not isinstance(value, list) else [v + 1 for v in value]
-            )
+        for key, value in body["inputs"][self.name].items():
+            if not isinstance(value, list) and not isinstance(value, str):
+                body["outputs"][key.replace("f", "o")] = value + 1
+            elif not isinstance(value, list) and isinstance(value, str):
+                body["outputs"][key.replace("f", "o")] = value + "_output"
+            elif isinstance(value, list):
+                out_value = []
+                for v in value:
+                    if isinstance(v, int):
+                        out_value.append(v + 1)
+                    elif isinstance(v, str):
+                        out_value.append(v + "_output")
+                body["outputs"][key.replace("f", "o")] = out_value
         return body
 
-    async def predict_async(self, body):
-        return self.predict(body)
+    async def predict_async(self, body, **kwargs):
+        return self.predict(body, **kwargs)
+
+
+class StrDictOutputModel(Model):
+    def predict(self, body, **kwargs):
+        body["outputs"] = {}
+        for key, value in body["inputs"][self.name].items():
+            body["outputs"][key.replace("f", "o")] = (
+                value + "_output"
+                if not isinstance(value, list)
+                else [v + "_output" for v in value]
+            )
+        return body
 
 
 def _test_monitoring_system_steps_structure(
@@ -326,7 +352,7 @@ def _test_graph_structure(graph: RootFlowStep, tracked: bool):
 def test_tracked_model_runner(rundb_mock, enable_tracking: bool):
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
         model_class="MyModel",
         execution_mechanism="naive",
@@ -337,8 +363,9 @@ def test_tracked_model_runner(rundb_mock, enable_tracking: bool):
         inc=1,
     )
     graph.to(model_runner_step).respond()
-    function.set_tracking(stream_args={"mock": True})
-    function.set_tracking("dummy://", enable_tracking=enable_tracking)
+    function.set_tracking(
+        "dummy://", enable_tracking=enable_tracking, stream_args={"mock": True}
+    )
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()
@@ -354,7 +381,8 @@ def test_tracked_model_runner(rundb_mock, enable_tracking: bool):
     _test_graph_structure(server.graph, enable_tracking)
 
 
-def test_tracked_model_runner_dict(rundb_mock):
+@pytest.mark.parametrize("with_schema", [True, False])
+def test_tracked_model_runner_dict(rundb_mock, with_schema):
     function = mlrun.new_function("tests-1", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
@@ -362,22 +390,216 @@ def test_tracked_model_runner_dict(rundb_mock):
         model_class="DictOutputModel",
         execution_mechanism="naive",
         endpoint_name="dict_model",
-        input_path="inputs",
+        input_path="inputs.dict_model",
         result_path="outputs",
-        outputs=["o1", "o2", "o3", "o4"],
+        inputs=["f1", "f2", "f3", "f4"] if with_schema else None,
+        outputs=["o1", "o2", "o3", "o4"] if with_schema else None,
+        raise_error=False,
+    )
+    model_runner_step.add_model(
+        model_class="DictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model_2",
+        input_path="inputs.dict_model_2",
+        result_path="outputs",
+        inputs=["f1"] if with_schema else None,
+        outputs=["o1"] if with_schema else None,
+        raise_error=False,
+    )
+    model_runner_step.add_model(
+        model_class="DictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model_single_event",
+        input_path="inputs.dict_model_single_event",
+        result_path="outputs",
+        raise_error=False,
+    )
+    model_runner_step.add_model(
+        model_class="DictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model_single_event_wrapped",
+        input_path="inputs.dict_model_single_event_wrapped",
+        result_path="outputs",
+        inputs=["f1", "f2", "f3", "f4"] if with_schema else None,
+        outputs=["o1", "o2", "o3", "o4"] if with_schema else None,
+        raise_error=False,
+    )
+    model_runner_step.add_model(
+        model_class="DictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model_scalar",
+        input_path="inputs.dict_model_scalar",
+        result_path="outputs",
+        inputs=["f1"] if with_schema else None,
+        outputs=["o1"] if with_schema else None,
         raise_error=False,
     )
     graph.to(model_runner_step).respond()
 
     function.set_tracking("dummy://", enable_tracking=True)
     server = function.to_mock_server()
-    server.test("/", {"inputs": {"f1": 1, "f2": 2, "f3": 3, "f4": 4}})
+    inputs_model = (
+        {"f1": [1, 2], "f2": ["hi", "bye"], "f3": [3, 4], "f4": [4, 5]}
+        if not with_schema
+        else {"f4": [4, 5], "f2": ["hi", "bye"], "f1": [1, 2], "f3": [3, 4]}
+    )
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "dict_model": inputs_model,
+                "dict_model_2": {"f1": [1, 2]},
+                "dict_model_single_event": {"f1": 1, "f2": "hi", "f3": 3, "f4": 4},
+                "dict_model_single_event_wrapped": {
+                    "f1": [1],
+                    "f2": ["hi"],
+                    "f3": [3],
+                    "f4": [4],
+                },
+                "dict_model_scalar": {"f1": 1},
+            }
+        },
+    )
     server.wait_for_completion()
 
     dummy_stream = server.context.stream.output_stream
-    assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
-    assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [[2, 3, 4, 5]]
-    assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [[1, 2, 3, 4]]
+    assert len(dummy_stream.event_list) == 5, "expected stream to get one message"
+    assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [
+        [1, "hi", 3, 4],
+        [2, "bye", 4, 5],
+    ]
+    assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [
+        [2, "hi_output", 4, 5],
+        [3, "bye_output", 5, 6],
+    ]
+    assert dummy_stream.event_list[1].get("request", {}).get("inputs") == [1, 2]
+    assert dummy_stream.event_list[1].get("resp", {}).get("outputs") == [2, 3]
+    assert dummy_stream.event_list[2].get("request", {}).get("inputs") == [
+        [1, "hi", 3, 4]
+    ]
+    assert dummy_stream.event_list[2].get("resp", {}).get("outputs") == [
+        [2, "hi_output", 4, 5]
+    ]
+    assert dummy_stream.event_list[3].get("request", {}).get("inputs") == [
+        [1, "hi", 3, 4]
+    ]
+    assert dummy_stream.event_list[3].get("resp", {}).get("outputs") == [
+        [2, "hi_output", 4, 5]
+    ]
+    assert dummy_stream.event_list[4].get("request", {}).get("inputs") == [1]
+    assert dummy_stream.event_list[4].get("resp", {}).get("outputs") == [2]
+
+
+@pytest.mark.parametrize("with_schema", [True, False])
+def test_tracked_model_runner_str_dict(rundb_mock, with_schema):
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="StrDictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model",
+        input_path="inputs.dict_model",
+        result_path="outputs",
+        inputs=["f1", "f2", "f3", "f4"] if with_schema else None,
+        outputs=["o1", "o2", "o3", "o4"] if with_schema else None,
+        raise_error=False,
+    )
+    model_runner_step.add_model(
+        model_class="StrDictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model_2",
+        input_path="inputs.dict_model_2",
+        result_path="outputs",
+        inputs=["f1"] if with_schema else None,
+        outputs=["o1"] if with_schema else None,
+        raise_error=False,
+    )
+    model_runner_step.add_model(
+        model_class="StrDictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model_single_event",
+        input_path="inputs.dict_model_single_event",
+        result_path="outputs",
+        raise_error=False,
+    )
+    model_runner_step.add_model(
+        model_class="StrDictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model_single_event_wrapped",
+        input_path="inputs.dict_model_single_event_wrapped",
+        result_path="outputs",
+        inputs=["f1", "f2", "f3", "f4"] if with_schema else None,
+        outputs=["o1", "o2", "o3", "o4"] if with_schema else None,
+        raise_error=False,
+    )
+    model_runner_step.add_model(
+        model_class="StrDictOutputModel",
+        execution_mechanism="naive",
+        endpoint_name="dict_model_scalar",
+        input_path="inputs.dict_model_scalar",
+        result_path="outputs",
+        inputs=["f1"] if with_schema else None,
+        outputs=["o1"] if with_schema else None,
+        raise_error=False,
+    )
+    graph.to(model_runner_step).respond()
+
+    function.set_tracking("dummy://", enable_tracking=True)
+    server = function.to_mock_server()
+    inputs_model = (
+        {"f1": ["1", "2"], "f2": ["2", "3"], "f3": ["3", "4"], "f4": ["4", "5"]}
+        if not with_schema
+        else {"f4": ["4", "5"], "f2": ["2", "3"], "f1": ["1", "2"], "f3": ["3", "4"]}
+    )
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "dict_model": inputs_model,
+                "dict_model_2": {"f1": ["1", "2"]},
+                "dict_model_single_event": {"f1": "1", "f2": "2", "f3": "3", "f4": "4"},
+                "dict_model_single_event_wrapped": {
+                    "f1": ["1"],
+                    "f2": ["2"],
+                    "f3": ["3"],
+                    "f4": ["4"],
+                },
+                "dict_model_scalar": {"f1": "1"},
+            }
+        },
+    )
+    server.wait_for_completion()
+
+    dummy_stream = server.context.stream.output_stream
+    assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [
+        ["1", "2", "3", "4"],
+        ["2", "3", "4", "5"],
+    ]
+    assert len(dummy_stream.event_list) == 5, "expected stream to get one message"
+    assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [
+        ["1_output", "2_output", "3_output", "4_output"],
+        ["2_output", "3_output", "4_output", "5_output"],
+    ]
+    assert dummy_stream.event_list[1].get("request", {}).get("inputs") == ["1", "2"]
+    assert dummy_stream.event_list[1].get("resp", {}).get("outputs") == [
+        "1_output",
+        "2_output",
+    ]
+    assert dummy_stream.event_list[2].get("request", {}).get("inputs") == [
+        ["1", "2", "3", "4"]
+    ]
+    assert dummy_stream.event_list[2].get("resp", {}).get("outputs") == [
+        ["1_output", "2_output", "3_output", "4_output"]
+    ]
+    assert dummy_stream.event_list[3].get("request", {}).get("inputs") == [
+        ["1", "2", "3", "4"]
+    ]
+    assert dummy_stream.event_list[3].get("resp", {}).get("outputs") == [
+        ["1_output", "2_output", "3_output", "4_output"]
+    ]
+    assert dummy_stream.event_list[4].get("request", {}).get("inputs") == ["1"]
+    assert dummy_stream.event_list[4].get("resp", {}).get("outputs") == ["1_output"]
 
 
 def test_tracked_model_runner_multiple_steps(rundb_mock):
@@ -526,7 +748,7 @@ def test_tracked_multiple_to_mock_with_model_runner(rundb_mock):
         model_class="DictOutputModel",
         execution_mechanism="naive",
         endpoint_name="my_dict_model",
-        input_path="inputs",
+        input_path="inputs.my_dict_model",
         result_path="outputs",
         outputs=["o1", "o2", "o3", "o4"],
         raise_error=False,
@@ -543,14 +765,22 @@ def test_tracked_multiple_to_mock_with_model_runner(rundb_mock):
         model_class="DictOutputModel",
         execution_mechanism="naive",
         endpoint_name="my_dict_model_1",
-        input_path="inputs",
+        input_path="inputs.my_dict_model_1",
         result_path="outputs",
         outputs=["o1", "o2", "o3", "o4"],
         raise_error=False,
     )
     graph.to(model_runner_step_1)
     server = function.to_mock_server()
-    server.test("/", {"inputs": {"f1": 1, "f2": 2, "f3": 3, "f4": 4}})
+    server.test(
+        "/",
+        {
+            "inputs": {
+                "my_dict_model_1": {"f1": 1, "f2": 2, "f3": 3, "f4": 4},
+                "my_dict_model": {"f1": 1, "f2": 2, "f3": 3, "f4": 4},
+            }
+        },
+    )
     server.wait_for_completion()
     dummy_stream = server.context.stream.output_stream
     assert len(dummy_stream.event_list) == 2, "expected stream to get one message"
@@ -565,7 +795,7 @@ def test_sampling_model_runner(rundb_mock, sampling_percentage: float):
         model_class="DictOutputModel",
         execution_mechanism="naive",
         endpoint_name="dict_model_1",
-        input_path="inputs",
+        input_path="inputs.dict_model_1",
         result_path="outputs",
         outputs=["o1", "o2", "o3", "o4"],
         raise_error=False,
@@ -580,10 +810,12 @@ def test_sampling_model_runner(rundb_mock, sampling_percentage: float):
         "/",
         {
             "inputs": {
-                "f1": [1, 4, 8, 12] * 1000,
-                "f2": [2, 5, 9, 13] * 1000,
-                "f3": [3, 6, 10, 14] * 1000,
-                "f4": [4, 7, 11, 15] * 1000,
+                "dict_model_1": {
+                    "f1": [1, 4, 8, 12] * 1000,
+                    "f2": [2, 5, 9, 13] * 1000,
+                    "f3": [3, 6, 10, 14] * 1000,
+                    "f4": [4, 7, 11, 15] * 1000,
+                }
             }
         },
     )
@@ -766,3 +998,89 @@ def test_tracked_model_runner_background_task(rundb_mock):
     assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
     assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [3]
     assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [2]
+
+
+@pytest.mark.parametrize("enable_tracking", [True, False])
+@pytest.mark.parametrize("raise_exception", [True, False])
+@pytest.mark.parametrize("as_responder", [True, False])
+@pytest.mark.parametrize("all_graph_handler", [True, False])
+def test_tracked_model_runner_with_error_handler(
+    rundb_mock,
+    enable_tracking: bool,
+    raise_exception: bool,
+    as_responder: bool,
+    all_graph_handler: bool,
+):
+    function = mlrun.new_function("tests-1", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner", raise_exception=raise_exception
+    )
+    model_runner_step.add_model(
+        model_class="MyModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        input_path="n",
+        result_path="n",
+        raise_error=False,
+        inc=1,
+    )
+    if as_responder:
+        step = graph.to(model_runner_step).respond()
+    else:
+        step = graph.to(model_runner_step)
+    if all_graph_handler:
+        graph.error_handler("echo_error", handler="handle_error")
+    else:
+        step.error_handler("echo_error", handler="handle_error")
+    function.set_tracking(
+        "dummy://", enable_tracking=enable_tracking, stream_args={"mock": True}
+    )
+    server = function.to_mock_server()
+    resp = server.test("/", {"n": "1"})
+    server.wait_for_completion()
+
+    dummy_stream = server.context.stream.output_stream
+    if enable_tracking:
+        assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+        assert (
+            dummy_stream.event_list[0].get("error")
+            == "<class 'TypeError'>: can only concatenate str (not \"int\") to str"
+        )
+        assert dummy_stream.event_list[0].get("request", {}).get("inputs") == "1"
+    elif not enable_tracking and as_responder:
+        assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
+        assert resp == {
+            "error": "<class 'TypeError'>: can only concatenate str (not \"int\") to str"
+        }
+
+    _test_graph_structure(server.graph, enable_tracking)
+
+
+def test_transpose_by_key_with_str():
+    data = {
+        "Price": 30.0,
+        "Product": "Keyboard",
+        "Stock": 100,
+        "extra": 123,
+        "time": "2020-01-01T01:00:00Z",
+    }
+    result = MonitoringPreProcessor.transpose_by_key(data)
+    expected_result = [[30.0, "Keyboard", 100, 123, "2020-01-01T01:00:00Z"]]
+
+    assert result == expected_result
+
+    data = {
+        "Price": [30.0, 6.0],
+        "Product": ["Keyboard", "Mouse"],
+        "Stock": [100, 200],
+        "extra": [123, 80],
+        "time": ["2020-01-01T01:00:00Z", "2020-01-01T02:00:00Z"],
+    }
+    result = MonitoringPreProcessor.transpose_by_key(data)
+
+    expected_result = [
+        [30.0, "Keyboard", 100, 123, "2020-01-01T01:00:00Z"],
+        [6.0, "Mouse", 200, 80, "2020-01-01T02:00:00Z"],
+    ]
+    assert result == expected_result

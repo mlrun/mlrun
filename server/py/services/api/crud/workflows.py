@@ -32,6 +32,7 @@ import framework.api.utils
 import framework.constants
 import framework.utils.notifications
 import framework.utils.notifications.notification_pusher
+import framework.utils.singletons.db
 import services.api.crud
 import services.api.utils.singletons.scheduler
 
@@ -663,6 +664,7 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             mlrun_constants.MLRunInternalLabels.job_type: mlrun_constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: runner.metadata.name,
             mlrun_constants.MLRunInternalLabels.original_workflow_id: run_uid,
+            mlrun_constants.MLRunInternalLabels.rerun_index: rerun_request.rerun_index,
         }
 
         self._enrich_runner_node_selector(runner, rerun_request)
@@ -712,6 +714,8 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             parameters={
                 "run_uid": rerun_request.run_id,
                 "project_name": project.metadata.name,
+                "original_runner_uid": rerun_request.original_workflow_runner_uid,
+                "original_workflow_name": rerun_request.original_workflow_name,
             },
             notifications=notifications,
             run_name=rerun_request.run_name,
@@ -720,3 +724,11 @@ class RerunRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         )
 
         return run_object
+
+    def set_run_retrying_status(
+        self, db_session, project: str, run_id: str, retrying: bool
+    ):
+        """Mark this original-runner as ‘retrying’. Blocks until exclusive lock acquired."""
+        return framework.utils.singletons.db.get_db().set_run_retrying_status(
+            session=db_session, project=project, uid=run_id, retrying=retrying
+        )

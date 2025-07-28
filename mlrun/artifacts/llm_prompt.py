@@ -13,6 +13,7 @@
 # limitations under the License.
 import json
 import tempfile
+from collections import defaultdict
 from typing import Optional, Union
 
 import mlrun
@@ -253,3 +254,8 @@ class LLMPromptArtifact(Artifact):
             self.spec.prompt_template = None
             self._src_is_temp = True
         super().before_log()
+
+
+class PlaceholderDefaultDict(defaultdict):
+    def __missing__(self, key):
+        return f"{{{key}}}"

@@ -3813,6 +3813,7 @@ class HTTPRunDB(RunDBInterface):
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
+        mode: mm_constants.EndpointMode = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
@@ -3833,6 +3834,8 @@ class HTTPRunDB(RunDBInterface):
                                 If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
                                 will be included.
         :param top_level:       Whether to return only top level model endpoints.
+        :param mode:            Specifies the mode of the model endpoint. Can be "real-time", "batch", or both if set
+                                to None.
         :param uids:            A list of unique ids to filter by.
         :param latest_only:     Whether to return only the latest model endpoint version.
         :return:                A list of model endpoints.
@@ -3856,6 +3859,7 @@ class HTTPRunDB(RunDBInterface):
                 "tsdb-metrics": tsdb_metrics,
                 "metric": metric_list,
                 "top-level": top_level,
+                "mode": mode,
                 "uid": uids,
                 "latest-only": latest_only,
             },
@@ -4740,6 +4744,28 @@ class HTTPRunDB(RunDBInterface):
             params=params,
         )
         return mlrun.common.schemas.GetWorkflowResponse(**response.json())
+
+    def set_run_retrying_status(
+        self, project: str, name: str, run_id: str, retrying: bool = False
+    ):
+        """
+        Toggle the “retrying” label on a workflow-runner run.
+
+        This will POST to the workflows endpoint to either add or remove the
+        `retrying` flag on a specific run, which prevents parallel retries.
+
+        :param project:   The project name under which the workflow is defined.
+        :param name:      The workflow name (as in the URL path).
+        :param run_id:    The UID of the workflow-runner run to update.
+        :param retrying:  True to add the `retrying` label, False to remove it.
+
+        :raises MLRunHTTPError: If the HTTP request fails or returns an error status.
+        """
+        path = f"projects/{project}/workflows/{name}/runs/{run_id}/set-retry-status"
+        params = {"retrying": retrying}
+        self.api_call(
+            "POST", path, f"set retrying on {project}/{run_id}", params=params
+        )
 
     def load_project(
         self,

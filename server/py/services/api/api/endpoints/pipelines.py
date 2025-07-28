@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.background_task
 import mlrun.config
@@ -210,6 +211,29 @@ async def retry_pipeline(
         return run_id
 
     try:
+        # Prevent two simultaneous retries for the same original workflow—
+        # we lock the original-runner row, mark it retrying, and block any
+        # parallel retry requests until it’s cleared.
+        rerun_index = await fastapi.concurrency.run_in_threadpool(
+            services.api.crud.Pipelines().lock_run_and_mark_retrying,
+            db_session=db_session,
+            project=project.metadata.name,
+            run_id=original_runner.metadata.uid,
+        )
+    except mlrun.errors.MLRunConflictError as exc:
+        try:
+            return await fastapi.concurrency.run_in_threadpool(
+                services.api.crud.Pipelines().get_running_rerun_runner,
+                db_session=db_session,
+                project=project.metadata.name,
+                original_workflow_id=original_workflow_id,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            raise mlrun.errors.MLRunConflictError(
+                "A retry is already in progress, but no existing rerun was found."
+            ) from exc
+
+    try:
         workflow_response: mlrun.common.schemas.WorkflowResponse = (
             await fastapi.concurrency.run_in_threadpool(
                 services.api.crud.Pipelines().rerun_pipeline_via_runner,
@@ -219,6 +243,7 @@ async def retry_pipeline(
                 original_runner=original_runner,
                 auth_info=auth_info,
                 client_version=client_version,
+                rerun_index=rerun_index,
             )
         )
 

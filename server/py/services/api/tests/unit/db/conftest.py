@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2025 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,22 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.serving import Model
+import pytest
+
+import framework.utils.db.utils
+import framework.utils.singletons.db
 
 
-class ErrorModel(Model):
-    def predict(self, body, **kwargs):
-        raise RuntimeError
-
-
-def inc(x):
-    return x + 1
-
-
-def catcher(event):
-    print(event.origin_state)
-
-
-def catcher_echo(event):
-    event.body["error"] = "catcher_echo"
-    return event
+@pytest.fixture
+def db_util() -> framework.utils.db.utils.DBUtil:
+    util = framework.utils.db.utils.DBUtil()
+    return util

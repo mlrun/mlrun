@@ -198,7 +198,7 @@ jobs:
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@7edac99f961f18b581bbd960d59d049f04c0002f # 6.4.1
+      uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # 6.4.3
       with:
         enable-cache: true
         cache-dependency-glob: "**/*requirements*.txt"

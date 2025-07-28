@@ -102,7 +102,7 @@ class ParsedDsn:
             return False
         if not self.host or not self._HOST_REGEX.fullmatch(self.host):
             return False
-        if self.port is not None or not 1 <= self.port <= 65535:
+        if self.port is not None and not 1 <= self.port <= 65535:
             return False
 
         return True
@@ -142,6 +142,7 @@ class DBUtil:
     _DIALECT = None
     _DSN_ENV = "MLRUN_HTTPDB__DSN"
     _DRIVER_CACHE: dict[str, Any] = {}
+    _EMPTY_DB_CONFIGURATIONS = {"nil", "none"}
     _DEFAULT_DB_CONFIGURATIONS = None
 
     def wait_for_db_liveness(
@@ -171,16 +172,19 @@ class DBUtil:
         self,
         config_items: Optional[Union[list[str], dict[str, Any]]] = None,
     ) -> None:
-        config_items = config_items or self._DEFAULT_DB_CONFIGURATIONS
-        if not config_items:
+        items = config_items or self._DEFAULT_DB_CONFIGURATIONS
+        keys = _to_keyset(items)
+
+        if not keys or keys.intersection(self._EMPTY_DB_CONFIGURATIONS):
             mlrun.utils.logger.debug(
                 "No configurations specified – skipping",
                 configs=config_items,
             )
             return
+
         connection = self._get_connection()
         try:
-            self._apply_configurations(connection, config_items)
+            self._apply_configurations(connection, items)
         finally:
             connection.close()
 
@@ -255,7 +259,7 @@ class DBUtil:
 
 class UtilMySQL(DBUtil):
     _DIALECT = mlrun.common.db.dialects.Dialects.MYSQL
-    _DEFAULT_DB_CONFIGURATIONS = mlrun.mlconf.httpdb.db.mysql.modes
+    _DEFAULT_DB_CONFIGURATIONS = mlrun.mlconf.httpdb.db.mysql.modes.split(",")
 
     def get_current_configurations(self) -> dict[str, bool]:
         connection = self._get_connection()
@@ -263,16 +267,19 @@ class UtilMySQL(DBUtil):
             with connection.cursor() as cursor:
                 cursor.execute("SELECT @@GLOBAL.sql_mode;")
                 raw = cursor.fetchone()[0] or ""
-                modes = [m.strip() for m in raw.split(",") if m.strip()]
-                return {mode: True for mode in modes}
         except Exception as exc:
             mlrun.utils.logger.exception(
                 "Failed to fetch current MySQL configurations",
                 error=mlrun.errors.err_to_str(exc),
             )
             raise
+        else:
+            modes = {
+                mode: True for mode in [m.strip() for m in raw.split(",") if m.strip()]
+            }
         finally:
             connection.close()
+        return modes
 
     def _apply_configurations(
         self,
@@ -304,13 +311,15 @@ class UtilPostgres(DBUtil):
                     FROM pg_settings
                         """
                 )
-                return {name: value for name, value in cursor.fetchall()}
+                modes = {name: value for name, value in cursor.fetchall()}
         except Exception as exc:
             mlrun.utils.logger.exception(
                 "Failed to fetch current PostgreSQL configurations",
                 error=mlrun.errors.err_to_str(exc),
             )
             raise exc
+        else:
+            return modes
         finally:
             connection.close()
 
@@ -422,3 +431,14 @@ class UtilSQLite(DBUtil):
                     raise ValueError(f"Invalid PRAGMA '{item}', expected key=value")
                 cursor.execute(f"PRAGMA {name} = {value};")
         connection.commit()
+
+
+def _to_keyset(
+    items: Optional[Union[list[str], dict[str, Any]]],
+) -> Optional[set[str]]:
+    if items is None:
+        return set()
+    if isinstance(items, dict):
+        return set(items.keys())
+    else:
+        return set(items)

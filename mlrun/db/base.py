@@ -56,6 +56,12 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def set_run_retrying_status(
+        self, project: str, name: str, run_id: str, retrying: bool
+    ):
+        pass
+
+    @abstractmethod
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         pass
 
@@ -735,6 +741,7 @@ class RunDBInterface(ABC):
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
+        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:

@@ -225,10 +225,23 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             embeddings = await model_provider.async_custom_invoke(
                 operation=async_client.embeddings.create, input=prompt
             )
+            with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match="OpenAI async_custom_invoke operation"
+                " must be a coroutine function",
+            ):
+                _ = await model_provider.async_custom_invoke(
+                    operation=client.embeddings.create, input=prompt
+                )
         else:
             embeddings = model_provider.custom_invoke(
                 operation=client.embeddings.create, input=prompt
             )
+            with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match="OpenAI custom_invoke " "operation must be a callable",
+            ):
+                _ = await model_provider.custom_invoke(operation="test", input=prompt)
         encoding = tiktoken.encoding_for_model(model_name)
         token_count = len(encoding.encode(prompt))
         assert embeddings.data[0].embedding is not None

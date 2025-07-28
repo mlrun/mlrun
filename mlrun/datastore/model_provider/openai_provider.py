@@ -17,6 +17,7 @@ from typing import Callable, Optional, TypeVar, Union
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.datastore.utils import accepts_param
 
 T = TypeVar("T")
 
@@ -123,18 +124,18 @@ class OpenAIProvider(ModelProvider):
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
+        model_kwargs = {"model": invoke_kwargs.pop("model", None) or self.model}
+
         if operation:
             if not callable(operation):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "OpenAI custom_invoke operation must be a callable"
                 )
-            return operation(
-                **invoke_kwargs, model=invoke_kwargs.get("model") or self.model
-            )
+            if not accepts_param(operation, "model"):
+                model_kwargs = {}
+            return operation(**invoke_kwargs, **model_kwargs)
         else:
-            return self.client.chat.completions.create(
-                **invoke_kwargs, model=invoke_kwargs.get("model") or self.model
-            )
+            return self.client.chat.completions.create(**invoke_kwargs, **model_kwargs)
 
     async def async_custom_invoke(
         self,
@@ -163,17 +164,18 @@ class OpenAIProvider(ModelProvider):
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
+        model_kwargs = {"model": invoke_kwargs.pop("model", None) or self.model}
         if operation:
             if not inspect.iscoroutinefunction(operation):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "OpenAI async_custom_invoke operation must be a coroutine function"
                 )
-            return await operation(
-                **invoke_kwargs, model=invoke_kwargs.get("model") or self.model
-            )
+            if not accepts_param(operation, "model"):
+                model_kwargs = {}
+            return await operation(**invoke_kwargs, **model_kwargs)
         else:
             return await self.async_client.chat.completions.create(
-                **invoke_kwargs, model=self.model
+                **invoke_kwargs, **model_kwargs
             )
 
     def invoke(

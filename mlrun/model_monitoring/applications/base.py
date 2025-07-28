@@ -25,6 +25,7 @@ import pandas as pd
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.datastore.datastore_profile as ds_profile
 import mlrun.errors
@@ -268,32 +269,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 application_schedules.__exit__(None, None, None)
 
     @classmethod
-    def _get_application_name(
-        cls,
-        *,
-        application_name: Optional[str],
-        write_output: bool,
-        logger: mlrun.utils.Logger,
-    ) -> str:
-        if not application_name:
-            application_name = cls.__name__
-        if not application_name.endswith(
-            mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
-        ):
-            application_name += mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
-
-        if write_output:
-            if not mm_constants.APP_NAME_REGEX.fullmatch(application_name):
-                raise mlrun.errors.MLRunValueError(
-                    "The application name does not comply with the required pattern "
-                    f"`{mm_constants.APP_NAME_REGEX.pattern}`. "
-                    "Please choose another `application_name`."
-                )
-            else:
-                logger.info(
-                    "The application name is set", application_name=application_name
-                )
-
+    def _get_application_name(cls, context: "mlrun.MLClientCtx") -> str:
+        """Get the application name from the context via the function URI"""
+        _, application_name, _, _ = mlrun.common.helpers.parse_versioned_object_uri(
+            context.to_dict().get("spec", {}).get("function", "")
+        )
         return application_name
 
     def _handler(
@@ -310,7 +290,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         write_output: bool = False,
         fail_on_overlap: bool = True,
         stream_profile: Optional[ds_profile.DatastoreProfile] = None,
-        application_name: Optional[str] = None,
     ):
         """
         A custom handler that wraps the application's logic implemented in
@@ -330,11 +309,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 "working with endpoints, without any custom data-frame input"
             )
 
-        application_name = self._get_application_name(
-            application_name=application_name,
-            write_output=write_output,
-            logger=context.logger,
-        )
+        application_name = self._get_application_name(context)
 
         feature_stats = (
             mm_api.get_sample_set_statistics(reference_data)
@@ -653,6 +628,42 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         return f"{handler_to_class}::{cls._handler.__name__}"
 
     @classmethod
+    def _determine_job_name(
+        cls,
+        *,
+        func_name: Optional[str],
+        class_handler: Optional[str],
+        handler_to_class: str,
+    ) -> str:
+        """
+        Determine the batch app's job name. This name is used also as the application name,
+        which is retrieved in `_get_application_name`.
+        """
+        if func_name:
+            job_name = func_name
+        else:
+            if not class_handler:
+                class_name = cls.__name__
+            else:
+                class_name = handler_to_class.split(".")[-1].split("::")[0]
+
+            job_name = mlrun.utils.normalize_name(class_name, verbose=False)
+
+        if not mm_constants.APP_NAME_REGEX.fullmatch(job_name):
+            raise mlrun.errors.MLRunValueError(
+                "The function name does not comply with the required pattern "
+                f"`{mm_constants.APP_NAME_REGEX.pattern}`. "
+                "Please choose another `func_name`."
+            )
+        if not job_name.endswith(mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX):
+            job_name += mm_constants._RESERVED_EVALUATE_FUNCTION_SUFFIX
+            mlrun.utils.logger.info(
+                'Changing function name - adding `"-batch"` suffix', func_name=job_name
+            )
+
+        return job_name
+
+    @classmethod
     def to_job(
         cls,
         *,
@@ -692,7 +703,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         * ``base_period``, ``int``
         * ``write_output``, ``bool``
         * ``fail_on_overlap``, ``bool``
-        * ``application_name``, ``str``
 
         For Git sources, add the source archive to the returned job and change the handler:
 
@@ -711,7 +721,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   :py:class:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase`,
                                   is used.
         :param func_path:         The path to the function. If ``None``, the current notebook is used.
-        :param func_name:         The name of the function. If not ``None``, the class name is used.
+        :param func_name:         The name of the function. If ``None``, the normalized class name is used
+                                  (:py:meth:`mlrun.utils.helpers.normalize_name`).
+                                  A ``"-batch"`` suffix is guaranteed to be added if not already there.
+                                  The function name is also used as the application name to use for the results.
         :param tag:               Tag for the function.
         :param image:             Docker image to run the job on (when running remotely).
         :param with_repo:         Whether to clone the current repo to the build source.
@@ -732,12 +745,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         handler_to_class = class_handler or cls.__name__
         handler = cls.get_job_handler(handler_to_class)
 
-        if not class_handler:
-            class_name = cls.__name__
-        else:
-            class_name = handler_to_class.split(".")[-1].split("::")[-1]
-
-        job_name = func_name if func_name else class_name
+        job_name = cls._determine_job_name(
+            func_name=func_name,
+            class_handler=class_handler,
+            handler_to_class=handler_to_class,
+        )
 
         job = cast(
             mlrun.runtimes.KubejobRuntime,
@@ -778,7 +790,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         write_output: bool = False,
         fail_on_overlap: bool = True,
         stream_profile: Optional[ds_profile.DatastoreProfile] = None,
-        application_name: Optional[str] = None,
     ) -> "mlrun.RunObject":
         """
         Call this function to run the application's
@@ -789,7 +800,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         data to the application.
 
         :param func_path:         The path to the function. If ``None``, the current notebook is used.
-        :param func_name:         The name of the function. If not ``None``, the class name is used.
+        :param func_name:         The name of the function. If ``None``, the normalized class name is used
+                                  (:py:meth:`mlrun.utils.helpers.normalize_name`).
+                                  A ``"-batch"`` suffix is guaranteed to be added if not already there.
+                                  The function name is also used as the application name to use for the results.
         :param tag:               Tag for the function.
         :param run_local:         Whether to run the function locally or remotely.
         :param auto_build:        Whether to auto build the function.
@@ -852,8 +866,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   ``write_output`` are set to ``True``).
                                   For more details on configuring the stream profile, see
                                   :py:meth:`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
-        :param application_name:  The application name to use for the results. If not set, the class name is used.
-                                  A ``"-batch"`` suffix is guaranteed to be added if not already there.
 
         :returns: The output of the
                   :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
@@ -899,7 +911,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                             "Passing a `stream_profile` is relevant only when writing the outputs"
                         )
                 params["stream_profile"] = stream_profile
-                params["application_name"] = application_name
         elif start or end or base_period:
             raise mlrun.errors.MLRunValueError(
                 "Custom `start` and `end` times or base_period are supported only with endpoints data"

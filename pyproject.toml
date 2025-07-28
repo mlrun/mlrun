@@ -56,6 +56,10 @@ python_files = [
     "server/py/*/tests/unit/test_*.py",
     "server/py/*/tests/unit/*/test_*.py",
 ]
+plugins = [
+    "tests.common_fixtures",
+    "server.py.common_fixtures",
+]
 timeout = 1800  # 30 minutes per test
 log_cli = true
 log_level = "DEBUG"

@@ -28,11 +28,6 @@ from pytest_alembic.tests import (  # noqa
     test_upgrade,
 )
 
-pytest_plugins = [
-    "tests.common_fixtures",
-    "tests.conftest",
-]
-
 
 class Constants:
     ini_file_path = str(

@@ -312,7 +312,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
                 "error": "catcher_echo",
             }
             if raise_exception
-            else {"error": f"{RuntimeError.__class__}: "}
+            else {"error": "RuntimeError: "}
         )
 
     # Nuclio sometimes passes b'' instead of None due to dirty memory

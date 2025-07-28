@@ -30,6 +30,11 @@ import mlrun.model
 import tests.system.base
 from mlrun.runtimes.function_reference import FunctionReference
 
+pytestmark = [
+    pytest.mark.usefixtures("k8s_secrets_mock"),
+    pytest.mark.usefixtures("api_config_test"),
+]
+
 
 def exec_cli(args, action="run"):
     cmd = [executable, "-m", "mlrun", action] + args

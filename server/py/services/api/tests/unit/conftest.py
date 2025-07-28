@@ -52,6 +52,7 @@ from framework.tests.unit.common_fixtures import (
     K8sSecretsMock,
     TestServiceBase,
 )
+from services.api import daemon
 
 tests_root_directory = pathlib.Path(__file__).absolute().parent
 assets_path = tests_root_directory.joinpath("assets")
@@ -62,7 +63,7 @@ class TestAPIBase(TestServiceBase):
     def app(self) -> Generator[fastapi.FastAPI, None, None]:
         mlrun.mlconf.services.service_name = "api"
         mlrun.mlconf.services.hydra.services = ""
-        yield services.api.daemon.app()
+        yield daemon.app()
 
     @pytest.fixture(scope="module")
     def prefix(self):

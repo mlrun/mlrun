@@ -47,7 +47,6 @@ def test_insert_populates_partition_key(
     id_val: int,
 ) -> None:
     os.environ["PARTITION_INTERVAL"] = interval_name
-    server.py.framework.db.sqldb.models.Base.metadata.drop_all(db_engine)
     server.py.framework.db.sqldb.models.Base.metadata.create_all(db_engine)
 
     current_time: datetime = datetime.now(UTC)

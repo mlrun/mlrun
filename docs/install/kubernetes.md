@@ -54,8 +54,7 @@ The MLRun CE (Community Edition) includes the following components:
 * Prometheus stack - https://github.com/prometheus-community/helm-charts
   - Prometheus
   - Grafana
-  
-[KFP Pipelines](https://github.com/kubeflow/pipelines) is optional. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images).
+-  [KFP Pipelines](https://github.com/kubeflow/pipelines) (see [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images)).
 
 <a id="installing-the-chart"></a>
 ## Installing the chart

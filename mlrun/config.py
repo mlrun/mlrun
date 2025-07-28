@@ -1241,10 +1241,10 @@ class Config:
     @staticmethod
     def get_run_retry_staleness_threshold_timedelta() -> timedelta:
         """
-        Get the staleness threshold in seconds for run retries.
+        Get the staleness threshold in timedelta for run retries.
         This is used to determine if a run is stale and should be retried.
 
-        :return: The staleness threshold in seconds.
+        :return: The staleness threshold in timedelta.
         """
         staleness_threshold = int(
             mlrun.mlconf.monitoring.runs.retry.staleness_threshold

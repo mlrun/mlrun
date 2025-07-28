@@ -15,6 +15,9 @@
 import http
 import typing
 
+import fastapi
+import starlette.datastructures
+
 from tests.common_fixtures import aioresponses_mock
 
 
@@ -43,3 +46,9 @@ def patch_restful_request(
         method,
         **kwargs,
     )
+
+
+def build_mock_request(headers: dict) -> fastapi.Request:
+    request = fastapi.Request({"type": "http"})
+    request._headers = starlette.datastructures.Headers(headers)
+    return request

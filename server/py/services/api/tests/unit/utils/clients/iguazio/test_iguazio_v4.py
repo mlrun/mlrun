@@ -15,14 +15,13 @@
 
 import http
 
-import fastapi
 import pytest
-import starlette.datastructures
 from aioresponses import CallbackResult
 
 import mlrun.common.schemas
 import mlrun.errors
 from server.py.services.api.tests.unit.utils.clients.iguazio.conftest import (
+    build_mock_request,
     patch_restful_request,
 )
 from tests.common_fixtures import aioresponses_mock
@@ -46,8 +45,7 @@ async def test_verify_request_session_failure(
     aioresponses_mock: aioresponses_mock,
     headers: dict,
 ):
-    mock_request = fastapi.Request({"type": "http"})
-    mock_request._headers = starlette.datastructures.Headers(headers)
+    mock_request = build_mock_request(headers)
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
         await maybe_coroutine(iguazio_client.verify_request_session(mock_request))
 
@@ -87,8 +85,7 @@ async def test_verify_request_session_success(
     aioresponses_mock: aioresponses_mock,
     headers: dict,
 ):
-    mock_request = fastapi.Request({"type": "http"})
-    mock_request._headers = starlette.datastructures.Headers(headers)
+    mock_request = build_mock_request(headers)
 
     def _verify_session_with_body_mock(*args, **kwargs):
         response = sample_user_info()
@@ -127,10 +124,6 @@ async def test_verify_request_session_success(
                 },
             ],
         },
-        # Missing "relationships"
-        {
-            "metadata": {"username": "dummy-user"},
-        },
         # metadata is not a dict
         {
             "metadata": "not-a-dict",
@@ -148,11 +141,11 @@ async def test_verify_request_session_success(
             "metadata": {"username": "dummy-user"},
             "relationships": "not-a-list",
         },
-        # {}, # Empty response
+        {},  # Empty response
     ],
 )
 @pytest.mark.asyncio
-async def test_verify_request_session_failure_missing_required_fields(
+async def test_verify_request_session_malformed_response(
     api_url: str,
     iguazio_client,
     aioresponses_mock: aioresponses_mock,
@@ -162,16 +155,15 @@ async def test_verify_request_session_failure_missing_required_fields(
     Covers both missing and malformed required fields in the session verification response.
     Fields:
     - 'metadata.username' must be a non-empty string
-    - 'relationships' must be a list of objects containing group IDs
+    - 'metadata' must be a dict
+    - If 'relationships' exists, it must be a list (missing is OK)
     """
-    mock_request = fastapi.Request({"type": "http"})
-    mock_request._headers = starlette.datastructures.Headers(
-        {
-            mlrun.common.schemas.HeaderNames.cookie: (
-                f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=dummy-cookie"
-            )
-        }
-    )
+    headers = {
+        mlrun.common.schemas.HeaderNames.cookie: (
+            f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=dummy-cookie"
+        )
+    }
+    mock_request = build_mock_request(headers)
 
     def _mock_response(*args, **kwargs):
         return CallbackResult(payload=broken_response)
@@ -193,6 +185,111 @@ async def test_verify_request_session_failure_missing_required_fields(
     ), "Expected 401 Unauthorized"
 
 
+@pytest.mark.parametrize("iguazio_client", [("v4", "async")], indirect=True)
+@pytest.mark.parametrize(
+    "valid_response, expected_groups",
+    [
+        # Missing relationships → valid, no groups
+        (
+            {
+                "metadata": {"username": "dummy-user"},
+            },
+            [],
+        ),
+        # Empty relationships list → valid, no groups
+        (
+            {
+                "metadata": {"username": "dummy-user"},
+                "relationships": [],
+            },
+            [],
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_verify_request_session_valid_no_groups(
+    api_url: str,
+    iguazio_client,
+    aioresponses_mock: aioresponses_mock,
+    valid_response: dict,
+    expected_groups: list[str],
+):
+    """
+    Test valid responses where relationships are missing or empty.
+    The user should be authenticated and group_ids should be an empty list.
+    """
+    headers = {
+        mlrun.common.schemas.HeaderNames.cookie: (
+            f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=dummy-cookie"
+        )
+    }
+    mock_request = build_mock_request(headers)
+
+    def _mock_response(*args, **kwargs):
+        return CallbackResult(payload=valid_response)
+
+    url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
+
+    patch_restful_request(
+        aioresponses_mock,
+        method=http.HTTPMethod.GET,
+        url=url,
+        callback=_mock_response,
+    )
+
+    auth_info = await maybe_coroutine(
+        iguazio_client.verify_request_session(mock_request)
+    )
+
+    assert auth_info.username == "dummy-user"
+    assert auth_info.user_group_ids == expected_groups
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "async")], indirect=True)
+@pytest.mark.asyncio
+async def test_verify_request_session_single_group_untyped(
+    api_url: str,
+    iguazio_client,
+    aioresponses_mock: aioresponses_mock,
+):
+    headers = {
+        mlrun.common.schemas.HeaderNames.cookie: (
+            f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=dummy-cookie"
+        )
+    }
+    mock_request = build_mock_request(headers)
+
+    # Include one valid group and one with invalid type
+    response = {
+        "metadata": {"username": "dummy-user"},
+        "relationships": [
+            {
+                "@type": "type.googleapis.com/group.Group",
+                "metadata": {"id": "valid-group-id"},
+            },
+            {
+                "@type": "some-other-type",
+                "metadata": {"id": "ignored-id"},
+            },
+        ],
+    }
+
+    def _mock_response(*args, **kwargs):
+        return CallbackResult(payload=response)
+
+    url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
+    patch_restful_request(
+        aioresponses_mock, method=http.HTTPMethod.GET, url=url, callback=_mock_response
+    )
+
+    auth_info = await maybe_coroutine(
+        iguazio_client.verify_request_session(mock_request)
+    )
+
+    assert auth_info.username == "dummy-user"
+    assert auth_info.user_group_ids == ["valid-group-id"]
+
+
 # @pytest.mark.parametrize("iguazio_client", [("v4", "async")], indirect=True)
 # @pytest.mark.asyncio
 # async def test_verify_request_session_handle_error_response(
@@ -200,12 +297,10 @@ async def test_verify_request_session_failure_missing_required_fields(
 #     iguazio_client,
 #     aioresponses_mock: aioresponses_mock,
 # ):
-#     mock_request = fastapi.Request({"type": "http"})
-#     mock_request._headers = starlette.datastructures.Headers(
-#         {
-#             mlrun.common.schemas.HeaderNames.cookie: f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=dummy-cookie"
-#         }
-#     )
+#     headers = {
+#         mlrun.common.schemas.HeaderNames.cookie: f"{mlrun.common.schemas.CookieNames.oauth2_proxy}=dummy-cookie"
+#     }
+#     mock_request = build_mock_request(headers)
 #
 #     def _verify_session_mock(*args, **kwargs):
 #         response = sample_user_info()
@@ -226,25 +321,21 @@ async def test_verify_request_session_failure_missing_required_fields(
 #     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
 #         await maybe_coroutine(iguazio_client.verify_request_session(mock_request))
 #
-#     assert exc.value.error_status_code == http.HTTPStatus.UNAUTHORIZED.value, "Expected 401 Unauthorized"
+#     assert (
+#         exc.value.error_status_code == http.HTTPStatus.UNAUTHORIZED.value
+#     ), "Expected 401 Unauthorized"
 
 
-def sample_user_info():
+def sample_user_info(username="dummy-user", group_ids=None):
+    group_ids = group_ids or ["dummy-group-id-g1", "dummy-group-id-g2"]
     return {
-        "metadata": {"resourceType": "user", "username": "dummy-user"},
+        "metadata": {"resourceType": "user", "username": username},
         "relationships": [
             {
                 "@type": "type.googleapis.com/group.Group",
-                "metadata": {
-                    "id": "dummy-group-id-g1",
-                },
-            },
-            {
-                "@type": "type.googleapis.com/group.Group",
-                "metadata": {
-                    "id": "dummy-group-id-g2",
-                },
-            },
+                "metadata": {"id": gid},
+            }
+            for gid in group_ids
         ],
         "status": {"ctx": "dummy-ctx", "statusCode": http.HTTPStatus.OK.value},
     }

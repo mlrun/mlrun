@@ -641,6 +641,9 @@ class Client(
         response_headers: typing.Mapping[str, typing.Any],
         response_body: typing.Mapping[typing.Any, typing.Any],
     ) -> mlrun.common.schemas.AuthInfo:
+        """
+        Extract and return AuthInfo from a valid session verification response.
+        """
         (
             username,
             session,

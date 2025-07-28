@@ -31,6 +31,9 @@ class Client(BaseClient):
         response_headers: typing.Mapping[str, typing.Any],
         response_body: typing.Mapping[typing.Any, typing.Any],
     ) -> mlrun.common.schemas.AuthInfo:
+        """
+        Extract and return AuthInfo from a valid session verification response.
+        """
         username, group_ids = self._parse_auth_response_data(response_body)
         return mlrun.common.schemas.AuthInfo(
             username=username,
@@ -44,18 +47,20 @@ class Client(BaseClient):
     def _prepare_request_kwargs(
         self, session: typing.Optional[str], path: str, *, kwargs: dict
     ):
+        """
+        Prepare headers for session verification request.
+        Must include either an Authorization header or an _oauth2_proxy cookie.
+        """
         headers = kwargs.setdefault("headers", {})
 
         # Accept an Authorization header or a session cookie named "_oauth2_proxy"
         authorization = headers.get(mlrun.common.schemas.HeaderNames.authorization, "")
         cookie = headers.get(mlrun.common.schemas.HeaderNames.cookie, "")
 
-        has_auth = (
-            bool(authorization)
-            or mlrun.common.schemas.CookieNames.oauth2_proxy in cookie
-        )
-
-        if not has_auth:
+        if (
+            not authorization
+            and mlrun.common.schemas.CookieNames.oauth2_proxy not in cookie
+        ):
             raise mlrun.errors.MLRunUnauthorizedError(
                 "Request must include either an Authorization header or _oauth2_proxy cookie"
             )
@@ -76,6 +81,9 @@ class Client(BaseClient):
     def _parse_auth_response_data(
         response_body: typing.Mapping[typing.Any, typing.Any],
     ) -> tuple[str, list[str]]:
+        """
+        Validate and parse the authentication response body to extract the username and group IDs.
+        """
         if not isinstance(response_body, dict):
             raise mlrun.errors.MLRunBadRequestError("Expected dict in response body")
 
@@ -85,22 +93,18 @@ class Client(BaseClient):
                 "Missing or empty username in authentication response"
             )
 
-        relationships = response_body.get("relationships", [])
-        if not isinstance(relationships, list):
-            raise mlrun.errors.MLRunUnauthorizedError(
-                "Invalid format for relationships in authentication response"
-            )
-
         group_ids = []
-        for relationship in relationships:
-            if relationship.get(_GROUP_TYPE_KEY) == _GROUP_TYPE_VALUE and get_in(
-                relationship, "metadata.id"
-            ):
-                group_ids.append(relationship["metadata"]["id"])
 
-        if not group_ids:
+        relationships = response_body.get("relationships")
+        if isinstance(relationships, list):
+            for relationship in relationships:
+                if relationship.get(_GROUP_TYPE_KEY) == _GROUP_TYPE_VALUE:
+                    group_id = get_in(relationship, "metadata.id")
+                    if group_id:
+                        group_ids.append(group_id)
+        elif relationships is not None:
             raise mlrun.errors.MLRunUnauthorizedError(
-                "Missing or empty group IDs in authentication response"
+                "Invalid format for 'relationships' in authentication response"
             )
 
         return username, group_ids

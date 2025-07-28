@@ -26,6 +26,8 @@ import mlrun.errors
 from framework.db.sqldb.models import Project
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
+pytestmark = pytest.mark.usefixtures("api_config_test")
+
 
 class TestProjects(TestDatabaseBase):
     def test_get_project(self):

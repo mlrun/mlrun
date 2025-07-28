@@ -23,6 +23,8 @@ import mlrun.common.schemas
 import services.api.crud
 import services.api.tests.unit.conftest
 
+pytestmark = pytest.mark.usefixtures("api_config_test")
+
 
 class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
     def test_schedule_workflow_with_local_source(

@@ -1903,10 +1903,10 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
                 assert metrics == [
                     ModelEndpointMonitoringMetric(
                         project=self.project_name,
-                        app="CountApp-batch",
+                        app="countapp-batch",
                         type="result",
                         name="count",
-                        full_name=f"{self.project_name}.CountApp-batch.result.count",
+                        full_name=f"{self.project_name}.countapp-batch.result.count",
                         kind=ResultKindApp.model_performance,
                     ),
                     ModelEndpointMonitoringMetric(

@@ -109,7 +109,9 @@ class TestGoogleCloudStorage:
                 kwargs = {"credentials_path": self.credentials_path}
             else:
                 kwargs = {"gcp_credentials": self.credentials}
-            profile = DatastoreProfileGCS(name=self.profile_name, **kwargs)
+            profile = DatastoreProfileGCS(
+                name=self.profile_name, bucket=self.bucket_name, **kwargs
+            )
             register_temporary_client_datastore_profile(profile)
 
     @pytest.fixture(autouse=True)
@@ -121,7 +123,7 @@ class TestGoogleCloudStorage:
         os.environ.pop("GCP_CREDENTIALS", None)
         remove_temporary_client_datastore_profile(self.profile_name)
         self._bucket_path = (
-            f"ds://{self.profile_name}/{self.bucket_name}"
+            f"ds://{self.profile_name}"
             if use_datastore_profile
             else f"gcs://{self.bucket_name}"
         )
@@ -440,7 +442,7 @@ class TestGoogleCloudStorage:
                 {"gcp_credentials": fake_credentials} if credentials_value else {}
             )
             self.profile = DatastoreProfileGCS(
-                name=self.profile_name, **gcp_credentials_dict
+                name=self.profile_name, bucket=self.bucket_name, **gcp_credentials_dict
             )
             register_temporary_client_datastore_profile(self.profile)
         elif fake_credentials:

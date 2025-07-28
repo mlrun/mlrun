@@ -99,13 +99,6 @@ class TestAwsS3(TestMLRunSystem):
         )
         register_temporary_client_datastore_profile(profile)
 
-        profile = DatastoreProfileS3(
-            name="s3ds_profile_no_bucket",
-            access_key_id=self._access_key_id,
-            secret_key=self._secret_access_key,
-        )
-        register_temporary_client_datastore_profile(profile)
-
     def custom_teardown(self):
         s3_fs = fsspec.filesystem(
             "s3", key=self._access_key_id, secret=self._secret_access_key

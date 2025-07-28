@@ -52,15 +52,15 @@ class TestFeatureStoreAzureSparkEngine(SparkHadoopTestBase):
             client_id=self.env.get("AZURE_STORAGE_CLIENT_ID"),
             client_secret=self.env.get("AZURE_STORAGE_CLIENT_SECRET"),
             sas_token=self.env.get("AZURE_STORAGE_SAS_TOKEN"),
+            container=self.env["AZURE_CONTAINER"],
         )
 
         register_temporary_client_datastore_profile(ds_profile)
         self.project.register_datastore_profile(ds_profile)
 
-        bucket = self.env["AZURE_CONTAINER"]
-        self.ds_upload_src(ds_profile, bucket)
+        self.ds_upload_src(ds_profile)
 
         self.do_test(
-            self.ds_src_path(ds_profile, bucket),
-            self.ds_target_path(ds_profile, bucket),
+            self.ds_src_path(ds_profile),
+            self.ds_target_path(ds_profile),
         )

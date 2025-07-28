@@ -30,3 +30,29 @@ def test_set_configurations_skips_when_nil_or_none(
     db_util.set_configurations([empty_key])
 
     mocked_apply.assert_not_called()
+
+
+def test_set_configurations_skips_when_none(
+    db_util: framework.utils.db.utils.DBUtil,
+    monkeypatch,
+):
+    mocked_apply = unittest.mock.MagicMock()
+    monkeypatch.setattr(db_util, "_apply_configurations", mocked_apply)
+
+    db_util.set_configurations(None)
+    mocked_apply.assert_not_called()
+
+
+@pytest.mark.parametrize("item", ["STRICT_TRANS_TABLES", "NO_ZERO_IN_DATE"])
+def test_set_configurations_called_with_modes(
+    db_util: framework.utils.db.utils.DBUtil,
+    monkeypatch,
+    item: str,
+):
+    mocked_apply = unittest.mock.MagicMock()
+    connection_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(db_util, "_apply_configurations", mocked_apply)
+    monkeypatch.setattr(db_util, "_get_connection", connection_mock)
+
+    db_util.set_configurations([item])
+    mocked_apply.assert_called_with(unittest.mock.ANY, [item])

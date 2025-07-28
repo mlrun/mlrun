@@ -205,6 +205,11 @@ class ControllerEvent(MonitoringStrEnum):
     FIRST_REQUEST = "first_request"
     FEATURE_SET_URI = "feature_set_uri"
     ENDPOINT_TYPE = "endpoint_type"
+
+    # first_timestamp and last_timestamp are used to batch completed events
+    FIRST_TIMESTAMP = "first_timestamp"
+    LAST_TIMESTAMP = "last_timestamp"
+
     ENDPOINT_POLICY = "endpoint_policy"
     # Note: currently under endpoint policy we will have a dictionary including the keys: "application_names"
     # "base_period", and "updated_endpoint" stand for when the MEP was updated
@@ -219,6 +224,7 @@ class ControllerEventEndpointPolicy(MonitoringStrEnum):
 class ControllerEventKind(MonitoringStrEnum):
     NOP_EVENT = "nop_event"
     REGULAR_EVENT = "regular_event"
+    BATCH_COMPLETE = "batch_complete"
 
 
 class MetricData(MonitoringStrEnum):
@@ -319,6 +325,19 @@ class EndpointType(IntEnum):
     @classmethod
     def top_level_list(cls):
         return [cls.NODE_EP, cls.ROUTER, cls.BATCH_EP]
+
+    @classmethod
+    def real_time_list(cls):
+        return [cls.NODE_EP, cls.ROUTER, cls.LEAF_EP]
+
+    @classmethod
+    def batch_list(cls):
+        return [cls.BATCH_EP]
+
+
+class EndpointMode(StrEnum):
+    REAL_TIME = "real_time"
+    BATCH = "batch"
 
 
 class MonitoringFunctionNames(MonitoringStrEnum):

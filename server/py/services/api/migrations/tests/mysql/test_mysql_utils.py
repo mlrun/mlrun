@@ -11,24 +11,49 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import pytest
+
+import mlrun
 
 import framework.utils.db.utils
 
 
 @pytest.mark.integration
-def test_mysql_apply_strict_all_tables_live(
+def test_set_mysql_modes(
     db_util: framework.utils.db.utils.DBUtil,
 ):
-    original = list(db_util.get_current_configurations())
+    original = db_util.get_current_configurations()
     if "PIPES_AS_CONCAT" in original:
         raise AssertionError(
             "The test is not applicable, 'PIPES_AS_CONCAT' is already set."
         )
+    raw_configs = mlrun.mlconf.httpdb.db.mysql.modes.split(",") + [
+        "PIPES_AS_CONCAT",
+        "ONLY_FULL_GROUP_BY",  # This is a default setting.
+    ]
+    try:
+        db_util.set_configurations(raw_configs)
+        updated = set(db_util.get_current_configurations())
+        original["PIPES_AS_CONCAT"] = True
+        assert set(original) == set(updated)
+    finally:
+        db_util.set_configurations(original)
 
-    db_util.set_configurations(["PIPES_AS_CONCAT"])
-    assert db_util.get_current_configurations()
+    restored = db_util.get_current_configurations()
+    assert restored == original
 
-    db_util.set_configurations(original)
-    assert list(db_util.get_current_configurations()) == original
+
+@pytest.mark.integration
+@pytest.mark.parametrize("noop_key", ["nil", "none"])
+def test_set_configurations_noop_values_are_ignored(
+    db_util: framework.utils.db.utils.DBUtil,
+    noop_key: str,
+):
+    original = list(db_util.get_current_configurations())
+
+    db_util.set_configurations([noop_key])
+    after = list(db_util.get_current_configurations())
+
+    assert (
+        after == original
+    ), f"Configuration changed after setting noop value '{noop_key}'"

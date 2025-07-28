@@ -104,7 +104,7 @@ class MonitoringPreProcessor(storey.MapClass):
     @staticmethod
     def transpose_by_key(
         data: dict, schema: Optional[Union[str, list[str]]] = None
-    ) -> Union[list[float], list[list[float]]]:
+    ) -> Union[list[Any], list[list[Any]]]:
         """
         Transpose values from a dictionary by keys.
 
@@ -162,9 +162,9 @@ class MonitoringPreProcessor(storey.MapClass):
             )
 
         if all_scalars:
-            transposed = np.array([values])
+            transposed = np.array([values], dtype=object)
         elif all_lists and len(keys) > 1:
-            arrays = [np.array(v) for v in values]
+            arrays = [np.array(v, dtype=object) for v in values]
             mat = np.stack(arrays, axis=0)
             transposed = mat.T
         else:
@@ -196,6 +196,12 @@ class MonitoringPreProcessor(storey.MapClass):
                     request, resp = self.reconstruct_request_resp_fields(
                         event, model, monitoring_data[model]
                     )
+                    if hasattr(event, "_original_timestamp"):
+                        when = event._original_timestamp
+                    else:
+                        when = event._metadata.get(model, {}).get(
+                            mm_schemas.StreamProcessingEvent.WHEN
+                        )
                     monitoring_event_list.append(
                         {
                             mm_schemas.StreamProcessingEvent.MODEL: model,
@@ -205,9 +211,7 @@ class MonitoringPreProcessor(storey.MapClass):
                             mm_schemas.StreamProcessingEvent.MICROSEC: event._metadata.get(
                                 model, {}
                             ).get(mm_schemas.StreamProcessingEvent.MICROSEC),
-                            mm_schemas.StreamProcessingEvent.WHEN: event._metadata.get(
-                                model, {}
-                            ).get(mm_schemas.StreamProcessingEvent.WHEN),
+                            mm_schemas.StreamProcessingEvent.WHEN: when,
                             mm_schemas.StreamProcessingEvent.ENDPOINT_ID: monitoring_data[
                                 model
                             ].get(
@@ -240,6 +244,10 @@ class MonitoringPreProcessor(storey.MapClass):
             request, resp = self.reconstruct_request_resp_fields(
                 event, model, monitoring_data[model]
             )
+            if hasattr(event, "_original_timestamp"):
+                when = event._original_timestamp
+            else:
+                when = event._metadata.get(mm_schemas.StreamProcessingEvent.WHEN)
             monitoring_event_list.append(
                 {
                     mm_schemas.StreamProcessingEvent.MODEL: model,
@@ -249,9 +257,7 @@ class MonitoringPreProcessor(storey.MapClass):
                     mm_schemas.StreamProcessingEvent.MICROSEC: event._metadata.get(
                         mm_schemas.StreamProcessingEvent.MICROSEC
                     ),
-                    mm_schemas.StreamProcessingEvent.WHEN: event._metadata.get(
-                        mm_schemas.StreamProcessingEvent.WHEN
-                    ),
+                    mm_schemas.StreamProcessingEvent.WHEN: when,
                     mm_schemas.StreamProcessingEvent.ENDPOINT_ID: monitoring_data[
                         model
                     ].get(mlrun.common.schemas.MonitoringData.MODEL_ENDPOINT_UID),

@@ -800,7 +800,12 @@ def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
         "store://key:tag" => "store://key"
         "store://models/remote-model-project/my_model#0@tree" => unchanged (no tag)
     """
-    return re.sub(r"(?<=/[^/:]\+):[^@^:\s]+(?=(@|\^|$))", "", uri)
+    add_store = False
+    if mlrun.datastore.is_store_uri(uri):
+        uri = uri.removeprefix(DB_SCHEMA + "://")
+        add_store = True
+    uri = re.sub(r"(#[^:@\s]*)?:[^@^:\s]+(?=(@|\^|$))", lambda m: m.group(1) or "", uri)
+    return uri if not add_store else DB_SCHEMA + "://" + uri
 
 
 def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:

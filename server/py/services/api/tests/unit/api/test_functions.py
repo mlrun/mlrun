@@ -47,10 +47,16 @@ import services.api.utils.builder
 import services.api.utils.functions
 from services.api.daemon import daemon
 
+pytest_plugins = [
+    "tests.common_fixtures",
+]
+
 PROJECT = "project-name"
 ORIGINAL_VERSIONED_API_PREFIX = daemon.service.base_versioned_service_prefix
 FUNCTIONS_API = "projects/{project}/functions/{name}"
 BUILD_STATUS_API = "build/status"
+
+pytestmark = pytest.mark.usefixtures("api_config_test")
 
 
 def test_build_status_pod_not_found(
@@ -527,7 +533,10 @@ def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_mo
 
 
 def test_redirection_from_worker_to_chief_deploy_serving_function_with_track_models(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    httpserver,
+    api_config_test,
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     endpoint = "/build/function"
@@ -574,6 +583,7 @@ def test_tracking_on_serving(
     client: fastapi.testclient.TestClient,
     monkeypatch: pytest.MonkeyPatch,
     mocked_k8s_helper,
+    api_config_test,
 ) -> None:
     """
     Validate that `.set_tracking()` configurations are applied to
@@ -706,6 +716,7 @@ def test_build_function_with_project_repo(
     client: fastapi.testclient.TestClient,
     source,
     load_source_on_run,
+    api_config_test,
 ):
     git_repo = "git://github.com/mlrun/test.git"
     services.api.tests.unit.api.utils.create_project(

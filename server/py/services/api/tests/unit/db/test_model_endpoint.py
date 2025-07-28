@@ -25,6 +25,8 @@ from framework.db.sqldb.db import unversioned_tagged_object_uid_prefix
 from framework.db.sqldb.models import ModelEndpoint
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
+pytestmark = pytest.mark.usefixtures("api_config_test")
+
 
 class TestModelEndpoint(TestDatabaseBase):
     @staticmethod

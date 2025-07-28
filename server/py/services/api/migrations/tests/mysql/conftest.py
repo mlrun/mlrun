@@ -22,8 +22,6 @@ import mlrun
 import framework.utils.db.utils
 import framework.utils.singletons.db
 
-# services/api/migrations/tests/mysql/conftest.py
-
 
 @pytest.fixture(scope="session")
 def alembic_engine(

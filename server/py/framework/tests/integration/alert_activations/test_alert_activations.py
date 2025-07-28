@@ -30,6 +30,10 @@ import mlrun.common.schemas.partition_interval
 import server.py.framework.db.sqldb.models
 import tests.common_fixtures
 
+pytest_plugins = [
+    "tests.root_fixtures_plugin",
+]
+
 
 @pytest.mark.integration
 @pytest.mark.parametrize(

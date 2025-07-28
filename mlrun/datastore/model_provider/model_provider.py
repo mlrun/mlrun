@@ -57,8 +57,6 @@ class ModelProvider(BaseRemoteClient):
         self.default_invoke_kwargs = default_invoke_kwargs or {}
         self._client = None
         self._async_client = None
-        self._expected_operation_type = None
-        self._expected_async_operation_type = None
 
     def get_client_options(self) -> dict:
         """

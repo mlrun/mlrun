@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 from collections.abc import Awaitable
 from typing import Callable, Optional, TypeVar, Union
 
@@ -123,6 +124,10 @@ class OpenAIProvider(ModelProvider):
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         if operation:
+            if not callable(operation):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "OpenAI custom_invoke operation must be a callable"
+                )
             return operation(
                 **invoke_kwargs, model=invoke_kwargs.get("model") or self.model
             )
@@ -159,6 +164,10 @@ class OpenAIProvider(ModelProvider):
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         if operation:
+            if not inspect.iscoroutinefunction(operation):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "OpenAI async_custom_invoke operation must be a coroutine function"
+                )
             return await operation(
                 **invoke_kwargs, model=invoke_kwargs.get("model") or self.model
             )

@@ -60,6 +60,8 @@ class HuggingFaceProvider(ModelProvider):
         )
         self.options = self.get_client_options()
         self.load_client()
+        self._expected_operation_type = None
+        self._expected_async_operation_type = None
 
     @staticmethod
     def _extract_string_output(result) -> str:

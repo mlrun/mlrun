@@ -1769,6 +1769,8 @@ class BaseRuntimeHandler(ABC):
             elif run_state == RunStates.error:
                 # Try resolving the error reason
                 reason, message = self._resolve_container_error_status(runtime_resource)
+
+                # Check if the run should be retried, and update its status accordingly
                 run_state, message = self._evaluate_run_retry_state(
                     run, reason, message
                 )

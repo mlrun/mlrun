@@ -871,6 +871,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     async def test_retry_pod_deleted_before_first_attempt(
         self, db: Session, client: TestClient
     ):
+        # Test that a run still retries if the pod is deleted before the first retry attempt starts.
         list_namespaced_pods_calls = [
             [self.pending_job_pod],
             [self.running_job_pod],
@@ -884,7 +885,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_read_namespaced_pod_log()
 
-        # Simulate that no runtime resources are found, forcing retry logic
+        # Simulate that no runtime resources are found
         self.runtime_handler._get_runtime_resources = unittest.mock.Mock(
             return_value=[]
         )
@@ -892,6 +893,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             expected_number_of_list_pods_calls - 1
         )
 
+        # Store the run with retry spec
         self._store_run(
             db,
             retry_spec={"count": 3},

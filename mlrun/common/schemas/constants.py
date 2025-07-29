@@ -127,7 +127,7 @@ class AuthorizationHeaderPrefixes:
 
 class CookieNames:
     oauth2_proxy = "_oauth2_proxy"
-    iguazio = "session=j:"
+    iguazio = "session"
 
 
 class FeatureStorePartitionByField(mlrun.common.types.StrEnum):

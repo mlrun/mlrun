@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import asyncio
 import os
 import time
 import unittest.mock
@@ -115,14 +114,19 @@ class TestBasicOpenAIProvider:
 
 class TestOpenAIProvider(TestBasicOpenAIProvider):
     @classmethod
-    def check_basic_invoke(cls, model_url: str, secrets: dict, model_name: str):
+    async def check_basic_invoke(
+        cls, model_url: str, secrets: dict, model_name: str, run_async=False
+    ):
         messages = [formatted_messages[0]]
         model_provider = mlrun.get_model_provider(
             url=model_url, secrets=secrets, default_invoke_kwargs={"max_tokens": 100}
         )
         model_provider = cast(OpenAIProvider, model_provider)
         assert model_provider.model == model_name
-        result = model_provider.invoke(messages=messages, as_str=True)
+        if run_async:
+            result = await model_provider.async_invoke(messages=messages, as_str=True)
+        else:
+            result = model_provider.invoke(messages=messages, as_str=True)
         assert isinstance(result, str)
         assert EXPECTED_RESULTS[0] in result.lower()
 
@@ -130,16 +134,23 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         token_count = len(encoding.encode(result))
         assert token_count == 100
         # checking as_str = False
-        response = model_provider.invoke(
-            messages=messages,
-            max_tokens=50,
-        )
-        token_count = len(encoding.encode(response.choices[0].message.content))
+        if run_async:
+            response = await model_provider.async_invoke(
+                messages=messages,
+                max_tokens=50,
+            )
+        else:
+            response = model_provider.invoke(
+                messages=messages,
+                max_tokens=50,
+            )
         assert isinstance(response, openai.types.chat.ChatCompletion)
+        token_count = response.usage.completion_tokens
         assert token_count == 50
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
-    def test_basic_invoke(self, cred_mode):
+    @pytest.mark.parametrize("run_async", [True, False])
+    async def test_basic_invoke(self, cred_mode, run_async):
         secrets = {}
         if cred_mode == "profile":
             self.setup_datastore_profile()
@@ -148,11 +159,14 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             secrets = self.env_secrets
 
         model_url = self.url_prefix + self.basic_llm_model
-        self.check_basic_invoke(
-            model_url=model_url, secrets=secrets, model_name=self.basic_llm_model
+        await self.check_basic_invoke(
+            model_url=model_url,
+            secrets=secrets,
+            model_name=self.basic_llm_model,
+            run_async=run_async,
         )
 
-    def test_configurable_model(self):
+    async def test_configurable_model(self):
         configurable_model = mlrun.mlconf.model_providers.openai_default_model
         if not configurable_model:
             pytest.skip(
@@ -162,12 +176,12 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         #  checking default model usage:
         model_url = self.url_prefix
         #  env check
-        self.check_basic_invoke(
+        await self.check_basic_invoke(
             model_url=model_url, secrets={}, model_name=configurable_model
         )
         # secrets check
         self.reset_env()
-        self.check_basic_invoke(
+        await self.check_basic_invoke(
             model_url=model_url, secrets=self.env_secrets, model_name=configurable_model
         )
 
@@ -187,30 +201,6 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         result = result.strip()
         assert result
         assert " " not in result.strip()  # checking one-word answer
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("use_datastore_profile", [True, False])
-    async def test_async_invoke(self, use_datastore_profile):
-        if use_datastore_profile:
-            self.setup_datastore_profile()
-        model_url = self.url_prefix + self.basic_llm_model
-        model_provider = mlrun.get_model_provider(
-            url=model_url, default_invoke_kwargs={"max_tokens": 100}
-        )
-        model_provider = cast(OpenAIProvider, model_provider)
-        assert model_provider.model == self.basic_llm_model
-        coroutine1 = model_provider.async_invoke(
-            messages=[formatted_messages[0]], as_str=True
-        )
-        coroutine2 = model_provider.async_invoke(messages=[formatted_messages[1]])
-        result1, result2 = await asyncio.gather(coroutine1, coroutine2)
-        result2 = result2.choices[0].message.content
-        assert EXPECTED_RESULTS[0] in result1.lower()
-        assert EXPECTED_RESULTS[1] in result2.lower()
-
-        encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-        assert len(encoding.encode(result1)) == 100
-        assert len(encoding.encode(result2)) == 100
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("run_async", [True, False])

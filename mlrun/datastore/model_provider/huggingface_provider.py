@@ -12,16 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import TYPE_CHECKING, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import ModelProvider
 
 if TYPE_CHECKING:
     from transformers.pipelines.base import Pipeline
-
-T = TypeVar("T")
-ChatType = list[dict[str, str]]  # according to transformers.pipelines.text_generation
+    from transformers.pipelines.text_generation import ChatType
 
 
 class HuggingFaceProvider(ModelProvider):
@@ -117,7 +115,7 @@ class HuggingFaceProvider(ModelProvider):
 
     def custom_invoke(
         self, operation: Optional["Pipeline"] = None, **invoke_kwargs
-    ) -> Optional[T]:
+    ) -> Union[list, dict, Any]:
         """
         HuggingFace implementation of `ModelProvider.custom_invoke`.
         Use the default config in provider client/ user defined client:
@@ -150,22 +148,23 @@ class HuggingFaceProvider(ModelProvider):
 
     def invoke(
         self,
-        messages: Union[str, list[str], ChatType, list[ChatType]] = None,
+        messages: Union[str, list[str], "ChatType", list["ChatType"]] = None,
         as_str: bool = False,
         **invoke_kwargs,
-    ) -> Optional[Union[str, list, T]]:
+    ) -> Union[str, list]:
         """
         HuggingFace-specific implementation of `ModelProvider.invoke`.
         Invokes a HuggingFace model operation using the synchronous client.
         For complete usage details, refer to `ModelProvider.invoke`.
+
         :param messages:
                             Same as ModelProvider.invoke.
 
         :param as_str:
-                            If `True`, returns only the main content from a single response
-                            (intended for single-response use cases).
-                            If `False`, returns the full response object, whose type depends on
-                            the client (e.g., `pipeline`).
+                            If `True`, return only the main content (e.g., generated text) from a
+                            **single-response output** — intended for use cases where you expect exactly one result.
+
+                            If `False`, return the **full raw response object**, which is a list of dictionaries.
 
         :param invoke_kwargs:
                             Same as ModelProvider.invoke.

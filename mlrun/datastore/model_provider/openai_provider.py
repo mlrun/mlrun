@@ -13,13 +13,15 @@
 # limitations under the License.
 import inspect
 from collections.abc import Awaitable
-from typing import Callable, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.datastore.utils import accepts_param
 
-T = TypeVar("T")
+if TYPE_CHECKING:
+    from openai._models import BaseModel  # noqa
+    from openai.types.chat.chat_completion import ChatCompletion
 
 
 class OpenAIProvider(ModelProvider):
@@ -101,8 +103,8 @@ class OpenAIProvider(ModelProvider):
         return self._sanitize_options(res)
 
     def custom_invoke(
-        self, operation: Optional[Callable[..., T]] = None, **invoke_kwargs
-    ) -> Optional[T]:
+        self, operation: Optional[Callable] = None, **invoke_kwargs
+    ) -> Union["ChatCompletion", "BaseModel"]:
         """
         OpenAI-specific implementation of `ModelProvider.custom_invoke`.
 
@@ -139,9 +141,9 @@ class OpenAIProvider(ModelProvider):
 
     async def async_custom_invoke(
         self,
-        operation: Optional[Callable[..., Awaitable[T]]] = None,
+        operation: Optional[Callable[..., Awaitable[Any]]] = None,
         **invoke_kwargs,
-    ) -> Optional[T]:
+    ) -> Union["ChatCompletion", "BaseModel"]:
         """
         OpenAI-specific implementation of `ModelProvider.async_custom_invoke`.
 
@@ -183,7 +185,7 @@ class OpenAIProvider(ModelProvider):
         messages: Optional[list[dict]] = None,
         as_str: bool = False,
         **invoke_kwargs,
-    ) -> Optional[Union[str, T]]:
+    ) -> Union[str, "ChatCompletion"]:
         """
         OpenAI-specific implementation of `ModelProvider.invoke`.
         Invokes an OpenAI model operation using the sync client.
@@ -212,7 +214,7 @@ class OpenAIProvider(ModelProvider):
         messages: Optional[list[dict]] = None,
         as_str: bool = False,
         **invoke_kwargs,
-    ) -> str:
+    ) -> Union[str, "ChatCompletion"]:
         """
         OpenAI-specific implementation of `ModelProvider.async_invoke`.
         Invokes an OpenAI model operation using the async client.

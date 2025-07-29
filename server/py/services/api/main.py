@@ -963,8 +963,7 @@ class Service(framework.service.Service):
         self._logger.debug("Retrying jobs with retry policy configured")
         db_session = await fastapi.concurrency.run_in_threadpool(create_session)
         fetch_runs_limit = int(mlconf.monitoring.runs.retry.fetch_runs_limit)
-        staleness_threshold = int(mlconf.monitoring.runs.retry.staleness_threshold)
-        stale_after = datetime.timedelta(minutes=staleness_threshold)
+        stale_after = mlconf.get_run_retry_staleness_threshold_timedelta()
         now = datetime.datetime.now(datetime.timezone.utc)
         try:
             offset = 0
@@ -1003,7 +1002,7 @@ class Service(framework.service.Service):
                                     uid=run.metadata.uid,
                                     run_updates={
                                         "status.status_text": "Retry aborted: run was pending retry for more than "
-                                        f"{staleness_threshold} minutes",
+                                        f"{mlrun.mlconf.monitoring.runs.retry.staleness_threshold} minutes",
                                     },
                                     run=run_dict,
                                 )

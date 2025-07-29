@@ -11,11 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 from collections.abc import Awaitable
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.datastore.utils import accepts_param
 
 if TYPE_CHECKING:
     from openai._models import BaseModel  # noqa
@@ -124,14 +126,18 @@ class OpenAIProvider(ModelProvider):
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
+        model_kwargs = {"model": invoke_kwargs.pop("model", None) or self.model}
+
         if operation:
-            return operation(
-                **invoke_kwargs, model=invoke_kwargs.get("model") or self.model
-            )
+            if not callable(operation):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "OpenAI custom_invoke operation must be a callable"
+                )
+            if not accepts_param(operation, "model"):
+                model_kwargs = {}
+            return operation(**invoke_kwargs, **model_kwargs)
         else:
-            return self.client.chat.completions.create(
-                **invoke_kwargs, model=self.model
-            )
+            return self.client.chat.completions.create(**invoke_kwargs, **model_kwargs)
 
     async def async_custom_invoke(
         self,
@@ -160,13 +166,18 @@ class OpenAIProvider(ModelProvider):
 
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
+        model_kwargs = {"model": invoke_kwargs.pop("model", None) or self.model}
         if operation:
-            return await operation(
-                **invoke_kwargs, model=invoke_kwargs.get("model") or self.model
-            )
+            if not inspect.iscoroutinefunction(operation):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "OpenAI async_custom_invoke operation must be a coroutine function"
+                )
+            if not accepts_param(operation, "model"):
+                model_kwargs = {}
+            return await operation(**invoke_kwargs, **model_kwargs)
         else:
             return await self.async_client.chat.completions.create(
-                **invoke_kwargs, model=self.model
+                **invoke_kwargs, **model_kwargs
             )
 
     def invoke(

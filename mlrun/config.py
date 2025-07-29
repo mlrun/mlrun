@@ -407,11 +407,7 @@ default_config = {
                 #
                 # if set to "nil" or "none", nothing would be set
                 "modes": (
-                    "STRICT_TRANS_TABLES"
-                    ",NO_ZERO_IN_DATE"
-                    ",NO_ZERO_DATE"
-                    ",ERROR_FOR_DIVISION_BY_ZERO"
-                    ",NO_ENGINE_SUBSTITUTION",
+                    "STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"
                 )
             },
         },
@@ -1242,6 +1238,19 @@ class Config:
         :return: True if we should redirect to HTTPS, False otherwise.
         """
         return self.is_running_on_iguazio()
+
+    @staticmethod
+    def get_run_retry_staleness_threshold_timedelta() -> timedelta:
+        """
+        Get the staleness threshold in timedelta for run retries.
+        This is used to determine if a run is stale and should be retried.
+
+        :return: The staleness threshold in timedelta.
+        """
+        staleness_threshold = int(
+            mlrun.mlconf.monitoring.runs.retry.staleness_threshold
+        )
+        return timedelta(minutes=staleness_threshold)
 
     def to_dict(self):
         return copy.deepcopy(self._cfg)

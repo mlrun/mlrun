@@ -242,6 +242,7 @@ async def list_model_endpoints(
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     top_level: bool = Query(False, alias="top-level"),
+    mode: mm_constants.EndpointMode = None,
     tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
     metric_list: Optional[list[str]] = Query(None, alias="metric"),
     uids: list[str] = Query(None, alias="uid"),
@@ -266,6 +267,8 @@ async def list_model_endpoints(
                             If tsdb_metrics=False, this parameter will be ignored and no tsdb metrics
                             will be included.
     :param top_level:       Whether to return only top level model endpoints.
+    :param mode:            Specifies the mode of the model endpoint. Can be "real-time", "batch", or both if set to
+                            None.
     :param uids:            A list of unique ids to filter by.
     :param latest_only:     Whether to return only the latest model endpoint for each name.
     :param auth_info:       The auth info of the request.
@@ -289,6 +292,7 @@ async def list_model_endpoints(
         start=start,
         end=end,
         top_level=top_level,
+        mode=mode,
         tsdb_metrics=tsdb_metrics,
         metric_list=metric_list,
         uids=uids,

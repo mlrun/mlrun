@@ -18,7 +18,7 @@ import mlrun
 from mlrun.datastore.model_provider.model_provider import ModelProvider
 
 if TYPE_CHECKING:
-    from transformers.pipelines import pipeline
+    from transformers.pipelines.base import Pipeline
 
 ChatType = list[dict[str, str]]  # according to transformers.pipelines.text_generation
 
@@ -58,6 +58,7 @@ class HuggingFaceProvider(ModelProvider):
             default_invoke_kwargs=default_invoke_kwargs,
         )
         self.options = self.get_client_options()
+        self._expected_operation_type = None
         self.load_client()
 
     @staticmethod
@@ -95,10 +96,12 @@ class HuggingFaceProvider(ModelProvider):
         try:
             from transformers import pipeline, AutoModelForCausalLM  # noqa
             from transformers import AutoTokenizer  # noqa
+            from transformers.pipelines.base import Pipeline  # noqa
 
             self._client = pipeline(model=self.model, **self.options)
+            self._expected_operation_type = Pipeline
         except ImportError as exc:
-            raise ImportError("openai package is not installed") from exc
+            raise ImportError("transformers package is not installed") from exc
 
     def get_client_options(self):
         res = dict(
@@ -112,7 +115,7 @@ class HuggingFaceProvider(ModelProvider):
         return self._sanitize_options(res)
 
     def custom_invoke(
-        self, operation: Optional["pipeline"] = None, **invoke_kwargs
+        self, operation: Optional["Pipeline"] = None, **invoke_kwargs
     ) -> Union[list, Any]:
         """
         HuggingFace implementation of `ModelProvider.custom_invoke`.
@@ -136,6 +139,10 @@ class HuggingFaceProvider(ModelProvider):
         """
         invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
         if operation:
+            if not isinstance(operation, self._expected_operation_type):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Huggingface operation must inherit" " from 'Pipeline' object"
+                )
             return operation(**invoke_kwargs)
         else:
             return self.client(**invoke_kwargs)

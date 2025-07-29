@@ -31,7 +31,7 @@ from mlrun.common.model_monitoring.helpers import (
     pad_features_hist,
     pad_hist,
 )
-from mlrun.common.schemas import EndpointType, ModelEndpoint
+from mlrun.common.schemas import EndpointMode, EndpointType, ModelEndpoint
 from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.datastore import KafkaOutputStream, OutputStream
 from mlrun.datastore.datastore_profile import (
@@ -381,12 +381,21 @@ class TestBatchWindowGenerator:
     def test_last_updated_is_in_the_past() -> None:
         last_request = datetime.datetime(2023, 11, 16, 12, 0, 0)
         last_updated = _BatchWindowGenerator._get_last_updated_time(
-            last_request=last_request, not_batch_endpoint=True
+            last_request=last_request, endpoint_mode=EndpointMode.REAL_TIME
         )
         assert last_updated
         assert (
             last_updated < last_request.timestamp()
         ), "The last updated time should be before the last request"
+
+        last_updated = _BatchWindowGenerator._get_last_updated_time(
+            last_request=last_request, endpoint_mode=EndpointMode.BATCH
+        )
+
+        assert last_updated
+        assert (
+            last_updated == last_request.timestamp()
+        ), "The last updated time should similar to the last request time for batch endpoints"
 
 
 class TestBumpModelEndpointLastRequest:

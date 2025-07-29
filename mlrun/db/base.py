@@ -741,6 +741,7 @@ class RunDBInterface(ABC):
         tsdb_metrics: bool = False,
         metric_list: Optional[list[str]] = None,
         top_level: bool = False,
+        mode: Optional[mlrun.common.schemas.EndpointMode] = None,
         uids: Optional[list[str]] = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:

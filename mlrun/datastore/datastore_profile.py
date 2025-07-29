@@ -497,20 +497,15 @@ class HuggingFaceProfile(DatastoreProfile):
     model_kwargs: typing.Optional[dict[str, typing.Any]] = None
 
     def secrets(self) -> dict:
-        res = {}
-        if self.task:
-            res["HF_TASK"] = self.task
-        if self.token:
-            res["HF_TOKEN"] = self.token
-        if self.device:
-            res["HF_DEVICE"] = self.device
-        if self.device_map:
-            res["HF_DEVICE_MAP"] = self.device_map
-        if self.trust_remote_code:
-            res["HF_TRUST_REMOTE_CODE"] = self.trust_remote_code
-        if self.model_kwargs:
-            res["HF_MODEL_KWARGS"] = self.model_kwargs
-        return res
+        keys = {
+            "HF_TASK": self.task,
+            "HF_TOKEN": self.token,
+            "HF_DEVICE": self.device,
+            "HF_DEVICE_MAP": self.device_map,
+            "HF_TRUST_REMOTE_CODE": self.trust_remote_code,
+            "HF_MODEL_KWARGS": self.model_kwargs,
+        }
+        return {k: v for k, v in keys.items() if v}
 
     def url(self, subpath):
         return f"{self.type}://{subpath.lstrip('/')}"

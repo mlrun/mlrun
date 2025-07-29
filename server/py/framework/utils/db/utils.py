@@ -14,15 +14,13 @@
 
 import importlib
 import os
-import re
 from typing import Any, Optional, Union
-from urllib.parse import parse_qs, quote, unquote, urlparse, urlsplit
-
-import sqlalchemy
 
 import mlrun.common.db.dialects
 import mlrun.errors
 import mlrun.utils
+
+import framework.utils.db.dsn
 
 _DEFAULT_DRIVER_FOR_DIALECT: dict[str, str] = {
     mlrun.common.db.dialects.Dialects.MYSQL: "pymysql",
@@ -30,132 +28,6 @@ _DEFAULT_DRIVER_FOR_DIALECT: dict[str, str] = {
     mlrun.common.db.dialects.Dialects.SQLITE: "sqlite3",
 }
 _ALLOWED_DRIVERS: set[str] = set(_DEFAULT_DRIVER_FOR_DIALECT.values())
-
-
-class ParsedDsn:
-    _IDENTIFIER_REGEX = re.compile(r"[A-Za-z][A-Za-z0-9_]*")  # driver
-    _HOST_REGEX = re.compile(r"[A-Za-z0-9.\-]+")  # host
-    _PATH_REGEX = re.compile(r"[A-Za-z0-9_\-./]+")  # sqlite path
-    _DBNAME_REGEX = re.compile(r"[A-Za-z0-9_\-$]+")  # db-name
-    _SAFE_CHARS = "~"
-
-    def __init__(self, dsn: str) -> None:
-        self._dsn = dsn
-        self._parsed = urlparse(dsn)
-        self.dialect, self.driver = self._split_scheme(
-            scheme=self._parsed.scheme,
-        )
-
-        # Connection components
-        if self.dialect == mlrun.common.db.dialects.Dialects.SQLITE:
-            self.username = None
-            self.password = None
-            self.host = None
-            self.port = None
-            # SQLite DSNs ignore database path
-            self.database = None
-        else:
-            self.username = self._parsed.username
-            self.password = self._parsed.password
-            self.host = self._parsed.hostname
-            try:
-                self.port = self._parsed.port
-            except ValueError:
-                self.port = 0
-            self.database = self._parsed.path.lstrip("/") or None
-
-        # Query configurations
-        if self._parsed.query:
-            raw_qs = parse_qs(self._parsed.query)
-            self.configurations: dict[str, Union[str, list[str]]] = {
-                key: (value[0] if len(value) == 1 else value)
-                for key, value in raw_qs.items()
-            }
-        else:
-            self.configurations = {}
-
-    def _encode_credentials(self, dsn: str) -> str:
-        """
-        Percent‑encode the username / password part (everything left of the
-        last '@') so urlsplit() won’t treat reserved chars (#, ?, |, < …) as
-        delimiters.
-        """
-        if "://" not in dsn or "@" not in dsn:
-            return dsn
-        scheme, rest = dsn.split("://", 1)
-        creds, hostport = rest.rsplit("@", 1)
-        if ":" in creds:
-            user, pwd = creds.split(":", 1)
-            user_enc = quote(user, safe=self._SAFE_CHARS)
-            pwd_enc = quote(pwd, safe=self._SAFE_CHARS)
-            creds_enc = f"{user_enc}:{pwd_enc}"
-        else:
-            creds_enc = quote(creds, safe=self._SAFE_CHARS)
-        return f"{scheme}://{creds_enc}@{hostport}"
-
-    def is_valid(self) -> bool:
-        """
-        DSN validator
-
-        1. Dialect must be known.
-        2. Driver (if present) must be a valid identifier.
-        3. SQLite DSNs: validate the optional path and return early.
-        4. Other DBs: validate database name, user/host/port.
-        """
-        if self.dialect not in mlrun.common.db.dialects.Dialects.all():
-            return False
-
-        if self.driver and not self._IDENTIFIER_REGEX.fullmatch(self.driver):
-            return False
-
-        if self.dialect == mlrun.common.db.dialects.Dialects.SQLITE:
-            raw_path = self._parsed.path.lstrip("/")
-            return (
-                not raw_path
-                or raw_path == ":memory:"
-                or self._PATH_REGEX.fullmatch(raw_path)
-            )
-
-        if self.database is None or not self._DBNAME_REGEX.fullmatch(self.database):
-            return False
-        if not self.username:
-            return False
-        if not self.host or not self._HOST_REGEX.fullmatch(self.host):
-            return False
-        if self.port is not None and not 1 <= self.port <= 65535:
-            return False
-
-        return True
-
-    def as_dict(self) -> dict[str, Any]:
-        return {
-            "dialect": self.dialect,
-            "driver": self.driver,
-            "username": self.username,
-            "password": self.password,
-            "host": self.host,
-            "port": self.port,
-            "database": self.database,
-            "configurations": self.configurations,
-        }
-
-    def as_sqlalchemy_dsn(self):
-        return sqlalchemy.URL(
-            drivername=f"{self.dialect}+{self.driver}",
-            username=self.username,
-            password=self.password,
-            host=self.host,
-            port=self.port,
-            database=self.database,
-        )
-
-    def __str__(self) -> str:
-        return self.as_sqlalchemy_dsn().render_as_string()
-
-    @staticmethod
-    def _split_scheme(scheme: str) -> tuple[str, Optional[str]]:
-        parts = scheme.split("+", 1)
-        return parts[0], parts[1] if len(parts) == 2 else None
 
 
 class DBUtil:
@@ -212,21 +84,12 @@ class DBUtil:
         raise NotImplementedError()
 
     @classmethod
-    def get_parsed_dsn(cls) -> ParsedDsn:
+    def get_parsed_dsn(cls) -> framework.utils.db.dsn.Dsn:
         raw_dsn = cls.get_dsn()
         if not raw_dsn:
             raise ValueError("No DSN provided.")
 
-        clean = cls._encode_credentials(raw_dsn)
-        parsed = urlsplit(clean)
-
-        return ParsedDsn(
-            username=unquote(parsed.username) if parsed.username else None,
-            password=unquote(parsed.password) if parsed.password else None,
-            host=parsed.hostname,
-            port=parsed.port,
-            database=parsed.path.lstrip("/") or None,
-        )
+        return framework.utils.db.dsn.Dsn(raw_dsn)
 
     def _get_connection(self):
         return self._get_driver().connect(**self._connection_kwargs())
@@ -262,12 +125,6 @@ class DBUtil:
                 ) from exc
 
         return self._DRIVER_CACHE[driver_name]
-
-    @classmethod
-    def _split_scheme(cls, dsn: str) -> tuple[str, Optional[str]]:
-        scheme = urlparse(dsn).scheme
-        parts = scheme.split("+", 1)
-        return parts[0], parts[1] if len(parts) == 2 else None
 
     def __new__(cls, *_, **__) -> "DBUtil":
         if cls is DBUtil:

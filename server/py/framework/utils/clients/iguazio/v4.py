@@ -65,17 +65,11 @@ class Client(BaseClient):
                 "Request must include either an Authorization header or _oauth2_proxy cookie"
             )
 
-    # TODO: implement this method
-    def _handle_error_response(
-        self,
-        method: str,
-        path: str,
-        response: typing.Any,
-        response_body: dict,
-        error_message: str,
-        kwargs: dict,
-    ) -> None:
-        raise NotImplementedError()
+    def _extract_ctx(self, response_body: dict) -> typing.Optional[str]:
+        return response_body.get("status", {}).get("ctx")
+
+    def _extract_error_message(self, response_body: dict) -> typing.Optional[str]:
+        return response_body.get("status", {}).get("errorMessage")
 
     @staticmethod
     def _parse_auth_response_data(

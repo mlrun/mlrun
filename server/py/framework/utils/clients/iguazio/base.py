@@ -95,7 +95,6 @@ class BaseClient(ABC, metaclass=mlrun.utils.singleton.AbstractSingleton):
             )
         return response
 
-    @abstractmethod
     def _handle_error_response(
         self,
         method: str,
@@ -105,6 +104,30 @@ class BaseClient(ABC, metaclass=mlrun.utils.singleton.AbstractSingleton):
         error_message: str,
         kwargs: dict,
     ) -> None:
+        log_kwargs = copy.deepcopy(kwargs)
+
+        # this can be big and spammy
+        log_kwargs.pop("json", None)
+
+        log_kwargs.update({"method": method, "path": path})
+
+        ctx = self._extract_ctx(response_body)
+        extracted_error = self._extract_error_message(response_body)
+
+        if extracted_error:
+            error_message = f"{error_message}: {extracted_error}"
+        if extracted_error or ctx:
+            log_kwargs.update({"ctx": ctx, "error": extracted_error})
+
+        self._logger.warning("Request to Iguazio failed", **log_kwargs)
+        mlrun.errors.raise_for_status(response, error_message)
+
+    @abstractmethod
+    def _extract_ctx(self, response_body: dict) -> typing.Optional[str]:
+        pass
+
+    @abstractmethod
+    def _extract_error_message(self, response_body: dict) -> typing.Optional[str]:
         pass
 
 
